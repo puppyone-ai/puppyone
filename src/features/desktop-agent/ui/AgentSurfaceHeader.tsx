@@ -16,6 +16,8 @@ type AgentSurfaceHeaderProps = {
   newSessionDisabled: boolean;
   onNewSession: () => void;
   showNewSessionAction?: boolean;
+  showSessionActions?: boolean;
+  trailingActions?: ReactNode;
   agentSelector?: ReactNode;
   diagnostic?: string | null;
   closeDisabled?: boolean;
@@ -34,6 +36,8 @@ export function AgentSurfaceHeader({
   newSessionDisabled,
   onNewSession,
   showNewSessionAction = true,
+  showSessionActions = true,
+  trailingActions,
   agentSelector = null,
   diagnostic,
   closeDisabled = false,
@@ -74,16 +78,19 @@ export function AgentSurfaceHeader({
         {agentSelector && <div className="desktop-agent-session-agent-selector">{agentSelector}</div>}
       </div>
       <div className="desktop-agent-session-heading">
-        <Tooltip content={title} overflowOnly><strong>{title}</strong></Tooltip>
+        <strong>{title}</strong>
         <span><i className={`is-${statusCode}`} />{statusLabel}</span>
       </div>
       <div className="desktop-agent-session-header-actions" ref={menuRef}>
         {showNewSessionAction && <Tooltip content={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })}><button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.newSession", { agent: bidiIsolate(runtimeLabel) })} disabled={loading || newSessionDisabled} onClick={onNewSession}><Plus size={16} /></button></Tooltip>}
-        <Tooltip content={t("agent.header.sessionActions")}><button type="button" className="desktop-agent-icon-button" aria-label={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={16} /></button></Tooltip>
+        <SessionActionsTrigger visible={showSessionActions} label={t("agent.header.sessionActions")}
+          ariaLabel={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })}
+          open={menuOpen} onClick={() => setMenuOpen((value) => !value)} />
+        {trailingActions}
         {menuOpen && (
           <DesktopMenuSurface ariaLabel={t("agent.header.sessionActionsFor", { agent: bidiIsolate(runtimeLabel) })} className="desktop-menu-surface desktop-agent-session-menu">
-            <DesktopMenuItem icon={<CircleAlert size={15} />} label={t("agent.header.diagnostics")} detail={diagnostic || t("agent.header.noDiagnostics")} disabled />
-            {(canCompact || onCloseSession) && <DesktopMenuSeparator />}
+            <AgentDiagnosticsMenuItem diagnostic={diagnostic} />
+            {diagnostic && (canCompact || onCloseSession) && <DesktopMenuSeparator />}
             {canCompact && onCompactSession && <DesktopMenuItem icon={<RotateCcw size={15} />} label={t("agent.header.compactContext")} disabled={loading || newSessionDisabled} onClick={() => { setMenuOpen(false); onCompactSession(); }} />}
             {onCloseSession && <DesktopMenuItem icon={<RotateCcw size={15} />} label={t("agent.header.closeConnection")} disabled={loading || closeDisabled} onClick={() => { setMenuOpen(false); onCloseSession(); }} />}
           </DesktopMenuSurface>
@@ -91,4 +98,22 @@ export function AgentSurfaceHeader({
       </div>
     </header>
   );
+}
+
+function SessionActionsTrigger({ visible, label, ariaLabel, open, onClick }: {
+  visible: boolean; label: string; ariaLabel: string; open: boolean; onClick: () => void;
+}) {
+  if (!visible) return null;
+  return <Tooltip content={label}><button type="button" className="desktop-agent-icon-button"
+    aria-label={ariaLabel} aria-haspopup="menu" aria-expanded={open} onClick={onClick}>
+    <MoreHorizontal size={16} /></button></Tooltip>;
+}
+
+function AgentDiagnosticsMenuItem({ diagnostic }: { diagnostic?: string | null }) {
+  const { t } = useLocalization();
+  const [open, setOpen] = useState(false);
+  if (!diagnostic) return null;
+  return <DesktopMenuItem icon={<CircleAlert size={15} />} label={t("agent.header.diagnostics")}
+    aria-expanded={open} detail={open ? diagnostic : undefined}
+    onClick={() => setOpen((value) => !value)} />;
 }

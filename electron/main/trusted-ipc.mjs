@@ -13,6 +13,7 @@ export class TrustedIpcError extends Error {
 export function createTrustedIpcMain({
   ipcMain,
   applicationUrl,
+  isAllowed = () => true,
   logger = console,
 }) {
   if (!ipcMain || typeof ipcMain.handle !== "function" || typeof ipcMain.on !== "function") {
@@ -26,6 +27,7 @@ export function createTrustedIpcMain({
       requireChannelAndListener(channel, listener);
       ipcMain.handle(channel, async (event, ...args) => {
         assertTrustedIpcEvent(event, applicationUrl);
+        if (!isAllowed(event, channel, args[0])) throw new TrustedIpcError(`${channel} is not available in this window.`);
         return listener(event, ...args);
       });
     },
@@ -35,6 +37,7 @@ export function createTrustedIpcMain({
       ipcMain.on(channel, (event, ...args) => {
         try {
           assertTrustedIpcEvent(event, applicationUrl);
+          if (!isAllowed(event, channel, args[0])) throw new TrustedIpcError(`${channel} is not available in this window.`);
         } catch (error) {
           event?.preventDefault?.();
           logger.warn?.(`Blocked untrusted IPC event on ${channel}:`, error);

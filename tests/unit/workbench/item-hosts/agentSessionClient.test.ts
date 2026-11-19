@@ -18,7 +18,7 @@ function setup() {
     },
   };
   receivePort.mockResolvedValue(port);
-  const connect=vi.fn(async () => ({connection:"connection-a",hostGeneration:"host-a"}));
+  const connect=vi.fn(async () => ({ok: true as const, value: {connection:"connection-a",hostGeneration:"host-a"}}));
   let failureListener: (failure:SessionRuntimeFailure) => void = () => {};
   const base = {startAgentTurn:vi.fn(async () => ({sessionId:"agent-a",turnId:"turn-a"}))};
   const client=createAgentSessionClient(base as unknown as AgentClientPort,
@@ -54,7 +54,7 @@ describe("project controller transcript connection", () => {
     f.fail({kind:"agent",id:"agent-a",instanceId:"old-instance",message:"old failure"});
     expect(failed).not.toHaveBeenCalled();
     f.fail({kind:"agent",id:"agent-a",instanceId:"instance-a",message:"runtime stopped"});
-    expect(failed).toHaveBeenCalledWith("runtime stopped");
+    expect(failed).toHaveBeenCalledWith(expect.objectContaining({ message: "runtime stopped" }));
     release();
   });
 });

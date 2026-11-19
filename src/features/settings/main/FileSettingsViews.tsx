@@ -1,3 +1,4 @@
+import { useDesktopPreference } from "../../../preferencesStore";
 import { useEffect, useState } from "react";
 import { Check, RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
@@ -9,12 +10,16 @@ import {
 import { SettingsSectionHeader, SettingsSubsection } from "../components";
 
 export function FilesSettingsView({
-  settings,
-  onChange,
+  onFilesVisibilityChange,
 }: {
-  settings: FilesVisibilitySettings;
-  onChange: (settings: FilesVisibilitySettings) => void;
+  onFilesVisibilityChange: () => void;
 }) {
+  const settings = useDesktopPreference(s => s.filesVisibilitySettings);
+  const setSettings = useDesktopPreference(s => s.setFilesVisibilitySettings);
+  const onChange = (next: FilesVisibilitySettings) => {
+    setSettings(next);
+    onFilesVisibilityChange();
+  };
   const { t } = useLocalization();
   const savedPatternText = settings.excludePatterns.join("\n");
   const [patternDraft, setPatternDraft] = useState(savedPatternText);

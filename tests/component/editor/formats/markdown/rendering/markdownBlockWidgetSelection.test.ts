@@ -2,9 +2,9 @@
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { markdownCodeMirrorBaseExtensions, markdownLivePreviewCoreExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { markdownLivePreviewContextExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
-import { createMarkdownLinkGraph } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
+import { markdownCodeMirrorBaseExtensions, markdownLivePreviewCoreExtension } from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { markdownLivePreviewContextExtension } from "../../../../../../src/shared-ui/editor/markdown/core/editor/markdownLivePreviewContext";
+import { createMarkdownLinkGraph } from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownLinkGraph";
 
 const views: EditorView[] = [];
 afterEach(() => { views.splice(0).forEach((view) => view.destroy()); document.body.replaceChildren(); });

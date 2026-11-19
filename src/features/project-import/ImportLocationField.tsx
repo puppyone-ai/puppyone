@@ -1,8 +1,7 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { FolderOpen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { WorkspaceProjectLocationGrant } from "../../types/electron";
+import { FolderIcon } from "@puppyone/shared-ui";
 
 export function useImportLocation({
   onDefaultLocation,
@@ -15,13 +14,15 @@ export function useImportLocation({
   const [choosing, setChoosing] = useState(false);
   const [resolvingDefault, setResolvingDefault] = useState(Boolean(onDefaultLocation));
   const [error, setError] = useState<string | null>(null);
-  const requestedDefault = useRef(false);
+  // One grant per dialog, even when React re-runs the effect: a second run
+  // reuses the request instead of skipping it and never settling.
+  const defaultRequest = useRef<Promise<WorkspaceProjectLocationGrant | null> | null>(null);
 
   useEffect(() => {
-    if (!onDefaultLocation || requestedDefault.current) return;
-    requestedDefault.current = true;
+    if (!onDefaultLocation) return;
+    defaultRequest.current ??= onDefaultLocation();
     let cancelled = false;
-    void onDefaultLocation().then((grant) => {
+    void defaultRequest.current.then((grant) => {
       if (!cancelled && grant) setLocation((current) => current ?? grant);
     }).catch(() => {
       // Main asks for a destination if the default could not be granted.
@@ -72,14 +73,14 @@ export function ImportLocationField({
         aria-label={t("onboarding.entry.import.saveTo")}
         onClick={onChoose}
       >
-        <FolderOpen aria-hidden="true" />
-        <Tooltip content={location?.path} overflowOnly><bdi
+        <FolderIcon aria-hidden="true" />
+        <bdi
           className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
           dir="ltr"
           aria-live="polite"
         >
           {location?.path ?? t("onboarding.entry.import.saveToPicker")}
-        </bdi></Tooltip>
+        </bdi>
         <span className="onboarding-entry-location-action">
           {t(choosing
             ? "onboarding.entry.create.browsing"

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createUtilityHost } from "./utility-host.mjs";
 import { hostError } from "../../../shared/item-host-contract/rpc.mjs";
-import { parseModelRoute } from "../../../shared/model-connections/schema.mjs";
+import { createAgentHostAuthority } from "./agent-host-authority.mjs";
 import { createItemLifecycleSupervisor } from "./item-lifecycle-supervisor.mjs";
 
 const SESSION_METHODS = ["startTurn", "steerTurn", "interruptTurn", "resolveApproval", "resolveQuestion", "replay",
@@ -42,11 +42,80 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     if (errors.length) throw new AggregateError(errors, "Agent process cleanup is incomplete.");
     return matches.length;
   };
+  function launch(record, sender, request, root) {
+    const { lifecycle: managed } = record;
+    const key = randomUUID();
+    record.key = key;
+    const host = createHost({ utilityProcess, modulePath, budget,
+      identity: { key, ownerId: sender.id, projectId: request.projectContext?.projectId ?? root, kind: "agent" },
+      initialize: { ownerId: sender.id, root, appVersion, runtimeEnvironment, modelConnectionsEnabled: Boolean(modelConnections) },
+      handle: createAgentHostAuthority({ record, sender, root, modelConnections,
+        conversationCatalog, attachmentStore, records, shutdown }),
+      onEvent: (event) => { if (record.host === host) onHostEvent(record, event); },
+      onExit: (event) => {
+        if (record.host !== host) return;
+        lifecycle.observeExit(managed);
+        modelConnections?.releaseScope(record.key);
+        onHostEvent(record, { type: "host-exited", ...event });
+      },
+    });
+    record.host = host;
+    lifecycle.attach(managed, { host, release: () => release(record), seal: () => { record.closing = true; } });
+  }
+
+  async function openOwned(method, record, { sender, request, root, operation }) {
+    if (record.host.exited && !record.recovery) {
+      const previous = record.host;
+      // Confirm old process cleanup before replacement. The lifecycle record
+      // stays reserved, so closing the item always seals recovery as well.
+      record.recovery = (async () => {
+        await previous.close();
+        lifecycle.assertActive(record.lifecycle);
+        operation?.assertCurrent();
+        if (modelConnections) {
+          const saved = await conversationCatalog.findById(record.sessionId, root);
+          lifecycle.assertActive(record.lifecycle);
+          operation?.assertCurrent();
+          record.allowedModelRoute = saved?.selectedModel ?? record.allowedModelRoute;
+          record.expectedBindingRevision = saved?.modelBindingRevision ?? null;
+        }
+        launch(record, sender, request, root);
+        const snapshot = await record.host.call("resumeSession", [{ ...request, runtimeId: record.runtimeId }, root]);
+        lifecycle.assertActive(record.lifecycle);
+        operation?.assertCurrent();
+        if (snapshot && snapshot.session?.id !== record.sessionId) {
+          throw hostError("SESSION_STALE", "Recovery returned a different Agent conversation.");
+        }
+        if (snapshot) {
+          record.instanceId = snapshot.session.instanceId;
+          record.runtimeId = snapshot.session.runtimeId;
+          lifecycle.markLive(record.lifecycle);
+        }
+        return snapshot;
+      })().catch(async (error) => {
+        if (record.host !== previous) await record.host.close().catch(() => {});
+        throw error;
+      }).finally(() => { record.recovery = null; });
+    }
+    if (!record.recovery) return record.host.call(method, [request, root]);
+    const snapshot = await record.recovery;
+    if (method !== "openSession") return snapshot;
+    if (snapshot) return { status: "opened", snapshot };
+    return { status: "failed", error: { code: "SESSION_NOT_FOUND", message: "This saved Agent session is no longer available.", retryable: false } };
+  }
+
+  function requireAvailable(sender, request, root) {
+    const record = requireOwned(sender, request, root);
+    if (record.host.exited) throw hostError("HOST_EXITED", "The Agent execution host exited.");
+    if (record.recovery) throw hostError("SESSION_RECOVERING", "The Agent session is being restored.");
+    return record;
+  }
+
   async function create(method, sender, request, root, operation) {
     operation?.assertCurrent();
     if (method !== "createSession" && request.sessionId && bySession.has(request.sessionId)) {
       const record = requireOwned(sender, request, root);
-      const result = await record.host.call(method, [request, root]);
+      const result = await openOwned(method, record, { sender, request, root, operation });
       // Resume may replace a retired native runtime while keeping its conversation
       // ID. Publish the new instance fence before the renderer attaches its feed.
       if (record.closing || !records.has(record) || bySession.get(request.sessionId) !== record) {
@@ -56,7 +125,7 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
       catch (error) { await shutdown(record).catch(() => {}); throw error; }
       const snapshot = method === "openSession" ? result?.snapshot : result;
       if (!snapshot?.session) {
-        if (method === "resumeSession") await shutdown(record);
+        if (method === "resumeSession" || result?.error?.code === "SESSION_NOT_FOUND") await shutdown(record);
         return result;
       }
       if (snapshot.session.id !== record.sessionId) throw hostError("SESSION_STALE", "Recovery returned a different Agent conversation.");
@@ -93,55 +162,8 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     Object.assign(record, { runtimeId: persistedRoute?.runtimeId ?? request.runtimeId,
       expectedBindingRevision: method === "createSession" ? undefined : persistedRoute?.modelBindingRevision ?? null,
       allowedModelRoute: persistedRoute?.selectedModel ?? request.model });
-    try { record.host = createHost({ utilityProcess, modulePath, budget,
-      identity: { key, ownerId: sender.id, projectId: request.projectContext?.projectId ?? root, kind: "agent" },
-      initialize: { ownerId: sender.id, root, appVersion, runtimeEnvironment, modelConnectionsEnabled: Boolean(modelConnections) },
-      handle: async (name, args) => {
-        const [scope, methodName] = name.split(":");
-        if (scope === "model-connections") {
-          if (!modelConnections || record.runtimeId !== "puppyone-agent" || !records.has(record)) throw hostError("HOST_AUTHORITY", "Model connection authority is unavailable.");
-          if (methodName === "release") return modelConnections.release({ leaseId: args[0], scope: record.key });
-          if (record.closing || record.host.exited) throw hostError("HOST_AUTHORITY", "Model connection authority has expired.");
-          if (methodName === "read") return modelConnections.catalog();
-          if (methodName === "acquire") {
-            if (parseModelRoute(args[0]).connectionId !== parseModelRoute(record.allowedModelRoute).connectionId) throw hostError("HOST_AUTHORITY", "The session cannot acquire another model connection.");
-            const lease = await modelConnections.acquire({ route: args[0], scope: record.key,
-              expectedBindingRevision: record.expectedBindingRevision, onRevoke: () => shutdown(record) });
-            if (record.closing) {
-              modelConnections.releaseScope(record.key);
-              throw hostError("HOST_AUTHORITY", "The execution closed while acquiring its model lease.");
-            }
-            return lease;
-          }
-          if (methodName === "validate") return modelConnections.validate({ leaseId: args[0], route: args[1], scope: record.key });
-          throw hostError("HOST_METHOD", "Unknown model connection operation.");
-        }
-        if (scope === "attachments" && ["releaseLease", "revokeLeased", "revoke"].includes(methodName)) {
-          if (args[0]?.ownerId !== sender.id || args[0]?.workspaceRoot !== root) throw hostError("HOST_AUTHORITY", "Attachment owner does not match this host.");
-          return attachmentStore[methodName](...args);
-        }
-        if (scope === "catalog") {
-          if (["save", "bindNative", "upsertNative"].includes(methodName)) {
-            if (args[0]?.workspaceRoot !== root || args[0]?.events) throw hostError("HOST_AUTHORITY", "The host may only publish its own conversation metadata.");
-          } else if (methodName === "findById") {
-            if (args[1] !== root) throw hostError("HOST_AUTHORITY", "The conversation belongs to another project.");
-          } else if (methodName === "findLatest") {
-            if (args[0] !== root) throw hostError("HOST_AUTHORITY", "The conversation belongs to another project.");
-          } else if (["remove", "archive", "markUnavailable"].includes(methodName)) {
-            if (!await conversationCatalog.findById(args[0], root)) return null;
-          } else throw hostError("HOST_METHOD", "The session host does not own catalog scanning.");
-          return conversationCatalog[methodName](...args);
-        }
-        throw hostError("HOST_METHOD", "Unauthorized Agent host operation.");
-      },
-      onEvent: (event) => onHostEvent(record, event),
-      onExit: (event) => {
-        lifecycle.observeExit(managed);
-        modelConnections?.releaseScope(record.key);
-        onHostEvent(record, { type: "host-exited", ...event });
-      },
-    }); } catch (error) { if (locator) pendingSessions.delete(locator); await shutdown(record); throw error; }
-    lifecycle.attach(managed, { host: record.host, release: () => release(record), seal: () => { record.closing = true; } });
+    try { launch(record, sender, request, root); }
+    catch (error) { if (locator) pendingSessions.delete(locator); await shutdown(record); throw error; }
     try {
       const result = await record.host.call(method, [request, root]);
       lifecycle.assertActive(managed);
@@ -162,7 +184,7 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
     ...Object.fromEntries(["discoverProviders", "listModels", "readAccount", "listSessions"]
       .map((method) => [method, (...args) => catalogService[method](...args)])),
     ...Object.fromEntries(SESSION_METHODS.map((method) => [method, (sender, request, root) =>
-      requireOwned(sender, request, root).host.call(method, [request, root])])),
+      requireAvailable(sender, request, root).host.call(method, [request, root])])),
     createSession: (...args) => create("createSession", ...args),
     resumeSession: (...args) => create("resumeSession", ...args),
     openSession: (...args) => create("openSession", ...args),
@@ -184,7 +206,7 @@ export function createAgentProcessService({ utilityProcess, modulePath, budget, 
       await shutdown(record);
       return result;
     }])),
-    assertSessionInstance: requireOwned,
+    assertSessionInstance: requireAvailable,
     getReferenceInputCapabilities(sender, sessionId, root) {
       return requireOwned(sender, { sessionId }, root).host.call("getReferenceInputCapabilities", [sessionId, root]);
     },

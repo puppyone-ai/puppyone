@@ -5,11 +5,11 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EditorDocumentHost } from "../../../../packages/shared-ui/src/editor/host/EditorDocumentHost";
+import { EditorDocumentHost } from "../../../../src/shared-ui/editor/host/EditorDocumentHost";
 import {
   EMPTY_VIEWER_PACK_SNAPSHOT,
   type ViewerPackSnapshot,
-} from "../../../../packages/shared-ui/src/editor/registry/viewerPackTypes";
+} from "../../../../src/shared-ui/editor/registry/viewerPackTypes";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

@@ -1,4 +1,4 @@
-import type { AuxiliaryWorkbenchPreparationContext, AuxiliaryWorkbenchProject } from "../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchPreparationContext, AuxiliaryWorkbenchProject } from "../../lib/workbench/types";
 import { parseAgentChatHistoryTarget } from "./domain/agent-chat-history-target";
 export { resolveAgentWorkspaceProviderPath } from "./domain/agent-workspace-path";
 export { createAgentChatCloseAdapter } from "./workbench/agentChatCloseAdapter";
@@ -36,6 +36,7 @@ export async function prepareAgentChatWorkbenchItem(context: AuxiliaryWorkbenchP
     context.project,
     context.item.id,
     context.recipe?.id ?? null,
+    context.seed?.initialPrompt ?? null,
   );
 }
 

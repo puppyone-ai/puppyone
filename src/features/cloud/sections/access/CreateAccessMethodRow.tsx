@@ -1,4 +1,5 @@
 import { Tooltip } from "@puppyone/shared-ui";
+import type { ButtonHTMLAttributes } from "react";
 import { AccessPointProviderIcon } from "../../access-points/presentation";
 import { useLocalization } from "@puppyone/localization/react";
 import { getAccessProviderLabel } from "./createAccessModel";
@@ -22,6 +23,10 @@ export function CreateAccessMethodRow({
   const inactive = disabled && !locked;
   const enabled = locked || checked;
   const providerLabel = getAccessProviderLabel(provider, t);
+  const toggleLabel = t("cloud.access.create.methodToggle", {
+    method: providerLabel,
+    state: t(enabled ? "cloud.common.on" : "cloud.common.off"),
+  });
 
   return (
     <div className={`desktop-cloud-create-access-method-row ${enabled ? "enabled" : ""} ${inactive ? "inactive" : ""}`}>
@@ -35,16 +40,12 @@ export function CreateAccessMethodRow({
         </div>
         <p>{description}</p>
       </div>
-      <CreateAccessSwitch
+      <Tooltip content={toggleLabel}><CreateAccessSwitch
         checked={enabled}
         disabled={disabled}
-        tooltip={locked ? t("cloud.access.create.alreadyEnabled") : disabled ? t("cloud.common.comingSoon") : undefined}
-        ariaLabel={t("cloud.access.create.methodToggle", {
-          method: providerLabel,
-          state: t(enabled ? "cloud.common.on" : "cloud.common.off"),
-        })}
+        ariaLabel={toggleLabel}
         onChange={locked || disabled ? undefined : onCheckedChange}
-      />
+      /></Tooltip>
     </div>
   );
 }
@@ -52,18 +53,18 @@ export function CreateAccessMethodRow({
 function CreateAccessSwitch({
   checked,
   disabled,
-  tooltip,
   ariaLabel,
   onChange,
-}: {
+  ...buttonProps
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> & {
   checked: boolean;
   disabled?: boolean;
-  tooltip?: string;
   ariaLabel: string;
   onChange?: (checked: boolean) => void;
 }) {
   return (
-    <Tooltip content={tooltip}><button
+    <button
+      {...buttonProps}
       className={`desktop-cloud-create-access-switch ${checked ? "checked" : ""}`}
       type="button"
       role="switch"
@@ -73,6 +74,6 @@ function CreateAccessSwitch({
       onClick={() => onChange?.(!checked)}
     >
       <span />
-    </button></Tooltip>
+    </button>
   );
 }

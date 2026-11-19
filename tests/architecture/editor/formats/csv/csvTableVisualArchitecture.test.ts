@@ -2,67 +2,67 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const csvEditorSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableEditor.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvTableEditor.tsx", import.meta.url),
   "utf8",
 );
 const csvControlsSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableControls.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvTableControls.tsx", import.meta.url),
   "utf8",
 );
 const csvMenuSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableMenu.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvTableMenu.tsx", import.meta.url),
   "utf8",
 );
 const csvViewSettingsSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvViewSettings.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvViewSettings.tsx", import.meta.url),
   "utf8",
 );
 const csvResizeSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableResizeControl.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvTableResizeControl.tsx", import.meta.url),
   "utf8",
 );
 const csvColumnResizeSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvColumnResizeLayer.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvColumnResizeLayer.tsx", import.meta.url),
   "utf8",
 );
 const csvColumnLayoutSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvColumnLayoutModel.ts", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvColumnLayoutModel.ts", import.meta.url),
   "utf8",
 );
 const csvDocumentModelSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvDocumentModel.ts", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvDocumentModel.ts", import.meta.url),
   "utf8",
 );
 const csvViewerSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvViewer.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvViewer.tsx", import.meta.url),
   "utf8",
 );
 const csvCellEditorSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvCellEditor.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvCellEditor.tsx", import.meta.url),
   "utf8",
 );
 const textEditorFrameSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/shared/TextEditorFrame.tsx", import.meta.url),
   "utf8",
 );
 const editorEntryCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor.css", import.meta.url),
   "utf8",
 );
 const editorChromeCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor/editor-chrome.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor/editor-chrome.css", import.meta.url),
   "utf8",
 );
 const sharedTableCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor/editable-table.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor/editable-table.css", import.meta.url),
   "utf8",
 );
 const csvTableCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor/csv-table-editor.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor/csv-table-editor.css", import.meta.url),
   "utf8",
 );
 const markdownTableCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor/markdown-table-widget.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor/markdown-table-widget.css", import.meta.url),
   "utf8",
 );
 
@@ -106,7 +106,7 @@ describe("CSV table visual architecture", () => {
       "--po-editable-table-border",
       "--po-editable-table-cell-border",
       "--po-editable-table-cell-padding",
-      "--po-editable-table-cell-focus-shadow",
+      "--po-editable-table-cell-focus-outline",
       "--po-editable-table-row-min-height",
       "--po-editable-table-header-font-weight",
     ]) {
@@ -151,6 +151,43 @@ describe("CSV table visual architecture", () => {
     );
   });
 
+  it("gives row and column handles an opaque grid-border fill and a matching rim", () => {
+    expect(sharedTableCss).toContain("--po-editable-table-handle-radius: 2px;");
+    expect(sharedTableCss).toMatch(
+      /--po-editable-table-handle-background:\s*linear-gradient\(var\(--po-editable-table-border\), var\(--po-editable-table-border\)\) padding-box,\s*var\(--po-editor-bg\) border-box;/s,
+    );
+    expect(sharedTableCss).toContain(
+      "--po-editable-table-handle-border: var(--po-editable-table-border);",
+    );
+    expect(sharedTableCss).toContain(
+      "--po-editable-table-handle-hover-background: var(--po-editable-table-handle-background);",
+    );
+    expect(sharedTableCss).toContain(
+      "--po-editable-table-handle-hover-border: var(--po-editable-table-handle-border);",
+    );
+    expect(sharedTableCss).toMatch(
+      /\.po-editable-table-drag-handle-visual\s*\{[^}]*border:\s*1px solid var\(--po-editable-table-handle-border\)[^}]*border-radius:\s*var\(--po-editable-table-handle-radius\)[^}]*background:\s*var\(--po-editable-table-handle-background\)/s,
+    );
+    for (const [css, selector] of [
+      [csvTableCss, "csv-table-editor__table"],
+      [markdownTableCss, "cm-md-table-widget"],
+    ]) {
+      const rule = css.match(new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`, "s"))?.[1];
+      expect(rule).toContain("border-radius: var(--po-editable-table-radius);");
+    }
+    // Pressed, focused, menu-open and dragging states use the exact same
+    // selection stroke, immediately rather than an independent color fade.
+    expect(sharedTableCss).toMatch(
+      /\.po-editable-table-drag-handle:focus-visible[^}]*\.is-pressed[^}]*\.is-menu-active[^}]*\.is-dragging[^}]*\{[^}]*border-color:\s*var\(--po-editable-table-selection-border\)[^}]*background:\s*var\(--po-editable-table-selection-border\)[^}]*transition:\s*none/s,
+    );
+    const gripRule = sharedTableCss.match(/\.po-editable-table-drag-handle-visual\s*\{([^}]*)\}/s)?.[1];
+    expect(gripRule).not.toMatch(/transition:\s*(?:background|border-color)/);
+    const markdownMenuRule = markdownTableCss.match(/\.cm-md-table-context-menu\.desktop-menu-surface\s*\{([^}]*)\}/s)?.[1];
+    expect(markdownMenuRule).toContain("width: max-content;");
+    expect(markdownMenuRule).toContain("min-width: 0;");
+    expect(markdownTableCss).not.toContain(".cm-md-table-context-menu .desktop-menu-section-label");
+  });
+
   it("assigns the two-axis CSV viewport to exactly one scroll owner", () => {
     expect(csvViewerSource).toContain('liveScrollOwner="viewer"');
     expect(textEditorFrameSource).toContain('liveScrollOwner = "frame"');
@@ -181,13 +218,14 @@ describe("CSV table visual architecture", () => {
     expect(scrollRule).toBeDefined();
     expect(scrollRule).not.toMatch(/\bpadding(?:-|:)/);
     expect(csvTableCss).toMatch(
-      /\.csv-table-editor__frame\s*\{[^}]*padding-block:\s*var\(--csv-table-content-block-start-inset\)[^}]*var\(--csv-table-content-block-end-inset\)[^}]*var\(--po-editable-table-action-gutter\)/s,
+      /\.csv-table-editor__frame\s*\{[^}]*padding-block:\s*calc\(var\(--csv-table-content-block-start-inset\) \+ var\(--po-editor-chrome-inset-block-start, 0px\)\)[^}]*var\(--csv-table-content-block-end-inset\)[^}]*var\(--po-editable-table-action-gutter\)/s,
     );
     expect(csvTableCss).toMatch(
       /\.csv-table-editor__frame\s*\{[^}]*padding-inline:\s*var\(--csv-table-content-inline-start-inset\)[^}]*var\(--csv-table-content-inline-end-inset\)[^}]*var\(--po-editable-table-action-gutter\)/s,
     );
     expect(csvTableCss).toMatch(
-      /\.csv-table-editor__table thead th\s*\{[^}]*z-index:\s*3[^}]*inset-block-start:\s*0[^}]*var\(--po-editable-table-sticky-header-background\)[^}]*var\(--po-editor-bg\)/s,
+      // Pinned just below a host's chrome over the document's top; at the top edge without one.
+      /\.csv-table-editor__table thead th\s*\{[^}]*z-index:\s*3[^}]*inset-block-start:\s*var\(--po-editor-chrome-inset-block-start, 0px\)[^}]*var\(--po-editable-table-sticky-header-background\)[^}]*var\(--po-editor-bg\)/s,
     );
     expect(csvTableCss).toMatch(
       /\.csv-table-editor__table \.csv-table-editor__record-index\s*\{[^}]*z-index:\s*2[^}]*inset-inline-start:\s*0[^}]*var\(--csv-table-record-index-background\)[^}]*var\(--po-editor-bg\)/s,
@@ -229,7 +267,8 @@ describe("CSV table visual architecture", () => {
     expect(csvEditorSource).toContain("csv-table-editor__expansion-row");
     expect(csvEditorSource).toContain("csv-table-editor__expansion-cell");
     expect(csvEditorSource).toContain("onPreviewChange={setResizePreview}");
-    expect(csvEditorSource).toContain("structuralDataRowCount + previewRowIndex + 1");
+    // Preview record numbering is covered by csvTableInteractions' DOM checks;
+    // it must remain correct when preview rows enter the virtual window.
     expect(csvResizeSource).not.toContain('className="csv-table-editor__resize-preview"');
     expect(csvResizeSource).not.toContain("getCsvTableResizePreviewGeometry");
     expect(csvResizeSource).toContain("getCsvTableResizeViewportConstraints");
@@ -257,7 +296,7 @@ describe("CSV table visual architecture", () => {
     );
     expect(csvTableCss).not.toContain(".csv-table-editor__surface::after");
     expect(csvTableCss).toMatch(
-      /\.csv-table-editor__table\s*\{[^}]*border:\s*1px solid var\(--po-editable-table-border\)[^}]*border-radius:\s*0/s,
+      /\.csv-table-editor__table\s*\{[^}]*border:\s*1px solid var\(--po-editable-table-border\)[^}]*border-radius:\s*var\(--po-editable-table-radius\)/s,
     );
     expect(csvTableCss).toContain("--po-editable-table-cell-max-width: 560px");
     expect(sharedTableCss).toContain("--po-editable-table-background:");

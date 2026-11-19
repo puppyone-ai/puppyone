@@ -109,17 +109,19 @@ fn the_agents_stand_in_the_header_and_open_their_dialog(cx: &mut TestAppContext)
     let tile = cx.debug_bounds("cloud-agent-row:c1").unwrap();
     let seat = cx.debug_bounds("cloud-agent-invite-seat").unwrap();
     assert!(tile.origin.x < seat.origin.x);
-    assert!(cx.debug_bounds("cloud-agent-invite-steps").is_none());
+    assert!(cx.debug_bounds("cloud-agent-invite").is_none());
+    // The seat turns the dialog to the invite.
     cx.simulate_click(seat.center(), Modifiers::none());
     draw(cx);
-    assert!(cx.debug_bounds("cloud-agent-invite-steps").is_some());
+    assert!(cx.debug_bounds("cloud-agent-invite").is_some());
+    assert!(cx.debug_bounds("cloud-agent-row:c1").is_none());
     command(&view, cx, Command::Escape);
     view.read_with(cx, |s, cx| {
         assert!(s.dialogs.read(cx).is_empty());
         assert!(!s.cloud.read(cx).agents.read(cx).invite_open);
     });
     // Clicking the solid circular `+` button beside existing Agents opens the
-    // dialog straight into its invite prompt steps.
+    // dialog straight into the invite.
     let add = cx.debug_bounds("cloud-workspace-agent-add").unwrap();
     cx.simulate_click(add.center(), Modifiers::none());
     draw(cx);
@@ -130,8 +132,112 @@ fn the_agents_stand_in_the_header_and_open_their_dialog(cx: &mut TestAppContext)
             crate::features::cloud::Opener::Invite
         );
     });
-    assert!(cx.debug_bounds("cloud-agent-invite-steps").is_some());
+    assert!(cx.debug_bounds("cloud-agent-invite").is_some());
     command(&view, cx, Command::Escape);
+}
+
+/// The invite, end to end: both steps from the start; copying keeps step 1
+/// open on pasting and the wait; the Agent asks to join inside the dialog
+/// (the Header's card waits while it is open) and, let in, ends the invite.
+#[gpui::test]
+fn the_invite_waits_for_the_agent_and_lets_it_in_where_it_asks(cx: &mut TestAppContext) {
+    use std::sync::{Arc, Mutex};
+    let (view, cx) = setup(cx);
+    let base = cloud_project_responder();
+    // 0: nobody, also once the message is out; 1: Claude Code asks; 2: let in.
+    let stage = Arc::new(Mutex::new(0));
+    let state = stage.clone();
+    let responder = with_catalog(Arc::new(move |request| {
+        let path = request.path.as_str();
+        let mut stage = state.lock().unwrap();
+        if path.ends_with("/agent-links") && request.method == reqwest::Method::POST {
+            return Ok(serde_json::json!({"code": 0,
+                "data": {"agent_url": "https://api.puppyone.ai/agent/pai_secret0123456789"}}));
+        }
+        if path.ends_with("/decision") {
+            *stage = 2;
+            return Ok(serde_json::json!({}));
+        }
+        if path.ends_with("/agent-links") {
+            let (connections, pending) = match *stage {
+                0 => (serde_json::json!([]), serde_json::json!([])),
+                1 => (
+                    serde_json::json!([]),
+                    serde_json::json!([{"id": "r1", "name": "Claude Code",
+                    "avatar": "claude", "admission": "sign_in",
+                    "requested_at": "2026-10-30T12:00:00Z", "expires_at": "2026-10-30T12:10:00Z"}]),
+                ),
+                _ => (
+                    serde_json::json!([{"id": "c1", "name": "Claude Code", "avatar": "claude",
+                    "admission": "sign_in", "grant_id": "g1",
+                    "connected_at": "2026-10-30T12:00:00Z", "expires_at": null}]),
+                    serde_json::json!([]),
+                ),
+            };
+            return Ok(serde_json::json!({"code": 0, "data": {"links": [],
+                "connections": connections, "pending": pending}}));
+        }
+        if path.ends_with("/access/sessions") {
+            return Ok(serde_json::json!({"code": 0, "data": []}));
+        }
+        drop(stage);
+        base(request)
+    }));
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle_cloud(&view, cx, "the Agents", &|s, cx| {
+        s.cloud.read(cx).agents.read(cx).manageable
+    });
+    draw(cx);
+    let seat = cx
+        .debug_bounds("cloud-workspace-tool:invite-agent")
+        .unwrap();
+    cx.simulate_click(seat.center(), Modifiers::none());
+    draw(cx);
+    // Both steps from the start, and the message beside its picture.
+    assert!(cx.debug_bounds("cloud-agent-invite-step:1").is_some());
+    assert!(cx.debug_bounds("cloud-agent-invite-step:2").is_some());
+    let card = cx.debug_bounds("cloud-agent-invite-card").unwrap();
+    let art = cx.debug_bounds("cloud-agent-paste-art").unwrap();
+    assert!(card.contains(&art.center()));
+    assert!(cx.debug_bounds("cloud-agent-invite-next").is_none());
+    let agents = view.read_with(cx, |s, cx| s.cloud.read(cx).agents.clone());
+    // Copy (the kit's buttons carry no selectors): step 1 stays open on
+    // pasting, until Claude Code asks to join inside the dialog.
+    agents.update(cx, |a, cx| a.copy_invite(cx));
+    settle_cloud(&view, cx, "the message out", &|s, cx| {
+        s.cloud.read(cx).agents.read(cx).copy == crate::features::cloud::CopyStatus::Copied
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-agent-invite-next").is_some());
+    // Claude Code follows the message; the next read finds it asking.
+    *stage.lock().unwrap() = 1;
+    agents.update(cx, |a, cx| a.refresh(cx));
+    settle_cloud(&view, cx, "the knock", &|s, cx| {
+        !s.cloud.read(cx).agents.read(cx).requests.is_empty()
+    });
+    draw(cx);
+    view.read_with(cx, |s, cx| assert!(s.has_dialog("Agents", cx)));
+    assert!(cx.debug_bounds("cloud-agent-invite-ask:r1").is_some());
+    assert!(cx.debug_bounds("cloud-agent-request-card").is_none());
+    agents.update(cx, |a, cx| a.decide("r1", true, cx));
+    settle_cloud(&view, cx, "the Agent in", &|s, cx| {
+        s.cloud.read(cx).agents.read(cx).invite_phase()
+            == crate::features::cloud::InvitePhase::Joined
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-agent-invite-joined").is_some());
+    command(&view, cx, Command::Escape);
+    view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
 }
 
 /// C-10.1/10.2: in Cloud the right sidebar's workbench is the hosted Agent —

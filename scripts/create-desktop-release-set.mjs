@@ -9,7 +9,7 @@ import {
   sha256File,
   verifyDesktopReleaseBundle,
 } from "./release-support/desktop-release-metadata.mjs";
-import { createDesktopReleaseSet } from "../tooling/desktop/release/release-set.mjs";
+import { createDesktopReleaseSet } from "./desktop/release/release-set.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 

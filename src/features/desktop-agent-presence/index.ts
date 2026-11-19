@@ -1,11 +1,11 @@
-import { AgentActivityStore } from "./application/agentActivityStore";
-import { electronAgentActivityClient } from "./infrastructure/electron/electronAgentActivityClient";
+import { AgentActivityStore } from "./agentActivityStore";
+import { agentActivityApi } from "./agentActivityApi";
 
-export { AgentFilePresence } from "./ui/AgentFilePresence";
-export { toWorkspaceRelativePath } from "./domain/agentActivity";
+export { AgentFilePresence } from "./AgentFilePresence";
+export { toWorkspaceRelativePath } from "./agentActivity";
 export type {
   AgentFilePresenceClaim,
   AgentFilePresenceProjection,
-} from "./domain/agentActivity";
+} from "./agentActivity";
 
-export const desktopAgentActivityStore = new AgentActivityStore(electronAgentActivityClient);
+export const desktopAgentActivityStore = new AgentActivityStore(agentActivityApi);

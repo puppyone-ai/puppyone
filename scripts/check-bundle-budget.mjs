@@ -7,11 +7,6 @@ const assetsDir = path.join(repoRoot, "dist", "assets");
 const entryChunkBudgetBytes = 1_950_000;
 const heavyChunks = [
   {
-    label: "Cloud Automation route",
-    chunkPattern: /^CloudProjectAutomationView-.+\.js$/,
-    entryLeakPattern: /Unable to load Automation sources/,
-  },
-  {
     label: "docx-preview",
     chunkPattern: /^docx-preview-.+\.js$/,
     entryLeakPattern: /schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships\/officeDocument/,

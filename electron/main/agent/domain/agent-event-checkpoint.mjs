@@ -1,3 +1,4 @@
+import { classifyProviderActivity, isTranscriptActivity } from "./transcript/provider-activity-policy.mjs";
 import {
   agentEventContentUpdate,
   applyAgentEventContentUpdate,
@@ -24,6 +25,7 @@ const CHECKPOINT_TYPES = new Set([
  */
 export function foldAgentEventCheckpoint(previous, event) {
   if (!event?.turnId || !CHECKPOINT_TYPES.has(event.type)) return previous;
+  if (event.type === "provider.activity" && !isTranscriptActivity(classifyProviderActivity(event))) return previous;
   const events = previous.map(clonePlain);
   if (!materializeObjectTextUpdate(events, event)) {
     const last = events.at(-1);

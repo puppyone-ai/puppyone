@@ -1,5 +1,5 @@
 import { createResourceUri, type Workspace } from "@puppyone/shared-ui";
-import type { NativeCloudDataService } from "./cloudDataPort";
+import type { NativeCloudDataService } from "../files/cloudDataPort";
 
 /** An unavailable Cloud provider must never expose the local project's bytes. */
 export function createPendingCloudDataService(identity: string | null, localWorkspaceName?: string): NativeCloudDataService {
@@ -12,6 +12,8 @@ export function createPendingCloudDataService(identity: string | null, localWork
     trustState: "untrusted" as const, workspace };
   return {
     workspace, folder, writable: false,
+    getPathForCopy: () => { throw new Error("Cloud file provider is unavailable."); },
+    invalidateReads: () => undefined,
     dataPort: {
       listChildren: async () => [],
       resolveNode: async () => null,

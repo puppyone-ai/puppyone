@@ -6,6 +6,10 @@ const surfaceSource = readFileSync(
   new URL("../../../../src/features/app-shell/DesktopDataWorkspaceSurface.tsx", import.meta.url),
   "utf8",
 );
+const explorerFrameSource = readFileSync(
+  new URL("../../../../src/features/app-shell/layout/useDesktopExplorerFrame.ts", import.meta.url),
+  "utf8",
+);
 const splitSource = readFileSync(
   new URL("../../../../src/features/editor-workbench/layout/DesktopEditorSplitView.tsx", import.meta.url),
   "utf8",
@@ -27,11 +31,11 @@ const paneChromeSource = readFileSync(
   "utf8",
 );
 const paneActionsMenuSource = readFileSync(
-  new URL("../../../../src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx", import.meta.url),
+  new URL("../../../../src/components/EditorPaneActionsMenu.tsx", import.meta.url),
   "utf8",
 );
 const paneChromeRevealSource = readFileSync(
-  new URL("../../../../src/features/editor-workbench/layout/useEditorPaneChromeReveal.ts", import.meta.url),
+  new URL("../../../../src/components/useEditorPaneChromeReveal.ts", import.meta.url),
   "utf8",
 );
 const paneRuntimeSource = readFileSync(
@@ -46,12 +50,13 @@ const paneSourceLifecycle = readFileSync(
   new URL("../../../../src/features/editor-workbench/runtime/useEditorPaneSource.ts", import.meta.url),
   "utf8",
 );
-const dataWorkspaceSource = readFileSync(
-  new URL("../../../../packages/shared-ui/src/data/DataWorkspace.tsx", import.meta.url),
+// The Data workspace and the frame it shares with surfaces that have no files yet.
+const dataWorkspaceSource = ["DataWorkspace.tsx", "DataWorkspaceFrame.tsx"].map((file) => readFileSync(
+  new URL(`../../../../src/shared-ui/data/${file}`, import.meta.url),
   "utf8",
-);
+)).join("\n");
 const viewerTypesSource = readFileSync(
-  new URL("../../../../packages/shared-ui/src/editor/registry/viewerTypes.ts", import.meta.url),
+  new URL("../../../../src/shared-ui/editor/registry/viewerTypes.ts", import.meta.url),
   "utf8",
 );
 const resizeGestureSource = readFileSync(
@@ -83,7 +88,7 @@ const splitStyles = readFileSync(
   "utf8",
 );
 const overflowDotsStyles = readFileSync(
-  new URL("../../../../packages/shared-ui/src/styles/overflow-dots.css", import.meta.url),
+  new URL("../../../../src/shared-ui/styles/overflow-dots.css", import.meta.url),
   "utf8",
 );
 const menuStyles = readFileSync(
@@ -99,7 +104,7 @@ const dataShellStyles = readFileSync(
   "utf8",
 );
 const sharedDataWorkspaceStyles = readFileSync(
-  new URL("../../../../packages/shared-ui/src/styles/data-workspace.css", import.meta.url),
+  new URL("../../../../src/shared-ui/styles/data-workspace.css", import.meta.url),
   "utf8",
 );
 const layoutStyles = readFileSync(
@@ -120,7 +125,7 @@ describe("editor split-pane architecture", () => {
     expect(appSource).not.toContain("DesktopEditorTabs");
     expect(appSource).not.toContain("titlebarEditorSlot");
     // The project rail may conditionally own this slot; the fallback remains sidebar chrome.
-    expect(appSource).toMatch(/titlebarSidebarSlot=\{[^}]*\btitlebarSidebarSlot\b[^}]*\}/);
+    expect(appSource).toMatch(/titlebarSidebarSlot=\{[^}]*\btitlebarContext\b[^}]*\}/);
   });
 
   it("projects the pane tree inside the Data editor region", () => {
@@ -146,7 +151,7 @@ describe("editor split-pane architecture", () => {
     expect(paneActionsMenuSource).not.toContain('t("editor.panes.splitDown")');
     expect(workbenchControllerSource).toContain("const splitPane = useCallback");
     expect(workbenchControllerSource).toContain("editorId: null");
-    expect(paneShellSource).toContain('contentState: "empty" | "document"');
+    expect(paneShellSource).toContain('contentState: "empty" | "opening" | "document"');
     expect(paneShellSource).toContain('data-content-state={contentState}');
     expect(paneDocumentRuntimeSource).not.toContain("if (invalidTreeNode) return null");
     expect(paneDocumentRuntimeSource).toContain('import { PageLoading } from "../../../components/loading"');
@@ -209,6 +214,8 @@ describe("editor split-pane architecture", () => {
       "--desktop-editor-pane-menu-action-size: var(--desktop-titlebar-control-height);",
     );
     expect(paneMenuRule).toContain("position: fixed;");
+    expect(paneMenuRule).toContain("width: max-content;");
+    expect(paneMenuRule).toContain("overflow-x: auto;");
     expect(paneMenuRule).toContain("overflow-y: auto;");
     expect(paneMenuRule).not.toContain("box-shadow:");
     expect(splitStyles).not.toContain('.desktop-editor-pane-menu[data-has-secondary="true"]');
@@ -222,12 +229,13 @@ describe("editor split-pane architecture", () => {
       ".desktop-editor-pane-menu-end-actions",
     );
     expect(endActionsRule).toContain("display: flex;");
+    expect(endActionsRule).toContain("flex: 0 0 auto;");
     expect(endActionsRule).not.toContain("margin-inline-start: auto;");
-    const segmentedEndActionsRule = readCssBlock(
+    const primaryActionsRule = readCssBlock(
       splitStyles,
-      ".desktop-editor-pane-menu-segmented-control + .desktop-editor-pane-menu-end-actions",
+      ".desktop-editor-pane-menu-primary-actions",
     );
-    expect(segmentedEndActionsRule).toContain("margin-inline-start: auto;");
+    expect(primaryActionsRule).toContain("width: max-content;");
     const externalDividerRule = readCssBlock(
       splitStyles,
       ".desktop-editor-pane-menu-action-divider",
@@ -253,8 +261,6 @@ describe("editor split-pane architecture", () => {
     );
     expect(compactMenuElevationRule).toContain("box-shadow: var(--po-menu-shadow-compact);");
     expect(tokens).toContain("--po-menu-shadow-compact: var(--po-elevation-low);");
-    expect(paneActionsMenuSource).toContain("PANE_DIVIDER_WIDTH = 1");
-    expect(paneActionsMenuSource).toContain("PANE_DIVIDER_INLINE_MARGIN = 3");
     expect(paneActionsMenuSource).toContain(
       'className="desktop-editor-pane-menu-primary-action desktop-editor-pane-menu-close-action"',
     );
@@ -277,8 +283,9 @@ describe("editor split-pane architecture", () => {
     expect(paneActionsMenuSource).toContain(
       "segmentedControl && <PaneMenuSegmentedControl item={segmentedControl}",
     );
-    expect(paneActionsMenuSource).toContain("resolvePaneActionsMenuWidth({");
-    expect(paneActionsMenuSource).toContain("PANE_ACTION_SLOT_SIZE = 25");
+    expect(paneActionsMenuSource).toContain('widthMode: "content"');
+    expect(paneActionsMenuSource).toContain("maxWidth: overlayPosition.maxWidth");
+    expect(paneActionsMenuSource).not.toContain("resolvePaneActionsMenuWidth");
     expect(splitSource).toContain("editorResource: editor?.resource ?? null");
     expect(splitSource).toContain(
       "menuContribution?.editorResource === editor?.resource",
@@ -349,7 +356,9 @@ describe("editor split-pane architecture", () => {
     expect(paneChromeSource).not.toContain("consumeDraggedClick");
     expect(paneActionsMenuSource).toContain("<DesktopOverlayLayer>");
     expect(paneActionsMenuSource).toContain("useAnchoredOverlayPosition");
-    expect(paneActionsMenuSource).toContain('alignment: "center"');
+    // Project panes centre the menu under their handle; only a file window's title bar end-aligns it.
+    expect(paneActionsMenuSource).toContain('alignment = "center"');
+    expect(paneChromeSource).not.toContain("alignment=");
     expect(paneActionsMenuSource).toContain('placementPreference: "below"');
     expect(splitSource).not.toContain("key={layout.root.id}");
     expect(splitSource).toContain("key={split.first.id}");
@@ -434,8 +443,11 @@ describe("editor split-pane architecture", () => {
     expect(splitStyles).toContain(
       "z-index: calc(var(--po-pane-resizer-z-index, 35) + 1);",
     );
-    expect(surfaceSource).toContain("useNativeSurfacePointerRoutingRegion");
-    expect(surfaceSource).toContain("explorerResizeHandleRef={setExplorerResizeHandle}");
+    // The window's Explorer frame routes its sash over native surfaces; the
+    // file workbench takes the sash from that frame like every other surface.
+    expect(explorerFrameSource).toContain('useNativeSurfacePointerRoutingRegion("explorer-resize", resizeHandle)');
+    expect(explorerFrameSource).toContain("resizeHandleRef: setResizeHandle");
+    expect(surfaceSource).toContain("explorerResizeHandleRef={explorerFrame.resizeHandleRef}");
   });
 
   it("does not project the Sidebar divider through the Header", () => {
@@ -475,7 +487,7 @@ describe("editor split-pane architecture", () => {
     expect(tokens).toContain("--po-pane-resizer-active-color:");
     expect(tokens).toContain("--po-pane-resizer-active-ring:");
     expect(tokens).not.toMatch(/--po-pane-resizer-(?:hover-color|active-color|active-ring):[^;]*--po-accent/);
-    for (const styles of [readFileSync(new URL("../../../../packages/shared-ui/src/sidebar/collapsible-pane.css", import.meta.url), "utf8"), splitStyles]) {
+    for (const styles of [readFileSync(new URL("../../../../src/shared-ui/sidebar/collapsible-pane.css", import.meta.url), "utf8"), splitStyles]) {
       expect(styles).toContain("var(--po-pane-resizer-hover-color)");
       expect(styles).toContain("var(--po-pane-resizer-active-color)");
       expect(styles).toContain("var(--po-pane-resizer-active-ring)");

@@ -1,27 +1,16 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { useDesktopPreference } from "../../../preferencesStore";
+import { useDesktopAppearance } from "../useDesktopAppearance";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import {
   getInterfaceStyleDefinition,
-  type InterfaceStyle,
-  type ThemeMode,
 } from "../../appearance/interfaceStyles";
-import type { DarkThemePreset, LightThemePreset } from "../../../preferences";
 import { ThemePreview } from "./ThemePreview";
 import {
   isAppearanceDecisionLocked,
   isAppearanceValueAllowed,
-  type AppearanceSettingDecision,
 } from "../../appearance/resolveAppearance";
 
-type InterfacePaletteSettingsProps = {
-  interfaceStyle: InterfaceStyle;
-  subThemeId: string;
-  decision: AppearanceSettingDecision<ThemeMode>;
-  lightThemePreset: LightThemePreset;
-  darkThemePreset: DarkThemePreset;
-  onThemeModeChange: (mode: ThemeMode) => void;
-};
 
 const THEME_MODE_OPTIONS = {
   system: { labelId: "settings.appearance.theme.system", icon: Monitor },
@@ -29,14 +18,12 @@ const THEME_MODE_OPTIONS = {
   dark: { labelId: "settings.appearance.theme.dark", icon: Moon },
 } as const;
 
-export function InterfacePaletteSettings({
-  interfaceStyle,
-  subThemeId,
-  decision,
-  lightThemePreset,
-  darkThemePreset,
-  onThemeModeChange,
-}: InterfacePaletteSettingsProps) {
+export function InterfacePaletteSettings() {
+  const interfaceStyle = useDesktopPreference(s => s.interfaceStyle);
+  const onThemeModeChange = useDesktopPreference(s => s.setThemeMode);
+  const { resolvedAppearance, lightThemePreset, darkThemePreset } = useDesktopAppearance();
+  const { subThemeId } = resolvedAppearance;
+  const decision = resolvedAppearance.decisions.themeMode;
   const { t } = useLocalization();
   const palette = getInterfaceStyleDefinition(interfaceStyle).palette;
   if (palette.kind !== "adaptive") return null;
@@ -51,7 +38,7 @@ export function InterfacePaletteSettings({
             const option = THEME_MODE_OPTIONS[mode];
             const Icon = option.icon;
             return (
-              <Tooltip content={decision.reasonKey ? t(decision.reasonKey) : undefined} key={mode}><button
+              <button key={mode}
                 className={`desktop-theme-choice ${decision.effectiveValue === mode ? "active" : ""}${locked || !isAppearanceValueAllowed(decision, mode) ? " is-policy-controlled" : ""}`}
                 type="button"
                 aria-disabled={locked || !isAppearanceValueAllowed(decision, mode)}
@@ -70,7 +57,7 @@ export function InterfacePaletteSettings({
                   <Icon size={13} />
                   <span>{t(option.labelId)}</span>
                 </span>
-              </button></Tooltip>
+              </button>
             );
           })}
         </div>

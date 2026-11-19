@@ -2,13 +2,14 @@ import type { ExperimentalSettings } from "../../preferences";
 import { LOCAL_IMPORT_SOURCES } from "../../../shared/project-import/sources.mjs";
 
 export type RepositoryImportSource = "github" | "gitlab";
-export type ExperimentalImportSource = "notion" | "google-drive" | "obsidian" | "airtable";
-export type LocalFolderImportSource = "obsidian";
+export type ExperimentalImportSource = "notion" | "google-drive" | "airtable" | AppFolderSource;
+/** Apps whose recorded folders can be listed on the Homepage in place. */
+export type AppFolderSource = "obsidian" | "vscode" | "cursor" | "typora";
 export type ImportSourceBrand = string;
 export type ImportSourceDescriptor = Readonly<{
   id: ImportSourceBrand;
   label: string;
-  mode: "repository" | "remote" | "folder";
+  mode: "repository" | "remote" | "folder" | "app";
   availability: "ready" | "experimental";
   operational: boolean;
   preview: boolean;
@@ -21,7 +22,7 @@ export const DEFAULT_VISIBLE_IMPORT_SOURCES = IMPORT_SOURCE_REGISTRY.filter(
 );
 
 export function resolveVisibleImportSources(
-  settings: ExperimentalSettings,
+  settings: Pick<ExperimentalSettings, "enableOtherAppImports">,
 ): ImportSourceDescriptor[] {
   return IMPORT_SOURCE_REGISTRY.filter((source) => (
     source.availability === "ready"
@@ -31,7 +32,7 @@ export function resolveVisibleImportSources(
 
 /** Keep the compact preview restrained even when every experiment is enabled. */
 export function resolveImportPreviewBrands(
-  settings: ExperimentalSettings,
+  settings: Pick<ExperimentalSettings, "enableOtherAppImports">,
 ): ImportSourceBrand[] {
   return resolveVisibleImportSources(settings)
     .filter(({ preview, operational }) => preview && operational)

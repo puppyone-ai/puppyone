@@ -1,12 +1,12 @@
 import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
-import { EditorAppearanceProvider } from "@puppyone/shared-ui";
-import type {
-  DarkThemePreset,
-  DiffMarkers,
-  LightThemePreset,
-  LoadingAnimationPreset,
+import { EditorAppearanceProvider, LoadingPlaceholderStyleProvider } from "@puppyone/shared-ui";
+import {
+  DEFAULT_LOADING_PLACEHOLDER_STYLE,
+  type DarkThemePreset,
+  type DiffMarkers,
+  type LightThemePreset,
+  type LoadingPlaceholderStyle,
 } from "../../preferences";
-import { LoadingAnimationProvider } from "../../components/loading";
 import type { MarkdownPresentationSettings } from "../markdown/markdownPresentation";
 import { serializeMarkdownPresentationSettings } from "../markdown/markdownPresentation";
 import { SubThemeStyleHost } from "../themes/SubThemeStyleHost";
@@ -37,8 +37,9 @@ export type SurfaceAppearanceRootProps = TypographyRootProps & Readonly<{
   "data-icon-pack": string;
   "data-light-theme-preset": LightThemePreset;
   "data-dark-theme-preset": DarkThemePreset;
-  "data-loading-animation-preset": LoadingAnimationPreset;
+  "data-loading-placeholder-style": LoadingPlaceholderStyle;
   "data-pointer-cursors": "true" | "false";
+  "data-file-icons": "shown" | "hidden";
   "data-diff-markers": DiffMarkers;
   style: TypographyRootProps["style"] & CSSProperties;
 }>;
@@ -49,7 +50,7 @@ export type ResolvedSurfaceAppearance = Readonly<{
   typography: ResolvedTypography;
   markdownPresentation: MarkdownPresentationSettings;
   markdownContentFont: ResolvedContentFontDecision;
-  loadingAnimationPreset: LoadingAnimationPreset;
+  loadingPlaceholderStyle: LoadingPlaceholderStyle;
   rootProps: SurfaceAppearanceRootProps;
 }>;
 
@@ -57,10 +58,13 @@ type ResolveSurfaceAppearanceInput = Readonly<{
   appearance: ResolvedAppearance;
   typography: ResolvedTypography;
   markdownPresentation: MarkdownPresentationSettings;
-  loadingAnimationPreset: LoadingAnimationPreset;
+  /** The loading style of placeholders and loading marks. Defaults to the rounded style for surfaces that do not offer the setting. */
+  loadingPlaceholderStyle?: LoadingPlaceholderStyle;
   lightThemePreset: LightThemePreset;
   darkThemePreset: DarkThemePreset;
   pointerCursors: boolean;
+  /** File glyphs in explorer rows. Defaults to shown for surfaces that do not offer the setting. */
+  showFileIcons?: boolean;
   diffMarkers: DiffMarkers;
 }>;
 
@@ -70,10 +74,11 @@ export function resolveSurfaceAppearance({
   appearance,
   typography,
   markdownPresentation,
-  loadingAnimationPreset,
+  loadingPlaceholderStyle = DEFAULT_LOADING_PLACEHOLDER_STYLE,
   lightThemePreset,
   darkThemePreset,
   pointerCursors,
+  showFileIcons = true,
   diffMarkers,
 }: ResolveSurfaceAppearanceInput): ResolvedSurfaceAppearance {
   const typographyRootProps = createTypographyRootProps(typography);
@@ -81,10 +86,11 @@ export function resolveSurfaceAppearance({
     appearance,
     typography,
     markdownPresentation,
-    loadingAnimationPreset,
+    loadingPlaceholderStyle,
     lightThemePreset,
     darkThemePreset,
     pointerCursors,
+    showFileIcons,
     diffMarkers,
   });
   const rootProps: SurfaceAppearanceRootProps = Object.freeze({
@@ -105,8 +111,9 @@ export function resolveSurfaceAppearance({
     "data-icon-pack": appearance.composition.iconPack,
     "data-light-theme-preset": lightThemePreset,
     "data-dark-theme-preset": darkThemePreset,
-    "data-loading-animation-preset": loadingAnimationPreset,
+    "data-loading-placeholder-style": loadingPlaceholderStyle,
     "data-pointer-cursors": pointerCursors ? "true" : "false",
+    "data-file-icons": showFileIcons ? "shown" : "hidden",
     "data-diff-markers": diffMarkers,
     ...typographyRootProps,
     style: Object.freeze({ ...typographyRootProps.style }),
@@ -118,7 +125,7 @@ export function resolveSurfaceAppearance({
     typography,
     markdownPresentation,
     markdownContentFont: typography.editorContentDecision,
-    loadingAnimationPreset,
+    loadingPlaceholderStyle,
     rootProps,
   });
 }
@@ -132,7 +139,7 @@ export function SurfaceAppearanceProvider({
 }) {
   return (
     <SurfaceAppearanceContext.Provider value={value}>
-      <LoadingAnimationProvider preset={value.loadingAnimationPreset}>
+      <LoadingPlaceholderStyleProvider style={value.loadingPlaceholderStyle}>
         <EditorAppearanceProvider revision={value.revision}>
           <SubThemeStyleHost
             subTheme={value.appearance.subTheme}
@@ -141,7 +148,7 @@ export function SurfaceAppearanceProvider({
           />
           {children}
         </EditorAppearanceProvider>
-      </LoadingAnimationProvider>
+      </LoadingPlaceholderStyleProvider>
     </SurfaceAppearanceContext.Provider>
   );
 }
@@ -175,10 +182,11 @@ function createSurfaceAppearanceRevision({
   appearance,
   typography,
   markdownPresentation,
-  loadingAnimationPreset,
+  loadingPlaceholderStyle,
   lightThemePreset,
   darkThemePreset,
   pointerCursors,
+  showFileIcons = true,
   diffMarkers,
 }: ResolveSurfaceAppearanceInput) {
   return [
@@ -188,8 +196,9 @@ function createSurfaceAppearanceRevision({
     `terminal:${typography.terminal.id}:${typography.terminal.family}`,
     `sizes:${serializeTypographySizes(typography)}`,
     `markdown:${serializeMarkdownPresentationSettings(markdownPresentation)}`,
-    `loading:${loadingAnimationPreset}`,
+    `loading:${loadingPlaceholderStyle ?? DEFAULT_LOADING_PLACEHOLDER_STYLE}`,
     `pointer:${pointerCursors ? "true" : "false"}`,
+    `file-icons:${showFileIcons ? "shown" : "hidden"}`,
     `diff:${diffMarkers}`,
     `legacy-presets:${lightThemePreset}:${darkThemePreset}`,
   ].join("|");

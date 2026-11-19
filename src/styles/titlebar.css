@@ -8,6 +8,7 @@
   --desktop-titlebar-active: var(--po-selected);
   --desktop-titlebar-focus: var(--po-focus-ring);
   --desktop-titlebar-divider: var(--po-header-divider);
+  --desktop-titlebar-tab-bg: var(--po-canvas);
   --desktop-titlebar-context-font-family: var(--po-font-ui);
   --desktop-titlebar-context-font-size: var(--po-font-size-chrome, 13px);
   --desktop-titlebar-context-font-weight:
@@ -35,6 +36,9 @@
   box-shadow: none;
   color: var(--desktop-titlebar-text);
 }
+
+/* A Cloud project keeps the theme's own Header. Its place mark, not the
+ * Header surface, carries the product blue (see project-place.css). */
 
 /* Native system chrome already owns its caption buttons. Only overlay chrome
  * needs space for macOS traffic lights inside the renderer titlebar. */
@@ -155,52 +159,6 @@
   flex: 1 1 auto;
 }
 
-/* The opt-in centered project has its own grid track, so its menu never
- * overlays tabs or actions. Equal outer tracks center it on the full window;
- * platform caption insets are reserved inside those tracks. */
-.desktop-shell .desktop-titlebar[data-centered-project="true"] .desktop-titlebar-layout {
-  grid-template-columns: minmax(0, 1fr) minmax(0, max-content) minmax(0, 1fr);
-  gap: 0;
-  width: 100%;
-  margin-left: 0;
-  padding: 0;
-}
-
-.desktop-titlebar[data-centered-project="true"] .desktop-titlebar-leading {
-  display: grid;
-  box-sizing: border-box;
-  min-width: 0;
-  overflow: hidden;
-  height: 100%;
-  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
-  align-items: center;
-  gap: 6px;
-  padding-inline: calc(var(--desktop-titlebar-safe-area-x) + var(--desktop-titlebar-content-start)) 6px;
-}
-
-.desktop-shell[data-titlebar-tabs-align-explorer="true"][data-titlebar-sidebar-state="expanded"]
-  .desktop-titlebar[data-centered-project="true"] .desktop-titlebar-leading {
-  grid-template-columns: minmax(0, var(--desktop-titlebar-leading-track)) minmax(0, 1fr);
-}
-
-.desktop-titlebar-centered-context {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  max-width: min(440px, 40vw);
-  height: 100%;
-}
-
-.desktop-titlebar[data-centered-project="true"] .desktop-titlebar-trailing {
-  min-width: 0;
-  justify-content: flex-end;
-  padding-inline-end: 6px;
-}
-
-.desktop-titlebar[data-centered-project="true"][data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-trailing {
-  padding-inline-end: calc(var(--desktop-titlebar-windows-controls-width) + 6px);
-}
-
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-layout {
   position: relative;
   padding-right: 0;
@@ -232,17 +190,6 @@
   pointer-events: none;
 }
 
-.desktop-titlebar[data-workspace-kind="cloud"] {
-  --desktop-titlebar-bg: var(--po-cloud-titlebar-bg);
-  --desktop-titlebar-text: var(--po-cloud-titlebar-text);
-  --desktop-titlebar-text-muted: var(--po-cloud-titlebar-text-muted);
-  --desktop-titlebar-text-disabled: var(--po-cloud-titlebar-text-disabled);
-  --desktop-titlebar-hover: var(--po-cloud-titlebar-hover);
-  --desktop-titlebar-active: var(--po-cloud-titlebar-active);
-  --desktop-titlebar-focus: var(--po-cloud-titlebar-focus);
-  --desktop-titlebar-divider: var(--po-cloud-titlebar-divider);
-}
-
 .desktop-titlebar-left {
   display: flex;
   flex: 0 1 auto;
@@ -268,6 +215,21 @@
   gap: var(--desktop-titlebar-button-gap);
 }
 
+/* The place gives way before the project on a narrow window. */
+.desktop-titlebar-context > .desktop-titlebar-place-wrap {
+  flex-shrink: 4;
+}
+
+.desktop-titlebar-context-separator {
+  flex: 0 0 auto;
+  margin-inline: -2px;
+  color: var(--po-text-disabled);
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  line-height: var(--desktop-titlebar-context-line-height);
+  user-select: none;
+}
+
 .desktop-titlebar-context-item {
   display: inline-flex;
   align-items: center;
@@ -284,15 +246,6 @@
 .desktop-titlebar-context-item svg {
   flex: 0 0 auto;
   color: var(--desktop-titlebar-text-muted);
-}
-
-.desktop-titlebar-context-mark {
-  display: inline-flex;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
 }
 
 .desktop-titlebar-context-name {
@@ -315,9 +268,12 @@
 
 .desktop-titlebar-session-tabs-host {
   display: flex;
+  box-sizing: border-box;
   min-width: 0;
   width: 100%;
   height: 100%;
+  /* Tabs may fill the track; native window dragging must still have a target. */
+  padding-inline-end: var(--desktop-titlebar-drag-min-width);
   align-items: center;
   overflow: hidden;
 }
@@ -337,11 +293,6 @@
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-inline: contain;
-  scrollbar-width: none;
-}
-
-.desktop-titlebar-editor-tabs::-webkit-scrollbar {
-  display: none;
 }
 
 .desktop-titlebar-editor-tab {
@@ -368,7 +319,7 @@
 }
 
 .desktop-titlebar-editor-tab[data-active="true"] {
-  background: var(--po-canvas);
+  background: var(--desktop-titlebar-tab-bg);
   color: var(--desktop-titlebar-text);
 }
 
@@ -378,7 +329,7 @@
   inset-inline: 0;
   inset-block-end: 0;
   height: 1px;
-  background: var(--po-canvas);
+  background: var(--desktop-titlebar-tab-bg);
   content: "";
   pointer-events: none;
 }
@@ -616,13 +567,14 @@
   padding-inline-end: 6px;
 }
 
-.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-share {
+/* The Agents stay on the editor's side of the boundary. */
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-cloud-agents-anchor {
   position: absolute;
   inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
 }
 
 .desktop-shell[data-header-follows-right-sidebar="true"]
-  .desktop-titlebar-share + .desktop-titlebar-action-divider {
+  .desktop-titlebar-cloud-agents-anchor + .desktop-titlebar-action-divider {
   position: absolute;
   inset-inline-start: 0;
   margin-inline: 0;
@@ -660,25 +612,289 @@
   transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.desktop-titlebar-share {
-  width: auto;
-  min-width: var(--desktop-chrome-control-size);
+.desktop-titlebar-cloud-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--desktop-titlebar-button-gap);
+}
+
+/* The Agents stand apart from Share: they are who is here, Share is something
+   to do. Whoever is live (asking to join, or at work) is its own round button
+   at the front of the row; the Agents at rest are one stacked button after a
+   gap. Any of them opens the same list. */
+.desktop-titlebar-cloud-agents-anchor {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-inline-end: 6px;
+}
+
+.desktop-titlebar-cloud-agents {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  padding-inline: 7px 8px;
+}
+
+/* A mark is its button's own circle. The button draws no ground of its own,
+   so nothing rings a smaller circle inside it: hovering or opening one
+   brightens the mark itself. */
+.desktop-titlebar-cloud-agent {
+  appearance: none;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--desktop-titlebar-text-muted);
+}
+
+.desktop-titlebar-cloud-agent:focus-visible {
+  outline: 1px solid var(--desktop-titlebar-focus);
+  outline-offset: 1px;
+}
+
+/* At rest a mark is a soft disc with no edge, an occupied seat where the
+   invite's empty one is only a dashed edge. It is opaque over the Header's own
+   colour, so a mark stacked in front covers the one behind it. Only what is
+   drawn in it goes grey; greying the disc too would take the Header's tint
+   out of its fill. */
+.desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity]) {
+  --reach-mark-fill: color-mix(in srgb, currentColor 14%, var(--reach-mark-ground));
+  box-shadow: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity], [data-reach-creature]) > :is(img, svg) {
+  filter: grayscale(1);
+}
+
+.desktop-titlebar-cloud-agent:is(:hover, [aria-expanded="true"]) .desktop-project-reach-mark:not([data-reach-activity]) {
+  --reach-mark-fill: color-mix(in srgb, currentColor 26%, var(--reach-mark-ground));
+  color: var(--desktop-titlebar-text);
+}
+
+/* A working mark is already filled, so being pointed at or opened firms its edge. */
+.desktop-titlebar-cloud-agent:is(:hover, [aria-expanded="true"]) .desktop-project-reach-mark[data-reach-activity] {
+  --reach-mark-outline: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+/* A sleeping creature comes to its full colour while it is pointed at or opened. */
+.desktop-titlebar-cloud-agent:is(:hover, [aria-expanded="true"]) .desktop-project-reach-mark[data-reach-creature] > svg {
+  filter: none;
+}
+
+/* At rest, stacked like a pile of tokens: the first in front, each one behind
+   showing only its edge past a ring of the Header's colour. The stack does not
+   fan out; the list is where they are told apart. */
+.desktop-titlebar-cloud-agent-stack > .desktop-project-reach-mark:not([data-reach-activity], [data-reach-creature]) {
+  box-shadow: 0 0 0 1.5px var(--reach-mark-ground);
+}
+
+.desktop-titlebar-cloud-agent-stack > .desktop-project-reach-mark + .desktop-project-reach-mark {
+  margin-inline-start: calc(var(--po-control-size-compact) * -0.72);
+}
+
+.desktop-titlebar-cloud-agent-stack > :nth-child(1) { z-index: 3; }
+.desktop-titlebar-cloud-agent-stack > :nth-child(2) { z-index: 2; }
+.desktop-titlebar-cloud-agent-stack > :nth-child(3) { z-index: 1; }
+
+.desktop-titlebar-cloud-agent-count {
+  margin-inline: 5px 2px;
+  font-size: var(--po-type-ui-caption, 12px);
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-titlebar-cloud-agent-stack:is(:hover, [aria-expanded="true"]) .desktop-titlebar-cloud-agent-count {
+  color: var(--desktop-titlebar-text);
+}
+
+/* Asking to join: in its own colours behind a dashed edge, with the accent
+   where a working mark carries its lamp, because only the owner can answer. */
+.desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark {
+  --reach-mark-fill: transparent;
+  box-shadow: none;
+  border: 1px dashed color-mix(in srgb, currentColor 55%, transparent);
+  color: var(--desktop-titlebar-text);
+  filter: none;
+}
+
+/* A creature asking to join waits inside the dashed edge, not across it. */
+.desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark[data-reach-creature] > svg {
+  width: 68%;
+  height: 68%;
+}
+
+.desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark::after {
+  content: "";
+  position: absolute;
+  inset-block-end: -2px;
+  inset-inline-end: -2px;
+  box-sizing: content-box;
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid var(--desktop-titlebar-bg);
+  border-radius: 50%;
+  background: var(--po-accent);
+}
+
+/* Invite pill shown while nobody is here yet, plus solid circular + after
+   connected Agent avatars (replacing the retired dashed empty circle). */
+.desktop-titlebar-cloud-agent-invite {
+  height: var(--desktop-titlebar-control-height);
+  min-width: 0;
+  gap: 5px;
+  padding: 0 11px 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--desktop-titlebar-text) 7%, transparent);
+  color: var(--desktop-titlebar-text-muted);
   font-family: var(--desktop-titlebar-context-font-family);
-  font-size: var(--desktop-titlebar-context-font-size);
-  font-weight: var(--desktop-titlebar-context-font-weight);
-  line-height: var(--desktop-titlebar-context-line-height);
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: 500;
+  line-height: 1;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+}
+
+.desktop-titlebar-cloud-agent-seat {
+  display: inline-grid;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  place-items: center;
+}
+
+.desktop-titlebar-cloud-agent-invite-label {
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.desktop-titlebar-cloud-agent-invite:is(:hover, [aria-expanded="true"]):not(:disabled) {
+  background: var(--desktop-titlebar-active);
+  color: var(--desktop-titlebar-text);
+}
+
+/* Holding the pill's place while the server says whether this person may invite. */
+.desktop-titlebar-cloud-agent-invite:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.desktop-titlebar-cloud-agent-add {
+  display: grid;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
+  min-width: var(--po-control-size-compact);
+  margin-inline-start: -3px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--desktop-titlebar-text) 8%, var(--desktop-titlebar-bg));
+  box-shadow: 0 0 0 2px var(--desktop-titlebar-bg);
+  color: var(--desktop-titlebar-text-muted);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.desktop-titlebar-cloud-agent-add:is(:hover, [aria-expanded="true"]) {
+  background: color-mix(in srgb, var(--desktop-titlebar-text) 16%, var(--desktop-titlebar-bg));
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-cloud-agent:nth-child(2) .desktop-project-reach-mark[data-reach-activity] {
+  animation-delay: 260ms;
+}
+
+.desktop-titlebar-cloud-agent:nth-child(3) .desktop-project-reach-mark[data-reach-activity] {
+  animation-delay: 520ms;
+}
+
+/* An Agent's card under its Header mark, as a person's card reads in Notion:
+ * when it last worked across the top, then the Agent and how it got in. It
+ * only reads, so it never takes the pointer. */
+.desktop-cloud-agent-card {
+  --reach-mark-ground: var(--po-menu-bg, var(--po-overlay));
+  position: fixed;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--po-menu-border, var(--po-shell-divider));
+  border-radius: 12px;
+  background: var(--po-menu-bg, var(--po-overlay));
+  box-shadow:
+    0 2px 4px color-mix(in srgb, var(--po-shadow) 35%, transparent),
+    0 12px 32px -6px color-mix(in srgb, var(--po-shadow) 60%, transparent);
+  color: var(--po-text);
+  pointer-events: none;
+}
+
+.desktop-cloud-agent-card-when {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--po-shell-divider);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 16px;
+}
+
+.desktop-cloud-agent-card[data-live] .desktop-cloud-agent-card-when {
+  color: var(--po-text);
+}
+
+.desktop-cloud-agent-card[data-live] .desktop-cloud-agent-card-when::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--po-success);
+}
+
+.desktop-cloud-agent-card-who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+}
+
+.desktop-cloud-agent-card-who .desktop-project-reach-mark,
+.desktop-cloud-agent-card-who .desktop-project-reach-mark::before {
+  flex: none;
+  animation: none;
+}
+
+.desktop-cloud-agent-card-facts {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.desktop-cloud-agent-card-name {
+  overflow: hidden;
+  font-size: var(--po-type-ui-control, 14px);
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 20px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.desktop-titlebar-share > svg {
-  display: block;
-  flex: 0 0 auto;
+.desktop-cloud-agent-card-fact {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  line-height: 17px;
 }
 
-.desktop-titlebar-share-label {
+.desktop-cloud-agent-card-fact + .desktop-cloud-agent-card-fact {
+  color: var(--po-text-subtle);
+}
+
+.desktop-titlebar-cloud-tool > svg {
   display: block;
+  flex: 0 0 auto;
 }
 
 .desktop-header-coachmark-anchor {
@@ -950,15 +1166,6 @@
   transition: none;
 }
 
-.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"]
-  .desktop-titlebar-action.desktop-titlebar-share {
-  width: auto;
-  min-width: var(--desktop-titlebar-windows-control-width);
-  flex-basis: auto;
-  gap: 6px;
-  padding-inline: 10px;
-}
-
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-terminal {
   width: var(--desktop-titlebar-windows-control-width);
   min-width: var(--desktop-titlebar-windows-control-width);
@@ -1050,7 +1257,7 @@
   width: max-content;
   max-width: var(--desktop-titlebar-workspace-max-width);
   min-width: 0;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   height: 100%;
   align-items: center;
   gap: var(--desktop-titlebar-button-gap);
@@ -1085,20 +1292,6 @@
 
 .desktop-titlebar-workspace-button:focus-visible {
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
-}
-
-.desktop-project-github-mark {
-  display: block;
-  flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
-  background: currentColor;
-  mask-size: contain;
-  mask-position: center;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: contain;
-  -webkit-mask-position: center;
-  -webkit-mask-repeat: no-repeat;
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark {
@@ -1150,7 +1343,6 @@
 
 .desktop-titlebar-home {
   flex: 0 0 var(--desktop-chrome-control-size);
-  margin-inline-end: var(--desktop-titlebar-button-gap);
 }
 
 .desktop-titlebar-workspace-name {
@@ -1170,26 +1362,6 @@
   display: inline-flex;
   min-width: 0;
   align-items: center;
-}
-
-.desktop-titlebar-branch-placeholder {
-  display: block;
-  width: 42px;
-  height: 8px;
-  border-radius: 4px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, currentColor 10%, transparent),
-    color-mix(in srgb, currentColor 22%, transparent),
-    color-mix(in srgb, currentColor 10%, transparent)
-  );
-  background-size: 200% 100%;
-  animation: desktop-titlebar-placeholder-shimmer 1.4s ease-in-out infinite;
-}
-
-@keyframes desktop-titlebar-placeholder-shimmer {
-  from { background-position: 100% 0; }
-  to { background-position: -100% 0; }
 }
 
 .desktop-titlebar-workspace-button:hover .desktop-titlebar-workspace-name,
@@ -1213,34 +1385,6 @@
 .desktop-titlebar-menu.desktop-titlebar-menu-overlay {
   position: fixed;
   inset-inline-start: auto;
-}
-
-.desktop-titlebar-git-card-anchor {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-}
-
-.desktop-titlebar-menu.desktop-git-header-card {
-  --po-menu-bg: var(--po-header);
-  --interface-menu-background: var(--po-header);
-  --po-surface-auxiliary: var(--po-header);
-  display: flex;
-  height: 560px;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.desktop-git-header-card-surface {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.desktop-git-header-card-surface[hidden] {
-  display: none;
 }
 
 .desktop-titlebar-branch-wrap {

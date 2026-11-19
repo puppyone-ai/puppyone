@@ -1,5 +1,4 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { Check, Cloud, Copy, LockKeyhole, Unlink } from "lucide-react";
+import { Check, Copy, LockKeyhole, Unlink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -10,9 +9,12 @@ import {
   type DesktopCloudSession,
 } from "../../../../lib/cloudApi";
 import type { CloudWorkspaceSection } from "../../types";
+import { CloudComputerSettings } from "../../sandbox/CloudComputerSettings";
+import { useDesktopPreference } from "../../../settings";
 import { copyText } from "../../utils";
+import { CloudIcon as Cloud } from "@puppyone/shared-ui";
 
-type SettingsTab = "general" | "access" | "connection";
+type SettingsTab = "general" | "access" | "connection" | "computer";
 
 const SETTINGS_TABS: SettingsTab[] = ["general", "access", "connection"];
 
@@ -42,6 +44,9 @@ export function CloudProjectSettingsSection({
 }) {
   const { t } = useLocalization();
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  // Each member owns their own Cloud Computer, so this tab is not project administration.
+  const computerEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudComputerScreen);
+  const tabs: SettingsTab[] = computerEnabled ? [...SETTINGS_TABS, "computer"] : SETTINGS_TABS;
   const [currentProject, setCurrentProject] = useState(project);
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
@@ -149,7 +154,6 @@ export function CloudProjectSettingsSection({
           <header className="desktop-cloud-settings-landing-header">
             <div className="desktop-cloud-settings-landing-copy">
               <h1>{t("cloud.route.settings.title")}</h1>
-              <p>{t("cloud.route.settings.description")}</p>
             </div>
           </header>
 
@@ -159,7 +163,7 @@ export function CloudProjectSettingsSection({
             aria-label={t("cloud.settings.tabsAria")}
             role="tablist"
           >
-            {SETTINGS_TABS.map((tab) => (
+            {tabs.map((tab) => (
               <button
                 className={activeTab === tab ? "active" : undefined}
                 key={tab}
@@ -182,7 +186,11 @@ export function CloudProjectSettingsSection({
             </div>
           ) : null}
 
-          {!canManage ? (
+          {activeTab === "computer" && computerEnabled && (
+            <CloudComputerSettings projectId={currentProject.id} session={cloudSession}
+              apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} />
+          )}
+          {activeTab !== "computer" && (!canManage ? (
             <section className="desktop-cloud-settings-panel desktop-cloud-settings-restricted" role="tabpanel">
               <span aria-hidden="true"><LockKeyhole size={20} /></span>
               <div>
@@ -196,7 +204,6 @@ export function CloudProjectSettingsSection({
               <header className="desktop-cloud-settings-panel-header">
                 <div>
                   <h2>{t("cloud.settings.generalTitle")}</h2>
-                  <p>{t("cloud.settings.generalDetail")}</p>
                 </div>
                 <button
                   className="desktop-cloud-settings-primary-button"
@@ -210,12 +217,10 @@ export function CloudProjectSettingsSection({
               <div className="desktop-cloud-settings-form">
                 <label className="desktop-cloud-settings-field">
                   <span>{t("cloud.common.name")}</span>
-                  <small>{t("cloud.settings.nameHelp")}</small>
                   <input value={name} maxLength={200} disabled={savingGeneral} onChange={(event) => setName(event.target.value)} />
                 </label>
                 <label className="desktop-cloud-settings-field">
                   <span>{t("cloud.settings.description")}</span>
-                  <small>{t("cloud.settings.descriptionHelp")}</small>
                   <textarea value={description} rows={3} disabled={savingGeneral} onChange={(event) => setDescription(event.target.value)} />
                 </label>
                 <label className="desktop-cloud-settings-field">
@@ -226,10 +231,9 @@ export function CloudProjectSettingsSection({
                 <div className="desktop-cloud-settings-id-row">
                   <div>
                     <span>{t("cloud.project.id")}</span>
-                    <small>{t("cloud.settings.projectIdHelp")}</small>
                   </div>
                   <div>
-                    <Tooltip content={currentProject.id} overflowOnly><code>{currentProject.id}</code></Tooltip>
+                    <code>{currentProject.id}</code>
                     <button type="button" onClick={() => void handleCopyProjectId()}>
                       {copiedProjectId ? <Check size={13} /> : <Copy size={13} />}
                       <span>{t(copiedProjectId ? "cloud.common.copied" : "cloud.common.copyValue")}</span>
@@ -276,7 +280,6 @@ export function CloudProjectSettingsSection({
               <header className="desktop-cloud-settings-panel-header">
                 <div>
                   <h2>{t("cloud.settings.connectionTitle")}</h2>
-                  <p>{t("cloud.settings.connectionDetail")}</p>
                 </div>
               </header>
               <div className={`desktop-cloud-settings-connection-row ${matchesRepositoryRemote ? "connected" : ""}`}>
@@ -306,7 +309,7 @@ export function CloudProjectSettingsSection({
                 ) : null}
               </div>
             </section>
-          )}
+          ))}
         </div>
       </main>
     </section>

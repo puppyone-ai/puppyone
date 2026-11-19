@@ -1,33 +1,24 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { useDesktopPreference } from "../../../preferencesStore";
+import { useDesktopAppearance } from "../useDesktopAppearance";
+import { followThemeContentFont, isFollowingThemeContentFont } from "../../typography";
+import { Tooltip, FolderIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { FolderOpen, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
-  getCompatibleSubThemes,
   listSelectableSubThemes,
 } from "../../themes/builtinSubThemes";
 import type { SubThemeCatalogController } from "../../themes/useSubThemeCatalog";
-import type { InterfaceStyle, ResolvedTheme } from "../../appearance/interfaceStyles";
 import { getInterfaceStyleSubThemePolicy } from "../../appearance/interfaceStyles";
 
-export function SubThemeSettingsSection({
-  catalog,
-  rootThemeId,
-  requestedSubThemeId,
-  effectiveSubThemeId,
-  effectiveColorMode,
-  contentFontOverrideActive = false,
-  onSubThemeChange,
-  onUseThemeContentFont,
-}: {
-  catalog: SubThemeCatalogController;
-  rootThemeId: InterfaceStyle;
-  requestedSubThemeId: string;
-  effectiveSubThemeId: string;
-  effectiveColorMode: ResolvedTheme;
-  contentFontOverrideActive?: boolean;
-  onSubThemeChange: (subThemeId: string) => void;
-  onUseThemeContentFont?: () => void;
-}) {
+export function SubThemeSettingsSection({ catalog }: { catalog: SubThemeCatalogController }) {
+  const rootThemeId = useDesktopPreference(s => s.interfaceStyle);
+  const preferences = useDesktopPreference(s => s.typographyPreferences);
+  const setTypography = useDesktopPreference(s => s.setTypographyPreferences);
+  const onSubThemeChange = useDesktopPreference(s => s.setSubThemeId);
+  const { requestedSubThemeId, resolvedAppearance } = useDesktopAppearance();
+  const { subThemeId: effectiveSubThemeId, effectiveColorMode } = resolvedAppearance;
+  const contentFontOverrideActive = !isFollowingThemeContentFont(preferences);
+  const onUseThemeContentFont = () => setTypography(followThemeContentFont(preferences));
   const { t } = useLocalization();
   const allowedTargets = getInterfaceStyleSubThemePolicy(rootThemeId).allowedTargets;
   const variants = listSelectableSubThemes(
@@ -84,7 +75,7 @@ export function SubThemeSettingsSection({
               aria-label={t("settings.appearance.themes.openFolder")}
               onClick={() => void catalog.openDirectory()}
             >
-              <FolderOpen size={14} strokeWidth={1.8} aria-hidden="true" />
+              <FolderIcon size={14} strokeWidth={1.8} aria-hidden="true" />
             </button></Tooltip>
             <Tooltip content={t("settings.appearance.themes.add")}><button
               className="desktop-theme-pack-icon-action"
@@ -97,7 +88,7 @@ export function SubThemeSettingsSection({
           </div>
         </div>
       </div>
-      {contentFontOverrideActive && onUseThemeContentFont && (
+      {contentFontOverrideActive && (
         <div className="desktop-theme-font-override" role="status">
           <span>{t("settings.appearance.themes.contentFontOverride")}</span>
           <button type="button" onClick={onUseThemeContentFont}>

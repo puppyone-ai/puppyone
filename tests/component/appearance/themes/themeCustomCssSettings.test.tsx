@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as store } from "../../../../src/preferencesStore";
 // @vitest-environment happy-dom
 
 import { act } from "react";
@@ -11,6 +12,8 @@ import { withTestLocalization } from "../../../support/react/localization";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let container: HTMLDivElement;
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
+
 let root: Root;
 
 beforeEach(() => {
@@ -30,11 +33,6 @@ describe("Appearance theme settings", () => {
       root.render(withTestLocalization(
         <SubThemeSettingsSection
           catalog={controller({})}
-          rootThemeId="default"
-          requestedSubThemeId="default.neutral"
-          effectiveSubThemeId="default.neutral"
-          effectiveColorMode="light"
-          onSubThemeChange={vi.fn()}
         />,
       ));
       await Promise.resolve();
@@ -60,16 +58,10 @@ describe("Appearance theme settings", () => {
       created: true,
       themeId: "local.user.custom-theme",
     }));
-    const onSubThemeChange = vi.fn();
     await act(async () => {
       root.render(withTestLocalization(
         <SubThemeSettingsSection
           catalog={controller({ createTheme })}
-          rootThemeId="default"
-          requestedSubThemeId="default.neutral"
-          effectiveSubThemeId="default.neutral"
-          effectiveColorMode="light"
-          onSubThemeChange={onSubThemeChange}
         />,
       ));
       await Promise.resolve();
@@ -82,23 +74,17 @@ describe("Appearance theme settings", () => {
       await Promise.resolve();
     });
     expect(createTheme).toHaveBeenCalledOnce();
-    expect(onSubThemeChange).toHaveBeenCalledWith("local.user.custom-theme");
+    expect(store.getState().byRootTheme.default.requestedSubThemeIds.light).toBe("local.user.custom-theme");
     expect(document.getElementById("desktop-theme-add-status")).toBeNull();
   });
 
   it("makes an active reading-font override visible and lets the user restore theme control", async () => {
-    const onUseThemeContentFont = vi.fn();
+    store.getState().setSubThemeId("default.newspaper");
+    store.getState().setTypographyPreferences(p => ({ ...p, contentFont: { mode: "explicit", fontId: "inter" } }));
     await act(async () => {
       root.render(withTestLocalization(
         <SubThemeSettingsSection
           catalog={controller({})}
-          rootThemeId="default"
-          requestedSubThemeId="default.newspaper"
-          effectiveSubThemeId="default.newspaper"
-          effectiveColorMode="light"
-          contentFontOverrideActive
-          onSubThemeChange={vi.fn()}
-          onUseThemeContentFont={onUseThemeContentFont}
         />,
       ));
       await Promise.resolve();
@@ -110,7 +96,8 @@ describe("Appearance theme settings", () => {
     expect(restore?.textContent).toBe("Use theme font");
 
     act(() => restore?.click());
-    expect(onUseThemeContentFont).toHaveBeenCalledOnce();
+    expect(store.getState().typographyPreferences.contentFont).toEqual({ mode: "follow-theme" });
+    expect(document.querySelector(".desktop-theme-font-override")).toBeNull();
   });
 });
 

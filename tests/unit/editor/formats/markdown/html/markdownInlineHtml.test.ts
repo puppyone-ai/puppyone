@@ -5,33 +5,33 @@ import { describe, expect, it } from "vitest";
 import {
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
-import { addInlineMarkdownDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/inlineDecorations";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
+import { addInlineMarkdownDecorations } from "../../../../../../src/shared-ui/editor/markdown/core/decorations/inlineDecorations";
 import {
   markdownLivePreviewDecorations,
   requestMarkdownProjectionRange,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/livePreviewDecorations";
-import { getMarkdownPlansInRange } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
-import { getInlineRevealElement } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
-import { InlineHtmlLineBreakWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/core/widgets/inlineWidgets";
-import { getMarkdownHtmlBlock } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlBlockModel";
+} from "../../../../../../src/shared-ui/editor/markdown/core/decorations/livePreviewDecorations";
+import { getMarkdownPlansInRange } from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
+import { getInlineRevealElement } from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownElements";
+import { InlineHtmlLineBreakWidget } from "../../../../../../src/shared-ui/editor/markdown/core/widgets/inlineWidgets";
+import { getMarkdownHtmlBlock } from "../../../../../../src/shared-ui/editor/markdown/features/html/htmlBlockModel";
 import {
   parseMarkdownHtmlTagToken,
   scanMarkdownHtmlTagTokens,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlTagTokenizer";
+} from "../../../../../../src/shared-ui/editor/markdown/features/html/htmlTagTokenizer";
 import {
   getMarkdownInlineHtml,
   getMarkdownInlineHtmlDiagnostics,
   getMarkdownInlineHtmlInRange,
   resetMarkdownInlineHtmlDiagnostics,
   type MarkdownInlineHtml,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlModel";
-import { compileInlineHtmlRenderPlan } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlPolicy";
+} from "../../../../../../src/shared-ui/editor/markdown/features/html/inlineHtmlModel";
+import { compileInlineHtmlRenderPlan } from "../../../../../../src/shared-ui/editor/markdown/features/html/inlineHtmlPolicy";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { isAllowedStyleProperty } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { isAllowedStyleProperty } from "../../../../../../src/shared-ui/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy";
 
 function createMarkdownState(source: string) {
   return EditorState.create({

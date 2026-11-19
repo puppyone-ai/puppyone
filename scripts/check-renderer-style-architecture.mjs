@@ -4,21 +4,19 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { inspectStyleLayers } from "../tooling/styles/style-layer-contract.mjs";
+import { inspectStyleLayers } from "./styles/style-layer-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
 const cascade = read("src/styles/cascade.css");
 const rendererEntry = read("src/main.tsx");
 const productStyles = read("src/styles.css");
-const tailwindEntry = read("src/cloud-globals.css");
-const tailwindConfig = read("tailwind.config.cjs");
 const windowChromeStyles = read("src/styles/window-chrome.css");
 const interfaceSkinContractStyles = read("src/styles/interface-skin-contract.css");
 const windowChromeOwner = path.join(repoRoot, "src", "styles", "window-chrome.css");
-const sharedUiRoot = path.join(repoRoot, "packages", "shared-ui", "src");
+const sharedUiRoot = path.join(repoRoot, "src", "shared-ui");
 const interfaceStyleRoot = path.join(repoRoot, "src", "styles", "interfaces");
-const builtinSubThemeRoot = path.join(repoRoot, "sub-themes");
+const builtinSubThemeRoot = path.join(repoRoot, "src/features/themes/builtin");
 const viewerSurfaceTokenContract = JSON.parse(read("src/styles/viewer-surface-token-contract.json"));
 const concreteStylePattern = /\bwindows-xp\b/;
 const editorInternalSelectorPattern = /\.(?:cm-|markdown-codemirror-editor\b|csv-table-editor\b|desktop-terminal-xterm\b|puppyflow-[a-z0-9-]+\b|editor-mode-toggle\b|plain-text-editor\b|code-codemirror-editor\b)/;
@@ -30,26 +28,12 @@ if (cascade.trim() !== "@layer reset, fallback, tokens, primitives, patterns, fe
   errors.push("Renderer cascade order must keep Root Theme → Sub Theme → semantic User Overrides → safety layers explicit.");
 }
 
-const cascadeIndex = rendererEntry.indexOf('import "./styles/cascade.css";');
-const tailwindIndex = rendererEntry.indexOf('import "./cloud-globals.css";');
-const productIndex = rendererEntry.indexOf('import "./styles.css";');
 const rendererStyleBootstrap = [
   'import "./styles/cascade.css";',
-  'import "./cloud-globals.css";',
   'import "./styles.css";',
 ].join("\n");
-if (
-  cascadeIndex < 0
-  || tailwindIndex < 0
-  || productIndex < 0
-  || !rendererEntry.startsWith(`${rendererStyleBootstrap}\n`)
-  || !(cascadeIndex < tailwindIndex && tailwindIndex < productIndex)
-) {
-  errors.push("Renderer styles must be the first side-effect imports and load cascade registration, layered Tailwind, then product styles before application modules.");
-}
-
-if (!/corePlugins\s*:\s*\{[\s\S]*?preflight\s*:\s*false/.test(tailwindConfig)) {
-  errors.push("Tailwind Preflight must remain disabled; PuppyOne's reset layer is the only renderer reset owner.");
+if (!rendererEntry.startsWith(`${rendererStyleBootstrap}\n`)) {
+  errors.push("Renderer styles must be the first side-effect imports and load cascade registration, then product styles before application modules.");
 }
 
 if (!productStyles.includes('@import "./styles/base.css" layer(reset);')) {
@@ -92,17 +76,8 @@ if (
   errors.push("Window chrome styles must own explicit drag and no-drag data-attribute contracts.");
 }
 
-const expectedTailwindDirectives = ["@tailwind base;", "@tailwind components;", "@tailwind utilities;"];
-for (const directive of expectedTailwindDirectives) {
-  if (!tailwindEntry.includes(directive)) errors.push(`Tailwind entry is missing ${directive}`);
-}
-if (!tailwindEntry.includes("@layer reset") || !tailwindEntry.includes("@layer features")) {
-  errors.push("Tailwind output must participate in the reset/features cascade layers.");
-}
-
 const rendererSourceRoots = [
   path.join(repoRoot, "src"),
-  path.join(repoRoot, "packages", "shared-ui", "src"),
 ];
 
 // Check feature-side imports too, including every transitive CSS import edge.
@@ -143,14 +118,6 @@ if (read("src/features/desktop-agent/ui/styles/theme.css").includes("--po-termin
 for (const filePath of rendererSourceRoots.flatMap(walkRendererSource)) {
   const relativePath = path.relative(repoRoot, filePath);
   const source = readAbsolute(filePath);
-
-  if (
-    filePath.endsWith(".css")
-    && relativePath !== path.join("src", "cloud-globals.css")
-    && /^\s*@tailwind\s+(?:base|components|utilities)\s*;/m.test(source)
-  ) {
-    errors.push(`${relativePath} declares Tailwind globally; src/cloud-globals.css is the single entry owner.`);
-  }
 
   if (
     filePath !== windowChromeOwner

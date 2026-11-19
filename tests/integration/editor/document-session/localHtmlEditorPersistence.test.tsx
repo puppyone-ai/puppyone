@@ -9,10 +9,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DataWorkspace } from "../../../../packages/shared-ui/src/data/DataWorkspace";
-import type { FileContent } from "../../../../packages/shared-ui/src/core/types";
-import { flushActiveDocumentSessions } from "../../../../packages/shared-ui/src/editor/document-session/activeDocumentSessions";
-import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
+import { DataWorkspace } from "../../../../src/shared-ui/data/DataWorkspace";
+import type { FileContent } from "../../../../src/shared-ui/core/types";
+import { flushActiveDocumentSessions } from "../../../../src/shared-ui/editor/document-session/activeDocumentSessions";
+import { closeAllDocumentWorkingCopies } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
 import { createLocalDataPort } from "../../../../src/lib/localFiles";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -86,8 +86,10 @@ describe("local HTML editor persistence", () => {
       ));
     });
 
-    await waitFor(() => !!container.querySelector('.html-editor-options > button'));
-    await act(async () => container.querySelector<HTMLButtonElement>('.html-editor-options > button')?.click());
+    // Standalone previews carry the view modes in their own menu (no pane menu).
+    const sourceMode = '.html-editor-options [role="menuitemradio"][data-mode="source"]';
+    await waitFor(() => !!container.querySelector(sourceMode));
+    await act(async () => container.querySelector<HTMLButtonElement>(sourceMode)?.click());
     const editor = await waitForEditor(container);
     act(() => editor.dispatch({
       changes: { from: editor.state.doc.length, insert: "<!-- After -->" },

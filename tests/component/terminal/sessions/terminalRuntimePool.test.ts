@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "../../../../src/lib/workbench/ProjectWorkbenchStore";
 import { TerminalRuntimePool } from "../../../../src/features/desktop-terminal/runtime/TerminalRuntimePool";
 
 const { factory } = vi.hoisted(() => ({ factory: vi.fn() }));

@@ -1,15 +1,12 @@
+import { useDesktopPreference } from "../../../preferencesStore";
 import { useLocalization } from "@puppyone/localization";
 import {
   INTERFACE_STYLES,
-  type InterfaceStyle,
 } from "../../appearance/interfaceStyles";
 
-type InterfaceStyleSettingProps = {
-  value: InterfaceStyle;
-  onChange: (style: InterfaceStyle) => void;
-};
-
-export function InterfaceStyleSetting({ value, onChange }: InterfaceStyleSettingProps) {
+export function InterfaceStyleSetting() {
+  const value = useDesktopPreference(s => s.interfaceStyle);
+  const onChange = useDesktopPreference(s => s.setInterfaceStyle);
   const { t } = useLocalization();
 
   return (

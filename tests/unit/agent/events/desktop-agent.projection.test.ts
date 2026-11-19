@@ -374,7 +374,7 @@ describe("Desktop Agent transcript projection", () => {
     }, "turn-1", "activity-1"));
 
     expect(projection.activities[0]).toMatchObject({ status: "unknown" });
-    expect(projection.parts.find((part) => part.kind === "tool")).toMatchObject({ status: "unknown" });
+    expect(projection.parts.find((part) => part.kind === "system")).toMatchObject({ status: "unknown" });
   });
 
   it("keeps connection recovery as one replaceable live state outside transcript history", () => {

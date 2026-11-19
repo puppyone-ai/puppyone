@@ -9,11 +9,11 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const publicRoot = path.join(repoRoot, "public");
 const catalogPath = path.join(
   repoRoot,
-  "packages/shared-ui/src/core/rendererAssetCatalog.ts",
+  "src/shared-ui/core/rendererAssetCatalog.ts",
 );
 const agentBrandCatalogPath = path.join(
   repoRoot,
-  "packages/shared-ui/src/core/agentBrandCatalog.ts",
+  "src/shared-ui/core/agentBrandCatalog.ts",
 );
 const imageExtensionPattern = /\.(?:gif|ico|jpe?g|png|svg|tiff|webp)$/i;
 const canonicalFilenamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*\.(?:gif|ico|jpe?g|png|svg|tiff|webp)$/;
@@ -28,17 +28,15 @@ const allowedRoots = [
 ];
 const errors = [];
 
-for (const sourceRoot of [path.join(repoRoot, "src"), path.join(repoRoot, "packages", "shared-ui", "src")]) {
-  for (const filePath of walk(sourceRoot)) {
-    if (!/\.(?:css|[cm]?[jt]sx?)$/.test(filePath)) continue;
-    if (filePath === catalogPath || filePath === agentBrandCatalogPath) continue;
-    const source = readFileSync(filePath, "utf8");
-    if (source.includes("assets/icons/agents/")) {
-      errors.push(`${path.relative(repoRoot, filePath)} hard-codes an Agent mark; use AGENT_BRAND_CATALOG or AgentBrandImage`);
-    }
-    if (source.includes("RENDERER_ASSET_PATHS.icons.agents")) {
-      errors.push(`${path.relative(repoRoot, filePath)} bypasses the Agent brand registry; use AGENT_BRAND_CATALOG or AgentBrandImage`);
-    }
+for (const filePath of walk(path.join(repoRoot, "src"))) {
+  if (!/\.(?:css|[cm]?[jt]sx?)$/.test(filePath)) continue;
+  if (filePath === catalogPath || filePath === agentBrandCatalogPath) continue;
+  const source = readFileSync(filePath, "utf8");
+  if (source.includes("assets/icons/agents/")) {
+    errors.push(`${path.relative(repoRoot, filePath)} hard-codes an Agent mark; use AGENT_BRAND_CATALOG or AgentBrandImage`);
+  }
+  if (source.includes("RENDERER_ASSET_PATHS.icons.agents")) {
+    errors.push(`${path.relative(repoRoot, filePath)} bypasses the Agent brand registry; use AGENT_BRAND_CATALOG or AgentBrandImage`);
   }
 }
 

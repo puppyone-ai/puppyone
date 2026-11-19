@@ -18,7 +18,7 @@ const logicalUiStyles = [
   "../../../../src/features/desktop-agent/ui/styles/composer.css",
   "../../../../src/features/desktop-agent/ui/styles/transcript.css",
   "../../../../src/features/plugins/plugins.css",
-  "../../../../packages/shared-ui/src/styles/editor/puppyflow-editor.css",
+  "../../../../src/shared-ui/styles/editor/puppyflow-editor.css",
   "../../../../src/styles/settings-controls.css",
   "../../../../src/styles/settings-view.css",
   "../../../../src/styles/settings.css",
@@ -53,14 +53,19 @@ describe("RTL architecture", () => {
       .toContain('dir="ltr"');
     expect(read("../../../../src/features/source-control/diff/contributions/text-unified/TextUnifiedDiff.tsx"))
       .toContain('dir="ltr"');
-    expect(read("../../../../src/features/source-control/styles/history-list.css"))
-      .toContain('[dir="rtl"] .desktop-history-date-group button[aria-expanded="false"]');
+    // History groups use the shared disclosure chevron, which points along the
+    // reading direction while collapsed, so RTL mirrors it in one place.
+    expect(read("../../../../src/features/source-control/GitHistoryTimeline.tsx"))
+      .toMatch(/<DisclosureIcon className="desktop-history-date-disclosure" expanded=\{!row\.collapsed\}/);
+    expect(read("../../../../src/shared-ui/styles/product-icons.css"))
+      .toContain('[dir="rtl"] .po-disclosure-icon[data-expanded="false"]');
     expect(read("../../../../src/features/cloud/history/CloudHistorySidebar.tsx"))
       .toMatch(/aria-hidden="true"\s+dir="ltr"/);
     expect(read("../../../../src/features/settings/main/RepositorySettingsViews.tsx"))
-      .toMatch(/<Tooltip content=\{copyUrl[^>]+overflowOnly><code\s+dir="ltr"/s);
+      // The remote URL is an LTR island; tooltips are reserved for icon-only controls.
+      .toMatch(/<code\s+dir="ltr"[^>]*>\s*\{copyUrl \? maskRemoteUrl\(copyUrl\)/s);
     expect(read("../../../../src/features/settings/main/LocalProjectSettingsView.tsx"))
-      .toMatch(/<Tooltip content=\{workspace\.path\} overflowOnly><span className="desktop-settings-row-value" dir="ltr"/);
+      .toMatch(/<span className="desktop-settings-row-value" dir="ltr">\{workspace\.path\}/);
   });
 });
 

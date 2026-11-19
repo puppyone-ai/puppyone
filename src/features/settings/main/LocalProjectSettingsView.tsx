@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { useState } from "react";
 import { ShieldCheck, Unlink } from "lucide-react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
@@ -42,11 +41,11 @@ export function LocalProjectSettingsView({
           <div className="desktop-settings-list desktop-settings-lead-list">
             <div className="desktop-settings-row">
               <span>{t("settings.localProject.name")}</span>
-              <Tooltip content={workspace.name} overflowOnly><span className="desktop-settings-row-value" dir="auto">{workspace.name}</span></Tooltip>
+              <span className="desktop-settings-row-value" dir="auto">{workspace.name}</span>
             </div>
             <div className="desktop-settings-row">
               <span>{t("settings.localProject.path")}</span>
-              <Tooltip content={workspace.path} overflowOnly><span className="desktop-settings-row-value" dir="ltr">{workspace.path}</span></Tooltip>
+              <span className="desktop-settings-row-value" dir="ltr">{workspace.path}</span>
             </div>
             <div className="desktop-settings-row">
               <span>{t("settings.localProject.mode")}</span>

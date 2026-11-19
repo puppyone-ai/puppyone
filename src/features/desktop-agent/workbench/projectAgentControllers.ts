@@ -1,4 +1,4 @@
-import type { AuxiliaryWorkbenchProject } from "../../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchProject } from "../../../lib/workbench/types";
 import { AgentControllerRegistry } from "../application/AgentControllerRegistry";
 import { createElectronProjectAgentClient } from "../infrastructure/electron/electronAgentClient";
 import type { AgentClientProvider } from "../application/AgentClientPort";

@@ -1,6 +1,6 @@
 // Domain denominators include production files even when no test imports them.
 export const coreCoverageDomains = {
-  editor: "{packages/shared-ui/src/editor,src/features/editor-workbench}/**/*.{ts,tsx,mjs}",
+  editor: "{src/shared-ui/editor,src/features/editor-workbench}/**/*.{ts,tsx,mjs}",
   agent: "{src/features/desktop-agent,electron/main/agent,shared/agent-contract}/**/*.{ts,tsx,mjs}",
   workbench: "{src/features/app-shell,src/features/desktop-terminal,electron/main/item-hosts,electron/main/native-surfaces,electron/main/workspace/project-sessions}/**/*.{ts,tsx,mjs}",
 };

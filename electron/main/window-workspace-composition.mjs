@@ -11,10 +11,8 @@ export function createWindowWorkspaceCompositionService({
   cleanupDetachedWorkspace = async () => undefined,
   openProject = () => undefined,
   getWindowState,
-  getWorkspaceWindow,
   indexWorkspacePath,
   persistWorkspaceComposition,
-  revealWindow,
   unindexWorkspacePath = () => undefined,
   workspaceFromPath,
 }) {
@@ -25,23 +23,10 @@ export function createWindowWorkspaceCompositionService({
       const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
       const state = getWindowState(window);
       const currentWorkspaces = () => state.folders.map((folder) => folder.workspace);
-      const existingWindow = getWorkspaceWindow(canonicalPath);
 
-      if (existingWindow === window && state.folderPaths.includes(canonicalPath)) {
+      if (state.folderPaths.includes(canonicalPath)) {
         return createResult("already-attached", canonicalPath, workspace, currentWorkspaces(), state.workspaceId);
       }
-      if (existingWindow && existingWindow !== window) {
-        revealWindow(existingWindow, canonicalPath);
-        const existingState = getWindowState(existingWindow);
-        return createResult(
-          "focused-existing",
-          canonicalPath,
-          workspace,
-          existingState.folders.map((folder) => folder.workspace),
-          existingState.workspaceId,
-        );
-      }
-
       const nextFolders = [...state.folders, { path: canonicalPath, workspace }];
       // Validate path and stable Folder identity before durable state changes.
       const validationState = new WindowWorkspaceState();
@@ -57,7 +42,9 @@ export function createWindowWorkspaceCompositionService({
       return createResult("attached-current", canonicalPath, workspace, currentWorkspaces(), state.workspaceId);
     }); },
     detach(window, folderPath) { return transactions.run(window, async () => {
-      const canonicalPath = await canonicalizeWorkspacePath(folderPath);
+      // A folder that has gone from disk can no longer be resolved, yet must still be
+      // removable: match it by the path the window holds for it.
+      const canonicalPath = await canonicalizeWorkspacePath(folderPath).catch(() => folderPath);
       const state = getWindowState(window);
       const detachedFolder = state.folders.find((folder) => folder.path === canonicalPath);
       if (!detachedFolder) {

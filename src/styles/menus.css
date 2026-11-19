@@ -58,8 +58,12 @@
   border-radius: var(--po-menu-item-radius);
 }
 
+/* One minimum-zero column, so a long row ends in an ellipsis instead of
+ * taking the menu's width from its longest label. An implicit `auto` track
+ * would adopt that label as its minimum and push every row past the surface. */
 .desktop-menu-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   min-width: 0;
 }
@@ -82,6 +86,7 @@
 
 .desktop-menu-section-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   min-width: 0;
 }

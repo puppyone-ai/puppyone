@@ -28,8 +28,9 @@ jobs:
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       PUBLIC_DOWNLOAD_ORIGIN: https://downloads.puppyone.ai
-      VITE_DESKTOP_CLOUD_API_URL: https://api.puppyone.ai/api/v1
-      VITE_DESKTOP_CLOUD_WEB_URL: https://app.puppyone.ai
+      # Internal builds pair with the Qubits staging Cloud; Stable pairs with production.
+      VITE_DESKTOP_CLOUD_API_URL: https://qubits-api.puppyone.ai/api/v1
+      VITE_DESKTOP_CLOUD_WEB_URL: https://qubits-try.puppyone.ai
 
     steps:
       - name: Checkout source
@@ -53,6 +54,8 @@ jobs:
             echo "Internal releases must be built from the main branch." >&2
             exit 1
           fi
+          # The server-side status index can lag behind a completed run. Match
+          # exact source, event and terminal success in the returned run records.
           SUCCESSFUL_CI_RUNS="$(
             gh api \
               --method GET \
@@ -60,8 +63,7 @@ jobs:
               "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
               -f branch=main \
               -f head_sha="${GITHUB_SHA}" \
-              -f status=completed \
-              --jq '[.workflow_runs[] | select(.event == "push" and .conclusion == "success")] | length'
+              --jq '[.workflow_runs[] | select(.event == "push" and .head_sha == env.GITHUB_SHA and .status == "completed" and .conclusion == "success")] | length'
           )"
           if [ "${SUCCESSFUL_CI_RUNS}" -lt 1 ]; then
             echo "Internal releases require a successful CI push run for ${GITHUB_SHA} on main." >&2

@@ -1,0 +1,73 @@
+@layer features {
+  /* Sits beside the place control and shares its height, icon slot, radius
+     and hover colour, so it reads as part of the Header rather than a
+     notification dropped onto it. A mark alone: its words are in the tooltip. */
+  .desktop-titlebar-publish-status-wrap {
+    display: flex;
+    flex: 0 0 auto;
+    min-width: 0;
+    align-items: center;
+    height: 100%;
+    animation: desktop-titlebar-publish-status-in 0.22s ease-out;
+  }
+
+  /* A square mark button, the size of the Header's other icon controls. */
+  .desktop-titlebar-publish-status {
+    display: inline-flex;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: var(--desktop-titlebar-control-height);
+    height: var(--desktop-titlebar-control-height);
+    padding: 0;
+    border: 0;
+    border-radius: var(--desktop-toolbar-action-radius);
+    background: transparent;
+    color: var(--desktop-titlebar-text-muted);
+    cursor: var(--po-clickable-cursor, default);
+  }
+
+  .desktop-titlebar-publish-status:hover {
+    background: var(--desktop-titlebar-hover);
+  }
+
+  .desktop-titlebar-publish-status:focus-visible {
+    outline: 1px solid var(--desktop-titlebar-focus);
+    outline-offset: -1px;
+  }
+
+  .desktop-titlebar-publish-status-mark {
+    display: grid;
+    width: var(--desktop-titlebar-workspace-icon-slot-size);
+    height: var(--desktop-titlebar-workspace-icon-slot-size);
+    flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
+    place-items: center;
+    color: var(--po-accent);
+  }
+
+  .desktop-titlebar-publish-status[data-publish-status="completed"] .desktop-titlebar-publish-status-mark {
+    color: var(--po-success);
+  }
+
+  /* Failed and interrupted both wait on the user: one warning mark, one hue. */
+  .desktop-titlebar-publish-status[data-publish-status="attention"] .desktop-titlebar-publish-status-mark,
+  .desktop-titlebar-publish-status[data-publish-status="paused"] .desktop-titlebar-publish-status-mark {
+    color: var(--po-warning, var(--desktop-titlebar-text));
+  }
+
+  .desktop-titlebar-publish-status-spinner {
+    display: block;
+  }
+
+  @keyframes desktop-titlebar-publish-status-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-titlebar-publish-status-wrap {
+      animation: none;
+    }
+  }
+}

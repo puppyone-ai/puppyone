@@ -1,4 +1,4 @@
-import { normalizeSetupPreferences } from "./features/local-agents/model/localAgentSetupPreferences";
+import { normalizeSetupPreferences, type LocalAgentsSettings } from "./localAgentPreferences";
 import {
   DEFAULT_TYPOGRAPHY_PREFERENCES,
   parseTypographyPreferences,
@@ -16,7 +16,12 @@ import {
   type InterfaceStyle,
   type ThemeMode,
 } from "./features/appearance/interfaceStyles";
-import type { PulseGridPresetId } from "@puppyone/shared-ui";
+import {
+  DEFAULT_LOADING_PLACEHOLDER_STYLE,
+  LOADING_PLACEHOLDER_STYLES,
+  parseLoadingPlaceholderStyle,
+  type LoadingPlaceholderStyle,
+} from "@puppyone/shared-ui";
 import {
   CREATE_NEW_ITEM_IDS,
   CREATE_NEW_SUBMENU_ID,
@@ -52,8 +57,20 @@ export type LightThemePreset = "neutral" | "warm" | "graphite";
 export type DarkThemePreset = "default" | "warm" | "graphite";
 export type DiffMarkers = "color" | "symbols";
 export type GitDisplayMode = "simple" | "professional";
-export type GitSidebarLayout = "cards" | "dividers";
-export type LoadingAnimationPreset = PulseGridPresetId;
+export type { LoadingPlaceholderStyle };
+export { DEFAULT_LOADING_PLACEHOLDER_STYLE, LOADING_PLACEHOLDER_STYLES, parseLoadingPlaceholderStyle };
+
+/**
+ * Loading styles offered in Appearance. Dither stays implemented (placeholders
+ * and the loading mark) but is not offered yet; add it here to offer it.
+ * A stored style outside this list reads as the default.
+ */
+export const SELECTABLE_LOADING_STYLES: readonly LoadingPlaceholderStyle[] = Object.freeze(["rounded"]);
+
+export function parseSelectableLoadingStyle(value: unknown): LoadingPlaceholderStyle {
+  const style = parseLoadingPlaceholderStyle(value);
+  return SELECTABLE_LOADING_STYLES.includes(style) ? style : DEFAULT_LOADING_PLACEHOLDER_STYLE;
+}
 
 export type SidebarNavigationLayout = "bottom-horizontal";
 
@@ -75,27 +92,25 @@ export type TitlebarActionsSettings = {
   enabled: Record<TitlebarActionId, boolean>;
   order: TitlebarActionId[];
 };
-export type LocalAgentsSettings = {
-  hiddenTerminalAgentIds: string[];
-  chatHistoryDiscoveryEnabled: boolean;
-  setupSuggestions?: import("../shared/local-agent-installation/setup-types").LocalAgentSetupPreferences;
-};
+export type { LocalAgentsSettings } from "./localAgentPreferences";
 export type ExperimentalSettings = {
-  enableAssetLibraryHome: boolean;
   enableAlwaysShowOnboardingCoachmarks: boolean;
-  enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
+  enableHostDevices: boolean;
   enableEditorTabsInHeader: boolean;
-  enableCenteredProjectInHeader: boolean;
-  enableGitCardInHeader: boolean;
-  enableShareOnboarding: boolean;
+  enableProjectReach: boolean;
   enableWorkbenchTabsInHeader: boolean;
   enableGitAutoCommit: boolean;
   enableMarkdownBlockDrag: boolean;
   enableMarkdownHeadingOutline: boolean;
   enableMultiRootWorkspaces: boolean;
   enableOtherAppImports: boolean;
+  enablePayments: boolean;
   enablePuppyFlowFiles: boolean;
+  /** Show the Cloud Computer screen under the explorer of Cloud projects. */
+  enableCloudComputerScreen: boolean;
+  /** Present Cloud and this computer's sandboxes as miniature computers on the Homepage. */
+  enableComputerMode: boolean;
   enableProjectSwitcherRail: boolean;
   enableViewerPlugins: boolean;
 };
@@ -110,6 +125,7 @@ export type CreateNewMenuSettings = {
 
 export const TYPOGRAPHY_STORAGE_KEY = "puppyone.desktop.typography";
 export const POINTER_CURSORS_STORAGE_KEY = "puppyone.desktop.pointerCursors";
+/** Retired with the ikun/ymca/siu presets; kept only so legacy storage is cleared. */
 export const LOADING_ANIMATION_STORAGE_KEY = "puppyone.desktop.loadingAnimation";
 export const DIFF_MARKERS_STORAGE_KEY = "puppyone.desktop.diffMarkers";
 export const MARKDOWN_PRESENTATION_STORAGE_KEY = "puppyone.desktop.markdownPresentation";
@@ -124,6 +140,7 @@ export const LOCAL_AGENTS_STORAGE_KEY = "puppyone.desktop.localAgents";
 export const AGENT_FILE_ACTIVITY_INDICATORS_STORAGE_KEY = "puppyone.desktop.agentFileActivityIndicators";
 export const AI_EDIT_ASSIST_STORAGE_KEY = "puppyone.desktop.aiEditAssist";
 export const GIT_DISPLAY_MODE_STORAGE_KEY = "puppyone.desktop.gitDisplayMode";
+/** Retired with the cards/dividers comparison; kept only so legacy storage is cleared. */
 export const GIT_SIDEBAR_LAYOUT_STORAGE_KEY = "puppyone.desktop.gitSidebarLayout";
 export const EXPERIMENTAL_SETTINGS_STORAGE_KEY = "puppyone.desktop.experimental";
 export const CREATE_NEW_MENU_STORAGE_KEY = "puppyone.desktop.createNewMenu";
@@ -133,10 +150,10 @@ export const DEFAULT_LIGHT_THEME_PRESET: LightThemePreset = "neutral";
 export const DEFAULT_DARK_THEME_PRESET: DarkThemePreset = "default";
 export { DEFAULT_TYPOGRAPHY_PREFERENCES };
 export const DEFAULT_POINTER_CURSORS = false;
-export const DEFAULT_LOADING_ANIMATION_PRESET: LoadingAnimationPreset = "ikun";
+/** File glyphs in explorer rows; when hidden only the folder chevrons remain. */
+export const DEFAULT_SHOW_FILE_ICONS = true;
 export const DEFAULT_DIFF_MARKERS: DiffMarkers = "color";
 export const DEFAULT_GIT_DISPLAY_MODE: GitDisplayMode = "simple";
-export const DEFAULT_GIT_SIDEBAR_LAYOUT: GitSidebarLayout = "cards";
 export const DEFAULT_SIDEBAR_NAVIGATION_LAYOUT: SidebarNavigationLayout = "bottom-horizontal";
 export const DEFAULT_EXPLORER_EXCLUDE_PATTERNS = [
   "**/.git",
@@ -170,22 +187,34 @@ export const DEFAULT_LOCAL_AGENTS_SETTINGS: LocalAgentsSettings = {
 export const DEFAULT_AGENT_FILE_ACTIVITY_INDICATORS_ENABLED = false;
 export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
-  enableAssetLibraryHome: false,
   enableAlwaysShowOnboardingCoachmarks: false,
-  enableCloudAutomation: false,
   enableCloudWorkspace: false,
+  enableHostDevices: false,
   enableEditorTabsInHeader: false,
-  enableCenteredProjectInHeader: false,
-  enableGitCardInHeader: false,
-  /** Share-first Cloud Homepage and Header entry. On by default; switch off for the classic layout. */
-  enableShareOnboarding: true,
+  /**
+   * The remaining review-first incoming Git changes comparison. Sharing and
+   * Header reach are retired; this stored key cannot restore them. Read it
+   * only through `useProjectReachExperience()`; the retirement plan lives in
+   * puppy-issues `document/puppyone-desktop/platform/experimental-path-forks.md`.
+   */
+  enableProjectReach: false,
   enableWorkbenchTabsInHeader: false,
   enableGitAutoCommit: false,
   enableMarkdownBlockDrag: false,
   enableMarkdownHeadingOutline: false,
   enableMultiRootWorkspaces: false,
   enableOtherAppImports: false,
+  /**
+   * What the product sells: cloud workspaces, PuppyOne's own token, the account
+   * balance it spends and the top-up that refills it. On by default, because a
+   * user who cannot find the price cannot buy. Switch it off and the Desktop
+   * asks for no money at all: the Agent routes only to the user's own API keys
+   * and local models. Read it only through `usePaymentsExperience()`.
+   */
+  enablePayments: true,
   enablePuppyFlowFiles: false,
+  enableCloudComputerScreen: false,
+  enableComputerMode: false,
   enableProjectSwitcherRail: false,
   enableViewerPlugins: false,
 };
@@ -279,22 +308,12 @@ export function parsePointerCursors(value: string | null | undefined): boolean {
   return DEFAULT_POINTER_CURSORS;
 }
 
-export function parseLoadingAnimationPreset(
-  value: string | null | undefined,
-): LoadingAnimationPreset {
-  return value === "ymca" || value === "siu" || value === "ikun" ? value : DEFAULT_LOADING_ANIMATION_PRESET;
-}
-
 export function parseDiffMarkers(value: string | null | undefined): DiffMarkers {
   return value === "symbols" || value === "color" ? value : DEFAULT_DIFF_MARKERS;
 }
 
 export function parseGitDisplayMode(value: string | null | undefined): GitDisplayMode {
   return value === "professional" || value === "simple" ? value : DEFAULT_GIT_DISPLAY_MODE;
-}
-
-export function parseGitSidebarLayout(value: string | null | undefined): GitSidebarLayout {
-  return value === "dividers" || value === "cards" ? value : DEFAULT_GIT_SIDEBAR_LAYOUT;
 }
 
 export function parseSidebarNavigationLayout(_value: string | null | undefined): SidebarNavigationLayout {
@@ -413,25 +432,22 @@ export function parseAiEditAssistEnabled(value: string | null | undefined): bool
   return DEFAULT_AI_EDIT_ASSIST_ENABLED;
 }
 
-export function parseExperimentalSettings(value: string | null | undefined): ExperimentalSettings {
-  if (!value) return DEFAULT_EXPERIMENTAL_SETTINGS;
+export function parseExperimentalSettings(value: string | null | undefined, defaults = DEFAULT_EXPERIMENTAL_SETTINGS): ExperimentalSettings {
+  if (!value) return defaults;
 
   try {
     const parsed = JSON.parse(value) as (Partial<ExperimentalSettings> & Partial<Record<
       "enableNotionImport" | "enableGoogleDriveImport" | "enableAirtableImport" | "enableObsidianImport",
       boolean
     >>) | null;
-    if (!parsed || typeof parsed !== "object") return DEFAULT_EXPERIMENTAL_SETTINGS;
+    if (!parsed || typeof parsed !== "object") return defaults;
 
     return {
-      enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
       enableAlwaysShowOnboardingCoachmarks: parsed.enableAlwaysShowOnboardingCoachmarks === true,
-      enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
+      enableHostDevices: typeof parsed.enableHostDevices === "boolean" ? parsed.enableHostDevices : defaults.enableHostDevices,
       enableEditorTabsInHeader: parsed.enableEditorTabsInHeader === true,
-      enableCenteredProjectInHeader: parsed.enableCenteredProjectInHeader === true,
-      enableGitCardInHeader: parsed.enableGitCardInHeader === true,
-      enableShareOnboarding: parsed.enableShareOnboarding !== false,
+      enableProjectReach: parsed.enableProjectReach === true,
       enableWorkbenchTabsInHeader: parsed.enableWorkbenchTabsInHeader === true,
       // Main-owned Git Auto Commit consent is intentionally never restored
       // from renderer localStorage. The Electron capability bridge hydrates it.
@@ -444,12 +460,17 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
         || parsed.enableGoogleDriveImport === true
         || parsed.enableAirtableImport === true
         || parsed.enableObsidianImport === true,
+      // On unless the user switched it off, so an install that predates the
+      // key keeps the prices rather than silently losing them.
+      enablePayments: parsed.enablePayments !== false,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
+      enableCloudComputerScreen: parsed.enableCloudComputerScreen === true,
+      enableComputerMode: parsed.enableComputerMode === true,
       enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,
       enableViewerPlugins: parsed.enableViewerPlugins === true,
     };
   } catch {
-    return DEFAULT_EXPERIMENTAL_SETTINGS;
+    return defaults;
   }
 }
 
@@ -511,7 +532,10 @@ export function parseCreateNewMenuSettings(value: string | null | undefined): Cr
       .filter((item) => !item.enabled)
       .map((item) => item.kind);
     for (const kind of CREATE_NEW_ITEM_IDS) {
-      if (!seen.has(kind)) hidden.push(kind);
+      if (!seen.has(kind)) {
+        if (kind === "whiteboard") main.splice(main.indexOf(CREATE_NEW_SUBMENU_ID), 0, kind);
+        else hidden.push(kind);
+      }
     }
     return { version: CREATE_NEW_MENU_VERSION, main, submenu, hidden };
   } catch {
@@ -539,7 +563,7 @@ export function isCreateNewMenuPlacement(value: unknown): value is CreateNewMenu
 
 export function isCreateNewItemAvailable(
   kind: CreateNewItemId,
-  experimentalSettings: ExperimentalSettings,
+  experimentalSettings: Pick<ExperimentalSettings, "enablePuppyFlowFiles">,
 ): boolean {
   const experimentalSetting = getCreateEntryMenuItem(kind).experimentalSetting;
   return !experimentalSetting || experimentalSettings[experimentalSetting];
@@ -582,7 +606,10 @@ function normalizeCreateNewMenuLayout(
   }
 
   for (const kind of CREATE_NEW_ITEM_IDS) {
-    if (!seenItems.has(kind)) hidden.push(kind);
+    if (!seenItems.has(kind)) {
+      if (kind === "whiteboard") main.splice(main.indexOf(CREATE_NEW_SUBMENU_ID), 0, kind);
+      else hidden.push(kind);
+    }
   }
   return { version: CREATE_NEW_MENU_VERSION, main, submenu, hidden };
 }
@@ -604,7 +631,7 @@ function isLegacyCreateNewDefault(items: readonly {
 
 export function resolveVisibleCreateNewMenuItems(
   settings: CreateNewMenuSettings,
-  experimentalSettings: ExperimentalSettings,
+  experimentalSettings: Pick<ExperimentalSettings, "enablePuppyFlowFiles">,
 ): Readonly<{ main: CreateNewMainMenuEntry[]; submenu: CreateNewItemId[] }> {
   const submenu = settings.submenu.filter((kind) => (
     isCreateNewItemAvailable(kind, experimentalSettings)

@@ -2,6 +2,18 @@ import { describe, expect, it } from "vitest";
 import { WindowWorkspaceState } from "../../../../electron/main/window-workspace-state.mjs";
 
 describe("WindowWorkspaceState", () => {
+  it("binds a File Mode window to one file without entering the folder composition", () => {
+    const fileTarget = { path: "/notes/plan.md", rootPath: "/notes", name: "plan.md" };
+    const state = new WindowWorkspaceState({ fileTarget });
+
+    expect(state.fileTarget).toEqual(fileTarget);
+    expect(Object.isFrozen(state.fileTarget)).toBe(true);
+    expect(state.folderPaths).toEqual([]);
+    expect(state.initialRestorePaths).toEqual([]);
+    expect(state.primaryWorkspace).toBeNull();
+    expect(new WindowWorkspaceState().fileTarget).toBeNull();
+  });
+
   it("models one visible folder as a general ordered composition", () => {
     const state = new WindowWorkspaceState({
       initialWorkspaceId: "workbench:persisted",
@@ -72,5 +84,12 @@ describe("WindowWorkspaceState", () => {
       { path: "/repo", workspace: { id: "root", name: "Root" } },
       { path: "/repo/packages/ui", workspace: { id: "nested", name: "Nested" } },
     ])).toThrow(/overlapping Workspace Folder/i);
+  });
+
+  it("opens a new window on its document once, so a reload does not reopen it", () => {
+    const state = new WindowWorkspaceState({ initialWorkspacePath: "/projects/CRM", initialOpenPath: "README.zh-CN.md" });
+    expect(state.takeInitialOpenPath()).toBe("README.zh-CN.md");
+    expect(state.takeInitialOpenPath()).toBeNull();
+    expect(new WindowWorkspaceState().takeInitialOpenPath()).toBeNull();
   });
 });

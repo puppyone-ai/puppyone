@@ -3,7 +3,7 @@ import {
   EMPTY_CONTEXT_MAP_WHEEL_GESTURE_STATE,
   resolveContextMapWheelGesture,
   type ContextMapWheelGestureInput,
-} from "../../../../../packages/shared-ui/src/editor/viewers/context-map/contextMapWheelNavigation";
+} from "../../../../../src/shared-ui/editor/viewers/context-map/contextMapWheelNavigation";
 
 describe("Context Map wheel gesture intent", () => {
   it("pans with two-axis high-resolution trackpad scrolling", () => {

@@ -1,0 +1,50 @@
+@layer features {
+  /*
+   * A project window's Header (styles/titlebar.css) over the document, so both
+   * windows read as one app: the Header's own fill and divider, the native
+   * window controls' insets, and the file's controls as Header commands.
+   */
+  .file-mode-window {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100vh;
+    min-height: 0;
+    background: var(--po-editor-bg);
+    color: var(--po-text);
+  }
+
+  .file-mode-window > .desktop-titlebar {
+    flex: none;
+  }
+
+  /* One size and weight for every icon in the Header, a project Header's, whichever editor drew it. */
+  .file-mode-window .desktop-titlebar-action svg {
+    width: 15px;
+    height: 15px;
+    stroke-width: 1.8;
+  }
+
+  /* An open menu holds its command down, as an open dialog does a project's. */
+  .file-mode-window .desktop-titlebar-action[aria-haspopup="menu"][aria-expanded="true"] {
+    background: var(--desktop-titlebar-active);
+    color: var(--desktop-titlebar-text);
+  }
+
+  .file-mode-window__notice {
+    flex: none;
+    margin: 0;
+    padding: 8px 16px;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-header-content);
+    line-height: var(--po-type-header-line-height);
+  }
+
+  .file-mode-window__document {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+}

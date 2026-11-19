@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useState } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -16,7 +17,7 @@ export function AgentEmptyState({ runtimeIconKey, runtimeLabel }: AgentEmptyStat
 
   return (
     <div className="desktop-agent-empty-state">
-      <button
+      <Tooltip content={t("agent.empty.spinLogo", { agent: bidiIsolate(runtimeLabel) })}><button
         type="button"
         className="desktop-agent-empty-logo-button"
         style={agentEmptyLogoGeometry(logoTurns)}
@@ -28,7 +29,7 @@ export function AgentEmptyState({ runtimeIconKey, runtimeLabel }: AgentEmptyStat
           iconKey={runtimeIconKey}
           label={runtimeLabel}
         />
-      </button>
+      </button></Tooltip>
       <p>{t("agent.empty.prompt")}</p>
     </div>
   );

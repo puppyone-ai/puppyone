@@ -1,0 +1,157 @@
+import type { DocumentEditingSessionHandle, DocumentSessionDrainReason } from "./types";
+
+type SessionRegistration = {
+  tokens: Set<symbol>;
+  stopObserving: () => void;
+};
+
+// Empty-token entries are retiring sessions whose final unmount snapshot has
+// not yet been acknowledged. They remain part of an app-close drain.
+const registeredDocumentSessions = new Map<DocumentEditingSessionHandle, SessionRegistration>();
+const unsavedListeners = new Set<(unsaved: boolean) => void>();
+let lastPublishedUnsaved = false;
+
+export function hasUnsavedDocumentSessions(): boolean {
+  return [...registeredDocumentSessions.keys()].some((session) => session.hasUnpersistedChanges());
+}
+
+function publishUnsaved(): void {
+  const unsaved = hasUnsavedDocumentSessions();
+  if (unsaved === lastPublishedUnsaved) return;
+  lastPublishedUnsaved = unsaved;
+  for (const listener of unsavedListeners) listener(unsaved);
+}
+
+/** Tells a window when it starts and stops holding unsaved edits. */
+export function subscribeUnsavedDocumentSessions(listener: (unsaved: boolean) => void): () => void {
+  unsavedListeners.add(listener);
+  return () => unsavedListeners.delete(listener);
+}
+
+/** For a host closing without saving. The registry's next drain then writes nothing. */
+export function discardActiveDocumentSessions(): void {
+  for (const session of registeredDocumentSessions.keys()) session.discardChanges();
+}
+
+function forgetSession(session: DocumentEditingSessionHandle, registration: SessionRegistration): void {
+  registration.stopObserving();
+  registeredDocumentSessions.delete(session);
+  publishUnsaved();
+}
+
+/**
+ * Auto-save policy "on window change": leaving the window or hiding it writes
+ * pending edits now instead of after the idle delay. Not a drain barrier.
+ */
+export function flushPendingAutoSaves(): void {
+  for (const session of registeredDocumentSessions.keys()) session.flushPendingAutoSave?.();
+}
+
+let windowAutoSaveInstalled = false;
+function installWindowAutoSave(): void {
+  if (windowAutoSaveInstalled || typeof window === "undefined") return;
+  windowAutoSaveInstalled = true;
+  window.addEventListener("blur", flushPendingAutoSaves);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushPendingAutoSaves();
+  });
+}
+
+/** Register a host-owned session for the lifetime of its React boundary. */
+export function registerActiveDocumentSession(session: DocumentEditingSessionHandle): () => void {
+  installWindowAutoSave();
+  let registration = registeredDocumentSessions.get(session);
+  if (!registration) {
+    registration = { tokens: new Set(), stopObserving: session.subscribe(publishUnsaved) };
+    registeredDocumentSessions.set(session, registration);
+  }
+  const token = Symbol(session.documentId);
+  registration.tokens.add(token);
+  let registered = true;
+
+  return () => {
+    if (!registered) return;
+    registered = false;
+    registration!.tokens.delete(token);
+
+    // React runs the remaining child cleanups before this microtask. Deferring
+    // observes the final destroy snapshot and also makes StrictMode's
+    // cleanup/setup probe safe: a replacement token prevents retirement.
+    void Promise.resolve().then(() => retireRegistration(session, registration!));
+  };
+}
+
+/**
+ * Snapshot and drain every active or retiring session owned by this renderer
+ * window. In-app navigation awaits it before unmount; Electron Main also
+ * awaits it before BrowserWindow teardown.
+ */
+export async function flushActiveDocumentSessions(
+  reason: DocumentSessionDrainReason = "app-close",
+): Promise<void> {
+  const sessions = [...registeredDocumentSessions.keys()];
+  const results = await Promise.allSettled(
+    sessions.map((session) => Promise.resolve().then(
+      () => session.flushCurrent(reason),
+    )),
+  );
+  const failures = results.flatMap((result) => (
+    result.status === "rejected" ? [result.reason] : []
+  ));
+
+  sessions.forEach((session, index) => {
+    if (results[index]?.status !== "fulfilled") return;
+    pruneRetiredSession(session);
+  });
+
+  if (failures.length > 0) {
+    const detail = failures
+      .map((failure) => failure instanceof Error ? failure.message : String(failure))
+      .filter(Boolean)
+      .slice(0, 3)
+      .join("; ");
+    throw new AggregateError(
+      failures,
+      `Unable to save ${failures.length} open document${failures.length === 1 ? "" : "s"}:${detail ? ` ${detail}` : ""}`,
+    );
+  }
+}
+
+async function retireRegistration(
+  session: DocumentEditingSessionHandle,
+  registration: SessionRegistration,
+): Promise<void> {
+  if (registeredDocumentSessions.get(session) !== registration || registration.tokens.size > 0) {
+    return;
+  }
+
+  // Disposal is intentionally deferred until the token check above. React
+  // StrictMode runs effect cleanup/setup as a development probe while keeping
+  // the same component state. Disposing in the Boundary cleanup would leave
+  // that still-mounted Session permanently unable to accept an editor source.
+  session.dispose();
+  if (!session.hasUnpersistedChanges()) {
+    forgetSession(session, registration);
+    return;
+  }
+
+  try {
+    await session.flushCurrent("destroy");
+  } catch {
+    // Keep a failed retiring session registered. A later app-close drain must
+    // surface the unresolved write instead of silently forgetting it.
+    return;
+  }
+  pruneRetiredSession(session);
+}
+
+function pruneRetiredSession(session: DocumentEditingSessionHandle): void {
+  const registration = registeredDocumentSessions.get(session);
+  if (
+    registration
+    && registration.tokens.size === 0
+    && !session.hasUnpersistedChanges()
+  ) {
+    forgetSession(session, registration);
+  }
+}

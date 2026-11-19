@@ -88,31 +88,3 @@ export function CloudPublishFolderMark({ className }: { className?: string }) {
     </svg>
   );
 }
-
-export function CloudPublishCloudMark({ className }: { className?: string }) {
-  const uid = useId().replace(/:/g, "");
-  const body = `po-publish-cloud-body-${uid}`;
-
-  const cloudPath =
-    "M14.8 46.2c0-6.4 4.6-11.7 10.8-12.9C26.9 25.4 34.2 19.5 43 19.5c7.8 0 14.5 4.6 17.2 11.2 1.3-.4 2.7-.6 4.1-.6 7.6 0 13.7 5.9 13.7 13.2 0 7.5-6.3 13.6-14.1 13.6H27.4c-7 0-12.6-5.5-12.6-10.7z";
-
-  return (
-    <svg className={className} viewBox="0 0 80 72" focusable="false" aria-hidden="true">
-      <defs>
-        <linearGradient id={body} x1="40" y1="20" x2="40" y2="56" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#eef3f8" />
-          <stop offset="55%" stopColor="#c9d7e8" />
-          <stop offset="100%" stopColor="#9ab8d4" />
-        </linearGradient>
-      </defs>
-
-      <path d={cloudPath} fill={`url(#${body})`} />
-      <path
-        d={cloudPath}
-        fill="none"
-        stroke="rgba(120,150,185,0.45)"
-        strokeWidth="1.05"
-      />
-    </svg>
-  );
-}

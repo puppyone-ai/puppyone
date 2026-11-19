@@ -47,7 +47,7 @@ export function reconcileTerminalAgentTurn(projection, event) {
     invalidateProjectionIndexes(projection);
 }
 function settleActivity(activity, turnId, terminalState) {
-    if (!turnId || activity.turnId !== turnId || !isLiveAgentActivityStatus(activity.status))
+    if ((activity.kind === "system" && activity.detail.category !== "compaction") || !turnId || activity.turnId !== turnId || !isLiveAgentActivityStatus(activity.status))
         return activity;
     return { ...activity, status: unconfirmedChildStatus(activity.kind, terminalState) };
 }
@@ -65,7 +65,8 @@ function settlePart(part, turnId, terminalState) {
     return part;
 }
 function isAgentActivityPart(part) {
-    return part.kind === "reasoning"
+    return (part.kind === "system" && part.detail.category === "compaction")
+        || part.kind === "reasoning"
         || part.kind === "plan"
         || part.kind === "tool"
         || part.kind === "command"
@@ -76,5 +77,5 @@ function isAgentActivityPart(part) {
 
 function unconfirmedChildStatus(kind, terminalState) {
     // The parent ending is not proof that an unfinished native tool succeeded.
-    return ["tool", "command", "file-change"].includes(kind) ? "unknown" : agentActivityTerminalStatus(terminalState);
+    return ["tool", "command", "file-change", "system"].includes(kind) ? "unknown" : agentActivityTerminalStatus(terminalState);
 }

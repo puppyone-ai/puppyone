@@ -18,7 +18,7 @@ import {
 } from "../../../../electron/main/viewer-packs/index.mjs";
 import { PLUGIN_PROTOCOL_SCHEME } from "../../../../electron/main/viewer-packs/plugin-protocol.mjs";
 import { RESOURCE_PROTOCOL_SCHEME } from "../../../../electron/main/viewer-packs/resource-protocol.mjs";
-import { getMimeType } from "../../../../local-api/workspace.mjs";
+import { getMimeType } from "../../../../electron/local-api/workspace.mjs";
 
 protocol.registerSchemesAsPrivileged([
   {

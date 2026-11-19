@@ -1,0 +1,828 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`preset manifest characterization > Main and the renderer read alias collides with fallback alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Core viewer id document-placeholder maps to more than one preset viewer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read alias equals canonical id alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Core viewer id fixture-viewer maps to more than one preset viewer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read browser lazy alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer must eagerly navigate to a resource.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read browser maxActiveCanvases alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer cannot declare app-owned worker or Canvas budgets.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read browser maxCanvasPixels alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer cannot declare app-owned worker or Canvas budgets.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read browser maxWorkers alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer cannot declare app-owned worker or Canvas budgets.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read browser source alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer must eagerly navigate to a resource.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read canonical alike 1`] = `"accepted"`;
+
+exports[`preset manifest characterization > Main and the renderer read canvas without budget alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Canvas or paginated preset viewer fixture-viewer must declare positive Canvas limits.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read definition "invalid" alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 must be an object.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read definition [] alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 must be an object.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read definition null alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 must be an object.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read duplicate canonical id alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest declares fixture-viewer more than once.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read edit without source alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Editable preset viewer fixture-viewer must receive content or a resource.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read empty viewers alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must declare at least one viewer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read fallback id alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest has an invalid fallback viewer id.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read fallback missing alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fallback must be a declared placeholder with source 'none'.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read fallback not placeholder alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fallback must be a declared placeholder with source 'none'.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read first validation error wins alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read formatViewerIds "invalid" alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read formatViewerIds ["Bad ID"] alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read formatViewerIds ["alias","alias"] alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer repeats a format viewer id.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read formatViewerIds [null] alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read formatViewerIds null alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read grid pagination allowed alike 1`] = `"accepted"`;
+
+exports[`preset manifest characterization > Main and the renderer read invalid capability alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported capability.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read invalid computeIsolation alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported compute isolation boundary.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read invalid contentSandbox alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported content sandbox boundary.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read invalid id alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 has an invalid id.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read invalid readinessSignal alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported readiness signal.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read invalid runtime alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported runtime boundary.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read invalid source alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported source requirement.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read invalid surfaceFamily alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface family.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read invalid surfaceIsolation alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface isolation boundary.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read invalid surfacePreparation alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface preparation policy.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read main thread worker budget alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Main-thread preset viewer fixture-viewer cannot declare worker capacity.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read manifest "invalid" alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must be an object.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read manifest [] alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must be an object.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read manifest null alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must be an object.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxActiveCanvases -1 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxActiveCanvases 0.5 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxActiveCanvases 1 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxActiveCanvases 9007199254740992 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxCanvasPixels -1 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxCanvasPixels 0.5 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxCanvasPixels 1 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxCanvasPixels 9007199254740992 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxSourceBytes -1 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxSourceBytes 0.5 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxSourceBytes 1 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxSourceBytes 9007199254740992 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxWorkers -1 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxWorkers 0.5 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxWorkers 1 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read maxWorkers 9007199254740992 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read memory class alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy has an unsupported memory class.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read metadata byte budget alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Metadata-only preset viewer fixture-viewer cannot declare a source byte budget.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read minimal alike 1`] = `"accepted"`;
+
+exports[`preset manifest characterization > Main and the renderer read missing capability alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported capability.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing computeIsolation alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported compute isolation boundary.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing contentSandbox alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported content sandbox boundary.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing formatViewerIds alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing id alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 has an invalid id.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing readinessSignal alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported readiness signal.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing recoveryPolicy alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy must be an object.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing resourcePolicy alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy must be an object.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing runtime alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported runtime boundary.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing source alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported source requirement.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing surfaceFamily alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface family.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing surfaceIsolation alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface isolation boundary.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing surfacePreparation alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface preparation policy.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing surfaceTraits alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported surface traits.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read missing viewers alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must declare at least one viewer.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read multiple placeholders alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must declare exactly one placeholder fallback.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read native capability alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read native compute mismatch alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read native maxActiveCanvases alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read native maxCanvasPixels alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read native maxWorkers alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read native runtime alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read native source mismatch alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read native surfaceIsolation alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read paginated without budget alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Canvas or paginated preset viewer fixture-viewer must declare positive Canvas limits.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read placeholder with source alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Placeholder preset viewer fixture-viewer must use source 'none'.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read preview without source alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preview preset viewer fixture-viewer must declare a content or resource source.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read recoveryPolicy array alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy must be an object.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read recoveryPolicy unknown field alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy has unknown field(s): extra.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read resourcePolicy array alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy must be an object.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read resourcePolicy unknown field alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy has unknown field(s): extra.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read retry -1 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read retry 0.5 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read retry 1 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read retry 2 alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read safe mode boolean alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy supportsSafeMode must be a boolean.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read safe mode requires isolated surface alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Safe-mode preset viewer fixture-viewer must use an isolated surface.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read sandbox without trait alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Sandboxed-frame preset viewer fixture-viewer must declare the sandboxed trait.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read surfaceTraits "invalid" alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported surface traits.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read surfaceTraits ["Bad ID"] alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported surface traits.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read surfaceTraits ["scrollable","scrollable"] alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer repeats a surface trait.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read surfaceTraits [null] alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported surface traits.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read surfaceTraits null alike 1`] = `
+{
+  "main": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+  },
+  "renderer": {
+    "error": "TypeError",
+    "message": "Preset viewer fixture-viewer has unsupported surface traits.",
+  },
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read trait without sandbox alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer cannot claim a sandboxed trait without a sandbox boundary.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read unknown definition fields alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 has unknown field(s): first, second.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read unknown manifest fields alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest has unknown field(s): first, second.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read valid native alike 1`] = `"accepted"`;
+
+exports[`preset manifest characterization > Main and the renderer read valid safe mode alike 1`] = `"accepted"`;
+
+exports[`preset manifest characterization > Main and the renderer read valid sandbox alike 1`] = `"accepted"`;
+
+exports[`preset manifest characterization > Main and the renderer read valid worker alike 1`] = `"accepted"`;
+
+exports[`preset manifest characterization > Main and the renderer read version alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest uses an unsupported contract version.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read worker eager alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Worker-compute preset viewer fixture-viewer must keep its runtime lazy.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read worker without budget alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Worker-compute preset viewer fixture-viewer must declare at least one worker.",
+}
+`;
+
+exports[`preset manifest characterization > Main and the renderer read zero source budget alike 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer must declare a positive source byte budget.",
+}
+`;

@@ -1,0 +1,90 @@
+#!/usr/bin/env electron
+import { app, BrowserWindow } from "electron";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const artifacts = path.join(repo, "artifacts/tests/cloud/workspace-actions");
+await mkdir(artifacts, { recursive: true });
+app.setPath("userData", await mkdtemp(path.join(os.tmpdir(), "puppyone-workspace-actions-")));
+app.commandLine.appendSwitch("disable-renderer-backgrounding");
+app.commandLine.appendSwitch("disable-gpu");
+let window;
+const errors = [];
+const assert = (value, message) => { if (!value) throw new Error(message); };
+const evaluate = code => window.webContents.executeJavaScript(code, true);
+// History is the hosted project's own record, so it lives in the project's place menu.
+async function openHistory(menuCapture) {
+  await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
+  await waitFor("Boolean(document.querySelector('[data-project-place-row=history]'))");
+  if (menuCapture) await capture(menuCapture);
+  await evaluate("document.querySelector('[data-project-place-row=history]').click()");
+}
+async function waitFor(expression) {
+  const until = Date.now() + 15000;
+  while (Date.now() < until) {
+    if (await evaluate(expression)) return;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  throw new Error(`Timed out: ${expression}; ${errors.join("; ")}`);
+}
+async function capture(name) {
+  await evaluate("document.fonts.ready");
+  await evaluate("new Promise(resolve => setTimeout(resolve, 350))");
+  await writeFile(path.join(artifacts, `${name}.png`), (await window.webContents.capturePage()).toPNG());
+}
+const button = tool => `document.querySelector('[data-cloud-workspace-tool=${tool}]')`;
+async function exercise(hosted) {
+  const mode = hosted ? "account" : "native";
+  const api = hosted ? "window.__accountCloudSmoke" : "window.__nativeCloudWorkbenchSmoke";
+  // The Header keeps the Agent list current by itself, whatever else is happening.
+  await window.loadURL("about:blank");
+  await window.loadURL(`${pathToFileURL(path.join(repo, "dist/index.html")).href}#${mode}-cloud-workbench-smoke`);
+  await waitFor(`Boolean(${api})`);
+  if (hosted) {
+    await waitFor("Boolean(document.querySelector('[data-cloud-project-id=alpha] :is(.onboarding-project-row, .onboarding-project-tile)'))");
+    await evaluate("document.querySelector('[data-cloud-project-id=alpha] :is(.onboarding-project-row, .onboarding-project-tile)').click()");
+  } else {
+    // The folder's Cloud project is its own project in the project menu (ADR-001).
+    await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+    await waitFor("Boolean(document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-project-location=cloud]'))");
+    await evaluate("document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-project-location=cloud]').querySelector('button').click()");
+    await waitFor(`${api}.state().location === 'cloud'`);
+  }
+  await waitFor(`${button("agent")} && !${button("agent")}.disabled`);
+  assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=share], .desktop-cloud-workspace-share')"), "Retired Share must have no Header entry or popup");
+  assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"), "Retired entries must not be visible");
+  await evaluate(`${button("agent")}.click()`);
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-agent-sidebar .cm-content'))");
+  await evaluate(`${api}.editAgent('Keep this draft')`);
+  for (const theme of ["light", "dark"]) {
+    await evaluate(hosted ? `${api}.setTheme('${theme}')` : `${api}.setLoginAppearance('${theme}', 'en')`);
+    await openHistory(`${mode}-place-menu-${theme}`);
+    await waitFor("document.querySelector('.desktop-cloud-workspace-history')?.textContent.includes('Update research notes')");
+    assert(await evaluate(`${button("agent")}.getAttribute('aria-expanded') === 'false'`), "History owns the auxiliary pane");
+    await evaluate("new Promise(resolve => setTimeout(resolve, 350))");
+    const geometry = await evaluate("(() => { const r = document.querySelector('.desktop-cloud-workspace-history').getBoundingClientRect(); return { width:r.width, height:r.height, right:r.right }; })()");
+    assert(geometry.width >= 280 && geometry.height > 400 && geometry.right <= 1101, `History must fit the right pane: ${JSON.stringify(geometry)}`);
+    await capture(`${mode}-history-${theme}`);
+    await evaluate("document.querySelector('.desktop-cloud-workspace-history .desktop-history-row').click()");
+    await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-history .desktop-commit-detail'))");
+    await capture(`${mode}-detail-${theme}`);
+    await evaluate(`${button("agent")}.click()`);
+    await waitFor("document.querySelector('.desktop-cloud-agent-sidebar .cm-content')?.textContent.includes('Keep this draft')");
+  }
+  await openHistory();
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-history'))");
+  await evaluate("document.querySelector('.desktop-cloud-workspace-history button[aria-label=Close]').click()");
+  await waitFor("document.querySelector('.desktop-right-sidebar').dataset.paneCollapsed === 'true'");
+}
+app.whenReady().then(async () => {
+  window = new BrowserWindow({ show: false, width: 1100, height: 760, frame: false, webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
+  window.webContents.on("console-message", event => { if (event.level === "error" || event.level === 3) errors.push(event.message); });
+  await exercise(false);
+  await exercise(true);
+  assert(errors.length === 0, `Renderer errors: ${errors.join("; ")}`);
+  console.log("Cloud workspace actions passed: no retired Share entry, History in both shells and themes, retained Agent draft, sidebar close.");
+  window.destroy(); app.exit(0);
+}).catch(error => { console.error(error); app.exit(1); });

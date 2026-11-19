@@ -1,0 +1,214 @@
+.conflict-marker-banner {
+  margin: 8px 12px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--po-warning) 32%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-warning) 12%, transparent);
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+}
+
+.conflict-marker-banner-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.conflict-marker-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--po-warning);
+  color: var(--po-text-inverse);
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.conflict-marker-copy {
+  flex: 1;
+  min-width: 200px;
+}
+
+.conflict-marker-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.conflict-marker-banner button,
+.conflict-marker-side-title button {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--po-control);
+  color: var(--po-text);
+  font-size: var(--po-type-ui-meta, 13px);
+}
+
+.conflict-marker-banner button:hover,
+.conflict-marker-side-title button:hover {
+  background: var(--po-control-hover);
+}
+
+.conflict-marker-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.conflict-marker-block {
+  overflow: hidden;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 6px;
+  background: var(--po-panel);
+  font-family: var(--po-font-mono);
+  font-size: var(--po-type-ui-meta, 13px);
+}
+
+.conflict-marker-block-title {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--po-border-subtle);
+  background: var(--po-control);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+}
+
+.conflict-marker-sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1px;
+  background: var(--po-border-subtle);
+}
+
+.conflict-marker-side {
+  display: flex;
+  min-height: 60px;
+  flex-direction: column;
+  background: var(--po-panel);
+}
+
+.conflict-marker-side-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-micro, 11px);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.conflict-marker-side-title span {
+  flex: 1;
+}
+
+.conflict-marker-side-title button {
+  padding: 1px 8px;
+  font-size: var(--po-type-ui-micro, 11px);
+}
+
+.conflict-marker-side pre {
+  margin: 0;
+  overflow: auto;
+  padding: 10px;
+  color: var(--po-text);
+  white-space: pre-wrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  white-space: nowrap;
+}
+
+.editor-state {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  background: var(--po-editor-bg);
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
+}
+
+.editor-state.danger {
+  color: var(--po-danger);
+}
+
+.editor-state--stacked {
+  place-content: center;
+  gap: 7px;
+  padding: 24px;
+  text-align: center;
+}
+
+.editor-state--stacked strong {
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 680;
+}
+
+.editor-state--stacked span {
+  max-width: 520px;
+  overflow-wrap: anywhere;
+}
+
+.editor-state--stacked button {
+  height: var(--po-control-size);
+  justify-self: center;
+  margin-top: 6px;
+  padding: 0 11px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: var(--desktop-control-radius, 6px);
+  background: var(--po-control);
+  color: var(--po-text);
+  font: inherit;
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: 650;
+  letter-spacing: 0;
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.editor-state--stacked button:hover {
+  background: var(--po-control-hover);
+}
+
+.editor-crash-state {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-content: center;
+  gap: 5px;
+  padding: 24px;
+  background: var(--po-editor-bg);
+  color: var(--po-text-subtle);
+  text-align: center;
+}
+
+.editor-crash-state strong {
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 680;
+}
+
+.editor-crash-state span {
+  max-width: 520px;
+  overflow-wrap: anywhere;
+  font-size: var(--po-type-ui-meta, 13px);
+}
+
+/* Editor notices sit below the save control; FloatingNotice owns their material. */
+.po-floating-notice-stack.editor-notice-stack {
+  --po-floating-notice-z: 21;
+  inset-block-start: 48px;
+  inset-inline-end: 12px;
+  max-width: min(420px, calc(100% - 24px));
+}

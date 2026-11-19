@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences, desktopPreferencesStore } from "../../../../src/preferencesStore";
 import { displaySnapshot, withDisplayFeed } from "../../../support/agent/agentDisplayFixture";
 import { defineAgentEvent, type AgentEventPayloadMap } from "../../../support/agent/agentEventFixture";
 import { installDesktopBridge, type DesktopBridge } from "../../../support/electron/desktopBridge";
@@ -9,8 +10,8 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuxiliaryWorkbenchPanel } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
-import type { AuxiliaryWorkbenchContribution } from "../../../../src/features/app-shell/auxiliary-workbench/types";
+import { ProjectWorkbenchStore } from "../../../../src/lib/workbench/ProjectWorkbenchStore";
+import type { AuxiliaryWorkbenchContribution } from "../../../../src/lib/workbench/types";
 import type { AgentEvent, AgentSessionSnapshot } from "../../../../src/features/desktop-agent/agentTypes";
 import { AgentChatWorkbenchItem, requestCloseAgentChatWorkbenchItem } from "../../../../src/features/desktop-agent/workbench/AgentChatWorkbenchItem";
 import { createProjectAgentClientProvider } from "../../../../src/features/desktop-agent/infrastructure/electron/electronAgentClient";
@@ -31,6 +32,17 @@ afterEach(() => {
 });
 
 describe("Project-owned Agent Chat Workbench lifecycle", () => {
+  it("keeps discovery failure visible and blocks session preparation", async () => {
+    const harness = createBridgeHarness();
+    harness.bridge.discoverAgentProviders = vi.fn(async () => { throw new Error("Discovery offline"); });
+    const container = renderPanel(harness.bridge);
+    await flushEffects();
+    expect(container.querySelector(".desktop-agent-empty-state")).toBeNull();
+    expect(container.textContent).toContain("Discovery offline");
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Send message"]')?.disabled).toBe(true);
+    expect(harness.bridge.openAgentSession).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["RUNTIME_SETUP_REQUIRED", false],
     ["AUTHENTICATION_REQUIRED", true],
@@ -48,6 +60,9 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     await flushEffects(); await flushEffects();
     expect(Boolean(container.querySelector(".desktop-agent-readiness"))).toBe(showRecovery);
     expect(Boolean(container.querySelector(".desktop-agent-empty-state"))).toBe(!showRecovery);
+    // Paid compute needs an account, not Cloud, so a default install (Cloud
+    // off) onboards onto PuppyOne's own compute; the opt-out is held in
+    // paymentsExperience.test.tsx.
     expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone's token");
     expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
     expect(harness.bridge.createAgentSession).not.toHaveBeenCalled();
@@ -81,6 +96,7 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
         session: { ...opened.session, selectedModel: model.model } } };
     });
     const container = renderPanel(harness.bridge, null, modelConnections);
+    act(() => enablePayments());
     await flushEffects(); await flushEffects();
     const tabId = activeTabPanel(container).dataset.terminalSessionPaneId!;
     const controller = projectAgentControllers(project).get(tabId);
@@ -497,13 +513,22 @@ function renderPanel(
   return container;
 }
 
+/** Paid compute rides on Cloud; said out loud so this test never leans on the defaults. */
+function enablePayments() {
+  desktopPreferencesStore.getState().setExperimentalSettings((settings) => ({
+    ...settings, enableCloudWorkspace: true, enablePayments: true,
+  }));
+}
+
 function renderPanelContent(preferredRuntimeId: string | null = null) {
+  initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  desktopPreferencesStore.getState().setAgentPreferredRuntime(preferredRuntimeId);
   const contribution: AuxiliaryWorkbenchContribution = {
     kind: "agent-chat", label: "Chat", createLabel: "New chat", maximumItems: 8,
     minimumSize: { width: 280, height: 260 },
     initialSnapshot: { title: "New chat", accessibleLabel: "New chat", detail: null, iconKey: null, status: "idle", running: false, resourceId: null },
     renderItem: (context) => React.createElement(AgentChatWorkbenchItem, {
-      ...context, hiddenRuntimeIds: [], preferredRuntimeId, preferredRoute: {}, preferredModel: null,
+      ...context, hiddenRuntimeIds: [],
       onOpenAccount: vi.fn(),
       onOpenModelConnections: vi.fn(),
     }),

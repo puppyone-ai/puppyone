@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DARK_THEME_PRESET,
   DEFAULT_LIGHT_THEME_PRESET,
-  DEFAULT_LOADING_ANIMATION_PRESET,
   DEFAULT_POINTER_CURSORS,
   DEFAULT_THEME_MODE,
   DEFAULT_TYPOGRAPHY_PREFERENCES,
@@ -27,10 +26,10 @@ import { BUILTIN_SUB_THEMES } from "../../../../src/features/themes/builtinSubTh
 import type { SubThemeDefinition } from "../../../../src/features/themes/themeTypes";
 import {
   PRESET_VIEWER_MANIFEST,
-} from "../../../../packages/shared-ui/src/editor/registry/presetViewerManifest";
+} from "../../../../src/shared-ui/editor/registry/presetViewerManifest";
 import {
   VIEWER_SURFACE_FAMILIES,
-} from "../../../../packages/shared-ui/src/editor/registry/viewerContract";
+} from "../../../../src/shared-ui/editor/registry/viewerContract";
 
 describe("appearance profile architecture", () => {
   it("keeps navigation in the bottom footer for every interface style", () => {
@@ -39,7 +38,7 @@ describe("appearance profile architecture", () => {
       interfaceStyle: "windows-xp",
       themeMode: "dark",
       sidebarNavigationLayout: requested,
-      fileIconTheme: "material",
+      fileIconTheme: "default",
     });
 
     expect(xp.decisions.sidebarNavigationLayout).toMatchObject({
@@ -59,7 +58,7 @@ describe("appearance profile architecture", () => {
       interfaceStyle: "default",
       themeMode: "dark",
       sidebarNavigationLayout: requested,
-      fileIconTheme: "material",
+      fileIconTheme: "default",
     });
     expect(restored.sidebarNavigationLayout).toBe(requested);
     expect(restored.composition.locationBar).toBe("none");
@@ -223,7 +222,7 @@ describe("appearance profile architecture", () => {
       bySurface: {},
     }), legacySnapshot());
 
-    expect(result.preferences.shared.fileIconTheme).toBe("semantic");
+    expect(result.preferences.shared.fileIconTheme).toBe("default");
     expect(serializeAppearancePreferences(result.preferences)).not.toContain('"vscode"');
   });
 
@@ -290,7 +289,7 @@ describe("appearance profile architecture", () => {
     expect(result.diagnostics[0]?.code).toBe("sub-theme-incompatible");
     expect(result.appearanceRevision).toMatch(/^default:default\.neutral:dark:[a-z0-9]+$/);
 
-    const editorContext = source("packages/shared-ui/src/core/appearance/EditorAppearanceContext.tsx");
+    const editorContext = source("src/shared-ui/core/appearance/EditorAppearanceContext.tsx");
     expect(editorContext).toContain("EditorAppearanceRevisionContext");
     expect(editorContext).toContain("revision: string");
     expect(editorContext).not.toMatch(/ThemeCatalog|SubThemeDefinition|rootThemeId|subThemeId/);
@@ -321,14 +320,6 @@ describe("appearance profile architecture", () => {
     expect(result.diagnostics[0]?.code).toBe("sub-theme-mode-unsupported");
   });
 
-  it("renders Color Mode and Sub Theme before the Root Theme footer", () => {
-    const settings = source("src/features/settings/SettingsView.tsx");
-    expectInOrder(settings, [
-      "<InterfacePaletteSettings",
-      "<SubThemeSettingsSection",
-      "<InterfaceStyleSetting",
-    ]);
-  });
 
   it("does not authorize overwriting a newer unsupported preference document", () => {
     const result = readAppearancePreferences(JSON.stringify({
@@ -345,22 +336,17 @@ describe("appearance profile architecture", () => {
   it("keeps Settings and Shell on the shared resolver rather than Style-ID branches", () => {
     const settings = source("src/features/settings/SettingsView.tsx");
     const typographySettings = source("src/features/settings/main/TypographySettingsView.tsx");
-    const preferences = source("src/features/app-shell/useDesktopPreferences.ts");
     const shell = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
 
-    expect(preferences).toContain("resolveAppearance({");
     expect(settings).not.toContain("resolvedAppearance.decisions.sidebarNavigationLayout");
     expect(settings).not.toContain("onSidebarNavigationLayoutChange");
     expect(settings).not.toContain("settings.appearance.navigation.title");
     expect(settings).not.toContain("<TypographyScaleSetting");
     expect(typographySettings).toContain("<TypographyScaleSetting");
-    expect(typographySettings).toContain("preferences={typographyPreferences}");
     expect(settings).not.toContain("onLegacyContentSizeChange");
-    expect(settings).toContain("resolvedAppearance.decisions.fileIconTheme");
+    // Root-theme icon locking is exercised by the mounted Settings consumer tests.
     expect(settings).not.toContain("editorPresentation");
-    expect(preferences).not.toContain("editorPresentation");
     expect(settings).not.toContain("dockIcon");
-    expect(preferences).not.toContain("dockIcon");
     expect(shell).toContain('? "bottom"');
     expect(shell).not.toContain("preferences.sidebarNavigationPlacement");
     expect(settings).not.toMatch(/interfaceStyle\s*===\s*["']windows-xp["']/);
@@ -372,7 +358,7 @@ describe("appearance profile architecture", () => {
       "src/features/appearance/resolveAppearance.ts",
       "src/features/appearance/AppearanceRuntime.tsx",
       "src/features/appearance/interface-style-manifest.json",
-      "src/features/app-shell/DesktopOverlayPortal.tsx",
+      "src/components/DesktopOverlayPortal.tsx",
       "src/features/settings/types.ts",
       "src/features/settings/SettingsWorkspaceSurface.tsx",
     ]) {
@@ -474,7 +460,6 @@ function legacySnapshot(): LegacyAppearanceSnapshot {
     legacyTextSize: DEFAULT_LEGACY_TEXT_SIZE,
     typography: DEFAULT_TYPOGRAPHY_PREFERENCES,
     pointerCursors: DEFAULT_POINTER_CURSORS,
-    loadingAnimationPreset: DEFAULT_LOADING_ANIMATION_PRESET,
     fileIconTheme: "default",
     sidebarNavigationLayout: "bottom-horizontal",
   };

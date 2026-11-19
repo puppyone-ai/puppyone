@@ -1,3 +1,4 @@
+import { classifyProviderActivity, isTranscriptActivity, pruneProviderActivities, normalizeLegacyProviderActivity } from "./provider-activity-policy.mjs";
 import { findAgentUserMessage } from "./message-identity.mjs";
 import { clearProjectedFileChange, hasRenderableFileChange } from "./file-change.mjs";
 import { activityId, defaultToolLabelCode, fileChangeLabelCode, nullableString, pickSafeActivityDetail, pickUsage, readApprovalDecisions, readNetworkApprovalContext, readProviderMessage, normalizeAgentActivityStatus, readQuestions, readRecordArray, readString, } from "./content-readers.mjs";
@@ -20,7 +21,6 @@ const ASSISTANT_SEGMENT_BOUNDARY_EVENTS = new Set([
     "file.change.updated",
     "approval.requested",
     "question.requested",
-    "provider.activity",
     "provider.warning",
     "provider.error",
 ]);
@@ -46,6 +46,7 @@ export { createEmptyAgentDisplay as createAgentProjection } from "../../../../..
 export function applyAgentEvents(initial, events, options = {}) {
     const relevant = events
         .filter((event) => event.sequence > initial.lastSequence)
+        .map(normalizeLegacyProviderActivity)
         .sort((left, right) => left.sequence - right.sequence);
     if (relevant.length === 0)
         return initial;
@@ -56,16 +57,19 @@ export function applyAgentEvents(initial, events, options = {}) {
         applyLegacyAgentEvent(next, event, options);
         projectTypedPart(next, event, options);
         reconcileTerminalAgentTurn(next, event);
+        pruneProviderActivities(next, event);
     }
     return next;
 }
 export function applyAgentEvent(previous, event, options = {}) {
     if (event.sequence <= previous.lastSequence)
         return previous;
+    event = normalizeLegacyProviderActivity(event);
     const next = cloneAgentProjection(previous);
     applyLegacyAgentEvent(next, event, options);
     projectTypedPart(next, event, options);
     reconcileTerminalAgentTurn(next, event);
+    pruneProviderActivities(next, event);
     return next;
 }
 function applyLegacyAgentEvent(next, event, options) {
@@ -78,7 +82,7 @@ function applyLegacyAgentEvent(next, event, options) {
         next.missingRanges.push({ from: 1, to: event.sequence - 1 });
     }
     next.lastSequence = event.sequence;
-    if (ASSISTANT_SEGMENT_BOUNDARY_EVENTS.has(event.type)) {
+    if (ASSISTANT_SEGMENT_BOUNDARY_EVENTS.has(event.type) || (event.type === "provider.activity" && isTranscriptActivity(classifyProviderActivity(event)))) {
         sealStreamingAssistantSegments(next, event.turnId);
     }
 
@@ -277,16 +281,9 @@ function applyLegacyAgentEvent(next, event, options) {
         }
         case "session.updated":
             return next;
-        case "provider.activity": {
-            const payload = event.payload;
-            return upsertActivity(next, event, {
-                kind: "tool",
-                label: readString(payload.label),
-                labelCode: readString(payload.label) ? undefined : "agent-activity",
-                status: normalizeAgentActivityStatus(payload.status, "running"),
-                detail: pickSafeActivityDetail(payload),
-            });
-        }
+        case "provider.notification":
+        case "provider.activity":
+            return upsertActivity(next, event, classifyProviderActivity(event));
         case "provider.connection.updated":
             return next;
         case "provider.warning":

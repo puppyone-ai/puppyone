@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { createDisabledCatalogTransport, CatalogDisabledError } from "../../../../electron/main/viewer-packs/catalog-transport.mjs";
 import { createViewerPackCatalogService } from "../../../../electron/main/viewer-packs/catalog-service.mjs";
 import { resolveViewerPackRoute } from "../../../../electron/main/viewer-packs/router.mjs";
-import { coreViewerCapability, resolveViewerRoute } from "../../../../packages/shared-ui/src/editor/registry/viewerCapability.ts";
-import { EMPTY_VIEWER_PACK_SNAPSHOT } from "../../../../packages/shared-ui/src/editor/registry/viewerPackTypes.ts";
+import { coreViewerCapability, resolveViewerRoute } from "../../../../src/shared-ui/editor/registry/viewerCapability.ts";
+import { EMPTY_VIEWER_PACK_SNAPSHOT } from "../../../../src/shared-ui/editor/registry/viewerPackTypes.ts";
 import { resolveCoreFormatPolicy } from "../../../../electron/main/viewer-packs/core-format-policy.mjs";
 import {
   capabilityForCoreViewer as mainCoreViewerCapability,
   PRESET_VIEWER_MANIFEST as MAIN_PRESET_VIEWER_MANIFEST,
 } from "../../../../electron/main/viewer-packs/preset-viewer-manifest.mjs";
-import { PRESET_VIEWER_MANIFEST } from "../../../../packages/shared-ui/src/editor/registry/presetViewerManifest.ts";
+import { PRESET_VIEWER_MANIFEST } from "../../../../src/shared-ui/editor/registry/presetViewerManifest.ts";
 
 describe("viewer pack catalog", () => {
   it("is disabled by default and never networks", async () => {

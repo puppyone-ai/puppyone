@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { appendWorkspaceContentChange, createWorkspaceContentChange } from "../../../../packages/shared-ui/src/core/workspaceContentChange";
-import { DocumentDependencyIndex } from "../../../../packages/shared-ui/src/editor/resource/DocumentDependencyIndex";
-import { acquireFileResource, invalidateFileResources, settleFileResourceReleases } from "../../../../packages/shared-ui/src/editor/resource/FileResourcePool";
-import { getEditorStorageIdentity } from "../../../../packages/shared-ui/src/editor/resource/editorStorageIdentity";
-import { acquireEditorHostLease, retireEditorHostLeases } from "../../../../packages/shared-ui/src/editor/runtime/EditorHostLeases";
-import { holdEditorRuntimeAdmission } from "../../../../packages/shared-ui/src/editor/runtime/editorRuntimeAdmission";
+import { appendWorkspaceContentChange, createWorkspaceContentChange } from "../../../../src/shared-ui/core/workspaceContentChange";
+import { DocumentDependencyIndex } from "../../../../src/shared-ui/editor/resource/DocumentDependencyIndex";
+import { acquireFileResource, invalidateFileResources, settleFileResourceReleases } from "../../../../src/shared-ui/editor/resource/FileResourcePool";
+import { getEditorStorageIdentity } from "../../../../src/shared-ui/editor/resource/editorStorageIdentity";
+import { acquireEditorHostLease, retireEditorHostLeases } from "../../../../src/shared-ui/editor/runtime/EditorHostLeases";
+import { holdEditorRuntimeAdmission } from "../../../../src/shared-ui/editor/runtime/editorRuntimeAdmission";
 
 const change = (sequence: number, paths: string[]) => createWorkspaceContentChange({ sequence, paths, rootUri: null });
 

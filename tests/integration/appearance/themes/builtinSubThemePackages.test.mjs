@@ -8,7 +8,8 @@ import { compileThemeCss } from "../../../../electron/main/themes/theme-css-comp
 import { parseSingleFileThemeCss } from "../../../../electron/main/themes/theme-single-file-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const packagesRoot = path.join(repoRoot, "sub-themes");
+const packagesRoot = path.join(repoRoot, "src/features/themes/builtin");
+const markdownContract = JSON.parse(readFileSync(path.join(repoRoot, "shared/markdown-theme-contract.json"), "utf8"));
 
 function declarationsForSelector(css, selector) {
   const declarations = {};
@@ -57,7 +58,7 @@ describe("built-in Sub Theme package architecture", () => {
   it("parses and compiles every package through the same public token boundary", async () => {
     const themes = [];
     for (const directory of readdirSync(packagesRoot).sort()) {
-      const sourcePath = `sub-themes/${directory}/theme.css`;
+      const sourcePath = `src/features/themes/builtin/${directory}/theme.css`;
       const theme = parseSingleFileThemeCss(
         readFileSync(path.join(repoRoot, sourcePath), "utf8"),
         {
@@ -76,7 +77,11 @@ describe("built-in Sub Theme package architecture", () => {
           supportedModes: theme.modes,
           allowReservedBuiltinId: true,
         });
-        expect(result.css).not.toMatch(/\.cm-|\.markdown-codemirror-editor|\.csv-table-editor/);
+        expect(result.css).not.toMatch(/\.cm-|\.csv-table-editor/);
+        if (target === "markdown") {
+          expect(result.css).toContain("@scope (");
+          expect(result.css).toContain("to ([data-po-appearance-root])");
+        } else expect(result.css).not.toContain(".markdown-codemirror-editor");
         expect(result.css).not.toContain("@puppyone");
         if (target === "application") {
           for (const mode of theme.modes) {
@@ -108,8 +113,27 @@ describe("built-in Sub Theme package architecture", () => {
     )).not.toThrow();
   });
 
+  it("declares every Markdown visual role in each file and generates defaults from that file", () => {
+    for (const directory of readdirSync(packagesRoot).sort()) {
+      const parsed = parseSingleFileThemeCss(readFileSync(path.join(packagesRoot, directory, "theme.css"), "utf8"), {
+        allowReservedBuiltinId: true, allowBuiltinCompatibilityMetadata: true,
+      });
+      const roles = declarationsForSelector(parsed.stylesheets.markdown, ":root");
+      expect(Object.keys(roles).sort()).toEqual(markdownContract.tokens.map(({ name }) => name).sort());
+      expect(roles["--po-md-inline-code-background"]).toBe("transparent");
+      expect(roles["--po-md-code-block-font-size-medium"]).toBe("var(--po-md-table-font-size-medium)");
+      expect(roles["--po-md-code-block-color"]).toBe("var(--po-md-blockquote-color)");
+    }
+    const projection = readFileSync(path.join(repoRoot, "src/shared-ui/styles/editor/markdown-theme-tokens.generated.css"), "utf8");
+    for (const { name } of markdownContract.tokens) {
+      expect(projection).toContain(`${name}:`);
+      expect(projection).toContain(`${name.replace("--po-md-", "--po-host-md-")}:`);
+    }
+    expect(projection).not.toContain("--po-type-editor-");
+  });
+
   it("keeps Neutral's Dark chrome unified and distinct from the editor", async () => {
-    const sourcePath = "sub-themes/default-neutral/theme.css";
+    const sourcePath = "src/features/themes/builtin/default-neutral/theme.css";
     const theme = parseSingleFileThemeCss(
       readFileSync(path.join(repoRoot, sourcePath), "utf8"),
       {
@@ -141,7 +165,7 @@ describe("built-in Sub Theme package architecture", () => {
   });
 
   it("keeps Warm's light shell surfaces from leaking into Dark mode", async () => {
-    const sourcePath = "sub-themes/default-warm/theme.css";
+    const sourcePath = "src/features/themes/builtin/default-warm/theme.css";
     const theme = parseSingleFileThemeCss(
       readFileSync(path.join(repoRoot, sourcePath), "utf8"),
       {
@@ -164,7 +188,7 @@ describe("built-in Sub Theme package architecture", () => {
   });
 
   it("keeps Graphite's Dark text and syntax colors readable", async () => {
-    const sourcePath = "sub-themes/default-graphite/theme.css";
+    const sourcePath = "src/features/themes/builtin/default-graphite/theme.css";
     const theme = parseSingleFileThemeCss(
       readFileSync(path.join(repoRoot, sourcePath), "utf8"),
       {
@@ -197,7 +221,7 @@ describe("built-in Sub Theme package architecture", () => {
     expect(globalTokens).not.toContain("data-light-theme-preset=");
     expect(globalTokens).not.toContain("data-dark-theme-preset=");
     expect(globalTokens).not.toContain("--po-surface-panel: #fafafa");
-    expect(fallback).toContain("generated from sub-themes/default-neutral/theme.css");
+    expect(fallback).toContain("generated from src/features/themes/builtin/default-neutral/theme.css");
     expect(fallback).toContain("--po-surface-panel: #fafafa");
   });
 });

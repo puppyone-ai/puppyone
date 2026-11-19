@@ -74,9 +74,11 @@ export type CloudInitializationErrorCode =
   | "SERVICE_UPGRADE_REQUIRED"
   | "REMOTE_CONFIG_FAILED"
   | "PUSH_FAILED"
+  | "PUSH_LIMIT_EXCEEDED"
   | "PUSH_UNCERTAIN"
   | "LOCAL_FINALIZE_FAILED"
   | "CLEANUP_FAILED"
+  | "CLEANUP_NOT_ALLOWED"
   | "COMPENSATION_FAILED"
   | "JOURNAL_CORRUPT"
   | "JOURNAL_IO_FAILED"
@@ -112,12 +114,28 @@ export type CloudInitializationState = {
   updatedAt: string;
 };
 
+/**
+ * How far the send has got, read from Git's own progress line while
+ * uploading. Git knows the share of objects written, the bytes sent and the
+ * current rate. It does not know the total size until it has finished, so
+ * none is claimed here.
+ */
+export type CloudInitializationTransfer = {
+  /** Share of objects written, 0–100, as Git counts it. */
+  percent: number;
+  /** Null until Git has measured it, in the first second or so. */
+  sentBytes: number | null;
+  bytesPerSecond: number | null;
+};
+
 export type CloudInitializationProgress = {
   rootPath: string;
   operationId: string | null;
   stage: CloudInitializationProgressStage;
   state: CloudInitializationState | null;
   updatedAt: string;
+  /** Present only while uploading, once Git has started writing. */
+  transfer?: CloudInitializationTransfer;
 };
 
 export type CloudInitializationResult =

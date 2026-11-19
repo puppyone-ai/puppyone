@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import {
@@ -5,9 +6,9 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../../../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../../../components/DesktopOverlayPortal";
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepoIdentity,
   DesktopCloudSession,
@@ -37,7 +38,7 @@ export function AccessPointManageDialog({
   cloudSession: DesktopCloudSession;
   apiBaseUrl: string | null;
   identity: DesktopCloudRepoIdentity | null;
-  connectorsByTarget: Map<string, DesktopCloudConnector[]>;
+  connectorsByTarget: Map<string, DesktopCloudAccessSurface[]>;
   mcpEndpointsByTarget: Map<string, DesktopCloudMcpEndpoint[]>;
   canManage: boolean;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
@@ -58,7 +59,7 @@ export function AccessPointManageDialog({
               <p>{bidiIsolate(`${getScopeDisplayName(row.scope, t)} · ${getScopePathLabel(row.scope)}`)}</p>
             </div>
           </div>
-          <DesktopDialogCloseButton label={t("cloud.common.close")} onClick={onClose} />
+          <Tooltip content={t("cloud.common.close")}><DesktopDialogCloseButton label={t("cloud.common.close")} onClick={onClose} /></Tooltip>
         </header>
         <div className="desktop-dialog-body desktop-cloud-access-manage-body" data-po-scrollbar="content">
           <DesktopCloudScopeAccessDetail

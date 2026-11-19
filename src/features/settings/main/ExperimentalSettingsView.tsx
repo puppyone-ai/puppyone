@@ -1,35 +1,36 @@
+import { useDesktopPreference } from "../../../preferencesStore";
+import { useAccountAvailable, useHostDevicesAvailable } from "../../flags";
 import { useLocalization } from "@puppyone/localization";
 import type { ExperimentalSettings } from "../../../preferences";
 import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../components";
 
-export function ExperimentalSettingsView({
-  settings,
-  assetLibraryHomeAvailable,
-  onChange,
-}: {
-  settings: ExperimentalSettings;
-  assetLibraryHomeAvailable: boolean;
-  onChange: (settings: ExperimentalSettings) => void;
-}) {
+export function ExperimentalSettingsView() {
+  const settings = useDesktopPreference(s => s.experimentalSettings);
+  const onChange = useDesktopPreference(s => s.setExperimentalSettings);
+  const accountAvailable = useAccountAvailable();
+  const hostDevicesAvailable = useHostDevicesAvailable();
   const { t } = useLocalization();
   const groups: Array<{
     id: string;
-    rows: Array<{ messageKey: string; settingKey: keyof ExperimentalSettings }>;
+    rows: Array<{
+      messageKey: string;
+      settingKey: keyof ExperimentalSettings;
+      choices?: Array<{ messageKey: string; value: boolean }>;
+    }>;
   }> = [
     {
       id: "header",
       rows: [
-        { messageKey: "editorTabsInHeader", settingKey: "enableEditorTabsInHeader" },
-        { messageKey: "centerProjectInHeader", settingKey: "enableCenteredProjectInHeader" },
-        { messageKey: "gitCardInHeader", settingKey: "enableGitCardInHeader" },
-        { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader" },
-        { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
-        { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail" },
+        { messageKey: "projectReach", settingKey: "enableProjectReach" },
+        { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader",
+          choices: [{ messageKey: "sidebar", value: false }, { messageKey: "header", value: true }] },
+        { messageKey: "projectSwitcherRail", settingKey: "enableProjectSwitcherRail",
+          choices: [{ messageKey: "menu", value: false }, { messageKey: "sidebar", value: true }] },
         { messageKey: "multiRootWorkspaces", settingKey: "enableMultiRootWorkspaces" },
-        { messageKey: "alwaysShowOnboardingCoachmarks", settingKey: "enableAlwaysShowOnboardingCoachmarks" },
-        ...(assetLibraryHomeAvailable
-          ? [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const }]
-          : []),
+        { messageKey: "alwaysShowOnboardingCoachmarks", settingKey: "enableAlwaysShowOnboardingCoachmarks",
+          choices: [{ messageKey: "once", value: false }, { messageKey: "repeat", value: true }] },
+        { messageKey: "editorTabsInHeader", settingKey: "enableEditorTabsInHeader",
+          choices: [{ messageKey: "panes", value: false }, { messageKey: "header", value: true }] },
       ],
     },
     {
@@ -50,7 +51,12 @@ export function ExperimentalSettingsView({
       id: "cloud",
       rows: [
         { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
-        { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
+        { messageKey: "cloudComputerScreen", settingKey: "enableCloudComputerScreen" },
+        { messageKey: "computerMode", settingKey: "enableComputerMode" },
+        ...(hostDevicesAvailable ? [{ messageKey: "hostDevices", settingKey: "enableHostDevices" as const }] : []),
+        // The only switch that lets the Desktop ask for money: src/features/payments/README.md.
+        // Paid compute needs a PuppyOne account, not Cloud, so it is offered whenever accounts are.
+        ...(accountAvailable ? [{ messageKey: "payments", settingKey: "enablePayments" as const }] : []),
         { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },
         ...(window.puppyoneDesktop?.getGitAutoCommitSettings
           ? [{ messageKey: "gitAutoCommit", settingKey: "enableGitAutoCommit" as const }]
@@ -69,17 +75,26 @@ export function ExperimentalSettingsView({
           {groups.map(({ id, rows }, index) => (
             <SettingsSubsection key={id} title={t(`settings.experimental.groups.${id}`)} leading={index === 0}>
               <div className="desktop-settings-list">
-                {rows.map(({ messageKey, settingKey }) => (
-                  <div className="desktop-settings-row desktop-settings-row-control" key={settingKey}>
-                    <span>{t(`settings.experimental.${messageKey}.title`)}</span>
-                    <SettingsToggle
-                      label={t(`settings.experimental.${messageKey}.title`)}
-                      description={t(`settings.experimental.${messageKey}.detail`)}
+                {rows.map(({ messageKey, settingKey, choices }) => {
+                  const label = t(`settings.experimental.${messageKey}.title`);
+                  const description = t(`settings.experimental.${messageKey}.detail`);
+                  return <div className={`desktop-settings-row desktop-settings-row-control${choices ? " desktop-settings-choice-row" : ""}`} key={settingKey}>
+                    <span>{label}</span>
+                    {choices ? <div className="desktop-theme-segment" role="group" aria-label={label} aria-description={description}>
+                      {choices.map(choice => <button key={choice.messageKey} type="button"
+                        className={settings[settingKey] === choice.value ? "active" : ""}
+                        aria-pressed={settings[settingKey] === choice.value}
+                        onClick={() => onChange({ ...settings, [settingKey]: choice.value })}>
+                        {t(`settings.experimental.${messageKey}.${choice.messageKey}`)}
+                      </button>)}
+                    </div> : <SettingsToggle
+                      label={label}
+                      description={description}
                       checked={settings[settingKey]}
                       onChange={(checked) => onChange({ ...settings, [settingKey]: checked })}
-                    />
-                  </div>
-                ))}
+                    />}
+                  </div>;
+                })}
               </div>
             </SettingsSubsection>
           ))}

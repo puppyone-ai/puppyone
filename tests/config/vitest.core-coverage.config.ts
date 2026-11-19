@@ -7,6 +7,9 @@ import { coreCoverageDomains, coreCoverageExclude } from "./core-coverage.mjs";
 const baseline = JSON.parse(await readFile(new URL("./core-coverage-baseline.json", import.meta.url), "utf8"));
 export default defineConfig(async () => mergeConfig(await createTestConfig(), {
   test: {
+    // Coverage and native Git/HTTP fixtures share the host's memory and I/O.
+    // Keep their budgets deterministic without weakening tests or coverage.
+    fileParallelism: false,
     coverage: {
       enabled: true,
       provider: "v8",

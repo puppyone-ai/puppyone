@@ -3,26 +3,25 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const markdownContentCss = readFileSync(
-  join(process.cwd(), "packages/shared-ui/src/styles/editor/markdown-content.css"),
+  join(process.cwd(), "src/shared-ui/styles/editor/markdown-content.css"),
   "utf8",
 );
 const markdownMathCss = readFileSync(
-  join(process.cwd(), "packages/shared-ui/src/styles/editor/markdown-math.css"),
+  join(process.cwd(), "src/shared-ui/styles/editor/markdown-math.css"),
   "utf8",
 );
 const editorCss = readFileSync(
-  join(process.cwd(), "packages/shared-ui/src/styles/editor.css"),
+  join(process.cwd(), "src/shared-ui/styles/editor.css"),
   "utf8",
 );
 
 describe("markdown math typography contract", () => {
-  it("excludes math widgets from editor prose font overrides", () => {
-    expect(markdownContentCss).toContain(".cm-md-math-inline-widget");
-    expect(markdownContentCss).toContain(".cm-md-math-block-widget");
-    expect(markdownContentCss).toContain(
-      "*:not(:is(.cm-md-math-inline-widget, .cm-md-math-block-widget, .cm-md-math-inline-widget *, .cm-md-math-block-widget *))",
-    );
-    expect(markdownContentCss).toContain("*:not(:is(.katex, .katex *))");
+  it("keeps editor prose fonts from reaching math widgets", () => {
+    // Prose fonts are inherited theme variables (b6fa064f). A forced descendant
+    // override is what used to reach KaTeX, so none may return, and nothing in
+    // the content layer may restyle KaTeX glyph fonts.
+    expect(markdownContentCss).not.toMatch(/font-family:[^;}]*!important/);
+    expect(markdownContentCss).not.toMatch(/\.katex[^{]*\{[^}]*font-family/s);
   });
 
   it("leaves math font-role mapping to the upstream KaTeX stylesheet", () => {

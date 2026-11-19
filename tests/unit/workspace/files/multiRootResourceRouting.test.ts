@@ -5,16 +5,16 @@ import {
   qualifyDataResourcePath,
   type AiEditRequest,
   type MarkdownLinkGraph,
-} from "../../../../packages/shared-ui/src";
+} from "../../../../src/shared-ui";
 import {
   fromContextMapRelativePath,
   getContextMapScopePath,
   toContextMapRelativePath,
-} from "../../../../packages/shared-ui/src/editor/viewers/context-map/contextMapDocument";
+} from "../../../../src/shared-ui/editor/viewers/context-map/contextMapDocument";
 import {
   resolveMarkdownAssetPath,
   resolveMarkdownMediaReference,
-} from "../../../../packages/shared-ui/src/editor/markdown/features/media/markdownMediaReference";
+} from "../../../../src/shared-ui/editor/markdown/features/media/markdownMediaReference";
 import { qualifyAiEditRequest } from "../../../../src/features/data-workspace/useAiEditReviewRequest";
 
 describe("multi-root Resource URI routing", () => {
@@ -40,6 +40,8 @@ describe("multi-root Resource URI routing", () => {
     const reference = resolveMarkdownMediaReference(source, "diagram.png", "wiki-target", linkGraph);
     expect(reference).toBe(image);
     expect(resolveMarkdownAssetPath(source, reference!)).toBe(image);
+    // An aggregate Project root does not replace this Folder's identity.
+    expect(resolveMarkdownAssetPath(source, reference!, createWorkspaceRootUri("project-composition"))).toBe(image);
   });
 
   it("qualifies Git, Agent, and AI provider paths at an explicit Folder boundary", () => {

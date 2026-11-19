@@ -3,25 +3,28 @@
 // (window.puppyoneDesktop.requestCloudSessionApi). We mock that bridge on
 // globalThis.window (no jsdom needed — getDesktopCloudApiBaseUrl guards window
 // access in try/catch) and assert request shaping + the session/api-base guards.
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyCloudBillingPlanChange,
   applyCloudBillingSeatChange,
   cloudApiRequest,
+  ensurePersonalCloudSpace,
   createCloudBillingCheckout,
+  createCloudProject,
   getCloudAutomationOauthAuthorizeUrl,
   getCloudAutomationOauthStatus,
   getCloudBillingCatalog,
   getCloudOrganizationSeatUsage,
   getCloudProject,
-  listCloudAutomationConnectionRuns,
+  listSynchronizeRuns,
   listCloudAutomationProviderResources,
   openCloudBillingExternalUrl,
   quoteCloudBillingPlan,
   supportsCloudAutomationOauth,
   updateCloudProject,
-  updateCloudAutomationConnection,
-  updateCloudAutomationTrigger,
+  updateSynchronizeBinding,
+  updateSynchronizeTrigger,
   validateDesktopBillingCatalog,
   validateDesktopBillingOperation,
   validateDesktopBillingQuote,
@@ -29,8 +32,11 @@ import {
   validateDesktopCloudOrganizationSeatUsage,
 } from "../../../../src/lib/cloudApi";
 import { getCloudHistory, normalizeCloudHistory } from "../../../../src/lib/cloudHistoryApi";
+import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
+import { BILLING_READ_TIMEOUT_MS, withBillingReadDeadline } from "../../../../src/features/cloud/billing/billingReadCache";
 
 const API = "https://api.puppyone.ai/api/v1";
+const publishContract = JSON.parse(readFileSync(new URL("../../../fixtures/cloud/contracts/cloud-project-publish-v1.json", import.meta.url), "utf8"));
 const session = {
   expires_in: 3600,
   expires_at: 0,
@@ -52,10 +58,37 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   delete (globalThis as unknown as { window?: unknown }).window;
 });
 
 describe("cloud API client delegation", () => {
+  it("cancels the secure billing read on deadline even if its IPC promise stalls", async () => {
+    vi.useFakeTimers();
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    window.puppyoneDesktop!.cancelCloudSessionApi = cancel;
+    let finish!: (value: unknown) => void;
+    bridge.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const pending = withBillingReadDeadline((signal) => getCloudBillingCatalog(session, undefined, API, signal));
+    const rejected = expect(pending).rejects.toMatchObject({ name: "TimeoutError" });
+    await vi.advanceTimersByTimeAsync(BILLING_READ_TIMEOUT_MS);
+    await rejected;
+    expect(cancel).toHaveBeenCalledExactlyOnceWith(bridge.mock.calls[0]?.[0].requestId);
+    expect(bridge.mock.calls[0]?.[0].requestId).toEqual(expect.any(String));
+    finish(validBillingCatalog());
+    await Promise.resolve();
+  });
+  it("does not invalidate file reads when resolving a repository context through POST", async () => {
+    cloudCache.clear();
+    const context = { session, projectId: "project-1", revision: "one", resource: "directory" };
+    await cloudCache.load(context, async () => ["cached"], { ttlMs: 30_000 });
+    bridge.mockResolvedValue({});
+    await cloudApiRequest("/projects/project-1/repository-context", session, undefined,
+      { method: "POST", body: JSON.stringify({ target: { kind: "project_root", project_id: "project-1" } }) }, API);
+    expect(cloudCache.read(context)).toEqual(["cached"]);
+    await cloudApiRequest("/content/project-1/mv", session, undefined, { method: "POST", body: "{}" }, API);
+    expect(cloudCache.read(context)).toBeUndefined();
+  });
   it("reads capability-derived seat usage without trusting or mis-encoding organization ids", async () => {
     bridge.mockResolvedValueOnce({ billable_seat_quantity: 2 });
 
@@ -284,6 +317,22 @@ describe("cloud API client delegation", () => {
       .rejects.toThrow(/unsafe/i);
   });
 
+  it("creates a Cloud project in the chosen space as the publish contract defines, once per operation", async () => {
+    const contract = publishContract.operations.create_empty_project;
+    const operation = "6f1c2a4e-8b0d-4c3e-9a51-2d7e8f90ab12";
+    bridge.mockResolvedValue({ id: "project-9", name: "Plans" });
+    await createCloudProject(session, { name: "Plans", org_id: "org-team" }, operation, API);
+    await createCloudProject(session, { name: "Plans", org_id: "org-team" }, operation, API);
+    const [first, retry] = bridge.mock.calls.map(([request]) => request);
+    expect(first).toEqual(expect.objectContaining({ path: contract.path, method: contract.method,
+      headers: expect.objectContaining({ [publishContract.idempotency.header]: operation }) }));
+    const body = JSON.parse(first.body);
+    expect(body).toEqual({ name: "Plans", org_id: "org-team" });
+    expect(Object.keys(body).every((field) => field in contract.request)).toBe(true);
+    // A retry is the same request: the Cloud keys the project on the operation, not on the call.
+    expect(retry).toEqual(first);
+  });
+
   it("getCloudProject URL-encodes the project id in the path", async () => {
     bridge.mockResolvedValue({ id: "a/b" });
     await getCloudProject(session, "a/b", undefined, API);
@@ -352,14 +401,15 @@ describe("cloud API client delegation", () => {
       undefined,
       API,
     );
-    await updateCloudAutomationConnection(
+    bridge.mockResolvedValueOnce({ id: "connection/1", project_id: "project-1", path: "Research/Docs" });
+    await updateSynchronizeBinding(
       session,
       "connection/1",
       { target_path: "Research/Docs", config: { source: { resource_id: "doc-1" } } },
       undefined,
       API,
     );
-    await updateCloudAutomationTrigger(
+    await updateSynchronizeTrigger(
       session,
       "connection/1",
       { sync_mode: "scheduled", trigger: { type: "schedule", schedule: "0 9 * * *", timezone: "UTC" } },
@@ -367,22 +417,22 @@ describe("cloud API client delegation", () => {
       API,
     );
     bridge.mockResolvedValueOnce([]);
-    await listCloudAutomationConnectionRuns(session, "connection/1", 10, undefined, API);
+    await listSynchronizeRuns(session, "connection/1", 10, undefined, API);
 
     expect(bridge).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      path: "/integrations/providers/google_docs/resources?q=product+brief&cursor=page%2F2&resource_type=document",
+      path: "/synchronize/providers/google_docs/resources?q=product+brief&cursor=page%2F2&resource_type=document",
       method: "GET",
     }));
     expect(bridge).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      path: "/integrations/connections/connection%2F1",
+      path: "/synchronize/bindings/connection%2F1",
       method: "PATCH",
     }));
     expect(bridge).toHaveBeenNthCalledWith(3, expect.objectContaining({
-      path: "/integrations/connections/connection%2F1/trigger",
+      path: "/synchronize/bindings/connection%2F1/trigger",
       method: "PATCH",
     }));
     expect(bridge).toHaveBeenNthCalledWith(4, expect.objectContaining({
-      path: "/integrations/connections/connection%2F1/runs?limit=10",
+      path: "/synchronize/bindings/connection%2F1/runs?limit=10",
       method: "GET",
     }));
   });
@@ -563,6 +613,17 @@ describe("session / api-base guards", () => {
     });
   });
 
+  it("keeps the server's retry decision and request id from the IPC envelope", async () => {
+    bridge.mockResolvedValue({
+      transport: "puppyone-cloud-ipc-v1",
+      ok: false,
+      error: { status: 409, code: "workbench_not_running", message: "moved", retryable: true, requestId: "req-5" },
+    });
+    const error = await cloudApiRequest("/projects/project-1/workbench", session, undefined, {}, API)
+      .then(() => null, (reason: unknown) => reason);
+    expect(error).toMatchObject({ status: 409, code: "workbench_not_running", retryable: true, requestId: "req-5" });
+  });
+
   it("rejects with 401 (without calling the bridge) when the requested api base != the session's", async () => {
     const otherApi = "https://subdomain.puppyone.ai/api/v1";
     await expect(
@@ -579,5 +640,20 @@ describe("session / api-base guards", () => {
     await expect(
       cloudApiRequest("/projects/", session, undefined, {}, API),
     ).rejects.toThrow(/unavailable/i);
+  });
+});
+
+
+describe("default Space during a staggered server rollout", () => {
+  it("falls back only when the new authenticated route is absent", async () => {
+    bridge.mockRejectedValueOnce(Object.assign(new Error("Not found"), { status: 404 }))
+      .mockResolvedValueOnce({ id: "existing-space", kind: "personal", can_create_projects: true });
+    expect(await ensurePersonalCloudSpace(session, API)).toMatchObject({ id: "existing-space", is_default: true });
+    expect(bridge.mock.calls.map(([request]) => request.path)).toEqual(["/auth/default-space", "/auth/personal-space"]);
+  });
+  it.each([401, 403, 409, 500])("does not retry provisioning on status %i", async (status) => {
+    bridge.mockRejectedValueOnce(Object.assign(new Error("Failure"), { status }));
+    await expect(ensurePersonalCloudSpace(session, API)).rejects.toMatchObject({ status });
+    expect(bridge).toHaveBeenCalledOnce();
   });
 });

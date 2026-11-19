@@ -6,7 +6,7 @@ import {
   writeCsvColumnWidthsPreference,
   writeCsvFirstRecordAsHeaderPreference,
   writeCsvShowRowNumbersPreference,
-} from "../../../../../packages/shared-ui/src/editor/viewers/csv/csvViewPreferences";
+} from "../../../../../src/shared-ui/editor/viewers/csv/csvViewPreferences";
 
 describe("CSV view preferences", () => {
   it("keeps header interpretation per document without touching CSV content", () => {

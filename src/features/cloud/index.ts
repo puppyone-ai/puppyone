@@ -1,30 +1,31 @@
 export {
   cloudContextHasProject,
   getResolvedCloudProjectId,
-  resolveCloudHubSectionAfterContextChange,
-  resolveCloudHubSectionForContext,
   resolveProjectCloudContext,
   useCurrentRepositoryCloudContext,
   type ProjectCloudContext,
 } from "./project/context";
-export { CloudServiceMainView } from "./CloudServiceMainView";
-export { CloudDialog, type CloudDialogProps } from "./CloudDialog";
+export { CloudPublishDialog } from "./initialization/CloudPublishDialog";
+export { CloudPublishTask } from "./initialization/CloudPublishTask";
+export { CloudFileWorkspaceGate } from "./workbench/CloudFileWorkspaceGate";
+export type { CloudProjectPreparationProps } from "./types";
 export {
   CloudProjectHistorySidebar,
   CloudProjectHistoryView,
   type CloudProjectHistoryProps,
 } from "./history";
 export type { AccessPointCatalogKind } from "./access-points";
-export { CloudServiceSidebar } from "./CloudServiceSidebar";
 export {
+  CloudSignInDialog,
+  closeCloudSignInDialog,
   getCloudAuthEmail,
   getCloudAuthSession,
+  openCloudSignInDialog,
   resolveCloudAuthState,
   useCloudSessionForEnvironment,
 } from "./auth";
 export { resolveCloudEnvironment } from "./environment";
 export {
-  CLOUD_HUB_ENTRY_SECTION,
   CLOUD_ROUTES,
   getCloudRoute,
   getCloudRouteWebPath,
@@ -41,3 +42,23 @@ export type { CloudWorkspaceSection } from "./types";
 export { formatCloudMessage } from "./cloudPresentation";
 export { isAccessPointNavigationResource } from "./access-points";
 export { useCloudHistoryController } from "./history/useCloudHistoryController";
+export { useCloudAuthController } from "./hooks/useCloudAuthController";
+export { useCloudBillingController } from "./billing/useCloudBillingController";
+export type { LocalFolderCloudNotice } from "./project/localFolderCloudNoticeState";
+export { decodeWorkspaceBytes, encodeWorkspaceBytes } from "./files/cloudWorkspaceClient";
+
+export { loadBillingCatalog, loadBillingResource, loadBillingSummary, loadBillingUsage,
+  readBillingResource } from "./billing/billingReadCache";
+export type { BillingReadScope } from "./billing/billingReadCache";
+export { createCloudBillingContextKey } from "./billing/cloudBillingState";
+export { SpaceMark, SpacePlanBadge, useSpaceName } from "./spaces/SpaceMark";
+export {
+  CloudScreenLiveViewport,
+  CloudScreenThumbnail,
+  ComputerScreenSidebarEntry,
+  ComputerScreenStage,
+  type CloudScreenRuntimeState,
+  type ComputerScreenPower,
+  type ComputerScreenStageMode,
+} from "./sandbox/CloudComputerScreen";
+export { cloudScreenViewer, type CloudScreenViewerStatus } from "./sandbox/screenTransports";

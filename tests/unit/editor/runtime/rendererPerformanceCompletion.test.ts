@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { RendererPerformanceTracker } from "../../../../packages/shared-ui/src/performance/rendererPerformance";
+import { RendererPerformanceTracker } from "../../../../src/shared-ui/performance/rendererPerformance";
 
 const trackers: RendererPerformanceTracker[] = [];
 function createTracker() {

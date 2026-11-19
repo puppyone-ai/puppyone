@@ -33,9 +33,11 @@ import { collapseNestedNodes } from "./fileClipboard";
 import { useFileClipboard } from "./useFileClipboard";
 import { useLocalization } from "@puppyone/localization/react";
 import { bidiIsolate } from "@puppyone/localization/core";
+import { writeClipboardText } from "../../lib/clipboard";
 
 export function useDataNodeActions({
   dataPort: rawDataPort,
+  getPathForCopy,
   onEnterDataView,
   onLocalWorkspaceContentChanged,
   onWorkspaceContentChanged,
@@ -46,9 +48,12 @@ export function useDataNodeActions({
   workspace,
 }: {
   dataPort: DataPort | null;
+  /** Provider-owned readable path; Resource URIs must not reach the clipboard. */
+  getPathForCopy?: (path: string) => string;
   onEnterDataView: () => void;
   onLocalWorkspaceContentChanged: () => void;
-  onWorkspaceContentChanged: () => void;
+  /** Resources an action created, moved or removed; omitted when the scope is unknown. */
+  onWorkspaceContentChanged: (resources?: readonly string[]) => void;
   onResourceDeleted?: (path: string) => void | Promise<void>;
   onResourceMoved?: (previousPath: string, nextPath: string) => void | Promise<void>;
   onActivateNode: (node: DataNode) => void;
@@ -82,8 +87,6 @@ export function useDataNodeActions({
       anchor: normalizeCreateEntryAnchor(anchorRect),
       error: null,
       creatingKind: null,
-      selectedKind: null,
-      name: "",
     });
   }, [onEnterDataView]);
 
@@ -95,6 +98,7 @@ export function useDataNodeActions({
     onEnterDataView();
     setCreateEntryDraft(null);
     setNodeActionMenu({
+      launcherPath: node.path,
       node: primaryNode,
       nodes,
       anchor: rectToCreateEntryAnchor(anchorRect),
@@ -107,29 +111,10 @@ export function useDataNodeActions({
     });
   }, [onEnterDataView]);
 
-  const selectCreateEntryKind = useCallback((kind: DesktopCreateEntryKind) => {
-    if (!createEntryDraft) return;
-    setCreateEntryDraft((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        selectedKind: kind,
-        name: defaultCreateName(kind, t),
-        error: null,
-      };
-    });
-  }, [createEntryDraft, t]);
+  /** Creates the chosen kind at once under its default, de-duplicated name, then opens it. */
+  const createEntry = useCallback(async (kind: DesktopCreateEntryKind) => {
+    if (!workspace || !dataPort || !createEntryDraft || createEntryDraft.creatingKind) return;
 
-  const createEntryFromMenu = useCallback(async () => {
-    if (
-      !workspace ||
-      !dataPort ||
-      !createEntryDraft ||
-      createEntryDraft.creatingKind ||
-      !createEntryDraft.selectedKind
-    ) return;
-
-    const kind = createEntryDraft.selectedKind;
     if (kind === "slides") {
       if (!dataPort.instantiateTemplate) return;
     } else if (!dataPort.createFolder || !dataPort.createFile) {
@@ -137,7 +122,7 @@ export function useDataNodeActions({
     }
     let requestedName: string;
     try {
-      requestedName = normalizeCreateEntryName(kind, createEntryDraft.name);
+      requestedName = normalizeCreateEntryName(kind, defaultCreateName(kind, t));
     } catch (error) {
       setCreateEntryDraft((current) => current ? {
         ...current,
@@ -150,6 +135,7 @@ export function useDataNodeActions({
     try {
       let nextPath: string;
       let nextNode: DataNode;
+      let changedResources: string[] | null = null;
       if (kind === "slides") {
         const result = await dataPort.instantiateTemplate!({
           templateId: "slides.default",
@@ -157,6 +143,7 @@ export function useDataNodeActions({
           name: requestedName,
         });
         nextPath = result.openPath;
+        changedResources = [result.rootPath];
         const name = getDataResourceName(nextPath) || nextPath;
         nextNode = {
           id: nextPath,
@@ -198,7 +185,7 @@ export function useDataNodeActions({
       setNodeActionMenu(null);
       onEnterDataView();
       onActivateNode(nextNode);
-      onWorkspaceContentChanged();
+      onWorkspaceContentChanged(changedResources ?? [nextPath]);
       onLocalWorkspaceContentChanged();
     } catch (error) {
       setCreateEntryDraft((current) => current ? {
@@ -266,7 +253,7 @@ export function useDataNodeActions({
             ? { ...current, path: remapActivePathAfterRename(current.path, previousPath, nextPath) ?? current.path }
             : current
       ));
-      onWorkspaceContentChanged();
+      onWorkspaceContentChanged([previousPath, nextPath]);
       onLocalWorkspaceContentChanged();
     } catch (error) {
       setNodeActionMenu((current) => current ? {
@@ -315,7 +302,7 @@ export function useDataNodeActions({
       setActiveExplorerNode((current) => (
         deletedNodes.some((node) => current?.path === node.path || current?.path.startsWith(`${node.path}/`)) ? null : current
       ));
-      onWorkspaceContentChanged();
+      onWorkspaceContentChanged(deletedNodes.map((node) => node.path));
       onLocalWorkspaceContentChanged();
     }
 
@@ -347,6 +334,23 @@ export function useDataNodeActions({
     setActiveExplorerNode,
     t,
   ]);
+
+  const copyNodePathFromMenu = useCallback(async () => {
+    if (!getPathForCopy || !nodeActionMenu || nodeActionMenu.operation) return;
+
+    const pendingDraft: DesktopNodeActionMenuDraft = {
+      ...nodeActionMenu, operation: "copy-path", error: null,
+    };
+    setNodeActionMenu(pendingDraft);
+    try {
+      await writeClipboardText(getPathForCopy(pendingDraft.node.path));
+      setNodeActionMenu((current) => current === pendingDraft ? null : current);
+    } catch (error) {
+      setNodeActionMenu((current) => current === pendingDraft ? {
+        ...current, operation: null, error: toDesktopNodeActionError(error),
+      } : current);
+    }
+  }, [getPathForCopy, nodeActionMenu]);
 
   const revealNodeInFinderFromMenu = useCallback(async () => {
     if (!dataPort?.revealInFileManager || !nodeActionMenu || nodeActionMenu.operation) return;
@@ -393,10 +397,10 @@ export function useDataNodeActions({
     setNodeActionMenu,
     openCreateEntryMenu,
     openNodeActionMenu,
-    selectCreateEntryKind,
-    createEntryFromMenu,
+    createEntry,
     renameNodeFromMenu,
     deleteNodeFromMenu,
+    copyNodePathFromMenu,
     revealNodeInFinderFromMenu,
     openNodeInDefaultAppFromMenu,
   };

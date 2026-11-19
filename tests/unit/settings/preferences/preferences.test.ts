@@ -9,29 +9,18 @@ import {
   parseDarkThemePreset,
   parseDiffMarkers,
   parseExperimentalSettings,
-  parseGitSidebarLayout,
-  parseLoadingAnimationPreset,
   parseLocalAgentsSettings,
   parsePointerCursors,
   parseTitlebarActionsSettings,
   resolveVisibleCreateNewMenuItems,
 } from "../../../../src/preferences";
 
-describe("Git sidebar layout preferences", () => {
-  it("defaults to cards and accepts only the two comparison layouts", () => {
-    expect(parseGitSidebarLayout(null)).toBe("cards");
-    expect(parseGitSidebarLayout("cards")).toBe("cards");
-    expect(parseGitSidebarLayout("dividers")).toBe("dividers");
-    expect(parseGitSidebarLayout("unknown")).toBe("cards");
-  });
-});
-
 describe("create new menu preferences", () => {
   it("defaults to a complete v5 hierarchy with a first-class submenu node", () => {
     expect(parseCreateNewMenuSettings(null)).toEqual(DEFAULT_CREATE_NEW_MENU_SETTINGS);
     expect(DEFAULT_CREATE_NEW_MENU_SETTINGS).toEqual({
       version: 5,
-      main: ["markdown", "csv", "html", "customFiles"],
+      main: ["markdown", "csv", "html", "whiteboard", "customFiles"],
       submenu: ["contextMap"],
       hidden: ["text", "json", "slides", "app", "puppyflow"],
     });
@@ -39,7 +28,7 @@ describe("create new menu preferences", () => {
       DEFAULT_CREATE_NEW_MENU_SETTINGS,
       DEFAULT_EXPERIMENTAL_SETTINGS,
     )).toEqual({
-      main: ["markdown", "csv", "html", "customFiles"],
+      main: ["markdown", "csv", "html", "whiteboard", "customFiles"],
       submenu: ["contextMap"],
     });
   });
@@ -53,7 +42,7 @@ describe("create new menu preferences", () => {
       ],
     }))).toEqual({
       version: 5,
-      main: ["customFiles"],
+      main: ["whiteboard", "customFiles"],
       submenu: ["text"],
       hidden: ["json", "markdown", "contextMap", "csv", "html", "slides", "app", "puppyflow"],
     });
@@ -84,7 +73,7 @@ describe("create new menu preferences", () => {
       ],
     }))).toEqual({
       version: 5,
-      main: ["json", "customFiles"],
+      main: ["json", "whiteboard", "customFiles"],
       submenu: [],
       hidden: ["text", "markdown", "contextMap", "csv", "html", "slides", "app", "puppyflow"],
     });
@@ -98,7 +87,7 @@ describe("create new menu preferences", () => {
       hidden: ["text", "json"],
     }))).toEqual({
       version: 5,
-      main: ["html", "customFiles", "markdown"],
+      main: ["html", "whiteboard", "customFiles", "markdown"],
       submenu: ["json"],
       hidden: ["text", "contextMap", "csv", "slides", "app", "puppyflow"],
     });
@@ -110,7 +99,7 @@ describe("create new menu preferences", () => {
     }))).toEqual(DEFAULT_CREATE_NEW_MENU_SETTINGS);
     expect(parseCreateNewMenuSettings(JSON.stringify({ items: [] }))).toEqual({
       version: 5,
-      main: ["customFiles"],
+      main: ["whiteboard", "customFiles"],
       submenu: [],
       hidden: ["markdown", "contextMap", "text", "json", "csv", "html", "slides", "app", "puppyflow"],
     });
@@ -156,10 +145,6 @@ describe("appearance preferences", () => {
     expect(parseDarkThemePreset("custom")).toBe("default");
     expect(parseDiffMarkers("symbols")).toBe("symbols");
     expect(parseDiffMarkers("both")).toBe("color");
-    expect(parseLoadingAnimationPreset("ikun")).toBe("ikun");
-    expect(parseLoadingAnimationPreset("ymca")).toBe("ymca");
-    expect(parseLoadingAnimationPreset("siu")).toBe("siu");
-    expect(parseLoadingAnimationPreset("sparkles")).toBe("ikun");
   });
 
   it("keeps pointer cursors off unless explicitly enabled", () => {
@@ -227,34 +212,46 @@ describe("experimental preferences", () => {
     expect(settings).not.toHaveProperty("enableAgentCompanion");
   });
 
-  it("keeps PuppyOne Cloud off unless the user explicitly opts in", () => {
+  it("drops the retired Header location switch experiment from stored settings", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableProjectLocationIconsInHeader: true })))
+      .not.toHaveProperty("enableProjectLocationIconsInHeader");
+  });
+
+  it.each([null, "not-json", "{}", '{"enableProjectReach":"true"}', '{"enableProjectReach":1}'])(
+    "keeps the project reach experience off for existing installations (%s)",
+    (stored) => {
+      expect(parseExperimentalSettings(stored).enableProjectReach).toBe(false);
+    },
+  );
+
+  it("restores explicit project reach consent without moving another experiment", () => {
+    expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableProjectReach).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableProjectReach: true })))
+      .toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectReach: true });
+  });
+
+  it("keeps Puppyone Cloud off unless the user explicitly opts in", () => {
     expect(parseExperimentalSettings(null).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings("not-json").enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: false })).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: true })).enableCloudWorkspace).toBe(true);
-    expect(parseExperimentalSettings(null).enableWorkbenchTabsInHeader).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableWorkbenchTabsInHeader: true })).enableWorkbenchTabsInHeader).toBe(true);
-    expect(parseExperimentalSettings(null).enableEditorTabsInHeader).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableEditorTabsInHeader: true })).enableEditorTabsInHeader).toBe(true);
-    expect(parseExperimentalSettings(null).enableCenteredProjectInHeader).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableCenteredProjectInHeader: true })).enableCenteredProjectInHeader).toBe(true);
   });
 
-  it("keeps Share from the Header on unless the user explicitly opts out", () => {
-    expect(parseExperimentalSettings(null).enableShareOnboarding).toBe(true);
-    expect(parseExperimentalSettings("not-json").enableShareOnboarding).toBe(true);
-    expect(parseExperimentalSettings(JSON.stringify({})).enableShareOnboarding).toBe(true);
-    expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: false })).enableShareOnboarding).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: true })).enableShareOnboarding).toBe(true);
+  it.each([true, false])("forgets the retired Share preference (%s) without changing other experiments", (enabled) => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: enabled })))
+      .toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
+    expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: enabled, enableProjectReach: true })))
+      .toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectReach: true });
   });
 
-  it("only restores the Git Header card after an explicit opt-in", () => {
-    for (const stored of [null, "not-json", "{}", '{"enableGitCardInHeader":"true"}']) {
-      expect(parseExperimentalSettings(stored).enableGitCardInHeader).toBe(false);
-    }
-    const stored = JSON.stringify({ enableGitCardInHeader: true, enableCenteredProjectInHeader: false });
-    expect(parseExperimentalSettings(stored).enableGitCardInHeader).toBe(true);
-    expect(parseExperimentalSettings(stored).enableCenteredProjectInHeader).toBe(false);
+  it("forgets the retired centered project and Git card Header choices", () => {
+    const settings = parseExperimentalSettings(JSON.stringify({
+      enableCenteredProjectInHeader: true,
+      enableGitCardInHeader: true,
+    }));
+    expect(settings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
+    expect(settings).not.toHaveProperty("enableCenteredProjectInHeader");
+    expect(settings).not.toHaveProperty("enableGitCardInHeader");
   });
 
   it("keeps onboarding coachmark replay off unless the user explicitly opts in", () => {
@@ -290,11 +287,9 @@ describe("experimental preferences", () => {
       .toBe(true);
   });
 
-  it("keeps Cloud Automation off unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableCloudAutomation).toBe(false);
-    expect(parseExperimentalSettings("not-json").enableCloudAutomation).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAutomation: false })).enableCloudAutomation).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAutomation: true })).enableCloudAutomation).toBe(true);
+  it("drops the retired Cloud Automation experiment", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAutomation: true })))
+      .not.toHaveProperty("enableCloudAutomation");
   });
 
   it("drops retired first-project and save-status preferences", () => {
@@ -334,10 +329,9 @@ describe("experimental preferences", () => {
       .toBe(true);
   });
 
-  it("keeps the Asset Library homepage off unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableAssetLibraryHome).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: false })).enableAssetLibraryHome).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: true })).enableAssetLibraryHome).toBe(true);
+  it("forgets a saved choice of the retired card Homepage", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: true })))
+      .not.toHaveProperty("enableAssetLibraryHome");
   });
 
   it("keeps Viewer Plugins off unless the user explicitly opts in", () => {

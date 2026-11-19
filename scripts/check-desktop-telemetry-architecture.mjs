@@ -143,8 +143,12 @@ requireSource(
   "the product must link to the disclosure in the public Desktop repository",
 );
 const publicReadme = await readText("README.md");
-for (const term of ["## Privacy", "desktop_first_run", "desktop_daily_active", "100 days", "Settings → Privacy", "shared/desktop-telemetry-contract.mjs"]) {
-  requireSource(publicReadme, term, `the public disclosure must include ${term}`);
+for (const term of ["## Privacy", "(PRIVACY.md)"]) {
+  requireSource(publicReadme, term, `the README disclosure anchor must keep ${term}`);
+}
+const publicPrivacyNotice = await readText("PRIVACY.md");
+for (const term of ["desktop_first_run", "desktop_daily_active", "100 days", "Settings → Privacy", "shared/desktop-telemetry-contract.mjs"]) {
+  requireSource(publicPrivacyNotice, term, `the public disclosure must include ${term}`);
 }
 
 const ipcSource = await readText("electron/main/ipc/telemetry-ipc.mjs");
@@ -186,15 +190,13 @@ if (appSource.includes("OnboardingTelemetryDisclosure")) {
   errors.push("the first-launch telemetry disclosure must not be mounted in the workspace sidebar");
 }
 
-for (const sourceRoot of ["src", "packages/shared-ui/src"]) {
-  for (const filePath of await listSourceFiles(sourceRoot)) {
-    const source = await fs.readFile(filePath, "utf8");
-    if (/\b(?:posthog|mixpanel|amplitude)(?:-js)?\b/i.test(source)) {
-      errors.push(`${path.relative(repositoryRoot, filePath)} must not embed a renderer analytics SDK`);
-    }
-    if (/electron\/main\/telemetry|telemetry-http-transport/.test(source)) {
-      errors.push(`${path.relative(repositoryRoot, filePath)} must not import main-process telemetry infrastructure`);
-    }
+for (const filePath of await listSourceFiles("src")) {
+  const source = await fs.readFile(filePath, "utf8");
+  if (/\b(?:posthog|mixpanel|amplitude)(?:-js)?\b/i.test(source)) {
+    errors.push(`${path.relative(repositoryRoot, filePath)} must not embed a renderer analytics SDK`);
+  }
+  if (/electron\/main\/telemetry|telemetry-http-transport/.test(source)) {
+    errors.push(`${path.relative(repositoryRoot, filePath)} must not import main-process telemetry infrastructure`);
   }
 }
 

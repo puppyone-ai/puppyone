@@ -84,7 +84,7 @@ describe("Codex JSONL JSON-RPC transport", () => {
     expect(duplicateChild.kill).toHaveBeenCalledOnce();
   });
 
-  it("retires an ambiguous connection when a request times out", async () => {
+  it("keeps an ambiguous request scoped to its wait", async () => {
     vi.useFakeTimers();
     try {
       const child = createChild();
@@ -100,8 +100,9 @@ describe("Codex JSONL JSON-RPC transport", () => {
       await vi.advanceTimersByTimeAsync(25);
 
       await rejection;
-      expect(child.kill).toHaveBeenCalledOnce();
-      expect(exit).toHaveBeenCalledWith(expect.objectContaining({ expected: false }));
+      expect(child.kill).not.toHaveBeenCalled();
+      expect(exit).not.toHaveBeenCalled();
+      connection.dispose();
     } finally {
       vi.useRealTimers();
     }
@@ -112,7 +113,7 @@ describe("Codex JSONL JSON-RPC transport", () => {
     try {
       const child = createChild();
       const connection = createConnection(child);
-      const pending = connection.request("turn/start", {}, { timeoutMs: 20, closeOnTimeout: false });
+      const pending = connection.request("turn/start", {}, { timeoutMs: 20 });
       const rejection = expect(pending).rejects.toMatchObject({ code: "JSONL_RPC_TIMEOUT" });
 
       await vi.advanceTimersByTimeAsync(25);

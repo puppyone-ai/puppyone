@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import {
   forwardRef,
   type ButtonHTMLAttributes,
@@ -82,7 +81,6 @@ export type DesktopMenuItemProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>,
   label: ReactNode;
   selected?: boolean;
   trailing?: ReactNode;
-  tooltip?: string | null;
 };
 
 export type DesktopMenuIconButtonProps = Omit<
@@ -91,26 +89,24 @@ export type DesktopMenuIconButtonProps = Omit<
 > & {
   icon: ReactNode;
   label: string;
-  tooltip?: string | null;
 };
 
 export function DesktopMenuIconButton({
   className,
   icon,
   label,
-  tooltip = label,
   type = "button",
   ...props
 }: DesktopMenuIconButtonProps) {
   return (
-    <Tooltip content={tooltip}><button
+    <button
       className={cx("desktop-menu-icon-button", className)}
       type={type}
       aria-label={label}
       {...props}
     >
       {icon}
-    </button></Tooltip>
+    </button>
   );
 }
 
@@ -123,14 +119,13 @@ export const DesktopMenuItem = forwardRef<HTMLButtonElement, DesktopMenuItemProp
     label,
     role = "menuitem",
     selected,
-    tooltip,
     trailing,
     ...props
   },
   ref,
 ) {
   return (
-    <Tooltip content={tooltip}><button
+    <button
       ref={ref}
       className={cx("desktop-menu-item", selected && "selected", destructive && "danger", className)}
       type="button"
@@ -143,6 +138,6 @@ export const DesktopMenuItem = forwardRef<HTMLButtonElement, DesktopMenuItemProp
         {detail !== undefined && <span className="desktop-menu-item-detail">{detail}</span>}
       </span>
       {trailing !== undefined && <span className="desktop-menu-item-trailing">{trailing}</span>}
-    </button></Tooltip>
+    </button>
   );
 });

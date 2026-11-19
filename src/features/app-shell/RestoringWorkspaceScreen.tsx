@@ -1,12 +1,16 @@
 import type { ResolvedSurfaceAppearance } from "../appearance/AppearanceRuntime";
 import { useLocalization } from "@puppyone/localization";
-import { PulseGrid } from "../../components/loading";
+import { LoadingMark } from "@puppyone/shared-ui";
 import { DesktopWindowDragRegion } from "../../components/DesktopWindowChrome";
 
 type RestoringWorkspaceScreenProps = {
   appearance: ResolvedSurfaceAppearance;
 };
 
+/**
+ * The wait for a Homepage. The page has not arrived, so the mark holds the centre
+ * of the window. A project coming back waits in its own window instead.
+ */
 export function RestoringWorkspaceScreen({
   appearance,
 }: RestoringWorkspaceScreenProps) {
@@ -19,7 +23,8 @@ export function RestoringWorkspaceScreen({
       {...appearance.rootProps}
     >
       <DesktopWindowDragRegion className="onboarding-titlebar" />
-      <PulseGrid ariaLabel={t("workspace.restoring.ariaLabel")} size="sm" tone="neutral" />
+      <LoadingMark className="onboarding-restoring-mark" layout="area"
+        ariaLabel={t("common.status.loading")} size="md" tone="neutral" />
     </main>
   );
 }

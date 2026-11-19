@@ -1,4 +1,3 @@
-import { activateTooltip } from "@puppyone/shared-ui";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { subscribeTypographyChanges, useEditorAppearanceRevision } from "@puppyone/shared-ui";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
@@ -76,13 +75,9 @@ class AgentPromptReferenceWidget extends WidgetType {
     const label = document.createElement("span");
     label.className = "desktop-agent-prompt-mention-label";
     label.textContent = this.reference.label;
-    if (this.reference.status === "error") {
-      activateTooltip(element, this.reference.title);
-    } else {
-      activateTooltip(label, this.reference.title, { overflowOnly: true });
-    }
     element.append(label);
     if (this.reference.status === "error") {
+      element.setAttribute("aria-description", this.reference.title);
       const error = document.createElement("span");
       error.className = "desktop-agent-visually-hidden";
       error.textContent = this.reference.errorLabel;

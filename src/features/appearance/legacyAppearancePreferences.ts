@@ -26,7 +26,6 @@ import {
   TYPOGRAPHY_STORAGE_KEY,
   parseDarkThemePreset,
   parseLightThemePreset,
-  parseLoadingAnimationPreset,
   parsePointerCursors,
   parseSidebarNavigationLayout,
   parseThemeMode,
@@ -64,9 +63,6 @@ export function readLegacyAppearanceSnapshot(
     legacyTextSize: parseLegacyTextSize(storage.getItem(LEGACY_TEXT_SIZE_STORAGE_KEY)),
     typography: parseTypography(storage.getItem(TYPOGRAPHY_STORAGE_KEY)),
     pointerCursors: parsePointerCursors(storage.getItem(POINTER_CURSORS_STORAGE_KEY)),
-    loadingAnimationPreset: parseLoadingAnimationPreset(
-      storage.getItem(LOADING_ANIMATION_STORAGE_KEY),
-    ),
     fileIconTheme: parseFileIconThemeId(storedFileIconTheme) ?? "default",
     sidebarNavigationLayout: parseSidebarNavigationLayout(
       storage.getItem(SIDEBAR_NAVIGATION_LAYOUT_STORAGE_KEY),

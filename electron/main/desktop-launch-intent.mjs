@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const DESKTOP_LAUNCH_INTENT_VERSION = 1;
+const DESKTOP_LAUNCH_INTENT_VERSION = 2;
 
 export function createDesktopLaunchIntent({
   argv = process.argv,
@@ -15,10 +16,7 @@ export function createDesktopLaunchIntent({
 
   return {
     version: DESKTOP_LAUNCH_INTENT_VERSION,
-    workspacePath: findWorkspacePathArg(launchArguments, {
-      workingDirectory,
-      statSync,
-    }),
+    ...findLaunchTargetArg(launchArguments, { workingDirectory, statSync }),
   };
 }
 
@@ -26,28 +24,20 @@ export function parseDesktopLaunchIntent(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   if (value.version !== DESKTOP_LAUNCH_INTENT_VERSION) return null;
 
-  if (value.workspacePath === null) {
-    return {
-      version: DESKTOP_LAUNCH_INTENT_VERSION,
-      workspacePath: null,
-    };
-  }
-
-  if (
-    typeof value.workspacePath !== "string"
-    || value.workspacePath.trim().length === 0
-    || !path.isAbsolute(value.workspacePath)
-  ) {
-    return null;
-  }
-
-  return {
-    version: DESKTOP_LAUNCH_INTENT_VERSION,
-    workspacePath: path.normalize(value.workspacePath),
-  };
+  const workspacePath = parseLaunchPath(value.workspacePath);
+  const filePath = parseLaunchPath(value.filePath);
+  if (workspacePath === undefined || filePath === undefined) return null;
+  return { version: DESKTOP_LAUNCH_INTENT_VERSION, workspacePath, filePath };
 }
 
-export function findWorkspacePathArg(argv, {
+function parseLaunchPath(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string" || value.trim().length === 0 || !path.isAbsolute(value)) return undefined;
+  return path.normalize(value);
+}
+
+/** The last folder or file named on the command line. */
+export function findLaunchTargetArg(argv, {
   workingDirectory = process.cwd(),
   statSync = fs.statSync,
 } = {}) {
@@ -60,14 +50,25 @@ export function findWorkspacePathArg(argv, {
     if (!argument || argument.startsWith("-")) continue;
 
     try {
-      const candidate = path.resolve(basePath, argument);
-      if (statSync(candidate).isDirectory()) return candidate;
+      const candidate = path.resolve(basePath, localPathFromArgument(argument));
+      const target = statSync(candidate);
+      if (target.isDirectory()) return { workspacePath: candidate, filePath: null };
+      if (target.isFile()) return { workspacePath: null, filePath: candidate };
     } catch {
       // Command-line input is untrusted. Non-path arguments are ignored.
     }
   }
 
-  return null;
+  return { workspacePath: null, filePath: null };
+}
+
+export function findWorkspacePathArg(argv, options) {
+  return findLaunchTargetArg(argv, options).workspacePath;
+}
+
+/** Linux file managers hand over file:// URIs. Other schemes are not paths. */
+function localPathFromArgument(argument) {
+  return argument.startsWith("file://") ? fileURLToPath(argument) : argument;
 }
 
 export async function handleSecondInstanceLaunch({
@@ -76,6 +77,7 @@ export async function handleSecondInstanceLaunch({
   workingDirectory,
   isPackaged = false,
   statSync = fs.statSync,
+  openFile,
   openWorkspaceInNewWindow,
   revealOrCreateWindow,
   reportError = console.error,
@@ -87,6 +89,15 @@ export async function handleSecondInstanceLaunch({
       isPackaged,
       statSync,
     });
+
+  if (intent.filePath && typeof openFile === "function") {
+    try {
+      if (await openFile(intent.filePath)) return { status: "opened-file", filePath: intent.filePath };
+    } catch (error) {
+      reportSafely(reportError, "Unable to open the file requested by a second puppyone instance:", error);
+    }
+    return revealSafely({ revealOrCreateWindow, reportError, successStatus: "recovered-window" });
+  }
 
   if (!intent.workspacePath) {
     return revealSafely({

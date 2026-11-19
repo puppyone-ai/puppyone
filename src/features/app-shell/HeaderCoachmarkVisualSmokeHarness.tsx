@@ -1,12 +1,15 @@
 import { useEffect, useLayoutEffect, useState } from "react";
-import { FileText, Folder, GitBranch } from "lucide-react";
+import { FileText, GitBranch } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopWindowChrome } from "../../components/DesktopWindowChrome";
-import { parseTitlebarActionsSettings } from "../../preferences";
-import { DesktopOverlayPortal } from "./DesktopOverlayPortal";
+import { initializeDesktopPreferences } from "../../preferencesStore";
+import { DesktopOverlayPortal } from "../../components/DesktopOverlayPortal";
 import { DesktopTitlebarActions } from "./DesktopTitlebarActions";
 import type { HeaderCoachmarkId } from "./headerCoachmarks";
+import { FolderIcon } from "@puppyone/shared-ui";
 import "./header-coachmark-visual-smoke.css";
+
+initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
 const requestedFeature = new URLSearchParams(window.location.search).get("feature");
 const initialFeature: HeaderCoachmarkId = requestedFeature === "changes" ? "changes" : "agent";
@@ -54,7 +57,7 @@ export function HeaderCoachmarkVisualSmokeHarness() {
         <DesktopWindowChrome
           context={(
             <div className="header-coachmark-visual-context">
-              <Folder size={14} aria-hidden="true" />
+              <FolderIcon size={14} aria-hidden="true" />
               <strong>{fixtureCopy.project}</strong>
               <GitBranch size={13} aria-hidden="true" />
               <span>{fixtureCopy.branch}</span>
@@ -62,7 +65,6 @@ export function HeaderCoachmarkVisualSmokeHarness() {
           )}
           actions={(
             <DesktopTitlebarActions
-              titlebarActionsSettings={parseTitlebarActionsSettings(null)}
               terminalSidebarOpen={false}
               terminalToolEnabled
               gitChangesAvailable

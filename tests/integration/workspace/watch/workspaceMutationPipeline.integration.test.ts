@@ -257,6 +257,8 @@ function createHarness(
   const workbench = createWorkbenchWorkspace(workspaces);
   const watchers = new Map<string, FakeWatcher>();
   const fsModule = {
+    readdirSync: () => [],
+    statSync: () => ({ ino: 1, dev: 1 }),
     promises: {
       readFile: vi.fn(async () => Buffer.from("after")),
     },

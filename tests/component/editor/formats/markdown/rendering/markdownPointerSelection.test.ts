@@ -2,11 +2,11 @@
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { markdownLivePreviewDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/projection/markdownDocumentProjection";
-import { markdownLivePreviewFocusEffect } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/livePreviewFocus";
-import { markdownPointerSelectionField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/pointerSelection";
-import { markdownRevealedSourceEffect, markdownRevealedSourceField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
+import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { markdownLivePreviewDecorations } from "../../../../../../src/shared-ui/editor/markdown/core/projection/markdownDocumentProjection";
+import { markdownLivePreviewFocusEffect } from "../../../../../../src/shared-ui/editor/markdown/core/state/livePreviewFocus";
+import { markdownPointerSelectionField } from "../../../../../../src/shared-ui/editor/markdown/core/state/pointerSelection";
+import { markdownRevealedSourceEffect, markdownRevealedSourceField } from "../../../../../../src/shared-ui/editor/markdown/core/state/revealedSource";
 
 const source = "Prefix **abcdefghij** suffix\n\nOther paragraph.";
 const caret = source.indexOf("abcdefghij") + 4;

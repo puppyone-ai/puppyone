@@ -2,15 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Workspace } from "@puppyone/shared-ui";
 import {
   cleanupWorkspaceCloudInitialization,
-  commitWorkspaceGit,
-  createWorkspaceGitBranch,
   getWorkspaceCloudInitializationState,
   getWorkspaceGitStatus,
-  initializeWorkspaceGitRepository,
-  stageAllWorkspaceGitChanges,
   startWorkspaceCloudInitialization,
   subscribeWorkspaceCloudInitializationProgress,
 } from "../../../lib/localFiles";
+import {
+  normalizePublishBranch as normalizeBranch,
+  prepareWorkspaceForPublish,
+} from "./publishPreparation";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type {
   CloudInitializationAction,
@@ -20,8 +20,6 @@ import type {
   CloudInitializationState,
   GitStatusSnapshot,
 } from "../../../types/electron";
-import type { DesktopView } from "../../../components/DesktopCloudShell";
-import type { CloudWorkspaceSection } from "../types";
 import { createRepositoryRefreshReason } from "../../source-control/repositoryRefreshPolicy";
 import type { GitRefreshReason, GitRepositoryContext } from "../../source-control/gitRefreshScheduler";
 
@@ -32,10 +30,16 @@ export type CloudInitializationFailure = {
 
 export type CloudInitializationNotice = "cleanup-completed" | null;
 
-export type CloudInitializationStartOptions = {
-  /** Set to false to stay on the current surface after a successful publish. */
-  navigateToCloud?: boolean;
-};
+/**
+ * How the latest publish run in this window ended. A new object per run, so a
+ * surface can tell "this ending" from "an ending it already showed". Absent
+ * while running, before any run, and after the project or account changes —
+ * a reset is not an ending.
+ */
+export type CloudInitializationOutcome = Readonly<{
+  /** `attention`: the run returned, but the project still needs the user. */
+  kind: "published" | "attention" | "failed";
+}>;
 
 export function useCloudInitialization({
   activeCloudSession,
@@ -46,10 +50,6 @@ export function useCloudInitialization({
   desktopCloudApiBaseUrl,
   isGitRepositoryContextCurrent,
   refreshWorkspaceContent,
-  setActiveCloudSection,
-  setActiveView,
-  setSidebarCollapsed,
-  setSwitcherOpen,
   workspace,
 }: {
   activeCloudSession: DesktopCloudSession | null;
@@ -64,16 +64,13 @@ export function useCloudInitialization({
   desktopCloudApiBaseUrl: string | null;
   isGitRepositoryContextCurrent: (context: GitRepositoryContext) => boolean;
   refreshWorkspaceContent: () => void;
-  setActiveCloudSection: (section: CloudWorkspaceSection) => void;
-  setActiveView: (view: DesktopView) => void;
-  setSidebarCollapsed: (collapsed: boolean) => void;
-  setSwitcherOpen: (open: boolean) => void;
   workspace: Workspace | null;
 }) {
   const [state, setState] = useState<CloudInitializationState | null>(null);
   const [progress, setProgress] = useState<CloudInitializationProgress | null>(null);
   const [error, setError] = useState<CloudInitializationFailure | null>(null);
   const [notice, setNotice] = useState<CloudInitializationNotice>(null);
+  const [outcome, setOutcome] = useState<CloudInitializationOutcome | null>(null);
   const [stateLoading, setStateLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const actionRef = useRef<symbol | null>(null);
@@ -111,7 +108,6 @@ export function useCloudInitialization({
   const finishPublished = useCallback((
     result: Extract<CloudInitializationResult, { ok: true }>,
     context: GitRepositoryContext,
-    options: CloudInitializationStartOptions,
   ) => {
     if (result.gitStatus && !reconcileGitStatus(result.gitStatus, context)) return false;
     const published = isPublished(result.state);
@@ -121,15 +117,10 @@ export function useCloudInitialization({
     setNotice(null);
     if (!published) return true;
     clearGitSelection();
-    // Inline callers (for example the Share wizard) own their own follow-up
-    // surface; only the Cloud hub entry navigates into the Cloud panel.
-    if (options.navigateToCloud === false) return true;
-    setActiveCloudSection("contents");
-    setActiveView("cloud");
-    setSidebarCollapsed(false);
-    setSwitcherOpen(false);
+    // The task reports its result; only an explicit user action opens a Cloud project.
+    // A background upload must not reopen a dismissed dialog when it finishes.
     return true;
-  }, [clearGitSelection, reconcileGitStatus, setActiveCloudSection, setActiveView, setSidebarCollapsed, setSwitcherOpen]);
+  }, [clearGitSelection, reconcileGitStatus]);
 
   useEffect(() => {
     stateRequestRef.current = null;
@@ -138,6 +129,7 @@ export function useCloudInitialization({
     setProgress(null);
     setError(null);
     setNotice(null);
+    setOutcome(null);
     setActionLoading(false);
     if (!identity || !identityKey) {
       setStateLoading(false);
@@ -160,10 +152,7 @@ export function useCloudInitialization({
         }
         setError(null);
         if (context && result.gitStatus) reconcileGitStatus(result.gitStatus, context);
-        if (published) {
-          clearGitSelection();
-          setActiveCloudSection("contents");
-        }
+        if (published) clearGitSelection();
       })
       .catch(() => {
         if (stateRequestRef.current === request) setError({ code: "UNKNOWN", retryable: true });
@@ -195,7 +184,6 @@ export function useCloudInitialization({
 
   const start = useCallback(async (
     organizationId?: string,
-    options: CloudInitializationStartOptions = {},
   ) => {
     if (!cloudEnabled || !workspace || actionRef.current) return;
     if (!activeCloudSession) {
@@ -229,6 +217,9 @@ export function useCloudInitialization({
     });
     setError(null);
     setNotice(null);
+    setOutcome(null);
+    // Every way out of the run below is a failure unless it says otherwise.
+    let ending: CloudInitializationOutcome["kind"] | null = "failed";
     try {
       const pending = state;
       const choosingSource = pending?.availableActions.includes("choose-source") === true;
@@ -249,7 +240,6 @@ export function useCloudInitialization({
         ? await getWorkspaceGitStatus(workspace.path)
         : null;
       if (!pending && freshStatus) {
-        let preparationFailure: CloudInitializationErrorCode = "REPOSITORY_REQUIRED";
         const reportLocalProgress = (stage: CloudInitializationProgress["stage"]) => {
           setProgress({
             rootPath: currentIdentity.rootPath,
@@ -259,36 +249,15 @@ export function useCloudInitialization({
             updatedAt: new Date().toISOString(),
           });
         };
-        try {
-          if (!freshStatus.isRepo) {
-            preparationFailure = "REPOSITORY_REQUIRED";
-            reportLocalProgress("enabling-version-control");
-            freshStatus = await initializeWorkspaceGitRepository(workspace.path);
-          }
-          if (!freshStatus.headCommitId || freshStatus.totalCommits < 1) {
-            preparationFailure = "COMMIT_REQUIRED";
-            reportLocalProgress("creating-snapshot");
-            freshStatus = await stageAllWorkspaceGitChanges(workspace.path);
-            freshStatus = await commitWorkspaceGit(
-              workspace.path,
-              "Initial snapshot",
-              {
-                allowEmpty: true,
-                authorName: activeCloudSession.user_email,
-                authorEmail: activeCloudSession.user_email,
-              },
-            );
-          }
-          if (!normalizeBranch(freshStatus.branch)) {
-            preparationFailure = "BRANCH_REQUIRED";
-            reportLocalProgress("creating-branch");
-            freshStatus = await createWorkspaceGitBranch(
-              workspace.path,
-              resolveCloudPublishBranchName(freshStatus),
-            );
-          }
-        } catch {
-          setError({ code: preparationFailure, retryable: true });
+        const prepared = await prepareWorkspaceForPublish({
+          rootPath: workspace.path,
+          status: freshStatus,
+          author: activeCloudSession.user_email,
+          onStage: reportLocalProgress,
+        });
+        freshStatus = prepared.status;
+        if (!prepared.ok) {
+          setError({ code: prepared.code, retryable: true });
           return;
         }
         reportLocalProgress("validating");
@@ -304,13 +273,18 @@ export function useCloudInitialization({
         operationId: pending?.operationId ?? null,
         action,
       });
-      if (actionRef.current !== request || !isGitRepositoryContextCurrent(context)) return;
+      if (actionRef.current !== request || !isGitRepositoryContextCurrent(context)) {
+        ending = null;
+        return;
+      }
       setState(result.state);
       if (!result.ok) {
         setError(toPublicFailure(result));
         return;
       }
-      finishPublished(result, context, options);
+      const finished = finishPublished(result, context);
+      if (!finished) ending = null;
+      else ending = isPublished(result.state) ? "published" : "attention";
     } catch {
       if (actionRef.current === request) setError({ code: "UNKNOWN", retryable: true });
     } finally {
@@ -318,6 +292,7 @@ export function useCloudInitialization({
         actionRef.current = null;
         setActionLoading(false);
         setProgress(null);
+        setOutcome(ending ? { kind: ending } : null);
       }
     }
   }, [
@@ -360,8 +335,6 @@ export function useCloudInitialization({
       reconcileGitStatus(result.gitStatus, context);
       setState(null);
       setNotice("cleanup-completed");
-      setActiveCloudSection("initialize");
-      setActiveView("cloud");
     } catch {
       if (actionRef.current === request) setError({ code: "UNKNOWN", retryable: true });
     } finally {
@@ -375,8 +348,6 @@ export function useCloudInitialization({
     identity,
     isGitRepositoryContextCurrent,
     reconcileGitStatus,
-    setActiveCloudSection,
-    setActiveView,
     state,
   ]);
 
@@ -384,6 +355,7 @@ export function useCloudInitialization({
     cloudInitializationError: error,
     cloudInitializationLoading: actionLoading,
     cloudInitializationNotice: notice,
+    cloudInitializationOutcome: outcome,
     cloudInitializationPending: false,
     cloudInitializationProgress: progress,
     cloudInitializationState: state,
@@ -409,25 +381,6 @@ function getInitializationIdentity({
   const userId = session.user_id.trim();
   if (!resolvedApiBaseUrl || !userId) return null;
   return { rootPath: workspace.path, apiBaseUrl: resolvedApiBaseUrl, userId };
-}
-
-function normalizeBranch(value: string | null | undefined): string {
-  const normalized = value?.trim() ?? "";
-  return ["head", "detached"].includes(normalized.toLowerCase()) ? "" : normalized;
-}
-
-function resolveCloudPublishBranchName(status: GitStatusSnapshot): string {
-  const existing = new Set(
-    status.branches
-      .filter((branch) => !branch.remote)
-      .map((branch) => branch.name),
-  );
-  for (const candidate of ["main", "puppyone-publish"]) {
-    if (!existing.has(candidate)) return candidate;
-  }
-  let suffix = 2;
-  while (existing.has(`puppyone-publish-${suffix}`)) suffix += 1;
-  return `puppyone-publish-${suffix}`;
 }
 
 function isLocalPreparationRequirement(code: CloudInitializationErrorCode): boolean {

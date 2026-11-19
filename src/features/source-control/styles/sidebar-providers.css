@@ -95,10 +95,6 @@
   transition: none;
 }
 
-.desktop-git-section-title svg.expanded {
-  transform: rotate(90deg);
-}
-
 .desktop-git-section-title span {
   min-width: 0;
   overflow: hidden;

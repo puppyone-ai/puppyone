@@ -22,6 +22,8 @@ const WAITING_REFRESH: Duration = Duration::from_secs(3);
 /// A sign-in request lasts ten minutes, so an invite unanswered by then is
 /// not awaited.
 const INVITE_WAIT: Duration = Duration::from_secs(10 * 60);
+/// How long Copy says "Copied" before it offers to copy again.
+const COPIED_FLASH: Duration = Duration::from_millis(1600);
 
 /// Who opened the Agents dialog: one Agent's mark, the stack of the ones at
 /// rest, or the empty seat.
@@ -30,6 +32,30 @@ pub enum Opener {
     Agent(String),
     More,
     Invite,
+}
+/// Where the invite stands. Copying is not the end of it: the message is
+/// out until an Agent comes in, or it lapses.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum Invite {
+    /// Nothing copied yet, or starting over.
+    #[default]
+    Give,
+    /// The message is out, since this moment (ms); the person pastes it.
+    Out(i64),
+    /// Nobody came before the message lapsed.
+    Lapsed,
+    /// The Agent that came in, by id.
+    Joined(String),
+}
+/// What the invite shows now: [`Invite`] with an Agent asking to join
+/// answered where it asks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InvitePhase {
+    Give,
+    Waiting,
+    Knocking,
+    Lapsed,
+    Joined,
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CopyStatus {
@@ -68,8 +94,19 @@ pub struct CloudAgents {
     invite: Option<HashSet<String>>,
     invite_timer: Option<Task<()>>,
     pub opener: Opener,
-    /// The invite's steps show under the seat.
+    /// The dialog shows the invite rather than the roster.
     pub invite_open: bool,
+    /// Where the invite stands.
+    pub invite_flow: Invite,
+    /// The Agents here when the message went out, so a newcomer is known.
+    baseline: HashSet<String>,
+    /// The Agent the owner just turned away, by name.
+    pub turned_away: Option<String>,
+    /// Copy has just copied (`Copied`, then `Copy again`).
+    pub fresh_copy: bool,
+    fresh_timer: Option<Task<()>>,
+    /// Redraws the countdown while the message is out and on screen.
+    ticker: Option<Task<()>>,
     pub copy: CopyStatus,
     /// The invite last copied, its secret masked past its start.
     pub made: Option<String>,
@@ -122,6 +159,12 @@ impl CloudAgents {
             invite_timer: None,
             opener: Opener::More,
             invite_open: false,
+            invite_flow: Invite::Give,
+            baseline: HashSet::new(),
+            turned_away: None,
+            fresh_copy: false,
+            fresh_timer: None,
+            ticker: None,
             copy: CopyStatus::Idle,
             made: None,
             deciding: HashSet::new(),
@@ -227,6 +270,7 @@ impl CloudAgents {
                 self.refresh(cx);
                 self.schedule(cx);
             }
+            self.tick(cx);
         }
     }
     /// The window was hidden or came back; a returning window catches up.
@@ -316,7 +360,6 @@ impl CloudAgents {
             }
             Err(_) => return,
         };
-        let present = self.agents.len() + self.requests.len();
         self.manageable = true;
         self.known = true;
         self.requests = inventory.pending;
@@ -336,9 +379,23 @@ impl CloudAgents {
             self.removing = None;
             self.confirming = None;
         }
-        // The steps give way as soon as an Agent turns up in the row.
-        if self.agents.len() + self.requests.len() > present {
-            self.close_invite(cx);
+        // The Agent the message brought in: the invite ends on it while it
+        // is on screen; otherwise the Header shows it and the invite starts
+        // over.
+        if matches!(self.invite_flow, Invite::Out(_)) {
+            let newcomer = self
+                .agents
+                .iter()
+                .find(|a| !self.baseline.contains(&a.agent.id))
+                .map(|a| a.agent.id.clone());
+            if let Some(id) = newcomer {
+                if self.dialog_open && self.invite_open {
+                    self.invite_flow = Invite::Joined(id);
+                    self.ticker = None;
+                } else {
+                    self.reset_invite(cx);
+                }
+            }
         }
         // A newcomer, or one asking to join, ends the wait.
         let answered = self.invite.as_ref().is_some_and(|known| {
@@ -358,7 +415,7 @@ impl CloudAgents {
         }
     }
     /// A mark, the stack or the seat opens the dialog; with nobody here
-    /// yet it opens on how to invite (`openFirst`).
+    /// yet, or from the seat, it opens on the invite (`openFirst`).
     pub fn open(&mut self, opener: Opener, cx: &mut Context<Self>) {
         self.opener = opener;
         self.confirming = None;
@@ -366,25 +423,100 @@ impl CloudAgents {
         self.decision_failed = false;
         self.invite_open = matches!(self.opener, Opener::Invite)
             || (self.agents.is_empty() && self.requests.is_empty());
+        self.tick(cx);
         cx.notify();
     }
-    /// The seat shows or folds the invite's steps.
-    pub fn toggle_invite(&mut self, cx: &mut Context<Self>) {
-        if self.invite_open {
-            self.close_invite(cx);
-        } else {
-            self.invite_open = true;
-            cx.notify();
+    /// The roster's seat: the dialog turns to the invite, where it stands.
+    pub fn start_invite(&mut self, cx: &mut Context<Self>) {
+        self.confirming = None;
+        self.invite_open = true;
+        if matches!(self.invite_flow, Invite::Joined(_) | Invite::Lapsed) {
+            self.reset_invite(cx);
         }
+        self.tick(cx);
+        cx.notify();
     }
-    /// Opened again, the steps start over from what to copy.
+    /// The dialog closed: a message still out keeps waiting (the Header
+    /// says so); anything else starts over next time.
     pub fn close_invite(&mut self, cx: &mut Context<Self>) {
         self.invite_open = false;
+        if !matches!(self.invite_flow, Invite::Out(_)) {
+            self.reset_invite(cx);
+        }
+        cx.notify();
+    }
+    /// From what to copy again (`Add another agent`).
+    pub fn reset_invite(&mut self, cx: &mut Context<Self>) {
+        self.invite_flow = Invite::Give;
+        self.baseline.clear();
+        self.turned_away = None;
+        self.fresh_copy = false;
+        self.fresh_timer = None;
+        self.ticker = None;
         if self.copy != CopyStatus::Copying {
             self.copy = CopyStatus::Idle;
         }
         self.made = None;
         cx.notify();
+    }
+    /// What the invite shows: an Agent asking to join is answered in the
+    /// invite, whatever brought it; a message out past its ten minutes has
+    /// lapsed.
+    pub fn invite_phase(&self) -> InvitePhase {
+        match &self.invite_flow {
+            Invite::Joined(id) if self.agents.iter().any(|a| &a.agent.id == id) => {
+                return InvitePhase::Joined;
+            }
+            _ if !self.requests.is_empty() => return InvitePhase::Knocking,
+            _ => {}
+        }
+        match self.invite_flow {
+            Invite::Out(_) if self.remaining_secs() > 0 => InvitePhase::Waiting,
+            Invite::Out(_) | Invite::Lapsed => InvitePhase::Lapsed,
+            _ => InvitePhase::Give,
+        }
+    }
+    /// Captures: the message out long enough to have lapsed.
+    #[cfg(feature = "dev-capture")]
+    pub fn capture_lapse(&mut self, cx: &mut Context<Self>) {
+        self.invite_flow = Invite::Lapsed;
+        self.ticker = None;
+        cx.notify();
+    }
+    /// Whole seconds left before the message lapses.
+    pub fn remaining_secs(&self) -> u64 {
+        let Invite::Out(since) = self.invite_flow else {
+            return 0;
+        };
+        let left = INVITE_WAIT.as_millis() as i64 - (crate::clock::now_ms() - since);
+        (left.max(0) as u64).div_ceil(1000)
+    }
+    /// The Agent the invite ended on.
+    pub fn joined(&self) -> Option<&WorkspaceAgent> {
+        match &self.invite_flow {
+            Invite::Joined(id) => self.agents.iter().find(|a| &a.agent.id == id),
+            _ => None,
+        }
+    }
+    /// The countdown moves once a second while the message is out and the
+    /// invite is on screen.
+    fn tick(&mut self, cx: &mut Context<Self>) {
+        let showing = self.dialog_open && self.invite_open;
+        if !(showing && matches!(self.invite_flow, Invite::Out(_))) {
+            self.ticker = None;
+            return;
+        }
+        if self.ticker.is_some() {
+            return;
+        }
+        self.ticker = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(Duration::from_secs(1)).await;
+                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                    break;
+                }
+            }
+        }));
     }
     /// The prompt as shown: the link not made yet, then the one made, its
     /// secret masked past its start.
@@ -395,6 +527,27 @@ impl CloudAgents {
             .clone()
             .unwrap_or_else(|| format!("{}{}", agents::link_preview(&scope.api), agents::UNMADE));
         Some(agents::connect_message(&scope.project_name, &link))
+    }
+    /// The prompt as the invite shows it, in two parts so the link stands
+    /// apart: `Connect to my puppyone project "…" by following `, then the
+    /// link without its scheme and with what is not shown as an ellipsis,
+    /// so it wraps as one address and reads as one.
+    pub fn prompt_parts(&self) -> Option<(String, String)> {
+        let prompt = self.prompt()?;
+        let link = self.made.clone().unwrap_or_else(|| {
+            let api = self
+                .scope
+                .as_ref()
+                .map(|s| s.api.as_str())
+                .unwrap_or_default();
+            format!("{}{}", agents::link_preview(api), agents::UNMADE)
+        });
+        let lead = prompt.strip_suffix(&link).unwrap_or(&prompt).to_owned();
+        let shown = link
+            .split_once("://")
+            .map_or(link.as_str(), |(_, rest)| rest)
+            .replace(agents::UNMADE, "…");
+        Some((lead, shown))
     }
 
     /// `copy`: nothing is made until Copy is pressed, and every press makes
@@ -439,16 +592,35 @@ impl CloudAgents {
         .detach();
         cx.notify();
     }
-    /// `onInvited`: the Header waits for the answer.
+    /// `onInvited`: the message is out, so the invite and the Header wait
+    /// for the answer.
     fn invited(&mut self, cx: &mut Context<Self>) {
-        self.invite = Some(self.agents.iter().map(|a| a.agent.id.clone()).collect());
+        let here: HashSet<String> = self.agents.iter().map(|a| a.agent.id.clone()).collect();
+        self.baseline = here.clone();
+        self.invite = Some(here);
+        self.invite_flow = Invite::Out(crate::clock::now_ms());
+        self.turned_away = None;
+        self.fresh_copy = true;
+        self.fresh_timer = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(COPIED_FLASH).await;
+            let _ = this.update(cx, |s, cx| {
+                s.fresh_copy = false;
+                cx.notify();
+            });
+        }));
         self.invite_timer = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(INVITE_WAIT).await;
             let _ = this.update(cx, |s, cx| {
                 s.end_wait(cx);
+                // Nobody came: the message has lapsed.
+                if matches!(s.invite_flow, Invite::Out(_)) && s.requests.is_empty() {
+                    s.invite_flow = Invite::Lapsed;
+                    s.ticker = None;
+                }
                 cx.notify();
             });
         }));
+        self.tick(cx);
         self.refresh(cx);
         self.schedule(cx);
     }
@@ -466,6 +638,11 @@ impl CloudAgents {
         let client = scope.client.clone();
         let key = scope.key.clone();
         let id = request.to_owned();
+        let name = self
+            .requests
+            .iter()
+            .find(|r| r.id == request)
+            .map(|r| r.name.clone());
         let task = cx.background_spawn({
             let id = id.clone();
             async move { client.decide(&id, allow) }
@@ -477,6 +654,12 @@ impl CloudAgents {
                     return;
                 }
                 match result {
+                    // Turned away: the invite starts over, saying so.
+                    Ok(()) if !allow && s.invite_open => {
+                        s.reset_invite(cx);
+                        s.turned_away = name;
+                        s.refresh(cx);
+                    }
                     Ok(()) => s.refresh(cx),
                     Err(_) => {
                         s.deciding.remove(&id);
@@ -546,12 +729,14 @@ impl CloudAgents {
     }
 }
 /// Captures: a project with Agents at work, at rest and one asking to join;
-/// `roster`, nobody asking; `empty`, nobody yet.
+/// `roster`, nobody asking; `empty`, nobody yet; `invite`, nobody yet until
+/// the message goes out, then Claude Code asks to join and, allowed, is in.
 #[cfg(feature = "dev-capture")]
 pub fn lab_client(variant: &str) -> Client {
     use crate::{cloud::auth::model::ApiRequest, workspace::cloud::services::Transport};
     use serde_json::{Value, json};
-    struct Lab(String);
+    use std::sync::atomic::{AtomicU8, Ordering};
+    struct Lab(String, AtomicU8);
     impl Transport for Lab {
         fn request(&self, request: ApiRequest) -> services::Result<Value> {
             let ago = |secs: i64| {
@@ -567,7 +752,24 @@ pub fn lab_client(variant: &str) -> Client {
                 return Ok(json!({"workspace": {"id": "wb-lab"}}));
             }
             if request.method == reqwest::Method::POST && request.path.ends_with("/agent-links") {
+                self.1.fetch_max(1, Ordering::SeqCst);
                 return Ok(json!({"agent_url": "https://api.puppyone.ai/agent/pai_lab0123456789"}));
+            }
+            if request.path.ends_with("/decision") {
+                self.1.store(2, Ordering::SeqCst);
+                return Ok(json!({}));
+            }
+            if self.0 == "invite" && request.path.ends_with("/agent-links") {
+                return Ok(match self.1.load(Ordering::SeqCst) {
+                    0 => json!({"links": [], "connections": [], "pending": []}),
+                    1 => json!({"links": [], "connections": [], "pending": [{"id": "knock",
+                        "name": "Claude Code", "avatar": "claude", "admission": "sign_in",
+                        "requested_at": ago(5), "expires_at": ago(-595)}]}),
+                    _ => {
+                        json!({"links": [], "connections": [agent("claude", "Claude Code", "sign_in")],
+                        "pending": []})
+                    }
+                });
             }
             Ok(if request.path.ends_with("/access/sessions") {
                 json!([
@@ -595,7 +797,7 @@ pub fn lab_client(variant: &str) -> Client {
             })
         }
     }
-    Client::new(Arc::new(Lab(variant.to_owned())))
+    Client::new(Arc::new(Lab(variant.to_owned(), AtomicU8::new(0))))
 }
 impl Default for CloudAgents {
     fn default() -> Self {
@@ -734,10 +936,29 @@ mod tests {
         assert_eq!(server.lists(), calls + 1);
     }
 
+    fn asking(id: &str) -> Value {
+        json!([{"id": id, "name": "Codex", "admission": "sign_in",
+            "requested_at": "2026-10-30T12:00:00Z", "expires_at": "2026-10-30T12:10:00Z"}])
+    }
+    fn phase(agents: &Entity<CloudAgents>, cx: &mut TestAppContext) -> InvitePhase {
+        agents.read_with(cx, |a, _| a.invite_phase())
+    }
+    fn next_poll(cx: &mut TestAppContext) {
+        cx.executor().advance_clock(WAITING_REFRESH);
+        cx.run_until_parked();
+    }
+
+    /// Copying is not the end of it: the message is out, the invite waits
+    /// for the Agent with the time it has left, and only the Agent coming
+    /// in ends it, on that Agent.
     #[gpui::test]
     fn copying_an_invite_waits_for_a_newcomer(cx: &mut TestAppContext) {
         let (server, agents) = setup(cx);
-        agents.update(cx, |a, cx| a.copy_invite(cx));
+        agents.update(cx, |a, cx| {
+            a.set_dialog_open(true, cx);
+            a.open(Opener::Invite, cx);
+            a.copy_invite(cx)
+        });
         cx.run_until_parked();
         assert_eq!(
             cx.read_from_clipboard().and_then(|c| c.text()).as_deref(),
@@ -747,26 +968,105 @@ mod tests {
         );
         agents.read_with(cx, |a, _| {
             assert_eq!(a.copy, CopyStatus::Copied);
-            assert!(a.waiting());
-            // The prompt now shows the link made, its secret masked.
+            assert!(a.waiting() && a.fresh_copy);
+            assert_eq!(a.invite_phase(), InvitePhase::Waiting);
+            assert_eq!(a.remaining_secs(), INVITE_WAIT.as_secs());
+            // The link made, shown without its scheme.
             assert_eq!(a.made.as_deref(), Some("https://api.puppyone.ai/agent/x"));
+            assert_eq!(
+                a.prompt_parts().map(|(_, link)| link).as_deref(),
+                Some("api.puppyone.ai/agent/x")
+            );
         });
-        // The same Agents do not end the wait; a newcomer does, and the
-        // steps give way to it.
-        agents.update(cx, |a, cx| {
-            a.invite_open = true;
-            cx.notify()
-        });
-        cx.executor().advance_clock(WAITING_REFRESH);
-        cx.run_until_parked();
-        agents.read_with(cx, |a, _| assert!(a.waiting() && a.invite_open));
+        // "Copied" gives way to "Copy again"; the same Agents do not end
+        // the wait.
+        next_poll(cx);
+        agents.read_with(cx, |a, _| assert!(!a.fresh_copy && a.waiting()));
+        assert_eq!(phase(&agents, cx), InvitePhase::Waiting);
+        // An Agent asking to join is answered in the invite.
+        *server.pending.lock().unwrap() = Some(asking("r1"));
+        next_poll(cx);
+        assert_eq!(phase(&agents, cx), InvitePhase::Knocking);
+        agents.read_with(cx, |a, _| assert!(!a.waiting()));
+        // Let in, it is the one the invite ends on.
+        *server.pending.lock().unwrap() = None;
         *server.connections.lock().unwrap() = json!([agent("c1"), agent("c2")]);
-        cx.executor().advance_clock(WAITING_REFRESH);
-        cx.run_until_parked();
+        next_poll(cx);
+        assert_eq!(phase(&agents, cx), InvitePhase::Joined);
+        agents.read_with(cx, |a, _| assert_eq!(a.joined().unwrap().agent.id, "c2"));
+        // Another starts over from what to copy.
+        agents.update(cx, |a, cx| a.reset_invite(cx));
         agents.read_with(cx, |a, _| {
-            assert!(!a.waiting() && !a.invite_open);
+            assert_eq!(a.invite_phase(), InvitePhase::Give);
             assert_eq!((a.copy, a.made.as_deref()), (CopyStatus::Idle, None));
         });
+    }
+
+    /// The dialog closed while the message is out: it keeps waiting, and an
+    /// Agent let in from the Header leaves the invite to start over.
+    #[gpui::test]
+    fn a_message_out_waits_with_the_dialog_closed(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        agents.update(cx, |a, cx| {
+            a.set_dialog_open(true, cx);
+            a.open(Opener::Invite, cx);
+            a.copy_invite(cx)
+        });
+        cx.run_until_parked();
+        agents.update(cx, |a, cx| a.set_dialog_open(false, cx));
+        agents.read_with(cx, |a, _| {
+            assert!(!a.invite_open && a.waiting());
+            assert_eq!(a.copy, CopyStatus::Copied);
+        });
+        // Opened again, it is where it was.
+        agents.update(cx, |a, cx| {
+            a.set_dialog_open(true, cx);
+            a.open(Opener::Invite, cx)
+        });
+        assert_eq!(phase(&agents, cx), InvitePhase::Waiting);
+        agents.update(cx, |a, cx| a.set_dialog_open(false, cx));
+        *server.connections.lock().unwrap() = json!([agent("c1"), agent("c2")]);
+        next_poll(cx);
+        agents.read_with(cx, |a, _| {
+            assert!(!a.waiting());
+            assert_eq!(a.invite_phase(), InvitePhase::Give);
+            assert_eq!((a.copy, a.made.as_deref()), (CopyStatus::Idle, None));
+        });
+    }
+
+    /// Turned away, the invite starts over and says so; a message nobody
+    /// answers lapses after ten minutes.
+    #[gpui::test]
+    fn a_turned_away_or_unanswered_message_starts_over(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        agents.update(cx, |a, cx| {
+            a.set_dialog_open(true, cx);
+            a.open(Opener::Invite, cx);
+            a.copy_invite(cx)
+        });
+        cx.run_until_parked();
+        *server.pending.lock().unwrap() = Some(asking("r1"));
+        next_poll(cx);
+        assert_eq!(phase(&agents, cx), InvitePhase::Knocking);
+        *server.pending.lock().unwrap() = None;
+        agents.update(cx, |a, cx| a.decide("r1", false, cx));
+        cx.run_until_parked();
+        agents.read_with(cx, |a, _| {
+            assert_eq!(a.invite_phase(), InvitePhase::Give);
+            assert_eq!(a.turned_away.as_deref(), Some("Codex"));
+            assert_eq!(a.copy, CopyStatus::Idle);
+        });
+        // A new message, and nobody comes.
+        agents.update(cx, |a, cx| a.copy_invite(cx));
+        cx.run_until_parked();
+        agents.read_with(cx, |a, _| assert!(a.turned_away.is_none()));
+        cx.executor().advance_clock(INVITE_WAIT);
+        cx.run_until_parked();
+        agents.read_with(cx, |a, _| assert!(!a.waiting()));
+        assert_eq!(phase(&agents, cx), InvitePhase::Lapsed);
+        // Closed, it starts over next time.
+        agents.update(cx, |a, cx| a.set_dialog_open(false, cx));
+        assert_eq!(phase(&agents, cx), InvitePhase::Give);
     }
 
     #[gpui::test]
@@ -774,10 +1074,13 @@ mod tests {
         let (server, agents) = setup(cx);
         agents.update(cx, |a, cx| a.open(Opener::More, cx));
         agents.read_with(cx, |a, _| assert!(!a.invite_open));
+        // The roster's seat turns the dialog to the invite.
+        agents.update(cx, |a, cx| a.start_invite(cx));
+        agents.read_with(cx, |a, _| assert!(a.invite_open));
         *server.connections.lock().unwrap() = json!([]);
         agents.update(cx, |a, cx| a.refresh(cx));
         cx.run_until_parked();
-        agents.update(cx, |a, cx| a.open(Opener::Invite, cx));
+        agents.update(cx, |a, cx| a.open(Opener::More, cx));
         agents.read_with(cx, |a, _| {
             assert!(a.invite_open);
             // Before Copy, the link is shown as not made yet.
@@ -785,13 +1088,14 @@ mod tests {
                 a.prompt().as_deref(),
                 Some("Connect to my puppyone project \"Docs\" by following https://api.puppyone.ai/agent/••••••")
             );
+            assert_eq!(
+                a.prompt_parts(),
+                Some((
+                    "Connect to my puppyone project \"Docs\" by following ".into(),
+                    "api.puppyone.ai/agent/…".into()
+                ))
+            );
         });
-        // Folded and opened again, the steps start over.
-        agents.update(cx, |a, cx| {
-            a.toggle_invite(cx);
-            a.toggle_invite(cx);
-        });
-        agents.read_with(cx, |a, _| assert!(a.invite_open && a.made.is_none()));
     }
 
     #[gpui::test]

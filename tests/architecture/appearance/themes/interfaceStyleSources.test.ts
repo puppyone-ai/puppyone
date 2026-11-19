@@ -20,15 +20,12 @@ describe("Interface style registry", () => {
   it("keeps the native window underlay on the generated first-paint contract", () => {
     const main = source("electron/main.mjs");
     const preload = source("electron/preload.cjs");
-    const preferences = source("src/features/app-shell/useDesktopPreferences.ts");
     const nativeFirstPaint = source("electron/main/sub-theme-first-paint.generated.mjs");
 
     expect(main).toContain("FALLBACK_SUB_THEME_FIRST_PAINT");
     expect(main).not.toContain('backgroundColor: "#f1eadf"');
     expect(preload).toContain('ipcRenderer.send("appearance:set-window-background"');
     expect(preload).toContain("titlebarBackground: request?.titlebarBackground");
-    expect(preferences).toContain("window.getComputedStyle(titlebar).backgroundColor");
-    expect(preferences).toContain("titlebarBackground,");
     expect(nativeFirstPaint).toContain('"background": "#fafafa"');
     expect(nativeFirstPaint).toContain('"background": "#161616"');
   });
@@ -36,7 +33,7 @@ describe("Interface style registry", () => {
   it("uses Neutral as the attribute-free fallback and packages Warm independently", () => {
     const tokens = source("src/styles/tokens.css");
     const fallback = source("src/styles/fallback-theme.generated.css");
-    const warm = source("sub-themes/default-warm/theme.css");
+    const warm = source("src/features/themes/builtin/default-warm/theme.css");
 
     expect(fallback).toContain("--po-surface-panel: #fafafa");
     expect(fallback).toContain("--po-header: #ebebeb;");
@@ -111,7 +108,7 @@ describe("Interface style registry", () => {
     const dataWorkspaceSurface = source("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
     const visualHarness = source("src/features/appearance/AppearanceVisualSmokeHarness.tsx");
     const visualSmoke = source("tests/integration/appearance/themes/appearance-visual-matrix.smoke.mjs");
-    const explorer = source("packages/shared-ui/src/data/ExplorerTree.tsx");
+    const explorer = source("src/shared-ui/data/ExplorerTree.tsx");
     const xpExplorerCss = source("src/styles/interfaces/windows-xp/features/explorer.css");
     const profile = getInterfaceStyleDefinition("windows-xp");
     const toolbarCss = xp.slice(
@@ -262,17 +259,17 @@ describe("Interface style registry", () => {
     }
     expect(source("src/styles/interfaces/windows-xp/assets/CRYSTAL-CLEAR-LGPL-2.1.txt"))
       .toContain("GNU LESSER GENERAL PUBLIC LICENSE");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("B00merang Windows-XP icon theme");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("B00merang Windows-XP Luna caption buttons");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("places/gtk-directory.png");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("Git official logomark");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("GNOME gitg classic icon");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("Crystal Clear configure icon");
     expect(xp).not.toContain("desktop-explorer-pane-caption");
     expect(dataWorkspaceSurface).toContain("showExplorerToolbar={false}");
@@ -281,7 +278,8 @@ describe("Interface style registry", () => {
     expect(visualHarness).not.toContain("desktop-explorer-pane-caption");
     expect(xp).toContain(".desktop-dialog-header .desktop-dialog-icon-button");
     expect(xp).toContain("--po-surface-editable-table-radius: 0px;");
-    expect(explorer).toContain('data-expanded={expanded ? "true" : "false"}');
+    // The product DisclosureIcon publishes data-expanded for the XP marker paint.
+    expect(explorer).toContain('<DisclosureIcon className="tree-disclosure-marker" expanded={expanded} size={size} />');
     expect(explorer).toContain("data-file-kind={isFolder ? undefined : getFileVisualKind");
     expect(xp).not.toMatch(/grid-template-columns|--data-explorer-width|--desktop-right-sidebar-width/);
     expect(profile.composition.navigation).toBe("sidebar-bottom-footer");
@@ -295,7 +293,7 @@ describe("Interface style registry", () => {
   it("keeps historical scrollbar geometry and arrow buttons style-dependent", () => {
     const contract = source("src/styles/interface-skin-contract.css");
     const xp = windowsXpStylePack();
-    const explorer = source("packages/shared-ui/src/data/ExplorerTree.tsx");
+    const explorer = source("src/shared-ui/data/ExplorerTree.tsx");
     const scrollbarActivity = source("src/components/ScrollbarActivity.tsx");
     const layout = source("src/styles/layout.css");
     const terminalSession = source(

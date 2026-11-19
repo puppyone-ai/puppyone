@@ -1,0 +1,1723 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Git sync state characterization > preserves backup remote preferred 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨Puppyone/backup⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨Puppyone/backup⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨Puppyone/backup⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "Puppyone/backup",
+}
+`;
+
+exports[`Git sync state characterization > preserves canonical cloud URL under another name 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨backup/topic⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨backup/topic⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨backup/topic⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨backup⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "backup/topic",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 0/0 exists=false head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noCloudBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.sync.cloudBranchMissing",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.noCommittedToUpload",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 0/0 exists=false head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noCloudBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.sync.cloudBranchMissing",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.noCommittedToUpload",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 0/0 exists=true head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.cloudCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.cloud.upToDate",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.noCommittedToUpload",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 0/0 exists=true head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.cloudCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.cloud.upToDate",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.noCommittedToUpload",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 0/3 exists=false head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noCloudBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.downloadCount {"count":3}",
+  "pullTitle": "source-control.sync.cloudBranchMissing",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.downloadBeforeUpload",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 0/3 exists=false head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noCloudBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.downloadCount {"count":3}",
+  "pullTitle": "source-control.sync.cloudBranchMissing",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.downloadBeforeUpload",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 0/3 exists=true head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.cloudCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.downloadCount {"count":3}",
+  "pullTitle": "source-control.sync.downloadFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.downloadBeforeUpload",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 0/3 exists=true head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.cloudCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.downloadCount {"count":3}",
+  "pullTitle": "source-control.sync.downloadFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.downloadBeforeUpload",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 2/0 exists=false head=head 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noCloudBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.sync.cloudBranchMissing",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.uploadTo {"count":2,"target":"⁨origin/main⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 2/0 exists=false head=null 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noCloudBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.sync.cloudBranchMissing",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.uploadTo {"count":2,"target":"⁨origin/main⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 2/0 exists=true head=head 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.cloudCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.cloud.upToDate",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.uploadTo {"count":2,"target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 2/0 exists=true head=null 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.cloudCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.cloud.upToDate",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.uploadTo {"count":2,"target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 2/3 exists=false head=head 1`] = `
+{
+  "ahead": 2,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noCloudBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.downloadCount {"count":3}",
+  "pullTitle": "source-control.sync.cloudBranchMissing",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.downloadBeforeUpload",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 2/3 exists=false head=null 1`] = `
+{
+  "ahead": 2,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noCloudBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.downloadCount {"count":3}",
+  "pullTitle": "source-control.sync.cloudBranchMissing",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.downloadBeforeUpload",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 2/3 exists=true head=head 1`] = `
+{
+  "ahead": 2,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.cloudCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.downloadCount {"count":3}",
+  "pullTitle": "source-control.sync.downloadFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.downloadBeforeUpload",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud 2/3 exists=true head=null 1`] = `
+{
+  "ahead": 2,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.cloudCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.downloadCount {"count":3}",
+  "pullTitle": "source-control.sync.downloadFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.downloadBeforeUpload",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud backup configured without remote 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.configureBeforePull",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.configureBeforePull",
+  "pushDetail": "source-control.sync.noConfiguredRemote",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.configureBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.cloudBackupEnabled",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "Puppyone Cloud",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud backup disabled without remote 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noTrackingBranch",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.chooseBeforePull",
+  "pushDetail": "source-control.sync.chooseFirst",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.chooseBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.backupLocalBranch {"branch":"⁨topic⁩"}",
+  "setupRequired": true,
+  "setupTitle": "source-control.sync.chooseTarget",
+  "upstreamLabel": "source-control.sync.localOnly",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud empty ref 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.cloudCommitsOn {"count":0,"target":"⁨⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.cloud.upToDate",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.noCommittedToUpload",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.syncingWith {"target":"⁨⁩"}",
+  "setupRequired": false,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud hosting precedes upstream 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noCloudBranch {"target":"⁨Puppyone Cloud⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.sync.cloudBranchMissing",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.noCommittedToUpload",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.configureCloudRemote",
+  "setupRequired": true,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "Puppyone Cloud",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud remote absent 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.cloudCommitsOn {"count":0,"target":"⁨Puppyone Cloud⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.cloud.upToDate",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.noCommittedToUpload",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.configureCloudRemote",
+  "setupRequired": true,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "Puppyone Cloud",
+}
+`;
+
+exports[`Git sync state characterization > preserves cloud target absent 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noCloudBranch {"target":"⁨Puppyone Cloud⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.action.download",
+  "pullTitle": "source-control.sync.cloudBranchMissing",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.upload",
+  "pushTitle": "source-control.sync.noCommittedToUpload",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.configureCloudRemote",
+  "setupRequired": true,
+  "setupTitle": "Puppyone Cloud",
+  "upstreamLabel": "Puppyone Cloud",
+}
+`;
+
+exports[`Git sync state characterization > preserves detached branch 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "source-control.branch.initial",
+  "pullDetail": "source-control.sync.noTrackingBranch",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.chooseBeforePull",
+  "pushDetail": "source-control.sync.chooseFirst",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.chooseBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.backupLocalBranch {"branch":"⁨source-control.branch.initial⁩"}",
+  "setupRequired": true,
+  "setupTitle": "source-control.sync.chooseTarget",
+  "upstreamLabel": "source-control.sync.localOnly",
+}
+`;
+
+exports[`Git sync state characterization > preserves empty publish ref preserved 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":0,"target":"⁨⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.noLocalWaiting {"target":"⁨⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "",
+}
+`;
+
+exports[`Git sync state characterization > preserves first remote fallback 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨other/topic⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨other/topic⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨other/topic⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨other⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "other/topic",
+}
+`;
+
+exports[`Git sync state characterization > preserves initial branch 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "source-control.branch.initial",
+  "pullDetail": "source-control.sync.noTrackingBranch",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.chooseBeforePull",
+  "pushDetail": "source-control.sync.chooseFirst",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.chooseBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.backupLocalBranch {"branch":"⁨source-control.branch.initial⁩"}",
+  "setupRequired": true,
+  "setupTitle": "source-control.sync.chooseTarget",
+  "upstreamLabel": "source-control.sync.localOnly",
+}
+`;
+
+exports[`Git sync state characterization > preserves local only 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noTrackingBranch",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.chooseBeforePull",
+  "pushDetail": "source-control.sync.chooseFirst",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.chooseBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.backupLocalBranch {"branch":"⁨topic⁩"}",
+  "setupRequired": true,
+  "setupTitle": "source-control.sync.chooseTarget",
+  "upstreamLabel": "source-control.sync.localOnly",
+}
+`;
+
+exports[`Git sync state characterization > preserves missing preferred remote falls back 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/topic⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/topic⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/topic⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/topic",
+}
+`;
+
+exports[`Git sync state characterization > preserves named puppyone fallback 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨Puppyone/topic⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨Puppyone/topic⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨Puppyone/topic⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "Puppyone/topic",
+}
+`;
+
+exports[`Git sync state characterization > preserves no snapshot 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "source-control.sync.noBranch",
+  "pullDetail": "source-control.sync.noLocalRepository",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.initializeBeforePull",
+  "pushDetail": "source-control.sync.noLocalRepository",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.initializeBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.initializeThenCloud",
+  "setupRequired": true,
+  "setupTitle": "source-control.sync.chooseTarget",
+  "upstreamLabel": "source-control.history.inactive",
+}
+`;
+
+exports[`Git sync state characterization > preserves not a repository 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "source-control.sync.noBranch",
+  "pullDetail": "source-control.sync.noLocalRepository",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.initializeBeforePull",
+  "pushDetail": "source-control.sync.noLocalRepository",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.initializeBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.initializeThenCloud",
+  "setupRequired": true,
+  "setupTitle": "source-control.sync.chooseTarget",
+  "upstreamLabel": "source-control.history.inactive",
+}
+`;
+
+exports[`Git sync state characterization > preserves origin preferred 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/topic⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/topic⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/topic⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/topic",
+}
+`;
+
+exports[`Git sync state characterization > preserves primary remote preferred 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨Puppyone/backup⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨Puppyone/backup⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨Puppyone/backup⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "Puppyone/backup",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 0/0 exists=false head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 0/0 exists=false head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.commitBeforePublish",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 0/0 exists=true head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.noLocalWaiting {"target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 0/0 exists=true head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.noLocalWaiting {"target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.commitBeforePublish",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 0/3 exists=false head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 0/3 exists=false head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.commitBeforePublish",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 0/3 exists=true head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.noLocalWaiting {"target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendDiverged {"action":"source-control.sync.publish","count":0,"target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 0/3 exists=true head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.noLocalWaiting {"target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.commitBeforePublish",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 2/0 exists=false head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 2/0 exists=false head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.commitBeforePublish",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 2/0 exists=true head=head 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.localWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 2/0 exists=true head=null 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.localWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.commitBeforePublish",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 2/3 exists=false head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 2/3 exists=false head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.commitBeforePublish",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 2/3 exists=true head=head 1`] = `
+{
+  "ahead": 2,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.localWaiting {"count":2}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendDiverged {"action":"source-control.sync.publish","count":2,"target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish Puppyone 2/3 exists=true head=null 1`] = `
+{
+  "ahead": 2,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.localWaiting {"count":2}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.commitBeforePublish",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 0/0 exists=false head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 0/0 exists=false head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.commitBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 0/0 exists=true head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.noLocalWaiting {"target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 0/0 exists=true head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.noLocalWaiting {"target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.commitBeforePush",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 0/3 exists=false head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 0/3 exists=false head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.commitBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 0/3 exists=true head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.noLocalWaiting {"target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendDiverged {"action":"source-control.sync.push","count":0,"target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 0/3 exists=true head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.noLocalWaiting {"target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.commitBeforePush",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 2/0 exists=false head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 2/0 exists=false head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.commitBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 2/0 exists=true head=head 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.localWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 2/0 exists=true head=null 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.localWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.commitBeforePush",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 2/3 exists=false head=head 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 2/3 exists=false head=null 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/main⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.commitBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 2/3 exists=true head=head 1`] = `
+{
+  "ahead": 2,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.localWaiting {"count":2}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendDiverged {"action":"source-control.sync.push","count":2,"target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish origin 2/3 exists=true head=null 1`] = `
+{
+  "ahead": 2,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.remoteCommitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.localWaiting {"count":2}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.commitBeforePush",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves publish without HEAD or target 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/topic⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/topic⁩"}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.commitBeforePush",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/topic",
+}
+`;
+
+exports[`Git sync state characterization > preserves source-of-truth preferred 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨Puppyone/sync⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨Puppyone/sync⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.publish","branch":"⁨topic⁩","target":"⁨Puppyone/sync⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨Puppyone⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "Puppyone/sync",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream Puppyone 0/0 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.commitsOn {"count":0,"target":"⁨Puppyone/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.noLocalToPush",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨Puppyone/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "Puppyone/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream Puppyone 0/3 1`] = `
+{
+  "ahead": 0,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.commitsOn {"count":3,"target":"⁨Puppyone/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullCount {"count":3}",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨Puppyone/main⁩"}",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.noLocalToPush",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨Puppyone/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "Puppyone/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream Puppyone 2/0 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.commitsOn {"count":0,"target":"⁨Puppyone/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendTo {"action":"source-control.sync.publish","count":2,"target":"⁨Puppyone/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨Puppyone/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "Puppyone/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream Puppyone 2/3 1`] = `
+{
+  "ahead": 2,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.pullBeforeSend {"count":3,"action":"source-control.sync.publish"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullCount {"count":3}",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨Puppyone/main⁩"}",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendDiverged {"action":"source-control.sync.publish","count":2,"target":"⁨Puppyone/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨Puppyone/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "Puppyone/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream ignores cloud name with generic URL 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.commitsOn {"count":0,"target":"⁨puppyone/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendTo {"action":"source-control.sync.push","count":2,"target":"⁨puppyone/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨puppyone/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "puppyone/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream origin 0/0 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.commitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.noLocalToPush",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream origin 0/3 1`] = `
+{
+  "ahead": 0,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.commitsOn {"count":3,"target":"⁨origin/main⁩"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullCount {"count":3}",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.noLocalToPush",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream origin 2/0 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.commitsOn {"count":0,"target":"⁨origin/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendTo {"action":"source-control.sync.push","count":2,"target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream origin 2/3 1`] = `
+{
+  "ahead": 2,
+  "behind": 3,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.pullBeforeSend {"count":3,"action":"source-control.sync.push"}",
+  "pullDisabled": false,
+  "pullLabel": "source-control.sync.pullCount {"count":3}",
+  "pullTitle": "source-control.sync.pullFrom {"count":3,"target":"⁨origin/main⁩"}",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendDiverged {"action":"source-control.sync.push","count":2,"target":"⁨origin/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨origin/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream uses fetch URL if push absent 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.commitsOn {"count":0,"target":"⁨Puppyone/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.publish",
+  "pushTitle": "source-control.sync.sendTo {"action":"source-control.sync.publish","count":2,"target":"⁨Puppyone/main⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨Puppyone/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "Puppyone/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream without matching remote 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.commitsOn {"count":0,"target":"⁨elsewhere/main⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.noCommittedWaiting",
+  "pushDisabled": true,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.noLocalToPush",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨elsewhere/main⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "elsewhere/main",
+}
+`;
+
+exports[`Git sync state characterization > preserves upstream without slash 1`] = `
+{
+  "ahead": 2,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.commitsOn {"count":0,"target":"⁨origin⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.upToDate",
+  "pushDetail": "source-control.sync.committedWaiting {"count":2}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendTo {"action":"source-control.sync.push","count":2,"target":"⁨origin⁩"}",
+  "remoteExists": true,
+  "setupDetail": "source-control.sync.tracking {"target":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin",
+}
+`;
+
+exports[`Git sync state characterization > preserves watched branch fallback 1`] = `
+{
+  "ahead": 0,
+  "behind": 0,
+  "branchLabel": "topic",
+  "pullDetail": "source-control.sync.noRemoteBranch {"target":"⁨origin/watch⁩"}",
+  "pullDisabled": true,
+  "pullLabel": "source-control.sync.pullRemote",
+  "pullTitle": "source-control.sync.remoteBranchMissing",
+  "pushDetail": "source-control.sync.createRemote {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/watch⁩"}",
+  "pushDisabled": false,
+  "pushLabel": "source-control.sync.push",
+  "pushTitle": "source-control.sync.sendBranch {"action":"source-control.sync.push","branch":"⁨topic⁩","target":"⁨origin/watch⁩"}",
+  "remoteExists": false,
+  "setupDetail": "source-control.sync.primaryRemote {"remote":"⁨origin⁩"}",
+  "setupRequired": false,
+  "setupTitle": "source-control.sync.target",
+  "upstreamLabel": "origin/watch",
+}
+`;

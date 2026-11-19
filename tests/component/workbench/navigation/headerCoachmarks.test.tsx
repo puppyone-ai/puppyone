@@ -1,9 +1,10 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopTitlebarActions } from "../../../../src/features/app-shell/DesktopTitlebarActions";
 import {
   HEADER_COACHMARKS_STORAGE_KEY,
@@ -11,10 +12,11 @@ import {
   useHeaderCoachmarks,
   type HeaderCoachmarkId,
 } from "../../../../src/features/app-shell/headerCoachmarks";
-import { parseTitlebarActionsSettings } from "../../../../src/preferences";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 
@@ -143,7 +145,6 @@ describe("contextual Header coachmarks", () => {
     await act(async () => {
       root?.render(withTestLocalization(
         <DesktopTitlebarActions
-          titlebarActionsSettings={parseTitlebarActionsSettings(null)}
           terminalSidebarOpen={false}
           terminalToolEnabled
           onToggleTerminal={onToggleAgent}

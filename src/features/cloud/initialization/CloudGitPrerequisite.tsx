@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
+import { bidiIsolate } from "@puppyone/localization";
 import type {
   CloudPublishErrorCode,
   CloudPublishProgressStage,
@@ -8,11 +9,14 @@ import type {
 import { formatCloudPublishFailure } from "../cloudPresentation";
 import type { CloudWorkspaceSection } from "../types";
 import { CloudActivationHero } from "../components/CloudActivationHero";
+import { CloudProjectActivation } from "../components/CloudProjectActivation";
 import { CloudPublishConfirmationDialog } from "./CloudPublishConfirmationDialog";
 import { getCloudPublishProgressLabel } from "./CloudPublishProgressIndicator";
 
 export function CloudGitPrerequisite({
   activeSection,
+  projectName,
+  hasHeadCommit = true,
   publishBusy,
   publishEnabled,
   publishError,
@@ -26,6 +30,8 @@ export function CloudGitPrerequisite({
   onPublishWorkspace,
 }: {
   activeSection: CloudWorkspaceSection;
+  projectName?: string | null;
+  hasHeadCommit?: boolean;
   publishBusy: boolean;
   publishEnabled: boolean;
   publishError: { code: CloudPublishErrorCode; retryable: boolean } | null;
@@ -39,6 +45,7 @@ export function CloudGitPrerequisite({
   onPublishWorkspace: (organizationId?: string) => void;
 }) {
   const { t } = useLocalization();
+  const projectActivation = ["contents", "initialize", "project"].includes(activeSection);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
 
   const showOrganizationSupplemental = [
@@ -46,7 +53,8 @@ export function CloudGitPrerequisite({
     "none",
     "error",
   ].includes(organizationStatus);
-  const supplemental = publishError || showOrganizationSupplemental ? (
+  const destination = organizations.find((org) => org.id === selectedOrganizationId);
+  const supplemental = publishError || showOrganizationSupplemental || destination ? (
     <>
       {publishError && (
         <div className="desktop-cloud-git-prerequisite-error" role="alert">
@@ -54,6 +62,9 @@ export function CloudGitPrerequisite({
         </div>
       )}
 
+      {destination && <p data-cloud-publish-destination={destination.id}>
+        {t("cloud.initialize.destinationNote", { name: bidiIsolate(destination.name) })}
+      </p>}
       {showOrganizationSupplemental && (
         <div className="desktop-cloud-git-prerequisite-organization">
           {organizationStatus === "none" ? (
@@ -87,41 +98,57 @@ export function CloudGitPrerequisite({
     </>
   ) : undefined;
 
+  const action = (
+    <button
+      className="desktop-cloud-row-action primary desktop-cloud-publish-primary"
+      type="button"
+      aria-busy={publishBusy || undefined}
+      aria-haspopup="dialog"
+      data-cloud-publish-action="true"
+      data-desktop-dialog-initial-focus="true"
+      disabled={publishBusy || !publishEnabled}
+      onClick={() => setConfirmationOpen(true)}
+    >
+      {publishBusy && <RefreshCw size={14} className="animate-spin" aria-hidden="true" />}
+      <span>
+        {progressStage
+          ? getCloudPublishProgressLabel(progressStage, t)
+          : t(projectActivation ? "cloud.activation.project.publish" : "cloud.initialize.enableGitAndPublish")}
+      </span>
+    </button>
+  );
+
   return (
     <>
       <div className="desktop-cloud-publish-container">
-        <CloudActivationHero
-          activeSection={activeSection}
-          className="desktop-cloud-git-prerequisite"
-          ariaLabel={t("cloud.initialize.publishFolderTitle")}
-          titleId="desktop-cloud-git-prerequisite-title"
-          supplemental={supplemental}
-          action={(
-            <button
-              className="desktop-cloud-row-action primary desktop-cloud-publish-primary"
-              type="button"
-              aria-busy={publishBusy || undefined}
-              aria-haspopup="dialog"
-              disabled={publishBusy || !publishEnabled}
-              onClick={() => setConfirmationOpen(true)}
-            >
-              {publishBusy && <RefreshCw size={14} className="animate-spin" aria-hidden="true" />}
-              <span>
-                {progressStage
-                  ? getCloudPublishProgressLabel(progressStage, t)
-                  : t("cloud.initialize.enableGitAndPublish")}
-              </span>
-            </button>
-          )}
-        />
+        {projectActivation
+          ? <CloudProjectActivation projectName={projectName} supplemental={supplemental} action={action} />
+          : <CloudActivationHero
+            activeSection={activeSection}
+            className="desktop-cloud-git-prerequisite"
+            ariaLabel={t("cloud.initialize.publishFolderTitle")}
+            titleId="desktop-cloud-git-prerequisite-title"
+            supplemental={supplemental}
+            action={action}
+          />}
       </div>
 
       {confirmationOpen && (
         <CloudPublishConfirmationDialog
+          // A local folder and its Cloud project are two projects (puppy-issues
+          // ADR-001); the confirmation says so before the new one exists.
+          description={projectName
+            ? t("cloud.initialize.separateProjectNote", { name: bidiIsolate(projectName) })
+            : undefined}
+          details={<>
+            {destination && <p>{t("cloud.initialize.destinationNote", { name: bidiIsolate(destination.name) })}</p>}
+            <p>{t(hasHeadCommit ? "cloud.initialize.committedScopeNote" : "cloud.initialize.initialScopeNote")}</p>
+            <p>{t("cloud.initialize.spaceVisibilityNote")}</p>
+          </>}
           onCancel={() => setConfirmationOpen(false)}
           onConfirm={() => {
             setConfirmationOpen(false);
-            onPublishWorkspace(selectedOrganizationId ?? undefined);
+            if (publishEnabled && !publishBusy && selectedOrganizationId) onPublishWorkspace(selectedOrganizationId);
           }}
         />
       )}

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="196" height="44" viewBox="0 0 196 44" role="img" aria-label="Download puppyone 0.4.0 for Windows">
+  <rect width="196" height="44" rx="9" fill="#1f1e1c"/>
+  <path transform="translate(12 13) scale(0.75)" fill="#ffffff" d="M3 4.55 10.53 3.5v7.78H3V4.55Zm8.47-1.19L21 2v9.28h-9.53V3.36ZM3 12.22h7.53V20L3 18.95v-6.73Zm8.47 0H21V21l-9.53-1.36v-7.42Z"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="38" y="19" font-size="13" font-weight="600" fill="#ffffff">Download for Windows</text>
+    <text x="38" y="33" font-size="11" fill="#aeaca7">v0.4.0 · Oct 28, 2026</text>
+  </g>
+</svg>

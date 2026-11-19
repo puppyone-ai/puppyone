@@ -11,6 +11,7 @@ import type { AgentControllerState } from "../application/agent-controller-state
 type AgentPanelStatusProps = {
   unavailable: boolean;
   failed: boolean;
+  runtimeExited?: boolean;
   error: AgentErrorDescriptor | null;
   runtimeLabel: string;
   readiness?: AgentRuntimeReadiness;
@@ -25,6 +26,7 @@ type AgentPanelStatusProps = {
 export function AgentPanelStatus({
   unavailable,
   failed,
+  runtimeExited = false,
   error,
   runtimeLabel,
   readiness,
@@ -47,24 +49,25 @@ export function AgentPanelStatus({
         <AgentStatusCard
           tone={failed ? "recovery" : "readiness"}
           heading={failed
-            ? t("agent.readiness.sessionAttention", { agent: bidiIsolate(runtimeLabel) })
+            ? t(runtimeExited ? "agent.readiness.sessionAttention" : "agent.readiness.sessionFailed", { agent: bidiIsolate(runtimeLabel) })
             : readinessPresentation.heading}
           description={failed
             ? errorPresentation?.summary || t("agent.readiness.sessionRecovery")
             : detail}
-          details={<>
+          details={(!failed || detail) && <details>
+            <summary>{t("agent.header.diagnostics")}</summary>
             {!failed && <small className="desktop-agent-readiness-detail desktop-agent-readiness-code">{t("agent.readiness.statusCode", { code: readinessPresentation.code })}</small>}
             {!failed && readinessPresentation.diagnostic && (
               <small className="desktop-agent-readiness-detail" dir="auto">{t("agent.readiness.diagnostic", { detail: bidiIsolate(readinessPresentation.diagnostic) })}</small>
             )}
             {failed && detail && <small className="desktop-agent-readiness-detail" dir="auto">{detail}</small>}
-          </>}
+          </details>}
           actions={<button
             type="button"
             className="desktop-agent-button is-secondary desktop-agent-readiness-action"
             aria-label={t("agent.readiness.retryAria")}
             onClick={onRetry}
-          ><RefreshCw size={12} /> {t(failed ? "agent.readiness.reconnect" : "common.action.retry")}</button>}
+          ><RefreshCw size={12} /> {t(runtimeExited ? "agent.readiness.reconnect" : "common.action.retry")}</button>}
         />
       )}
       {errorPresentation && !unavailable && !failed && !displayFailure && !recovery && (

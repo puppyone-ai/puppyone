@@ -6,7 +6,7 @@ import {
   sortAgentChatCreationRecipesAlphabetically,
   sortAgentChatCreationRecipesForDisplay,
 } from "../../../../src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
-import type { AuxiliaryWorkbenchCreationRecipe } from "../../../../src/features/app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchCreationRecipe } from "../../../../src/lib/workbench/types";
 
 function recipe(id: string, label: string): AuxiliaryWorkbenchCreationRecipe {
   return {

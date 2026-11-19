@@ -1,0 +1,39 @@
+.desktop-titlebar-account {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--desktop-titlebar-text-muted);
+}
+
+.desktop-titlebar-account:not(:first-child) {
+  margin-inline-start: 4px;
+}
+
+/* Settings names the one Space it manages the way the Header and Homepage do. */
+.desktop-settings-space-heading {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--po-text-muted);
+}
+
+.desktop-settings-space-heading > bdi {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-settings-space-heading > .po-space-plan {
+  margin-inline-start: auto;
+}
+
+.desktop-space-member-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}

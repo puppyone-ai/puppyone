@@ -67,7 +67,7 @@ export function pickUsage(payload) {
 export function pickSafeActivityDetail(payload) {
     const detail = {};
     const legacyChanges = legacyFileChangeEvidence(payload);
-    for (const key of ["command", "cwd", "delta", "text", "explanation", "updateMode", "summaryIndex", "status", "kind", "tool", "description", "path", "query", "changes", "steps", "title", "message", "input", "result", "outputPreview", "error", "content", "detail", "metadata", "recoverable", "truncated", "exitCode", "duration", "durationMs", "elapsedMs", "diff", "patch", "outputPaths"]) {
+    for (const key of ["category", "severity", "source", "command", "cwd", "delta", "text", "explanation", "updateMode", "summaryIndex", "status", "kind", "tool", "description", "path", "query", "changes", "steps", "title", "message", "input", "result", "outputPreview", "error", "content", "detail", "metadata", "recoverable", "truncated", "exitCode", "duration", "durationMs", "elapsedMs", "diff", "patch", "outputPaths"]) {
         if (!(key in payload))
             continue;
         detail[key] = boundProjectionValue(payload[key]);
@@ -82,6 +82,8 @@ export function pickSafeActivityDetail(payload) {
 }
 export function activityId(event) {
     const nativeIdentity = event.itemId ?? event.turnId ?? event.type;
+    if (event.type === "provider.notification") return `notification:${event.turnId ?? "session"}:${event.itemId ?? event.sequence}`;
+    if (event.type === "provider.activity") return `system:${event.turnId ?? "session"}:${nativeIdentity}`;
     return event.type === "reasoning.summary.delta"
         ? `activity:${nativeIdentity}:summary:${Number.isSafeInteger(event.payload.summaryIndex) ? event.payload.summaryIndex : 0}`
         : `activity:${nativeIdentity}`;

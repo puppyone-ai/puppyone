@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getCloudProject,
-  type DesktopCloudConnector,
+  type DesktopCloudAccessSurface,
   type DesktopCloudDashboard,
   type DesktopCloudMcpEndpoint,
   type DesktopCloudProject,
@@ -27,7 +27,7 @@ export type DesktopCloudDataState = {
   tree: DesktopCloudTree | null;
   history: DesktopCloudHistory | null;
   scopes: DesktopCloudScope[];
-  connectors: DesktopCloudConnector[];
+  connectors: DesktopCloudAccessSurface[];
   mcpEndpoints: DesktopCloudMcpEndpoint[];
   identity: DesktopCloudRepoIdentity | null;
   initializing: boolean;

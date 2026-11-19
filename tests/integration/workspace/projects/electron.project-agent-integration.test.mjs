@@ -22,6 +22,23 @@ function harness() {
 }
 
 describe("project authority through Agent IPC, service and feed", () => {
+  it("isolates Chat sessions for the same project displayed in two windows", async () => {
+    const h = harness();
+    const otherOwner = createSender(502);
+    const firstProject = h.projects.open(h.owner.id, folder("a"));
+    const first = await h.call("agent:session-create", firstProject, { runtimeId: "codex" });
+    const secondProject = h.projects.open(otherOwner.id, folder("a"));
+    expect(h.adapters).toHaveLength(1); // Selection never clones execution.
+    const second = await h.call("agent:session-create", secondProject, { runtimeId: "codex" }, otherOwner);
+    expect(await h.call("agent:session-close", secondProject,
+      { sessionId: first.session.id, instanceId: first.session.instanceId }, otherOwner)).toHaveProperty("agentFailure");
+    await h.projects.closeWindow(h.owner.id);
+    expect(h.adapters[0].disposed).toBe(true);
+    expect(h.adapters[1].disposed).toBe(false);
+    expect(await h.call("agent:session-attach", secondProject,
+      { sessionId: second.session.id, instanceId: second.session.instanceId }, otherOwner)).toHaveProperty("snapshot");
+  });
+
   it("keeps background output in A and closes A without stopping B", async () => {
     const h = harness();
     const a = h.projects.open(h.owner.id, folder("a"));

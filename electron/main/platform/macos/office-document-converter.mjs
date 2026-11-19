@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { resolveExistingWorkspacePath } from "../../../../local-api/files/path-policy.mjs";
+import { resolveExistingWorkspacePath } from "../../../local-api/files/path-policy.mjs";
 
 const MAX_OFFICE_CONVERSION_INPUT_BYTES = 25 * 1024 * 1024;
 const MAX_OFFICE_CONVERSION_OUTPUT_BYTES = 8 * 1024 * 1024;

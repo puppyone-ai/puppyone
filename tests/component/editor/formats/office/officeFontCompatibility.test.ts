@@ -5,7 +5,7 @@ import {
   applyOfficeCjkFontFallbacks,
   ensureOfficeFontCompatibilityStyles,
   OFFICE_FONT_COMPATIBILITY_CSS,
-} from "../../../../../packages/shared-ui/src/editor/viewers/office/officeFontCompatibility";
+} from "../../../../../src/shared-ui/editor/viewers/office/officeFontCompatibility";
 
 describe("local Office font compatibility", () => {
   beforeEach(() => {

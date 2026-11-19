@@ -7,6 +7,9 @@ import type {
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
 import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
+import type { LocalComputersBridge } from "../../shared/local-computers/types";
+import type { HostCatalogDevice, HostFileOperation, HostFolderEvent, HostFolderResult, HostLauncher, HostSession,
+  HostSharingStatus, HostTerminalEvent, RecentHostFolder } from "../../shared/host-contract/types";
 import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
 import type { ImportResource, ImportResourcePage, ImportProgress } from "../../shared/project-import/contract.mjs";
 import type { DesktopTerminalLauncherId } from "../features/desktop-terminal/model/terminalLaunchers";
@@ -55,6 +58,7 @@ import type {
   CloudInitializationResult,
   CloudInitializationStartRequest,
   CloudInitializationState,
+  CloudInitializationTransfer,
 } from "./cloudInitialization";
 
 export type {
@@ -325,6 +329,18 @@ export type GitEffectiveHosting = {
   identity: GitEffectiveHostingIdentity | null;
 };
 
+/**
+ * What a folder would make reachable. Ignore rules are already applied, so the
+ * numbers describe the files that actually leave this Mac. `truncated` means
+ * the folder is larger than a summary can honestly count, and the count is a
+ * floor rather than a total.
+ */
+export type WorkspacePublishScope = {
+  files: number;
+  bytes: number;
+  truncated: boolean;
+};
+
 export type GitStatusSnapshot = {
   isRepo: boolean;
   branch: string | null;
@@ -351,6 +367,7 @@ export type CloudPublishErrorCode = CloudInitializationErrorCode;
 export type CloudPublishProgressStage = CloudInitializationProgressStage;
 export type CloudPublishState = CloudInitializationState;
 export type CloudPublishProgress = CloudInitializationProgress;
+export type CloudPublishTransfer = CloudInitializationTransfer;
 export type CloudPublishResult = CloudInitializationResult;
 export type CloudPublishIdentityRequest = CloudInitializationIdentityRequest;
 export type CloudPublishStartRequest = CloudInitializationStartRequest;
@@ -645,11 +662,25 @@ export type GitRepositoryWindowFocusEvent = {
   focused: boolean;
 };
 
+export type CloudProjectWindowTarget = Readonly<{ projectId: string; userId: string }>;
+
+/** The one file a File Mode window is bound to. Main owns these paths. */
+export type FileModeTarget = Readonly<{
+  path: string;
+  rootPath: string;
+  name: string;
+  tooLarge: boolean;
+  sizeLimit: number;
+}>;
+
 export type LastWorkspaceResult = {
   workspaceId: string | null;
   path: string | null;
   workspace: Workspace | null;
   workspaces?: Workspace[];
+  initialCloudProject?: CloudProjectWindowTarget | null;
+  initialOpenPath?: string | null;
+  initialFile?: FileModeTarget | null;
   error: string | null;
 };
 
@@ -689,15 +720,36 @@ export type ProjectIconSelectionResult = Readonly<{
 }>;
 
 export type WorkspaceOpenResult = {
-  status: "opened-current" | "opened-new-window" | "focused-existing";
+  status: "opened-current" | "opened-new-window";
   workspaceId: string | null;
   path: string | null;
   workspace: Workspace | null;
   workspaces?: Workspace[];
 };
 
+/** Why a project's folder cannot be opened now, in terms a person can act on. */
+export type FolderAvailability = "available" | "missing" | "disconnected" | "denied" | "not-a-folder";
+/** "same-folder": the very folder, moved or renamed; "same-cloud-project": a copy linked to the same Cloud project. */
+export type FolderMatch = "same-folder" | "same-cloud-project" | "different";
+export type FolderCandidate = { token: string; path: string; name: string; match: FolderMatch };
+export type FolderStatus = { path: string; state: FolderAvailability; suggestion?: FolderCandidate };
+export type ProjectAssetPreviewKind = "html" | "md" | "csv" | "other";
+export type ProjectAssetPreview = {
+  name: string;
+  kind: ProjectAssetPreviewKind;
+  snippet: string | null;
+};
+export type ProjectFolderPreviews = {
+  path: string;
+  previews: ProjectAssetPreview[];
+};
+export type FolderLocateResult =
+  | { status: "cancelled" | "unchanged" }
+  | ({ status: "selected" } & FolderCandidate);
+export type FolderRelocation = { from: string; path: string; wasShared: boolean };
+
 export type WorkspaceAttachResult = {
-  status: "attached-current" | "already-attached" | "focused-existing";
+  status: "attached-current" | "already-attached";
   workspaceId: string;
   path: string | null;
   workspace: Workspace | null;
@@ -712,11 +764,21 @@ export type WorkspaceDetachResult = {
   workspaces: Workspace[];
 };
 
+export type MarketplaceTemplateDetail = {
+  id: string; releaseId: string; name: string; description: string;
+  version: string; author: string; locale: string; shareUrl: string;
+  fileCount: number | null; icon: string | null; requiresSignIn: boolean;
+};
+
 export type WorkspaceCreateProjectRequest = {
   name: string;
   locationGrantId: string;
   operationId: string;
-  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } };
+  /** Take the next free name ("CRM 2") instead of failing on a taken one. */
+  numberIfTaken?: boolean;
+  /** Leave this window's Project where it is and open the new one beside it. */
+  openInNewWindow?: boolean;
+  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 2 } } | { kind: "template"; ref: { sourceId: "marketplace"; id: string; releaseId: string } };
   locale: string;
 };
 
@@ -727,7 +789,7 @@ export type ProjectInitializationReceipt = {
   name: string;
   createdPaths: string[];
   initialOpenPath: string | null;
-  template: { sourceId: string; id: string; version: number; digest: string; resolvedLocale: string } | null;
+  template: { sourceId: string; id: string; version: number | string; releaseId?: string; digest: string; resolvedLocale: string } | null;
 };
 
 export type WorkspaceCreateProjectResult = {
@@ -747,9 +809,24 @@ export type WorkspaceImportSourceRequest = {
   locationGrantId?: string | null;
 };
 
+/** Import publication and workspace opening are separate outcomes. */
+export type WorkspaceImportSourceResult = {
+  project: { path: string; name: string; provider: string };
+  opening: WorkspaceCreateProjectResult["opening"];
+};
+
 export type WorkspaceImportResource = ImportResource;
 export type WorkspaceImportResourcePage = ImportResourcePage;
 export type WorkspaceImportProgress = ImportProgress & { taskId: string };
+
+/** A folder another app (Obsidian, VS Code, Cursor, Typora) already records. */
+export type WorkspaceAppFolder = {
+  path: string;
+  name: string;
+  lastUsedAt: number | null;
+  /** Already listed on the Homepage. */
+  added: boolean;
+};
 
 export type WorkspaceCreateEntryKind = "file" | "folder";
 
@@ -954,12 +1031,12 @@ declare global {
         }>;
         cancel: (id: string) => Promise<void>;
       };
-      connectAgentSession: (request: import("../../shared/session-transport/types").AgentConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
+      connectAgentSession: (request: import("../../shared/session-transport/types").AgentConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnectionResult>;
       terminateItemExecution: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["terminateItemExecution"];
       retryItemExecutionCleanup: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["retryItemExecutionCleanup"];
       listItemExecutions: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["listItemExecutions"];
       openItemExecutionManager: () => Promise<void>;
-      connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
+      connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnectionResult>;
       onSessionRuntimeFailure: (listener: (failure: import("../../shared/session-transport/types").SessionRuntimeFailure) => void) => () => void;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
       setWindowChromeProfile: (request: {
@@ -988,6 +1065,8 @@ declare global {
           callback: (request: { kind: "pack"; themeId: string }) => void,
         ) => () => void;
       };
+      /** Fires when the native application menu asks this window to open Settings. */
+      onSettingsRequested?: (callback: () => void) => () => void;
       setWindowMinimumWidth: (request: { width: number }) => Promise<{
         applied: boolean;
         width?: number;
@@ -1029,6 +1108,7 @@ declare global {
         callback: (request: {
           requestId: string;
           reason: "app-close" | "git-auto-commit";
+          discard: boolean;
         }) => void | Promise<void>,
       ) => () => void;
       onDocumentSessionCloseCancelled: (
@@ -1074,13 +1154,53 @@ declare global {
         headers?: Record<string, string>;
         body?: string;
       }) => Promise<DesktopCloudIpcEnvelope<unknown>>;
+      cancelCloudSessionApi?: (requestId: string) => Promise<void>;
       requestCloudSessionApi: (request: {
+        requestId?: string;
         apiBaseUrl: string;
+        expectedSession: { userId: string; generation: string };
         path: string;
         method?: string;
         headers?: Record<string, string>;
         body?: string;
       }) => Promise<DesktopCloudIpcEnvelope<unknown>>;
+      listHostDevices: (expectedSession: HostSession) => Promise<{ devices: HostCatalogDevice[] }>;
+      registerHostFolder: (request: { rootPath: string; writable?: boolean; expectedSession?: HostSession }) => Promise<
+        { deviceId: string; folderId: string } | { cancelled: true }>;
+      connectHostDevice: (expectedSession: HostSession) => Promise<{ deviceId: string | null; paused?: boolean }>;
+      disconnectHostDevice: () => Promise<{ disconnected: true }>;
+      removeHostFolder: (request: { deviceId: string; folderId: string;
+        expectedSession: HostSession }) => Promise<{ removed: boolean } | { cancelled: true }>;
+      updateHostFolder: (request: { deviceId: string; folderId: string; name: string; writable: boolean;
+        expectedRevision: number; expectedSession: HostSession }) => Promise<{ id: string; revision: number } | { cancelled: true }>;
+      revokeHostDevice: (request: { deviceId: string; expectedSession: HostSession }) => Promise<
+        { revoked: boolean } | { cancelled: true }>;
+      getHostStatus: () => Promise<HostSharingStatus>;
+      setHostSharingPaused: (request: { paused: boolean; expectedSession: HostSession }) => Promise<{ paused: boolean }>;
+      getHostAutostart?: () => Promise<{ supported: boolean; enabled: boolean }>;
+      setHostAutostart?: (request: { enabled: boolean }) => Promise<{ supported: boolean; enabled: boolean }>;
+      onHostStatus: (callback: (status: HostSharingStatus) => void) => () => void;
+      requestHostFolder: <T>(request: { folderId: string; operation: HostFileOperation;
+        expectedSession: HostSession }) => Promise<HostFolderResult<T>>;
+      watchHostFolder: (request: { id: string; folderId: string; expectedSession: HostSession }) => Promise<{ id: string }>;
+      stopHostFolderWatch: (request: { id: string }) => Promise<void>;
+      onHostFolderEvent: (callback: (event: HostFolderEvent) => void) => () => void;
+      listRecentHostFolders: (expectedSession: HostSession) => Promise<{ folders: RecentHostFolder[];
+        lastActive: RecentHostFolder | null }>;
+      recordRecentHostFolder: (request: { deviceId: string; folderId: string; name: string; hostName: string;
+        writable: boolean; expectedSession: HostSession }) => Promise<RecentHostFolder>;
+      closeRecentHostFolder: (request: { expectedSession: HostSession }) => Promise<boolean>;
+      forgetRecentHostFolder: (request: { folderId: string; expectedSession: HostSession }) => Promise<boolean>;
+      setHostExecution: (request: { deviceId: string; folderId: string; terminal: boolean; git: boolean; agent: boolean;
+        expectedRevision: number; expectedSession: HostSession }) => Promise<{ id: string; revision: number } | { cancelled: true }>;
+      stopRemoteHostSessions: () => Promise<{ stopped: true }>;
+      openHostTerminal: (request: { id: string; folderId: string; kind: "shell" | "agent"; launcher: HostLauncher;
+        cols: number; rows: number; expectedSession: HostSession }) => Promise<{ id: string }>;
+      writeHostTerminal: (request: { id: string; data: string }) => Promise<boolean>;
+      resizeHostTerminal: (request: { id: string; cols: number; rows: number }) => Promise<boolean>;
+      interruptHostTerminal: (request: { id: string }) => Promise<boolean>;
+      closeHostTerminal: (request: { id: string }) => Promise<boolean>;
+      onHostTerminalEvent: (callback: (event: HostTerminalEvent) => void) => () => void;
       cloudInitializationGetState: (request: CloudInitializationIdentityRequest) => Promise<CloudInitializationResult>;
       cloudInitializationStart: (request: CloudInitializationStartRequest) => Promise<CloudInitializationResult>;
       cloudInitializationCleanup: (request: CloudInitializationCleanupRequest) => Promise<CloudInitializationResult>;
@@ -1126,6 +1246,7 @@ declare global {
         };
       }>;
       openExternalUrl: (href: string) => Promise<{ ok: boolean }>;
+      onFileModeFileChanged: (callback: () => void) => () => void;
       submitFeedback: (request: {
         message: string;
         email: string;
@@ -1154,6 +1275,7 @@ declare global {
         }) => Promise<{ ok?: boolean; visible?: boolean } | void>;
         destroy: (request: { id: string }) => Promise<{ ok?: boolean } | void>;
       };
+      getRestoringProject: () => Promise<{ kind: "local"; path: string } | { kind: "cloud"; projectId: string } | null>;
       getInitialWorkspace: () => Promise<LastWorkspaceResult>;
       getLastWorkspace: () => Promise<LastWorkspaceResult>;
       getRecentWorkspaces: () => Promise<RecentWorkspacesResult>;
@@ -1170,6 +1292,7 @@ declare global {
         }) => Promise<ProjectAppearance>;
         onChanged: (callback: (appearance: ProjectAppearance) => void) => () => void;
       };
+      localComputers?: LocalComputersBridge;
       removeRecentWorkspace: (folderPath: string) => Promise<{
         ok: true;
         removed: true;
@@ -1191,20 +1314,38 @@ declare global {
       onProjectSessionsChanged: (callback: (snapshot: import("../../shared/project-session-contract/types").ProjectSessionSnapshot) => void) => () => void;
       openWorkspaceInCurrentWindow: (folderPath: string) => Promise<WorkspaceOpenResult>;
       openWorkspaceInNewWindow: (folderPath: string) => Promise<WorkspaceOpenResult>;
+      openCloudProjectInNewWindow: (target: CloudProjectWindowTarget) => Promise<{ ok: boolean }>;
       openDroppedWorkspaceInCurrentWindow: (folder: File) => Promise<WorkspaceOpenResult>;
       selectFolder: () => Promise<WorkspaceOpenResult | null>;
       selectFolderToAttach: () => Promise<WorkspaceAttachResult | null>;
       attachFolder: (folderPath: string) => Promise<WorkspaceAttachResult>;
       detachFolder: (folderPath: string) => Promise<WorkspaceDetachResult>;
+      /** Whether each known project folder can be opened now; a renamed one comes with where it is. */
+      getFolderStatus: (paths: readonly string[]) => Promise<FolderStatus[]>;
+      /** Up to three top-level files from each recent project folder, sorted HTML > MD > CSV > other. */
+      getProjectPreviews: (paths: readonly string[]) => Promise<ProjectFolderPreviews[]>;
+      /** The person points at where a project's folder is now, in the system dialog. */
+      locateFolder: (folderPath: string) => Promise<FolderLocateResult>;
+      /** Use a confirmed new place for the project from now on. */
+      relocateFolder: (token: string) => Promise<FolderRelocation>;
       selectFolderInNewWindow: () => Promise<WorkspaceOpenResult | null>;
       selectLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
+      resolveTemplateLink: (request: { url: string; locale: string }) => Promise<MarketplaceTemplateDetail>;
+      /** `copied` marks a link found in the clipboard rather than sent by the store. */
+      readTemplateImportIntent: () => Promise<{ id: string; url: string; copied?: boolean } | null>;
+      acknowledgeTemplateImportIntent: (id: string) => Promise<void>;
+      /** Looks once for a copied store link; true when one is now waiting to be read. */
+      claimCopiedTemplateLink: () => Promise<boolean>;
+      onTemplateImportRequested: (callback: () => void) => () => void;
       createLocalProject: (
         request: WorkspaceCreateProjectRequest,
       ) => Promise<WorkspaceCreateProjectResult>;
       connectImportSource: (request: { provider: string }) => Promise<{ connectionId: string }>;
       listImportResources: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
-      importSource: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceOpenResult | null>;
+      listAppFolders: (app: string) => Promise<{ folders: WorkspaceAppFolder[] }>;
+      addAppFolders: (request: { app: string; paths: string[] }) => Promise<{ added: number }>;
+      importSource: (request: WorkspaceImportSourceRequest) => Promise<WorkspaceImportSourceResult | null>;
       cancelImportSource: (request: { taskId: string }) => Promise<{ cancelled: boolean }>;
       onImportSourceProgress: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
       getPathForFile: (file: File) => string;
@@ -1261,10 +1402,23 @@ declare global {
         expectedVersion?: string;
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
-      createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean }) => Promise<{ url: string }>;
+      createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean; offline?: boolean }) => Promise<{ url: string }>;
+      createSandboxedPreviewDocument: (request: { content: string; interactive?: boolean }) => Promise<{ url: string }>;
+      revokeSandboxedPreviewDocument: (request: { url: string }) => Promise<{ revoked: boolean }>;
       openDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["openDatabasePreview"];
       readDatabasePreviewPage: import("../platform/databasePreviewClient").DatabaseBridge["readDatabasePreviewPage"];
       closeDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["closeDatabasePreview"];
+      openCloudDatabasePreview: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["openCloudDatabasePreview"];
+      readCloudDatabasePreviewPage: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["readCloudDatabasePreviewPage"];
+      closeCloudNativePreview: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["closeCloudNativePreview"];
+      convertCloudOfficeDocument: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["convertCloudOfficeDocument"];
+      watchCloudWorkspace: (request: { id: string; apiBaseUrl: string; projectId: string; generation: string;
+        expectedSession: { userId: string; generation: string } }) => Promise<{ id: string }>;
+      stopCloudWorkspaceWatch: (request: { id: string }) => Promise<void>;
+      /** `paths` are workspace-relative hints; absent means the changed scope is unknown. */
+      onCloudWorkspaceEvent: (callback: (event: { id: string; type: "change" | "reconnecting" | "unavailable"; generation?: string; paths?: string[]; message?: string }) => void) => () => void;
+      retainCloudPreviewResource: (request: import("../platform/cloudNativePreviewClient").CloudPreviewSource) => Promise<{ url: string }>;
+      revokeCloudPreviewResource: (request: { url: string }) => Promise<void>;
       convertOfficeDocumentToDocx: (
         request: WorkspaceConvertOfficeDocumentToDocxRequest,
       ) => Promise<WorkspaceConvertOfficeDocumentToDocxResult>;
@@ -1339,6 +1493,10 @@ declare global {
       onAiEditReviewUpdated: (
         callback: (event: AiEditReviewUpdatedEvent) => void,
       ) => () => void;
+      getPublishScope?: (request: {
+        rootPath: string;
+        path?: string;
+      }) => Promise<WorkspacePublishScope>;
       getGitStatus: (request: {
         rootPath: string;
         requestId?: string;
@@ -1359,6 +1517,7 @@ declare global {
       removeGitRemote: (request: {
         rootPath: string;
         remoteName?: string;
+        expectedRemotes?: GitRemoteSummary[];
       }) => Promise<GitStatusSnapshot>;
       readPuppyoneConfig: (request: {
         rootPath: string;

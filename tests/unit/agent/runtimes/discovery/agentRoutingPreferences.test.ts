@@ -3,7 +3,7 @@ import {
   createAgentRoutingPreferences,
   parseAgentRoutingPreferences,
   updateAgentRoutePreference,
-} from "../../../../../src/features/app-shell/agentRoutingPreferences";
+} from "../../../../../src/agentRoutingPreferences";
 
 describe("Agent routing preferences", () => {
   it("keeps Provider, Model, Variant, Effort and Mode scoped to one Agent runtime", () => {

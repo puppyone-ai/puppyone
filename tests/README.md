@@ -34,6 +34,20 @@ Agent lives below `agent/{sessions,events,composer,transcript,activity,reference
 provider-specific cases go under `runtimes/{codex,claude,opencode,pi,acp,discovery}`.
 Shared setup belongs in `support`, and assertions remain in the case files.
 
+Cloud Agent has separate fixture and live commands: `npm run smoke:cloud-agent`
+uses a built renderer and isolated protocol fixtures; `npm run test:e2e:cloud-agent:live --
+--api-base <cloud-api-base> --project-id <project-id> --workspace <local-project-name>`
+attaches to one signed-in development App on loopback CDP port 9222. The live
+test uses an already hosted Project-root repository with an empty composer,
+creates one new chat and sends three connectivity prompts through the UI.
+It returns Local → Cloud twice, checks server completion and rendered assistant
+replies, and requires all three runs to belong to one session. Its read-only
+receipt probe fails before sending if the durable API/storage is unavailable.
+No fixture fallback or skip can produce a passing live report. Reports go to
+`artifacts/tests/cloud/agent-live/result.json`; `--out` selects another directory.
+The canonical [Cloud Agent verification boundary](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/cloud/agent-client.md)
+records environment results and outstanding hosted acceptance.
+
 ## Electron and CI
 
 Existing `smoke:*` commands remain supported. “Smoke” describes a critical
@@ -53,6 +67,48 @@ e2e command runs project sessions followed by the fixture-based Agent/Terminal
 sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
+The `markdown-html-run` app gate (`npm run smoke:markdown-html-run`) mounts the
+production editor in Chromium and checks what a DOM stub cannot: list indent,
+`prefers-color-scheme` candidate selection, intrinsic and percentage sizes, and
+real pointer and arrow-key entry into inline HTML source.
+
+The `markdown-syntax-gallery` app gate (`npm run smoke:markdown-syntax-gallery`)
+renders one document holding every construct at once, so callout color, table
+tracks, fold state, `details` inside an HTML flow, and footnote jumps are checked
+against real layout and real pointer input.
+
+The `markdown-quote-colors` app gate (`npm run smoke:markdown-quote-colors`)
+checks actual Chromium styles for native Markdown and Safe HTML quotes, code,
+tables and list markers. Its 42 cases cover light/dark, default/Newspaper, explicit quote,
+strong and code color overrides, and caret editing in emphasis/inline code or
+preview. It checks native code, inline HTML, Safe HTML and inline-renderer chips,
+monospace fonts, transparent inline-code backgrounds, block-code isolation,
+emphasis weight and nested link colors. Structured-content cases additionally
+check quote-like foregrounds, identical table/code sizing even with divergent
+data/code scale overrides, textarea/highlight alignment, long-line scrolling,
+non-flow language/source labels and stable hover behavior for unlabelled fences.
+They also verify the Markdown foreground does not leak into CSV. Native code
+editing cases change the language and body, retain drafts while focus moves
+inside the widget, mirror horizontal scroll and preserve source metadata on blur.
+This isolated production editor fixture does not
+exercise filesystem persistence or an installed application.
+
+The `table-move-selection` app gate (`npm run smoke:table-move-selection`)
+mounts production CSV and Markdown tables in isolated Electron. Its 32 cases
+use Chromium mouse capture and keyboard input for row/column dragging, all
+menu move directions and keyboard menu activation in light and dark themes.
+It checks moved-content identity, the full structural outline, absent cell
+editing focus, heading-free menus and Escape dismissal. This is a component
+fixture, with no filesystem save or OS pointer injection.
+
+`npm run smoke:project-import` launches the production Electron Main, preload
+and renderer with an isolated temporary profile. Real Git clones a local fixture
+through a process-local URL rewrite. The test makes the published folder
+unavailable, restores it and retries opening, verifying one publication and
+preserved edits. It also checks Main's recorded-app allowlist, in-place folder
+addition and preservation of the active project. This does not certify live
+GitHub/GitLab authentication or installed Windows/Linux packages.
+
 `smoke:item-lifecycle` is the `item-lifecycle` app gate: the production Main
 supervisor and utility runtime face blocked initialization, uncooperative
 disposal and a real child process group. It verifies bounded outer termination,
@@ -152,6 +208,12 @@ This tests Chromium layout and input, not OS pointer injection or all fonts,
 themes, writing directions and native platforms. Dependency upgrades must pass
 this gate: the shared adapter uses public coordinate queries to flush pending
 CodeMirror measurement before paint.
+
+`npm run smoke:markdown-block-drag` is the `markdown-block-drag` app gate. It
+drives the block drag add-on with real input in Electron and asserts what only
+layout can prove: every part of a row targets that row, a drag keeps focus and
+scroll position, the overlay scrolls natively, and switching the add-on off
+leaves no DOM behind.
 
 ## Sidebar visibility and residual content
 

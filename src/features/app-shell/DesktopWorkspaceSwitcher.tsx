@@ -1,92 +1,75 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
-import {
-  Tooltip,
-  RENDERER_ASSET_PATHS,
-  createWorkspaceFolder,
-  resolveRendererPublicAssetUrl,
-  type Workspace,
-  type WorkspaceFolder,
-} from "@puppyone/shared-ui";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { CloudIcon, createWorkspaceFolder, FolderIcon, LocalIcon, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
-  Cloud,
   Plus,
   FolderPlus,
-  Laptop,
 } from "lucide-react";
-import { DesktopMenuItem } from "../../components/DesktopMenu";
-import {
-  getProjectBackupSnapshot,
-  type ProjectBackupProvider,
-} from "./projectBackupProviders";
-import type { GitStatusSnapshot } from "../../types/electron";
-import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
+import { DesktopMenuItem, DesktopMenuSeparator } from "../../components/DesktopMenu";
+import { DesktopTitlebarMenuLayer } from "../../components/DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import {
   ProjectContextAssetMark,
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
-import { getWorkspaceParentPathForDisplay } from "./workspaceHomeModel";
-import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
+import { getWorkspaceParentPathForDisplay, type CloudSpace, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
+import { useDesktopPlatformCapabilities } from "../../platform";
+import { SpaceMark, useSpaceName } from "../cloud";
+import { projectMatchesTarget } from "./window-project/projectNavigation";
+import type { ProjectTarget } from "./window-project/windowProjectStore";
+import { DesktopProjectMenuItem } from "./DesktopProjectMenuItem";
+import { groupProjectsByPlace, projectMenuGroupsInPlace, projectMenuGroupsNeedHeadings, type ProjectMenuGroup, type ProjectMenuPlace } from "./projectMenuGroups";
 
-type DesktopWorkspaceSwitcherProps = {
+const NO_SPACES: readonly CloudSpace[] = [];
+
+export type DesktopWorkspaceSwitcherProps = {
   open: boolean;
   refObject: RefObject<HTMLDivElement>;
   titlebarLabel: string;
-  menuAlignment?: "start" | "center";
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
-  projectLocation?: DesktopProjectLocation;
-  cloudProject?: DesktopProjectCloudCopy;
-  backupProviders?: readonly ProjectBackupProvider[];
-  backupStatus?: GitStatusSnapshot | null;
   availableProjects?: readonly Workspace[];
+  projectItems?: readonly ProjectHomeItem[];
+  /** Every Space this account reaches; the menu lists Cloud projects under the Space that holds them. */
+  spaces?: readonly CloudSpace[];
+  /** The open folder's place; the menu then lists only its folders. Absent, it lists every place's. */
+  place?: ProjectMenuPlace;
+  pendingProject?: ProjectTarget | null;
   onAddExistingProject?: (folderPath: string) => void;
   onOpenFolder?: () => void;
   onClose: () => void;
-  onShare?: () => void;
-  onViewLocal?: () => void;
-  onViewCloud?: () => void;
   onToggle: () => void;
+  onSelectProject?: (path: string) => void;
+  onSelectCloudProject?: (projectId: string) => void;
+  onCreateProject?: () => void;
+  onHome?: () => void;
 };
-
-export type DesktopProjectLocation = Readonly<{
-  /** The project surface currently displayed; a remote alone does not select Cloud. */
-  current: "local" | "cloud";
-  localAvailable: boolean;
-  cloudState: "unavailable" | "available" | "signed-out" | "resolving" | "attention";
-}>;
-
-export type DesktopProjectCloudCopy = Readonly<{ id: string; name?: string | null }>;
 
 export function DesktopWorkspaceSwitcher({
   open,
   refObject,
   titlebarLabel,
-  menuAlignment = "start",
   workspace,
   workspaceFolders,
   multiRootWorkspacesEnabled,
-  projectLocation,
-  cloudProject,
-  backupProviders = [],
-  backupStatus = null,
   availableProjects = [],
+  projectItems,
+  spaces = NO_SPACES,
+  place,
+  pendingProject,
   onAddExistingProject,
   onOpenFolder,
   onClose,
-  onViewLocal,
-  onViewCloud,
   onToggle,
+  onSelectProject,
+  onSelectCloudProject,
+  onCreateProject,
+  onHome,
 }: DesktopWorkspaceSwitcherProps) {
   const { t } = useLocalization();
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [view, setView] = useState<"projects" | "add">("projects");
-  const [projectMenuWidth, setProjectMenuWidth] = useState(248);
-  const localDeviceLabel = useProjectDeviceLabel();
-  const currentProjectLocationKind = projectLocation?.current ?? "local";
-  const workspaceContextAssetLabel = currentProjectLocationKind === "cloud"
-    ? t("shell.workspaceSwitcher.location.cloud") : localDeviceLabel;
   const attachedFolders = useMemo(
     () => workspaceFolders.length > 0
       ? workspaceFolders
@@ -97,6 +80,28 @@ export function DesktopWorkspaceSwitcher({
     const attachedPaths = new Set(attachedFolders.map((folder) => folder.workspace.path));
     return availableProjects.filter((project) => !attachedPaths.has(project.path));
   }, [attachedFolders, availableProjects]);
+  // Without the account catalog, every entry is the project it names: a local
+  // folder, or a Cloud project. A folder's Git remote never merges the two.
+  const projects = useMemo<readonly ProjectHomeItem[]>(() => projectItems
+    ?? [...new Map(availableProjects.map(project => [project.path, project])).values()].map(project => {
+      const hosted = project.path.startsWith("puppyone-cloud:");
+      return { id: project.id, label: project.name, localPath: hosted ? "" : project.path,
+        ...(hosted && project.projectId ? { cloudProjectId: project.projectId } : {}) };
+    }), [availableProjects, projectItems]);
+  const currentCloudProjectId = workspace.path.startsWith("puppyone-cloud:") ? workspace.projectId : null;
+  const groups = useMemo(() => {
+    const all = groupProjectsByPlace(projects, spaces);
+    return place ? projectMenuGroupsInPlace(all, place) : all;
+  }, [place, projects, spaces]);
+  const headings = !place && projectMenuGroupsNeedHeadings(groups);
+  const listed = groups.some((group) => group.items.length > 0);
+  const platform = useDesktopPlatformCapabilities();
+  const spaceName = useSpaceName();
+  const groupName = (group: ProjectMenuGroup) => {
+    if (group.kind === "space") return spaceName(group.space);
+    if (group.kind === "cloud") return t("cloud.home.location.cloud");
+    return t(platform?.platform === "macos" ? "shell.workspaceSwitcher.location.thisMac" : "shell.workspaceSwitcher.location.thisComputer");
+  };
   useEffect(() => {
     if (!open || (view === "add" && !multiRootWorkspacesEnabled)) setView("projects");
   }, [multiRootWorkspacesEnabled, open, view]);
@@ -105,53 +110,68 @@ export function DesktopWorkspaceSwitcher({
   }, [workspace.path]);
   return (
     <div className="desktop-titlebar-workspace-wrap" ref={refObject}>
-      <Tooltip content={t("shell.workspaceSwitcher.projectTitle", {
-          project: bidiIsolate(workspace.name),
-        }) + ` · ${workspaceContextAssetLabel}`}><button
-        className="desktop-titlebar-workspace-button local"
-        type="button"
-        aria-label={t("shell.workspaceSwitcher.openMenu", {
-          workspace: bidiIsolate(workspace.name),
-        }) + ` · ${workspaceContextAssetLabel}`}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={() => {
-          setView("projects");
-          onToggle();
-        }}
-      >
-        <ProjectLocationMark
-          className="desktop-titlebar-workspace-mark"
-          kind={currentProjectLocationKind}
-          size={16}
-        />
+      <button
+        type="button" ref={triggerRef} className="desktop-titlebar-workspace-button"
+        aria-label={t("shell.workspaceSwitcher.openMenu", { workspace: bidiIsolate(workspace.name) })}
+        aria-expanded={open} aria-haspopup="menu" onClick={() => { setView("projects"); onToggle(); }}>
+        <FolderIcon className="desktop-titlebar-workspace-mark" size={16} strokeWidth={1.65} aria-hidden="true" />
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
-      </button></Tooltip>
+      </button>
       <DesktopTitlebarMenuLayer
-        anchorRef={refObject}
+        anchorRef={triggerRef}
         className="desktop-project-menu"
-        gap={4}
+        gap={2}
         onDismiss={onClose}
+        dismissOnFocusExit={false}
         open={open}
         preferredMaxHeight={520}
-        preferredWidth={view === "add" ? 240 : projectMenuWidth}
-        alignment={menuAlignment}
-        role="dialog"
-        ariaLabel={t("shell.workspaceSwitcher.projectDetails")}
+        preferredWidth={240}
+        widthMode="fixed"
+        role="menu"
+        ariaLabel={t("shell.workspaceSwitcher.projects")}
       >
         {view !== "add" ? (
           <>
-            <DesktopProjectLocationControls
-              projectLocation={projectLocation}
-              cloudProject={cloudProject ?? (workspace.puppyoneGitRemote?.projectId
-                ? { id: workspace.puppyoneGitRemote.projectId } : undefined)}
-              backupProviders={backupProviders}
-              backupStatus={backupStatus}
-              onViewLocal={onViewLocal}
-              onViewCloud={onViewCloud}
-              onDone={onClose}
-              onPreferredWidthChange={setProjectMenuWidth}
-            />
+            {onHome && <>
+              <DesktopMenuItem icon={<ArrowLeft className="po-directional-icon" size={15} />} label={t("shell.workspaceSwitcher.home")}
+                onClick={() => { onClose(); onHome(); }} />
+              {listed && <DesktopMenuSeparator />}
+            </>}
+            <div className="desktop-project-list desktop-project-switcher-list" data-po-scrollbar="menu">
+              {groups.map(group => {
+                const rows = group.items.map(project => {
+                  const selected = project.localPath === workspace.path
+                    || Boolean(currentCloudProjectId && project.cloudProjectId === currentCloudProjectId);
+                  return <DesktopProjectMenuItem key={`${project.id}:${project.localPath}`}
+                    project={project} selected={selected}
+                    pending={projectMatchesTarget(project, pendingProject ?? null)}
+                    onSelect={() => {
+                      onClose();
+                      if (selected && !pendingProject) return;
+                      if (project.localPath) onSelectProject?.(project.localPath);
+                      else if (project.cloudProjectId) onSelectCloudProject?.(project.cloudProjectId);
+                    }} />;
+                });
+                if (!headings) return rows;
+                const key = group.kind === "space" ? `space:${group.space.id}` : group.kind;
+                const name = groupName(group);
+                return <div key={key} className="desktop-project-menu-group" role="group" aria-label={name}
+                  data-project-menu-group={group.kind}>
+                  <div className="desktop-project-menu-group-label" aria-hidden="true">
+                    {group.kind === "space" && <SpaceMark space={group.space} size="sm" />}
+                    {group.kind === "local" && <LocalIcon size={12} strokeWidth={1.8} />}
+                    {group.kind === "cloud" && <CloudIcon size={12} strokeWidth={1.8} />}
+                    <bdi>{name}</bdi>
+                  </div>
+                  {rows}
+                </div>;
+              })}
+            </div>
+            {onCreateProject && <>
+              {listed && <DesktopMenuSeparator />}
+              <DesktopMenuItem icon={<Plus size={15} />} label={t("shell.workspaceSwitcher.createNew")}
+                onClick={() => { onClose(); onCreateProject(); }} />
+            </>}
             {(attachedFolders.length > 1 || multiRootWorkspacesEnabled) && (
               <div className="desktop-project-list" data-po-scrollbar="menu"
                 role="menu" aria-label={t("shell.workspaceSwitcher.projects")}>
@@ -190,9 +210,7 @@ export function DesktopWorkspaceSwitcher({
                 <DesktopMenuItem
                   className="desktop-project-add"
                   detail={(
-                    <Tooltip content={project.path} overflowOnly>
-                      <bdi dir="ltr">{getWorkspaceParentPathForDisplay(project.path)}</bdi>
-                    </Tooltip>
+                    <bdi dir="ltr">{getWorkspaceParentPathForDisplay(project.path)}</bdi>
                   )}
                   icon={(
                     <ProjectContextAssetMark
@@ -220,120 +238,6 @@ export function DesktopWorkspaceSwitcher({
   );
 }
 
-/** Shared by the project popover and Cloud header so switching is reversible. */
-export function DesktopProjectLocationControls({
-  projectLocation,
-  cloudProject,
-  backupProviders = [],
-  backupStatus = null,
-  onViewLocal,
-  onViewCloud,
-  onDone,
-  onPreferredWidthChange,
-}: {
-  projectLocation?: DesktopProjectLocation;
-  cloudProject?: DesktopProjectCloudCopy;
-  backupProviders?: readonly ProjectBackupProvider[];
-  backupStatus?: GitStatusSnapshot | null;
-  onViewLocal?: () => void;
-  onViewCloud?: () => void;
-  onDone?: () => void;
-  onPreferredWidthChange?: (width: number) => void;
-}) {
-  const { t } = useLocalization();
-  const localDeviceLabel = useProjectDeviceLabel();
-  const controlsRef = useRef<HTMLDivElement>(null);
-  const current = projectLocation?.current ?? "local";
-  const cloudLinked = current === "cloud" || Boolean(cloudProject?.id)
-    || projectLocation?.cloudState === "available" || projectLocation?.cloudState === "signed-out";
-  const createCloud = !cloudLinked && Boolean(onViewCloud)
-    && (!projectLocation || projectLocation.cloudState === "unavailable");
-  const repositoryUrl = backupProviders.includes("github")
-    ? getProjectBackupSnapshot(backupStatus, "github").repositoryUrl : null;
-  // Measure translated labels with their actual themed font, preserving the
-  // compact height while allowing longer device names to fit beside GitHub.
-  useLayoutEffect(() => {
-    const controls = controlsRef.current;
-    if (!controls || !onPreferredWidthChange) return undefined;
-    const track = controls.querySelector<HTMLElement>(".desktop-project-location-tabs");
-    const menu = controls.closest<HTMLElement>(".desktop-project-menu");
-    if (!track || !menu) return undefined;
-    const buttons = [...track.querySelectorAll<HTMLButtonElement>("button")];
-    const labels = buttons.map(button => button.querySelector<HTMLElement>("span:last-child")!);
-    const measure = () => {
-      const pixels = (value: string) => parseFloat(value) || 0;
-      const horizontalInsets = (element: HTMLElement) => {
-        const style = getComputedStyle(element);
-        return pixels(style.paddingLeft) + pixels(style.paddingRight)
-          + pixels(style.borderLeftWidth) + pixels(style.borderRightWidth);
-      };
-      const buttonsWidth = buttons.reduce((width, button, index) => width
-        + labels[index].scrollWidth + horizontalInsets(button)
-        + (button.querySelector<HTMLElement>(".desktop-project-location-tab-mark")?.getBoundingClientRect().width ?? 0)
-        + pixels(getComputedStyle(button).gap), 0);
-      const repository = controls.querySelector<HTMLElement>(".desktop-project-repository-link");
-      const width = buttonsWidth + horizontalInsets(track)
-        + pixels(getComputedStyle(track).gap) * (buttons.length - 1)
-        + (repository ? repository.getBoundingClientRect().width + pixels(getComputedStyle(controls).gap) : 0)
-        + horizontalInsets(menu);
-      onPreferredWidthChange(Math.max(248, Math.ceil(width)));
-    };
-    measure();
-    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
-    labels.forEach(label => observer?.observe(label));
-    return () => observer?.disconnect();
-  }, [createCloud, localDeviceLabel, onPreferredWidthChange, repositoryUrl, t]);
-  const maskImage = `url("${resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.integrations.github)}")`;
-  return (
-    <div ref={controlsRef} className="desktop-project-location-controls" data-cloud-entry={createCloud ? "create" : "switch"}>
-      <div className="desktop-project-location-tabs" role="group"
-        aria-label={t("shell.workspaceSwitcher.projectDetails")}>
-        {(["local", "cloud"] as const).map((location) => {
-          const creating = location === "cloud" && createCloud;
-          const selected = location === current;
-          const navigate = location === "local" ? onViewLocal : onViewCloud;
-          const disabled = !selected && (!navigate || (location === "local"
-            ? projectLocation?.localAvailable === false
-            : projectLocation?.cloudState === "resolving"));
-          const tooltip = selected ? t("shell.workspaceSwitcher.current")
-            : creating ? t("shell.workspaceSwitcher.createCloudVersion")
-              : location === "cloud" && projectLocation?.cloudState === "resolving"
-                ? t("shell.workspaceSwitcher.location.checking")
-                : t(location === "local" ? "shell.surface.switchToLocal" : "shell.surface.switchToCloud");
-          return <Tooltip content={tooltip} key={location}><button
-            className="desktop-project-location-tab"
-            type="button"
-            data-project-location={location}
-            data-cloud-action={creating ? "create" : undefined}
-            aria-pressed={creating ? undefined : selected}
-            aria-current={selected ? "true" : undefined}
-            disabled={disabled}
-            onClick={() => {
-              onDone?.();
-              if (!selected) navigate?.();
-            }}
-          >
-            <ProjectLocationMark className="desktop-project-location-tab-mark" kind={location} creating={creating} size={14} />
-            <span>{location === "local" ? localDeviceLabel
-              : t(creating ? "shell.workspaceSwitcher.createCloudVersion" : "shell.navigation.cloud")}</span>
-          </button></Tooltip>;
-        })}
-      </div>
-      {repositoryUrl && <Tooltip content={t("shell.workspaceSwitcher.openGitHubRepository")}><a
-        className="desktop-project-repository-link"
-        href={repositoryUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={t("shell.workspaceSwitcher.openGitHubRepository")}
-        onClick={onDone}
-      >
-        <span className="desktop-project-github-mark" aria-hidden="true"
-          style={{ maskImage, WebkitMaskImage: maskImage }} />
-      </a></Tooltip>}
-    </div>
-  );
-}
-
 function DesktopProjectRow({
   folder,
 }: {
@@ -356,48 +260,15 @@ function DesktopProjectRow({
         <span className="desktop-menu-item-body">
           <bdi className="desktop-menu-item-label">{folder.name}</bdi>
           {detail ? (
-            <Tooltip content={folder.workspace.path} overflowOnly><bdi
+            <bdi
               className="desktop-menu-item-detail"
               dir="ltr"
             >
               {detail}
-            </bdi></Tooltip>
+            </bdi>
           ) : null}
         </span>
       </div>
     </div>
-  );
-}
-
-function useProjectDeviceLabel() {
-  const { t } = useLocalization();
-  const capabilities = useDesktopPlatformCapabilities();
-  return t(capabilities?.platform === "macos"
-    ? "shell.workspaceSwitcher.location.thisMac"
-    : "shell.workspaceSwitcher.location.thisComputer");
-}
-
-function ProjectLocationMark({
-  className,
-  kind,
-  creating = false,
-  size = 15,
-  strokeWidth = 1.75,
-}: {
-  className: string;
-  kind: DesktopProjectLocation["current"];
-  creating?: boolean;
-  size?: number;
-  strokeWidth?: number;
-}) {
-  const Icon = kind === "cloud" ? (creating ? Plus : Cloud) : Laptop;
-  return (
-    <span
-      className={`desktop-project-location-mark ${className}`}
-      data-project-location={kind}
-      aria-hidden="true"
-    >
-      <Icon size={size} strokeWidth={strokeWidth} />
-    </span>
   );
 }

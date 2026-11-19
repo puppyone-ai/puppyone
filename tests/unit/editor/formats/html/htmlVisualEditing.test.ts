@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { CodeMirrorDocumentModel } from "../../../../../packages/shared-ui/src/editor/document-session/CodeMirrorDocumentModel";
-import { HtmlVisualSession } from "../../../../../packages/shared-ui/src/editor/viewers/html/HtmlVisualSession";
-import { parseHtmlSource } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlSourceIndex";
-import { buildHtmlEditingProjection } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlPreviewProjection";
-import { decodeHtmlBridgeMessage } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlBridgeProtocol";
-import { imageSourceReference } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlImageReference";
-import { compileHtmlEdit } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlEditCompiler";
-import { buildHtmlPreviewDocument } from "../../../../../packages/shared-ui/src/editor/viewers/html/HtmlPreviewFrame";
+import { CodeMirrorDocumentModel } from "../../../../../src/shared-ui/editor/document-session/CodeMirrorDocumentModel";
+import { HtmlVisualSession } from "../../../../../src/shared-ui/editor/viewers/html/HtmlVisualSession";
+import { parseHtmlSource } from "../../../../../src/shared-ui/editor/viewers/html/htmlSourceIndex";
+import { buildHtmlEditingProjection } from "../../../../../src/shared-ui/editor/viewers/html/htmlPreviewProjection";
+import { decodeHtmlBridgeMessage } from "../../../../../src/shared-ui/editor/viewers/html/htmlBridgeProtocol";
+import { imageSourceReference } from "../../../../../src/shared-ui/editor/viewers/html/htmlImageReference";
+import { compileHtmlEdit } from "../../../../../src/shared-ui/editor/viewers/html/htmlEditCompiler";
+import { buildHtmlPreviewDocument, getHtmlPreviewPolicy } from "../../../../../src/shared-ui/editor/viewers/html/HtmlPreviewFrame";
+import { readHtmlPagePointer, readHtmlPageViewport } from "../../../../../src/shared-ui/editor/viewers/html/htmlPageViewport";
 
 function setup(content: string) {
   const model = new CodeMirrorDocumentModel(content, undefined, true);
@@ -151,7 +152,92 @@ describe("HTML source-based visual editing", () => {
   });
 });
 
+describe("HTML block structure and link editing", () => {
+  const LIST = "<main>\n  <p>One</p>\n  <p>Two</p>\n  <p>Three</p>\n</main>";
+  const paragraph = (session: HtmlVisualSession, text: string) => [...session.index.targets.values()]
+    .find((target) => target.tag === "p" && session.read(target.id).text === text)!.id;
+
+  it("moves a block past its sibling, keeps the whitespace between them and selects the moved block", () => {
+    const { model, session } = setup(LIST);
+    const [down] = session.apply(paragraph(session, "One"), model.revision, { kind: "structure", action: "move-down" }, "m");
+    expect(model.readSnapshot().content).toBe("<main>\n  <p>Two</p>\n  <p>One</p>\n  <p>Three</p>\n</main>");
+    expect(down).toMatchObject({ kind: "structure", action: "move-down", selectId: paragraph(session, "One") });
+    const [up] = session.apply(paragraph(session, "Three"), model.revision, { kind: "structure", action: "move-up" }, "m");
+    expect(model.readSnapshot().content).toBe("<main>\n  <p>Two</p>\n  <p>Three</p>\n  <p>One</p>\n</main>");
+    expect(up).toMatchObject({ kind: "structure", selectId: paragraph(session, "Three") });
+  });
+  it("duplicates a block on its own indented line and selects the copy", () => {
+    const { model, session } = setup(LIST);
+    const original = session.index.targets.get(paragraph(session, "Two"))!;
+    const [patch] = session.apply(original.id, model.revision, { kind: "structure", action: "duplicate" }, "d");
+    expect(model.readSnapshot().content).toBe("<main>\n  <p>One</p>\n  <p>Two</p>\n  <p>Two</p>\n  <p>Three</p>\n</main>");
+    const copy = session.index.targets.get(patch!.kind === "structure" ? patch!.selectId! : "")!;
+    expect(copy.start).toBeGreaterThan(original.start);
+    expect(session.read(copy.id).text).toBe("Two");
+  });
+  it("deletes a block together with the indentation of its line", () => {
+    const { model, session } = setup(LIST);
+    session.apply(paragraph(session, "Two"), model.revision, { kind: "structure", action: "delete" }, "x");
+    expect(model.readSnapshot().content).toBe("<main>\n  <p>One</p>\n  <p>Three</p>\n</main>");
+  });
+  it("offers moves only between movable siblings and refuses the rest without touching the source", () => {
+    const { model, session, id } = setup("<main><p>One</p><p>Two <span>x</span></p></main>");
+    const first = session.index.targets.get(paragraph(session, "One"))!;
+    expect(first.blockMovable).toBe(true);
+    expect(first.prevSiblingId).toBeNull();
+    expect(first.nextSiblingId).toBe(id("p", 1));
+    expect(session.index.targets.get(id("main"))!.blockMovable).toBe(false);
+    expect(() => session.apply(first.id, model.revision, { kind: "structure", action: "move-up" }, "m")).toThrow("unsupported");
+    expect(() => session.apply(id("span"), model.revision, { kind: "structure", action: "duplicate" }, "m")).toThrow("unsupported");
+    expect(model.readSnapshot().content).toBe("<main><p>One</p><p>Two <span>x</span></p></main>");
+  });
+  it("edits a link's address in place", () => {
+    const { model, session, id } = setup('<p>See <a href="https://old.example">docs</a></p>');
+    expect(session.index.targets.get(id("a"))!.link).toBe(true);
+    const [patch] = session.apply(id("a"), model.revision, { kind: "attribute", name: "href", value: "https://new.example/?a=1&b=2" }, "h");
+    expect(model.readSnapshot().content).toBe('<p>See <a href="https://new.example/?a=1&amp;b=2">docs</a></p>');
+    expect(patch).toEqual({ id: id("a"), kind: "attribute", name: "href", value: "https://new.example/?a=1&b=2" });
+  });
+  it("accepts only bounded in-page typing and composition messages", () => {
+    expect(decodeHtmlBridgeMessage({ type: "input", id: "t0", value: "Hello" })).toEqual({ type: "input", id: "t0", value: "Hello" });
+    expect(decodeHtmlBridgeMessage({ type: "input", id: "../secret", value: "x" })).toBeNull();
+    expect(decodeHtmlBridgeMessage({ type: "input", id: "t0", value: "x".repeat(65537) })).toBeNull();
+    expect(decodeHtmlBridgeMessage({ type: "composition", value: true })).toEqual({ type: "composition", value: true });
+    expect(decodeHtmlBridgeMessage({ type: "composition", value: "yes" })).toBeNull();
+  });
+});
+
 describe("HTML projection and resource boundaries", () => {
+  it("allows original page scripts only in interaction mode while retaining sandbox boundaries", () => {
+    const source = '<button onclick="this.textContent=\'Clicked\'">Click</button><script>window.pageReady=true</script>';
+    const interactive = getHtmlPreviewPolicy("safe", true);
+    const projected = buildHtmlPreviewDocument(source, "puppyone-local://workspace/page.html", interactive);
+    expect(interactive.sandbox).toContain("allow-scripts");
+    expect(interactive.sandbox).not.toContain("allow-same-origin");
+    expect(interactive.sandbox).not.toContain("allow-top-navigation");
+    expect(projected).toContain("window.pageReady=true");
+    expect(projected).toContain("script-src 'unsafe-inline' https: puppyone-local:");
+    expect(projected).toContain('target="_self"');
+    expect(interactive.csp).toMatch(/connect-src https:;/);
+    expect(interactive.csp).not.toMatch(/connect-src[^;]*puppyone-local:/);
+    expect(interactive.csp).toMatch(/img-src[^;]*puppyone-local:/);
+    expect(interactive.csp).toMatch(/style-src[^;]*puppyone-local:/);
+    expect(getHtmlPreviewPolicy("safe").csp).toContain("script-src 'none'");
+    expect(getHtmlPreviewPolicy("safe").sandbox).not.toContain("allow-scripts");
+  });
+  it("accepts only finite, bounded scroll state from the interactive page", () => {
+    expect(readHtmlPageViewport({ x: 10, y: 200 })).toEqual({ x: 10, y: 200 });
+    for (const value of [null, { x: NaN, y: 0 }, { x: 0, y: Infinity }, { x: -1, y: 0 }, { x: 0, y: 1e8 }, { x: "1", y: 2 }]) {
+      expect(readHtmlPageViewport(value)).toBeNull();
+    }
+  });
+  it("accepts only a finite, bounded pointer or a leave from the interactive page", () => {
+    expect(readHtmlPagePointer({ x: 10, y: 200 })).toEqual({ x: 10, y: 200 });
+    expect(readHtmlPagePointer({ left: true, x: 10, y: 200 })).toBeNull();
+    for (const value of [null, { x: NaN, y: 0 }, { x: 0, y: Infinity }, { x: 0, y: 1e8 }, { x: "1", y: 2 }, { left: "yes" }]) {
+      expect(readHtmlPagePointer(value)).toBeUndefined();
+    }
+  });
   it("builds preview headers structurally and honors the original relative base", () => {
     const source = '<!doctype html><html><head data-note=">"><base href="assets/"><style>p:after{content:"</body>"}</style></head><body><p>Hi</p></body></html>';
     const projected = buildHtmlPreviewDocument(source, "puppyone-local://workspace/pages/index.html", { sandbox: "", csp: "script-src 'none'" });
@@ -195,6 +281,9 @@ describe("HTML projection and resource boundaries", () => {
     expect(decodeHtmlBridgeMessage({ type: "pointer", x: Infinity, y: 0 })).toBeNull();
     expect(decodeHtmlBridgeMessage({ type: "pointer", x: 0, y: 1e8 })).toBeNull();
     expect(decodeHtmlBridgeMessage({ type: "pointer", x: 12, y: 24, path: "secret" })).toEqual({ type: "pointer", x: 12, y: 24 });
+    expect(decodeHtmlBridgeMessage({ type: "hover", x: 12, y: 24, path: "secret" })).toEqual({ type: "hover", x: 12, y: 24 });
+    expect(decodeHtmlBridgeMessage({ type: "hover", x: 12, y: NaN })).toBeNull();
+    expect(decodeHtmlBridgeMessage({ type: "hover-end", x: 1 })).toEqual({ type: "hover-end" });
     expect(decodeHtmlBridgeMessage({ type: "selection", id: "t0", edit: false, reason: "hover",
       rect: { x: 0, y: 0, width: 10, height: 10 }, clip: { top: 0, right: 0, bottom: 0, left: 0 }, styles: {} })).toBeNull();
     expect(decodeHtmlBridgeMessage({ type: "selection", id: "t0", edit: true, reason: "select",

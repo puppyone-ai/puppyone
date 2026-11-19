@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { AuxiliaryWorkbenchItemSnapshot } from "../types";
+import type { AuxiliaryWorkbenchItemSnapshot } from "../../../../lib/workbench/types";
 export type AuxiliaryWorkbenchHeaderItem = Readonly<{
   id: string;
   headerKey?: string;

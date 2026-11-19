@@ -3,9 +3,30 @@ import os from "node:os";
 import path from "node:path";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
+import { AgentSessionActor } from "../../../../../electron/main/agent/domain/agent-session-actor.mjs";
 import { PiRpcAdapter } from "../../../../../electron/main/agent/runtimes/pi/pi-rpc-adapter.mjs";
 
 describe("Pi native RuntimePort adapter", () => {
+  it.each(["info", "warning", "error"])("keeps %s extension notices out of tools and execution state", async severity => {
+    const clients = [], events = [];
+    const actor = new AgentSessionActor();
+    const adapter = createAdapter({ clients, events });
+    try {
+      await adapter.createSession();
+      await adapter.startTurn({ prompt: "Hello" });
+      const client = clients[0];
+      client.emit("event", { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Hello " } });
+      client.emit("event", { type: "extension_ui_request", method: "notify", id: "notice-1", notifyType: severity, message: "Extension message" });
+      client.emit("event", { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "again." } });
+      for (const event of events) actor.appendEvent({ sessionId: "test-session", runtimeId: "pi", providerSessionId: "pi-session", event });
+      expect(actor.display.messages.filter(m => m.role === "assistant").map(m => m.text)).toEqual(["Hello again."]);
+      expect(actor.display.activities).toEqual([expect.objectContaining({ kind: "notification", label: "Extension message", detail: expect.objectContaining({ severity }) })]);
+      expect(actor.display.rows.some(row => row.kind === "tool")).toBe(false);
+      expect(actor.control.execution.status).toBe("active");
+      expect(events.filter(e => e.type === "provider.notification")).toHaveLength(1);
+    } finally { await adapter.dispose(); }
+  });
+
   it("completes a turn after native model retries recover instead of retaining an earlier fetch failure", async () => {
     const clients = [], events = [];
     const adapter = createAdapter({ clients, events });
@@ -42,7 +63,28 @@ describe("Pi native RuntimePort adapter", () => {
       : request(type, payload));
     await expect(adapter.startTurn({ prompt: "Hello" })).rejects.toMatchObject({ deliveryOutcome: "unknown" });
     expect(events.some((event) => ["turn.failed", "turn.interrupted", "turn.completed"].includes(event.type))).toBe(false);
-    expect(onExit).toHaveBeenCalledWith(expect.objectContaining({ expected: false }));
+    expect(onExit).not.toHaveBeenCalled();
+    expect(events.some(event => event.type === "turn.started")).toBe(false);
+    await expect(adapter.startTurn({ prompt: "must not duplicate" })).rejects.toThrow(/already running/);
+    clients[0].emit("event", { type: "agent_start" });
+    expect(events.find(event => event.type === "turn.started")?.payload.clientUserMessageId).toEqual(expect.any(String));
+    clients[0].emit("event", { type: "message_end", message: { role: "assistant", content: [], stopReason: "stop" } });
+    clients[0].emit("event", { type: "agent_settled" });
+    expect(events.some(event => event.type === "turn.completed")).toBe(true);
+    await adapter.dispose();
+  });
+
+  it("does not mark an unsent prompt uncertain when the preflight state read times out", async () => {
+    const clients = [], events = [];
+    const adapter = createAdapter({ clients, events });
+    await adapter.createSession();
+    const original = clients[0].request.bind(clients[0]);
+    clients[0].request = vi.fn().mockRejectedValueOnce(Object.assign(new Error("State read timed out"), { deliveryOutcome: "unknown" }))
+      .mockImplementation(original);
+    const error = await adapter.startTurn({ prompt: "Not yet sent" }).catch(error => error);
+    expect(error.deliveryOutcome).toBeUndefined();
+    expect(events.some(event => event.type === "turn.started")).toBe(false);
+    expect(clients[0].calls.some(call => call.type === "prompt")).toBe(false);
     await adapter.dispose();
   });
 

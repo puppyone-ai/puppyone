@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "environment": {
     "VITE_DESKTOP_CLOUD_API_URL": "https://api.puppyone.ai/api/v1",
-    "VITE_DESKTOP_CLOUD_WEB_URL": "https://app.puppyone.ai"
+    "VITE_DESKTOP_CLOUD_WEB_URL": "https://try.puppyone.ai"
   },
   "checks": [
     {
@@ -85,7 +85,7 @@
         "win32"
       ],
       "dependsOn": [],
-      "timeoutSeconds": 900,
+      "timeoutSeconds": 1200,
       "runtime": "node",
       "artifacts": [
         "{checkDir}/vitest/invocation.json",
@@ -104,6 +104,7 @@
       "platforms": ["linux", "darwin"],
       "dependsOn": ["build"],
       "timeoutSeconds": 120,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": ["{checkDir}/attachment-ui/result.json"],
       "environment": {
@@ -125,6 +126,7 @@
       ],
       "dependsOn": [],
       "timeoutSeconds": 120,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": []
     },
@@ -136,6 +138,7 @@
       "platforms": ["linux", "darwin"],
       "dependsOn": [],
       "timeoutSeconds": 120,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": ["{checkDir}/markdown-selection/report.json", "{checkDir}/markdown-selection/runner.json"],
       "environment": {
@@ -150,10 +153,26 @@
       "platforms": ["linux", "darwin"],
       "dependsOn": [],
       "timeoutSeconds": 120,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": ["{checkDir}/markdown-layout/result.json"],
       "environment": {
         "PUPPYONE_MARKDOWN_LAYOUT_ARTIFACT_DIR": "{checkDir}/markdown-layout"
+      }
+    },
+    {
+      "id": "markdown-block-drag",
+      "name": "Markdown block drag gesture",
+      "group": "app",
+      "command": ["npm", "run", "smoke:markdown-block-drag"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 240,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/markdown-block-drag/result.json"],
+      "environment": {
+        "PUPPYONE_BLOCK_DRAG_ARTIFACT_DIR": "{checkDir}/markdown-block-drag"
       }
     },
     {
@@ -164,11 +183,108 @@
       "platforms": ["linux", "darwin"],
       "dependsOn": [],
       "timeoutSeconds": 120,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": ["{checkDir}/table-interaction/result.json"],
       "environment": {
         "PUPPYONE_TABLE_INTERACTION_ARTIFACT_DIR": "{checkDir}/table-interaction"
       }
+    },
+    {
+      "id": "markdown-quote-colors",
+      "name": "Markdown supporting text, code/table typography and inline code",
+      "group": "app",
+      "command": ["npm", "run", "smoke:markdown-quote-colors"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/markdown-quote-colors/result.json"],
+      "environment": {
+        "PUPPYONE_MARKDOWN_QUOTE_ARTIFACT_DIR": "{checkDir}/markdown-quote-colors"
+      }
+    },
+    {
+      "id": "markdown-html-run",
+      "name": "Markdown inline HTML layout, theme media and caret reveal",
+      "group": "app",
+      "command": ["npm", "run", "smoke:markdown-html-run"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/markdown-html-run/result.json"],
+      "environment": {
+        "PUPPYONE_MARKDOWN_HTML_RUN_ARTIFACT_DIR": "{checkDir}/markdown-html-run"
+      }
+    },
+    {
+      "id": "markdown-syntax-gallery",
+      "name": "Markdown callouts, footnotes, front matter and HTML flows",
+      "group": "app",
+      "command": ["npm", "run", "smoke:markdown-syntax-gallery"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 120,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/markdown-syntax-gallery/result.json"],
+      "environment": {
+        "PUPPYONE_MARKDOWN_GALLERY_ARTIFACT_DIR": "{checkDir}/markdown-syntax-gallery"
+      }
+    },
+    {
+      "id": "table-move-selection",
+      "name": "Table move commands preserve row and column selection",
+      "group": "app",
+      "command": ["npm", "run", "smoke:table-move-selection"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/table-move-selection/result.json"],
+      "environment": {
+        "PUPPYONE_TABLE_MOVE_ARTIFACT_DIR": "{checkDir}/table-move-selection"
+      }
+    },
+    {
+      "id": "homepage-interaction",
+      "name": "Homepage pointer, keyboard and focus through real Main",
+      "group": "app",
+      "command": ["npm", "run", "smoke:homepage-interaction"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
+      "id": "homepage-visual",
+      "name": "Homepage geometry, type and scrolling in both themes",
+      "group": "app",
+      "command": ["npm", "run", "smoke:homepage-visual"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 240,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": []
+    },
+    {
+      "id": "missing-project-folder",
+      "name": "A project folder renamed on disk, on the Homepage and in its window",
+      "group": "app",
+      "command": ["npm", "run", "smoke:missing-project-folder"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 180,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": []
     },
     {
       "id": "native-resize-cursor",
@@ -185,6 +301,7 @@
       ],
       "dependsOn": [],
       "timeoutSeconds": 120,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": []
     },
@@ -224,6 +341,7 @@
         "build"
       ],
       "timeoutSeconds": 120,
+      "attempts": 2,
       "runtime": "electron",
       "environment": {
         "PUPPYONE_AGENT_RENDER_ARTIFACT_DIR": "{checkDir}/viewport"
@@ -249,6 +367,7 @@
         "build"
       ],
       "timeoutSeconds": 120,
+      "attempts": 2,
       "runtime": "electron",
       "environment": {
         "PUPPYONE_AGENT_TOOL_ARTIFACT_DIR": "{checkDir}/tools"
@@ -275,6 +394,7 @@
         "build"
       ],
       "timeoutSeconds": 180,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": []
     },
@@ -295,6 +415,7 @@
         "build"
       ],
       "timeoutSeconds": 240,
+      "attempts": 2,
       "runtime": "electron",
       "environment": {
         "PUPPYONE_SIDEBAR_VISIBILITY_ARTIFACT_DIR": "{checkDir}/evidence"
@@ -321,6 +442,7 @@
         "build"
       ],
       "timeoutSeconds": 180,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": []
     },
@@ -332,6 +454,7 @@
       "platforms": ["linux", "darwin"],
       "dependsOn": ["build"],
       "timeoutSeconds": 180,
+      "attempts": 2,
       "runtime": "electron",
       "environment": {
         "PUPPYONE_TEXT_SELECTION_ARTIFACT_DIR": "{checkDir}/evidence"
@@ -355,6 +478,7 @@
         "build"
       ],
       "timeoutSeconds": 180,
+      "attempts": 2,
       "runtime": "electron",
       "environment": {
         "PUPPYONE_AUXILIARY_ARTIFACT_DIR": "{checkDir}/evidence"
@@ -371,6 +495,7 @@
       "platforms": ["linux", "darwin"],
       "dependsOn": [],
       "timeoutSeconds": 90,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": []
     },
@@ -389,6 +514,7 @@
       ],
       "dependsOn": [],
       "timeoutSeconds": 180,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": []
     },
@@ -407,8 +533,47 @@
       ],
       "dependsOn": [],
       "timeoutSeconds": 180,
+      "attempts": 2,
       "runtime": "electron",
       "artifacts": []
+    },
+    {
+      "id": "html-app",
+      "name": "HTML links, CSP, real project editing and document lifecycle",
+      "group": "app",
+      "command": ["npm", "run", "smoke:html-app"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 120,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/html-app/result.json"],
+      "environment": { "PUPPYONE_HTML_APP_ARTIFACT_DIR": "{checkDir}/html-app" }
+    },
+    {
+      "id": "html-editor",
+      "name": "HTML visual editing, acknowledged scroll, geometry and safe cleanup",
+      "group": "app",
+      "command": ["npm", "run", "smoke:html-editor"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 120,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/html-editor/result.json"],
+      "environment": { "PUPPYONE_HTML_VISUAL_ARTIFACT_DIR": "{checkDir}/html-editor" }
+    },
+    {
+      "id": "whiteboard",
+      "name": "Whiteboard: drawing, text, persistence, external replacement and HTML embeds",
+      "group": "app",
+      "command": ["npm", "run", "smoke:whiteboard"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 180,
+      "runtime": "electron",
+      "environment": { "PUPPYONE_WHITEBOARD_ARTIFACT_DIR": "{checkDir}/evidence" },
+      "artifacts": ["{checkDir}/evidence/result.json", "{checkDir}/evidence"]
     },
     {
       "id": "editor-panes",
@@ -425,6 +590,7 @@
       ],
       "dependsOn": [],
       "timeoutSeconds": 300,
+      "attempts": 2,
       "runtime": "electron",
       "environment": {
         "PUPPYONE_PANE_CONTRACT_ARTIFACT_DIR": "{checkDir}/evidence"
@@ -442,9 +608,23 @@
       "platforms": ["linux", "darwin"],
       "dependsOn": ["build"],
       "timeoutSeconds": 240,
+      "attempts": 2,
       "runtime": "electron",
       "environment": { "PUPPYONE_PDF_APP_ARTIFACT_DIR": "{checkDir}/evidence" },
       "artifacts": ["{checkDir}/evidence/result.json", "{checkDir}/evidence"]
+    },
+    {
+      "id": "cloud-formats",
+      "name": "Cloud file formats: real previews, playback, visual editing and expired-resource recovery",
+      "group": "app",
+      "command": ["npm", "run", "smoke:cloud-formats"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": ["build"],
+      "timeoutSeconds": 300,
+      "attempts": 2,
+      "runtime": "electron",
+      "environment": { "PUPPYONE_CLOUD_FORMAT_ARTIFACT_DIR": "{checkDir}/evidence" },
+      "artifacts": ["{checkDir}/evidence/report.json", "{checkDir}/evidence/cloud-format-acceptance.json", "{checkDir}/evidence"]
     },
     {
       "id": "database-app",
@@ -454,6 +634,7 @@
       "platforms": ["linux", "darwin"],
       "dependsOn": ["build"],
       "timeoutSeconds": 240,
+      "attempts": 2,
       "runtime": "electron",
       "environment": { "PUPPYONE_DATABASE_APP_ARTIFACT_DIR": "{checkDir}/evidence" },
       "artifacts": ["{checkDir}/evidence/result.json", "{checkDir}/evidence"]

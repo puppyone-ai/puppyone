@@ -216,10 +216,6 @@
   color: var(--po-text);
 }
 
-.desktop-cloud-access-method-expanded-chevron {
-  transform: rotate(180deg);
-}
-
 .desktop-cloud-access-method-remote-button {
   min-width: 112px;
   color: var(--po-text-muted);

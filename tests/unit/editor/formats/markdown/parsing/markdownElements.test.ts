@@ -9,13 +9,13 @@ import {
   getInlineRevealElement,
   getMarkdownElements,
   getMarkdownElementsInRange,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
-import { markdownHiddenMarkerSelectionNormalizer } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/selectionBehavior";
+} from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownElements";
+import { markdownHiddenMarkerSelectionNormalizer } from "../../../../../../src/shared-ui/editor/markdown/core/state/selectionBehavior";
 import {
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
-import { findMarkdownLinkTokens } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkModel";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
+import { findMarkdownLinkTokens } from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownLinkModel";
 
 function createMarkdownState(source: string) {
   return EditorState.create({

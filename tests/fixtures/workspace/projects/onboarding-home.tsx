@@ -1,9 +1,8 @@
 import "../../../../src/styles/cascade.css";
-import "../../../../src/cloud-globals.css";
 import "../../../../src/styles.css";
 import { createRoot } from "react-dom/client";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
-import { MinimalOnboarding } from "../../../../src/components/MinimalOnboarding";
+import { HomeWithEntryFlow } from "../../../support/react/homeWithEntryFlow";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
 
@@ -12,24 +11,38 @@ const themeMode = query.get("theme") === "light" ? "light" : "dark";
 document.documentElement.classList.toggle("dark", themeMode === "dark");
 const noop = async () => undefined;
 const location = async () => ({ grantId: "fixture-location", path: "/example/Projects" });
+const samplePreviews = query.has("previews")
+  ? new Map([
+    ["/example/Projects/Notes-0", [
+      { name: "dashboard.html", kind: "html" as const, snippet: "Dashboard" },
+      { name: "README.md", kind: "md" as const, snippet: "# Notes" },
+      { name: "revenue.csv", kind: "csv" as const, snippet: "month,amount" },
+    ]],
+  ])
+  : undefined;
 
 createRoot(document.getElementById("root")!).render(
   <TestLocalizationProvider locale="en" messages={englishCatalog}>
-    <MinimalOnboarding
+    <HomeWithEntryFlow
       appearance={createTestSurfaceAppearance({ themeMode })}
-      projectItems={query.get("state") === "projects" ? [{
-        id: "example-project",
-        label: "Notes",
-        localPath: "/example/Projects/Notes",
-        lastOpenedAt: null,
-      }] : []}
+      projectPreviews={samplePreviews}
+      onOpenAgentSettings={query.has("agents") ? () => undefined : undefined}
+      projectItems={query.get("state") === "projects" ? Array.from({ length: Math.max(1, Math.min(100, Number(query.get("count")) || 1)) }, (_, index) => ({
+        id: `example-project-${index}`,
+        label: index ? `Notes ${index + 1}` : "Notes",
+        localPath: query.has("mixed") && index % 3 === 2 ? "" : `/example/Projects/Notes-${index}`,
+        ...(query.has("mixed") && index % 3 === 2 ? { cloudProjectId: `cloud-${index}` } : {}),
+        lastModifiedAt: query.has("mixed") ? new Date(Date.now() - (index + 1) * 86_400_000).toISOString() : null,
+      })) : []}
+      listHeld={query.has("held")}
       onChooseWorkspace={noop}
+      onRemoveProject={noop}
       onOpenWorkspacePath={noop}
       onOpenDroppedWorkspace={noop}
       onChooseProjectLocation={location}
       onDefaultProjectLocation={location}
       onCreateProject={async () => { throw new Error("Visual fixture does not create projects"); }}
-      onImportSource={async () => false}
+      onImportSource={async () => null}
       onConnectImportSource={async () => ({ connectionId: "fixture" })}
       onListImportResources={async () => ({ items: [], nextCursor: null })}
       onCancelImportSource={async () => ({ cancelled: true })}

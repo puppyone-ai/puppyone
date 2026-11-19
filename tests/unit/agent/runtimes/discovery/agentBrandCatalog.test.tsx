@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
@@ -11,6 +13,38 @@ import {
 } from "@puppyone/shared-ui";
 
 describe("Agent brand registry", () => {
+  it("recognizes a brand however an Agent writes its name", () => {
+    for (const [label, brandId] of [
+      ["Grok Bot", "grok-bot"],
+      ["grok-bot", "grok-bot"],
+      ["GROK_BOT", "grok-bot"],
+      ["Grok", "grok-bot"],
+      ["xAI Grok CLI", "grok-bot"],
+      ["GitHub Copilot", "github-copilot"],
+      ["github-copilot", "github-copilot"],
+      ["Microsoft Copilot Studio", "copilot-studio"],
+      ["Built-in Agent", "built-in-agent"],
+      ["Claude Code", "claude"],
+    ] as const) expect(resolveAgentBrand({ label })?.id, label).toBe(brandId);
+  });
+
+  it("gives a mark that cannot inherit the page's color an asset for each theme", () => {
+    // An <img> resolves currentColor to black, which is invisible on a dark surface.
+    const source = (path: string) => readFileSync(resolve(process.cwd(), "public", path), "utf8");
+    for (const brandId of AGENT_BRAND_IDS) {
+      const { light, dark } = AGENT_BRAND_CATALOG[brandId].assets;
+      if (!light.endsWith(".svg") || !source(light).includes("currentColor")) continue;
+      expect(dark, brandId).toBeDefined();
+      expect(source(dark!), brandId).not.toContain("currentColor");
+    }
+  });
+
+  it("claims no brand from part of a word or from a word two brands share", () => {
+    for (const label of ["Groq", "Grokking Notes", "Copilot", "GitHub", "Research helper", "我的小助手"]) {
+      expect(resolveAgentBrand({ label }), label).toBeNull();
+    }
+  });
+
   it("uses one canonical id and themed asset contract for every registered brand", () => {
     expect(Object.keys(AGENT_BRAND_CATALOG)).toEqual([...AGENT_BRAND_IDS]);
 

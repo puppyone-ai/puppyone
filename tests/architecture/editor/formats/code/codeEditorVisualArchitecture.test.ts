@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const codeEditorCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor/code-editor.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor/code-editor.css", import.meta.url),
   "utf8",
 );
 

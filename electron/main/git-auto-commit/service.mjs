@@ -3,7 +3,7 @@ import {
   recoverWorkspaceGitAutoCommit,
   resolveGitRepositoryIdentity,
   runWorkspaceGitAutoCommit,
-} from "../../../local-api/workspace.mjs";
+} from "../../local-api/workspace.mjs";
 import { repositoryLockKey, worktreeLockKey } from "../git-operation-coordinator.mjs";
 import { gitAutoCommitWorkspaceKey } from "./identity.mjs";
 import { createGitAutoCommitDeadlineScheduler, createSystemClock } from "./deadline-scheduler.mjs";

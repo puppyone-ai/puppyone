@@ -17,6 +17,15 @@ import {
   type FontCatalogEntry,
 } from "../../../../src/features/typography";
 
+// First run's scenes are drawings: their lettering and parts are measured on the
+// picture's own canvas and scaled with it (zoom), so they follow neither the
+// reader's text size nor the control scale.
+const PICTURE_STYLESHEETS = [
+  "src/components/onboarding/onboarding-value-carousel.css",
+  "src/components/onboarding/onboarding-value-hub.css",
+];
+const isPicture = (file: URL) => PICTURE_STYLESHEETS.some((name) => file.pathname.endsWith(`/${name}`));
+
 describe("typography architecture", () => {
   it("shares regular-weight content typography between discovery feedback and launcher labels", () => {
     const launcher = source("src/features/app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css");
@@ -116,14 +125,14 @@ describe("typography architecture", () => {
       "--po-user-header-meta-font-size": "14px",
       "--po-user-header-meta-line-height": "19px",
       "--po-user-text-size-content": "16px",
-      "--po-user-editor-line-height": "26px",
+      "--po-user-editor-line-height": "32px",
       "--po-user-text-size-data": "14px",
       "--po-user-code-font-size": "14px",
-      "--po-user-editor-heading-1-font-size": "32px",
-      "--po-user-editor-heading-2-font-size": "24px",
-      "--po-user-editor-heading-3-font-size": "20px",
-      "--po-user-editor-heading-4-font-size": "18px",
-      "--po-user-editor-heading-5-font-size": "17px",
+      "--po-user-editor-heading-1-font-size": "24px",
+      "--po-user-editor-heading-2-font-size": "20px",
+      "--po-user-editor-heading-3-font-size": "18px",
+      "--po-user-editor-heading-4-font-size": "17px",
+      "--po-user-editor-heading-5-font-size": "16px",
       "--po-user-editor-heading-6-font-size": "16px",
       "--po-user-text-size-conversation": "16px",
       "--po-user-right-sidebar-control-line-height": "21px",
@@ -173,14 +182,14 @@ describe("typography architecture", () => {
       },
       editor: {
         content: 15,
-        lineHeight: 24,
+        lineHeight: 30,
         data: 13,
         code: 13,
-        heading1: 30,
-        heading2: 23,
-        heading3: 19,
-        heading4: 17,
-        heading5: 16,
+        heading1: 22,
+        heading2: 19,
+        heading3: 17,
+        heading4: 16,
+        heading5: 15,
         heading6: 15,
       },
       rightSidebar: {
@@ -289,9 +298,10 @@ describe("typography architecture", () => {
     const directPixelFontShorthand = /\bfont\s*:\s*[^;\n}]*\d+(?:\.\d+)?px/i;
     const directPixelCssTypeToken = /--[\w-]*(?:font|text|type|heading|meta|label)[\w-]*size\s*:\s*\d+(?:\.\d+)?px/i;
     const directNumericInlineTypeSize = /\bfontSize\s*(?::|=)\s*(?:\{\s*)?\d+(?:\.\d+)?\b/;
-    const roots = ["src", "packages", "electron", "local-api", "sub-themes", "public"];
+    const roots = ["src", "electron", "public"];
     for (const root of roots) {
       for (const file of sourceFiles(new URL(`../../../../${root}/`, import.meta.url))) {
+        if (isPicture(file)) continue;
         const contents = readFileSync(file, "utf8");
         expect(contents, file.pathname).not.toMatch(fractionalCssTypeSize);
         expect(contents, file.pathname).not.toMatch(fractionalInlineTypeSize);
@@ -315,18 +325,18 @@ describe("typography architecture", () => {
 
   it("owns scaled control geometry at the shared design-token boundary", () => {
     const geometry = readFileSync(
-      new URL("../../../../packages/shared-ui/src/styles/control-geometry.css", import.meta.url),
+      new URL("../../../../src/shared-ui/styles/control-geometry.css", import.meta.url),
       "utf8",
     );
     const geometryRuntime = readFileSync(
-      new URL("../../../../packages/shared-ui/src/core/controlGeometry.ts", import.meta.url),
+      new URL("../../../../src/shared-ui/core/controlGeometry.ts", import.meta.url),
       "utf8",
     );
     const tokens = readFileSync(new URL("../../../../src/styles/tokens.css", import.meta.url), "utf8");
     const stylesEntry = readFileSync(new URL("../../../../src/styles.css", import.meta.url), "utf8");
     const viteConfig = readFileSync(new URL("../../../../vite.config.ts", import.meta.url), "utf8");
     const sharedStylesEntry = readFileSync(
-      new URL("../../../../packages/shared-ui/src/styles/shared-ui.css", import.meta.url),
+      new URL("../../../../src/shared-ui/styles/shared-ui.css", import.meta.url),
       "utf8",
     );
     const nodeActions = source("src/features/data-workspace/nodeActions.tsx");
@@ -360,23 +370,19 @@ describe("typography architecture", () => {
     expect(agentToolGroupPresentation).toContain("compactRowHeight = STANDARD_CONTROL_SIZE");
 
     const rawControlDimension = /^\s*(?:width|height|min-height)\s*:\s*30px(?:\s*!important)?;/m;
-    for (const root of ["src", "packages/shared-ui/src", "sub-themes"]) {
-      for (const file of sourceFiles(new URL(`../../../../${root}/`, import.meta.url))) {
-        if (!file.pathname.endsWith(".css")) continue;
-        const contents = readFileSync(file, "utf8");
-        expect(contents, file.pathname).not.toMatch(rawControlDimension);
-        if (!file.pathname.endsWith("src/styles/typography/foundations.css")) {
-          expect(contents, file.pathname).not.toContain("var(--po-text-size-sidebar");
-        }
+    for (const file of sourceFiles(new URL(`../../../../src/`, import.meta.url))) {
+      if (!file.pathname.endsWith(".css")) continue;
+      const contents = readFileSync(file, "utf8");
+      if (!isPicture(file)) expect(contents, file.pathname).not.toMatch(rawControlDimension);
+      if (!file.pathname.endsWith("src/styles/typography/foundations.css")) {
+        expect(contents, file.pathname).not.toContain("var(--po-text-size-sidebar");
       }
     }
 
     const rawRuntimeControlDimension = /(?:(?:ROW_HEIGHT|CONTROL_SIZE|rowHeight|controlSize)\s*=|estimatedHeight:)\s*30\b/;
-    for (const root of ["src", "packages/shared-ui/src"]) {
-      for (const file of sourceFiles(new URL(`../../../../${root}/`, import.meta.url))) {
-        if (!/\.tsx?$/.test(file.pathname) || file.pathname.endsWith("controlGeometry.ts")) continue;
-        expect(readFileSync(file, "utf8"), file.pathname).not.toMatch(rawRuntimeControlDimension);
-      }
+    for (const file of sourceFiles(new URL(`../../../../src/`, import.meta.url))) {
+      if (!/\.tsx?$/.test(file.pathname) || file.pathname.endsWith("controlGeometry.ts")) continue;
+      expect(readFileSync(file, "utf8"), file.pathname).not.toMatch(rawRuntimeControlDimension);
     }
   });
 
@@ -514,20 +520,20 @@ describe("typography architecture", () => {
     const locales = source("src/styles/typography/locales.css");
     const roles = source("src/styles/typography/roles.css");
     const base = source("src/styles/base.css");
-    const markdown = source("packages/shared-ui/src/styles/editor/markdown-editor.css");
-    const markdownContent = source("packages/shared-ui/src/styles/editor/markdown-content.css");
-    const markdownMath = source("packages/shared-ui/src/styles/editor/markdown-math.css");
-    const plainText = source("packages/shared-ui/src/styles/editor/editor-chrome.css");
-    const editableTable = source("packages/shared-ui/src/styles/editor/editable-table.css");
-    const officePreview = source("packages/shared-ui/src/styles/editor/media-office-preview.css");
+    const markdown = source("src/shared-ui/styles/editor/markdown-editor.css");
+    const markdownContent = source("src/shared-ui/styles/editor/markdown-content.css");
+    const markdownMath = source("src/shared-ui/styles/editor/markdown-math.css");
+    const plainText = source("src/shared-ui/styles/editor/editor-chrome.css");
+    const editableTable = source("src/shared-ui/styles/editor/editable-table.css");
+    const officePreview = source("src/shared-ui/styles/editor/media-office-preview.css");
     const agentTranscript = source("src/features/desktop-agent/ui/styles/transcript.css");
     const agentActivities = source("src/features/desktop-agent/ui/styles/activities.css");
     const terminalAppearance = source("src/features/desktop-terminal/runtime/terminalAppearance.ts");
     const terminalAppearanceSync = source("src/features/desktop-terminal/runtime/useTerminalAppearanceSync.ts");
-    const overlayPortal = source("src/features/app-shell/DesktopOverlayPortal.tsx");
-    const markdownEditor = source("packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor.tsx");
-    const codeEditor = source("packages/shared-ui/src/editor/viewers/code/CodeMirrorCodeEditor.tsx");
-    const plainTextEditor = source("packages/shared-ui/src/editor/viewers/code/PlainTextEditor.tsx");
+    const overlayPortal = source("src/components/DesktopOverlayPortal.tsx");
+    const markdownEditor = source("src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor.tsx");
+    const codeEditor = source("src/shared-ui/editor/viewers/code/CodeMirrorCodeEditor.tsx");
+    const plainTextEditor = source("src/shared-ui/editor/viewers/code/PlainTextEditor.tsx");
     const agentMarkdown = source("src/features/desktop-agent/ui/markdown/AgentMarkdownDocument.tsx");
     const typographyRuntime = source("src/features/typography/typographyRuntime.ts");
     const appearanceRuntime = source("src/features/appearance/AppearanceRuntime.tsx");
@@ -538,7 +544,7 @@ describe("typography architecture", () => {
     expect(styles).toContain('@import "./styles/typography/locales.css" layer(tokens);');
     expect(styles).toContain('@import "./styles/typography/roles.css" layer(tokens);');
     expect(foundations).toContain('font-family: "Geist Sans";');
-    expect(foundations).toContain("var(--po-theme-text-size-content, 16px)");
+    expect(foundations).toContain("var(--po-theme-text-size-content, 15px)");
     expect(foundations).toContain("--po-type-ui-control:");
     expect(foundations).toContain("--po-type-left-sidebar-content:");
     expect(foundations).toContain("--po-type-header-content:");
@@ -550,7 +556,7 @@ describe("typography architecture", () => {
     expect(foundations).toContain("--po-user-text-size-conversation");
     expect(foundations).toContain("--po-text-weight-medium: 500;");
     expect(foundations).toContain("--po-plain-text-reading-weight: var(--po-text-weight-medium);");
-    expect(foundations).toContain("--po-content-reading-line-height: var(--po-type-editor-line-height, 24px);");
+    expect(foundations).toContain("--po-content-reading-line-height: var(--po-type-editor-line-height, 30px);");
     expect(foundations).toContain("--po-content-reading-letter-spacing: 0;");
     expect(roles).toContain("--po-font-ui-primary: \"Geist Sans\";");
     expect(roles).toContain("--po-font-content-primary: \"Geist Sans\";");
@@ -575,20 +581,17 @@ describe("typography architecture", () => {
     expect(locales).not.toContain("--po-content-reading-line-height:");
     expect(base).toContain("font-feature-settings: normal;");
     expect(base).not.toContain("'cv02'");
-    expect(markdownContent).toContain("--po-md-content-font-primary: var(--po-font-content-primary");
-    expect(markdownContent).toContain("--po-md-content-font-fallback: var(--po-font-content-fallback");
-    expect(markdownContent).toContain("--po-md-content-font: var(--po-host-md-content-font, var(--po-md-content-font-primary), var(--po-md-content-font-fallback));");
-    expect(markdownContent).toContain("--po-editor-content-font: var(--po-font-editor-content-user, var(--po-md-content-font));");
-    expect(markdownContent).toContain('[data-font-editor-content-mode="explicit"]');
-    expect(markdownContent).toContain("font-family: var(--po-font-editor-content-user) !important;");
-    expect(markdownContent).toContain(".cm-md-math-inline-widget");
+    const markdownProjection = source("src/shared-ui/styles/editor/markdown-theme-tokens.generated.css");
+    const markdownTheme = source("src/features/themes/builtin/default-neutral/theme.css");
+    expect(markdownProjection).toContain("--po-md-content-font: var(--po-font-editor-content-user, var(--po-host-md-content-font));");
+    expect(markdownContent).toContain("--po-editor-content-font: var(--po-md-content-font);");
+    expect(markdownContent).toContain("font-family: var(--po-md-code-font);");
+    expect(markdownTheme).toContain('--po-md-content-font: "Geist Sans", var(--po-font-locale-sans), var(--po-font-emoji), sans-serif;');
+    expect(markdownTheme).toContain('--po-md-code-font: "Geist Mono", var(--po-font-locale-mono), var(--po-font-emoji), monospace;');
+    expect(markdownContent).not.toMatch(/font-family:[^;]*!important/);
     expect(markdownContent).not.toContain("font-family: revert");
     expect(markdownMath).not.toContain("font-family: revert");
     expect(markdownMath).not.toMatch(/font-family:\s*KaTeX_/);
-    expect(markdownContent).toContain(".cm-line:not(.cm-md-code-block-line)");
-    expect(markdownContent).toContain('[data-po-theme-surface="markdown"] .cm-md-inline-code,');
-    expect(markdownContent).toContain('[data-po-theme-surface="markdown"] .cm-md-code-textarea,');
-    expect(markdownContent).toContain("font-family: var(--po-font-code) !important;");
     expect(markdown).toContain("font-family: var(--po-editor-content-font);");
     expect(markdown).toContain("font-weight: var(--po-md-content-weight);");
     expect(markdown).toContain("font-feature-settings: normal;");

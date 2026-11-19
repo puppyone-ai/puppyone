@@ -1,5 +1,6 @@
 import type {
   WorkspaceImportSourceRequest,
+  WorkspaceImportSourceResult,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
   WorkspaceOpenResult,
@@ -26,11 +27,9 @@ export type WorkspaceOpenTarget = {
 };
 
 export async function openWorkspaceTarget(target: WorkspaceOpenTarget): Promise<WorkspaceOpenResult> {
-  if (target.placement === "current-window") {
-    return openWorkspaceInCurrentWindowBridge(target.path);
-  }
-
-  return openWorkspaceInNewWindowBridge(target.path);
+  return target.placement === "dedicated-window"
+    ? openWorkspaceInNewWindowBridge(target.path)
+    : openWorkspaceInCurrentWindowBridge(target.path);
 }
 
 export async function openDroppedWorkspaceTarget(folder: File): Promise<WorkspaceOpenResult> {
@@ -53,7 +52,7 @@ export async function defaultLocalProjectLocationTarget(): Promise<WorkspaceProj
 
 export async function importSourceTarget(
   request: WorkspaceImportSourceRequest,
-): Promise<WorkspaceOpenResult | null> {
+): Promise<WorkspaceImportSourceResult | null> {
   return importSourceBridge(request);
 }
 

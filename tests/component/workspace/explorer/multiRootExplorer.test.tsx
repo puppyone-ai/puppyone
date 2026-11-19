@@ -10,7 +10,7 @@ import {
   createWorkspaceResourceUri,
   type DataPort,
   type Workspace,
-} from "../../../../packages/shared-ui/src";
+} from "../../../../src/shared-ui";
 import { createWorkbenchDataService } from "../../../../src/features/data-workspace/workbenchDataPort";
 import { withTestLocalization } from "../../../support/react/localization";
 

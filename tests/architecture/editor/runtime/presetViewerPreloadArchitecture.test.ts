@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("preset viewer preload cache", () => {
   it("starts route acquisition from the selected document rather than the retained preview", () => {
     const workspaceSource = readFileSync(
-      new URL("../../../../packages/shared-ui/src/data/DataWorkspace.tsx", import.meta.url),
+      new URL("../../../../src/shared-ui/data/DataWorkspace.tsx", import.meta.url),
       "utf8",
     );
     const selectionPreload = workspaceSource.indexOf("preloadPresetViewer(selectedFileViewer)");

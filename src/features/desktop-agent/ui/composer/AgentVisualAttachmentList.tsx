@@ -51,7 +51,7 @@ function VisualAttachmentCard({ reference, previewUrl, onRemove }: {
   const details = [statusLabel, rawError !== statusLabel ? rawError : ""].filter(Boolean);
 
   return (
-    <Tooltip content={details.join("\n") || undefined}><div
+    <div
       className={`desktop-agent-visual-attachment is-${reference.status}`}
       dir="auto"
       role="listitem"
@@ -81,6 +81,6 @@ function VisualAttachmentCard({ reference, previewUrl, onRemove }: {
           <X size={12} aria-hidden="true" />
         </button></Tooltip>
       </span>
-    </div></Tooltip>
+    </div>
   );
 }

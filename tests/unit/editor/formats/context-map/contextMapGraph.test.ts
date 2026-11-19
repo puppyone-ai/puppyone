@@ -5,7 +5,7 @@ import {
   buildFolderRelationshipProjection,
   loadFolderRelationshipGraph,
   type FolderRelationshipGraph,
-} from "../../../../../packages/shared-ui/src/editor/viewers/context-map/contextMapGraph";
+} from "../../../../../src/shared-ui/editor/viewers/context-map/contextMapGraph";
 
 describe("aggregateFolderRelationshipEdges", () => {
   it("collapses document backlinks into one direct edge between visible folders", () => {

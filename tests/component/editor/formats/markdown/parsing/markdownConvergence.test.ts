@@ -5,25 +5,25 @@ import { EditorState } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorView } from "@codemirror/view";
 import { describe, expect, it, vi } from "vitest";
-import { renderMarkdownInlineFromSharedPolicy } from "../../../../../../packages/shared-ui/src/editor/markdown/composition/preview/markdownInlinePlanAdapter";
+import { renderMarkdownInlineFromSharedPolicy } from "../../../../../../src/shared-ui/editor/markdown/composition/preview/markdownInlinePlanAdapter";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { getMarkdownPlanIndex } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
-import { isTagAllowedInProfile } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlProfiles";
-import { createSanitizedBlockHtmlFragment } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/sanitizeHtml";
-import { isSafeStyleValue } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { getMarkdownPlanIndex } from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
+import { isTagAllowedInProfile } from "../../../../../../src/shared-ui/editor/markdown/platform/policy/markdownHtmlProfiles";
+import { createSanitizedBlockHtmlFragment } from "../../../../../../src/shared-ui/editor/markdown/features/html/sanitizeHtml";
+import { isSafeStyleValue } from "../../../../../../src/shared-ui/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy";
 import {
   MERMAID_MAX_SOURCE_BYTES,
   mountSanitizedMermaidSvg,
   renderMermaidDiagram,
   sanitizeMermaidSvg,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidRenderer";
+} from "../../../../../../src/shared-ui/editor/markdown/features/mermaid/mermaidRenderer";
 import {
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
 
 function createMarkdownState(source: string) {
   return EditorState.create({
@@ -54,6 +54,7 @@ describe("Markdown semantic-plan convergence", () => {
         title: "Architecture",
         referenceKind: "markdown-path",
         displayMode: "block",
+        size: null,
       });
       expect(image.plan.diagnostics).toEqual([]);
     }
@@ -104,7 +105,9 @@ describe("Markdown HTML profile convergence", () => {
     expect(isTagAllowedInProfile("source", "block")).toBe(false);
     expect(isTagAllowedInProfile("video", "block", { deferredMedia: true })).toBe(true);
     expect(isTagAllowedInProfile("source", "block", { deferredMedia: true })).toBe(true);
-    expect(isTagAllowedInProfile("audio", "inline", { brokeredMedia: true })).toBe(false);
+    expect(isTagAllowedInProfile("audio", "block")).toBe(false);
+    expect(isTagAllowedInProfile("audio", "inline", { brokeredMedia: true })).toBe(true);
+    expect(isTagAllowedInProfile("picture", "block")).toBe(false);
   });
 
   it("turns Mermaid anchor navigation into brokered intents while preserving local paint references", () => {

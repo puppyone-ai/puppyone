@@ -41,13 +41,12 @@
   pointer-events: none;
 }
 
+/* Loading placeholder shapes (loading-placeholder.css); the style paints them. */
 .desktop-cloud-overview-file-skeleton-icon,
 .desktop-cloud-overview-file-skeleton-name,
 .desktop-cloud-overview-file-skeleton-time {
   display: block;
   border-radius: 999px;
-  background: var(--po-skeleton-base);
-  animation: pulse 1.6s ease-in-out infinite;
 }
 
 .desktop-cloud-overview-file-skeleton-icon {

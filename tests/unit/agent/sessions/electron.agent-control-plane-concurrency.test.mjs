@@ -131,6 +131,15 @@ describe("Agent control-plane concurrency invariants", () => {
       userMessageId: "native-user-ambiguous",
     });
     expect(control.execution).toMatchObject({ status: "outcome-unknown", certainty: "unknown" });
+    expect(child.kill).not.toHaveBeenCalled();
+    adapter.emit(native("turn.started", "late-turn", { clientUserMessageId: "native-user-ambiguous" }));
+    const confirmed = snapshot(harness).control;
+    expect(confirmed.execution).toMatchObject({ status: "active", activeTurnId: "late-turn" });
+    expect(confirmed.commands.find(entry => entry.commandId === "ambiguous").status).toBe("accepted");
+    adapter.emit(native("turn.completed", "late-turn"));
+    expect(snapshot(harness).control.execution.nativeOutcome).toBe("completed");
+    expect(adapter.startTurn).toHaveBeenCalledTimes(1);
+    rpc.dispose();
   });
 
   it("releases a queued attachment lease when native start rejects", async () => {

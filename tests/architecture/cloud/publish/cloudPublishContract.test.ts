@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const CONTRACT_SHA256 = "6158201c48957b88fc103aca756417316305d25ea3109cbe5d3e2cf1f3d1823d";
-const contractUrl = new URL("../../../../contracts/cloud-project-publish-v1.json", import.meta.url);
+const contractUrl = new URL("../../../fixtures/cloud/contracts/cloud-project-publish-v1.json", import.meta.url);
 
 describe("Cloud Project publish cross-repository contract", () => {
   it("uses the pinned backend-compatible v1 fixture", () => {

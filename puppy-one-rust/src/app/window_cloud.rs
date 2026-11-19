@@ -77,8 +77,6 @@ pub(super) struct WindowCloud {
     pub(super) agent_cards: AgentCards,
     /// The request card's Deny, which a press on a Header mark reaches.
     pub(super) deny_focus: FocusHandle,
-    /// Where the Agents dialog's invite seat is, so the steps point at it.
-    pub(super) invite_seat_bounds: AgentsAnchor,
     /// Captures: the Header shows the Cloud tools over a local folder.
     #[cfg(feature = "dev-capture")]
     pub capture_hosted: bool,
@@ -195,7 +193,6 @@ impl WindowCloud {
             agents_anchor: Default::default(),
             agent_cards: Default::default(),
             deny_focus: cx.focus_handle(),
-            invite_seat_bounds: Default::default(),
             #[cfg(feature = "dev-capture")]
             capture_hosted: false,
             dismissed_notice: None,

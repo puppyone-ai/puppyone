@@ -6,25 +6,10 @@ export function deriveLocalConnection(probe, gates = {}) {
   const installation = normalizeInstallation(probe?.installation);
   const authentication = normalizeAuthentication(probe?.authentication);
   const version = safeVersion(probe?.version);
-  const ready = installation === "detected"
-    && authentication === "signed-in"
-    && probe?.protocolCompatible === true
-    && probe?.hasModels === true
-    && gates.backendRegistered !== false
-    && gates.workspaceAllowed !== false;
-  const integration = ready
-    ? "ready"
-    : installation === "unsupported"
-      ? "incompatible"
-      : installation === "broken"
-        ? "blocked"
-        : installation === "detected"
-          ? probe?.protocolCompatible !== true
-            ? "protocol-unavailable"
-            : ["error", "unknown"].includes(authentication)
-              ? "blocked"
-              : "setup-required"
-          : "inventory-only";
+  const ready = isConnectionReady(probe, gates, installation, authentication);
+  const integration = deriveIntegration({
+    ready, installation, authentication, protocolCompatible: probe?.protocolCompatible,
+  });
 
   return {
     id: normalizeId(probe?.id),
@@ -52,6 +37,26 @@ export function deriveLocalConnection(probe, gates = {}) {
     actions: actionsFor(installation),
     ...(SAFE_SOURCES.has(probe?.source) ? { source: probe.source } : {}),
   };
+}
+
+function isConnectionReady(probe, gates, installation, authentication) {
+  // Omitted gates preserve the legacy default: only explicit false denies admission.
+  return installation === "detected"
+    && authentication === "signed-in"
+    && probe?.protocolCompatible === true
+    && probe?.hasModels === true
+    && gates.backendRegistered !== false
+    && gates.workspaceAllowed !== false;
+}
+
+function deriveIntegration({ ready, installation, authentication, protocolCompatible }) {
+  if (ready) return "ready";
+  if (installation === "unsupported") return "incompatible";
+  if (installation === "broken") return "blocked";
+  if (installation !== "detected") return "inventory-only";
+  if (protocolCompatible !== true) return "protocol-unavailable";
+  if (authentication === "error" || authentication === "unknown") return "blocked";
+  return "setup-required";
 }
 
 function statusMessage({ displayName, installation, authentication, version, unavailableMessage, protocolCompatible, hasModels, ready }) {

@@ -1,6 +1,4 @@
 import {
-  ChevronDown,
-  ChevronRight,
   Copy,
   ExternalLink,
   GitBranch,
@@ -14,6 +12,7 @@ import {
 import type { ReactNode } from "react";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import {
+  DisclosureIcon,
   RENDERER_ASSET_PATHS,
   resolveRendererPublicAssetUrl,
 } from "@puppyone/shared-ui";
@@ -90,7 +89,7 @@ export const ACCESS_POINT_UI_REGISTRY: Record<AccessPointKind, AccessPointUiDefi
         ? t("cloud.access.method.mcp.create")
         : t("cloud.access.method.showConfig"),
       expandedActionLabel: t("cloud.access.method.hideConfig"),
-      actionIcon: <ChevronDown size={12} />,
+      actionIcon: <DisclosureIcon expanded={false} size={12} />,
       previewButtonLabel: t("cloud.access.method.mcp.viewConnection"),
       previewIcon: <ExternalLink size={14} />,
     }),
@@ -104,7 +103,7 @@ export const ACCESS_POINT_UI_REGISTRY: Record<AccessPointKind, AccessPointUiDefi
       description: t("cloud.access.surface.vm.prompt"),
       actionLabel: t("cloud.access.method.vm.addSshKey"),
       expandedActionLabel: t("cloud.access.method.vm.hideRemote"),
-      actionIcon: <ChevronRight className="po-directional-icon" size={12} />,
+      actionIcon: <DisclosureIcon expanded={false} size={12} />,
       previewButtonLabel: t("cloud.access.method.vm.openRemote"),
       previewIcon: <ExternalLink size={14} />,
     }),
@@ -120,7 +119,7 @@ export const ACCESS_POINT_UI_REGISTRY: Record<AccessPointKind, AccessPointUiDefi
       }),
       actionLabel: t("cloud.common.open"),
       expandedActionLabel: t("cloud.common.hide"),
-      actionIcon: <ChevronRight className="po-directional-icon" size={12} />,
+      actionIcon: <DisclosureIcon expanded={false} size={12} />,
       previewButtonLabel: t("cloud.common.copyPrompt"),
       previewIcon: <Copy size={14} />,
     }),

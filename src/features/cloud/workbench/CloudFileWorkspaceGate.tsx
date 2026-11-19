@@ -6,19 +6,20 @@ import { CloudWorkspaceLoadingState } from "../components/shared";
 import { CloudProjectRecoveryState } from "../states/CloudProjectRecoveryState";
 import { formatCloudMessage } from "../cloudPresentation";
 import { isCloudContextRecovery } from "../project/context";
-import type { CloudServiceMainViewProps } from "../types";
+import type { CloudProjectPreparationProps } from "../types";
 
 /** Preparation content has no services navigation or authority to select Cloud. */
-export function CloudFileWorkspaceGate(props: CloudServiceMainViewProps & { compactSignIn?: boolean }) {
+export function CloudFileWorkspaceGate(props: CloudProjectPreparationProps) {
   const { t } = useLocalization();
   const { cloudAuthState, cloudEnvironment, projectContext, workspace, status, loading, error,
     cloudPublishState, cloudPublishStateLoading, onCloudSessionChange, onRefresh } = props;
   const session = getCloudAuthSession(cloudAuthState);
   if (!session) {
-    return <CloudSignedOutRoute compact={props.compactSignIn} activeSection="contents" authState={cloudAuthState}
+    return <CloudSignedOutRoute activeSection="contents" authState={cloudAuthState}
       apiBaseUrl={cloudEnvironment.apiBaseUrl} loadingLabel={t("cloud.loading.session")} />;
   }
-  if (projectContext?.status === "local-only" || cloudPublishState || cloudPublishStateLoading) {
+  if (projectContext?.status === "local-only" || cloudPublishState || cloudPublishStateLoading
+    || props.cloudBackupLoading || props.cloudPublishProgress || props.cloudPublishError) {
     return <CloudInitializationRoute activeSection="initialize" workspace={workspace} status={status}
       session={session} apiBaseUrl={cloudEnvironment.apiBaseUrl} accountEmail={getCloudAuthEmail(cloudAuthState)}
       loading={loading} error={error} cloudActionNotice={null}
@@ -27,6 +28,7 @@ export function CloudFileWorkspaceGate(props: CloudServiceMainViewProps & { comp
       cloudPublishProgress={props.cloudPublishProgress} cloudPublishState={cloudPublishState}
       cloudPublishStateLoading={cloudPublishStateLoading} onSessionChange={onCloudSessionChange}
       onAbandonPublish={props.onAbandonPuppyoneBackup} onRefresh={onRefresh}
+      publishOrganizationId={props.publishOrganizationId}
       onPublishWorkspace={props.onStartPuppyoneBackup} />;
   }
   return <div className="desktop-cloud-main-view" data-cloud-file-provider-state={projectContext?.status ?? "resolving"}>

@@ -1,14 +1,16 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { Fragment } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
-  agentActivityToolId, formatAgentToolName, fileChangesForActivity, fileChangeTotals, pathForActivity, outputForActivity,
+  agentActivityToolId, fileChangesForActivity, fileChangeTotals, pathForActivity, outputForActivity,
 } from "../../domain/agent-activity-presentation";
 import type { AgentActivity } from "../../domain/agent-projection-types";
 import { AgentActivityShell } from "./AgentActivityShell";
 import { AgentToolGlyph } from "./AgentToolGlyph";
 import { AgentToolEvidenceNode, AgentToolEvidenceTree } from "./AgentToolEvidenceTree";
+import type { MessageFormatter } from "@puppyone/localization/core";
+import { AgentToolStepPath, AgentToolStepText, agentToolStepVerb } from "./AgentToolStepText";
 import { AgentToolTextEvidence } from "./AgentToolTextEvidence";
+import { agentToolStepKind } from "./agent-tool-steps";
 
 export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: AgentActivity; onOpenFile?: (path: string) => void }) {
   const { t, formatNumber } = useLocalization();
@@ -19,9 +21,11 @@ export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: Ag
   const output = outputForActivity(activity);
   if (!changes.length && !path && !output) return null;
   const files = changes.length ? changes : path ? [{ path, diff: "", blocks: [], truncated: false }] : [];
+  const stepKind = agentToolStepKind(activity) === "write" ? "write" : "edit";
   return (
     <AgentActivityShell
-      title={formatAgentToolName(tool, t)}
+      title={agentToolStepVerb(stepKind, activity.status, t)}
+      subject={fileChangeSubject(files.map((file) => file.path), t)}
       status={activity.status}
       icon={<AgentToolGlyph tool={tool} status={activity.status} />}
       metadata={totals && <span className="desktop-agent-tool-diff-stats" dir="ltr">
@@ -36,7 +40,7 @@ export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: Ag
             <AgentToolEvidenceNode kind="result">
               <div className="desktop-agent-tool-file-path" dir="ltr">
                 {onOpenFile
-                  ? <Tooltip content={file.path} overflowOnly><button type="button" data-po-interaction="navigation" onClick={() => onOpenFile(file.path)}>{file.path}</button></Tooltip>
+                  ? <button type="button" data-po-interaction="navigation" onClick={() => onOpenFile(file.path)}>{file.path}</button>
                   : <span>{file.path}</span>}
               </div>
             </AgentToolEvidenceNode>
@@ -64,4 +68,10 @@ export function AgentFileChangeActivity({ activity, onOpenFile }: { activity: Ag
       </AgentToolEvidenceTree>
     </AgentActivityShell>
   );
+}
+
+function fileChangeSubject(paths: readonly string[], t: MessageFormatter) {
+  if (paths.length === 1) return <AgentToolStepPath path={paths[0]} />;
+  if (paths.length > 1) return <AgentToolStepText text={t("agent.activity.fileCount", { count: paths.length })} />;
+  return undefined;
 }

@@ -7,10 +7,34 @@ import type {
 import type { CloudPublishErrorCode } from "../../types/electron";
 
 export type CloudMessageCode =
+  | "connection-unreachable"
+  | "connection-timeout"
+  | "access-check-unreachable"
+  | "access-check-timeout"
+  | "access-check-unavailable"
+  | "service-updating"
+  | "service-busy"
+  | "service-unavailable"
+  | "app-update-required"
+  | "workspace-connection-unavailable"
   | "project-linked"
   | "clone-command-copied"
   | "cloud-remote-removed"
   | "workspace-unavailable"
+  | "workspace-open-failed"
+  | "workspace-service-unavailable"
+  | "workspace-not-configured"
+  | "workspace-access-denied"
+  | "workspace-plan-required"
+  | "workspace-recovery-required"
+  | "workspace-preparing"
+  | "workspace-start-timeout"
+  | "workspace-changed"
+  | "workspace-disk-lost"
+  | "project-sign-in-required"
+  | "project-access-denied"
+  | "project-response-mismatch"
+  | "project-unavailable"
   | "connect-failed"
   | "copy-clone-failed"
   | "remove-remote-failed"
@@ -53,6 +77,8 @@ export type CloudMessageDescriptor = Readonly<{
   values?: Readonly<Record<string, string | number>>;
   /** Sanitized server/provider detail. It is preserved, not presented as translated product copy. */
   detail?: string;
+  /** Allowlisted machine diagnostics, shown separately from product copy. */
+  diagnostic?: Readonly<{ status?: number; code?: string; requestId?: string }>;
 }>;
 
 export function cloudMessage(
@@ -74,6 +100,21 @@ export function formatCloudMessage(message: CloudMessageDescriptor, t: MessageFo
   return message.detail ? `${productMessage} ${bidiIsolate(message.detail)}` : productMessage;
 }
 
+/**
+ * The line a person can read out or paste when reporting a failure: the code
+ * the server named and the id its log knows this request by. Null when there
+ * is nothing to report beyond the message.
+ */
+export function formatCloudDiagnostic(message: CloudMessageDescriptor, t: MessageFormatter): string | null {
+  const diagnostic = message.diagnostic;
+  const code = diagnostic?.code ?? (diagnostic?.status ? `HTTP ${diagnostic.status}` : undefined);
+  const parts = [
+    code ? t("cloud.opening.diagnosticCode", { code: bidiIsolate(code) }) : null,
+    diagnostic?.requestId ? t("cloud.opening.diagnosticRequest", { requestId: bidiIsolate(diagnostic.requestId) }) : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length ? parts.join(" · ") : null;
+}
+
 export function formatCloudPublishFailure(
   error: { code: CloudPublishErrorCode; retryable: boolean },
   t: MessageFormatter,
@@ -92,6 +133,7 @@ export function formatCloudPublishFailure(
   if (error.code === "CLEANUP_FAILED") {
     return t("cloud.initialize.cleanupFailed");
   }
+  if (error.code === "CLEANUP_NOT_ALLOWED") return t("cloud.initialize.cleanupNotAllowed");
   if (error.code === "PROJECT_UNAVAILABLE") return t("cloud.initialize.projectUnavailable");
   if (error.code === "PERMISSION_DENIED") return t("cloud.initialize.permissionDenied");
   if (error.code === "SERVICE_UPGRADE_REQUIRED") {
@@ -101,12 +143,20 @@ export function formatCloudPublishFailure(
   if (error.code === "CREDENTIAL_FAILED") return t("cloud.message.project-publish-credential-failed");
   if (error.code === "REMOTE_CONFIG_FAILED") return t("cloud.message.project-publish-remote-failed");
   if (error.code === "PUSH_FAILED") return t("cloud.message.project-publish-push-failed");
+  if (error.code === "PUSH_LIMIT_EXCEEDED") return t("cloud.message.project-publish-size-limit");
+  if (error.code === "LFS_UNSUPPORTED") return t("cloud.message.project-publish-lfs-unsupported");
+  // No longer produced: Cloud accepts merge commits. A journal that recorded it
+  // before then is retried like any send that did not finish.
+  if (error.code === "MERGE_TIP_UNSUPPORTED") return t("cloud.message.project-publish-push-failed");
+  if (error.code === "LOCAL_FINALIZE_FAILED") return t("cloud.message.project-publish-finalize-failed");
   if (error.code === "COMPENSATION_FAILED") {
     return t("cloud.message.project-publish-compensation-failed");
   }
   if (error.code === "JOURNAL_CORRUPT" || error.code === "JOURNAL_IO_FAILED") {
     return t("cloud.initialize.localRecoveryFailed");
   }
+  // Only a failure nobody could classify reads as the general message. Every
+  // named code above has its own words; a test holds that line.
   return t("cloud.message.project-publish-failed");
 }
 

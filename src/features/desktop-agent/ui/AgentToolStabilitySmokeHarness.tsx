@@ -132,7 +132,7 @@ async function runSmoke(): Promise<Omit<SmokeResult, "uncaughtErrors" | "longTas
       maxSearchRows = Math.max(maxSearchRows, ...searchRows);
       maxExpandedDetails = Math.max(
         maxExpandedDetails,
-        document.querySelectorAll(".desktop-agent-tool-group-detail > .desktop-agent-tool-branch").length,
+        document.querySelectorAll(".desktop-agent-tool-group .desktop-agent-tool-branch").length,
       );
       maxFollowingRowOverlapPx = Math.max(maxFollowingRowOverlapPx, followingRowOverlap());
       const geometry = measureVisibleEvidenceGeometry();
@@ -194,7 +194,7 @@ async function runSmoke(): Promise<Omit<SmokeResult, "uncaughtErrors" | "longTas
 }
 
 function followingRowOverlap() {
-  const detail = document.querySelector<HTMLElement>(".desktop-agent-tool-group-detail > .desktop-agent-tool-branch");
+  const detail = document.querySelector<HTMLElement>(".desktop-agent-tool-group .desktop-agent-tool-branch");
   const following = document.querySelector<HTMLElement>('.desktop-agent-virtual-row[data-kind="assistant"]');
   if (!detail || !following) return 0;
   return Math.max(0, detail.getBoundingClientRect().bottom - following.getBoundingClientRect().top);
@@ -245,9 +245,10 @@ function createSmokeProjection() {
 }
 
 function measureVisibleEvidenceGeometry() {
+  // Details open inline under their own step, so every step's evidence rail
+  // must hang from that step's glyph centre.
   const selectedItem = document.querySelector<HTMLElement>(".desktop-agent-tool-group-item.is-selected");
-  const firstItem = document.querySelector<HTMLElement>(".desktop-agent-tool-group-item");
-  const detail = document.querySelector<HTMLElement>(".desktop-agent-tool-group-detail");
+  const detail = selectedItem?.querySelector<HTMLElement>(".desktop-agent-tool-branch");
   const commandNode = detail?.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-command");
   const resultNode = detail?.querySelector<HTMLElement>(".desktop-agent-evidence-node.is-result");
   const fileNode = detail?.querySelector<HTMLElement>(".desktop-agent-tool-file-path")
@@ -257,7 +258,7 @@ function measureVisibleEvidenceGeometry() {
   const commandMarker = commandNode?.querySelector<HTMLElement>(".desktop-agent-evidence-marker");
   const fileRow = fileNode?.querySelector<HTMLElement>(".desktop-agent-tool-file-path");
   return {
-    railErrors: selectedItem === firstItem && commandNode
+    railErrors: selectedItem && commandNode
       ? [railAlignmentError(selectedItem, commandNode)]
       : [],
     elbowErrors: [

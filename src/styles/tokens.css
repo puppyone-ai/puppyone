@@ -1,11 +1,21 @@
 :root {
   color-scheme: light;
+  /* Relative layers inside the shared overlay root: menu < dialog < tooltip.
+     Portaled editor menus follow this contract instead of creating a local ceiling. */
+  --po-overlay-z-menu: 90;
+  --po-overlay-z-dialog: 1200;
+  --po-overlay-z-tooltip: 2000;
+  /* Product identity blue, shared by Cloud marks and arrival light in both color modes.
+     Deliberately distinct from the active theme's accent and info/status colors. */
+  --po-brand-blue: #4599df;
   --desktop-control-radius: 6px;
   /* Mirrored from electron/main/window-layout-contract.mjs and guarded by the architecture check. */
-  --desktop-window-min-width: 640px;
+  --desktop-window-min-width: 720px;
   --desktop-toolbar-action-radius: 5px;
   /* Default native Header height is mirrored from window-layout-contract.mjs. */
   --desktop-chrome-height: 40px;
+  /* Logical-pixel contour of the macOS rounded overlay window (not a layout inset). */
+  --desktop-macos-window-frame-radius: 16px;
   /* Standard control geometry is owned by shared-ui/control-geometry.css. */
   --desktop-chrome-control-size: var(--po-control-size);
   --desktop-titlebar-control-height: var(--po-control-size-compact);
@@ -103,8 +113,10 @@
   --desktop-utility-page-padding-top: 24px;
   --desktop-utility-page-padding-inline: 28px;
   --desktop-utility-page-padding-bottom: 40px;
+  --desktop-task-dialog-inset: 32px;
   --po-reading-content-width: 724px;
 
+  --po-card-radius: 8px;
   --po-menu-radius: 8px;
   --po-menu-padding: 4px;
   --po-menu-item-radius: var(--desktop-control-radius);
@@ -140,10 +152,10 @@
  * local titlebar and sidebar use a restrained blend of chrome and editor
  * materials. That keeps the frame legible without creating a heavy contrast:
  * subtly darker in light themes and subtly lighter in dark themes. Cloud
- * workspaces still opt into the dedicated sky-blue titlebar tokens.
+ * workspaces use a solid, appearance-aware blue Header with the same foreground palette.
  */
 :root,
-:where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {
+:where(.app-shell, .onboarding-shell, .file-mode-window, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {
   /*
    * Re-declare semantic sidebar aliases at the themed shell boundary. Custom
    * properties are resolved where they are declared, so inheriting only the
@@ -199,14 +211,20 @@
   --po-surface-auxiliary: var(--po-sidebar);
   --po-surface-agent: var(--po-surface-editor);
   --po-surface-terminal: var(--po-surface-editor);
-  /* Popup controls belong to application chrome. A small foreground mix gives
-   * them more separation than the Header in both light and dark appearances. */
-  --po-surface-menu: color-mix(in srgb, var(--po-header) 94%, var(--po-text) 6%);
+  /* Popup controls share the Header's theme material. Borders, elevation and
+   * interaction states provide separation without adding another grey tier. */
+  --po-surface-menu: var(--po-header);
 
   --po-canvas: var(--po-surface-editor);
   --po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
   --po-sidebar: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
   --po-chrome: var(--po-surface-chrome);
+  /* A project's folder: tones of the theme's own ink, with its front lighter than its
+   * back and the paper inside the brightest thing in it. */
+  --po-project-folder-back: color-mix(in srgb, var(--po-text) 34%, var(--po-canvas));
+  --po-project-folder-front: color-mix(in srgb, var(--po-text) 22%, var(--po-canvas));
+  --po-project-folder-sheet: var(--po-surface-panel-raised);
+  --po-project-folder-sheet-ink: color-mix(in srgb, var(--po-project-folder-sheet) 84%, var(--po-text));
   --po-panel: var(--po-surface-panel);
   --po-panel-raised: var(--po-surface-panel-raised);
   --po-overlay: var(--po-surface-overlay);
@@ -261,6 +279,10 @@
 
 .dark {
   color-scheme: dark;
+  --po-project-folder-back: color-mix(in srgb, var(--po-text) 20%, var(--po-canvas));
+  --po-project-folder-front: color-mix(in srgb, var(--po-text) 32%, var(--po-canvas));
+  --po-project-folder-sheet: color-mix(in srgb, var(--po-text) 90%, var(--po-canvas));
+  --po-project-folder-sheet-ink: color-mix(in srgb, var(--po-project-folder-sheet) 80%, var(--po-canvas));
   --po-project-card-tab: color-mix(in srgb, var(--po-panel-raised) 84%, var(--po-canvas) 16%);
   --po-project-card-hover-bg: color-mix(in srgb, var(--po-panel) 94%, var(--po-text) 6%);
   --po-elevation-low: 0 2px 4px -2px

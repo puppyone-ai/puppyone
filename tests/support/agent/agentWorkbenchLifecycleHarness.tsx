@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences, desktopPreferencesStore } from "../../../src/preferencesStore";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { vi } from "vitest";
@@ -7,8 +8,8 @@ import { createItemLifecycleSupervisor } from "../../../electron/main/item-hosts
 import { registerItemLifecycleIpc } from "../../../electron/main/ipc/item-lifecycle-ipc.mjs";
 import type { ItemExecutionRequest, ItemLifecyclePort } from "../../../shared/item-host-contract/lifecycle";
 import { AuxiliaryWorkbenchPanel } from "../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import { ProjectWorkbenchStore } from "../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
-import type { AuxiliaryWorkbenchContribution } from "../../../src/features/app-shell/auxiliary-workbench/types";
+import { ProjectWorkbenchStore } from "../../../src/lib/workbench/ProjectWorkbenchStore";
+import type { AuxiliaryWorkbenchContribution } from "../../../src/lib/workbench/types";
 import type { AgentClientPort } from "../../../src/features/desktop-agent/application/AgentClientPort";
 import { createManagedAgentClient } from "../../../src/features/desktop-agent/infrastructure/electron/agentExecutionClient";
 import { createProjectAgentClientProvider } from "../../../src/features/desktop-agent/infrastructure/electron/electronAgentClient";
@@ -80,7 +81,7 @@ export async function createAgentWorkbenchLifecycleHarness({ holdCreation = fals
       generation: crypto.randomUUID(), ready: Promise.resolve(), exit: exited.promise,
       pid: 90000 + hosts.length, attachPort: vi.fn(() => {}),
       diagnostics: () => ({ pid: host.pid, generation: host.generation, exited: host.exited,
-        closing: host.close.mock.calls.length > 0, failure: null, nativeProcesses: [],
+        closing: host.close.mock.calls.length > 0, failure: null, health: { state: "responsive", lastSeen: 0, probeSent: false }, nativeProcesses: [],
         pending: 0, pendingBytes: 0, incoming: 0, incomingBytes: 0, closed: host.exited }),
       call: vi.fn(async (method: string, args: unknown[] = []) => {
         const request = args[0] as Record<string, unknown>;
@@ -158,13 +159,14 @@ export async function createAgentWorkbenchLifecycleHarness({ holdCreation = fals
       return createProjectAgentClientProvider(context, () => managed);
     },
   });
+  initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  desktopPreferencesStore.getState().setAgentPreferredRuntime("codex");
   const contribution: AuxiliaryWorkbenchContribution = {
     kind: "agent-chat", label: "Chat", createLabel: "New chat", maximumItems: 8,
     minimumSize: { width: 280, height: 260 },
     initialSnapshot: { title: "New chat", accessibleLabel: "New chat", detail: null, iconKey: null,
       status: "idle", running: false, resourceId: null },
-    renderItem: props => <AgentChatWorkbenchItem {...props} hiddenRuntimeIds={[]} preferredRuntimeId="codex"
-      preferredModel={null} preferredRoute={{}} onOpenAccount={() => {}} onOpenModelConnections={() => {}} />,
+    renderItem: props => <AgentChatWorkbenchItem {...props} hiddenRuntimeIds={[]} onOpenAccount={() => {}} onOpenModelConnections={() => {}} />,
     close: createAgentChatCloseAdapter(testT, ({ project, item }) => requestCloseAgentChatWorkbenchItem(project, item.id)),
   };
   const container = document.createElement("div");

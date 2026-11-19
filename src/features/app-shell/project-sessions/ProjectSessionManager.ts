@@ -1,5 +1,5 @@
 import { ProjectSessionStore } from "./ProjectSessionStore";
-import { ProjectWorkbenchStore } from "../auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "../../../lib/workbench/ProjectWorkbenchStore";
 import type { ProjectSessionClient } from "./projectSessionClient";
 
 /** One instance per window. Project closure, never view unmount, releases data. */

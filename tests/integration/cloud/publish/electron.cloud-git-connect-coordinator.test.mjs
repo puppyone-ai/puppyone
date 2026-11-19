@@ -5,7 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createCloudGitConnectCoordinator } from "../../../../electron/main/cloud-git-connect-coordinator.mjs";
-import { execGit } from "../../../../local-api/git/runner.mjs";
+import { execGit } from "../../../../electron/local-api/git/runner.mjs";
 
 const execFileAsync = promisify(execFile);
 const roots = [];

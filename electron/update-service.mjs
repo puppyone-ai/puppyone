@@ -30,6 +30,12 @@ const BACKGROUND_CHECK_STATES = new Set([
   "error",
 ]);
 
+const INSTALLABLE_UPDATE_STATES = new Set([
+  "downloaded",
+  "blocked",
+  "installing",
+]);
+
 const ACTIONABLE_UPDATE_STATES = new Set([
   "available",
   "downloading",
@@ -82,6 +88,10 @@ export function createUpdateService({
   autoUpdater,
   automaticallyDownloadUpdates = true,
   persistAutomaticallyDownloadUpdates = async () => {},
+  // macOS: installs by swapping in an app prepared before it is offered
+  // (platform/macos/prepared-update.mjs). Without it Squirrel.Mac installs.
+  preparedUpdate = null,
+  quit = () => app.quit(),
 }) {
   const configuration = resolveDesktopUpdateConfiguration({
     buildInfo,
@@ -103,6 +113,11 @@ export function createUpdateService({
   let backgroundCheckTimer = null;
   let operationPromise = null;
   let latestUpdateInfo = null;
+  // How the downloaded update goes in: "prepared" swaps in an app made ready
+  // in the background; "native" is the platform updater's own install.
+  let installMode = null;
+  let preparation = null;
+  let restartRequestedAt = null;
   let state = createInitialUpdateState({
     channel,
     currentVersion,
@@ -171,7 +186,9 @@ export function createUpdateService({
     // version policy accepts the candidate. Enabling electron-updater's own
     // autoDownload would let the payload race ahead of that product guard.
     autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = true;
+    // A prepared update goes in by itself on quit; Squirrel.Mac must not also
+    // stage it, or it would install the same app again after the swap.
+    autoUpdater.autoInstallOnAppQuit = !preparedUpdate;
     autoUpdater.allowPrerelease = configuration.allowPrerelease;
 
     if (configuration.updateChannel) {
@@ -234,7 +251,12 @@ export function createUpdateService({
     });
 
     autoUpdater.on("update-downloaded", (info) => {
-      publishAvailableCandidate(info, "downloaded");
+      if (!preparedUpdate) {
+        installMode = "native";
+        publishAvailableCandidate(info, "downloaded");
+        return;
+      }
+      void prepareDownloadedUpdate(info);
     });
 
     autoUpdater.on("error", (error) => {
@@ -403,6 +425,30 @@ export function createUpdateService({
     await downloadUpdateInternal();
   }
 
+  /**
+   * Offers the update only once restarting can swap it straight in: until the
+   * new app is extracted and verified, the update stays "downloading". Should
+   * that fail, Squirrel.Mac installs it as before, only more slowly.
+   */
+  async function prepareDownloadedUpdate(info) {
+    const version = normalizeUpdateInfo(info)?.version ?? null;
+    const startedAt = Date.now();
+    const attempt = preparedUpdate.prepare({ archivePath: info?.downloadedFile, version });
+    preparation = attempt;
+    let mode = "prepared";
+    try {
+      await attempt;
+      log.info(`[desktop-updater] Prepared ${version} in ${Date.now() - startedAt} ms; restarting swaps it in.`);
+    } catch (error) {
+      mode = "native";
+      log.warn(`[desktop-updater] Could not prepare ${version} for a quick restart; Squirrel.Mac will install it: ${normalizeError(error)}`);
+    }
+    if (preparation !== attempt || disposed) return;
+    preparation = null;
+    installMode = mode;
+    publishAvailableCandidate(info, "downloaded");
+  }
+
   async function installDownloadedUpdateInternal() {
     if (state.status !== "downloaded" && state.status !== "blocked") return;
     if (!hasActionableCandidate()) return;
@@ -427,7 +473,33 @@ export function createUpdateService({
       blockers: [],
       error: null,
     });
+    restartRequestedAt = Date.now();
+    if (installMode === "prepared") {
+      // The ordinary quit saves documents and stops project resources; the
+      // swap runs once the app has exited (installOnQuit).
+      quit();
+      return;
+    }
     autoUpdater.quitAndInstall(false, true);
+  }
+
+  /**
+   * As the app exits: a prepared update goes in, and the app reopens when the
+   * person asked to restart. Quitting without asking installs it as well.
+   */
+  function installOnQuit() {
+    if (installMode !== "prepared" || !INSTALLABLE_UPDATE_STATES.has(state.status)) return false;
+    const relaunch = restartRequestedAt !== null;
+    if (relaunch) log.info(`[desktop-updater] Quit for the update in ${Date.now() - restartRequestedAt} ms.`);
+    return preparedUpdate.installOnExit({ relaunch });
+  }
+
+  /** A window or task kept the app open: the update is still ready to restart. */
+  function handleQuitCancelled() {
+    if (restartRequestedAt === null) return;
+    log.info(`[desktop-updater] Restart for the update was cancelled after ${Date.now() - restartRequestedAt} ms.`);
+    restartRequestedAt = null;
+    if (state.status === "installing") publishState({ status: "downloaded", error: null });
   }
 
   async function runExclusive(operation) {
@@ -566,6 +638,8 @@ export function createUpdateService({
     updateNow,
     installDownloadedUpdate,
     setAutomaticallyDownloadUpdates,
+    installOnQuit,
+    handleQuitCancelled,
   };
 }
 

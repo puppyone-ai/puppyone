@@ -24,6 +24,7 @@ const TERMINAL_DEFAULT_COLOR_QUERIES = Object.freeze([
 
 export function createTerminalService({
   appVersion,
+  hostEnvironment = {},
   environment = process.env,
   initializeWorkspaceEditReview,
   logger = console,
@@ -99,6 +100,7 @@ export function createTerminalService({
       const terminalEnvironment = {
         ...buildTerminalEnvironment(spawnConfig.commandEnvironment ?? environment, {
           appVersion,
+          hostEnvironment,
           defaultColors: request?.defaultColors,
           freshLoginShell: spawnConfig.loginShell,
           platform,
@@ -519,8 +521,12 @@ const NPM_LIFECYCLE_KEYS = new Set([
   "NPM_NODE_EXECPATH",
 ]);
 
+/** Variables that tell programs in the terminal which PuppyOne hosts them. */
+const HOST_ENVIRONMENT_KEYS = Object.freeze(["PUPPYONE_APP_PATH", "PUPPYONE_CLI_ENDPOINT"]);
+
 export function buildTerminalEnvironment(source, {
   appVersion,
+  hostEnvironment = {},
   defaultColors,
   platform = process.platform,
   freshLoginShell = platform !== "win32",
@@ -537,6 +543,8 @@ export function buildTerminalEnvironment(source, {
   for (const [key, value] of entries) {
     const canonicalKey = key.toUpperCase();
     if (canonicalKey === "NO_COLOR") continue;
+    // A PuppyOne started from another PuppyOne terminal must not inherit that host.
+    if (HOST_ENVIRONMENT_KEYS.includes(canonicalKey)) continue;
     if (canonicalKey === "COLORFGBG") continue;
     if (isNpmLifecycleKey(canonicalKey) || canonicalKey === "NPM_CONFIG_PREFIX") continue;
     if (canonicalKey === "PREFIX") continue;
@@ -557,6 +565,9 @@ export function buildTerminalEnvironment(source, {
     TERM_PROGRAM: "PuppyOne",
     TERM_PROGRAM_VERSION: appVersion,
     PUPPYONE_TERMINAL: "1",
+    ...Object.fromEntries(HOST_ENVIRONMENT_KEYS
+      .filter((key) => typeof hostEnvironment?.[key] === "string" && hostEnvironment[key])
+      .map((key) => [key, hostEnvironment[key]])),
     ...(colorFgBg ? { COLORFGBG: colorFgBg } : {}),
   };
 }

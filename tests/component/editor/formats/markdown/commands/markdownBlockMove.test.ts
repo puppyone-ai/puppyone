@@ -9,18 +9,19 @@ import {
   buildMarkdownBlockMoveTransaction,
   markdownBlockRelocationAnnotation,
   moveMarkdownBlock,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/commands/markdownBlockMove";
-import { markdownBlockDragExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/core/interaction/markdownBlockDrag";
+} from "../../../../../../src/shared-ui/editor/markdown/core/commands/markdownBlockMove";
+import { markdownBlockDragExtension } from "../../../../../../src/shared-ui/editor/markdown/addons/block-drag";
 import {
   getMarkdownMovableBlockAt,
   getMarkdownMovableBlockGroup,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownBlockBoundaries";
+  sameMarkdownMovableBlock,
+} from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownBlockBoundaries";
 import {
   markdownCodeMirrorLanguageExtension,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { getMarkdownEmbedHost } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embedHost";
-import { createEmbeddedEditSessionStore } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedEditSession";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { getMarkdownEmbedHost } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embedHost";
+import { createEmbeddedEditSessionStore } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embeddedEditSession";
 
 const mountedViews: EditorView[] = [];
 
@@ -171,10 +172,102 @@ describe("Markdown block movement", () => {
     const blockDrag = new Compartment();
     const view = createView("One\n\nTwo", "One", [blockDrag.of(markdownBlockDragExtension())]);
     expect(view.dom.querySelectorAll(".cm-md-block-drag-layer")).toHaveLength(1);
+    expect(view.dom.querySelectorAll(".cm-md-block-drag-ghost")).toHaveLength(1);
 
     view.dispatch({ effects: blockDrag.reconfigure([]) });
     expect(view.dom.querySelectorAll(".cm-md-block-drag-layer")).toHaveLength(0);
-    expect(view.dom.classList.contains("cm-md-block-drag-enabled")).toBe(false);
+    expect(view.dom.querySelectorAll(".cm-md-block-drag-ghost")).toHaveLength(0);
+    expect(view.scrollDOM.lastElementChild?.className ?? "").not.toContain("cm-md-block-drag");
+  });
+
+  it("keeps one stable extension so reconfiguring cannot rebuild the plugin", () => {
+    expect(markdownBlockDragExtension()).toBe(markdownBlockDragExtension());
+  });
+
+  it("reveals a keyboard move but leaves a drop where the pointer put it", () => {
+    const scrolled: boolean[] = [];
+    const view = createView("One\n\nTwo\n\nThree", "Two", [
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) scrolled.push(update.transactions[0].scrollIntoView);
+      }),
+    ]);
+    const source = getMarkdownMovableBlockAt(view.state, view.state.selection.main.head)!;
+    view.dispatch(buildMarkdownBlockMoveTransaction(view.state, source, 3)!);
+    expect(moveMarkdownBlock(view, "up")).toBe(true);
+    expect(scrolled).toEqual([false, true]);
+  });
+
+  it("moves the block holding a caret at the very end of its line", () => {
+    const view = createView("One\n\nTwo\n\nThree", "Two", []);
+    view.dispatch({ selection: { anchor: "One\n\nTwo".length } });
+    expect(moveMarkdownBlock(view, "down")).toBe(true);
+    expect(view.state.doc.toString()).toBe("One\n\nThree\n\nTwo");
+  });
+});
+
+describe("Markdown block targeting", () => {
+  const list = "- first\n- second\n  - nested one\n  - nested two\n- third";
+
+  it("answers by line, so every column of a row names the same block", () => {
+    const state = createState(list, 0);
+    const line = state.doc.line(4);
+    const expected = { from: line.from + 2, to: line.to, kind: "list-item" };
+    for (const position of [line.from, line.from + 2, line.from + 6, line.to]) {
+      expect(getMarkdownMovableBlockAt(state, position)).toMatchObject(expected);
+    }
+  });
+
+  it("never widens a list item to its whole list at the end of a row", () => {
+    const state = createState(list, 0);
+    const last = state.doc.line(5);
+    expect(getMarkdownMovableBlockAt(state, last.to)).toMatchObject({ kind: "list-item", from: last.from });
+    expect(getMarkdownMovableBlockAt(state, state.doc.line(1).to)).toMatchObject({ kind: "list-item", from: 0 });
+  });
+
+  it("gives a lone list item to its container instead of no block", () => {
+    const state = createState("- only\n\nAfter", 2);
+    expect(getMarkdownMovableBlockAt(state, 2)).toMatchObject({ kind: "root", from: 0, to: 6 });
+
+    const nested = createState("- parent\n  - only child\n- sibling", 0);
+    const child = nested.doc.line(2);
+    expect(getMarkdownMovableBlockAt(nested, child.to)).toMatchObject({ kind: "list-item", from: 0 });
+  });
+
+  it("assigns a blank line between blocks to neither of them", () => {
+    const state = createState("One\n\nTwo\n\n- a\n\n- b", 0);
+    expect(getMarkdownMovableBlockAt(state, 4)).toBeNull();
+    expect(getMarkdownMovableBlockAt(state, state.doc.line(6).from)).toBeNull();
+  });
+
+  it("keeps a blank line inside a code fence with its fence", () => {
+    const state = createState("Intro\n\n```js\na\n\nb\n```\n\nOutro", 0);
+    expect(getMarkdownMovableBlockAt(state, state.doc.line(5).from)).toMatchObject({ kind: "root", from: 7 });
+  });
+
+  it("keeps YAML frontmatter out of every move", () => {
+    const sourceText = "---\ntitle: Hello\n---\n\nOne\n\nTwo";
+    const state = createState(sourceText, 0);
+    for (const number of [1, 2, 3]) {
+      expect(getMarkdownMovableBlockAt(state, state.doc.line(number).from)).toBeNull();
+    }
+    const source = getMarkdownMovableBlockAt(state, sourceText.indexOf("Two"))!;
+    const group = getMarkdownMovableBlockGroup(state, source)!;
+    expect(group.blocks).toHaveLength(2);
+    const moved = state.update(buildMarkdownBlockMoveTransaction(state, source, 0)!);
+    expect(moved.newDoc.toString()).toBe("---\ntitle: Hello\n---\n\nTwo\n\nOne");
+  });
+
+  it("offers no handle for the only block after frontmatter", () => {
+    const sourceText = "---\ntitle: Hello\n---\n\nAlone";
+    const state = createState(sourceText, 0);
+    expect(getMarkdownMovableBlockAt(state, sourceText.indexOf("Alone"))).toBeNull();
+  });
+
+  it("keeps a block's identity while the parser extends the document", () => {
+    const state = createState("One\n\nTwo", 0);
+    const block = getMarkdownMovableBlockAt(state, 1)!;
+    expect(sameMarkdownMovableBlock(block, { ...block, parentTo: block.parentTo + 500 })).toBe(true);
+    expect(getMarkdownMovableBlockGroup(state, { ...block, parentTo: 1 })).not.toBeNull();
   });
 });
 

@@ -2,11 +2,11 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import { FilePreview, createDocumentAssetImportPort, type DocumentPersistenceRequest, type DocumentPersistenceResult, type FileContent } from "@puppyone/shared-ui";
-import { closeDocumentWorkingCopy } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { editorTaskScheduler } from "../../../../packages/shared-ui/src/editor/runtime/EditorTaskScheduler";
+import { closeDocumentWorkingCopy } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
+import { editorTaskScheduler } from "../../../../src/shared-ui/editor/runtime/EditorTaskScheduler";
 import { requireEditorView } from "../../../support/editor/editorView";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
-import "../../../../sub-themes/default-neutral/theme.css";
+import "../../../../src/features/themes/builtin/default-neutral/theme.css";
 import "@puppyone/shared-ui/shared-ui.css";
 import "@puppyone/shared-ui/editor.css";
 

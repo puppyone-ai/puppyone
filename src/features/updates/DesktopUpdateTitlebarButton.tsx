@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { Download, RotateCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { DesktopUpdateState } from "../../types/electron";
@@ -31,7 +30,7 @@ export function DesktopUpdateTitlebarButton({
   const Icon = presentation.kind === "available" ? Download : RotateCw;
 
   return (
-    <Tooltip content={label}><button
+    <button
       className={`desktop-titlebar-action desktop-titlebar-update is-${presentation.kind}`}
       type="button"
       aria-label={label}
@@ -46,6 +45,6 @@ export function DesktopUpdateTitlebarButton({
         aria-hidden="true"
       />
       <span className="desktop-titlebar-update-label">{buttonLabel}</span>
-    </button></Tooltip>
+    </button>
   );
 }

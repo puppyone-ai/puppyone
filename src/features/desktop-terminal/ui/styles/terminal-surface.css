@@ -19,17 +19,11 @@
   pointer-events: auto;
 }
 
-.desktop-terminal-drop-error {
-  position: absolute;
-  z-index: 1;
-  inset: 8px 12px auto;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: var(--po-terminal-bg);
-  color: var(--po-terminal-fg);
-  border: 1px solid var(--po-border);
-  font-size: var(--po-type-right-sidebar-caption, 12px);
-  line-height: var(--po-type-right-sidebar-caption-line-height, 17px);
+/* Terminal notices speak in the Right Sidebar type role. */
+.desktop-terminal-notice-stack {
+  --po-floating-notice-z: 1;
+  --po-floating-notice-font-size: var(--po-type-right-sidebar-meta, 13px);
+  --po-floating-notice-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
 }
 
 .desktop-terminal-session:not(.is-ready) .desktop-terminal-xterm {

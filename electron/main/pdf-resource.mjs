@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
-import { resolveExistingWorkspacePath } from "../../local-api/files/path-policy.mjs";
-import { parseSingleByteRange } from "../../local-api/files/byte-range.mjs";
+import { resolveExistingWorkspacePath } from "../local-api/files/path-policy.mjs";
+import { parseSingleByteRange } from "../local-api/files/byte-range.mjs";
 import { getPresetViewerDefinitionForViewerId } from "./viewer-packs/preset-viewer-manifest.mjs";
 
 export const PDF_MAX_SOURCE_BYTES = getPresetViewerDefinitionForViewerId("pdf-preview").resourcePolicy.maxSourceBytes;

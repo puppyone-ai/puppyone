@@ -5,12 +5,12 @@ import {
   resolveMarkdownHrefInteraction,
   resolveWikiLinkInteraction,
   type MarkdownLinkResolutionContext,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/markdownLinkInteraction";
+} from "../../../../../../src/shared-ui/editor/markdown/core/state/markdownLinkInteraction";
 import {
   createMarkdownHeadingIndex,
   markdownHeadingIndexField,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownHeadingIndex";
-import { createMarkdownLinkGraph } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
+} from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownHeadingIndex";
+import { createMarkdownLinkGraph } from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownLinkGraph";
 
 function context(
   overrides: Partial<MarkdownLinkResolutionContext> = {},

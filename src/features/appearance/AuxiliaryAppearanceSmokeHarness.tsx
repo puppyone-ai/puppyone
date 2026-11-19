@@ -1,9 +1,10 @@
+import { initializeDesktopPreferences } from "../../preferencesStore";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { AuxiliaryWorkbenchPanel } from "../app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import { ProjectWorkbenchStore } from "../app-shell/auxiliary-workbench/ProjectWorkbenchStore";
-import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext, AuxiliaryWorkbenchProject } from "../app-shell/auxiliary-workbench/types";
-import { DesktopOverlayPortal } from "../app-shell/DesktopOverlayPortal";
+import { ProjectWorkbenchStore } from "../../lib/workbench/ProjectWorkbenchStore";
+import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext, AuxiliaryWorkbenchProject } from "../../lib/workbench/types";
+import { DesktopOverlayPortal } from "../../components/DesktopOverlayPortal";
 import { TerminalRuntimePool } from "../desktop-terminal/runtime/TerminalRuntimePool";
 import { TerminalSessionView } from "../desktop-terminal/ui/TerminalSessionView";
 import { readTerminalAppearance, type TerminalAppearance } from "../desktop-terminal/runtime/terminalAppearance";
@@ -85,6 +86,8 @@ function TerminalFixture({ project, item, presentation, readAppearance }: Auxili
     presented={presentation.presented} focused={presentation.commandTarget} />;
 }
 
+initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+
 export function AuxiliaryAppearanceSmokeHarness() {
   const { t } = useLocalization();
   const [theme, setTheme] = useState<Theme>(initialTheme);
@@ -96,7 +99,7 @@ export function AuxiliaryAppearanceSmokeHarness() {
     appearance: resolveAppearance({ interfaceStyle: theme === "windows-xp" ? "windows-xp" : "default", themeMode: theme === "dark" ? "dark" : "light", sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" }),
     typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
     markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
-    loadingAnimationPreset: "ikun", lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color",
+    lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color",
   }), [theme]);
   const readAppearance = useCallback(() => readTerminalAppearance(surface.current!), []);
   const contributions = useMemo(() => {
@@ -182,7 +185,7 @@ export function AuxiliaryAppearanceSmokeHarness() {
       <div className="desktop-right-sidebar is-open auxiliary-appearance-smoke-sidebar" style={{ width }}>
         <div ref={surface} className="desktop-right-sidebar-stack">
           <AuxiliaryWorkbenchPanel store={store} contributions={contributions} active={active} renderLauncher={(context) => headerMotion ? <AuxiliaryWorkbenchLauncher
-            {...context} store={store} contributions={contributions} hiddenAgentIds={[]}
+            {...context} store={store} contributions={contributions}
           /> : null} />
         </div>
       </div>

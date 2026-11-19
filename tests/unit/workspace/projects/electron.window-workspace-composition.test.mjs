@@ -42,7 +42,7 @@ describe("window Workspace composition service", () => {
     expect(persistWorkspaceComposition).not.toHaveBeenCalled();
   });
 
-  it("reveals the owning window without mutating either composition", async () => {
+  it("attaches in the requesting window even when another window has the same root", async () => {
     const window = { id: "window-a" };
     const otherWindow = { id: "window-b" };
     const state = stateWith("a");
@@ -55,9 +55,9 @@ describe("window Workspace composition service", () => {
 
     const result = await service.attach(window, "/b");
 
-    expect(result.status).toBe("focused-existing");
-    expect(revealWindow).toHaveBeenCalledWith(otherWindow, "/b");
-    expect(state.folderPaths).toEqual(["/a"]);
+    expect(result.status).toBe("attached-current");
+    expect(revealWindow).not.toHaveBeenCalled();
+    expect(state.folderPaths).toEqual(["/a", "/b"]);
   });
 
   it("leaves the old snapshot authoritative when persistence fails", async () => {
@@ -100,6 +100,26 @@ describe("window Workspace composition service", () => {
     expect(indexedPaths.has("/b")).toBe(false);
   });
 
+  it("removes a Folder that has gone from disk by the path the window holds for it", async () => {
+    const window = { id: "window-a" };
+    const state = stateWith("a", "b");
+    const indexedPaths = new Map([["/a", window], ["/b", window]]);
+    const service = createService({
+      state,
+      indexedPaths,
+      canonicalizeWorkspacePath: async (folderPath) => {
+        if (folderPath === "/b") throw Object.assign(new Error("ENOENT: no such file or directory, realpath '/b'"), { code: "ENOENT" });
+        return folderPath;
+      },
+    });
+
+    const result = await service.detach(window, "/b");
+
+    expect(result).toMatchObject({ status: "detached-current", path: "/b" });
+    expect(state.folderPaths).toEqual(["/a"]);
+    expect(indexedPaths.has("/b")).toBe(false);
+  });
+
   it("does not publish a detach when persistence fails", async () => {
     const window = { id: "window-a" };
     const state = stateWith("a", "b");
@@ -138,11 +158,11 @@ function createService({
   onIndex = () => undefined,
   onUnindex = () => undefined,
   cleanupDetachedWorkspace = vi.fn(async () => undefined),
+  canonicalizeWorkspacePath = async (folderPath) => folderPath,
 }) {
   return createWindowWorkspaceCompositionService({
-    canonicalizeWorkspacePath: async (folderPath) => folderPath,
+    canonicalizeWorkspacePath,
     getWindowState: () => state,
-    getWorkspaceWindow: (folderPath) => indexedPaths.get(folderPath) ?? null,
     indexWorkspacePath: (folderPath, window) => {
       indexedPaths.set(folderPath, window);
       onIndex();
@@ -153,7 +173,6 @@ function createService({
     },
     cleanupDetachedWorkspace,
     persistWorkspaceComposition,
-    revealWindow,
     workspaceFromPath: async (folderPath) => workspace(folderPath.slice(1)),
   });
 }

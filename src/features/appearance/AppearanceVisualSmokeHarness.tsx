@@ -8,8 +8,9 @@ import { useLocalization } from "@puppyone/localization/react";
 import {
   ExplorerTree,
   type DataNode,
+  FolderIcon,
 } from "@puppyone/shared-ui";
-import { CircleHelp, FolderOpen, GitBranch, Settings } from "lucide-react";
+import { CircleHelp, GitBranch, Settings } from "lucide-react";
 import { useEffect } from "react";
 import {
   getInterfaceStyleDefinition,
@@ -27,6 +28,7 @@ import "./appearance-visual-smoke.css";
 const searchParams = new URLSearchParams(window.location.search);
 const style = parseInterfaceStyle(searchParams.get("style"));
 const dialogFixture = searchParams.get("dialog");
+const fileDropFixture = searchParams.has("file-drop");
 const requestedTypographyScale = searchParams.get("scale");
 const typographyScale = TYPOGRAPHY_SCALE_OPTIONS.find(
   (candidate) => candidate === requestedTypographyScale,
@@ -75,7 +77,7 @@ const fixtureSelectedPaths = new Set(["PuppyOne"]);
 const codeFixture = "const style = resolveAppearance(profile);";
 const gridFixture = { firstColumn: "id", secondColumn: "family", file: "README.md" };
 const smokeNavigationItems = [
-  { dataItem: "data", icon: FolderOpen, labelKey: "shell.navigation.files" },
+  { dataItem: "data", icon: FolderIcon, labelKey: "shell.navigation.files" },
   { dataItem: "git", icon: GitBranch, labelKey: "shell.navigation.git" },
   { dataItem: "settings", icon: Settings, labelKey: "shell.navigation.settings" },
   { dataItem: "feedback", icon: CircleHelp, labelKey: "shell.feedback.label" },
@@ -141,6 +143,13 @@ export function AppearanceVisualSmokeHarness() {
                 renderListEnd={() => <div className="appearance-visual-scroll-spacer" aria-hidden="true" />}
                 selectedPaths={fixtureSelectedPaths}
                 showRoot={false}
+                onImportFiles={fileDropFixture ? (files, target) => {
+                  const tree = document.querySelector<HTMLElement>(".explorer-tree-shell");
+                  if (tree) {
+                    tree.dataset.importedFiles = files.map(file => file.name).join(",");
+                    tree.dataset.importTarget = target ?? "root";
+                  }
+                } : undefined}
               />
             </div>
             <SmokeNavigation />
@@ -179,10 +188,10 @@ export function AppearanceVisualSmokeHarness() {
         <div className="onboarding-homepage">
           <OnboardingPrimarySection kind="projects">
             <OnboardingProjectList
+              layout="list"
               items={[{ id: "typography-project", label: "PuppyOne", localPath: "/Users/demo/Desktop/PuppyOne", lastOpenedAt: null }]}
               busy={false}
               openingPath={null}
-              removingPath={null}
               draggingPath={null}
               onOpen={() => undefined}
               onDragStart={() => undefined}

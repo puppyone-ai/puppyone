@@ -6,7 +6,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepoIdentity,
   DesktopCloudScope,
@@ -14,6 +14,7 @@ import type {
 } from "../../../../src/lib/cloudApi";
 import { AccessPointRoutePage } from "../../../../src/features/cloud/access-points";
 import { withTestLocalization } from "../../../support/react/localization";
+import { accessSurfaceFixture } from "../../../support/cloud/accessSurfaceFixture";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -71,6 +72,8 @@ describe("AccessPointRoutePage catalog", () => {
     const mcpRow = container.querySelector<HTMLButtonElement>(".desktop-cloud-access-point-row");
     act(() => mcpRow?.click());
     expect(document.body.querySelector('[role="dialog"]')?.getAttribute("aria-label")).toBe("Docs MCP");
+    expect([...document.querySelectorAll(".desktop-cloud-access-permission-group-title em")]
+      .some(node => /^\d+ of \d+$/.test(node.textContent ?? ""))).toBe(true);
   });
 
   it("starts new access as an Agent connection with MCP selected", async () => {
@@ -155,21 +158,24 @@ const SCOPES = [{
   max_mode: "r",
 }] satisfies DesktopCloudScope[];
 
-const CONNECTORS = [{
+const CONNECTORS = [accessSurfaceFixture({
   id: "root-cli",
   target: { kind: "project_root", project_id: "project-1" },
-  provider: "cli",
+  kind: "cli",
   name: "Root CLI",
   direction: "bidirectional",
   status: "active",
-}, {
+}), accessSurfaceFixture({
   id: "docs-cli",
   target: { kind: "scope", project_id: "project-1", scope_id: "scope-docs" },
-  provider: "cli",
+  kind: "cli",
   name: "Docs CLI",
   direction: "bidirectional",
   status: "paused",
-}] satisfies DesktopCloudConnector[];
+}), accessSurfaceFixture({
+  id: "mcp-docs", kind: "mcp", name: "Docs MCP",
+  target: { kind: "scope", project_id: "project-1", scope_id: "scope-docs" },
+})] satisfies DesktopCloudAccessSurface[];
 
 const MCP_ENDPOINTS = [{
   id: "mcp-docs",

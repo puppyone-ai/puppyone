@@ -1,4 +1,4 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { Tooltip, CloudIcon } from "@puppyone/shared-ui";
 import {
   useEffect,
   useMemo,
@@ -7,27 +7,24 @@ import {
   type ReactNode,
 } from "react";
 import type { Workspace } from "@puppyone/shared-ui";
-import { Plus } from "lucide-react";
+import { FolderPlus, Plus } from "lucide-react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import {
   getProjectAppearanceIdentity,
   useProjectAppearanceCatalog,
 } from "../project-appearance/useProjectAppearanceCatalog";
-import {
-  ProjectContextAssetMark,
-  resolveProjectContextAssetKind,
-  type ProjectContextAssetKind,
-} from "./ProjectContextAssetMark";
+import { HomeProjectIcon } from "../../components/onboarding/HomeProjectIcon";
 import {
   DesktopSidebarPluginsButton,
   DesktopSidebarSettingsButton,
 } from "./navigation/DesktopNavigationItems";
-import type { DesktopView } from "../../components/DesktopCloudShell";
+import type { DesktopView } from "../../components/ProjectShell";
 import { beginProjectRootDrag } from "./projectRootDrag";
 import {
   ProjectRowActions,
   type ProjectActionSurface,
-} from "./ProjectRowActions";
+} from "../../components/ProjectRowActions";
+import type { ProjectAppearance } from "../../types/electron";
 export {
   DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH,
   MAX_PROJECT_SWITCHER_EXPANDED_WIDTH,
@@ -36,10 +33,13 @@ export {
   resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
 } from "./projectSwitcherRailGeometry";
-import type { RecentWorkspaceHomeItem } from "./workspaceHomeModel";
+import { projectMatchesTarget } from "./window-project/projectNavigation";
+import type { ProjectTarget } from "./window-project/windowProjectStore";
+import { getProjectName, type ProjectHomeItem, type RecentWorkspaceHomeItem } from "../../lib/workspaceHomeModel";
 
 export type ProjectSwitcherRailItem = Readonly<{
-  workspace: Workspace;
+  item: ProjectHomeItem;
+  workspace: Workspace | null;
   initial: string;
   appearanceIdentity: string | null;
 }>;
@@ -52,8 +52,12 @@ type ProjectActionSession = Readonly<{
 type ProjectSwitcherRailProps = Readonly<{
   activeView?: DesktopView;
   activeWorkspace: Workspace;
+  activeCloudProjectId?: string | null;
+  pendingProject?: ProjectTarget | null;
   expanded?: boolean;
   recentWorkspaces: readonly RecentWorkspaceHomeItem[];
+  projectItems: readonly ProjectHomeItem[];
+  onAddProject?: () => void;
   onCreateNew: () => void;
   onOpenPlugins?: () => void;
   onOpenSettings?: () => void;
@@ -61,19 +65,24 @@ type ProjectSwitcherRailProps = Readonly<{
   pluginsOpen?: boolean;
   settingsOpen?: boolean;
   onSelectProject: (path: string) => void | Promise<void>;
+  onSelectCloudProject?: (projectId: string) => void | Promise<void>;
   onUnlinkProject?: (path: string) => Promise<void>;
   utilitySlot?: ReactNode;
 }>;
 
 /**
- * Shell-owned, cross-Project navigation. The rail consumes the existing recent
- * Project registry and never owns Workspace lifecycle or persistence itself.
+ * Shell-owned navigation over the same account-scoped catalog as Homepage.
+ * Local workspace DTOs supply appearance/actions, never hosted-only paths.
  */
 export function ProjectSwitcherRail({
   activeView = "data",
   activeWorkspace,
+  activeCloudProjectId,
+  pendingProject,
   expanded = false,
   recentWorkspaces,
+  projectItems,
+  onAddProject,
   onCreateNew,
   onOpenPlugins,
   onOpenSettings,
@@ -81,36 +90,37 @@ export function ProjectSwitcherRail({
   pluginsOpen = false,
   settingsOpen = false,
   onSelectProject,
+  onSelectCloudProject,
   onUnlinkProject,
   utilitySlot,
 }: ProjectSwitcherRailProps) {
   const { t } = useLocalization();
-  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [failedAvatarUrls, setFailedAvatarUrls] = useState<ReadonlySet<string>>(() => new Set());
   const [projectActionSession, setProjectActionSession] = useState<ProjectActionSession | null>(null);
-  const queuedProjectRef = useRef<Workspace | null>(null);
-  const switchInFlightRef = useRef(false);
+  const selectionRequest = useRef(0);
   const projectCatalog = useMemo(
-    () => resolveProjectSwitcherRailItems(activeWorkspace, recentWorkspaces),
-    [activeWorkspace, recentWorkspaces],
+    () => resolveProjectSwitcherRailItems(activeWorkspace, recentWorkspaces, projectItems),
+    [activeWorkspace, recentWorkspaces, projectItems],
   );
   const [projectOrder, setProjectOrder] = useState<readonly string[]>(
-    () => projectCatalog.map(({ workspace }) => workspace.path),
+    () => projectCatalog.map(({ item }) => item.id),
   );
   const nextProjectOrder = useMemo(
     () => mergeProjectSwitcherRailOrder(projectOrder, projectCatalog),
     [projectCatalog, projectOrder],
   );
   const projects = useMemo(() => {
-    const projectsByPath = new Map(
-      projectCatalog.map((project) => [project.workspace.path, project]),
+    const projectsById = new Map(
+      projectCatalog.map((project) => [project.item.id, project]),
     );
-    return nextProjectOrder.flatMap((path) => {
-      const project = projectsByPath.get(path);
+    return nextProjectOrder.flatMap((id) => {
+      const project = projectsById.get(id);
       return project ? [project] : [];
     });
   }, [nextProjectOrder, projectCatalog]);
   const appearanceWorkspaces = useMemo(
-    () => projectCatalog.map(({ workspace }) => workspace),
+    () => projectCatalog.flatMap(({ workspace }) => workspace ? [workspace] : []),
     [projectCatalog],
   );
   const appearanceCatalog = useProjectAppearanceCatalog(appearanceWorkspaces);
@@ -123,7 +133,7 @@ export function ProjectSwitcherRail({
     setProjectActionSession((current) => {
       if (!current) return null;
       if (!expanded) return null;
-      return projects.some(({ workspace }) => workspace.path === current.projectPath)
+      return projects.some(({ item }) => item.localPath === current.projectPath)
         ? current
         : null;
     });
@@ -141,28 +151,28 @@ export function ProjectSwitcherRail({
     });
   };
 
-  const selectProject = async (project: Workspace) => {
-    if (
-      (project.path === activeWorkspace.path && activeView !== "settings")
-      || project.path === pendingPath
-    ) return;
+  // Rename/unlink belong to the expanded rail as a whole, not to any one row.
+  const projectActionsAvailable = expanded && Boolean(onRenameProject || onUnlinkProject);
+  const currentCloudProjectId = activeCloudProjectId
+    ?? (activeWorkspace.path.startsWith("puppyone-cloud:") ? activeWorkspace.projectId : null);
+  const isActiveProject = (project: ProjectHomeItem) => currentCloudProjectId
+    ? project.cloudProjectId === currentCloudProjectId
+    : project.localPath === activeWorkspace.path;
+  const selectProject = async (project: ProjectHomeItem) => {
+    if (isActiveProject(project) && activeView !== "settings" && !pendingProject && !pendingId) return;
     setProjectActionSession(null);
-    queuedProjectRef.current = project;
-    setPendingPath(project.path);
-    if (switchInFlightRef.current) return;
-
-    switchInFlightRef.current = true;
+    const request = ++selectionRequest.current;
+    setPendingId(project.id);
     try {
-      while (queuedProjectRef.current) {
-        const nextProject = queuedProjectRef.current;
-        queuedProjectRef.current = null;
-        await onSelectProject(nextProject.path);
-      }
+      if (project.localPath) await onSelectProject(project.localPath);
+      else if (project.cloudProjectId) await onSelectCloudProject?.(project.cloudProjectId);
     } finally {
-      switchInFlightRef.current = false;
-      setPendingPath(null);
+      if (request === selectionRequest.current) setPendingId(null);
     }
   };
+  const isPending = (project: ProjectHomeItem) => pendingProject === undefined
+    ? pendingId === project.id
+    : projectMatchesTarget(project, pendingProject);
 
   return (
     <nav
@@ -175,71 +185,34 @@ export function ProjectSwitcherRail({
         className="desktop-project-switcher-rail-list po-sidebar-list"
         data-po-scrollbar="sidebar"
       >
-        {projects.map(({ workspace, initial, appearanceIdentity }) => {
-          const active = activeView !== "settings" && workspace.path === activeWorkspace.path;
-          const contextAssetKind = resolveProjectContextAssetKind(workspace);
-          const contextAssetLabel = t(contextAssetKind === "cloud"
-            ? "shell.workspaceSwitcher.contextAssetCloud"
-            : "shell.workspaceSwitcher.contextAssetLocal");
-          const appearance = appearanceIdentity
-            ? appearanceCatalog.appearances.get(appearanceIdentity)
-            : null;
-          const label = `${t("shell.workspaceSwitcher.projectTitle", {
-            project: bidiIsolate(workspace.name),
-          })} · ${contextAssetLabel}`;
+        {/* No way back to Homepage: the rail is the Project list, so leaving
+            for a second one would be a detour to the same answer. */}
+        {projects.map((project) => {
+          const opened = isActiveProject(project.item);
           return (
-            <div
-              className="desktop-project-switcher-rail-project-row"
-              data-menu-open={projectActionSession?.projectPath === workspace.path
-                && projectActionSession.surface === "menu"
-                ? "true"
-                : undefined}
-              key={workspace.path}
-            >
-              <Tooltip content={expanded ? undefined : workspace.name} placement="right"><button
-                className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project ${expanded ? "desktop-project-switcher-rail-expanded-project po-sidebar-row" : "desktop-project-switcher-rail-compact-project"}${active ? " active" : ""}`}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                aria-label={label}
-                aria-busy={pendingPath === workspace.path || undefined}
-                data-avatar-kind={expanded
-                  ? `context-${contextAssetKind}`
-                  : appearance?.icon?.kind ?? "initial"}
-                data-context-asset-kind={contextAssetKind}
-                data-pending={pendingPath === workspace.path ? "true" : undefined}
-                data-po-interaction="navigation"
-                draggable={Boolean(workspace.path.trim())}
-                onClick={() => void selectProject(workspace)}
-                onDragStart={(event) => beginProjectRootDrag(event, workspace.path)}
-              >
-                <ProjectSwitcherAvatar
-                  imageUrl={appearance?.icon?.kind === "asset" ? appearance.icon.url : null}
-                  emoji={appearance?.icon?.kind === "emoji" ? appearance.icon.value : null}
-                  initial={initial}
-                  contextAssetKind={contextAssetKind}
-                  compact={!expanded}
-                />
-                {expanded && (
-                  <span className="desktop-project-switcher-rail-label po-sidebar-row__label">
-                    {workspace.name}
-                  </span>
-                )}
-              </button></Tooltip>
-              {expanded && (onRenameProject || onUnlinkProject) && (
-                <ProjectRowActions
-                  workspace={workspace}
-                  surface={projectActionSession?.projectPath === workspace.path
-                    ? projectActionSession.surface
-                    : null}
-                  onSurfaceChange={(surface) => changeProjectActionSurface(workspace.path, surface)}
-                  onRenameProject={onRenameProject}
-                  onUnlinkProject={onUnlinkProject}
-                />
-              )}
-            </div>
+            <ProjectSwitcherRailRow
+              key={project.item.id}
+              project={project}
+              appearance={project.appearanceIdentity
+                ? appearanceCatalog.appearances.get(project.appearanceIdentity) ?? null
+                : null}
+              failedAvatarUrls={failedAvatarUrls}
+              expanded={expanded}
+              active={opened && activeView !== "settings"}
+              place={resolveProjectRowPlace(project.item)}
+              pending={isPending(project.item)}
+              actionSurface={projectActionSession?.projectPath === project.item.localPath
+                ? projectActionSession.surface
+                : null}
+              onSelect={() => void selectProject(project.item)}
+              onAvatarError={(url) => setFailedAvatarUrls((current) => new Set(current).add(url))}
+              onSurfaceChange={changeProjectActionSurface}
+              onRenameProject={onRenameProject}
+              onUnlinkProject={onUnlinkProject}
+            />
           );
         })}
-        <Tooltip content={t("shell.workspaceSwitcher.createNew")} placement={expanded ? "bottom" : "right"}><button
+        <Tooltip content={expanded ? undefined : t("shell.workspaceSwitcher.createNew")} placement={expanded ? "bottom" : "right"}><button
           className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-create ${expanded ? "desktop-project-switcher-rail-expanded-create po-sidebar-row" : "desktop-project-switcher-rail-compact-create"}`}
           type="button"
           aria-label={t("shell.workspaceSwitcher.createNew")}
@@ -262,6 +235,17 @@ export function ProjectSwitcherRail({
             </span>
           )}
         </button></Tooltip>
+        {onAddProject && <Tooltip content={expanded ? undefined : t("shell.workspaceSwitcher.addProject")} placement="right"><button
+          className={`desktop-project-switcher-rail-button${expanded ? " po-sidebar-row" : ""}`}
+          type="button"
+          aria-label={t("shell.workspaceSwitcher.addProject")}
+          onClick={() => { setProjectActionSession(null); onAddProject(); }}
+        >
+          <span className="desktop-project-switcher-rail-avatar desktop-project-switcher-rail-context-avatar" aria-hidden="true">
+            <FolderPlus size={15} strokeWidth={1.8} />
+          </span>
+          {expanded && <span className="desktop-project-switcher-rail-label po-sidebar-row__label">{t("shell.workspaceSwitcher.addProject")}</span>}
+        </button></Tooltip>}
       </div>
       {(onOpenPlugins || onOpenSettings || utilitySlot) && (
         <div
@@ -291,28 +275,203 @@ export function ProjectSwitcherRail({
   );
 }
 
+type ProjectSwitcherRailRowProps = Readonly<{
+  project: ProjectSwitcherRailItem;
+  appearance: ProjectAppearance | null;
+  failedAvatarUrls: ReadonlySet<string>;
+  expanded: boolean;
+  active: boolean;
+  place: ProjectRowPlace;
+  pending: boolean;
+  actionSurface: ProjectActionSurface;
+  onSelect: () => void;
+  onAvatarError: (assetUrl: string) => void;
+  onSurfaceChange: (projectPath: string, surface: ProjectActionSurface) => void;
+  onRenameProject?: (path: string, name: string) => Promise<void>;
+  onUnlinkProject?: (path: string) => Promise<void>;
+}>;
+
+/**
+ * One Project in the rail: who it is, where it is, and what can be done to it.
+ * The trailing slot states the place while the pointer is away and hands
+ * itself to the row actions on hover, so a row never carries two trailing
+ * controls at once.
+ */
+function ProjectSwitcherRailRow({
+  project: { item, workspace, initial },
+  appearance,
+  failedAvatarUrls,
+  expanded,
+  active,
+  place,
+  pending,
+  actionSurface,
+  onSelect,
+  onAvatarError,
+  onSurfaceChange,
+  onRenameProject,
+  onUnlinkProject,
+}: ProjectSwitcherRailRowProps) {
+  const identity = useProjectRowIdentity(item, appearance, failedAvatarUrls);
+  const actionable = Boolean(expanded && item.localPath && workspace
+    && (onRenameProject || onUnlinkProject));
+  return (
+    <div
+      className="desktop-project-switcher-rail-project-row"
+      data-menu-open={actionSurface === "menu" ? "true" : undefined}
+    >
+      <ProjectSwitcherRailProjectButton
+        item={item}
+        identity={identity}
+        initial={initial}
+        expanded={expanded}
+        active={active}
+        pending={pending}
+        onSelect={onSelect}
+        onAvatarError={onAvatarError}
+      />
+      {/* Local needs no mark: a Project is on this device unless the window
+          says otherwise. Hover hands the slot to the actions. */}
+      {expanded && place === "cloud" && (
+        <span className="desktop-project-switcher-rail-place" aria-hidden="true">
+          <CloudIcon size={14} />
+        </span>
+      )}
+      {actionable && workspace && (
+        <ProjectRowActions
+          project={workspace}
+          surface={actionSurface}
+          onSurfaceChange={(surface) => onSurfaceChange(workspace.path, surface)}
+          onRename={onRenameProject && ((name) => onRenameProject(workspace.path, name))}
+          onUnlink={onUnlinkProject && (() => onUnlinkProject(workspace.path))}
+        />
+      )}
+    </div>
+  );
+}
+
+function ProjectSwitcherRailProjectButton({
+  item,
+  identity,
+  initial,
+  expanded,
+  active,
+  pending,
+  onSelect,
+  onAvatarError,
+}: Readonly<{
+  item: ProjectHomeItem;
+  identity: ProjectRowIdentity;
+  initial: string;
+  expanded: boolean;
+  active: boolean;
+  pending: boolean;
+  onSelect: () => void;
+  onAvatarError: (assetUrl: string) => void;
+}>) {
+  const { assetUrl, avatarHasText, contextAssetKind, emoji, iconKind, imageUrl, label, name } = identity;
+  const presentation = expanded
+    ? "desktop-project-switcher-rail-expanded-project po-sidebar-row"
+    : "desktop-project-switcher-rail-compact-project";
+  return (
+    <Tooltip content={!expanded && !avatarHasText ? name : undefined} placement="right"><button
+      className={`desktop-project-switcher-rail-button desktop-project-switcher-rail-project ${presentation}${active ? " active" : ""}`}
+      type="button"
+      aria-current={active ? "page" : undefined}
+      aria-label={label}
+      aria-busy={pending || undefined}
+      data-avatar-kind={expanded ? `context-${contextAssetKind}` : iconKind}
+      data-context-asset-kind={contextAssetKind}
+      data-pending={pending ? "true" : undefined}
+      data-po-interaction="navigation"
+      draggable={Boolean(item.localPath.trim())}
+      onClick={onSelect}
+      onDragStart={item.localPath ? (event) => beginProjectRootDrag(event, item.localPath) : undefined}
+      onErrorCapture={() => {
+        if (assetUrl) onAvatarError(assetUrl);
+      }}
+    >
+      <ProjectSwitcherAvatar
+        imageUrl={imageUrl}
+        emoji={emoji}
+        initial={initial}
+        item={item}
+        compact={!expanded}
+      />
+      {expanded && (
+        <span className="desktop-project-switcher-rail-label po-sidebar-row__label">
+          <bdi>{name}</bdi>
+        </span>
+      )}
+    </button></Tooltip>
+  );
+}
+
+type ProjectRowIdentity = Readonly<{
+  name: string;
+  label: string;
+  contextAssetKind: "cloud" | "linked" | "local";
+  iconKind: string;
+  assetUrl: string | null;
+  imageUrl: string | null;
+  emoji: string | null;
+  avatarHasText: boolean;
+}>;
+
+/** What the row says about the Project, derived once for every rendering. */
+function useProjectRowIdentity(
+  item: ProjectHomeItem,
+  appearance: ProjectAppearance | null,
+  failedAvatarUrls: ReadonlySet<string>,
+): ProjectRowIdentity {
+  const { t } = useLocalization();
+  const name = getProjectName(item, t("onboarding.projects.untitled"));
+  const contextAssetKind = resolveProjectRowContextAssetKind(item);
+  const contextAssetLabel = [
+    ...(item.localPath ? [t("shell.workspaceSwitcher.contextAssetLocal")] : []),
+    ...(item.cloudProjectId ? [t("shell.workspaceSwitcher.contextAssetCloud")] : []),
+  ].join(" + ");
+  const assetUrl = appearance?.icon?.kind === "asset" ? appearance.icon.url : null;
+  const imageUrl = assetUrl && !failedAvatarUrls.has(assetUrl) ? assetUrl : null;
+  const emoji = appearance?.icon?.kind === "emoji" ? appearance.icon.value : null;
+  return {
+    name,
+    label: `${t("shell.workspaceSwitcher.projectTitle", { project: bidiIsolate(name) })} · ${contextAssetLabel}`,
+    contextAssetKind,
+    iconKind: appearance?.icon?.kind ?? "initial",
+    assetUrl,
+    imageUrl,
+    emoji,
+    avatarHasText: !imageUrl && !emoji,
+  };
+}
+
+function resolveProjectRowContextAssetKind(item: ProjectHomeItem): "cloud" | "linked" | "local" {
+  if (!item.localPath) return "cloud";
+  return item.linkedCloudProject ? "linked" : "local";
+}
+
 function ProjectSwitcherAvatar({
   imageUrl,
   emoji,
   initial,
-  contextAssetKind,
+  item,
   compact,
 }: Readonly<{
   imageUrl: string | null;
   emoji: string | null;
   initial: string;
-  contextAssetKind: ProjectContextAssetKind;
+  item: ProjectHomeItem;
   compact: boolean;
 }>) {
-  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const showImage = Boolean(imageUrl && imageUrl !== failedImageUrl);
+  const showImage = Boolean(imageUrl);
   if (!compact) {
     return (
       <span
         className="desktop-project-switcher-rail-avatar desktop-project-switcher-rail-context-avatar"
         aria-hidden="true"
       >
-        <ProjectContextAssetMark kind={contextAssetKind} size={15} />
+        <HomeProjectIcon item={item} />
       </span>
     );
   }
@@ -321,7 +480,7 @@ function ProjectSwitcherAvatar({
       <span
         className="desktop-project-switcher-rail-avatar desktop-project-switcher-rail-context-avatar desktop-project-switcher-rail-compact-context-avatar"
       >
-        <ProjectContextAssetMark kind={contextAssetKind} size={15} />
+        <HomeProjectIcon item={item} />
       </span>
       <bdi
         className={`desktop-project-switcher-rail-identity-badge${emoji && !showImage ? " desktop-project-switcher-rail-identity-badge-emoji" : ""}${!showImage && !emoji ? " desktop-project-switcher-rail-initial" : ""}`}
@@ -332,7 +491,6 @@ function ProjectSwitcherAvatar({
             src={imageUrl ?? undefined}
             alt=""
             draggable="false"
-            onError={() => setFailedImageUrl(imageUrl)}
           />
         ) : emoji ?? initial}
       </bdi>
@@ -340,36 +498,67 @@ function ProjectSwitcherAvatar({
   );
 }
 
+/** Where a Project is worked on: the fact the Header used to carry. */
+export type ProjectRowPlace = "local" | "cloud";
+
+/**
+ * Where a row's Project is worked on. A local folder and its Cloud project are
+ * two projects with two rows, so a row's place never changes while it is open.
+ */
+export function resolveProjectRowPlace(item: ProjectHomeItem): ProjectRowPlace {
+  return item.localPath ? "local" : "cloud";
+}
+
 export function resolveProjectSwitcherRailItems(
   activeWorkspace: Workspace,
   recentWorkspaces: readonly RecentWorkspaceHomeItem[],
+  projectItems: readonly ProjectHomeItem[],
 ): readonly ProjectSwitcherRailItem[] {
-  const workspaces = new Map<string, Workspace>();
+  const hosted = activeWorkspace.path.startsWith("puppyone-cloud:");
+  const workspaces = new Map(recentWorkspaces.map(({ workspace }) => [workspace.path, workspace]));
   workspaces.set(activeWorkspace.path, activeWorkspace);
-  for (const item of recentWorkspaces) {
-    if (!workspaces.has(item.workspace.path)) {
-      workspaces.set(item.workspace.path, item.workspace);
-    }
+  const items = [...new Map(projectItems.map(item => [item.id, item])).values()];
+  // The open project remains visible while its registry/catalog is refreshing.
+  if (!items.some(item => hosted
+    ? item.cloudProjectId === activeWorkspace.projectId
+    : item.localPath === activeWorkspace.path)) {
+    items.unshift({ id: hosted ? `cloud:${activeWorkspace.projectId}` : `local:${activeWorkspace.path}`,
+      label: activeWorkspace.name, localPath: hosted ? "" : activeWorkspace.path,
+      ...(hosted && activeWorkspace.projectId ? { cloudProjectId: activeWorkspace.projectId } : {}) });
   }
-  return Array.from(workspaces.values(), (workspace) => Object.freeze({
-    workspace,
-    initial: getProjectSwitcherInitial(workspace.name, workspace.path),
-    appearanceIdentity: getProjectAppearanceIdentity(workspace),
-  }));
+  return items.map(item => {
+    const workspace = resolveProjectSwitcherRailWorkspace(item, { activeWorkspace, hosted, workspaces });
+    return Object.freeze({ item, workspace,
+      initial: getProjectSwitcherInitial(item.label, item.localPath),
+      appearanceIdentity: workspace ? getProjectAppearanceIdentity(workspace) : null });
+  });
+}
+
+/** A row is backed by a local workspace, or by the open hosted one. */
+function resolveProjectSwitcherRailWorkspace(
+  item: ProjectHomeItem,
+  { activeWorkspace, hosted, workspaces }: Readonly<{
+    activeWorkspace: Workspace;
+    hosted: boolean;
+    workspaces: ReadonlyMap<string, Workspace>;
+  }>,
+): Workspace | null {
+  if (item.localPath) return workspaces.get(item.localPath) ?? null;
+  return hosted && item.cloudProjectId === activeWorkspace.projectId ? activeWorkspace : null;
 }
 
 export function mergeProjectSwitcherRailOrder(
   previousOrder: readonly string[],
   projects: readonly ProjectSwitcherRailItem[],
 ): readonly string[] {
-  const availablePaths = new Set(projects.map(({ workspace }) => workspace.path));
-  const nextOrder = previousOrder.filter((path) => availablePaths.has(path));
-  const seenPaths = new Set(nextOrder);
+  const availableIds = new Set(projects.map(({ item }) => item.id));
+  const nextOrder = previousOrder.filter((id) => availableIds.has(id));
+  const seenIds = new Set(nextOrder);
 
-  for (const { workspace } of projects) {
-    if (seenPaths.has(workspace.path)) continue;
-    nextOrder.push(workspace.path);
-    seenPaths.add(workspace.path);
+  for (const { item } of projects) {
+    if (seenIds.has(item.id)) continue;
+    nextOrder.push(item.id);
+    seenIds.add(item.id);
   }
 
   return arraysEqual(previousOrder, nextOrder) ? previousOrder : Object.freeze(nextOrder);

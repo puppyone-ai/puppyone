@@ -4,7 +4,7 @@ import {
   finishCollapsiblePaneGesture,
   moveCollapsiblePaneGesture,
   resolveCollapsiblePaneGestureConfig,
-} from "../../../../packages/shared-ui/src/primitives/collapsiblePaneGesture";
+} from "../../../../src/shared-ui/primitives/collapsiblePaneGesture";
 
 const rightPane = resolveCollapsiblePaneGestureConfig({
   collapsedWidth: 0,

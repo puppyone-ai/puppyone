@@ -287,14 +287,6 @@
   justify-content: center;
 }
 
-.desktop-cloud-create-access-disclosure {
-  transform: rotate(0deg);
-  transition: transform 0.12s ease;
-}
-
-.desktop-cloud-create-access-disclosure.expanded { transform: rotate(90deg); }
-[dir="rtl"] .desktop-cloud-create-access-disclosure:not(.expanded) { transform: rotate(180deg); }
-
 .desktop-cloud-create-access-tree-name {
   min-width: 0;
   flex: 1;
@@ -453,7 +445,7 @@
   border-color: var(--po-border-strong);
 }
 
-.desktop-cloud-create-access-path-box.existing .desktop-cloud-create-access-disclosure {
+.desktop-cloud-create-access-path-box.existing .po-disclosure-icon {
   color: var(--po-success);
 }
 

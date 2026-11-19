@@ -1,5 +1,20 @@
 const FALLBACK_SUB_THEME_ID = "default.neutral";
 
+/**
+ * SF Symbols for the commands PuppyOne adds to its menus. AppKit decorates
+ * the standard role commands itself from macOS 26; these give the custom
+ * commands beside them the symbol a native app would use, so no menu mixes
+ * decorated and bare rows. The platform decides whether symbols are drawn.
+ */
+export const NATIVE_MENU_COMMAND_SYMBOLS = Object.freeze({
+  "app.checkForUpdates": "arrow.triangle.2.circlepath",
+  "app.settings": "gearshape",
+  "file.newWindow": "macwindow.badge.plus",
+  "file.manageExecutions": "list.bullet.rectangle",
+  "theme.pack": "paintpalette",
+  "theme.openFolder": "folder",
+});
+
 function runMenuAction(actionId, action, logger) {
   void Promise.resolve()
     .then(action)
@@ -15,9 +30,11 @@ export function createDesktopNativeMenuService({
   t,
   onNewWindow,
   onCheckForUpdates,
+  onOpenSettings = () => undefined,
   onManageExecutions = () => undefined,
   onSelectTheme = () => undefined,
   onOpenThemesDirectory = () => undefined,
+  menuSymbol = () => undefined,
   logger = console,
 }) {
   if (!app) throw new TypeError("An Electron app is required.");
@@ -29,8 +46,10 @@ export function createDesktopNativeMenuService({
   if (typeof onCheckForUpdates !== "function") {
     throw new TypeError("onCheckForUpdates must be a function.");
   }
+  if (typeof onOpenSettings !== "function") throw new TypeError("onOpenSettings must be a function.");
   if (typeof onSelectTheme !== "function") throw new TypeError("onSelectTheme must be a function.");
   if (typeof onOpenThemesDirectory !== "function") throw new TypeError("onOpenThemesDirectory must be a function.");
+  if (typeof menuSymbol !== "function") throw new TypeError("menuSymbol must be a function.");
 
   let themeState = {
     pack: FALLBACK_SUB_THEME_ID,
@@ -39,19 +58,24 @@ export function createDesktopNativeMenuService({
   };
 
   const action = (actionId, handler) => () => runMenuAction(actionId, handler, logger);
+  const command = (item) => {
+    const symbolName = NATIVE_MENU_COMMAND_SYMBOLS[item.id];
+    const icon = symbolName ? menuSymbol(symbolName) : undefined;
+    return icon ? { ...item, icon } : item;
+  };
 
   const createFileMenu = () => ({
     label: t("native.menu.file"),
     submenu: [
-      {
+      command({
         id: "file.newWindow",
         label: t("native.dock.newWindow"),
         accelerator: "CmdOrCtrl+N",
         click: action("file.newWindow", onNewWindow),
-      },
+      }),
       { type: "separator" },
-      { id: "file.manageExecutions", label: t("native.execution.title"),
-        click: action("file.manageExecutions", onManageExecutions) },
+      command({ id: "file.manageExecutions", label: t("native.execution.title"),
+        click: action("file.manageExecutions", onManageExecutions) }),
       { role: "close" },
     ],
   });
@@ -59,13 +83,20 @@ export function createDesktopNativeMenuService({
   const createAppMenu = () => ({
     label: app.name,
     submenu: [
+      // About and Check for Updates are one group: both are about this build.
       { role: "about" },
-      { type: "separator" },
-      {
+      command({
         id: "app.checkForUpdates",
         label: t("native.menu.checkForUpdates"),
         click: action("app.checkForUpdates", onCheckForUpdates),
-      },
+      }),
+      { type: "separator" },
+      command({
+        id: "app.settings",
+        label: t("native.menu.settings"),
+        accelerator: "CmdOrCtrl+,",
+        click: action("app.settings", onOpenSettings),
+      }),
       { type: "separator" },
       { role: "services" },
       { type: "separator" },
@@ -77,7 +108,8 @@ export function createDesktopNativeMenuService({
     ],
   });
 
-  const createThemePackGroup = () => ({
+  const createThemePackGroup = () => command({
+    id: "theme.pack",
     label: t("native.menu.theme.pack"),
     submenu: themeState.themes
       .filter((theme) => (
@@ -101,11 +133,11 @@ export function createDesktopNativeMenuService({
     submenu: [
       createThemePackGroup(),
       { type: "separator" },
-      {
+      command({
         id: "theme.openFolder",
         label: t("native.menu.theme.openFolder"),
         click: action("theme.openFolder", onOpenThemesDirectory),
-      },
+      }),
     ],
   });
 

@@ -1,23 +1,24 @@
 import "./styles/cascade.css";
-import "./cloud-globals.css";
 import "./styles.css";
 
 import React from "react";
 import ReactDOM from "react-dom/client";
 import {
+  discardActiveDocumentSessions,
   flushActiveDocumentSessions,
   retireEditorTasks,
   holdEditorRuntimeAdmission,
   reconcilePendingDocumentOperations,
 } from "@puppyone/shared-ui";
 import { LocalizationProvider } from "@puppyone/localization/react";
-import { App } from "./App";
 import { ScrollbarActivity } from "./components/ScrollbarActivity";
 import { ApplicationRenderBoundary } from "./components/ApplicationRenderBoundary";
 import { DesktopTooltipLayer } from "./components/DesktopTooltipLayer";
+import { HtmlFolderAccessDialog } from "./components/HtmlFolderAccessDialog";
 import { FeatureFlagsProvider } from "./features/flags";
 import { TypographyCatalogProvider } from "./features/typography";
 import { bootstrapRendererLocalization } from "./localization";
+import { holdInert } from "./lib/inertHold";
 import { startMarkdownFormatShortcutBridge } from "./lib/markdownFormatShortcutBridge";
 import { installNativeTitleSuppression } from "./lib/nativeTitleSuppression";
 import { startDesktopMermaidClient } from "./platform/mermaid/desktopMermaidClient";
@@ -31,17 +32,19 @@ if (!rootElement) throw new Error("PuppyOne renderer root is unavailable.");
 let activeCloseRequestId: string | null = null;
 let releaseRuntimeAdmission: (() => void) | null = null;
 let previouslyFocusedElement: HTMLElement | null = null;
+let releaseCloseInteractionBarrier: (() => void) | null = null;
 const setCloseInteractionBarrier = (locked: boolean) => {
   if (locked) {
     releaseRuntimeAdmission ??= holdEditorRuntimeAdmission();
     previouslyFocusedElement = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    rootElement.inert = true;
+    releaseCloseInteractionBarrier ??= holdInert(rootElement);
     rootElement.setAttribute("aria-busy", "true");
     return;
   }
-  rootElement.inert = false;
+  releaseCloseInteractionBarrier?.();
+  releaseCloseInteractionBarrier = null;
   releaseRuntimeAdmission?.();
   releaseRuntimeAdmission = null;
   rootElement.removeAttribute("aria-busy");
@@ -51,7 +54,7 @@ const setCloseInteractionBarrier = (locked: boolean) => {
 };
 
 const stopDocumentSessionFlushListener = window.puppyoneDesktop
-  ?.onDocumentSessionFlushRequested?.(async ({ requestId, reason }) => {
+  ?.onDocumentSessionFlushRequested?.(async ({ requestId, reason, discard }) => {
     const closesWindow = reason === "app-close";
     if (closesWindow) {
       activeCloseRequestId = requestId;
@@ -59,6 +62,7 @@ const stopDocumentSessionFlushListener = window.puppyoneDesktop
     }
     try {
       if (closesWindow) await reconcilePendingDocumentOperations();
+      if (discard) discardActiveDocumentSessions();
       await flushActiveDocumentSessions(reason);
       if (closesWindow) await retireEditorTasks();
     } catch (error) {
@@ -85,6 +89,103 @@ window.addEventListener("pagehide", () => {
 
 const root = ReactDOM.createRoot(rootElement);
 
+const smokeSurfaces = new Map<string, () => Promise<React.ReactNode>>([
+  ["#auxiliary-appearance-smoke", async () => {
+    const { AuxiliaryAppearanceSmokeHarness } = await import("./features/appearance/AuxiliaryAppearanceSmokeHarness");
+    return <AuxiliaryAppearanceSmokeHarness />;
+  }],
+  ["#terminal-launcher-visual-smoke", async () => {
+    const { TerminalLauncherVisualSmokeHarness } = await import("./features/desktop-terminal/visual-smoke");
+    return <TerminalLauncherVisualSmokeHarness />;
+  }],
+  ["#terminal-split-visual-smoke", async () => {
+    const { TerminalSplitVisualSmokeHarness } = await import("./features/desktop-terminal/visual-smoke");
+    return <TerminalSplitVisualSmokeHarness />;
+  }],
+  ["#agent-visual-smoke", async () => {
+    const { AgentVisualSmokeHarness } = await import("./features/desktop-agent/visual-smoke");
+    return <AgentVisualSmokeHarness />;
+  }],
+  ["#agent-render-stability-smoke", async () => {
+    const { AgentRenderStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
+    return <AgentRenderStabilitySmokeHarness />;
+  }],
+  ["#agent-tool-stability-smoke", async () => {
+    const { AgentToolStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
+    return <AgentToolStabilitySmokeHarness />;
+  }],
+  ["#renderer-performance-smoke", async () => {
+    const { RendererPerformanceSmokeHarness } = await import("./performance/RendererPerformanceSmokeHarness");
+    return <RendererPerformanceSmokeHarness />;
+  }],
+  ["#csv-editor-performance-smoke", async () => {
+    const { CsvEditorPerformanceSmokeHarness } = await import("./performance/CsvEditorPerformanceSmokeHarness");
+    return <CsvEditorPerformanceSmokeHarness />;
+  }],
+  ["#markdown-line-geometry-smoke", async () => {
+    const { MarkdownLineGeometrySmokeHarness } = await import("./performance/MarkdownLineGeometrySmokeHarness");
+    return <MarkdownLineGeometrySmokeHarness />;
+  }],
+  ["#markdown-theme-inheritance-smoke", async () => {
+    const { MarkdownThemeInheritanceSmokeHarness } = await import("./features/appearance/MarkdownThemeInheritanceSmokeHarness");
+    return <MarkdownThemeInheritanceSmokeHarness />;
+  }],
+  ["#appearance-visual-smoke", async () => {
+    const { AppearanceVisualSmokeHarness } = await import("./features/appearance/AppearanceVisualSmokeHarness");
+    return <AppearanceVisualSmokeHarness />;
+  }],
+  ["#account-cloud-workbench-smoke", async () => {
+    const { AccountCloudWorkbenchSmokeHarness } = await import("./app/smoke/AccountCloudWorkbenchSmokeHarness");
+    return <AccountCloudWorkbenchSmokeHarness />;
+  }],
+  ["#native-cloud-workbench-smoke", async () => {
+    const { NativeCloudWorkbenchSmokeHarness } = await import("./app/smoke/NativeCloudWorkbenchSmokeHarness");
+    return <NativeCloudWorkbenchSmokeHarness />;
+  }],
+  ["#workspace-menu-visual-smoke", async () => {
+    const { WorkspaceMenuVisualSmokeHarness } = await import("./features/app-shell/WorkspaceMenuVisualSmokeHarness");
+    return <WorkspaceMenuVisualSmokeHarness />;
+  }],
+  ["#import-dialog-visual-smoke", async () => {
+    const { ImportDialogVisualSmokeHarness } = await import("./app/smoke/ImportDialogVisualSmokeHarness");
+    return <ImportDialogVisualSmokeHarness />;
+  }],
+  ["#cloud-plans-visual-smoke", async () => {
+    const { CloudPlansVisualSmokeHarness } = await import("./app/smoke/CloudPlansVisualSmokeHarness");
+    return <CloudPlansVisualSmokeHarness />;
+  }],
+  ["#unified-spaces-visual-smoke", async () => {
+    const { UnifiedSpacesVisualSmokeHarness } = await import("./app/smoke/UnifiedSpacesVisualSmokeHarness");
+    return <UnifiedSpacesVisualSmokeHarness />;
+  }],
+  ["#homepage-computers-visual-smoke", async () => {
+    const { HomepageComputersVisualSmokeHarness } = await import("./app/smoke/HomepageComputersVisualSmokeHarness");
+    return <HomepageComputersVisualSmokeHarness />;
+  }],
+  ["#computer-access-visual-smoke", async () => {
+    const { ComputerAccessVisualSmokeHarness } = await import("./app/smoke/ComputerAccessVisualSmokeHarness");
+    return <ComputerAccessVisualSmokeHarness />;
+  }],
+  ["#header-coachmark-visual-smoke", async () => {
+    const { HeaderCoachmarkVisualSmokeHarness } = await import("./features/app-shell/HeaderCoachmarkVisualSmokeHarness");
+    return <HeaderCoachmarkVisualSmokeHarness />;
+  }],
+]);
+
+/** The window's mode is fixed at creation. This is the only place that reads it. */
+async function loadApplicationSurface() {
+  const Root = window.location.hash === "#file-mode"
+    ? (await import("./app/FileModeApp")).FileModeApp
+    : (await import("./App")).App;
+  return (
+    <TypographyCatalogProvider>
+      <FeatureFlagsProvider>
+        <Root />
+      </FeatureFlagsProvider>
+    </TypographyCatalogProvider>
+  );
+}
+
 async function renderApplication() {
   const [localization, platformCapabilities] = await Promise.all([
     bootstrapRendererLocalization(),
@@ -95,71 +196,8 @@ async function renderApplication() {
   } else {
     delete document.documentElement.dataset.desktopPlatform;
   }
-  let surface: React.ReactNode;
-
-  if (window.location.hash === "#auxiliary-appearance-smoke") {
-    const { AuxiliaryAppearanceSmokeHarness } = await import("./features/appearance/AuxiliaryAppearanceSmokeHarness");
-    surface = <AuxiliaryAppearanceSmokeHarness />;
-  } else if (window.location.hash === "#terminal-launcher-visual-smoke") {
-    const { TerminalLauncherVisualSmokeHarness } = await import(
-      "./features/desktop-terminal/visual-smoke"
-    );
-    surface = <TerminalLauncherVisualSmokeHarness />;
-  } else if (window.location.hash === "#terminal-split-visual-smoke") {
-    const { TerminalSplitVisualSmokeHarness } = await import(
-      "./features/desktop-terminal/visual-smoke"
-    );
-    surface = <TerminalSplitVisualSmokeHarness />;
-  } else if (window.location.hash === "#agent-visual-smoke") {
-    const { AgentVisualSmokeHarness } = await import("./features/desktop-agent/visual-smoke");
-    surface = <AgentVisualSmokeHarness />;
-  } else if (window.location.hash === "#agent-render-stability-smoke") {
-    const { AgentRenderStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
-    surface = <AgentRenderStabilitySmokeHarness />;
-  } else if (window.location.hash === "#agent-tool-stability-smoke") {
-    const { AgentToolStabilitySmokeHarness } = await import("./features/desktop-agent/visual-smoke");
-    surface = <AgentToolStabilitySmokeHarness />;
-  } else if (window.location.hash === "#renderer-performance-smoke") {
-    const { RendererPerformanceSmokeHarness } = await import("./performance/RendererPerformanceSmokeHarness");
-    surface = <RendererPerformanceSmokeHarness />;
-  } else if (window.location.hash === "#csv-editor-performance-smoke") {
-    const { CsvEditorPerformanceSmokeHarness } = await import("./performance/CsvEditorPerformanceSmokeHarness");
-    surface = <CsvEditorPerformanceSmokeHarness />;
-  } else if (window.location.hash === "#markdown-line-geometry-smoke") {
-    const { MarkdownLineGeometrySmokeHarness } = await import("./performance/MarkdownLineGeometrySmokeHarness");
-    surface = <MarkdownLineGeometrySmokeHarness />;
-  } else if (window.location.hash === "#markdown-theme-inheritance-smoke") {
-    const { MarkdownThemeInheritanceSmokeHarness } = await import(
-      "./features/appearance/MarkdownThemeInheritanceSmokeHarness"
-    );
-    surface = <MarkdownThemeInheritanceSmokeHarness />;
-  } else if (window.location.hash === "#appearance-visual-smoke") {
-    const { AppearanceVisualSmokeHarness } = await import(
-      "./features/appearance/AppearanceVisualSmokeHarness"
-    );
-    surface = <AppearanceVisualSmokeHarness />;
-  } else if (window.location.hash === "#native-cloud-workbench-smoke") {
-    const { NativeCloudWorkbenchSmokeHarness } = await import("./features/cloud/workbench/NativeCloudWorkbenchSmokeHarness");
-    surface = <NativeCloudWorkbenchSmokeHarness />;
-  } else if (window.location.hash === "#workspace-menu-visual-smoke") {
-    const { WorkspaceMenuVisualSmokeHarness } = await import(
-      "./features/app-shell/WorkspaceMenuVisualSmokeHarness"
-    );
-    surface = <WorkspaceMenuVisualSmokeHarness />;
-  } else if (window.location.hash === "#header-coachmark-visual-smoke") {
-    const { HeaderCoachmarkVisualSmokeHarness } = await import(
-      "./features/app-shell/HeaderCoachmarkVisualSmokeHarness"
-    );
-    surface = <HeaderCoachmarkVisualSmokeHarness />;
-  } else {
-    surface = (
-      <TypographyCatalogProvider>
-        <FeatureFlagsProvider>
-          <App />
-        </FeatureFlagsProvider>
-      </TypographyCatalogProvider>
-    );
-  }
+  const loadSmokeSurface = smokeSurfaces.get(window.location.hash);
+  const surface = loadSmokeSurface ? await loadSmokeSurface() : await loadApplicationSurface();
 
   root.render(
     <React.StrictMode>
@@ -174,6 +212,7 @@ async function renderApplication() {
           <ScrollbarActivity />
           {surface}
           <DesktopTooltipLayer />
+          <HtmlFolderAccessDialog />
         </ApplicationRenderBoundary>
       </LocalizationProvider>
     </React.StrictMode>,

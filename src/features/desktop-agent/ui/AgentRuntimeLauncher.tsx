@@ -23,8 +23,8 @@ export function AgentRuntimeLauncher({
   return (
     <section
       className="desktop-agent-runtime-launcher"
+      data-po-scrollbar="content"
       aria-labelledby="desktop-agent-runtime-launcher-title"
-      aria-describedby="desktop-agent-runtime-launcher-description"
     >
       <div className="desktop-agent-runtime-launcher-content">
           <div className="desktop-agent-runtime-launcher-group">
@@ -41,13 +41,6 @@ export function AgentRuntimeLauncher({
                 <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
               </button></Tooltip>
             </header>
-
-            <p
-              id="desktop-agent-runtime-launcher-description"
-              className="desktop-agent-runtime-launcher-description"
-            >
-              {t("agent.launcher.description")}
-            </p>
 
             {agentRuntimes.length > 0 ? (
               <div className="desktop-agent-runtime-launcher-list">
@@ -69,16 +62,14 @@ export function AgentRuntimeLauncher({
                       />
                       <span>{entry.descriptor.displayName}</span>
                       {!ready && (
-                        <Tooltip content={detail || undefined}>
-                          <span
-                            className="desktop-agent-runtime-launcher-warning"
-                            aria-label={detail
-                              ? t("agent.launcher.needsAttention", { agent: bidiIsolate(entry.descriptor.displayName) })
-                              : undefined}
-                          >
-                            <CircleAlert size={13} strokeWidth={1.7} aria-hidden="true" />
-                          </span>
-                        </Tooltip>
+                        <span
+                          className="desktop-agent-runtime-launcher-warning"
+                          aria-label={detail
+                            ? t("agent.launcher.needsAttention", { agent: bidiIsolate(entry.descriptor.displayName) })
+                            : undefined}
+                        >
+                          <CircleAlert size={13} strokeWidth={1.7} aria-hidden="true" />
+                        </span>
                       )}
                     </button>
                   );

@@ -3,7 +3,7 @@ import { resolveDesktopReleaseIdentity } from "../../../../shared/desktop/releas
 import {
   createDesktopReleaseSet,
   createDesktopTargetBundleDescriptor,
-} from "../../../../tooling/desktop/release/release-set.mjs";
+} from "../../../../scripts/desktop/release/release-set.mjs";
 
 const sha = (character) => character.repeat(64);
 

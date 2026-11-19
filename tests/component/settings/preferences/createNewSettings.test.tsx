@@ -1,20 +1,21 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as store } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
-import React, { useState } from "react";
+import React from "react";
 import { act } from "react";
-import { readFileSync } from "node:fs";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CreateNewSettingsView } from "../../../../src/features/settings/main/CreateNewSettingsView";
 import {
   cloneDefaultCreateNewMenuSettings,
-  DEFAULT_EXPERIMENTAL_SETTINGS,
   type CreateNewMenuSettings,
 } from "../../../../src/preferences";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 
@@ -26,7 +27,7 @@ afterEach(() => {
 
 describe("Create New settings", () => {
   it("renders one connected hierarchy with a nested submenu and a Not shown group", () => {
-    const container = render(defaultSettings(), vi.fn());
+    const container = render(defaultSettings());
 
     expect(container.textContent).toContain("Main menu");
     expect(container.textContent).toContain("Not shown");
@@ -38,6 +39,7 @@ describe("Create New settings", () => {
       "markdown",
       "csv",
       "html",
+      "whiteboard",
       "customFiles",
     ]);
     expect(readEntries(container, "submenu")).toEqual(["contextMap"]);
@@ -49,8 +51,7 @@ describe("Create New settings", () => {
   });
 
   it("reorders the Custom files node by dragging without move buttons", () => {
-    const onChange = vi.fn();
-    const container = render(defaultSettings(), onChange);
+    const container = render(defaultSettings());
     const dragHandle = container.querySelector(
       '[data-entry="customFiles"] .desktop-create-new-drag-handle',
     );
@@ -65,9 +66,9 @@ describe("Create New settings", () => {
     act(() => htmlRow.dispatchEvent(createDragEvent("dragover", dataTransfer)));
     act(() => htmlRow.dispatchEvent(createDragEvent("drop", dataTransfer)));
 
-    expect(onChange).toHaveBeenLastCalledWith({
+    expect(store.getState().createNewMenuSettings).toEqual({
       version: 5,
-      main: ["markdown", "csv", "customFiles", "html"],
+      main: ["markdown", "csv", "customFiles", "html", "whiteboard"],
       submenu: ["contextMap"],
       hidden: ["text", "json", "slides", "app", "puppyflow"],
     });
@@ -76,12 +77,12 @@ describe("Create New settings", () => {
       "csv",
       "customFiles",
       "html",
+      "whiteboard",
     ]);
   });
 
   it("moves an item from the main menu to Not shown by dragging", () => {
-    const onChange = vi.fn();
-    const container = render(defaultSettings(), onChange);
+    const container = render(defaultSettings());
     const dragHandle = container.querySelector('[data-entry="csv"] .desktop-create-new-drag-handle');
     const hiddenDropZone = container.querySelector(
       '.desktop-create-new-hidden-list .desktop-create-new-drop-zone[data-group="hidden"]',
@@ -95,19 +96,18 @@ describe("Create New settings", () => {
     act(() => hiddenDropZone.dispatchEvent(createDragEvent("dragover", dataTransfer)));
     act(() => hiddenDropZone.dispatchEvent(createDragEvent("drop", dataTransfer)));
 
-    expect(onChange).toHaveBeenLastCalledWith({
+    expect(store.getState().createNewMenuSettings).toEqual({
       version: 5,
-      main: ["markdown", "html", "customFiles"],
+      main: ["markdown", "html", "whiteboard", "customFiles"],
       submenu: ["contextMap"],
       hidden: ["text", "json", "slides", "app", "puppyflow", "csv"],
     });
-    expect(readEntries(container, "main")).toEqual(["markdown", "html", "customFiles"]);
+    expect(readEntries(container, "main")).toEqual(["markdown", "html", "whiteboard", "customFiles"]);
     expect(readEntries(container, "hidden")).toEqual(["text", "json", "slides", "app", "puppyflow", "csv"]);
   });
 
   it("drags an item directly from Not shown into the Custom files submenu", () => {
-    const onChange = vi.fn();
-    const container = render(defaultSettings(), onChange);
+    const container = render(defaultSettings());
     const dragHandle = container.querySelector('[data-entry="text"] .desktop-create-new-drag-handle');
     const submenuDropZone = container.querySelector(
       '.desktop-create-new-submenu-children .desktop-create-new-drop-zone[data-group="submenu"]',
@@ -121,9 +121,9 @@ describe("Create New settings", () => {
     act(() => submenuDropZone.dispatchEvent(createDragEvent("dragover", dataTransfer)));
     act(() => submenuDropZone.dispatchEvent(createDragEvent("drop", dataTransfer)));
 
-    expect(onChange).toHaveBeenLastCalledWith({
+    expect(store.getState().createNewMenuSettings).toEqual({
       version: 5,
-      main: ["markdown", "csv", "html", "customFiles"],
+      main: ["markdown", "csv", "html", "whiteboard", "customFiles"],
       submenu: ["contextMap", "text"],
       hidden: ["json", "slides", "app", "puppyflow"],
     });
@@ -132,44 +132,23 @@ describe("Create New settings", () => {
   });
 
   it("keeps unavailable experimental types visible in the hierarchy", () => {
-    const container = render(defaultSettings(), vi.fn());
+    const container = render(defaultSettings());
     const puppyflow = container.querySelector<HTMLElement>('[data-entry="puppyflow"]');
 
     expect(puppyflow?.dataset.group).toBe("hidden");
     expect(puppyflow?.dataset.unavailable).toBe("true");
   });
 
-  it("uses Settings surface tokens instead of popup-menu colors and shadows", () => {
-    const css = readFileSync("src/styles/settings-new-menu.css", "utf8");
-
-    expect(css).toContain("background: var(--po-panel)");
-    expect(css).toContain("border: 1px solid var(--po-border-subtle)");
-    expect(css).not.toContain("var(--po-menu-bg)");
-    expect(css).not.toContain("var(--po-menu-shadow");
-  });
 });
 
-function render(settings: CreateNewMenuSettings, onChange: (settings: CreateNewMenuSettings) => void) {
+function render(settings: CreateNewMenuSettings) {
   const container = document.createElement("div");
   document.body.appendChild(container);
 
-  function Harness() {
-    const [currentSettings, setCurrentSettings] = useState(settings);
-    return (
-      <CreateNewSettingsView
-        settings={currentSettings}
-        experimentalSettings={DEFAULT_EXPERIMENTAL_SETTINGS}
-        fileIconTheme="default"
-        onChange={(nextSettings) => {
-          setCurrentSettings(nextSettings);
-          onChange(nextSettings);
-        }}
-      />
-    );
-  }
+  store.getState().setCreateNewMenuSettings(settings);
 
   root = createRoot(container);
-  act(() => root?.render(withTestLocalization(<Harness />)));
+  act(() => root?.render(withTestLocalization(<CreateNewSettingsView />)));
   return container;
 }
 

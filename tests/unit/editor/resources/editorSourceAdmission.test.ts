@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   exceedsUtf8ByteLimit,
   formatByteLimit,
-} from "../../../../packages/shared-ui/src/editor/host/sourceAdmission";
+} from "../../../../src/shared-ui/editor/host/sourceAdmission";
 
 describe("Editor source admission", () => {
   it("counts UTF-8 bytes without allocating a second full-size buffer", () => {

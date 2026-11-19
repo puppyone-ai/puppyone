@@ -12,7 +12,7 @@ import {
   normalizeDataResourcePath,
   qualifyDataResourcePath,
   rebaseDataResourcePath,
-} from "../../../../packages/shared-ui/src";
+} from "../../../../src/shared-ui";
 
 describe("data Resource path operations", () => {
   it("preserves Resource URI identity across navigation operations", () => {

@@ -7,6 +7,7 @@ export const CREATE_NEW_ITEM_IDS = [
   "json",
   "csv",
   "html",
+  "whiteboard",
   "slides",
   "app",
   "puppyflow",
@@ -66,6 +67,15 @@ const CREATE_ENTRY_MENU_ITEM_REGISTRY = {
     extension: ".html",
     iconName: "Untitled.html",
     iconType: "html",
+  },
+  whiteboard: {
+    kind: "whiteboard",
+    defaultPlacement: "main",
+    order: 40,
+    defaultEnabled: true,
+    extension: ".excalidraw",
+    iconName: "Untitled.excalidraw",
+    iconType: "whiteboard",
   },
   contextMap: {
     kind: "contextMap",

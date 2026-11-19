@@ -81,6 +81,7 @@ export function CloudActivationHero({
   return (
     <section
       className={rootClassName}
+      data-po-scrollbar="content"
       aria-label={ariaLabel ?? title}
       aria-labelledby={resolvedTitleId}
     >
@@ -109,11 +110,10 @@ export function CloudActivationHero({
 }
 
 function getCloudActivationKind(section: CloudWorkspaceSection): CloudActivationKind {
-  if (section === "automation") return "automation";
   if (section === "access") return "access";
   if (section === "cli") return "cli";
   if (section === "git-sync") return "git";
-  if (["contents", "share", "project", "history", "settings"].includes(section)) return "overview";
+  if (["contents", "project", "history", "settings"].includes(section)) return "overview";
   return "mcp";
 }
 

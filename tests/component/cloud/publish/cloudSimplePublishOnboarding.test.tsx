@@ -59,7 +59,9 @@ describe("simple Cloud publish onboarding", () => {
 
     act(() => primary?.click());
     const dialog = document.querySelector<HTMLElement>("#desktop-overlay-root [role='dialog']");
-    expect(dialog?.textContent).toContain("May upload");
+    // The confirmation says the Cloud project is a separate project (ADR-001).
+    expect(dialog?.textContent).toContain("Git-tracked files");
+    expect(dialog?.textContent).toContain("this folder stays a separate project on this computer");
     expect(container.querySelector("[role='dialog']")).toBeNull();
     expect(onPublishWorkspace).not.toHaveBeenCalled();
 
@@ -104,8 +106,16 @@ describe("simple Cloud publish onboarding", () => {
 
     const tasks = Array.from(container.querySelectorAll(".desktop-cloud-publish-progress li"));
     expect(tasks).toHaveLength(5);
-    expect(Array.from(container.querySelectorAll(".desktop-cloud-publish-progress-marker"))
-      .map((marker) => marker.textContent)).toEqual(["1", "2", "3", "4", "5"]);
+    // Steps are marked by state, never numbered.
+    const markers = Array.from(container.querySelectorAll(".desktop-cloud-publish-progress-marker"));
+    expect(markers.map((marker) => marker.getAttribute("data-step-state")))
+      .toEqual(["done", "done", "done", "current", "pending"]);
+    expect(markers.every((marker) => !/\d/.test(marker.textContent ?? ""))).toBe(true);
+    const meter = container.querySelector(".desktop-cloud-publish-progress-meter");
+    expect(meter?.getAttribute("role")).toBe("progressbar");
+    expect(meter?.getAttribute("aria-valuenow")).toBe("3");
+    expect(meter?.getAttribute("aria-valuetext")).toBe("Uploading and publishing files…");
+    expect(container.querySelector(".desktop-cloud-publish-running .desktop-cloud-project-journey")).not.toBeNull();
     expect(tasks.slice(0, 3).every((task) => task.classList.contains("done"))).toBe(true);
     expect(tasks[3]?.classList.contains("current")).toBe(true);
     expect(tasks[3]?.textContent).toContain("Upload");

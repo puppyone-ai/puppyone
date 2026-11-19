@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveWordPreviewScale,
   stepWordPreviewScale,
-} from "../../../../../packages/shared-ui/src/editor/viewers/office/word/wordPreviewLayout";
+} from "../../../../../src/shared-ui/editor/viewers/office/word/wordPreviewLayout";
 
 describe("Word preview layout", () => {
   it("fits wide pages without enlarging narrow pages", () => {

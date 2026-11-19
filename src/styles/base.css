@@ -124,10 +124,6 @@ h2 {
   transform: scaleX(-1);
 }
 
-[dir="rtl"] .po-disclosure-icon:not(.expanded) {
-  transform: scaleX(-1);
-}
-
 [dir="rtl"] .desktop-cloud-scope-row.active {
   box-shadow: inset -3px 0 0 var(--po-accent);
 }

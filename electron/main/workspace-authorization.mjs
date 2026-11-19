@@ -36,16 +36,24 @@ export function createSenderWorkspaceAuthorization({
       throw new Error("No local workspace is assigned to this window.");
     }
 
-    const canonicalAssignedRoots = [...new Set(await Promise.all(assignedRoots.map((assignedRoot) => (
+    // A folder that has gone from where it was must not take the window's other
+    // folders down with it: only the folder a request names has to exist.
+    const resolved = await Promise.allSettled(assignedRoots.map((assignedRoot) => (
       canonicalizeExistingDirectory(
         assignedRoot,
         "Unable to resolve a window Workspace Folder",
         fsModule,
       )
-    ))))];
+    )));
+    const canonicalAssignedRoots = [...new Set(resolved
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value))];
 
     if (requestedRoot === undefined || requestedRoot === null) {
-      if (canonicalAssignedRoots.length === 1) return canonicalAssignedRoots[0];
+      if (assignedRoots.length === 1) {
+        if (resolved[0].status === "rejected") throw resolved[0].reason;
+        return canonicalAssignedRoots[0];
+      }
       throw new Error("An explicit Workspace Folder root is required when multiple folders are attached.");
     }
     if (typeof requestedRoot !== "string" || requestedRoot.trim().length === 0) {

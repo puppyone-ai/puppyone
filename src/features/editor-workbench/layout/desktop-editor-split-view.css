@@ -239,14 +239,17 @@
   position: fixed;
   z-index: var(--po-overlay-z-menu, 80);
   box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100vw - 16px);
   min-width: 0;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   padding: 4px;
 }
 
 .desktop-editor-pane-menu-primary-actions {
   display: flex;
+  width: max-content;
   align-items: center;
   gap: 3px;
 }
@@ -266,12 +269,9 @@
 
 .desktop-editor-pane-menu-end-actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 3px;
-}
-
-.desktop-editor-pane-menu-segmented-control + .desktop-editor-pane-menu-end-actions {
-  margin-inline-start: auto;
 }
 
 .desktop-editor-pane-menu-action-divider {
@@ -297,6 +297,20 @@
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid var(--po-divider);
+}
+
+/* A view menu lists each view with its icon, at the size every menu icon has. */
+.desktop-editor-view-mode-menu .desktop-menu-item-icon svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.85;
+}
+
+/* A file window's menu can hold settings alone, with no view switch or pane commands above. */
+.desktop-editor-pane-menu-secondary-actions:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .desktop-editor-pane-menu-segmented-control {

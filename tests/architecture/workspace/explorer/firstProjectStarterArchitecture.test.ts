@@ -30,8 +30,8 @@ describe("project initialization ownership", () => {
 
     expect(app).toContain("useProjectEntryFlow");
     expect(app).toContain("<ProjectEntryFlow");
-    expect(home).toContain("useProjectEntryFlow");
-    expect(home).toContain("<ProjectEntryFlow");
+    expect(home).toContain("projectEntryController");
+    expect(home).not.toMatch(/useProjectEntryFlow|<ProjectEntryFlow/);
     expect(app).not.toMatch(/Onboarding(?:Import|ProjectEntry)Dialog|ProjectEntryLauncherDialog/);
     expect(home).not.toMatch(/Onboarding(?:Import|ProjectEntry)Dialog|ProjectEntryLauncherDialog/);
     expect(flow).toContain("<ProjectEntryLauncherDialog");
@@ -44,7 +44,6 @@ describe("project initialization ownership", () => {
     const homeActions = source("src/components/onboarding/OnboardingEntryActions.tsx");
     const launcher = source("src/features/app-shell/ProjectEntryLauncherDialog.tsx");
     const flow = source("src/features/app-shell/ProjectEntryFlow.tsx");
-    const importDialog = source("src/components/OnboardingImportDialog.tsx");
     const importRegistry = source("src/features/project-import/importSourceRegistry.ts");
     const experimentalSettings = source("src/features/settings/main/ExperimentalSettingsView.tsx");
     const launcherStyles = source("src/features/app-shell/project-switcher-rail.css");
@@ -54,7 +53,8 @@ describe("project initialization ownership", () => {
     expect(launcher).toContain("<ImportSourcePreview");
     expect(flow).toContain("resolveVisibleImportSources");
     expect(flow).toContain("resolveImportPreviewBrands");
-    expect(importDialog).toContain("visibleSources.map");
+    // That the dialog shows only these sources is rendered and checked in
+    // tests/component/workspace/homepage/homepageImport ("hides experimental sources by default").
     expect(importRegistry).toContain("settings.enableOtherAppImports");
     expect(experimentalSettings).toContain('settingKey: "enableOtherAppImports"');
     expect(launcherStyles).toMatch(
@@ -70,14 +70,14 @@ describe("project initialization ownership", () => {
 
   it("shares one materializer between project templates and Slides", () => {
     expect(source("electron/main/project-initialization-service.mjs")).toContain('local-api/templates/materialize.mjs');
-    expect(source("local-api/workspace-templates.mjs")).toContain('./templates/materialize.mjs');
-    expect(source("local-api/workspace-templates.mjs")).not.toContain("fs.rename(");
+    expect(source("electron/local-api/workspace-templates.mjs")).toContain('./templates/materialize.mjs');
+    expect(source("electron/local-api/workspace-templates.mjs")).not.toContain("fs.rename(");
   });
 
   it("packages the offline template content and safe publication primitive", () => {
     const pkg = JSON.parse(source("package.json"));
-    expect(pkg.build.files).toContain("local-api/**");
-    expect(pkg.build.asarUnpack).toContain("local-api/templates/native/*.node");
+    expect(pkg.build.files).toContain("electron/**");
+    expect(pkg.build.asarUnpack).toContain("electron/local-api/templates/native/*.node");
     expect(pkg.scripts.build).toContain("build:native-templates");
     expect(pkg.scripts.dev).toContain("build:native-templates");
   });

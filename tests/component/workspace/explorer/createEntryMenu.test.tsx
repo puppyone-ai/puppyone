@@ -207,6 +207,38 @@ describe("create entry menu", () => {
     expect(container.querySelector(".desktop-create-entry-menu")?.textContent?.trim()).toBe("Folder");
   });
 
+  it("rests every kind while one is being created, and reports a failure inside the menu", () => {
+    const onSelectKind = vi.fn();
+    const container = render(
+      <DesktopCreateEntryMenu
+        draft={{ ...createDraft(), creatingKind: "markdown" }}
+        mainEntries={["markdown"]}
+        submenuItemKinds={[]}
+        onCancel={vi.fn()}
+        onSelectKind={onSelectKind}
+      />,
+    );
+    const markdown = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.trim() === "Markdown file");
+
+    expect(markdown?.disabled || markdown?.getAttribute("aria-disabled") === "true").toBe(true);
+    act(() => markdown?.click());
+    expect(onSelectKind).not.toHaveBeenCalled();
+    // Choosing a kind never opens a naming step.
+    expect(container.querySelector("input")).toBeNull();
+
+    act(() => root?.render(withTestLocalization(
+      <DesktopCreateEntryMenu
+        draft={{ ...createDraft(), error: { code: "operation-failed", detail: "disk full" } }}
+        mainEntries={["markdown"]}
+        submenuItemKinds={[]}
+        onCancel={vi.fn()}
+        onSelectKind={onSelectKind}
+      />,
+    )));
+    expect(container.querySelector("[role='alert']")?.textContent).toContain("disk full");
+  });
+
   it("keeps paste available in the folder action menu", () => {
     const container = render(
       <DesktopNodeActionMenu
@@ -214,6 +246,7 @@ describe("create entry menu", () => {
         canPaste
         onChange={vi.fn()}
         onCancel={vi.fn()}
+        onCopyPath={vi.fn()}
         onCopy={vi.fn()}
         onCut={vi.fn()}
         onPaste={vi.fn()}
@@ -230,6 +263,7 @@ describe("create entry menu", () => {
       container.querySelectorAll("button"),
       (button) => button.textContent?.trim() ?? "",
     );
+    expect(labels[0]).toBe("Copy Path");
     expect(labels.some((label) => label.startsWith("Paste into folder"))).toBe(true);
     const menu = container.querySelector<HTMLElement>(".desktop-node-action-menu");
     expect(menu?.classList.contains("desktop-sidebar-action-menu")).toBe(true);
@@ -269,8 +303,6 @@ function createDraft(): DesktopCreateEntryDraft {
     },
     error: null,
     creatingKind: null,
-    selectedKind: null,
-    name: "",
   };
 }
 

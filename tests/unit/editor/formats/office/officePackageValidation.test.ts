@@ -3,13 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_OFFICE_PACKAGE_VALIDATION_WORKER_TIMEOUT_MS,
   validateOfficePackageInWorker,
-} from "../../../../../packages/shared-ui/src/editor/security/officePackageValidationClient";
+} from "../../../../../src/shared-ui/editor/security/officePackageValidationClient";
 import {
   runOfficePackageValidationWorkerTask,
   validateOfficePackageDecompression,
   type OfficePackageValidationReport,
   type OfficePackageValidationWorkerResponse,
-} from "../../../../../packages/shared-ui/src/editor/security/officePackageValidationTask";
+} from "../../../../../src/shared-ui/editor/security/officePackageValidationTask";
 
 const CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
 const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;

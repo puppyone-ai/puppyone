@@ -8,13 +8,13 @@ import {
   openKnowledgeMdxFeatureComposition,
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
-import { addMarkdownBlockAndLineDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/blockDecorations";
-import { markdownFeatureCompositionFacet } from "../../../../../../packages/shared-ui/src/editor/markdown/core/features/markdownFeatureContract";
-import { getMarkdownPlanIndex } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
-import { getMarkdownElements } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
-import { imageFeature } from "../../../../../../packages/shared-ui/src/editor/markdown/features/image/imageFeature";
-import { ImagePreviewWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/features/image/imagePreviewWidget";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
+import { addMarkdownBlockAndLineDecorations } from "../../../../../../src/shared-ui/editor/markdown/core/decorations/blockDecorations";
+import { markdownFeatureCompositionFacet } from "../../../../../../src/shared-ui/editor/markdown/core/features/markdownFeatureContract";
+import { getMarkdownPlanIndex } from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
+import { getMarkdownElements } from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownElements";
+import { imageFeature } from "../../../../../../src/shared-ui/editor/markdown/features/image/imageFeature";
+import { ImagePreviewWidget } from "../../../../../../src/shared-ui/editor/markdown/features/image/imagePreviewWidget";
 
 function createMarkdownState(source: string) {
   return EditorState.create({
@@ -45,8 +45,12 @@ describe("static Markdown Feature Composition", () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toEqual([
       "media-syntax",
-      "code-block",
+      "front-matter",
+      "inline-syntax",
+      "footnote",
+      "callout",
       "math",
+      "code-block",
       "mermaid",
       "html",
       "table",
@@ -78,7 +82,7 @@ describe("static Markdown Feature Composition", () => {
       "table",
       "video",
     ]));
-    expect(inlineWidgetKinds).toEqual(["mathInline", "image"]);
+    expect(inlineWidgetKinds).toEqual(["emoji", "entity", "footnote", "mathInline", "htmlRun", "image"]);
   });
 
   it("adds declarative MDX components only to the OpenKnowledge dialect", () => {

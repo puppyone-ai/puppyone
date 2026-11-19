@@ -33,7 +33,9 @@ describe.each([JsonlRpcConnection, PiRpcClient])("native pipe lifecycle (%s)", (
     const assertion = expect(response).rejects.toMatchObject({ deliveryOutcome: "unknown" });
     after.abort();
     await assertion;
-    expect(connection.closed).toBe(true);
+    expect(connection.closed).toBe(false);
+    expect(child.kill).not.toHaveBeenCalled();
+    connection.dispose();
     await connection.waitForExit();
     expect(child.kill).toHaveBeenCalled();
   });

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { ArrowUp, LoaderCircle, Square } from "lucide-react";
 import type { AgentReferenceInputCapabilities } from "../../domain/agent-contract";
 import type { AgentSessionControl, AgentSessionControlId } from "../../domain/agent-session-controls";
@@ -57,7 +58,7 @@ export function AgentComposerToolbar({
           onAddExternalFiles={onAddExternalFiles}
           onPickWorkspaceReferences={onPickWorkspaceReferences}
         />
-        <button
+        <Tooltip content={primaryActionLabel}><button
           type="button"
           className={`desktop-agent-composer-action${running ? " is-stop" : ""}`}
           aria-label={primaryActionLabel}
@@ -68,9 +69,9 @@ export function AgentComposerToolbar({
           {primaryActionBusy
             ? <LoaderCircle size={15} className="desktop-agent-spin" />
             : running
-              ? <Square size={11} fill="currentColor" />
-              : <ArrowUp size={17} strokeWidth={1.6} />}
-        </button>
+              ? <Square size={10} fill="currentColor" />
+              : <ArrowUp size={15} strokeWidth={2.1} />}
+        </button></Tooltip>
       </div>
     </div>
   );

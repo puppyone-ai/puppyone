@@ -5,9 +5,9 @@ import { requireEditorView } from "../../../../../support/editor/editorView";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MarkdownCodeMirrorEditor } from "../../../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
-import { markdownLivePreviewDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/livePreviewDecorations";
-import * as markdownExtensions from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+import { MarkdownCodeMirrorEditor } from "../../../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor";
+import { markdownLivePreviewDecorations } from "../../../../../../src/shared-ui/editor/markdown/core/decorations/livePreviewDecorations";
+import * as markdownExtensions from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 import { testT, withTestLocalization } from "../../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -176,6 +176,10 @@ describe("Markdown Live Preview presentation readiness", () => {
     const host = getHost(container);
     expect(host.dataset.previewState).toBe("error");
     expect(host.dataset.previewMessage).toBe(testT("editor.markdown.previewUnavailable"));
+    const notice = container.querySelector<HTMLElement>(".markdown-preview-notice-stack .po-floating-notice");
+    expect(notice?.textContent).toContain(testT("editor.markdown.previewUnavailable"));
+    await act(async () => notice!.querySelector<HTMLButtonElement>(".po-floating-notice__dismiss")!.click());
+    expect(container.querySelector(".markdown-preview-notice-stack")).toBeNull();
     expect(getEditorView(container).state.doc.toString()).toBe("# Recoverable source");
     expect(onPreviewError).toHaveBeenCalledWith(activationError);
   });

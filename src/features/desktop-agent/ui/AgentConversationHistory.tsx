@@ -184,9 +184,7 @@ export function AgentConversationHistory({
                     label={runtimeLabel}
                   />
                   <span className="desktop-agent-history-copy">
-                    <Tooltip content={session.title} overflowOnly>
-                      <span className="desktop-agent-history-title">{session.title}</span>
-                    </Tooltip>
+                    <span className="desktop-agent-history-title">{session.title}</span>
                   </span>
                   <time className="desktop-agent-history-time" dateTime={session.updatedAt}>
                     {session.updatedAtKnown === false ? "" : formatHistoryDate(session.updatedAt)}
@@ -205,7 +203,7 @@ export function AgentConversationHistory({
             {label}: {t("agent.history.refreshFailed")}
           </p>;
         })}
-        {sourceNotes.length > 0 && <details className="desktop-agent-history-source-details">
+        {sourceNotes.length > 0 && <details className="desktop-agent-history-source-details" data-po-scrollbar="content">
           <summary>{t("agent.history.sourceSummary")}</summary>
           {sourceNotes.map(({ runtimeId, message }) => <p key={runtimeId} className="desktop-agent-history-source-status">
             {runtimeById.get(runtimeId)?.descriptor.displayName || runtimeId}: {t(message)}

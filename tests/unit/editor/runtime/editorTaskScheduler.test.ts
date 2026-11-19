@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EDITOR_TASK_POLICY, EditorTaskScheduler } from "../../../../packages/shared-ui/src/editor/runtime/EditorTaskScheduler";
+import { EDITOR_TASK_POLICY, EditorTaskScheduler } from "../../../../src/shared-ui/editor/runtime/EditorTaskScheduler";
 
 afterEach(() => vi.useRealTimers());
 const request = (instance: string, signal?: AbortSignal) => ({ owner: { scope: "project", instance, generation: 1 }, kind: "parse", inputBytes: 8, maxInputBytes: 16, signal });

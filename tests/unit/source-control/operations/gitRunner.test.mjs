@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { execGit, execGitBuffer } from "../../../../local-api/git/runner.mjs";
+import { execGit, execGitBuffer } from "../../../../electron/local-api/git/runner.mjs";
 
 describe("Git command runner", () => {
   it("writes supplied input to stdin and closes the stream", async () => {

@@ -1,10 +1,10 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { PlaceholderLayer, Tooltip } from "@puppyone/shared-ui";
 import { RefreshCw } from "lucide-react";
 import type { Workspace } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import "./overview.css";
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudDashboard,
   DesktopCloudMcpEndpoint,
   DesktopCloudProject,
@@ -57,7 +57,7 @@ export function CloudRepositoryOverview({
   tree: DesktopCloudTree | null;
   history: DesktopCloudHistory | null;
   scopes: DesktopCloudScope[];
-  connectors: DesktopCloudConnector[];
+  connectors: DesktopCloudAccessSurface[];
   mcpEndpoints: DesktopCloudMcpEndpoint[];
   identity: DesktopCloudRepoIdentity | null;
   loading: boolean;
@@ -183,15 +183,16 @@ function CloudOverviewHeaderFact({
       className="desktop-cloud-overview-header-fact desktop-cloud-overview-header-fact--interactive"
       type="button"
       aria-label={ariaLabel}
+      aria-description={valueTitle}
       aria-busy={loading}
       onClick={onClick}
     >
       <span className="desktop-cloud-overview-header-fact-label">{label}</span>
-      <Tooltip content={valueTitle}><strong>
+      <strong>
         {loading
-          ? <span className="desktop-cloud-overview-value-skeleton" aria-hidden="true" />
+          ? <span className="desktop-cloud-overview-value-skeleton po-placeholder-surface" data-placeholder-shape="" aria-hidden="true"><PlaceholderLayer /></span>
           : value}
-      </strong></Tooltip>
+      </strong>
     </button>
   );
 }
@@ -226,15 +227,20 @@ function CloudOverviewStorageMeter({
       };
 
   return (
-    <Tooltip content={pending ? t("cloud.common.loading") : detail}><div
+    <div
       className={`desktop-cloud-overview-project-storage${pending ? " is-loading" : ""}`}
       aria-busy={pending}
     >
-      <span className="desktop-cloud-overview-project-storage-track" {...progressProps}>
+      <span
+        className={`desktop-cloud-overview-project-storage-track${pending ? " po-placeholder-surface" : ""}`}
+        data-placeholder-shape={pending ? "" : undefined}
+        {...progressProps}
+      >
         {usage.percent !== null ? (
           <span style={{ width: `${usage.percent}%` }} />
         ) : null}
+        {pending ? <PlaceholderLayer /> : null}
       </span>
-    </div></Tooltip>
+    </div>
   );
 }

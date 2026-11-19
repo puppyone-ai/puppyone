@@ -80,15 +80,25 @@ static napi_value Start(napi_env env, napi_callback_info info) {
   if (napi_get_array_length(env, args[1], &length) != napi_ok || length == 0 || length > 32) return result;
   std::string token = ReadString(env, args[2]);
   if (token.empty() || token.size() > 128) return result;
-  NSMutableArray<NSDraggingItem *> *items = [NSMutableArray array];
-  NSPoint location = [view convertPoint:mouseDown.locationInWindow fromView:nil];
+  NSMutableArray<NSString *> *files = [NSMutableArray arrayWithCapacity:length];
   for (uint32_t index = 0; index < length; index++) {
     napi_value element;
     napi_get_element(env, args[1], index, &element);
     std::string path = ReadString(env, element);
     NSString *file = [NSString stringWithUTF8String:path.c_str()];
     if (!file.isAbsolutePath) return result;
+    [files addObject:file];
+  }
+  NSString *pathText = [files componentsJoinedByString:@"\n"];
+  NSMutableArray<NSDraggingItem *> *items = [NSMutableArray arrayWithCapacity:length];
+  NSPoint location = [view convertPoint:mouseDown.locationInWindow fromView:nil];
+  for (uint32_t index = 0; index < length; index++) {
+    NSString *file = files[index];
     NSPasteboardItem *item = [[NSPasteboardItem alloc] init];
+    // HTML drag is cancelled before this session starts. Preserve its complete
+    // path text once, including for receivers that read only the first item.
+    // These paths are authorized by Main; no file contents are exported here.
+    if (index == 0) [item setString:pathText forType:NSPasteboardTypeString];
     [item setString:[NSURL fileURLWithPath:file].absoluteString forType:NSPasteboardTypeFileURL];
     [item setString:[NSString stringWithUTF8String:token.c_str()] forType:SessionType];
     NSDraggingItem *drag = [[NSDraggingItem alloc] initWithPasteboardWriter:item];

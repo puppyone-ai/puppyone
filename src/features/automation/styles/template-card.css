@@ -60,10 +60,10 @@
   pointer-events: none;
 }
 
+/* Loading placeholder shapes (loading-placeholder.css); the style paints them. */
 .desktop-cloud-automation-template-card.skeleton > span {
   height: 12px;
   border-radius: 999px;
-  background: var(--po-skeleton-base);
 }
 
 .desktop-cloud-automation-template-card.skeleton > span:first-child {
@@ -75,7 +75,7 @@
   width: 42%;
 }
 
-.desktop-cloud-automation-template-card.skeleton > span:last-child {
+.desktop-cloud-automation-template-card.skeleton > span:nth-child(3) {
   width: 72%;
 }
 

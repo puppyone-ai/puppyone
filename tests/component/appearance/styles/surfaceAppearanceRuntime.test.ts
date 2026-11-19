@@ -42,7 +42,8 @@ describe("resolved surface appearance", () => {
       "data-root-theme-id": "default",
       "data-sub-theme-id": "default.neutral",
       "data-font-editor-content-mode": "follow-theme",
-      "data-loading-animation-preset": "ikun",
+      "data-loading-placeholder-style": "rounded",
+      "data-file-icons": "shown",
     });
     expect(surface.rootProps).not.toHaveProperty("data-font-editor-content");
     expect(surface.rootProps.style).not.toHaveProperty("--po-font-editor-content-user");
@@ -69,6 +70,20 @@ describe("resolved surface appearance", () => {
     expect(host.dataset.fontEditorContentMode).toBe("follow-theme");
     expect(host.dataset.fontEditorContent).toBeUndefined();
     expect(host.style.getPropertyValue("--po-font-editor-content-user")).toBe("");
+  });
+
+  it("publishes the file-icon visibility to the root and to independently mounted hosts", () => {
+    const shown = createSurface();
+    const hidden = createSurface({ showFileIcons: false });
+    const host = document.createElement("div");
+
+    expect(hidden.rootProps["data-file-icons"]).toBe("hidden");
+    expect(hidden.revision).not.toBe(shown.revision);
+
+    applySurfaceAppearanceToElement(host, hidden);
+    expect(host.dataset.fileIcons).toBe("hidden");
+    applySurfaceAppearanceToElement(host, shown);
+    expect(host.dataset.fileIcons).toBe("shown");
   });
 
   it("propagates scaled control geometry to independently mounted hosts", () => {
@@ -117,7 +132,7 @@ describe("resolved surface appearance", () => {
         headingScale: "large",
       },
     });
-    const loading = createSurface({ loadingAnimationPreset: "ymca" });
+    const loading = createSurface({ loadingPlaceholderStyle: "dither" });
 
     expect(new Set([
       baseline.revision,
@@ -134,7 +149,8 @@ function createSurface(overrides: {
   subThemeId?: string;
   typography?: ReturnType<typeof resolveTypography>;
   markdownPresentation?: typeof DEFAULT_MARKDOWN_PRESENTATION_SETTINGS;
-  loadingAnimationPreset?: "ikun" | "ymca" | "siu";
+  loadingPlaceholderStyle?: "rounded" | "dither";
+  showFileIcons?: boolean;
 } = {}) {
   const appearance = resolveAppearance({
     interfaceStyle: "default",
@@ -150,10 +166,11 @@ function createSurface(overrides: {
     appearance,
     typography: overrides.typography ?? resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
     markdownPresentation: overrides.markdownPresentation ?? DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
-    loadingAnimationPreset: overrides.loadingAnimationPreset ?? "ikun",
+    loadingPlaceholderStyle: overrides.loadingPlaceholderStyle,
     lightThemePreset: "neutral",
     darkThemePreset: "default",
     pointerCursors: false,
+    showFileIcons: overrides.showFileIcons,
     diffMarkers: "color",
   });
 }

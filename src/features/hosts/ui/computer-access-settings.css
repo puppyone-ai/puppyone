@@ -1,0 +1,76 @@
+@layer features {
+  .computer-access-settings {
+    color: var(--po-text-muted);
+    font-size: var(--po-text-size-label, 13px);
+    font-weight: var(--po-text-weight-regular, 400);
+    line-height: 1.5;
+  }
+  /* One body style. Grouping comes from alignment and spacing. */
+  .computer-access-settings .desktop-settings-subsection-title,
+  .computer-access-settings .desktop-settings-row,
+  .computer-access-settings .desktop-settings-row > span,
+  .computer-access-settings .desktop-settings-action,
+  .computer-access-settings .desktop-utility-icon-button {
+    color: inherit;
+    font: inherit;
+  }
+  .computer-access-settings .desktop-settings-subsection + .desktop-settings-subsection {
+    margin-block-start: 8px;
+    padding-block-start: 20px;
+    border-block-start: 1px solid var(--po-divider);
+  }
+  .computer-access-intro { margin: -16px 0 0; padding-inline: 10px; }
+  .computer-access-device {
+    display: flex;
+    min-width: 0;
+    min-height: 44px;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 10px;
+  }
+  .computer-access-icon { display: inline-flex; flex: none; }
+  .computer-access-identity {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .computer-access-identity > span { min-width: 0; overflow-wrap: anywhere; }
+  .computer-access-presence { text-align: end; }
+  .computer-access-more { flex: none; }
+  .computer-access-menu { z-index: var(--po-overlay-z-menu); }
+  .computer-access-hint { margin: 0; padding: 6px 10px; }
+  .computer-access-folders { display: grid; padding: 0 10px 8px 38px; }
+  .computer-access-folder {
+    display: flex;
+    width: 100%;
+    min-height: 36px;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+  }
+  .computer-access-folder > span:first-of-type { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .computer-access-folder > svg { flex: none; }
+  .computer-access-permission { flex: none; }
+  button.computer-access-folder:hover:not(:disabled) { background: var(--po-hover); }
+  button.computer-access-folder:focus-visible { outline: 2px solid var(--po-focus-ring); outline-offset: 1px; }
+  .computer-access-autostart { margin-block-start: 6px; }
+  .computer-access-read-state {
+    display: flex;
+    min-height: 44px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 10px;
+  }
+  .computer-access-signin { min-height: 44px; justify-content: flex-start; }
+}

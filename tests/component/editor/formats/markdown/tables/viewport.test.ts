@@ -3,7 +3,7 @@
 import { redo, undo } from "@codemirror/commands";
 import { describe, expect, it, vi } from "vitest";
 
-import { focusMarkdownTableCell } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableFocus";
+import { focusMarkdownTableCell } from "../../../../../../src/shared-ui/editor/markdown/features/table/tableFocus";
 
 import { createTableView, source, nextAnimationFrame, rect, mockRect, mockHorizontalScroller } from "../../../../../support/editor/markdown/tableInteractions";
 

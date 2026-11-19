@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { AnchoredOverlayPosition } from "../../app-shell/useAnchoredOverlayPosition";
+import type { AnchoredOverlayPosition } from "../../../components/useAnchoredOverlayPosition";
 
 type AgentRuntimeGeometryVariables = CSSProperties & Record<`--agent-${string}`, string | number>;
 
@@ -17,20 +17,6 @@ export function agentVirtualCanvasGeometry(height: number): AgentRuntimeGeometry
 
 export function agentVirtualRowGeometry(offset: number): AgentRuntimeGeometryVariables {
   return variables({ "--agent-virtual-row-offset": pixels(offset) });
-}
-
-export function agentToolRailGeometry({ itemWidth, gap, overflowWidth, groupInset }: {
-  itemWidth: number;
-  gap: number;
-  overflowWidth: number;
-  groupInset: number;
-}): AgentRuntimeGeometryVariables {
-  return variables({
-    "--agent-tool-rail-item-size": pixels(itemWidth),
-    "--agent-tool-rail-gap": pixels(gap),
-    "--agent-tool-rail-overflow-size": pixels(overflowWidth),
-    "--agent-tool-rail-group-inset": pixels(groupInset),
-  });
 }
 
 export function agentEmptyLogoGeometry(turns: number): AgentRuntimeGeometryVariables {

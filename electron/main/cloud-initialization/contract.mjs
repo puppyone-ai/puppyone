@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { resolveGitRepositoryIdentity } from "../../../local-api/workspace.mjs";
+import { resolveGitRepositoryIdentity } from "../../local-api/workspace.mjs";
 import { normalizeCloudApiBaseUrl } from "../../../shared/cloudEndpoint.js";
 
 export const CLOUD_REMOTE_NAME = "puppyone";
@@ -19,6 +19,8 @@ export const CLOUD_PUBLISH_ERROR_CODES = Object.freeze([
   "COMMIT_REQUIRED",
   "BRANCH_REQUIRED",
   "SOURCE_MISSING",
+  // No longer produced: the native Version Engine accepts merge commits. Kept
+  // so journals that recorded it still decode and can be retried.
   "MERGE_TIP_UNSUPPORTED",
   "LFS_UNSUPPORTED",
   "REMOTE_CONFLICT",
@@ -29,9 +31,11 @@ export const CLOUD_PUBLISH_ERROR_CODES = Object.freeze([
   "SERVICE_UPGRADE_REQUIRED",
   "REMOTE_CONFIG_FAILED",
   "PUSH_FAILED",
+  "PUSH_LIMIT_EXCEEDED",
   "PUSH_UNCERTAIN",
   "LOCAL_FINALIZE_FAILED",
   "CLEANUP_FAILED",
+  "CLEANUP_NOT_ALLOWED",
   // Kept as a decoder/API compatibility code for version-1 operations.
   "COMPENSATION_FAILED",
   "JOURNAL_CORRUPT",
@@ -247,10 +251,10 @@ export function createPublishError(code, message, retryable, cause = undefined) 
 
 export function mapCloudMutationError(defaultCode, message, error) {
   if (["SESSION_SIGNED_OUT", "SESSION_SIGNING_OUT", "SESSION_CHANGED"].includes(error?.code)) {
-    return createPublishError("SESSION_REQUIRED", "Sign in to PuppyOne Cloud to continue.", true, error);
+    return createPublishError("SESSION_REQUIRED", "Sign in to Puppyone Cloud to continue.", true, error);
   }
   if (Number(error?.status) === 401) {
-    return createPublishError("SESSION_REQUIRED", "Sign in to PuppyOne Cloud to continue.", true, error);
+    return createPublishError("SESSION_REQUIRED", "Sign in to Puppyone Cloud to continue.", true, error);
   }
   if (Number(error?.status) === 403) {
     return createPublishError("PERMISSION_DENIED", "You do not have permission to access this Cloud Project.", false, error);
@@ -268,7 +272,7 @@ export function mapCloudMutationError(defaultCode, message, error) {
   ].includes(error?.code)) {
     return createPublishError(
       "SERVICE_UPGRADE_REQUIRED",
-      "PuppyOne Cloud is being upgraded. Resume publishing shortly.",
+      "Puppyone Cloud is being upgraded. Resume publishing shortly.",
       true,
       error,
     );
@@ -363,7 +367,7 @@ function normalizePublishError(error) {
     code,
     retryable,
     message: code === "UNKNOWN"
-      ? "Unable to complete PuppyOne Cloud initialization."
+      ? "Unable to complete Puppyone Cloud initialization."
       : sanitizeDiagnostic(error instanceof Error ? error.message : String(error ?? "")),
   };
 }

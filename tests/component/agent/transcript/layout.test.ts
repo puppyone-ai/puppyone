@@ -21,7 +21,7 @@ describe("Desktop Agent renderer surfaces", () => {
     const style = document.createElement("style");
     style.dataset.agentLayoutTest = "true";
     style.textContent = [
-      readFileSync(`${process.cwd()}/packages/shared-ui/src/styles/control-geometry.css`, "utf8"),
+      readFileSync(`${process.cwd()}/src/shared-ui/styles/control-geometry.css`, "utf8"),
       readFileSync(`${process.cwd()}/src/styles/tokens.css`, "utf8"),
       ...["theme.css", "foundation.css", "composer.css", "agent-prompt-editor.css", "pickers.css"]
         .map((file) => readFileSync(`${process.cwd()}/src/features/desktop-agent/ui/styles/${file}`, "utf8")),
@@ -82,9 +82,10 @@ describe("Desktop Agent renderer surfaces", () => {
     const composerSurface = container.querySelector(".desktop-agent-composer") as HTMLElement;
     const promptEditor = container.querySelector(".cm-content") as HTMLElement;
     expect(window.getComputedStyle(providerControl).height).toBe("calc(32px - 6px)");
-    expect(window.getComputedStyle(sendControl).width).toBe("32px");
-    expect(window.getComputedStyle(sendControl).height).toBe("32px");
-    expect(window.getComputedStyle(modelControl).height).toBe("32px");
+    // Composer controls use the Header control height (--po-control-size-compact).
+    expect(window.getComputedStyle(sendControl).width).toBe("calc(32px - 4px)");
+    expect(window.getComputedStyle(sendControl).height).toBe("calc(32px - 4px)");
+    expect(window.getComputedStyle(modelControl).height).toBe("calc(32px - 4px)");
     expect(window.getComputedStyle(composerSurface).cursor).not.toBe("text");
     expect(window.getComputedStyle(promptEditor).cursor).toBe("text");
   });

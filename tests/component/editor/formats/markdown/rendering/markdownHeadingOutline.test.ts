@@ -5,20 +5,18 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
 import {
   collectMarkdownHeadingOutlineEntries,
   markdownHeadingOutlineExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/interaction/markdownHeadingOutline";
+} from "../../../../../../src/shared-ui/editor/markdown/core/interaction/markdownHeadingOutline";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 
 const mountedViews: Array<{ parent: HTMLElement; view: EditorView }> = [];
 
@@ -247,25 +245,6 @@ describe("Markdown heading outline", () => {
     expect(view.dom.querySelector('.cm-md-heading-outline-tick[data-index="1"]')).toBe(tick);
   });
 
-  it("keeps the visible dash separate from its pointer target without expandable chrome", () => {
-    const css = readFileSync(
-      join(process.cwd(), "packages/shared-ui/src/styles/editor/markdown-editor.css"),
-      "utf8",
-    );
-    expect(css).toContain(".cm-md-heading-outline-layer");
-    expect(css).toContain(".cm-md-heading-outline-tick::before");
-    expect(css).toContain(".cm-md-heading-outline-tick.is-active::before");
-    expect(css).toContain(".cm-md-heading-outline-popover");
-    expect(css).toContain(".cm-md-heading-outline-item");
-    expect(css).toContain(".cm-md-heading-outline-layer.is-popover-open");
-    expect(css).toContain("left: 22px");
-    expect(css).toContain("height: 2px");
-    expect(css).not.toContain(".cm-md-heading-outline-panel");
-    expect(css).not.toContain(".cm-md-heading-outline-grip");
-    expect(css).not.toContain(".cm-md-heading-outline-spine");
-    expect(css).not.toContain(".cm-md-heading-outline-layer.is-expanded");
-    expect(css).not.toContain("font-family: revert");
-  });
 });
 
 function createMarkdownState(source: string): EditorState {

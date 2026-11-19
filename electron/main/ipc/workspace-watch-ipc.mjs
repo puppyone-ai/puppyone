@@ -1,7 +1,7 @@
 import {
   getLatestWorkspaceEditReviewRequest,
   initializeWorkspaceEditReview,
-} from "../../../local-api/edit-review.mjs";
+} from "../../local-api/edit-review.mjs";
 
 export function registerWorkspaceWatchIpcHandlers({
   ipcMain,

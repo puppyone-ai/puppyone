@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Blocks } from "lucide-react";
 import { useState } from "react";
 import type { ViewerPackSnapshot } from "@puppyone/shared-ui";
@@ -7,7 +8,7 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../components/DesktopOverlayPortal";
 import { PluginsView } from "./PluginsView";
 import {
   DEFAULT_PLUGINS_SECTION,
@@ -38,7 +39,7 @@ export function PluginsDialog({
       <DesktopDialogRoot className="desktop-plugins-dialog-backdrop" onClose={onClose}>
         <DesktopDialogSurface
           className="desktop-plugins-dialog"
-          width="min(960px, calc(100vw - 80px))"
+          width={960}
           ariaLabel={title}
         >
           <header className="desktop-dialog-header desktop-plugins-dialog-header">
@@ -48,7 +49,7 @@ export function PluginsDialog({
               </span>
               <h2>{title}</h2>
             </div>
-            <DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} />
+            <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
           </header>
 
           <div className="desktop-plugins-dialog-layout">

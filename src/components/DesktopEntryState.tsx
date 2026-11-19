@@ -4,7 +4,7 @@ type DesktopEntryStateProps = {
   ariaLabel: string;
   visual: ReactNode;
   title: ReactNode;
-  description: ReactNode;
+  description?: ReactNode;
   action: ReactNode;
   feedback?: ReactNode;
   className?: string;
@@ -41,7 +41,7 @@ export function DesktopEntryState({
             <header className="desktop-entry-state-copy">
               <h1>{title}</h1>
             </header>
-            <p className="desktop-entry-state-description">{description}</p>
+            {description && <p className="desktop-entry-state-description">{description}</p>}
             <div className="desktop-entry-state-action">{action}</div>
             {feedback}
           </div>

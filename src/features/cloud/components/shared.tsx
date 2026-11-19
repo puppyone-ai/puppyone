@@ -1,10 +1,12 @@
-import { Check, ChevronRight, Cloud, Copy, ExternalLink, FileText, FolderOpen, GitBranch, RefreshCw } from "lucide-react";
+import { Check, ChevronRight, Copy, ExternalLink, FileText, GitBranch, RefreshCw, type LucideIcon } from "lucide-react";
 import {
   Tooltip,
   FilePreviewIcon,
   RENDERER_ASSET_PATHS,
   resolveRendererPublicAssetUrl,
   type Workspace,
+  FolderIcon,
+  CloudIcon as Cloud,
 } from "@puppyone/shared-ui";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -129,7 +131,7 @@ export function CloudAssetGrid({
   }
 
   if (entries.length === 0) {
-    return <CloudInlineEmpty icon={FolderOpen} title={emptyLabel} detail={emptyDetail} />;
+    return <CloudInlineEmpty icon={FolderIcon} title={emptyLabel} detail={emptyDetail} />;
   }
 
   return (
@@ -149,9 +151,7 @@ export function CloudAssetGrid({
               childrenCount={entry.children_count ?? undefined}
             />
           </span>
-          <Tooltip content={entry.path || entry.name} overflowOnly>
-            <strong>{entry.name || entry.path}</strong>
-          </Tooltip>
+          <strong>{entry.name || entry.path}</strong>
           <small>{formatCloudTreeEntryDetail(entry, localization)}</small>
         </button>
       ))}
@@ -279,14 +279,14 @@ export function CloudWebEmpty({
 }: {
   icon: CloudEmptyStateIcon;
   title: string;
-  detail: string;
+  detail?: string;
 }) {
   return (
     <div className="desktop-cloud-web-empty">
       <span><Icon size={18} /></span>
       <div>
         <strong>{title}</strong>
-        <p>{detail}</p>
+        {detail && <p>{detail}</p>}
       </div>
     </div>
   );
@@ -295,20 +295,18 @@ export function CloudWebEmpty({
 export function CloudSourceDock({
   remote,
   branch,
-  tooltip,
 }: {
   remote: string;
   branch: string;
-  tooltip?: string;
 }) {
   const { t } = useLocalization();
   return (
-    <Tooltip content={tooltip}><div className="desktop-cloud-source-dock">
+    <div className="desktop-cloud-source-dock">
       <span className="desktop-cloud-web-status-dot ready" aria-hidden="true" />
       <strong>{t("cloud.common.cloudSource")}</strong>
       <em dir="auto">{remote}</em>
       <em dir="auto">{branch}</em>
-    </div></Tooltip>
+    </div>
   );
 }
 
@@ -354,9 +352,9 @@ export function CloudCommandBlock({
     <div className="desktop-cloud-command-block">
       <div>
         <span>{label}</span>
-        <button type="button" disabled={disabled} aria-label={t("cloud.common.copyValue", { label })} onClick={handleCopy}>
+        <Tooltip content={t("cloud.common.copyValue", { label })}><button type="button" disabled={disabled} aria-label={t("cloud.common.copyValue", { label })} onClick={handleCopy}>
           {copied ? <Check size={13} /> : <Copy size={13} />}
-        </button>
+        </button></Tooltip>
       </div>
       <pre>{value}</pre>
     </div>
@@ -383,7 +381,7 @@ export function CloudProjectRow({
     <div className="desktop-cloud-project-row">
       <span><Cloud size={15} /></span>
       <div>
-        <Tooltip content={project.name} overflowOnly><strong dir="auto">{project.name}</strong></Tooltip>
+        <strong dir="auto">{project.name}</strong>
         <small dir={project.description ? "auto" : undefined}>{project.description || t("cloud.project.updated", {
           time: bidiIsolate(project.updated_at ? formatRelativeTime(project.updated_at, localization) : t("cloud.time.recently")),
         })}</small>
@@ -406,7 +404,7 @@ export function CloudInlineEmpty({
   title,
   detail,
 }: {
-  icon: typeof Cloud;
+  icon: LucideIcon;
   title: string;
   detail: string;
 }) {

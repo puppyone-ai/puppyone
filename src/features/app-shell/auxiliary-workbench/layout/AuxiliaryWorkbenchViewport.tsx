@@ -69,13 +69,11 @@ export function AuxiliaryWorkbenchViewport(props: AuxiliaryWorkbenchViewportProp
             aria-label={item.snapshot.accessibleLabel} aria-pressed={props.groups.some((group) => group.activeItemId === item.id && group.id === props.activeGroupId)}
              onClick={() => props.onActivateItem(item.id)}>
             <AuxiliaryWorkbenchStatus className="desktop-titlebar-workbench-tab-status" item={item} />
-            <Tooltip content={item.snapshot.accessibleLabel} overflowOnly>
-              <span className="desktop-titlebar-workbench-tab-title">{item.snapshot.title}</span>
-            </Tooltip>
+            <span className="desktop-titlebar-workbench-tab-title">{item.snapshot.title}</span>
           </button>
-          <button type="button" className="desktop-titlebar-workbench-tab-close"
+          <Tooltip content={`${t("common.action.close")} ${item.snapshot.accessibleLabel}`}><button type="button" className="desktop-titlebar-workbench-tab-close"
             aria-label={`${t("common.action.close")} ${item.snapshot.accessibleLabel}`}
-            onClick={() => props.onCloseItem(item.id)}><X size={12} aria-hidden="true" /></button>
+            onClick={() => props.onCloseItem(item.id)}><X size={12} aria-hidden="true" /></button></Tooltip>
         </div>)}
         {props.activeGroupId && <Tooltip content={t("workspace.workbench.newTab")}><button type="button" className="desktop-titlebar-workbench-new"
           aria-label={t("workspace.workbench.newTab")}

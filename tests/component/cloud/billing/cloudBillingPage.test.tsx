@@ -219,6 +219,7 @@ describe("CloudGlobalBillingPage", () => {
       "org-a",
       expect.any(Function),
       session.api_base_url,
+      expect.any(AbortSignal),
     );
   });
 
@@ -244,6 +245,7 @@ describe("CloudGlobalBillingPage", () => {
       "org-b",
       expect.any(Function),
       session.api_base_url,
+      expect.any(AbortSignal),
     );
   });
 

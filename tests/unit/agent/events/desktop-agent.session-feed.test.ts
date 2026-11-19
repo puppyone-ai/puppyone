@@ -13,6 +13,7 @@ async function harness() {
   const owner = createSender(890);
   const rootPath = '/workspace';
   const snapshot = await main.service.createSession(owner, { runtimeId: 'codex' }, rootPath);
+  let fail: ((value: any) => void) | null = null;
   let listener: ((value: any) => void) | null = null;
   let transform: (frame: any) => any = value => value;
   owner.send.mockImplementation((channel, frame) => { if (channel === 'agent:session-frame') { const value = transform(frame); if (value) listener?.(value); } });
@@ -23,17 +24,41 @@ async function harness() {
     acknowledgeAgentSession: vi.fn(request => Promise.resolve(main.service.acknowledgeSession(owner, request, rootPath))),
     readAgentSessionWatermark: vi.fn(request => Promise.resolve(main.service.readSessionWatermark(owner, request, rootPath))),
     detachAgentSession: vi.fn(request => Promise.resolve(main.service.detachSession(owner, request, rootPath))),
+    onAgentSessionFailure: vi.fn(callback => { fail = callback; return () => { fail = null; }; }),
     onAgentSessionFrame: vi.fn(callback => { listener = callback; return () => { listener = null; }; }),
   };
   const controller = new AgentSessionController(rootPath, () => bridge as never);
   cleanup.push(() => controller.dispose(), () => main.service.closeAll());
-  return { main, bridge, controller, snapshot, setTransform: (fn: typeof transform) => { transform = fn; },
+  return { main, bridge, controller, snapshot, fail: (value: any) => fail?.(value), setTransform: (fn: typeof transform) => { transform = fn; },
     emit: (type: string, payload = {}, itemId: string | null = null, turnId = 'turn-A') => main.adapters[0].emit({ type, payload, itemId, turnId, providerSessionId: 'thread-1' }),
     read: () => main.service.replay(owner, { sessionId: snapshot.session.id, afterSequence: 0 }, rootPath),
   };
 }
 
 describe('Renderer display replica against the Main SessionActor and feed', () => {
+  it.each(['SESSION_STALE', 'HOST_EXITED', 'HOST_CLOSED'])('stops retries on serialized %s errors', async code => {
+    vi.useFakeTimers(); const h = await harness(); await h.controller.initialize();
+    h.bridge.readAgentSessionWatermark.mockRejectedValue(Object.assign(new Error('ended'), { code }));
+    await vi.advanceTimersByTimeAsync(agentSessionReplicaLimits.watermarkIdleMs + 100);
+    expect(h.controller.getSnapshot().phase).toBe('runtime-exited');
+    const attempts = h.bridge.attachAgentSession.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(300000);
+    expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(attempts);
+  });
+  it('repairs display failure without restarting the native runtime, but stops on process exit', async () => {
+    vi.useFakeTimers(); const h = await harness(); await h.controller.initialize();
+    const resumes = h.bridge.resumeAgentSession.mock.calls.length;
+    h.fail({ scope: 'display', code: 'STREAM_RESET', message: 'feed reset' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.controller.getSnapshot().replicaStatus).toBe('live');
+    expect(h.bridge.resumeAgentSession).toHaveBeenCalledTimes(resumes);
+    expect(mainStartCount(h.main)).toBe(0);
+    h.fail({ scope: 'execution', code: 'HOST_EXITED', message: 'host exited' });
+    expect(h.controller.getSnapshot().phase).toBe('runtime-exited');
+    const attempts = h.bridge.attachAgentSession.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(300000);
+    expect(h.bridge.attachAgentSession).toHaveBeenCalledTimes(attempts);
+  });
   it('does not create a message recovery incident when termination closes a healthy display', async () => {
     vi.useFakeTimers(); const h = await harness(); await h.controller.initialize();
     const receipt = Promise.withResolvers<{ kind: 'released' }>();

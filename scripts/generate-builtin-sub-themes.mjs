@@ -13,7 +13,7 @@ import { compileThemeCss } from "../electron/main/themes/theme-css-compiler.mjs"
 import { parseSingleFileThemeCss } from "../electron/main/themes/theme-single-file-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const packagesRoot = path.join(repoRoot, "sub-themes");
+const packagesRoot = path.join(repoRoot, "src/features/themes/builtin");
 const outputPath = path.join(
   repoRoot,
   "src/features/themes/builtinSubThemes.generated.ts",
@@ -23,13 +23,23 @@ const rootThemeManifestPath = path.join(
   "src/features/appearance/interface-style-manifest.json",
 );
 const checkOnly = process.argv.includes("--check");
+const markdownContract = JSON.parse(readFileSync(path.join(repoRoot, "shared/markdown-theme-contract.json"), "utf8"));
 const rootThemeManifest = JSON.parse(readFileSync(rootThemeManifestPath, "utf8"));
 
 try {
-  const definitions = await buildDefinitions();
+  const fallbackSource = parseSingleFileThemeCss(readFileSync(path.join(packagesRoot, "default-neutral", "theme.css"), "utf8"), {
+    allowReservedBuiltinId: true, allowBuiltinCompatibilityMetadata: true,
+  }).stylesheets.markdown;
+  const definitions = await buildDefinitions(fallbackSource);
   const fallback = validateFallbackTheme(definitions);
   const outputs = new Map([
     [outputPath, renderRegistry(definitions)],
+    [path.join(repoRoot, "electron/main/themes/markdown-theme-defaults.generated.mjs"),
+      `// Generated from src/features/themes/builtin/${fallback.id.replaceAll(".", "-")}/theme.css.
+export const DEFAULT_MARKDOWN_THEME_CSS = ${JSON.stringify(fallbackSource)};
+`],
+    [path.join(repoRoot, "src/shared-ui/styles/editor/markdown-theme-tokens.generated.css"),
+      renderMarkdownProjection(fallbackSource)],
     [path.join(repoRoot, "src/styles/fallback-theme.generated.css"), renderFallbackCss(fallback)],
     [path.join(repoRoot, "src/features/themes/subThemeBootstrap.generated.ts"), renderTypeScriptBootstrap(definitions, fallback)],
     [path.join(repoRoot, "public/sub-theme-bootstrap.js"), renderBrowserBootstrap(definitions, fallback)],
@@ -60,19 +70,19 @@ try {
   process.exit(1);
 }
 
-async function buildDefinitions() {
-  if (!existsSync(packagesRoot)) fail("sub-themes/ does not exist.");
+async function buildDefinitions(markdownTypographyDefaultsCss) {
+  if (!existsSync(packagesRoot)) fail("src/features/themes/builtin/ does not exist.");
   const rootThemes = new Map(rootThemeManifest.styles.map((definition) => [definition.id, definition]));
   const entries = readdirSync(packagesRoot, { withFileTypes: true })
     .filter((entry) => entry.name !== ".DS_Store")
     .sort((left, right) => left.name.localeCompare(right.name));
-  if (entries.length === 0) fail("sub-themes/ must contain at least one package directory.");
+  if (entries.length === 0) fail("src/features/themes/builtin/ must contain at least one package directory.");
 
   const definitions = [];
   const ids = new Set();
   const orders = new Set();
   for (const entry of entries) {
-    if (!entry.isDirectory()) fail(`sub-themes/${entry.name} must be a package directory.`);
+    if (!entry.isDirectory()) fail(`src/features/themes/builtin/${entry.name} must be a package directory.`);
     const packageDirectory = path.join(packagesRoot, entry.name);
     const packageFiles = readdirSync(packageDirectory, { withFileTypes: true })
       .filter((candidate) => candidate.name !== ".DS_Store");
@@ -81,7 +91,7 @@ async function buildDefinitions() {
       || !packageFiles[0].isFile()
       || packageFiles[0].name !== "theme.css"
     ) {
-      fail(`sub-themes/${entry.name} must contain exactly one theme.css file.`);
+      fail(`src/features/themes/builtin/${entry.name} must contain exactly one theme.css file.`);
     }
 
     const themePath = path.join(packageDirectory, "theme.css");
@@ -105,6 +115,13 @@ async function buildDefinitions() {
     }
     orders.add(parsed.builtinOrder);
     validateRootCompatibility(parsed, rootThemes, relativeThemePath);
+    const markdownRoles = new Set();
+    postcss.parse(parsed.stylesheets.markdown).walkRules(rule => {
+      if (rule.selector.trim() !== ":root") return;
+      rule.walkDecls(declaration => markdownRoles.add(declaration.prop));
+    });
+    const missing = markdownContract.tokens.filter(({ name }) => !markdownRoles.has(name));
+    if (missing.length) fail(`${relativeThemePath} must declare its complete Markdown profile: ${missing.map(({ name }) => name).join(", ")}`);
 
     const compiledCss = {};
     let firstPaint;
@@ -116,6 +133,7 @@ async function buildDefinitions() {
         sourcePath: relativeThemePath,
         supportedModes: parsed.modes,
         allowReservedBuiltinId: true,
+        markdownTypographyDefaultsCss,
       });
       compiledCss[target] = result.css;
       if (target === "application") firstPaint = result.firstPaint;
@@ -210,7 +228,7 @@ function renderRegistry(definitions) {
   const compiledCssConstants = definitions.map(renderCompiledCssConstant).join("\n\n");
   return [
     "/* This file is generated by scripts/generate-builtin-sub-themes.mjs. */",
-    "/* Edit sub-themes/<package>/theme.css, then run npm run generate:sub-themes. */",
+    "/* Edit src/features/themes/builtin/<package>/theme.css, then run npm run generate:sub-themes. */",
     'import type { SubThemeDefinition } from "./themeTypes";',
     "",
     compiledCssConstants,
@@ -269,7 +287,7 @@ function renderFallbackCss(fallback) {
       .join(", ");
   });
   return [
-    "/* This file is generated from sub-themes/default-neutral/theme.css. */",
+    "/* This file is generated from src/features/themes/builtin/default-neutral/theme.css. */",
     "/* It is the lowest cascade layer only; selected Sub Themes override it. */",
     root.toString().trim(),
     "",
@@ -326,7 +344,7 @@ function renderNativeBootstrap(definitions, fallback) {
 
 function renderInitialShellCss(fallback) {
   return [
-    "/* This file is generated from sub-themes/default-neutral/theme.css. */",
+    "/* This file is generated from src/features/themes/builtin/default-neutral/theme.css. */",
     ":root {",
     `  --initial-shell-background: ${fallback.firstPaint.light.background};`,
     "  --initial-shell-color-scheme: light;",
@@ -369,4 +387,39 @@ function fail(message) {
 
 function formatError(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function renderMarkdownProjection(defaultSource) {
+  const defaults = postcss.parse(defaultSource);
+  defaults.walkRules(rule => {
+    rule.selector = rule.selector.includes(".dark")
+      ? ":where(.dark) :where(.markdown-codemirror-editor)"
+      : ":where(.markdown-codemirror-editor)";
+    rule.walkDecls(declaration => {
+      declaration.prop = declaration.prop.replace("--po-md-", "--po-host-md-");
+      declaration.value = declaration.value.replace(/--po-md-([a-z0-9-]+)/g, "--po-host-md-$1");
+    });
+  });
+  const bindings = markdownContract.tokens.map(({ name, override }) => {
+    const host = name.replace("--po-md-", "--po-host-md-");
+    return `  ${name}: ${override ? `var(${override}, var(${host}))` : `var(${host})`};`;
+  });
+  const presetBindings = preset => markdownContract.tokens
+    .filter(({ sizePresets }) => sizePresets)
+    .map(({ name }) => {
+      const host = name.replace("--po-md-", "--po-host-md-");
+      return `  ${host}: var(${host}-${preset});`;
+    });
+  // Scope stops at nested preference roots, so previews/portals cannot inherit
+  // a competing outer preset. Components consume the same resolved role map.
+  const presets = markdownContract.sizePresets.choices
+    .filter(preset => preset !== markdownContract.sizePresets.default)
+    .map(preset => `@scope ([data-typography-scale="${preset}"]) to ([data-typography-scale]) {\n  .markdown-codemirror-editor {\n${presetBindings(preset).map(line => `  ${line}`).join("\n")}\n  }\n}`);
+  return [
+    "/* Generated from the Markdown theme contract and default-neutral/theme.css.",
+    "   No handwritten visual defaults belong in renderer adapters. */",
+    `@layer fallback {\n${defaults.toString()}\n}`,
+    ".markdown-codemirror-editor {", ...presetBindings(markdownContract.sizePresets.default), ...bindings, "}",
+    ...presets, "",
+  ].join("\n");
 }

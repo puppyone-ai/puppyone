@@ -160,6 +160,24 @@ describe("sender-bound workspace authorization", () => {
     },
   );
 
+  it("keeps a window's folders usable when another of its folders is gone, and never authorizes the gone one", async () => {
+    const gone = path.join(root, "moved-away");
+    await mkdir(gone);
+    const authorize = createSenderWorkspaceAuthorization({
+      fsModule: fs,
+      getWorkspaceRootsForSender: () => [root, gone],
+    });
+    await rm(gone, { recursive: true });
+
+    await expect(authorize({ sender: { id: 1 } }, root)).resolves.toBe(await fs.promises.realpath(root));
+    await expect(authorize({ sender: { id: 1 } }, gone)).rejects.toThrow("Unable to resolve the requested workspace root");
+    // Still only the window's own folders: an existing folder it was never given stays out.
+    await expect(authorize({ sender: { id: 1 } }, unassignedRoot)).rejects.toThrow("does not match");
+
+    const alone = createSenderWorkspaceAuthorization({ fsModule: fs, getWorkspaceRootsForSender: () => [gone] });
+    await expect(alone({ sender: { id: 1 } })).rejects.toThrow("Unable to resolve a window Workspace Folder");
+  });
+
   it("canonicalizes the assigned root, accepts only an alias of that root, and rejects no-workspace senders", async () => {
     const aliasParent = await mkdtemp(path.join(os.tmpdir(), "puppyone-auth-alias-"));
     const aliasPath = path.join(aliasParent, "workspace");

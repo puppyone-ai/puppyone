@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DataPort, DocumentPersistencePort } from "../../../../packages/shared-ui/src/core/types";
-import { withEditorDocumentOperations } from "../../../../packages/shared-ui/src/editor/document-session/documentResourceOperations";
-import { closeAllDocumentWorkingCopies, closeDocumentWorkingCopy, getDocumentWorkingCopiesUnderResource, getOrCreateDocumentWorkingCopy } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { ResourceOperationQueue } from "../../../../packages/shared-ui/src/editor/document-session/ResourceOperationQueue";
-import { StructuredDocumentModel } from "../../../../packages/shared-ui/src/editor/document-session/StructuredDocumentModel";
+import type { DataPort, DocumentPersistencePort } from "../../../../src/shared-ui/core/types";
+import { withEditorDocumentOperations } from "../../../../src/shared-ui/editor/document-session/documentResourceOperations";
+import { closeAllDocumentWorkingCopies, closeDocumentWorkingCopy, getDocumentWorkingCopiesUnderResource, getOrCreateDocumentWorkingCopy } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
+import { ResourceOperationQueue } from "../../../../src/shared-ui/editor/document-session/ResourceOperationQueue";
+import { StructuredDocumentModel } from "../../../../src/shared-ui/editor/document-session/StructuredDocumentModel";
 
 afterEach(async () => { await closeAllDocumentWorkingCopies("app-close").catch(() => undefined); });
 function open(persistence: DocumentPersistencePort, path: string) {

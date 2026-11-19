@@ -11,7 +11,7 @@ import {
   statWorkspaceFile,
   readWorkspaceFileRange,
   RESOURCE_MAX_RANGE_READ_BYTES,
-} from "../../../../local-api/workspace.mjs";
+} from "../../../../electron/local-api/workspace.mjs";
 
 async function makeWorkspaceWithFile(sizeBytes, contents) {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "vp-ws-"));

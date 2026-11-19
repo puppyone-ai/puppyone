@@ -1,9 +1,10 @@
-import type { CloudWorkspaceSection } from "../../routes/cloudRouteIds";
-import { normalizeCloudSection } from "../../routes/cloudRoutes";
 import { cloudMessage, type CloudMessageDescriptor } from "../../cloudPresentation";
 import type { RepositoryTarget } from "../../repositoryTarget";
 
-/** Ephemeral UI context resolved from the open repository's canonical remote. */
+/**
+ * Ephemeral local-association resolution or an explicitly selected, authorized
+ * hosted target. A resolved context is never a persisted local-folder binding.
+ */
 export type ProjectCloudContext =
   | { status: "local-only"; projectId: null }
   | { status: "resolving"; projectId: null }
@@ -131,37 +132,4 @@ export function resolveProjectCloudContext({
     };
   }
   return { status: "local-only", projectId: null };
-}
-
-export function resolveCloudHubSectionForContext(
-  context: ProjectCloudContext,
-): "initialize" | "contents" {
-  return cloudContextHasProject(context) ? "contents" : "initialize";
-}
-
-export function resolveCloudHubSectionAfterContextChange({
-  currentSection,
-  hasProjectContext,
-  workspaceChanged,
-}: {
-  currentSection: CloudWorkspaceSection;
-  hasProjectContext: boolean;
-  workspaceChanged: boolean;
-}): CloudWorkspaceSection {
-  if (workspaceChanged) return hasProjectContext ? "contents" : "initialize";
-  if (!hasProjectContext) {
-    return isCloudOrganizationSection(currentSection) || currentSection === "share"
-      ? currentSection
-      : "initialize";
-  }
-  // Initialization owns its transition to `contents` after the push succeeds.
-  // A newly resolvable remote can be an interrupted, retryable attempt and must
-  // not pull the user away from the Initialize screen prematurely.
-  return currentSection;
-}
-
-function isCloudOrganizationSection(section: CloudWorkspaceSection): boolean {
-  const normalized = normalizeCloudSection(section);
-  return normalized === "cloud-team"
-    || normalized === "cloud-billing";
 }

@@ -1,4 +1,4 @@
-// Deep integration tests for the local-mode workspace engine (local-api/workspace.mjs).
+// Deep integration tests for the local-mode workspace engine (electron/local-api/workspace.mjs).
 // These exercise the real filesystem: every test runs against a fresh temp
 // directory with real files, real folders, and real byte content — no mocks.
 // This is the "端" (desktop/local) side of the product: create/read/write/rename/
@@ -27,7 +27,7 @@ import {
   importWorkspaceEntries,
   readPuppyoneWorkspaceConfig,
   writePuppyoneWorkspaceConfig,
-} from "../../../../local-api/workspace.mjs";
+} from "../../../../electron/local-api/workspace.mjs";
 import {
   convertMacosOfficeDocumentToDocx,
 } from "../../../../electron/main/platform/macos/office-document-converter.mjs";

@@ -62,6 +62,16 @@ jobs:
       - name: Pre-release Checks — platform
         run: npm run check:release -- --group platform
 
+      - name: Prepare headless Electron network test
+        if: runner.os == 'Linux'
+        run: |
+          bash scripts/configure-ci-ubuntu-mirrors.sh
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install --yes xvfb
+
+      - name: Verify Cloud authentication through the native proxy transport
+        run: npm run smoke:cloud-auth-network
+
       - name: Retain pre-release check results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -75,7 +85,7 @@ jobs:
   source-checks:
     name: Pre-release Checks (source)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -90,7 +100,42 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Fetch readability comparison commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Never fall back to HEAD/HEAD^: that could compare a baseline to
+          # itself or omit earlier commits in a multi-commit push.
+          if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || [[ "$BASE_SHA" == 0000000000000000000000000000000000000000 ]]; then
+            echo "A valid PR base or pre-push commit is required." >&2
+            exit 1
+          fi
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
+          echo "READABILITY_BASE=$BASE_SHA" >> "$GITHUB_ENV"
+
+      - name: Readability and dependency gates
+        run: |
+          npm run lint
+          npm run check:dependencies
+          npm run check:readability-baselines
+          npm run test:readability-gates
+
+      - name: Folder sandbox for the host tests (bubblewrap)
+        timeout-minutes: 10
+        run: |
+          bash scripts/configure-ci-ubuntu-mirrors.sh
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install --yes bubblewrap
+          # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor; a desktop
+          # user's bubblewrap is allowed by its profile, the runner's needs this.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bwrap --ro-bind / / --dev /dev /bin/true
+
       - name: Pre-release Checks — source
+        env:
+          # The host's sandboxed cases must run here, never skip.
+          PUPPYONE_REQUIRE_SANDBOX: "1"
         run: npm run check:release -- --group source
 
       - name: Retain pre-release check results
@@ -108,9 +153,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    # The checks take about ten minutes; the rest covers one slow package
+    # download on a cold Linux cache.
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -124,11 +171,38 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      # The runner's Ubuntu mirror has stalled for 19 minutes and crawled
+      # through the 61 MB CJK font package. Keep the downloaded packages, so
+      # most runs install without touching the mirror's package pool.
+      - name: Restore Linux package downloads
+        if: runner.os == 'Linux'
+        id: apt-downloads
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ci-apt-archives
+          key: ci-apt-${{ runner.os }}-${{ runner.arch }}-xvfb-fonts-noto-cjk-v1
+
       - name: Prepare Linux display and multilingual fonts
         if: runner.os == 'Linux'
+        timeout-minutes: 15
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes xvfb fonts-noto-cjk
+          bash scripts/configure-ci-ubuntu-mirrors.sh
+          archives="$HOME/.cache/ci-apt-archives"
+          mkdir -p "$archives/partial"
+          # Give up on a silent connection and retry instead of waiting.
+          apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+            -o "Dir::Cache::archives=$archives")
+          sudo apt-get "${apt_options[@]}" update
+          sudo apt-get "${apt_options[@]}" install --yes xvfb fonts-noto-cjk
+          sudo rm -rf "$archives/partial" "$archives/lock"
+          sudo chown -R "$(id -u):$(id -g)" "$archives"
+
+      - name: Save Linux package downloads
+        if: runner.os == 'Linux' && steps.apt-downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ci-apt-archives
+          key: ${{ steps.apt-downloads.outputs.cache-primary-key }}
 
       - name: Pre-release Checks — app
         run: npm run check:release -- --group app
@@ -150,7 +224,7 @@ jobs:
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       VITE_DESKTOP_CLOUD_API_URL: https://api.puppyone.ai/api/v1
-      VITE_DESKTOP_CLOUD_WEB_URL: https://app.puppyone.ai
+      VITE_DESKTOP_CLOUD_WEB_URL: https://try.puppyone.ai
 
     steps:
       - name: Checkout
@@ -203,11 +277,25 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  cloud-email-sign-in:
+    # A person signs in to this Desktop commit with email through the paired
+    # Cloud Web (qubits <-> qubits, main <-> main): real Main auth service, the
+    # Web's release image served as deployed, local auth-only Supabase. Cloud
+    # owns the check so both repositories run the same one. Keep the @ref and
+    # harness_ref equal.
+    name: Cloud email sign-in
+    uses: puppyone-ai/puppyone-cloud/.github/workflows/desktop-login-e2e.yml@qubits
+    with:
+      desktop_repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      desktop_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      cloud_ref: ${{ (github.base_ref || github.ref_name) == 'main' && 'main' || 'qubits' }}
+      harness_ref: qubits
+
   build:
     # Preserve the protected branch's existing required check name.
     name: Build
     if: always()
-    needs: [source-checks, app-checks, platform-contracts, windows-package]
+    needs: [source-checks, app-checks, platform-contracts, windows-package, cloud-email-sign-in]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every pre-release check group
@@ -216,8 +304,10 @@ jobs:
           APP_RESULT: ${{ needs.app-checks.result }}
           PLATFORM_RESULT: ${{ needs.platform-contracts.result }}
           WINDOWS_PACKAGE_RESULT: ${{ needs.windows-package.result }}
+          CLOUD_EMAIL_SIGN_IN_RESULT: ${{ needs.cloud-email-sign-in.result }}
         run: |
           test "$SOURCE_RESULT" = success
           test "$APP_RESULT" = success
           test "$PLATFORM_RESULT" = success
           test "$WINDOWS_PACKAGE_RESULT" = success
+          test "$CLOUD_EMAIL_SIGN_IN_RESULT" = success

@@ -1,0 +1,8 @@
+/*
+ * Explorer file glyphs follow the Appearance "Show file icons" switch, set as
+ * data-file-icons on the appearance root. Hidden keeps each file's icon slot,
+ * so file names stay aligned with the folder names beside their chevrons.
+ */
+:where([data-file-icons="hidden"]) .tree-row.file .tree-icon-slot > * {
+  visibility: hidden;
+}

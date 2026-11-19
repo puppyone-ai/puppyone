@@ -1,4 +1,4 @@
-// Deep integration tests for the AI edit-review engine (local-api/edit-review.mjs).
+// Deep integration tests for the AI edit-review engine (electron/local-api/edit-review.mjs).
 // This engine snapshots a workspace, tracks edited paths, and produces
 // review requests (before/after diffs) for the AI-edit-assist feature. Tests run
 // against real temp workspaces with real file edits — no mocks.
@@ -13,7 +13,7 @@ import {
   flushWorkspaceEditReviewChanges,
   absorbWorkspaceEditReviewPath,
   disposeWorkspaceEditReview,
-} from "../../../../local-api/edit-review.mjs";
+} from "../../../../electron/local-api/edit-review.mjs";
 
 let root;
 

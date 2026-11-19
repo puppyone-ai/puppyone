@@ -58,8 +58,7 @@ describe("Slides create action", () => {
     act(() => actions?.openCreateEntryMenu(null, {
       left: 0, top: 0, right: 20, bottom: 20, width: 20, height: 20,
     }));
-    act(() => actions?.selectCreateEntryKind("slides"));
-    await act(async () => actions?.createEntryFromMenu());
+    await act(async () => actions?.createEntry("slides"));
 
     expect(instantiateTemplate).toHaveBeenCalledWith({
       rootPath: "/workspace",
@@ -102,8 +101,7 @@ describe("Slides create action", () => {
     act(() => actions?.openCreateEntryMenu(null, {
       left: 0, top: 0, right: 20, bottom: 20, width: 20, height: 20,
     }));
-    act(() => actions?.selectCreateEntryKind("folder"));
-    await act(async () => actions?.createEntryFromMenu());
+    await act(async () => actions?.createEntry("folder"));
 
     expect(createFolder).toHaveBeenCalledWith("Untitled Folder");
     expect(onActivateNode).toHaveBeenCalledWith({
@@ -113,5 +111,42 @@ describe("Slides create action", () => {
       type: "folder",
       children: null,
     });
+  });
+
+  it("creates the chosen kind at once under the next free Untitled name, with no naming step", async () => {
+    const createFile = vi.fn(async () => undefined);
+    const onActivateNode = vi.fn();
+    // Assigned during render; keep the declared union so TS does not narrow it to null.
+    let actions = null as ReturnType<typeof useDataNodeActions> | null;
+
+    function Harness() {
+      actions = useDataNodeActions({
+        dataPort: {
+          listChildren: async () => [{ id: "Untitled.md", name: "Untitled.md", path: "Untitled.md", type: "markdown" as const }],
+          createFolder: vi.fn(),
+          createFile,
+        },
+        onEnterDataView: vi.fn(),
+        onLocalWorkspaceContentChanged: vi.fn(),
+        onWorkspaceContentChanged: vi.fn(),
+        onActivateNode,
+        setActiveExplorerNode: vi.fn(),
+        workspace: { id: "workspace", name: "Workspace", path: "/workspace", status: "recording" },
+      });
+      return null;
+    }
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => root?.render(withTestLocalization(<Harness />)));
+    act(() => actions?.openCreateEntryMenu(null, {
+      left: 0, top: 0, right: 20, bottom: 20, width: 20, height: 20,
+    }));
+    await act(async () => actions?.createEntry("markdown"));
+
+    expect(createFile).toHaveBeenCalledWith("Untitled 2.md", "");
+    expect(onActivateNode).toHaveBeenCalledWith(expect.objectContaining({ path: "Untitled 2.md" }));
+    expect(actions?.createEntryDraft).toBeNull();
   });
 });

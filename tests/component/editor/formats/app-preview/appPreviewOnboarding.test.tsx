@@ -5,7 +5,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppPreviewController } from "@puppyone/shared-ui";
-import { AppPreviewSetupView } from "../../../../../packages/shared-ui/src/editor/viewers/app/AppPreviewSetupView";
+import { AppPreviewSetupView } from "../../../../../src/shared-ui/editor/viewers/app/AppPreviewSetupView";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -118,7 +118,7 @@ describe("App Preview onboarding", () => {
     expect(container.textContent).toContain("Connect to a running webpage");
   });
 
-  it("explains an empty detection result before suggesting alternate methods", async () => {
+  it("identifies an empty detection result before suggesting alternate methods", async () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -142,7 +142,6 @@ describe("App Preview onboarding", () => {
 
     const content = container.textContent ?? "";
     expect(content).toContain("No runnable project detected");
-    expect(content).toContain("PuppyOne checked this workspace");
     expect(content).toContain("Try one of these options");
     expect(content.indexOf("No runnable project detected"))
       .toBeLessThan(content.indexOf("Choose project folder"));

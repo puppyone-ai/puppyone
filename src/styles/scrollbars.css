@@ -65,14 +65,17 @@
 /* The default interface presents a macOS-like transient thumb over a stable
  * interaction lane. Focus alone never pins the thumb onscreen: keyboard and
  * programmatic scrolling are detected by ScrollbarActivity like pointer
- * scrolling, while hover preserves direct pointer discoverability. */
+ * scrolling, while hover preserves direct pointer discoverability. Scroll owners
+ * may opt into persistent overflow discoverability with visibility="always";
+ * that does not override system mode or create a thumb for a non-overflowing list. */
 :root[data-po-scrollbar-mode="product"][data-interface-style="default"]
-  :where([data-po-scrollbar]:not([data-po-scrollbar="hidden"]))::-webkit-scrollbar-thumb {
+  :where([data-po-scrollbar]:not([data-po-scrollbar="hidden"]):not([data-po-scrollbar-visibility="always"]))::-webkit-scrollbar-thumb {
   background-color: transparent;
 }
 
 :root[data-po-scrollbar-mode="product"][data-interface-style="default"]
   :where(
+    [data-po-scrollbar]:not([data-po-scrollbar="hidden"])[data-po-scrollbar-visibility="always"],
     [data-po-scrollbar]:not([data-po-scrollbar="hidden"]):hover,
     [data-po-scrollbar].po-scrollbar-active
   )::-webkit-scrollbar-thumb {

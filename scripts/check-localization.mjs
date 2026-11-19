@@ -12,6 +12,7 @@ const manifest = await readJson(path.join(localesRoot, "manifest.json"));
 const userFacingJsxAttributes = new Set(["alt", "aria-label", "placeholder", "title"]);
 const allowedUserInterfaceLiterals = new Set([
   // Product/provider brands and protocol vocabulary are proper nouns, not translatable copy.
+  "ChatGPT",
   "Claude",
   "Git",
   "GitHub",
@@ -20,9 +21,16 @@ const allowedUserInterfaceLiterals = new Set([
   "CLI",
   "HEAD",
   "PDF",
+  "MCP",
   // Input examples and file-extension tokens intentionally preserve their syntax.
   "https://…",
+  // Decorative sharing example: keep the product URL identical in every locale.
+  "puppyone.ai/…",
   "md",
+  // File-type tags on the first-run picture name formats, not words.
+  "MD",
+  "CSV",
+  "HTML",
 ]);
 
 const expectedLocales = ["en", "es", "pt-BR", "fr", "de", "ja", "ko", "zh-Hans"];
@@ -42,6 +50,18 @@ const namespaceFiles = (await fs.readdir(path.join(rendererRoot, "en")))
   .filter((name) => name.endsWith(".json"))
   .sort();
 assert(namespaceFiles.length > 0, "English renderer catalog has no namespaces.");
+
+// Every namespace must reach the renderer: a catalog file no loader imports
+// renders as "This text is unavailable." everywhere it is used.
+for (const locale of expectedLocales) {
+  const loaderPath = path.join(repositoryRoot, "src/localization/catalog-loaders", `${locale}.ts`);
+  const loader = await fs.readFile(loaderPath, "utf8");
+  for (const filename of namespaceFiles) {
+    const namespace = filename.slice(0, -".json".length);
+    assert(loader.includes(`/locales/renderer/${locale}/${filename}"`) && loader.includes(`"${namespace}": `),
+      `src/localization/catalog-loaders/${locale}.ts does not load the ${namespace} namespace.`);
+  }
+}
 
 const rendererMessageIds = new Set();
 const englishRendererByNamespace = new Map();
@@ -109,17 +129,14 @@ for (const locale of expectedLocales) {
 }
 
 await validateMessageReferences(
-  [path.join(repositoryRoot, "src"), path.join(repositoryRoot, "packages", "shared-ui", "src")],
+  [path.join(repositoryRoot, "src")],
   rendererMessageIds,
 );
 await validateMessageReferences(
   [path.join(repositoryRoot, "electron")],
   nativeMessageIds,
 );
-await validateNoHardcodedUserInterfaceText([
-  path.join(repositoryRoot, "src"),
-  path.join(repositoryRoot, "packages", "shared-ui", "src"),
-]);
+await validateNoHardcodedUserInterfaceText([path.join(repositoryRoot, "src")]);
 
 console.log(
   `Localization architecture OK: ${expectedLocales.length} locales, `

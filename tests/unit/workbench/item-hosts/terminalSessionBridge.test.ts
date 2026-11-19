@@ -17,7 +17,7 @@ function setup() {
     terminateItemExecution: vi.fn(async (request: any) => ({ ...request, executionId: "execution-a",
       desiredLifecycle: "terminated", observedLifecycle: "stopping", cleanup: "running", revision: 1, errorCode: null })),
     createTerminal:vi.fn(async () => receipt),
-    connectTerminalSession:vi.fn(async () => ({connection:"connection-a", hostGeneration:"host-a"})),
+    connectTerminalSession:vi.fn(async () => ({ok: true as const, value: {connection:"connection-a", hostGeneration:"host-a"}})),
     closeTerminal:vi.fn(async () => true),
     onSessionRuntimeFailure: (listener:typeof failureListener) => {failureListener=listener; return unsubscribe;},
   };

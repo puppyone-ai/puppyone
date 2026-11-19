@@ -2,23 +2,23 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const officeViewerSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/office/OfficeViewer.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/office/OfficeViewer.tsx", import.meta.url),
   "utf8",
 );
 const officePreviewCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor/media-office-preview.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor/media-office-preview.css", import.meta.url),
   "utf8",
 );
 const wordPreviewSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/office/word/WordDocumentPreview.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/office/word/WordDocumentPreview.tsx", import.meta.url),
   "utf8",
 );
 const officeFontCompatibilitySource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/office/officeFontCompatibility.ts", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/office/officeFontCompatibility.ts", import.meta.url),
   "utf8",
 );
 const viewerTypesSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/registry/viewerTypes.ts", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/registry/viewerTypes.ts", import.meta.url),
   "utf8",
 );
 const tokenSource = readFileSync(
@@ -28,7 +28,7 @@ const tokenSource = readFileSync(
 const paletteTokenSource = [
   tokenSource,
   ...["default-neutral", "default-warm", "default-graphite"].map((name) => readFileSync(
-    new URL(`../../../../../sub-themes/${name}/theme.css`, import.meta.url),
+    new URL(`../../../../../src/features/themes/builtin/${name}/theme.css`, import.meta.url),
     "utf8",
   )),
 ].join("\n");
@@ -111,7 +111,12 @@ describe("lightweight Office preview experience", () => {
       /\.office-pptx-thumbnail\[aria-selected="true"\] \.office-pptx-thumbnail__number\s*\{[^}]*color:\s*var\(--po-file-accent-presentation\)/s,
     );
     expect(officePreviewCss).toContain('.office-pptx-thumbnail__frame[data-render-state="error"]');
-    expect(officePreviewCss).toContain("prefers-reduced-motion: reduce");
+    // A pending slide is a loading placeholder in the Appearance style: paper
+    // that breathes (rounded) or is lit by an ordered-dither light (dither),
+    // both stopped for reduced motion, never a highlight sweep.
+    expect(officeViewerSource).toContain("{pending ? <PlaceholderLayer /> : null}");
+    expect(officePreviewCss).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.office-pptx-thumbnail__frame\[data-placeholder-shape\]\s*\{\s*animation: none;/);
+    expect(officePreviewCss).not.toContain("office-pptx-thumbnail-pending");
     // Neutral owns the fallback accents; Warm dark and Graphite light/dark
     // redeclare intentional differences. The global layer adds no duplicate.
     expect(paletteTokenSource.match(/--po-file-accent-presentation:/g)).toHaveLength(5);

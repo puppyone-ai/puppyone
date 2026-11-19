@@ -17,14 +17,16 @@ fn data() -> &'static Value {
         // (`tools/import-sign-in-explainer.py`), first run's moments
         // (`tools/import-onboarding-value.py`), Projects Home
         // (`tools/import-onboarding-home.py`), Cloud Computer Screen
-        // (`tools/import-cloud-computer-screen.py`) and Computer Mode
-        // (`tools/import-computer-mode.py`).
+        // (`tools/import-cloud-computer-screen.py`), Computer Mode
+        // (`tools/import-computer-mode.py`) and the HTML visual editor's
+        // block and link controls (`tools/import-html-visual-copy.py`).
         let ahead = [
             include_str!("../assets/sign-in-explainer.json"),
             include_str!("../assets/onboarding-value.json"),
             include_str!("../assets/onboarding-home.json"),
             include_str!("../assets/cloud-computer-screen.json"),
             include_str!("../assets/computer-mode.json"),
+            include_str!("../assets/html-visual-copy.json"),
         ]
         .map(|source| serde_json::from_str::<Value>(source).expect("catalog ahead of the pin"));
         for (locale, messages) in ahead.iter().flat_map(|a| a["locales"].as_object().unwrap()) {

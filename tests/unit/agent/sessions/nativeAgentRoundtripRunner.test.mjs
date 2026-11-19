@@ -63,6 +63,38 @@ describe("native Agent round-trip smoke runner", () => {
     },
   );
 
+  it("waits for actual native catalog confirmation before closing a completed turn", async () => {
+    const sender = smokeSender();
+    const feed = fakeSessionFeed(sender);
+    let catalogReady = false;
+    const service = {
+      ...feed.methods,
+      createSession: async () => snapshot("product-session", "cursor"),
+      startTurn: async (_sender, request) => {
+        const token = request.prompt.match(/PUPPYONE_SMOKE_[A-Z0-9_]+/u)?.[0];
+        queueMicrotask(() => feed.publish([
+          event(request.sessionId, "user.message", { text: request.prompt }, "turn-1", "cursor"),
+          event(request.sessionId, "assistant.completed", { text: token }, "turn-1", "cursor"),
+          event(request.sessionId, "turn.completed", { status: "completed" }, "turn-1", "cursor"),
+        ]));
+        setTimeout(() => { catalogReady = true; }, 20);
+        return { sessionId: request.sessionId, turnId: "turn-1" };
+      },
+      listSessions: vi.fn(async () => ({ sessions: catalogReady
+        ? [{ id: "product-session", runtimeId: "cursor", providerSessionId: "native-thread" }]
+        : [] })),
+      closeSession: vi.fn(async () => { expect(catalogReady).toBe(true); return { closed: true }; }),
+      resumeSession: vi.fn(async () => snapshot("product-session", "cursor")),
+    };
+
+    await expect(runNativeAgentRoundtrip({
+      service, sender, workspaceRoot: "/workspace", runtimeId: "cursor",
+      timeoutMs: 1_000, tokenFactory: index => `PUPPYONE_SMOKE_DELAYED_${index}`,
+    })).resolves.toMatchObject({ status: "passed" });
+    expect(service.listSessions.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(service.resumeSession).toHaveBeenCalledOnce();
+  });
+
   it("fails closed when a runtime completes without the requested answer token", async () => {
     const sender = smokeSender();
     const feed = fakeSessionFeed(sender);

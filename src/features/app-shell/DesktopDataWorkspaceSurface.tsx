@@ -1,3 +1,4 @@
+import { useDesktopPreference, selectFileIconTheme } from "../settings";
 import {
   useCallback,
   useMemo,
@@ -10,9 +11,16 @@ import { Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import {
   DataWorkspace,
+  FloatingNotice,
+  FloatingNoticeAction,
+  FloatingNoticeStack,
+  LoadingMark,
+  useDismissibleNotice,
   type AiEditRequest,
   type DataNode,
   type DocumentSourceKind,
+  type ExplorerTreeProps,
+  type FloatingNoticeProps,
   type Workspace,
   type WorkspaceContentChange,
   type WorkspaceFolder,
@@ -27,23 +35,12 @@ import {
   rectToCreateEntryAnchor,
   type DesktopCreateEntryAnchorInput,
 } from "../data-workspace/nodeActions";
-import type { FileClipboardController } from "../data-workspace/useFileClipboard";
+import type { FileClipboardController, FileOperationNotice } from "../data-workspace/useFileClipboard";
 import type { GitStatusSnapshot } from "../../types/electron";
-import { useDesktopPaneLayout } from "./layout/DesktopPaneLayoutContext";
-import {
-  COLLAPSED_EXPLORER_WIDTH,
-  EXPLORER_COLLAPSE_THRESHOLD,
-  MAX_EXPLORER_WIDTH,
-  MIN_EXPLORER_WIDTH,
-} from "./layout/desktopPaneLayout";
-import type { DesktopPreferencesController } from "./useDesktopPreferences";
+import { useDesktopExplorerFrame } from "./layout/useDesktopExplorerFrame";
 import { DesktopSidebarFooterNavigation } from "./navigation";
 import { WorkspaceSurfaceOutlet, type ResolvedWorkspaceSurface } from "./workspace-surfaces";
-import type { DesktopView } from "../../components/DesktopCloudShell";
-import {
-  useNativeSurfacePointerPassthroughActivity,
-  useNativeSurfacePointerRoutingRegion,
-} from "../native-surfaces";
+import type { DesktopView } from "../../components/ProjectShell";
 import { DesktopEditorSplitView } from "../editor-workbench/layout/DesktopEditorSplitView";
 import type { DesktopEditorWorkbenchController } from "../editor-workbench/controller/useDesktopEditorWorkbench";
 import {
@@ -53,10 +50,18 @@ import {
 } from "../desktop-agent-presence";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerSession";
+import {
+  ExplorerPinnedFiles,
+  explorerPinsStore,
+  getExplorerPinsProjectKey,
+  useExplorerPins,
+} from "../data-workspace";
 
 type DataWorkspaceProps = ComponentProps<typeof DataWorkspace>;
 
 export type DesktopDataWorkspaceSurfaceProps = {
+  /** The project's first document is still on its way to the editor. */
+  workspaceEntering?: boolean;
   activeAiEditRequest: AiEditRequest | null;
   activeDocumentPath: string | null;
   activeExplorerPath: string | null;
@@ -67,7 +72,7 @@ export type DesktopDataWorkspaceSurfaceProps = {
   externalOpen: Readonly<{
     open: (path: string) => void | Promise<void>;
   }>;
-  editorInteractionPreferences: NonNullable<DataWorkspaceProps["editorInteractionPreferences"]>;
+  showSaveStatus: boolean;
   fileClipboardController: FileClipboardController;
   fileOperationNotice: string | null;
   navigation: {
@@ -99,10 +104,11 @@ export type DesktopDataWorkspaceSurfaceProps = {
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
   onNodeActionMenu: (node: DataNode, anchorRect: DOMRect, selectedNodes?: readonly DataNode[]) => void;
-  preferences: DesktopPreferencesController;
   resolvedSurface: ResolvedWorkspaceSurface;
+  sidebarTopCompanion?: ReactNode;
   sidebarCompanion?: ReactNode;
   sidebarUtility?: ReactNode;
+  computerScreenOverlay?: ReactNode;
   viewerExtensionAdapter: DataWorkspaceProps["viewerExtensionAdapter"];
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
@@ -110,6 +116,11 @@ export type DesktopDataWorkspaceSurfaceProps = {
   workspaceRefreshToken: WorkspaceContentChange;
   workspaceAtomicRefreshToken: number;
   workspaceSurfaceError: string | null;
+  /** What this local folder's Cloud project means; never shown for Cloud resources. */
+  cloudProjectNotice?: ReactNode;
+  folderNotices?: ReactNode;
+  /** Offers Retry on the workspace notice when its source can reconnect. */
+  onRetryWorkspaceSurface?: () => void;
   sidebarCreateMenuOpen: boolean;
 };
 
@@ -119,10 +130,11 @@ export function DesktopDataWorkspaceSurface({
   activeExplorerPath,
   dataPort,
   documentSourceKind = "local",
+  workspaceEntering = false,
   providerStateContent,
   editorWorkbench,
   externalOpen,
-  editorInteractionPreferences,
+  showSaveStatus,
   fileClipboardController,
   fileOperationNotice,
   navigation,
@@ -135,10 +147,11 @@ export function DesktopDataWorkspaceSurface({
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
   onNodeActionMenu,
-  preferences,
   resolvedSurface,
+  sidebarTopCompanion,
   sidebarCompanion,
   sidebarUtility,
+  computerScreenOverlay,
   viewerExtensionAdapter,
   workspace,
   workspaceFolders,
@@ -146,12 +159,22 @@ export function DesktopDataWorkspaceSurface({
   workspaceRefreshToken,
   workspaceAtomicRefreshToken,
   workspaceSurfaceError,
+  onRetryWorkspaceSurface,
+  cloudProjectNotice,
+  folderNotices,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
+  const markdownBlockDragEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownBlockDrag);
+  const markdownHeadingOutlineEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownHeadingOutline);
+  const editorInteractionPreferences = useMemo(() => ({ showSaveStatus, markdownBlockDragEnabled, markdownHeadingOutlineEnabled }),
+    [showSaveStatus, markdownBlockDragEnabled, markdownHeadingOutlineEnabled]);
   const localResources = documentSourceKind === "local";
   const canCreate = Boolean(dataPort.createFile || dataPort.createFolder);
   const canChangeNodes = Boolean(dataPort.renameNode || dataPort.moveNode || dataPort.deleteNode);
   const [dragExportFailed, setDragExportFailed] = useState(false);
+  const dismissDragExportFailure = useCallback(() => setDragExportFailed(false), []);
+  const [visibleWorkspaceSurfaceError, dismissWorkspaceSurfaceError] = useDismissibleNotice(workspaceSurfaceError);
+  const [workspaceNoticeStack, setWorkspaceNoticeStack] = useState<HTMLDivElement | null>(null);
   const exportNodes = useResourceDragExport(resolveWorkspaceResource, setDragExportFailed);
   const resourceDragPreview = useResourceDragPreview();
   const resolveFileDrop = useCallback<NonNullable<DataWorkspaceProps["onResolveFileDrop"]>>(async (files, target) => {
@@ -165,13 +188,9 @@ export function DesktopDataWorkspaceSurface({
       throw error;
     }
   }, [resolveWorkspaceResource]);
-  const onExplorerResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
-    "explorer-resize",
-  );
-  const [explorerResizeHandle, setExplorerResizeHandle] = useState<HTMLDivElement | null>(null);
-  useNativeSurfacePointerRoutingRegion("explorer-resize", explorerResizeHandle);
+  const explorerFrame = useDesktopExplorerFrame();
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
-  const paneLayout = useDesktopPaneLayout();
   const activeWorkspaceResource = useMemo(
     () => resolveWorkspaceResource(activeExplorerPath),
     [activeExplorerPath, resolveWorkspaceResource],
@@ -180,23 +199,15 @@ export function DesktopDataWorkspaceSurface({
     ?? workspaceFolders[0]?.uri
     ?? null;
   const explorerSession = useProjectExplorerSession(workspace, workspaceFolders);
+  const pinsProjectKey = getExplorerPinsProjectKey(workspace, workspaceFolders);
+  const pins = useExplorerPins(pinsProjectKey);
+  const hasPins = pins.files.length > 0;
   const defaultExpandedWorkspaceRoots = useMemo(
     () => workspaceFolders.length > 1
       ? workspaceFolders.map((folder) => folder.uri)
       : undefined,
     [workspaceFolders],
   );
-  // DataWorkspace's width input is the expanded content-plane width. The
-  // Shell's resolved width becomes zero while collapsed and must never replace
-  // that retained geometry, or the Explorer children will reflow during exit.
-  const resolvedExplorerWidth = paneLayout?.explorer.collapsed
-    ? preferences.explorerWidth
-    : paneLayout?.explorer.width ?? preferences.explorerWidth;
-  const resolvedExplorerMaxWidth = paneLayout?.explorer.maxWidth
-    ?? MAX_EXPLORER_WIDTH;
-  const resolvedExplorerMinWidth = paneLayout?.explorer.minWidth ?? MIN_EXPLORER_WIDTH;
-  const resolvedExplorerCollapsed = paneLayout?.explorer.collapsed
-    ?? preferences.sidebarCollapsed;
   const navigationCommon = {
     activeView: navigation.activeView,
     availableSurfaceIds: navigation.availableSurfaceIds,
@@ -219,27 +230,44 @@ export function DesktopDataWorkspaceSurface({
       className="desktop-data-workspace-wrap"
       data-cloud-native={documentSourceKind === "cloud" ? "true" : undefined}
       data-file-workbench="true"
+      data-explorer-pins={hasPins ? "true" : undefined}
+      data-explorer-top-companion={sidebarTopCompanion ? "true" : undefined}
       data-sidebar-navigation-placement={navigation.showWorkspaceNavigation
         ? "bottom"
         : undefined}
     >
-      {workspaceSurfaceError && (
-        <div className="desktop-workspace-surface-alert" role="status">{workspaceSurfaceError}</div>
-      )}
-      {dragExportFailed && (
-        <div className="desktop-workspace-surface-alert" role="alert">{t("workspace.drag.exportFailed")}</div>
-      )}
-      {fileClipboardController.notice && fileOperationNotice && (
-        <div
-          className="desktop-file-operation-notice"
-          data-tone={fileClipboardController.notice.tone}
-          role="status"
-          aria-live="polite"
-          dir="auto"
-        >
-          {fileOperationNotice}
-        </div>
-      )}
+      <FloatingNoticeStack ref={setWorkspaceNoticeStack} className="desktop-workspace-notice-stack">
+        {localResources && folderNotices}
+        {localResources && cloudProjectNotice}
+        {visibleWorkspaceSurfaceError && (
+          <FloatingNotice
+            tone="warning"
+            role="status"
+            actions={onRetryWorkspaceSurface && (
+              <FloatingNoticeAction onClick={onRetryWorkspaceSurface}>{t("common.action.retry")}</FloatingNoticeAction>
+            )}
+            onDismiss={dismissWorkspaceSurfaceError}
+          >
+            {visibleWorkspaceSurfaceError}
+          </FloatingNotice>
+        )}
+        {dragExportFailed && (
+          <FloatingNotice tone="danger" onDismiss={dismissDragExportFailure}>
+            {t("workspace.drag.exportFailed")}
+          </FloatingNotice>
+        )}
+      </FloatingNoticeStack>
+      <FloatingNoticeStack placement="bottom-end" className="desktop-file-operation-notice-stack">
+        {fileClipboardController.notice && fileOperationNotice && (
+          <FloatingNotice
+            {...fileOperationNoticePresentation(fileClipboardController.notice)}
+            role="status"
+            onDismiss={fileClipboardController.dismissNotice}
+          >
+            {fileOperationNotice}
+          </FloatingNotice>
+        )}
+      </FloatingNoticeStack>
       <DataWorkspace
         onExportNodes={localResources ? exportNodes : undefined}
         resourceDragEntries={localResources ? resourceDragPreview?.entries : undefined}
@@ -258,17 +286,17 @@ export function DesktopDataWorkspaceSurface({
         onOpenExternalUrl={openExternalUrl}
         viewerExtensionAdapter={viewerExtensionAdapter}
         documentSourceKind={documentSourceKind}
-        resizableExplorer
-        explorerCollapsed={resolvedExplorerCollapsed}
-        explorerWidth={resolvedExplorerWidth}
-        minExplorerWidth={resolvedExplorerMinWidth}
-        maxExplorerWidth={resolvedExplorerMaxWidth}
-        collapsedExplorerWidth={COLLAPSED_EXPLORER_WIDTH}
-        explorerCollapseThreshold={EXPLORER_COLLAPSE_THRESHOLD}
-        onExplorerCollapsedChange={preferences.setSidebarCollapsed}
-        onExplorerWidthChange={preferences.setExplorerWidth}
-        onExplorerResizeActiveChange={onExplorerResizeActiveChange}
-        explorerResizeHandleRef={setExplorerResizeHandle}
+        resizableExplorer={explorerFrame.resizable}
+        explorerCollapsed={explorerFrame.collapsed}
+        explorerWidth={explorerFrame.width}
+        minExplorerWidth={explorerFrame.minWidth}
+        maxExplorerWidth={explorerFrame.maxWidth}
+        collapsedExplorerWidth={explorerFrame.collapsedWidth}
+        explorerCollapseThreshold={explorerFrame.collapseThreshold}
+        onExplorerCollapsedChange={explorerFrame.onCollapsedChange}
+        onExplorerWidthChange={explorerFrame.onWidthChange}
+        onExplorerResizeActiveChange={explorerFrame.onResizeActiveChange}
+        explorerResizeHandleRef={explorerFrame.resizeHandleRef}
         showHeader={false}
         showExplorerRoot={false}
         onExplorerRootContextMenu={canCreate ? (_state, event) => {
@@ -290,6 +318,33 @@ export function DesktopDataWorkspaceSurface({
         onPasteNodes={dataPort.moveNode || dataPort.copyNode ? fileClipboardController.pasteNodes : undefined}
         onDuplicateNodes={fileClipboardController.canDuplicate ? fileClipboardController.duplicateNodes : undefined}
         explorerLoadingPresentation="skeleton"
+        explorerTreeCollapsed={hasPins && pins.filesCollapsed}
+        explorerPinnedSlot={sidebarTopCompanion || hasPins
+          ? (
+              <>
+                {sidebarTopCompanion}
+                {hasPins && (
+                  <ExplorerPinnedFiles
+                    files={pins.files}
+                    activePath={activeDocumentPath ?? activeExplorerPath}
+                    filesCollapsed={pins.filesCollapsed}
+                    fileIconTheme={fileIconTheme}
+                    onOpen={(file) => { void onActiveDataPathChange(file.path, file); }}
+                    onContextMenu={(file, event) => {
+                      if (!canChangeNodes) return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onNodeActionMenu(file, getContextMenuAnchorRect(event), [file]);
+                    }}
+                    onFilesCollapsedChange={(collapsed) => explorerPinsStore.setFilesCollapsed(pinsProjectKey, collapsed)}
+                  />
+                )}
+              </>
+            )
+          : undefined}
+        // The New command follows the last row in a short tree and pins to the
+        // sidebar's bottom edge once the tree overflows, so it stays reachable.
+        explorerListEndPlacement="sticky"
         explorerListEndSlot={(
           <div
             className="desktop-explorer-list-end-create"
@@ -299,6 +354,8 @@ export function DesktopDataWorkspaceSurface({
               className="tree-row desktop-explorer-list-end-create-row"
               type="button"
               aria-expanded={sidebarCreateMenuOpen}
+              aria-haspopup="menu"
+              data-desktop-sidebar-menu-trigger="true"
               disabled={!canCreate}
               aria-controls="desktop-sidebar-create-menu"
               onClick={(event) => {
@@ -323,13 +380,13 @@ export function DesktopDataWorkspaceSurface({
         showPreviewHeader={false}
         loadActiveFileSource={resolvedSurface.id !== "data"}
         hidePreviewSourceView
-        fileIconTheme={preferences.fileIconTheme}
+        fileIconTheme={fileIconTheme}
         editorInteractionPreferences={editorInteractionPreferences}
         editorSaveMode="auto"
         htmlTrustMode="safe"
         aiEditRequest={activeAiEditRequest}
-        enableMarkdownLinkContentIndexing
-        folderExpansionStrategy="load-before-expand"
+        enableMarkdownLinkContentIndexing={documentSourceKind !== "cloud"}
+        folderExpansionStrategy={documentSourceKind === "cloud" ? "optimistic" : "load-before-expand"}
         refreshKey={workspaceRefreshToken}
         atomicRefreshKey={workspaceAtomicRefreshToken}
         explorerNodeActionSlot={(state, node) => {
@@ -371,6 +428,7 @@ export function DesktopDataWorkspaceSurface({
             </>
           );
         }}
+        explorerOpenActionMenu={resolveExplorerOpenActionMenu(openNodeActionPath, openCreateEntryParentPath)}
         explorerSlot={resolvedSurface.id === "data" || resolvedSurface.content.sidebar == null
           ? undefined
           : <WorkspaceSurfaceOutlet region="sidebar" surface={resolvedSurface} />}
@@ -385,9 +443,11 @@ export function DesktopDataWorkspaceSurface({
             )
           : undefined}
         mainSlot={resolvedSurface.id === "data"
-          ? (state) => providerStateContent ?? (
-              <>
+          ? (state) => {
+              const editorBody = providerStateContent ?? (
                 <DesktopEditorSplitView
+                  entering={workspaceEntering}
+                  noticeStack={workspaceNoticeStack}
                   aiEditRequest={activeAiEditRequest}
                   dataPort={dataPort}
                   documentSourceKind={documentSourceKind}
@@ -395,7 +455,6 @@ export function DesktopDataWorkspaceSurface({
                   externalOpen={externalOpen}
                   editorInteractionPreferences={editorInteractionPreferences}
                   editorTree={state.tree}
-                  fileIconTheme={preferences.fileIconTheme}
                   layout={editorWorkbench.paneLayout}
                   markdownEnvironment={state.markdownEnvironment}
                   documentNavigation={state.documentNavigation}
@@ -410,8 +469,15 @@ export function DesktopDataWorkspaceSurface({
                   onResizeSplit={editorWorkbench.resizeSplit}
                   onSplitPane={editorWorkbench.splitPane}
                 />
-              </>
-            )
+              );
+              if (!computerScreenOverlay) return editorBody;
+              return (
+                <div className="desktop-workbench-main-stage">
+                  {editorBody}
+                  {computerScreenOverlay}
+                </div>
+              );
+            }
           : resolvedSurface.content.main == null
             ? undefined
             : <WorkspaceSurfaceOutlet region="main" surface={resolvedSurface} />}
@@ -440,6 +506,27 @@ export function DesktopDataWorkspaceSurface({
       )}
     </div>
   );
+}
+
+/** The row whose action menu is open: a node's More menu wins over a Create menu. */
+function resolveExplorerOpenActionMenu(
+  nodePath: string | null,
+  createParentPath: string | null | undefined,
+): ExplorerTreeProps["openActionMenu"] {
+  if (nodePath !== null) return { path: nodePath, trigger: "more" };
+  if (createParentPath !== undefined) return { path: createParentPath, trigger: "create" };
+  return null;
+}
+
+function fileOperationNoticePresentation(
+  notice: FileOperationNotice,
+): Pick<FloatingNoticeProps, "icon" | "tone"> {
+  if (notice.tone === "error") return { tone: "danger" };
+  if (notice.code === "in-progress") {
+    return { tone: "neutral", icon: <LoadingMark size="xs" ariaHidden /> };
+  }
+  if (notice.code === "completed") return { tone: "success" };
+  return { tone: "neutral" };
 }
 
 function getContextMenuAnchorRect(event: ReactMouseEvent<HTMLElement>): DOMRect {

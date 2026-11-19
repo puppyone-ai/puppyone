@@ -35,7 +35,7 @@ describe("local Git diff presentation", () => {
     expect(loading?.getAttribute("role")).toBe("status");
     expect(loading?.textContent).toContain("Loading diff for");
     expect(loading?.textContent).toContain("notes/loading.md");
-    expect(loading?.querySelector('[data-puppy-loader="dots"]')).not.toBeNull();
+    expect(loading?.querySelector('[data-puppy-loader]')).not.toBeNull();
   });
 
   it("uses the exact same file surface in focused Changes and embedded History contexts", () => {
@@ -87,10 +87,7 @@ describe("local Git diff presentation", () => {
     ]);
     expect(identity?.textContent).toBe("old.ts → new.tsRenamed");
     expect(identity?.hasAttribute("data-tooltip")).toBe(false);
-    expect(identity?.querySelector<HTMLElement>(".desktop-file-diff-name")?.dataset.tooltip)
-      .toBe("src/legacy/old.ts → src/current/new.ts");
-    expect(identity?.querySelector<HTMLElement>(".desktop-file-diff-name")?.dataset.tooltipWhen)
-      .toBe("overflow");
+    expect(identity?.querySelector("[data-tooltip]")).toBeNull();
     expect(identity?.getAttribute("aria-label")).toBe("src/legacy/old.ts → src/current/new.ts");
     expect(stats?.className).toBe("desktop-file-diff-stat");
     expect(stats?.textContent).toBe("+7−3");

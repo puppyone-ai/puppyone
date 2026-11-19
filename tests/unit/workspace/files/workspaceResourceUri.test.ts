@@ -5,7 +5,7 @@ import {
   createWorkspaceRootUri,
   getWorkspaceResourcePath,
   parseResourceUri,
-} from "../../../../packages/shared-ui/src/core/resourceUri";
+} from "../../../../src/shared-ui/core/resourceUri";
 
 describe("workspace Resource URI identity", () => {
   it("keeps equal relative paths in different folders globally distinct", () => {

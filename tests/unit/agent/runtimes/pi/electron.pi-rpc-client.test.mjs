@@ -81,7 +81,7 @@ describe("Pi official RPC transport", () => {
     expect(mismatchChild.kill).toHaveBeenCalledWith("SIGTERM");
   });
 
-  it("retires a process after an ambiguous request timeout", async () => {
+  it("keeps the process alive after an ambiguous request timeout", async () => {
     vi.useFakeTimers();
     try {
       const child = createChild();
@@ -90,7 +90,8 @@ describe("Pi official RPC transport", () => {
       const rejection = expect(pending).rejects.toMatchObject({ code: "PI_RPC_TIMEOUT", command: "prompt" });
       await vi.advanceTimersByTimeAsync(25);
       await rejection;
-      expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+      expect(child.kill).not.toHaveBeenCalled();
+      client.dispose();
     } finally {
       vi.useRealTimers();
     }

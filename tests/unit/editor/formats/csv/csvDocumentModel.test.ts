@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CsvDocumentModel } from "../../../../../packages/shared-ui/src/editor/viewers/csv/CsvDocumentModel";
+import { CsvDocumentModel } from "../../../../../src/shared-ui/editor/viewers/csv/CsvDocumentModel";
 
 describe("CSV structured document model", () => {
   it("updates only the target row and serializes only at an explicit snapshot boundary", () => {

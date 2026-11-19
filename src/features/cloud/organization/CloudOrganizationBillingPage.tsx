@@ -70,9 +70,6 @@ export function CloudOrganizationBillingPage({
   return (
     <CloudOrganizationPageShell
       title={t("cloud.route.cloud-billing.title")}
-      description={t("cloud.billing.description", {
-        organization: bidiIsolate(organization?.name ?? t("cloud.organization.yours")),
-      })}
       actions={(
         <>
           <CloudOrganizationSelector organizationData={orgData} />
@@ -136,7 +133,6 @@ export function CloudOrganizationBillingPage({
           <BillingNotice
             icon={<Clock3 size={16} />}
             title={t("cloud.billing.waitingForAuthority")}
-            detail={t("cloud.billing.waitingForAuthorityDetail")}
           />
         )}
 
@@ -147,7 +143,7 @@ export function CloudOrganizationBillingPage({
                 <div className="desktop-cloud-billing-title-row">
                   <span>{t("cloud.billing.currentPlan")}</span>
                   <h2>{currentPlan.name}</h2>
-                  <em>{billing.summary.status}</em>
+                  <em>{t(`cloud.billing.subscriptionStatus.${billing.summary.status}`)}</em>
                 </div>
                 <p>{currentPlan.description}</p>
               </div>
@@ -158,8 +154,6 @@ export function CloudOrganizationBillingPage({
               </div>
             </div>
             <div className="desktop-cloud-billing-summary">
-              <span className="desktop-cloud-plan-feature"><Check size={14} />{t("cloud.billing.catalogVersion", { version: billing.summary.catalog_version })}</span>
-              <span className="desktop-cloud-plan-feature"><Check size={14} />{t("cloud.billing.sourceRevision", { revision: billing.summary.source_revision })}</span>
               {billing.summary.pending_plan_id && (
                 <span className="desktop-cloud-plan-feature"><Clock3 size={14} />{t("cloud.billing.pendingPlan", { plan: billing.summary.pending_plan_id })}</span>
               )}
@@ -210,7 +204,6 @@ export function CloudOrganizationBillingPage({
             <div className="desktop-cloud-billing-options-header">
               <div>
                 <h2>{t("cloud.billing.upgradeOptions")}</h2>
-                <p>{t("cloud.billing.catalogAuthority")}</p>
               </div>
               <label className="desktop-cloud-billing-seat-control">
                 <span>{t("cloud.billing.seatQuantity")}</span>
@@ -285,7 +278,7 @@ export function CloudOrganizationBillingPage({
           <BillingNotice
             icon={<Clock3 size={16} />}
             title={t("cloud.billing.pendingOperations", { count: controller.pendingOperations.length })}
-            detail={controller.pendingOperations.map((operation) => operation.state).join(", ")}
+            detail={[...new Set(controller.pendingOperations.map((operation) => t(`cloud.billing.operationStatus.${operation.state}`)))].join(" · ")}
             action={controller.actionableSeatOperation && (
               <button
                 type="button"
@@ -298,6 +291,12 @@ export function CloudOrganizationBillingPage({
           />
         )}
 
+        {billing.summary && <details className="desktop-cloud-billing-note">
+          <summary>{t("cloud.common.details")}</summary>
+          <p>{t("cloud.billing.catalogVersion", { version: billing.summary.catalog_version })}</p>
+          <p>{t("cloud.billing.sourceRevision", { revision: billing.summary.source_revision })}</p>
+          {controller.pendingOperations.map((operation) => <p key={operation.id} dir="ltr">{operation.id}: {operation.state}{operation.error_code ? ` · ${operation.error_code}` : ""}</p>)}
+        </details>}
         {billing.catalog && (
           <div className="desktop-cloud-billing-note">
             <span>{t("cloud.billing.secure")} <ExternalLink size={12} /></span>

@@ -9,8 +9,8 @@ import {
   openEditor,
   parseEditorGroupState,
   rebaseEditorResources,
-} from "../../../../packages/shared-ui/src/editor/workbench/editorGroupModel";
-import { createWorkspaceRootUri } from "../../../../packages/shared-ui/src/core/resourceUri";
+} from "../../../../src/shared-ui/editor/workbench/editorGroupModel";
+import { createWorkspaceRootUri } from "../../../../src/shared-ui/core/resourceUri";
 
 describe("EditorGroupModel", () => {
   it("closes a detached Project by its root URI without closing another Project", () => {

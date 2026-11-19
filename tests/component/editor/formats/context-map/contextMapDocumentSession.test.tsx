@@ -13,10 +13,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EditorPaneMenuContributionProvider,
   type EditorPaneMenuContribution,
-} from "../../../../../packages/shared-ui/src/editor/editorPaneMenuContribution";
-import { EditorDocumentHost } from "../../../../../packages/shared-ui/src/editor/host/EditorDocumentHost";
-import { preloadPresetViewer } from "../../../../../packages/shared-ui/src/editor/host/PresetViewerRenderer";
-import { resolveEditorViewer } from "../../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
+} from "../../../../../src/shared-ui/editor/editorPaneMenuContribution";
+import { EditorDocumentHost } from "../../../../../src/shared-ui/editor/host/EditorDocumentHost";
+import { preloadPresetViewer } from "../../../../../src/shared-ui/editor/host/PresetViewerRenderer";
+import { resolveEditorViewer } from "../../../../../src/shared-ui/editor/registry/viewerRegistry";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -69,10 +69,7 @@ describe("Context Map Document Session integration", () => {
       'button.folder-relationship-card[data-node-path="Civil Law"]',
     );
     expect(folderCard?.hasAttribute("data-tooltip")).toBe(false);
-    expect(folderCard?.querySelector<HTMLElement>(".folder-relationship-card-copy strong")?.dataset.tooltip)
-      .toBe("Civil Law");
-    expect(folderCard?.querySelector<HTMLElement>(".folder-relationship-card-copy strong")?.dataset.tooltipWhen)
-      .toBe("overflow");
+    expect(folderCard?.querySelector("[data-tooltip]")).toBeNull();
     act(() => folderCard?.click());
 
     await vi.waitFor(() => expect(persist).toHaveBeenCalled());

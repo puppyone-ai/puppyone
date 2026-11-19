@@ -16,7 +16,7 @@ if (packageMetadata.puppyoneCapabilities?.gitAutoCommit !== false) {
 const mainSource = read("electron/main.mjs");
 const hostSource = read("electron/main/git-auto-commit/host.mjs");
 const serviceSource = read("electron/main/git-auto-commit/service.mjs");
-const kernelSource = read("local-api/git/auto-commit.mjs");
+const kernelSource = read("electron/local-api/git/auto-commit.mjs");
 const preferenceSource = read("electron/main/git-auto-commit/preference-store.mjs");
 const preloadSource = read("electron/preload.cjs");
 const settingsSource = read("src/features/settings/main/RepositorySettingsViews.tsx");
@@ -102,7 +102,7 @@ if (!packageMetadata.scripts?.["test:git-auto-commit:coverage"]
 }
 for (const snippet of [
   "electron/main/git-auto-commit/**/*.mjs",
-  "local-api/git/auto-commit.mjs",
+  "electron/local-api/git/auto-commit.mjs",
   "thresholds:",
   "branches: 80",
   "functions: 80",

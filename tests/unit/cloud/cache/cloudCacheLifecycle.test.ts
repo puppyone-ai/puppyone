@@ -64,6 +64,7 @@ describe("account/revision-aware Cloud cache", () => {
     await cache.load(first, async () => "1234567890", { ttlMs: 10 });
     currentTime = 111;
     expect(cache.read(first)).toBeUndefined();
+    expect(cache.read(first, { allowStale: true })).toBe("1234567890");
 
     await cache.load(createContext(session, "two"), async () => "1234567890", { ttlMs: 100 });
     await cache.load(createContext(session, "three"), async () => "1234567890", { ttlMs: 100 });
@@ -71,6 +72,26 @@ describe("account/revision-aware Cloud cache", () => {
     expect(cache.snapshot().entries).toBeLessThanOrEqual(2);
     expect(cache.snapshot().bytes).toBeLessThanOrEqual(30);
     expect(cache.snapshot().evictions).toBeGreaterThan(0);
+  });
+
+  it("retains a stale snapshot during a single background revalidation and never reuses an uncached body", async () => {
+    let time = 0;
+    const cache = createCloudCache({ now: () => time });
+    const context = createContext(createSession("one"));
+    await cache.load(context, async () => ["old"], { ttlMs: 30 });
+    time = 31;
+    let finish!: (value: string[]) => void;
+    const loader = vi.fn(() => new Promise<string[]>((resolve) => { finish = resolve; }));
+    const first = cache.load(context, loader, { ttlMs: 30 });
+    const second = cache.load(context, loader, { ttlMs: 30 });
+    expect(cache.read(context, { allowStale: true })).toEqual(["old"]);
+    expect(loader).toHaveBeenCalledOnce();
+    finish(["new"]);
+    await Promise.all([first, second]);
+    expect(cache.read(context)).toEqual(["new"]);
+    const bodyContext = { ...context, resource: "body" };
+    await cache.load(bodyContext, async () => "body", { ttlMs: 0 });
+    expect(cache.read(bodyContext, { allowStale: true })).toBeUndefined();
   });
 
   it("invalidates a project namespace after a successful mutation and clears on logout", async () => {
@@ -109,6 +130,35 @@ describe("account/revision-aware Cloud cache", () => {
 
     expect(freshLoader).toHaveBeenCalledTimes(1);
     expect(cache.read(context)).toEqual(["fresh"]);
+  });
+
+  it("keeps another project's in-flight read shared and cacheable after invalidation", async () => {
+    const cache = createCloudCache();
+    const context = createContext(createSession("generation-1"));
+    let finish!: (value: string) => void;
+    const loader = vi.fn(() => new Promise<string>((resolve) => { finish = resolve; }));
+    const first = cache.load(context, loader, { ttlMs: 30_000 });
+    cache.invalidate({ projectId: "unrelated-project" });
+    const second = cache.load(context, loader, { ttlMs: 30_000 });
+    expect(first).toBe(second);
+    expect(loader).toHaveBeenCalledOnce();
+    finish("body"); await first;
+    expect(cache.read(context)).toBe("body");
+  });
+
+  it("invalidates overlapping paths without dropping sibling in-flight reads", async () => {
+    const cache = createCloudCache();
+    const context = { ...createContext(createSession("one")), path: "notes/one.md" };
+    const sibling = { ...context, path: "other/two.md" };
+    let finishOld!: (value: string) => void;
+    const old = cache.load(context, () => new Promise<string>((resolve) => { finishOld = resolve; }), { ttlMs: 1000 });
+    const pending = cache.load(sibling, async () => "sibling", { ttlMs: 1000 });
+    cache.invalidate({ projectId: context.projectId, path: "notes" });
+    expect(cache.load(sibling, async () => "duplicate", { ttlMs: 1000 })).toBe(pending);
+    await cache.load(context, async () => "fresh", { ttlMs: 1000 });
+    finishOld("stale"); await old; await pending;
+    expect(cache.read(context)).toBe("fresh");
+    expect(cache.read(sibling)).toBe("sibling");
   });
 });
 

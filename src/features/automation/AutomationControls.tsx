@@ -1,5 +1,5 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { ChevronDown, ChevronRight, Folder, Search } from "lucide-react";
+import { DisclosureIcon, Tooltip, FolderIcon } from "@puppyone/shared-ui";
+import { Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -34,6 +34,12 @@ import {
   formatAutomationValidationError,
   formatAutomationWeekday,
 } from "./automationPresentation";
+
+// Only audited label repetitions are suppressed; format and limitation hints remain visible.
+const REDUNDANT_PROVIDER_HINTS: Readonly<Record<string, ReadonlySet<string>>> = {
+  github: new Set(["source_url"]),
+  gmail: new Set(["max_results"]),
+};
 
 type SessionChangeHandler = (session: DesktopCloudSession | null) => void;
 type ResourceFallbackNotice = "empty" | "unavailable" | "manual";
@@ -116,7 +122,7 @@ export function CloudAutomationSourceEditor({
             value={configValues[field.key] ?? ""}
             onChange={(value) => onConfigValueChange(field.key, value)}
           />
-          {field.hint && <small>{field.hint}</small>}
+          {field.hint && !REDUNDANT_PROVIDER_HINTS[provider.provider]?.has(field.key) && <small>{field.hint}</small>}
         </label>
       ))}
 
@@ -254,9 +260,7 @@ function CloudAutomationResourcePicker({
           {resources.map((resource) => {
             const selected = value?.resourceId === resource.id;
             return (
-              <Tooltip content={resource.authorized
-                  ? undefined
-                  : t("automation.resource.notAuthorized", { name: bidiIsolate(resource.name) })} key={`${resource.type}:${resource.id}`}><button
+              <button key={`${resource.type}:${resource.id}`}
                 className={selected ? "selected" : undefined}
                 type="button"
                 disabled={!resource.authorized}
@@ -270,7 +274,7 @@ function CloudAutomationResourcePicker({
                 <span>{resource.authorized
                   ? selected ? t("automation.resource.selected") : t("automation.resource.select")
                   : t("automation.resource.noAccess")}</span>
-              </button></Tooltip>
+              </button>
             );
           })}
         </div>
@@ -449,9 +453,10 @@ export function CloudAutomationDestinationEditor({
           placeholder={t("automation.destination.folderPlaceholder")}
           onChange={(event) => onChange(event.target.value)}
         />
-        <small className={pathError ? "error" : undefined} dir="auto">
-          {pathErrorMessage ?? t("automation.destination.finalPath", { path: bidiIsolate(`/${normalizedPath}`) })}
-        </small>
+        {pathErrorMessage ? <small className="error" role="alert" dir="auto">{pathErrorMessage}</small>
+          : normalizedPath !== targetPath.trim().replace(/^\//, "") && <small dir="auto">
+            {t("automation.destination.finalPath", { path: bidiIsolate(`/${normalizedPath}`) })}
+          </small>}
       </label>
       <button
         className="desktop-cloud-automation-folder-toggle"
@@ -459,9 +464,9 @@ export function CloudAutomationDestinationEditor({
         aria-expanded={pickerOpen}
         onClick={() => setPickerOpen((current) => !current)}
       >
-        <Folder size={14} />
+        <FolderIcon size={14} />
         {pickerOpen ? t("automation.destination.hideFolders") : t("automation.destination.chooseFolders")}
-        {pickerOpen ? <ChevronDown size={13} /> : <ChevronRight className="po-directional-icon" size={13} />}
+        <DisclosureIcon expanded={pickerOpen} size={13} />
       </button>
       {pickerOpen && (
         <CloudAutomationFolderBranch
@@ -557,10 +562,10 @@ function CloudAutomationFolderBranch({
                   return next;
                 })}
                     >
-                {isExpanded ? <ChevronDown size={13} /> : <ChevronRight className="po-directional-icon" size={13} />}
+                <DisclosureIcon expanded={isExpanded} size={13} />
               </button></Tooltip>
               <button type="button" aria-pressed={selected} onClick={() => onSelect(folder.path)}>
-                <Folder size={14} />
+                <FolderIcon size={14} />
                 <span dir="auto">{folder.name}</span>
               </button>
             </div>

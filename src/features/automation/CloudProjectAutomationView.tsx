@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
   listCloudAutomationProviderSpecs,
@@ -13,7 +13,11 @@ import {
   cloudAutomationRowMatchesProvider,
   getCloudAutomationWebPath,
 } from "./automationDomain";
+import { PageLoading } from "../../components/loading";
 import "./automation.css";
+
+/** The host's failed-service surface; Cloud supplies it so Automation never imports Cloud. */
+export type AutomationUnavailableView = ComponentType<{ title: string; onRetry: () => void }>;
 
 /** Automation for the single Project authorized by the current Git remote. */
 export function CloudProjectAutomationView({
@@ -21,17 +25,20 @@ export function CloudProjectAutomationView({
   cloudSession,
   activeProvider = null,
   onCloudSessionChange,
+  Unavailable,
 }: {
   projectId: string;
   cloudSession: DesktopCloudSession;
   activeProvider?: string | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
+  Unavailable: AutomationUnavailableView;
 }) {
   const { t } = useLocalization();
   const data = useSynchronizeBindings(projectId, cloudSession, onCloudSessionChange);
   const [detailRowId, setDetailRowId] = useState<string | null>(null);
   const [providerSpecs, setProviderSpecs] = useState<DesktopCloudAutomationProviderSpec[]>([]);
   const [providerSpecsLoading, setProviderSpecsLoading] = useState(true);
+  const [providerReload, setProviderReload] = useState(0);
   const [providerSpecsError, setProviderSpecsError] = useState<string | null>(null);
   const automationRows = useMemo(
     () => buildCloudAutomationRows({
@@ -69,7 +76,7 @@ export function CloudProjectAutomationView({
     return () => {
       cancelled = true;
     };
-  }, [cloudSession, onCloudSessionChange]);
+  }, [cloudSession, onCloudSessionChange, providerReload]);
 
   useEffect(() => {
     if (detailRowId && !visibleRows.some((row) => row.id === detailRowId)) {
@@ -77,16 +84,12 @@ export function CloudProjectAutomationView({
     }
   }, [detailRowId, visibleRows]);
 
+  if (data.loading || providerSpecsLoading) return <PageLoading variant="fill" label={t("cloud.loading.automation")} />;
+  if (data.error || providerSpecsError) return <Unavailable title={t("cloud.workspaceTools.automations")}
+    onRetry={() => { setProviderReload(value => value + 1); void data.reload().catch(() => undefined); }} />;
+
   return (
     <>
-      {data.error && (
-        <div role="alert" className="desktop-dialog-error">
-          {t("automation.error.detail", { detail: data.error })}
-          <button type="button" onClick={() => void data.reload().catch(() => undefined)}>
-            {t("common.action.retry")}
-          </button>
-        </div>
-      )}
       <CloudAutomationPage
         key={JSON.stringify([cloudSession.api_base_url, cloudSession.user_id, cloudSession.session_generation, projectId])}
         projectId={projectId}

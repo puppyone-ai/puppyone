@@ -1,3 +1,5 @@
+import { useCloudCommitDetail } from "./useCloudCommitDetail";
+import type { HistoryContext } from "./historyRepository";
 import { Tooltip } from "@puppyone/shared-ui";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -14,7 +16,8 @@ import { formatRelativeTime, shortCommit } from "../utils";
 
 export function CloudCommitDetail({
   projectId,
-  commit,
+  commit: summary,
+  context,
   row,
   isHead,
   loading,
@@ -22,11 +25,14 @@ export function CloudCommitDetail({
 }: {
   projectId: string | null;
   commit: DesktopCloudHistoryCommit;
+  context?: HistoryContext;
   row: CloudBranchGraphRow;
   isHead: boolean;
   loading: boolean;
   onRefresh: () => void | Promise<void>;
 }) {
+  const detail = useCloudCommitDetail(summary, context);
+  const commit = detail.commit;
   const localization = useLocalization();
   const { formatDate, formatNumber, t } = localization;
   const changes = commit.changes;
@@ -41,7 +47,7 @@ export function CloudCommitDetail({
     <article className="desktop-commit-detail desktop-cloud-commit-detail">
       <div className="desktop-commit-summary desktop-cloud-commit-summary">
         <div className="desktop-commit-id-row desktop-cloud-commit-id-row">
-          <Tooltip content={commit.commit_id}><strong dir="ltr">{shortCommit(commit.commit_id)}</strong></Tooltip>
+          <strong dir="ltr">{shortCommit(commit.commit_id)}</strong>
           {isHead && <span className="desktop-head-badge">HEAD</span>}
           {row.labels.filter((label) => (
             !(isHead && formatCloudGraphLabel(label, t) === "HEAD")
@@ -76,22 +82,24 @@ export function CloudCommitDetail({
         <p><bdi>{commit.message || t("cloud.history.updateWorkspace")}</bdi></p>
         <div className="desktop-commit-meta">
           <bdi>{author}</bdi>
-          <Tooltip content={exactTime || undefined}><span>
+          <span aria-description={exactTime || undefined}>
             {commit.created_at
               ? formatRelativeTime(commit.created_at, localization)
               : t("cloud.history.timeUnavailable")}
-          </span></Tooltip>
+          </span>
           <span>{t("source-control.commit.parentCount", { count: commit.parent_ids.length })}</span>
         </div>
       </div>
 
-      <div className="desktop-commit-stats desktop-cloud-commit-stats">
+      {commit.changes_loaded !== false && <div className="desktop-commit-stats desktop-cloud-commit-stats">
         <span>{t("cloud.history.fileChangeCount", { count: changes.length })}</span>
         <span className="added">+{formatNumber(additions)}</span>
         <span className="deleted">-{formatNumber(deletions)}</span>
-      </div>
+      </div>}
 
-      {changes.length > 0 ? (
+      {detail.loading && <div className="desktop-commit-empty" role="status">{t("cloud.history.loading")}</div>}
+      {detail.failed && <div className="desktop-commit-empty" role="alert">{t("cloud.history.unavailable")}<button type="button" onClick={detail.retry}>{t("cloud.common.tryAgain")}</button></div>}
+      {!detail.loading && !detail.failed && (changes.length > 0 ? (
         <div className="desktop-file-diff-list desktop-cloud-commit-file-diff-list" aria-label={t("cloud.history.filesChangedAria")}>
           {changes.map((change, index) => (
             <GitFileDiffSurface
@@ -103,7 +111,7 @@ export function CloudCommitDetail({
         </div>
       ) : (
         <div className="desktop-commit-empty">{t("cloud.history.noPathChanges")}</div>
-      )}
+      ))}
     </article>
   );
 }

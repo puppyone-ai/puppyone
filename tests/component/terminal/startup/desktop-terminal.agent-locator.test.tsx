@@ -5,10 +5,10 @@ import type { DesktopBridge } from "../../../support/electron/desktopBridge";
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useLocalAgentInstallations } from "../../../../src/features/local-agents/controller/useLocalAgentInstallations";
+import { useLocalAgentInstallations } from "../../../../src/features/local-agents";
 import { TerminalLauncher } from "../../../../src/features/desktop-terminal/ui/TerminalLauncher";
 import { withTestLocalization } from "../../../support/react/localization";
-import { LocalAgentInstallationStore } from "../../../../src/features/local-agents/application/LocalAgentInstallationStore";
+import { LocalAgentInstallationStore } from "../../../../src/features/local-agents/installation/LocalAgentInstallationStore";
 import { createLocalAgentInstallationService } from "../../../../electron/main/local-agent-installation/installation-service.mjs";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

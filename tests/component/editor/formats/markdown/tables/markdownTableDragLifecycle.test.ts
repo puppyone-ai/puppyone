@@ -3,7 +3,7 @@
  */
 import type { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMarkdownTableDragLayer } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableDragLayer";
+import { createMarkdownTableDragLayer } from "../../../../../../src/shared-ui/editor/markdown/features/table/tableDragLayer";
 import { testT } from "../../../../../support/react/localization";
 
 afterEach(() => {
@@ -40,10 +40,10 @@ describe("Markdown table drag lifecycle", () => {
     const dragLayer = createMarkdownTableDragLayer({
       alignments: [null],
       columnCount: 1,
-      columnLayout: null,
       inlineViewport: {
         dispose: vi.fn(),
         revealColumn: vi.fn(),
+        settleOverflow: vi.fn(),
         stopDragAutoScroll,
         updateDragAutoScroll: vi.fn(),
       },
@@ -54,8 +54,10 @@ describe("Markdown table drag lifecycle", () => {
       getTableRange: () => ({ from: 0, to: 13 }),
       table,
       view: {
+        dispatch: vi.fn(),
         state: {
           readOnly: false,
+          field: () => null,
           facet: () => ({
             direction: "ltr",
             formatNumber: (value: number | bigint) => String(value),
@@ -81,8 +83,14 @@ describe("Markdown table drag lifecycle", () => {
       pointerId: 7,
     }));
 
+    expect(columnHandle!.classList.contains("is-pressed")).toBe(true);
+    const removeHandleListener = vi.spyOn(columnHandle!, "removeEventListener");
+    const removeWindowListener = vi.spyOn(window, "removeEventListener");
     dragLayer.dispose();
     dragLayer.dispose();
+    expect(columnHandle!.classList.contains("is-pressed")).toBe(false);
+    expect(removeHandleListener).toHaveBeenCalledWith("lostpointercapture", expect.any(Function));
+    expect(removeWindowListener).toHaveBeenCalledWith("blur", expect.any(Function));
 
     expect(removeDocumentListener.mock.calls.some(([type, , capture]) => (
       type === "keydown" && capture === true

@@ -3,9 +3,9 @@ import { forceParsing, syntaxTree } from "@codemirror/language";
 import { EditorState, RangeSet } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { expect, it } from "vitest";
-import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { markdownLivePreviewDecorations, requestMarkdownProjectionRange } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/livePreviewDecorations";
-import { getMarkdownDecorationDiagnostics, resetMarkdownDecorationDiagnostics } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/blockDecorations";
+import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { markdownLivePreviewDecorations, requestMarkdownProjectionRange } from "../../../../../../src/shared-ui/editor/markdown/core/decorations/livePreviewDecorations";
+import { getMarkdownDecorationDiagnostics, resetMarkdownDecorationDiagnostics } from "../../../../../../src/shared-ui/editor/markdown/core/decorations/blockDecorations";
 
 it("reconciles actual background parse progress without scanning the unparsed document and matches a full projection", () => {
   const source = Array.from({ length: 10_000 }, (_, index) => `Paragraph ${index} with **bold** and [link](target.md).\n`).join("\n");

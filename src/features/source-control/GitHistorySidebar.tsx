@@ -2,7 +2,6 @@ import { Tooltip } from "@puppyone/shared-ui";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
-import type { FileIconThemeId } from "@puppyone/shared-ui";
 import type {
   GitCommitDetail as GitCommitDetailModel,
   GitStatusSnapshot,
@@ -21,7 +20,6 @@ export type GitHistorySidebarProps = Readonly<{
   commitDetailLoading: boolean;
   commitDetailError: string | null;
   historyLoading: boolean;
-  fileIconTheme: FileIconThemeId;
   initializing: boolean;
   onInitialize: () => Promise<boolean>;
   onSelectCommit: (commitId: string) => void;
@@ -38,7 +36,6 @@ export function GitHistorySidebar({
   commitDetailLoading,
   commitDetailError,
   historyLoading,
-  fileIconTheme,
   initializing,
   onInitialize,
   onSelectCommit,
@@ -116,7 +113,6 @@ export function GitHistorySidebar({
             selectedCommitId={selectedCommitId}
             status={status}
             loading={historyLoading || (statusLoading && !status)}
-            fileIconTheme={fileIconTheme}
             onSelectCommit={(commitId) => {
               onSelectCommit(commitId);
               setDetailVisible(true);

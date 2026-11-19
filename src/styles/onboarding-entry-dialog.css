@@ -8,6 +8,11 @@
   width: min(400px, calc(100vw - 32px));
 }
 
+.onboarding-entry-dialog.is-agent-start {
+  --onboarding-entry-inset: 22px;
+  width: min(500px, calc(100vw - 32px));
+}
+
 .onboarding-entry-dialog.is-import {
   --onboarding-entry-inset: 24px;
   width: min(440px, calc(100vw - 32px));
@@ -15,7 +20,7 @@
 
 .onboarding-entry-dialog.is-import-sources {
   --onboarding-entry-inset: 20px;
-  width: min(360px, calc(100vw - 32px));
+  width: min(460px, calc(100vw - 32px));
 }
 
 .onboarding-entry-dialog.is-import-sources .desktop-dialog-header {
@@ -124,9 +129,12 @@
   line-height: 18px;
 }
 
+/* Sources are tiles: the product's own mark on a quiet plate, then its name.
+   Nothing to read; a source that is still coming says only that. */
 .onboarding-import-sources {
   display: grid;
-  gap: 2px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -137,33 +145,60 @@
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  min-height: 36px;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  min-height: 52px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border: 0;
-  border-radius: 6px;
+  gap: 10px;
+  padding: 9px 12px 9px 10px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 10px;
   background: transparent;
   color: var(--po-text);
   font: inherit;
   text-align: start;
   cursor: var(--po-clickable-cursor, default);
-  transition: background 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease;
 }
 
 .onboarding-import-source:not(:disabled):hover {
+  border-color: var(--po-border-strong);
   background: var(--po-hover);
 }
 
+/* A source that is still coming keeps its whole name; the note sits under it. */
 .onboarding-import-source:disabled {
+  grid-template-areas:
+    "icon label"
+    "icon status";
+  grid-template-columns: 32px minmax(0, 1fr);
+  row-gap: 0;
+  border-style: dashed;
   cursor: default;
-  opacity: 0.6;
+}
+
+.onboarding-import-source:disabled > .onboarding-import-source-icon {
+  grid-area: icon;
+}
+
+.onboarding-import-source:disabled > .onboarding-import-source-label {
+  grid-area: label;
+  line-height: 18px;
+}
+
+.onboarding-import-source:disabled > .onboarding-import-source-icon,
+.onboarding-import-source:disabled > .onboarding-import-source-label {
+  opacity: 0.5;
 }
 
 .onboarding-import-source-status {
-  color: var(--po-text-muted);
+  grid-area: status;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text-subtle);
   font-size: var(--po-type-ui-caption, 12px);
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .onboarding-import-source:focus-visible {
@@ -173,9 +208,13 @@
 
 .onboarding-import-source-icon {
   display: grid;
-  width: 36px;
-  height: 20px;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
   place-items: center;
+  border: 1px solid color-mix(in srgb, var(--po-text) 6%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-text) 5%, transparent);
   color: var(--po-text-muted);
 }
 
@@ -192,10 +231,13 @@
 
 .onboarding-import-source-label {
   min-width: 0;
+  overflow: hidden;
   color: var(--po-text);
   font-size: var(--po-type-ui-body, 14px);
-  font-weight: 400;
+  font-weight: 500;
   line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .onboarding-import-back {
@@ -221,27 +263,84 @@
   outline-offset: 1px;
 }
 
-/* Import: guided export → open-folder steps */
+/* Import from an app: which source, and what happens to it. */
 
-.onboarding-import-steps {
+.onboarding-import-source-summary {
   display: grid;
-  margin: 0;
-  padding-inline-start: 22px;
-  gap: 8px;
-  color: var(--po-text);
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 10px;
+}
+
+.onboarding-import-source-summary .onboarding-import-source-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+
+.onboarding-import-source-summary .onboarding-import-mark {
+  width: 22px;
+  height: 22px;
+}
+
+.onboarding-import-source-summary-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.onboarding-import-source-summary-copy > strong {
+  color: var(--po-text-strong, var(--po-text));
   font-size: var(--po-type-ui-body, 14px);
+  font-weight: 600;
   line-height: 20px;
 }
 
 .onboarding-import-outcome {
-  margin: 14px 0 0;
-  color: var(--po-text-subtle);
+  color: var(--po-text-muted);
   font-size: var(--po-type-ui-meta, 13px);
-  line-height: 17px;
+  line-height: 18px;
+}
+
+/* Export steps, when a source has them: numbered in small plates. */
+.onboarding-import-steps {
+  display: grid;
+  margin: 16px 0 0;
+  padding: 0;
+  gap: 10px;
+  list-style: none;
+  counter-reset: import-step;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 20px;
+}
+
+.onboarding-import-steps > li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  counter-increment: import-step;
+}
+
+.onboarding-import-steps > li::before {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-text) 8%, transparent);
+  color: var(--po-text-muted);
+  content: counter(import-step);
+  font-size: var(--po-text-size-caption, 11px);
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 1;
 }
 
 .onboarding-import-location {
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 .onboarding-entry-create-fields {
@@ -345,6 +444,86 @@
   stroke-width: 1.8;
 }
 
+/* Who can open the new project: plain choices, a dot and words. No box or fill:
+   those belong to the fields one types in. */
+.onboarding-entry-choice-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.onboarding-entry-choice-field > legend {
+  margin-block-end: 8px;
+  padding: 0;
+}
+
+.onboarding-entry-choices {
+  display: grid;
+  gap: 6px;
+}
+
+.onboarding-entry-choice {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  font-size: var(--po-type-ui-body, 14px);
+  line-height: 20px;
+  transition: color 120ms ease;
+}
+
+.onboarding-entry-choice:hover,
+.onboarding-entry-choice[data-checked] {
+  color: var(--po-text);
+}
+
+.onboarding-entry-choice > input {
+  margin: 0;
+  accent-color: var(--po-text);
+}
+
+.onboarding-entry-choice-label {
+  flex: none;
+}
+
+.onboarding-entry-choice-detail,
+.onboarding-entry-team-select {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-meta, 13px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-entry-team-select {
+  max-width: 180px;
+  border: 0;
+  border-radius: 6px;
+  padding: 2px 4px;
+  background: transparent;
+  font-family: inherit;
+}
+
+.onboarding-entry-team-select:hover {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+/* A place that follows from the audience: shown, not chosen. */
+.onboarding-entry-location-picker.is-fixed,
+.onboarding-entry-location-picker.is-fixed:hover {
+  height: auto;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
 .onboarding-entry-location-action {
   color: var(--po-text-muted);
   font-size: var(--po-type-ui-meta, 13px);
@@ -375,4 +554,283 @@
 .onboarding-entry-dialog .desktop-dialog-error {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.onboarding-entry-template {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.onboarding-entry-template-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.onboarding-entry-template-identity > div {
+  min-width: 0;
+}
+
+.onboarding-entry-template-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 10px;
+  font-size: var(--po-type-ui-title, 20px);
+  line-height: 1;
+}
+
+.onboarding-entry-template-name {
+  margin: 0;
+  overflow: hidden;
+  color: var(--po-text-strong);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-entry-template-facts {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-entry-template-description {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--po-text-secondary);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.onboarding-entry-template-destination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+}
+
+.onboarding-entry-template-destination bdi {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-entry-template-destination button {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--po-text-secondary);
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+}
+
+.onboarding-entry-template-destination button:hover:not(:disabled) {
+  color: var(--po-text-strong);
+}
+
+/* Folders another app records: a quiet checklist, name first, place beneath. */
+.onboarding-import-app-folders {
+  display: grid;
+  max-height: min(320px, 50vh);
+  margin: 14px 0 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 10px;
+  list-style: none;
+}
+
+.onboarding-import-app-folder {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.onboarding-import-app-folder:hover:not([data-added]) {
+  background: var(--po-hover);
+}
+
+.onboarding-import-app-folder > input {
+  margin: 0;
+  accent-color: var(--po-text);
+}
+
+.onboarding-import-app-folder[data-added] {
+  cursor: default;
+}
+
+.onboarding-import-app-folder[data-added] > .onboarding-import-app-folder-copy {
+  opacity: 0.55;
+}
+
+.onboarding-import-app-folder-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.onboarding-import-app-folder-name {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-import-app-folder-path {
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption, 12px);
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-import-app-folder-status {
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption, 12px);
+}
+
+.onboarding-import-app-empty {
+  margin: 14px 0 0;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 18px;
+}
+
+/* Starting a project by handing its first brief to one of the person's Agents. */
+.onboarding-entry-dialog.is-agent-start .onboarding-entry-dialog-body {
+  display: grid;
+  gap: 14px;
+  padding-block: 6px 18px;
+}
+
+.onboarding-agent-start-leading .onboarding-agent-brand {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+.onboarding-agent-start-ask {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid var(--po-border-strong);
+  border-radius: 12px;
+  background: var(--po-panel-raised);
+  cursor: text;
+  transition: border-color 120ms ease;
+}
+
+.onboarding-agent-start-ask:focus-within {
+  border-color: var(--po-focus-ring);
+}
+
+.onboarding-agent-start-avatar {
+  display: inline-flex;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  align-items: center;
+  justify-content: center;
+}
+
+.onboarding-agent-start-avatar .onboarding-agent-brand {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.onboarding-agent-start-ask-body {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 4px;
+}
+
+.onboarding-agent-start-prompt-label {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: 16px;
+}
+
+.onboarding-agent-start-input {
+  width: 100%;
+  min-height: 66px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--po-text);
+  font-family: inherit;
+  font-size: var(--po-type-ui-body, 14px);
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+}
+
+.onboarding-agent-start-input::placeholder {
+  color: var(--po-text-subtle);
+}
+
+.onboarding-agent-start-input:disabled {
+  color: var(--po-text-disabled);
+  cursor: default;
+}
+
+.onboarding-entry-dialog.is-agent-start .onboarding-entry-create-fields {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .onboarding-entry-dialog.is-agent-start .onboarding-entry-create-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.onboarding-agent-start-note {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  line-height: 1.55;
+}
+
+.onboarding-agent-start-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.onboarding-agent-start-submit .onboarding-agent-brand {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 4px;
 }

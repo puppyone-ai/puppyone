@@ -1,13 +1,26 @@
 /** @vitest-environment happy-dom */
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, expect, it, vi } from "vitest";
-import { BuiltInAgentCompute } from "../../../../src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute";
-import { ModelConnectionStore } from "../../../../src/features/model-connections/application/ModelConnectionStore";
-import type { ModelConnectionClientPort } from "../../../../src/features/model-connections/application/ModelConnectionClientPort";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import type { ModelConnectionStore } from "../../../../src/features/model-connections/modelConnectionsStore";
+import { modelConnectionsApi } from "../../../../src/features/model-connections/modelConnectionsApi";
 import type { ModelConnectionSnapshot } from "../../../../shared/model-connections/types";
 import type { AgentModel } from "../../../../shared/agent-contract/types";
-import { withTestLocalization } from "../../../support/react/localization";
+
+// Compile the component graph during collection; each test still gets a fresh replica.
+import "../../../../src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute";
+import "../../../support/react/localization";
+
+vi.mock("../../../../src/features/model-connections/modelConnectionsApi");
+let BuiltInAgentCompute: typeof import("../../../../src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute")["BuiltInAgentCompute"];
+let sharedStore: ModelConnectionStore;
+let withTestLocalization: typeof import("../../../support/react/localization")["withTestLocalization"];
+beforeEach(async () => {
+  vi.resetModules();
+  ({ BuiltInAgentCompute } = await import("../../../../src/features/desktop-agent/ui/built-in-agent/BuiltInAgentCompute"));
+  ({ modelConnectionsStore: sharedStore } = await import("../../../../src/features/model-connections/modelConnectionsStore"));
+  ({ withTestLocalization } = await import("../../../support/react/localization"));
+});
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | null = null;
@@ -50,7 +63,7 @@ function fixture(empty = false, managed?: ModelConnectionSnapshot["managed"]) {
     snapshot.connections = [{ id: apiId, sourceKind: "managed", readOnly: true, driver: "openai-compatible", name: "PuppyOne", baseUrl: "https://example.com/api/v1/ai", auth: "bearer", credentialConfigured: true, configGeneration: 1, defaultModelId: null, manualModelId: null, manualContextWindow: 4096, serverToolsDisabled: true, transport: "remote", executionLocation: "unknown" }];
     snapshot.catalogs = [{ connectionId: apiId, configGeneration: 1, status: "ready", endpoint: "reachable", authentication: "valid", observedAt: null, complete: true, models: [], errorCode: null }];
   }
-  const client: ModelConnectionClientPort = {
+  const client: typeof modelConnectionsApi = {
     read: vi.fn(async () => snapshot),
     save: vi.fn(async () => snapshot),
     remove: vi.fn(async () => snapshot),
@@ -60,7 +73,8 @@ function fixture(empty = false, managed?: ModelConnectionSnapshot["managed"]) {
     managed: vi.fn(async () => snapshot),
     subscribe: () => () => {},
   };
-  return { client, store: new ModelConnectionStore(client) };
+  Object.assign(modelConnectionsApi, client);
+  return { client, store: sharedStore };
 }
 
 function button(label: string) {
@@ -70,7 +84,7 @@ function button(label: string) {
   return match as HTMLButtonElement;
 }
 
-async function render({ selectedModel = null as string | null, disabled = false, empty = false, accessPrompt = false, managed = undefined as ModelConnectionSnapshot["managed"] | undefined } = {}) {
+async function render({ payments = true, selectedModel = null as string | null, disabled = false, empty = false, accessPrompt = false, managed = undefined as ModelConnectionSnapshot["managed"] | undefined } = {}) {
   const { client, store } = fixture(empty, managed);
   const onSelectModel = vi.fn();
   const onReadyChange = vi.fn();
@@ -82,8 +96,8 @@ async function render({ selectedModel = null as string | null, disabled = false,
   document.body.append(container);
   root = createRoot(container);
   await act(async () => root?.render(withTestLocalization(<BuiltInAgentCompute
-    store={store}
     models={empty ? [] : models}
+    payments={payments}
     selectedModel={selectedModel}
     disabled={disabled}
     accessPrompt={accessPrompt}
@@ -176,7 +190,9 @@ it.each(["loading", "ready"] as const)("shows preparation instead of a billing e
     managed: { signedIn: true, reason, available: reason === "ready" } });
   expect(document.querySelector('[role="status"]')?.textContent).toBe("Connecting to compute…");
   expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
-  expect(document.querySelector(".desktop-agent-access-primary")).toBeNull();
+  expect(document.querySelector<HTMLButtonElement>(".desktop-agent-access-primary")?.disabled).toBe(true);
+  expect(document.querySelector(".desktop-agent-access-primary")?.textContent).toBe("Connecting to compute…");
+  expect(document.body.textContent).not.toContain("Your draft is saved");
   expect(document.body.textContent).not.toMatch(/Could not|Refresh balance|Add credit/);
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
 });
@@ -201,7 +217,7 @@ it("blocks a selected managed model when the personal balance is empty", async (
     managed: { available: false, reason: "insufficient-credit", signedIn: true, sandbox: true, availableMicroUsd: 0,
       packs: [{ id: "test-pack", name: "Sandbox credit", price_cents: 500, credit_micro_usd: 5_000_000 }] } });
   expect(document.body.textContent).toContain("Add credit to use this model.");
-  expect(document.body.textContent).not.toContain("Add $5");
+  expect(document.body.textContent).not.toContain(`Add ${money(5)}`);
   expect(onReadyChange).toHaveBeenLastCalledWith(false);
   act(() => button("Manage AI balance").click());
   expect(onOpenAccount).toHaveBeenCalledTimes(1);
@@ -215,7 +231,7 @@ it("offers the server-configured trial only after the first send attempt", async
     managed: { available: false, reason: "sign-in-required", signedIn: false, trialCreditMicroUsd: 1_000_000 } });
   expect(document.querySelector(".desktop-agent-compute-summary")).toBeNull();
   expect([...document.querySelectorAll("button")].some((entry) => entry.textContent === "Refresh balance")).toBe(false);
-  expect(document.body.textContent).toContain("One-time $1 AI credit per account");
+  expect(document.body.textContent).toContain(`One-time ${money(1)} AI credit per account`);
   await act(async () => button("Sign in to start").click());
   expect(client.managed).toHaveBeenCalledWith({ action: "sign-in" });
   expect(client.managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
@@ -225,7 +241,7 @@ it.each([null, models[1].model])("hides the managed model and picker while retai
   const { client, onReadyChange, onSelectModel } = await render({ selectedModel,
     managed: { available: true, reason: "ready", signedIn: true, sandbox: true, availableMicroUsd: 4_990_000, reservedMicroUsd: 10_000 } });
   expect(document.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone's token");
-  expect(document.body.textContent).not.toContain("$4.99");
+  expect(document.body.textContent).not.toContain(money(4.99));
   expect(document.body.textContent).not.toContain("Sandbox");
   expect(document.body.textContent).not.toContain("Refresh balance");
   expect(document.body.textContent).not.toContain("One-time trial credit");
@@ -237,3 +253,7 @@ it.each([null, models[1].model])("hides the managed model and picker while retai
   expect(client.managed).not.toHaveBeenCalled();
   expect(onSelectModel).not.toHaveBeenCalled();
 });
+
+function money(usd: number) {
+  return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 4 }).format(usd);
+}

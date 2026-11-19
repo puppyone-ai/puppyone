@@ -91,8 +91,6 @@ describe("Settings primitives", () => {
         <SettingsValueRow
           label="Repository"
           value="/a/very/long/path"
-          tooltip="/a/very/long/path"
-          tooltipOverflowOnly
         />
       </>);
     });
@@ -102,7 +100,6 @@ describe("Settings primitives", () => {
     expect(toggle?.hasAttribute("data-tooltip")).toBe(false);
     const values = host.querySelectorAll<HTMLElement>(".desktop-settings-value-text");
     expect(values[0]?.hasAttribute("data-tooltip")).toBe(false);
-    expect(values[1]?.dataset.tooltip).toBe("/a/very/long/path");
-    expect(values[1]?.dataset.tooltipWhen).toBe("overflow");
+    expect(values[1]?.hasAttribute("data-tooltip")).toBe(false);
   });
 });

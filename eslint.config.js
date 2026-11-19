@@ -1,8 +1,5 @@
-// Lean ESLint gate (ISSUE-023). Deliberately NOT the full recommended set — on a
-// large existing codebase that would flood warnings without adding a real gate.
-// Instead: ERROR only on genuine bug-classes (so CI fails on real defects), and
-// leave stylistic/legacy debt to tsc + SonarLint. Keeps `npm run lint` green and
-// meaningful.
+// Bug-class rules remain unsuppressed. Readability debt is recorded in ESLint's
+// native bulk-suppression file; CI rejects new violations and baseline growth.
 import globals from "globals";
 import tsParser from "@typescript-eslint/parser";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -34,15 +31,15 @@ export default [
   {
     ignores: [
       "archive/**", "artifacts/**", "dist/**", "release/**", "node_modules/**",
-      "vendor/claudian/**", "vendor/pi-kernel/**",
-      "src-tauri/**", "build/**", "public/**", "**/*.d.ts", "eslint.config.js",
+      "licenses/**",
+      "public/**", "**/*.d.ts", "eslint.config.js",
+      // The GPUI app checks its own sources (clippy, puppy-one-rust/tools/verify.py).
+      "puppy-one-rust/**",
     ],
   },
   {
     files: [
-      "src/**/*.{ts,tsx}",
-      "shared/agent-contract/**/*.ts",
-      "packages/shared-ui/src/**/*.{ts,tsx}",
+      "{src,electron,shared}/**/*.{ts,tsx,mts,cts}",
     ],
     languageOptions: {
       parser: tsParser,
@@ -55,6 +52,16 @@ export default [
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn", // legacy debt — visible, non-blocking
     },
+  },
+  {
+    files: ["{src,electron,shared}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
+    rules: {
+      "no-nested-ternary": "error",
+    },
+  },
+  {
+    files: ["{electron,shared}/**/*.{ts,tsx,mts,cts}"],
+    languageOptions: { globals: globals.node },
   },
   {
     files: ["src/features/desktop-agent/ui/**/*.{ts,tsx}"],
@@ -97,7 +104,7 @@ export default [
     },
   },
   {
-    files: ["cloudflare/**/*.mjs", "electron/**/*.mjs", "local-api/**/*.mjs", "shared/**/*.{js,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs"],
+    files: ["cloudflare/**/*.mjs", "{src,electron,shared}/**/*.{js,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs"],
     languageOptions: { ecmaVersion: 2023, sourceType: "module", globals: { ...globals.node } },
     rules: coreBugRules,
   },

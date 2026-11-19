@@ -1,6 +1,8 @@
-import { Download, FilePlus2, FolderOpen, Plus } from "lucide-react";
+import { Tooltip, FolderIcon } from "@puppyone/shared-ui";
+import { Download, FilePlus2, Monitor, Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
+import { useComputerModeEnabled } from "../flags";
 import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
@@ -37,7 +39,12 @@ export function ProjectEntryLauncherDialog({
   onOpenFolder,
 }: ProjectEntryLauncherDialogProps) {
   const { t } = useLocalization();
+  const computerMode = useComputerModeEnabled();
   const title = t("shell.workspaceSwitcher.createNew");
+  const createLabel = computerMode
+    ? t("onboarding.computerMode.createAction")
+    : t("onboarding.action.createLocalProject");
+  const createIcon = computerMode ? <Monitor /> : <FilePlus2 />;
 
   return (
     <DesktopDialogRoot onClose={onClose}>
@@ -53,10 +60,10 @@ export function ProjectEntryLauncherDialog({
             </span>
             <h2>{title}</h2>
           </div>
-          <DesktopDialogCloseButton
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
             label={t("common.action.close")}
             onClick={onClose}
-          />
+          /></Tooltip>
         </header>
 
         <div className="desktop-dialog-body desktop-project-entry-launcher-body">
@@ -66,14 +73,14 @@ export function ProjectEntryLauncherDialog({
             aria-label={title}
           >
             <ProjectEntryOption
-              icon={<FilePlus2 />}
-              label={t("onboarding.action.createLocalProject")}
+              icon={createIcon}
+              label={createLabel}
               initialFocus={canCreateProject}
               disabled={!canCreateProject}
               onClick={onCreateProject}
             />
             <ProjectEntryOption
-              icon={<FolderOpen />}
+              icon={<FolderIcon />}
               label={t("onboarding.action.openFolder")}
               initialFocus={!canCreateProject}
               onClick={onOpenFolder}

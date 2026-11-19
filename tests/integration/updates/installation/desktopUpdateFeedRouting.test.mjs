@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { GenericProvider } from "electron-updater/out/providers/GenericProvider.js";
 import { createUpdateService } from "../../../../electron/update-service.mjs";
 import { resolveDesktopBuildIdentity } from "../../../../shared/desktop-build-identity.mjs";
-import { createDesktopElectronBuilderConfig } from "../../../../tooling/desktop/build/create-builder-config.mjs";
+import { createDesktopElectronBuilderConfig } from "../../../../scripts/desktop/build/create-builder-config.mjs";
 
 // The host need not be macOS to exercise the production macOS feed routing.
 // Only the OS signature probe is replaced; metadata parsing is electron-updater's.

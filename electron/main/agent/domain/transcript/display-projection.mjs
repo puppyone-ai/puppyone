@@ -1,3 +1,4 @@
+import { classifyProviderActivity, isTranscriptActivity } from "./provider-activity-policy.mjs";
 import { projectionIndexes } from "./transcript-indexes.mjs";
 import { activityId, pickSafeActivityDetail, pickUsage, readProviderMessage, readString, } from "./content-readers.mjs";
 import { isNonDiagnosticProviderStatusMessage, legacyProviderConnectionUpdate, providerActivityIdentity, } from "./provider-notice-policy.mjs";
@@ -6,7 +7,9 @@ import { agentTurnTerminalState } from "./turn-lifecycle.mjs";
 export function projectTypedPart(projection, event, options = {}) {
     if (event.type === "provider.connection.updated")
         return;
-    const turn = updateTurn(projection, event);
+    const auxiliary = event.type === "provider.notification"
+        || (event.type === "provider.activity" && !isTranscriptActivity(classifyProviderActivity(event)));
+    const turn = auxiliary ? null : updateTurn(projection, event);
     const part = partForEvent(projection, event, options);
     if (!part)
         return;
@@ -32,7 +35,7 @@ export function projectTypedPart(projection, event, options = {}) {
     }
     // Usage is session metadata, not visible transcript content. Keep the typed
     // part for consumers that need it, but never allocate virtual-list geometry.
-    if (projectedPart.kind === "usage")
+    if (projectedPart.kind === "usage" || !isTranscriptActivity(projectedPart))
         return;
     const rowId = `row:${projectedPart.id}`;
     const rowIndex = indexes.rows.get(rowId);
@@ -172,7 +175,7 @@ function partForEvent(projection, event, options) {
     }
     if (event.type === "reasoning.summary.delta" || event.type === "plan.updated"
         || event.type.startsWith("tool.") || event.type === "command.output.delta"
-        || event.type === "file.change.updated" || event.type === "provider.activity") {
+        || event.type === "file.change.updated" || event.type === "provider.activity" || event.type === "provider.notification") {
         const activityIndex = projectionIndexes(projection).activities.get(activityId(event));
         const activity = activityIndex === undefined ? null : projection.activities[activityIndex];
         return activity ? activityPart(activity) : null;

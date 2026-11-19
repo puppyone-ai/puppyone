@@ -15,8 +15,8 @@ import {
   inspectMacReleaseReadiness,
 } from "../../../../scripts/release-support/macos-release-policy.mjs";
 import { resolveDesktopBuildIdentity } from "../../../../shared/desktop-build-identity.mjs";
-import { createDesktopElectronBuilderConfig } from "../../../../tooling/desktop/build/create-builder-config.mjs";
-import { getDesktopTargetDefinition } from "../../../../tooling/desktop/targets/target-manifest.mjs";
+import { createDesktopElectronBuilderConfig } from "../../../../scripts/desktop/build/create-builder-config.mjs";
+import { getDesktopTargetDefinition } from "../../../../scripts/desktop/targets/target-manifest.mjs";
 
 const signingEnvironment = {
   CSC_LINK: "certificate.p12",
@@ -127,6 +127,12 @@ describe("continuous integration workflow", () => {
     )).toEqual(expect.arrayContaining([
       expect.stringMatching(/pinned to full commit SHAs/),
     ]));
+    expect(inspectContinuousIntegrationWorkflow(
+      workflow.replace(", cloud-email-sign-in]", "]").replace('\n          test "$CLOUD_EMAIL_SIGN_IN_RESULT" = success', ""),
+    )).toEqual(expect.arrayContaining([
+      expect.stringMatching(/Cloud email sign-in/),
+      expect.stringMatching(/email sign-in through the paired Cloud must pass/),
+    ]));
   });
 });
 
@@ -137,6 +143,18 @@ describe("macOS internal release workflow", () => {
       "utf8",
     );
     expect(inspectInternalReleaseWorkflow(workflow)).toEqual([]);
+  });
+
+  it.each([
+    ['.event == "push"', "the Internal workflow must require a main push CI run"],
+    [".head_sha == env.GITHUB_SHA", "the Internal workflow must match the exact source SHA in returned CI records"],
+    ['.status == "completed"', "the Internal workflow must require completed CI records"],
+    ['.conclusion == "success"', "the Internal workflow must require successful CI"],
+  ])("keeps the green-main gate fail-closed without %s", (condition, error) => {
+    const workflow = readFileSync(
+      new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url), "utf8",
+    ).replace(condition, "true");
+    expect(inspectInternalReleaseWorkflow(workflow)).toContain(error);
   });
 
   it("rejects an Internal workflow without the green-main source gate", () => {

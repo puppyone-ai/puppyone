@@ -3,22 +3,6 @@ import type { CloudPublishState } from "../../../types/electron";
 
 export type CloudPushAction = "retry-push" | "push-latest" | "choose-source" | "reconcile";
 
-export function getCloudInitializationStatusLabel(
-  state: CloudPublishState,
-  t: MessageFormatter,
-): string {
-  if (["requested", "deleting", "failed"].includes(state.cleanup)) {
-    return t("cloud.initialize.status.cleanupPending");
-  }
-  if (state.push === "uncertain") return t("cloud.initialize.status.pushUncertain");
-  if (state.push === "conflict") return t("cloud.initialize.status.pushConflict");
-  if (state.project === "unavailable") return t("cloud.initialize.projectUnavailable");
-  if (state.project === "empty" && state.push === "failed") return t("cloud.initialize.status.emptyPushFailed");
-  if (state.project === "empty") return t("cloud.initialize.status.empty");
-  if (state.push === "accepted" || state.project === "published") return t("cloud.initialize.status.published");
-  return t("cloud.initialize.status.preparing");
-}
-
 export function getCloudInitializationDescription(
   state: CloudPublishState,
   t: MessageFormatter,
@@ -36,16 +20,6 @@ export function getCloudInitializationDescription(
     return t("cloud.initialize.sourceAdvancedDescription", { branch: state.selectedSourceBranch });
   }
   return t("cloud.initialize.emptyProjectDescription", { project: state.projectName });
-}
-
-export function getCloudInitializationActionLabel(
-  action: CloudPushAction,
-  t: MessageFormatter,
-): string {
-  if (action === "push-latest") return t("cloud.initialize.pushLatestCommit");
-  if (action === "choose-source") return t("cloud.initialize.useCurrentBranch");
-  if (action === "reconcile") return t("cloud.initialize.checkCloudStatus");
-  return t("cloud.initialize.retryPush");
 }
 
 export function getCloudPushAction(

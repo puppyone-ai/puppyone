@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { FileOpenRequestCoordinator } from "../../../../packages/shared-ui/src/data/file-open/fileOpenRequestCoordinator";
-import { RendererPerformanceTracker } from "../../../../packages/shared-ui/src/performance/rendererPerformance";
+import { FileOpenRequestCoordinator } from "../../../../src/shared-ui/data/file-open/fileOpenRequestCoordinator";
+import { RendererPerformanceTracker } from "../../../../src/shared-ui/performance/rendererPerformance";
 
 describe("revision-bound file opening", () => {
   it("aborts A and prevents every stale A commit after B starts", () => {

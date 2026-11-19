@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import type { DesktopPlatformCapabilities } from "../types/electron";
-import { readDesktopPlatformCapabilities } from "./desktopPlatformClient";
+import { getDesktopPlatformCapabilitiesSnapshot, readDesktopPlatformCapabilities } from "./desktopPlatformClient";
 
 export function useDesktopPlatformCapabilities(): DesktopPlatformCapabilities | null {
-  const [capabilities, setCapabilities] = useState<DesktopPlatformCapabilities | null>(null);
+  const [capabilities, setCapabilities] = useState<DesktopPlatformCapabilities | null>(getDesktopPlatformCapabilitiesSnapshot);
 
   useEffect(() => {
     let active = true;

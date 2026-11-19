@@ -1,18 +1,9 @@
 import { useLocalization } from "@puppyone/localization";
-import type { TypographyPreferences } from "../../../preferences";
 import { TypographyScaleSetting } from "../TypographyScaleSetting";
 import { SettingsSectionHeader } from "../components";
 import { TypographyPreview } from "./TypographyPreview";
 
-export function TypographySettingsView({
-  typographyPreferences,
-  markdownThemeId,
-  onTypographyPreferencesChange,
-}: {
-  typographyPreferences: TypographyPreferences;
-  markdownThemeId: string;
-  onTypographyPreferencesChange: (preferences: TypographyPreferences) => void;
-}) {
+export function TypographySettingsView() {
   const { t } = useLocalization();
 
   return (
@@ -21,11 +12,8 @@ export function TypographySettingsView({
         <div className="desktop-settings-section">
           <SettingsSectionHeader title={t("settings.typography.title")} />
           <div className="desktop-settings-list desktop-settings-lead-list">
-            <TypographyScaleSetting
-              preferences={typographyPreferences}
-              onChange={onTypographyPreferencesChange}
-            />
-            <TypographyPreview markdownThemeId={markdownThemeId} />
+            <TypographyScaleSetting />
+            <TypographyPreview />
           </div>
         </div>
       </div>

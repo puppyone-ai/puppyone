@@ -42,6 +42,7 @@ export type EditorFileDropHandler = (
 export type EditorFileDropController = Readonly<{
   dropIntent: PaneDropIntent | null;
   dropFailed: boolean;
+  dismissDropFailure: () => void;
   over: (event: DragEvent<HTMLElement>, paneId: string) => void;
   leave: (event: DragEvent<HTMLElement>, paneId: string) => void;
   drop: (event: DragEvent<HTMLElement>, paneId: string) => void;
@@ -201,8 +202,12 @@ export function useExplorerFileDrop(
     }
   }, [finishFileDrag, workspaceId]);
 
+  const dismissDropFailure = useCallback(() => setDropFailed(false), []);
   const dropIntent = preview?.intent ?? null;
-  return useMemo(() => ({ dropIntent, dropFailed, over, leave, drop }), [drop, dropFailed, dropIntent, leave, over]);
+  return useMemo(
+    () => ({ dropIntent, dropFailed, dismissDropFailure, over, leave, drop }),
+    [dismissDropFailure, drop, dropFailed, dropIntent, leave, over],
+  );
 }
 
 function hasNativeFiles(dataTransfer: DataTransfer): boolean {

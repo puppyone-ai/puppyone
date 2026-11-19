@@ -3,12 +3,12 @@ import { bench, describe } from "vitest";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { createMarkdownLinkGraph } from "../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
-import { requestMarkdownProjectionRange } from "../../../../../packages/shared-ui/src/editor/markdown/core/decorations/livePreviewDecorations";
-import { markdownLivePreviewFocusEffect } from "../../../../../packages/shared-ui/src/editor/markdown/core/state/livePreviewFocus";
-import { MarkdownBlockVirtualizer } from "../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/blockVirtualizer";
-import { MARKDOWN_TABLE_MODEL_ROW_LIMIT } from "../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownBlockExecution";
+} from "../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { createMarkdownLinkGraph } from "../../../../../src/shared-ui/editor/markdown/core/links/markdownLinkGraph";
+import { requestMarkdownProjectionRange } from "../../../../../src/shared-ui/editor/markdown/core/decorations/livePreviewDecorations";
+import { markdownLivePreviewFocusEffect } from "../../../../../src/shared-ui/editor/markdown/core/state/livePreviewFocus";
+import { MarkdownBlockVirtualizer } from "../../../../../src/shared-ui/editor/markdown/platform/codemirror/blockVirtualizer";
+import { MARKDOWN_TABLE_MODEL_ROW_LIMIT } from "../../../../../src/shared-ui/editor/markdown/core/plans/markdownBlockExecution";
 import {
   makeFeatureHeavyMarkdown,
   makeLinkGraphDocuments,

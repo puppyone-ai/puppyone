@@ -40,7 +40,14 @@ describe("Desktop update interaction boundaries", () => {
     expect(service).toContain("BACKGROUND_UPDATE_INTERVAL_MS");
     expect(service).toContain("scheduleBackgroundCheck");
     expect(service).toContain("autoUpdater.autoDownload = false");
-    expect(service).toContain("autoUpdater.autoInstallOnAppQuit = true");
+    // macOS restarts into an update prepared in the background; Squirrel.Mac
+    // stages and installs only where that cannot work.
+    expect(service).toContain("autoUpdater.autoInstallOnAppQuit = !preparedUpdate");
+    expect(service).toContain("preparedUpdate.prepare(");
+    expect(service).toContain("preparedUpdate.installOnExit(");
+    expect(main).toContain("createMacosPreparedUpdate");
+    expect(main).toMatch(/updateService\?\.installOnQuit\(\);\s*updateService\?\.dispose\(\);/);
+    expect(main).toContain("createApplicationQuitIntent({ app, onCancel: () => updateService?.handleQuitCancelled() })");
     expect(service).toContain("await downloadAvailableUpdateInternal()");
     expect(service).toContain("if (ACTIONABLE_UPDATE_STATES.has(state.status)) return state");
     expect(service).toContain("updates:set-automatically-download");
@@ -57,12 +64,9 @@ describe("Desktop update interaction boundaries", () => {
     expect(updateModel).not.toMatch(/if \(state\.status === "(?:disabled|idle|checking|not-available|downloading|error)"\)/);
     expect(updatePreview).toContain("if (!isDevelopment");
     expect(updateController).toContain("isDevelopment: import.meta.env.DEV");
-    expect(app).toContain(
-      "automaticDownloadPreferenceAvailable:\n                  desktopUpdates.automaticDownloadPreferenceAvailable",
-    );
-    expect(app).toContain(
-      "setAutomaticallyDownloadUpdates:\n                  desktopUpdates.setAutomaticallyDownloadUpdates",
-    );
+    // Settings owns the automatic-download preference; formatting is not part of the contract.
+    expect(app).toMatch(/automaticDownloadPreferenceAvailable:\s*desktopUpdates\.automaticDownloadPreferenceAvailable/);
+    expect(app).toMatch(/setAutomaticallyDownloadUpdates:\s*desktopUpdates\.setAutomaticallyDownloadUpdates/);
   });
 });
 

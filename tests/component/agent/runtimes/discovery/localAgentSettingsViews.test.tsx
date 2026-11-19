@@ -1,14 +1,17 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as store } from "../../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocalAgentsSettingsView } from "../../../../../src/features/local-agents";
 import type { AgentActivityProviderStatus } from "../../../../../shared/agent-activity-contract/types";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 
@@ -35,11 +38,7 @@ describe("Local Agent settings views", () => {
       setEnrollment,
     });
 
-    render(<LocalAgentsSettingsView
-      settings={{ hiddenTerminalAgentIds: [], chatHistoryDiscoveryEnabled: false }}
-      onChange={vi.fn()}
-      onActivityIndicatorsEnabledChange={vi.fn()}
-    />);
+    render(<LocalAgentsSettingsView />);
 
     await vi.waitFor(() => expect(document.querySelectorAll(".desktop-local-agent-hook-option")).toHaveLength(3));
     expect(Array.from(document.querySelectorAll<HTMLInputElement>(
@@ -53,12 +52,7 @@ describe("Local Agent settings views", () => {
     window.puppyoneDesktop = bridge({
       terminalAgents: ["codex", "pi", "workbuddy-china", "workbuddy-international", "hermes"],
     });
-    const onChange = vi.fn();
-    render(<LocalAgentsSettingsView
-      settings={{ hiddenTerminalAgentIds: [], chatHistoryDiscoveryEnabled: false }}
-      onChange={onChange}
-      onActivityIndicatorsEnabledChange={vi.fn()}
-    />);
+    render(<LocalAgentsSettingsView />);
 
     await vi.waitFor(() => expect(document.body.textContent).toContain("Codex"));
     expect(document.body.textContent).toContain("Pi Agent");
@@ -80,7 +74,7 @@ describe("Local Agent settings views", () => {
     expect(codexSwitch.checked).toBe(true);
 
     act(() => codexSwitch.click());
-    expect(onChange).toHaveBeenCalledWith({
+    expect(store.getState().localAgentsSettings).toEqual({
       hiddenTerminalAgentIds: ["codex"],
       chatHistoryDiscoveryEnabled: false,
     });
@@ -88,8 +82,8 @@ describe("Local Agent settings views", () => {
     const historySwitch = checkbox("Discover local Agent chat history");
     expect(historySwitch.checked).toBe(false);
     act(() => historySwitch.click());
-    expect(onChange).toHaveBeenCalledWith({
-      hiddenTerminalAgentIds: [],
+    expect(store.getState().localAgentsSettings).toEqual({
+      hiddenTerminalAgentIds: ["codex"],
       chatHistoryDiscoveryEnabled: true,
     });
   });
@@ -112,12 +106,7 @@ describe("Local Agent settings views", () => {
       getEnrollment,
       setEnrollment,
     });
-    const onActivityIndicatorsEnabledChange = vi.fn();
-    render(<LocalAgentsSettingsView
-      settings={{ hiddenTerminalAgentIds: [], chatHistoryDiscoveryEnabled: false }}
-      onChange={vi.fn()}
-      onActivityIndicatorsEnabledChange={onActivityIndicatorsEnabledChange}
-    />);
+    render(<LocalAgentsSettingsView />);
 
     await vi.waitFor(() => expect(document.querySelectorAll(".desktop-local-agent-hook-option")).toHaveLength(2));
     expect(document.body.textContent).not.toContain("PuppyOne Hook installed");
@@ -137,7 +126,7 @@ describe("Local Agent settings views", () => {
     });
 
     expect(setEnrollment).toHaveBeenCalledWith({ providerId: "codex", enabled: true });
-    expect(onActivityIndicatorsEnabledChange).toHaveBeenCalledWith(true);
+    expect(store.getState().agentFileActivityIndicatorsEnabled).toBe(true);
   });
 });
 

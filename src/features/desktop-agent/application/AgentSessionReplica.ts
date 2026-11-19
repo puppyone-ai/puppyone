@@ -9,7 +9,7 @@ import {
   ManagedOperationScope,
   ScopedOperationTimeoutError,
   waitForScopedOperation,
-} from '../../session-transport/ManagedOperationScope';
+} from '../../session-transport';
 
 type StatePatch = (patch: Partial<AgentControllerState>) => void;
 type Subscription = {
@@ -71,11 +71,16 @@ export class AgentSessionReplica {
     this.invalidate();
     this.connectedBridge = bridge;
     this.frameCleanup = bridge.onAgentSessionFrame?.(frame => this.handleFrame(frame)) ?? null;
-    this.failureCleanup = bridge.onAgentSessionFailure?.(message => {
+    this.failureCleanup = bridge.onAgentSessionFailure?.(failure => {
+      if (this.disposed || this.paused) return;
+      if (failure.scope === 'display') {
+        void this.repairFrom(undefined, 'stream-reset');
+        return;
+      }
       this.ended = true;
       this.clearRecoveryTimers();
       this.invalidate();
-      this.patch({ phase: 'runtime-exited', replicaStatus: 'detached', displayRecovery: undefined, error: { code: 'unknown', detail: message } });
+      this.patch({ phase: 'runtime-exited', replicaStatus: 'detached', displayRecovery: undefined, error: { code: 'session-ended', detail: failure.message } });
     }) ?? null;
   }
 
@@ -440,7 +445,8 @@ export class AgentSessionReplica {
       this.pauseRecovery('exhausted');
       return;
     }
-    const delay = Math.min(RECOVERY_RETRY_MAX_MS, RECOVERY_RETRY_BASE_MS * 2 ** this.attempts);
+    const ceiling = Math.min(RECOVERY_RETRY_MAX_MS, RECOVERY_RETRY_BASE_MS * 2 ** this.attempts);
+    const delay = ceiling * (0.5 + Math.random() * 0.5);
     this.recoveryRetryTimer = setTimeout(() => {
       this.recoveryRetryTimer = null;
       void this.repairFrom(undefined, this.recoveryCause ?? 'revision-gap');
@@ -507,8 +513,11 @@ export class AgentSessionReplica {
   }
 
   private handleEnded(error: unknown) {
-    const code = error instanceof AgentOperationError ? error.failure.code : error instanceof AgentKnownError ? error.code : null;
-    if (!code || !['SESSION_NOT_FOUND', 'SESSION_STALE', 'PROJECT_STALE', 'PROJECT_CLOSING', 'session-ended'].includes(code)) return false;
+    let code: unknown;
+    if (error instanceof AgentOperationError) code = error.failure.code;
+    else if (error instanceof AgentKnownError) code = error.code;
+    else if (error && typeof error === 'object' && 'code' in error) code = error.code;
+    if (typeof code !== 'string' || !['HOST_EXITED', 'HOST_CLOSED', 'HOST_CRASHED', 'HOST_MEMORY_BUDGET', 'SESSION_NOT_FOUND', 'SESSION_STALE', 'PROJECT_STALE', 'PROJECT_CLOSING', 'session-ended'].includes(code)) return false;
     this.endInstance();
     return true;
   }

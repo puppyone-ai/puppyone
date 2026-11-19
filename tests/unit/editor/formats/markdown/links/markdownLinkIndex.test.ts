@@ -7,8 +7,8 @@ import {
   createMarkdownLinkGraphIndex,
   createMarkdownLinkGraphIndexer,
   type MarkdownLinkGraphDocument,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
-import { MarkdownLinkIndexCoordinator } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/indexing/markdownLinkIndexCoordinator";
+} from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownLinkGraph";
+import { MarkdownLinkIndexCoordinator } from "../../../../../../src/shared-ui/editor/markdown/platform/indexing/markdownLinkIndexCoordinator";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -191,7 +191,7 @@ class IndexWorker {
   onerror: ((event: ErrorEvent) => void) | null = null;
   onmessageerror: ((event: MessageEvent) => void) | null = null;
   indexer: ReturnType<typeof createMarkdownLinkGraphIndexer> | null = null;
-  postMessage(request: import("../../../../../../packages/shared-ui/src/editor/markdown/platform/indexing/markdownLinkIndexProtocol").MarkdownLinkIndexWorkerRequest) {
+  postMessage(request: import("../../../../../../src/shared-ui/editor/markdown/platform/indexing/markdownLinkIndexProtocol").MarkdownLinkIndexWorkerRequest) {
     if (request.type === "initialize") this.indexer = createMarkdownLinkGraphIndexer(request.documents);
     if (request.type === "index-document") this.indexer!.indexDocument(request.document);
     queueMicrotask(() => this.onmessage?.({ data: { requestId: request.requestId, operationId: request.operationId,

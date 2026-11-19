@@ -49,6 +49,7 @@ export function CloudHistorySection({
       <CloudProjectHistoryView
         {...sidebarProps}
         projectId={projectId}
+        context={{ session: cloudSession, projectId, apiBaseUrl, revisionKey }}
         projectName={projectName}
         history={history.history}
         onRefresh={history.reload}

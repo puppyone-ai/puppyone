@@ -1,3 +1,4 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../../preferencesStore";
 import {
   FileGlyphIcon,
   Tooltip,
@@ -5,9 +6,9 @@ import {
   getDocumentIdentityKey,
   getDocumentWorkingCopyStatuses,
   subscribeDocumentWorkingCopyStatuses,
+  useVisibleSaveStatus,
   type DocumentSessionStatus,
   type EditorInput,
-  type FileIconThemeId,
 } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import {
@@ -27,7 +28,6 @@ const EMPTY_STATUSES: ReadonlyMap<string, DocumentSessionStatus> = new Map();
 type EditorHeaderTabsProps = Readonly<{
   activeEditorId: string | null;
   editors: readonly EditorInput[];
-  fileIconTheme: FileIconThemeId;
   storageIdentity: string | null;
   onActivate: (editorId: string) => void;
   onClose: (editorId: string) => Promise<void> | void;
@@ -38,13 +38,13 @@ type EditorHeaderTabsProps = Readonly<{
 export function EditorHeaderTabs({
   activeEditorId,
   editors,
-  fileIconTheme,
   storageIdentity,
   onActivate,
   onClose,
   onCreate,
   onMove,
 }: EditorHeaderTabsProps) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const statuses = useSyncExternalStore(
     subscribeDocumentWorkingCopyStatuses,
@@ -139,40 +139,32 @@ export function EditorHeaderTabs({
             onDragStart={(event) => beginDrag(event, editor.id)}
             onDrop={(event) => moveBefore(event, editor.id)}
           >
-            <Tooltip content={editor.resource} overflowOnly>
-              <button
-                ref={(element) => {
-                  if (element) tabRefs.current.set(editor.id, element);
-                  else tabRefs.current.delete(editor.id);
-                }}
-                type="button"
-                className="desktop-titlebar-editor-tab-select"
-                role="tab"
-                aria-selected={active}
-                tabIndex={active ? 0 : -1}
-                data-editor-tab-id={editor.id}
-                onClick={() => onActivate(editor.id)}
-                onAuxClick={(event: ReactMouseEvent<HTMLButtonElement>) => {
-                  if (event.button === 1) void close(editor.id);
-                }}
-                onKeyDown={(event) => activateFromKeyboard(event, editor.id)}
-              >
-                <span className="desktop-titlebar-editor-tab-icon" aria-hidden="true">
-                  <FileGlyphIcon name={editor.label} size={15} theme={fileIconTheme} />
-                </span>
-                <span className="desktop-titlebar-editor-tab-label" dir="auto">{editor.label}</span>
-              </button>
-            </Tooltip>
-            <span className="desktop-titlebar-editor-tab-state" aria-hidden="true">
-              {status === "saving" || closing
-                ? <LoaderCircle className="is-spinning" size={12} />
-                : status === "error"
-                  ? <AlertCircle size={12} />
-                  : status === "dirty"
-                    ? <span className="desktop-titlebar-editor-tab-dirty" />
-                    : null}
-            </span>
             <button
+              ref={(element) => {
+                if (element) tabRefs.current.set(editor.id, element);
+                else tabRefs.current.delete(editor.id);
+              }}
+              type="button"
+              className="desktop-titlebar-editor-tab-select"
+              role="tab"
+              aria-selected={active}
+              tabIndex={active ? 0 : -1}
+              data-editor-tab-id={editor.id}
+              onClick={() => onActivate(editor.id)}
+              onAuxClick={(event: ReactMouseEvent<HTMLButtonElement>) => {
+                if (event.button === 1) void close(editor.id);
+              }}
+              onKeyDown={(event) => activateFromKeyboard(event, editor.id)}
+            >
+              <span className="desktop-titlebar-editor-tab-icon" aria-hidden="true">
+                <FileGlyphIcon name={editor.label} size={15} theme={fileIconTheme} />
+              </span>
+              <span className="desktop-titlebar-editor-tab-label" dir="auto">{editor.label}</span>
+            </button>
+            <span className="desktop-titlebar-editor-tab-state" aria-hidden="true">
+              <EditorTabSaveState status={status} closing={closing} />
+            </span>
+            <Tooltip content={t("shell.editorTabs.close", { name: editor.label })}><button
               type="button"
               className="desktop-titlebar-editor-tab-close"
               aria-label={t("shell.editorTabs.close", { name: editor.label })}
@@ -183,7 +175,7 @@ export function EditorHeaderTabs({
               }}
             >
               <X size={12} strokeWidth={1.8} aria-hidden="true" />
-            </button>
+            </button></Tooltip>
           </div>
         );
       })}
@@ -215,4 +207,13 @@ function getEditorStatus(
   } catch {
     return null;
   }
+}
+
+/** Background saves keep the unsaved dot until they land; only a slow save spins. */
+function EditorTabSaveState({ status, closing }: { status: DocumentSessionStatus | null | undefined; closing: boolean }) {
+  const visible = useVisibleSaveStatus(status ?? "clean");
+  if (visible === "saving" || closing) return <LoaderCircle className="is-spinning" size={12} />;
+  if (visible === "error") return <AlertCircle size={12} />;
+  if (visible === "dirty") return <span className="desktop-titlebar-editor-tab-dirty" />;
+  return null;
 }

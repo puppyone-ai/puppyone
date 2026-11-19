@@ -4,14 +4,14 @@ import {
   openKnowledgeMdxFeatureComposition,
   puppyGfmFeatureComposition,
   getMarkdownFeatureComposition,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
 import {
   DEFAULT_MARKDOWN_DIALECT,
   markdownDialectFacet,
   resolveMarkdownDialect,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/dialect/markdownDialect";
-import { markdownFeatureCompositionFacet } from "../../../../../../packages/shared-ui/src/editor/markdown/core/features/markdownFeatureContract";
-import { markdownCodeMirrorLanguageExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+} from "../../../../../../src/shared-ui/editor/markdown/core/dialect/markdownDialect";
+import { markdownFeatureCompositionFacet } from "../../../../../../src/shared-ui/editor/markdown/core/features/markdownFeatureContract";
+import { markdownCodeMirrorLanguageExtension } from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 
 describe("Markdown dialect resolution", () => {
   it("uses explicit Host metadata before the file extension", () => {

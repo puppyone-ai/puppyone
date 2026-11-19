@@ -26,6 +26,7 @@ use std::{
     time::Duration,
 };
 mod dialog;
+mod invite;
 mod paste_art;
 
 /// Enough faces to recognize the room; the rest are a count.
@@ -62,18 +63,27 @@ pub(super) struct Look {
     pub header: bool,
 }
 
-/// `AgentAvatarMark`: the brand the Agent chose (else the one its name
-/// names), or its own creature; a brand sits in a round mark, quiet at
-/// rest. At work the mark fills, hops and wears the success lamp; asking to
-/// join it waits behind a dashed edge.
-pub(super) fn agent_mark(name: &str, avatar: Option<&str>, look: Look, t: Theme) -> AnyElement {
-    let brand = if avatar == Some("other") {
+/// The brand the Agent chose, else the one its name names; none for an
+/// Agent that chose "other", which is drawn as its own creature.
+pub(super) fn agent_brand(
+    name: &str,
+    avatar: Option<&str>,
+) -> Option<&'static agent_brands::Brand> {
+    if avatar == Some("other") {
         None
     } else {
         avatar
             .and_then(agent_brands::get)
             .or_else(|| agent_brands::resolve(None, None, Some(name)))
-    };
+    }
+}
+
+/// `AgentAvatarMark`: the brand the Agent chose (else the one its name
+/// names), or its own creature; a brand sits in a round mark, quiet at
+/// rest. At work the mark fills, hops and wears the success lamp; asking to
+/// join it waits behind a dashed edge.
+pub(super) fn agent_mark(name: &str, avatar: Option<&str>, look: Look, t: Theme) -> AnyElement {
+    let brand = agent_brand(name, avatar);
     let Look {
         size,
         ground,
@@ -513,6 +523,9 @@ impl WindowCloud {
         let t = cx.palette();
         let ty = theme::ty().ui;
         let host = self.weak.clone();
+        // The message is out: the seat says it waits, and still reopens the
+        // invite where it stands.
+        let waiting = !checking && self.agents.read(cx).waiting();
         let label = tr(if checking {
             "shell.workspaceSwitcher.location.checking"
         } else {
@@ -535,7 +548,7 @@ impl WindowCloud {
                     let _ = host.update(cx, |s, cx| s.press_agents(Opener::Invite, window, cx));
                 })
         })
-        .child(if checking {
+        .child(if checking || waiting {
             Icon::new("loader-circle")
                 .with_size(px(12.))
                 .stroke(2.)
@@ -543,11 +556,11 @@ impl WindowCloud {
         } else {
             Icon::new("plus").with_size(px(12.)).stroke(2.)
         })
-        .child(
-            div()
-                .line_height(px(16.))
-                .child(tr("cloud.share.agent.invite.seat")),
-        )
+        .child(div().line_height(px(16.)).child(tr(if waiting {
+            "native.agentInvite.headerWaiting"
+        } else {
+            "cloud.share.agent.invite.seat"
+        })))
         .into_any_element()
     }
     /// A face was pointed at or left. The first card waits a moment, so
@@ -708,7 +721,8 @@ impl WindowCloud {
     /// Deny into keyboard reach.
     fn request_card(&self, cx: &App) -> Option<AnyElement> {
         let agents = self.agents.read(cx);
-        if !agents.manageable {
+        // The open dialog answers it instead, never a second overlay.
+        if !agents.manageable || self.dialog_open(DialogKey::Agents, cx) {
             return None;
         }
         let request = agents.requests.first()?;
@@ -882,8 +896,8 @@ impl WindowCloud {
         self.refresh(cx);
     }
     /// The hosted Project at its root keeps its Agents current; anything
-    /// else forgets them, and their dialog goes with them. A request takes
-    /// the place of the dialog, never another overlay beside it.
+    /// else forgets them, and their dialog goes with them. An open dialog
+    /// answers a request itself; the Header's card waits until it closes.
     pub(super) fn sync_cloud_agents(&mut self, cx: &mut Context<Self>) {
         let project = self.hosted().filter(|_| {
             !self.session().opening && !self.session().file_mode && self.cloud_enabled(cx)
@@ -907,7 +921,8 @@ impl WindowCloud {
         let pending = agents.manageable && !agents.requests.is_empty();
         let gone =
             agents.project_name().is_none() || (!listed && !agents.manageable && agents.known);
-        if open && (pending || gone) {
+        // An open dialog answers a request itself, where the Agent asks.
+        if open && gone {
             self.close_dialog(DialogKey::Agents, cx);
         }
         if pending || gone {

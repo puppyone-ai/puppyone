@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { DesktopView } from "../../../components/DesktopCloudShell";
+import type { DesktopView } from "../../../components/ProjectShell";
 import type { GitStatusSnapshot } from "../../../types/electron";
 import type { WorkspaceSurfaceId } from "../workspace-surfaces";
 

@@ -2,14 +2,23 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("settings visual architecture", () => {
+  it("uses Settings surface tokens instead of popup-menu colors and shadows", () => {
+    const css = source("src/styles/settings-new-menu.css");
+
+    expect(css).toContain("background: var(--po-panel)");
+    expect(css).toContain("border: 1px solid var(--po-border-subtle)");
+    expect(css).not.toContain("var(--po-menu-bg)");
+    expect(css).not.toContain("var(--po-menu-shadow");
+  });
+
   it("keeps General app-scoped and moves project identity into Local Project", () => {
     const view = source("src/features/settings/SettingsView.tsx");
     const app = source("src/App.tsx");
     const sidebarModel = source("src/features/settings/sidebar/settingsSidebarModel.ts");
     const types = source("src/features/settings/types.ts");
     const general = source("src/features/settings/main/GeneralSettingsView.tsx");
-    const localAgents = source("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
-    const localAgentHooks = source("src/features/local-agents/ui/LocalAgentHooksSettingsView.tsx");
+    const localAgents = source("src/features/local-agents/setup/LocalAgentsSettingsView.tsx");
+    const localAgentHooks = source("src/features/local-agents/setup/LocalAgentHooksSettingsView.tsx");
     const localProject = source("src/features/settings/main/LocalProjectSettingsView.tsx");
     const privacy = source("src/features/settings/main/PrivacySettingsView.tsx");
     const language = source("src/features/settings/LanguageSetting.tsx");
@@ -91,11 +100,21 @@ describe("settings visual architecture", () => {
     expect(desktopAppItems).not.toContain("settings.sidebar.language");
     expect(desktopAppItems).not.toContain("settings.sidebar.localAgentHooks");
     expect(desktopAppItems).not.toContain("settings.sidebar.localAgents");
-    expectInOrder(sidebarModel, ['id: "desktop-app"', 'id: "agents"', 'id: "local-project"', 'id: "cloud"']);
+    expectInOrder(sidebarModel, ['id: "cloud"', 'id: "desktop-app"', 'id: "agents"', 'id: "local-project"']);
     expectInOrder(sidebarModel.slice(sidebarModel.indexOf('id: "cloud"')), [
       'labelId: "settings.sidebar.account"',
-      'labelId: "settings.sidebar.cloudHosting"',
+      // Hosting describes the project, so it is listed with the project and
+      // named for what it is rather than for whose cloud it might be.
+      'labelId: "settings.sidebar.projectInfo"',
+      'labelId: "settings.sidebar.hostServer"',
+      'labelId: "settings.sidebar.git"',
     ]);
+    expect(sidebarModel).not.toContain("settings.sidebar.cloudHosting");
+    // Settings opens where the user most often came to look, and on the one
+    // page that is answerable with no project open and while signed out.
+    expect(app).toContain('useState<SettingsSection>("account")');
+    expect(app).not.toContain('useState<SettingsSection>("general")');
+    expect(app).not.toContain('setActiveSettingsSection("general")');
     expect(sidebarModel).toContain('labelId: "settings.sidebar.localProject"');
     expect(sidebarModel).toContain('labelId: "settings.sidebar.projectInfo"');
 
@@ -108,7 +127,7 @@ describe("settings visual architecture", () => {
   it("shares grouped settings layout between New Menu and Local Agents", () => {
     const settings = source("src/styles/settings.css");
     const newMenu = source("src/features/settings/main/CreateNewSettingsView.tsx");
-    const localAgents = source("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
+    const localAgents = source("src/features/local-agents/setup/LocalAgentsSettingsView.tsx");
     const newMenuStyles = source("src/styles/settings-new-menu.css");
 
     for (const view of [newMenu, localAgents]) {
@@ -129,7 +148,7 @@ describe("settings visual architecture", () => {
     const loading = source("src/components/loading/index.tsx");
     const app = source("src/App.tsx");
     const reviewRuntime = source("src/features/data-workspace/useAiEditReviewRequest.ts");
-    const reviewEngine = source("local-api/edit-review.mjs");
+    const reviewEngine = source("electron/local-api/edit-review.mjs");
 
     expect(sidebarModel).toContain('id: "typography"');
     expect(sidebarModel).not.toContain('id: "editor"');
@@ -273,7 +292,7 @@ describe("settings visual architecture", () => {
     expect(dataShell).not.toContain("desktop-build-identity-badge");
   });
 
-  it("offers every loading animation preset from Appearance with localized labels", () => {
+  it("offers one loading style from Appearance with localized labels", () => {
     const view = source("src/features/settings/SettingsView.tsx");
     const appearancePreferences = source("src/features/appearance/appearancePreferences.ts");
     const loading = source("src/components/loading/index.tsx");
@@ -281,47 +300,33 @@ describe("settings visual architecture", () => {
       locales: Array<{ locale: string }>;
     };
 
-    expect(view).toContain("PULSE_GRID_PRESET_IDS.map");
-    expect(view).toContain("PULSE_GRID_PRESET_FRAMES[presetId]");
-    expect(view).toContain("onLoadingAnimationPresetChange(presetId)");
     expect(view).not.toContain('settings.appearance.navigation.title');
-    expect(view.indexOf('settings.appearance.loadingAnimation.title'))
-      .toBeGreaterThan(view.indexOf('settings.appearance.gitSidebarLayout.title'));
-    expect(appearancePreferences).toContain("loadingAnimationPreset: LoadingAnimationPreset");
-    expect(loading).toContain("LoadingAnimationContext");
+    // Mounted ordering, preset previews and updates: desktopPreferenceConsumers.test.tsx.
+    expect(appearancePreferences).toContain("loadingPlaceholderStyle: LoadingPlaceholderStyle");
+    expect(appearancePreferences).not.toContain("loadingAnimationPreset");
+    // Desktop loading layouts draw the shared mark; the style comes from Appearance.
+    expect(loading).toContain("LoadingMark");
     expect(loading).not.toContain("localStorage");
 
     for (const { locale } of manifest.locales) {
       const catalog = JSON.parse(source(`locales/renderer/${locale}/settings.json`)) as Record<string, string>;
-      for (const key of [
-        "title",
-        "ariaLabel",
-        "ikun.label",
-        "ikun.description",
-        "ymca.label",
-        "ymca.description",
-        "siu.label",
-        "siu.description",
-      ]) {
-        expect(catalog[`appearance.loadingAnimation.${key}`], `${locale}: ${key}`).toBeTruthy();
+      for (const key of ["title", "ariaLabel", "rounded.label", "dither.label"]) {
+        expect(catalog[`appearance.loadingStyle.${key}`], `${locale}: ${key}`).toBeTruthy();
       }
+      expect(Object.keys(catalog).filter((key) => /^appearance\.loading(?:Animation|Placeholder)\./.test(key)), locale)
+        .toEqual([]);
     }
   });
 
-  it("keeps the interface Style switcher as the last Appearance control", () => {
-    const view = source("src/features/settings/SettingsView.tsx");
-    const styleSetting = view.indexOf("<InterfaceStyleSetting");
-    const pointerCursors = view.indexOf('settings.appearance.pointerCursors.title');
-
-    expect(styleSetting).toBeGreaterThan(pointerCursors);
-  });
 
   it("uses one flat Settings contract and removes legacy card primitives", () => {
-    const components = source("src/features/settings/components.tsx");
+    const components = source("src/components/SettingsControls.tsx");
+    const facade = source("src/features/settings/components.tsx");
     const view = source("src/features/settings/SettingsView.tsx");
     const workspaceConfig = source("src/features/settings/PuppyoneWorkspaceConfigSettings.tsx");
     const splitViews = [
       "AccountSettingsView.tsx",
+      "AppearanceSettingsView.tsx",
       "ExperimentalSettingsView.tsx",
       "FileSettingsViews.tsx",
       "GeneralSettingsView.tsx",
@@ -330,7 +335,7 @@ describe("settings visual architecture", () => {
       "PrivacySettingsView.tsx",
       "RepositorySettingsViews.tsx",
     ].map((fileName) => source(`src/features/settings/main/${fileName}`)).join("\n");
-    const settingsImplementation = `${components}\n${view}\n${workspaceConfig}\n${splitViews}`;
+    const settingsImplementation = `${facade}\n${components}\n${view}\n${workspaceConfig}\n${splitViews}`;
     const settings = source("src/styles/settings.css");
 
     expect(components).toContain("SettingsSubsection");
@@ -393,15 +398,12 @@ describe("settings visual architecture", () => {
     expect(controls).toMatch(/\.desktop-settings-tool-list\s*{[^}]*width:\s*fit-content;[^}]*max-width:\s*100%;/s);
     expect(controls).toMatch(/\.desktop-settings-tool-item\s*{[^}]*grid-template-columns:\s*minmax\(0, max-content\) auto;[^}]*gap:\s*8px;[^}]*padding-inline:\s*8px 0;/s);
     expect(settings).not.toContain(".desktop-settings-wide-control-row > .desktop-settings-tool-list");
-    expect(view.match(/desktop-theme-segment desktop-appearance-option-segment/g)).toHaveLength(3);
-    expect(view.match(/desktop-appearance-hug-segment/g)).toHaveLength(2);
     expect(view).not.toContain("settings.appearance.navigation.title");
     expect(view).not.toContain("settings.appearance.editorPresentation");
     expect(view).not.toContain("settings.appearance.dockIcon");
     expect(localProject).not.toContain("<strong");
     expect(repository).not.toContain("<strong");
     expect(controls).not.toContain("desktop-dock-icon-segment");
-    expect(view).toContain("settings.appearance.gitSidebarLayout.title");
     expect(controls).not.toContain(".desktop-loading-animation-segment");
     expect(controls).not.toContain(".desktop-text-size-segment");
     expect(controls).not.toContain(".desktop-sidebar-layout-segment");

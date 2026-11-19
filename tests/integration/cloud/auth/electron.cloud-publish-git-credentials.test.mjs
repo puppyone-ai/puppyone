@@ -5,7 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { createCloudPublishGitCredentialManager } from "../../../../electron/main/cloud-publish-git-credentials.mjs";
-import { execGit } from "../../../../local-api/git/runner.mjs";
+import { execGit } from "../../../../electron/local-api/git/runner.mjs";
 
 const execFileAsync = promisify(execFile);
 const roots = [];

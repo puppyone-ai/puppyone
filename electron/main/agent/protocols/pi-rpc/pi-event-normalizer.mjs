@@ -58,6 +58,7 @@ export function normalizePiRpcEvent(message, state = createPiEventState()) {
       })];
     case "compaction_start":
       return [event("provider.activity", state, `${state.namespace}:compaction`, {
+        category: "compaction",
         label: "Compacting context",
         status: "running",
         reason: text(message.reason),
@@ -65,6 +66,7 @@ export function normalizePiRpcEvent(message, state = createPiEventState()) {
     case "compaction_end":
       if (message.errorMessage) state.compactionFailure = text(message.errorMessage);
       return [event("provider.activity", state, `${state.namespace}:compaction`, {
+        category: "compaction",
         label: "Compacting context",
         status: message.aborted ? "cancelled" : message.errorMessage ? "failed" : "completed",
         reason: text(message.reason),

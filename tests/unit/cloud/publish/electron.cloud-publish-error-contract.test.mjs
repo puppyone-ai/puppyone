@@ -21,7 +21,7 @@ describe("Cloud publish structured service compatibility errors", () => {
 
     expect(error.publishCode).toBe("SERVICE_UPGRADE_REQUIRED");
     expect(error.publishRetryable).toBe(true);
-    expect(error.message).toBe("PuppyOne Cloud is being upgraded. Resume publishing shortly.");
+    expect(error.message).toBe("Puppyone Cloud is being upgraded. Resume publishing shortly.");
     expect(error.cause).toBe(cause);
   });
 

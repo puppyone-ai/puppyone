@@ -59,12 +59,14 @@ describe("Chat history notices", () => {
     const failure = { kind: "agent-chat", label: "Agent Chat", code: "HISTORY_READ_FAILED", detail: null, retryable: true };
     const container = render(<TerminalWorkbenchCreationFailure failure={failure} onDismiss={() => {}} onRetry={retry} />);
     expect(container.textContent).toContain("History messages could not be loaded. Try again.");
-    act(() => container.querySelector<HTMLButtonElement>("button[aria-label='Retry']")?.click());
+    const retryButton = () => [...container.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.trim() === "Retry");
+    act(() => retryButton()?.click());
     expect(retry).toHaveBeenCalledOnce();
     act(() => root?.render(withTestLocalization(<TerminalWorkbenchCreationFailure
       failure={{ ...failure, code: "SESSION_NOT_FOUND", retryable: false }} onDismiss={() => {}} onRetry={retry}
     />)));
     expect(container.textContent).toContain("This saved chat is no longer available.");
-    expect(container.querySelector("button[aria-label='Retry']")).toBeNull();
+    expect(retryButton()).toBeUndefined();
   });
 });

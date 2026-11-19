@@ -1,94 +1,339 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { CloudIcon, LoadingMark, LocalIcon, Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
-import { Folder, Unlink } from "lucide-react";
-import type { DragEvent as ReactDragEvent } from "react";
+import { useRef, useState, type ButtonHTMLAttributes, type DragEvent as ReactDragEvent } from "react";
 import {
+  compactDisplayPath,
   getProjectName,
   getWorkspaceParentPathForDisplay,
+  projectHomeItemLocation,
   type ProjectHomeItem,
-} from "../../features/app-shell/workspaceHomeModel";
-import { DesktopMenuIconButton, DesktopMenuItem } from "../DesktopMenu";
-import { InlineLoading } from "../loading";
+} from "../../lib/workspaceHomeModel";
+import type { HomepageProjectLayout } from "../../preferenceStorage";
+import type { ProjectAssetPreview } from "../../types/electron";
+import { AgentAvatarMark } from "../brand/AgentAvatarMark";
+import { ProjectRowActions, type ProjectActionSurface } from "../ProjectRowActions";
+import { hasProjectAudience, type ProjectAudience } from "../project-audience";
+import { DesktopMenuItem } from "../DesktopMenu";
+import type { HomepageCloudAgent } from "./HomepageAgentStrip";
+import { ProjectFolderGlyph } from "./ProjectFolderGlyph";
+import {
+  normalizeComputerWorkspacePath,
+  ProjectComputerGlyph,
+  type ComputerVisualPowerState,
+} from "../../features/computer-mode";
+import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
+import { useProjectListNavigation } from "./useProjectListNavigation";
 
-type OnboardingProjectListProps = {
+type ProjectChanges = {
+  onRename?: (path: string, name: string) => Promise<void>;
+  onRemove?: (path: string) => Promise<void>;
+  onRenameCloudProject?: (projectId: string, name: string) => Promise<void>;
+  onDeleteCloudProject?: (projectId: string) => Promise<void>;
+};
+
+/** Which of this computer's folders its owner's other computers can open, and where that is changed. */
+export type ProjectListSharing = Readonly<{
+  sharedFolderIds: ReadonlySet<string>;
+  onSharingSettings: (folder: Readonly<{ folderId: string; name: string; rootPath: string }>) => void;
+  /** Keeps the folder to this computer again, as moving it to On this computer. */
+  onStopSharing?: (folder: Readonly<{ folderId: string; rootPath: string }>) => void;
+  /** The owner's other computers, by name, that a shared folder is open to. */
+  otherComputers?: readonly string[];
+}>;
+
+type OnboardingProjectListProps = ProjectChanges & {
+  sharing?: ProjectListSharing;
+  /** Who can open each project, and the way to change it, in its menu. */
+  audience?: (item: ProjectHomeItem) => ProjectAudience | null;
+  /** The rows are not settled yet, so the mark stands in for them. */
+  held?: boolean;
   items: ProjectHomeItem[];
+  layout?: HomepageProjectLayout;
+  onOpenCloudProject?: (projectId: string) => void;
   busy: boolean;
   openingPath: string | null;
-  removingPath: string | null;
   draggingPath: string | null;
   onOpen: (path: string) => void;
-  onRemove?: (item: ProjectHomeItem) => void;
+  /** Local projects whose folder cannot be opened now, with the few words that say why. */
+  unavailable?: ReadonlyMap<string, string>;
+  /** Asks what to do about such a project, instead of opening it. */
+  onOpenUnavailable?: (path: string) => void;
+  /** Top-level asset previews per project, when known. */
+  previews?: ReadonlyMap<string, readonly ProjectAssetPreview[]>;
+  /** Agents with access to each Cloud project, shown on Cloud project tiles only. */
+  cloudProjectAgents?: ReadonlyMap<string, readonly HomepageCloudAgent[]>;
+  /** Outer visual entity: ordinary folder or miniature computer. */
+  presentation?: "folder" | "computer";
+  /** Power state per normalized workspace path when rendered as computers. */
+  computerPowerByPath?: ReadonlyMap<string, ComputerVisualPowerState>;
   onDragStart: (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => void;
   onDragEnd: () => void;
 };
 
 export function OnboardingProjectList({
+  held = false,
   items,
+  layout = "grid",
+  onOpenCloudProject,
   busy,
   openingPath,
-  removingPath,
   draggingPath,
   onOpen,
-  onRemove,
+  unavailable,
+  onOpenUnavailable,
+  previews,
+  cloudProjectAgents,
+  presentation = "folder",
+  computerPowerByPath,
   onDragStart,
   onDragEnd,
+  sharing,
+  audience,
+  ...changes
 }: OnboardingProjectListProps) {
   const { t, formatRelativeTime } = useLocalization();
+  const [actions, setActions] = useState<{ id: string; surface: ProjectActionSurface } | null>(null);
+  const navigation = useProjectListNavigation(items.map((item) => item.id), layout);
+
+  if (held) return (
+    <div className="onboarding-project-list-wait">
+      <LoadingMark className="onboarding-project-list-loading" layout="area"
+        ariaLabel={t("common.status.loading")} size="md" tone="neutral" />
+    </div>
+  );
 
   return (
-    <div className="onboarding-project-list" data-po-scrollbar="menu">
+    <ul
+      ref={navigation.listRef}
+      role="list"
+      className="onboarding-project-list"
+      data-project-layout={layout}
+      data-po-scrollbar="menu"
+      data-po-scrollbar-visibility="always"
+      aria-label={t("onboarding.projects.title")}
+      onKeyDown={navigation.onKeyDown}
+    >
       {items.map((item) => {
         const name = getProjectName(item, t("onboarding.projects.untitled"));
-        const parentPath = getWorkspaceParentPathForDisplay(item.localPath);
-        const removing = removingPath === item.localPath;
+        const location = projectHomeItemLocation(item);
+        const surface = actions?.id === item.id ? actions.surface : null;
         const dragging = draggingPath === item.localPath;
+        const linked = item.linkedCloudProject;
+        const modified = formatModificationTime(item.lastModifiedAt, t, formatRelativeTime);
+        const sharedId = item.localPath && item.hostFolderId && sharing?.sharedFolderIds.has(item.hostFolderId)
+          ? item.hostFolderId : null;
+        const tabIndex = item.id === navigation.stopId ? 0 : -1;
+        const unavailableCaption = location === "local" && item.localPath ? unavailable?.get(item.localPath) ?? null : null;
+        let itemPreviews = previews?.get(item.id);
+        if (!itemPreviews) {
+          if (location === "cloud" && item.cloudProjectId) {
+            itemPreviews = previews?.get(`cloud:${item.cloudProjectId}`) ?? previews?.get(item.cloudProjectId);
+          } else if (item.localPath) {
+            itemPreviews = previews?.get(item.localPath);
+          }
+        }
+        const itemAgents = location === "cloud" && item.cloudProjectId
+          ? cloudProjectAgents?.get(item.cloudProjectId)
+          : undefined;
+        const normalizedPath = normalizeComputerWorkspacePath(item.localPath);
+        const computerPower: ComputerVisualPowerState = location === "cloud"
+          ? "running"
+          : (computerPowerByPath?.get(normalizedPath) ?? "running");
+        const computerKind = location === "cloud" ? "cloud" : "on-device";
+        const rowGlyph = presentation === "computer"
+          ? <ProjectComputerGlyph kind={computerKind} power={computerPower} previews={itemPreviews} size="sm" />
+          : <ProjectFolderGlyph previews={itemPreviews} size="sm" />;
+        let rowDetail = <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>;
+        if (location === "cloud") rowDetail = <ProjectHomeItemCaption item={item} />;
+        else if (unavailableCaption) rowDetail = <span className="onboarding-project-status">{unavailableCaption}</span>;
+        const open = {
+          "data-project-open": true,
+          tabIndex,
+          disabled: busy,
+          "aria-busy": openingPath === item.localPath || undefined,
+          "aria-label": t(location === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) }),
+          "aria-description": unavailableCaption ?? undefined,
+          draggable: !busy && Boolean(item.localPath) && !unavailableCaption,
+          onClick: () => {
+            if (location === "cloud" && item.cloudProjectId) onOpenCloudProject?.(item.cloudProjectId);
+            else if (unavailableCaption && onOpenUnavailable) onOpenUnavailable(item.localPath);
+            else onOpen(item.localPath);
+          },
+          onDragStart: (event: ReactDragEvent<HTMLButtonElement>) => onDragStart(event, item),
+          onDragEnd,
+        };
         return (
-          <div className={`onboarding-project-row-wrap ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""}`} key={item.id}>
-            <DesktopMenuItem
+          <li key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${dragging ? "is-dragging" : ""}`}
+            data-menu-open={surface === "menu" ? "true" : undefined}
+            data-unavailable={unavailableCaption ? "true" : undefined}
+            data-project-location={location}
+            data-cloud-project-id={item.cloudProjectId}
+            data-linked-cloud-project-id={linked?.id}
+            onFocus={() => navigation.setFocusedId(item.id)}>
+            {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} shared={Boolean(sharedId)}
+              status={unavailableCaption} previews={itemPreviews} agents={itemAgents}
+              presentation={presentation} computerPower={computerPower} {...open} /> : <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
-              icon={<Folder size={14} strokeWidth={1.85} />}
-              label={<bdi>{name}</bdi>}
-              detail={parentPath ? <Tooltip content={item.localPath} overflowOnly><bdi dir="ltr">{parentPath}</bdi></Tooltip> : undefined}
-              trailing={openingPath === item.localPath
-                ? <InlineLoading label={t("onboarding.status.opening")} size="xs" tone="neutral" />
-                : formatRecentWorkspaceTime(item.lastOpenedAt, t, formatRelativeTime)}
-              disabled={busy}
-              aria-busy={openingPath === item.localPath || undefined}
-              aria-label={t("onboarding.projects.open", { project: bidiIsolate(name) })}
-              draggable={!busy}
-              onClick={() => onOpen(item.localPath)}
-              onDragStart={(event) => onDragStart(event, item)}
-              onDragEnd={onDragEnd}
-            />
-            {onRemove && (
-              <DesktopMenuIconButton
-                className="onboarding-project-remove"
-                disabled={busy && !removing}
-                aria-busy={removing || undefined}
-                label={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}
-                tooltip={t("onboarding.projects.removeHint")}
-                onClick={() => onRemove(item)}
-                icon={removing
-                  ? <InlineLoading label={null} size="xs" tone="neutral" />
-                  : <Unlink size={14} aria-hidden="true" />}
-              />
-            )}
-          </div>
+              icon={<span className={`onboarding-project-icon ${itemPreviews && itemPreviews.length > 0 ? "has-previews" : ""}`} aria-hidden="true">{rowGlyph}</span>}
+              label={<><bdi>{name}</bdi><ProjectPlaceMark cloud={location === "cloud"} /></>}
+              detail={rowDetail}
+              trailing={modified}
+              {...open}
+            />}
+            {linked && onOpenCloudProject && <LinkedCloudProjectButton project={linked} busy={busy}
+              className="onboarding-project-cloud-link" tabIndex={tabIndex}
+              onOpen={() => onOpenCloudProject(linked.id)} />}
+            <ProjectActions item={item} name={name} busy={busy} surface={surface} tabIndex={tabIndex} {...changes}
+              audience={audience?.(item)}
+              onSurfaceChange={(next) => {
+                if (!next) navigation.handOffFocusIfGone(item.id);
+                setActions(next && { id: item.id, surface: next });
+              }} />
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }
 
-function formatRecentWorkspaceTime(
+/**
+ * What can be done to one entry. A folder and its Cloud project are two projects
+ * (ADR-001), so each menu speaks for its own entry: a folder is only ever unlinked
+ * from this app, and only a Cloud project can be deleted.
+ */
+function offeredProjectChanges({ localPath, cloudProjectId, cloudActions }: ProjectHomeItem, changes: ProjectChanges) {
+  const { onRename, onRemove, onRenameCloudProject, onDeleteCloudProject } = changes;
+  if (localPath) return {
+    onRename: onRename && ((name: string) => onRename(localPath, name)),
+    onUnlink: onRemove && (() => onRemove(localPath)),
+  };
+  if (!cloudProjectId) return {};
+  return {
+    onRename: cloudActions?.rename && onRenameCloudProject ? (name: string) => onRenameCloudProject(cloudProjectId, name) : undefined,
+    onDelete: cloudActions?.delete && onDeleteCloudProject ? () => onDeleteCloudProject(cloudProjectId) : undefined,
+  };
+}
+
+/** Nothing is offered that this account may not do; an entry with nothing to offer has no trigger. */
+function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, audience, ...changes }: ProjectChanges & {
+  item: ProjectHomeItem;
+  audience?: ProjectAudience | null;
+  name: string;
+  busy: boolean;
+  surface: ProjectActionSurface;
+  tabIndex: number;
+  onSurfaceChange: (surface: ProjectActionSurface) => void;
+}) {
+  const offered = offeredProjectChanges(item, changes);
+  if (!Object.values(offered).some(Boolean) && !hasProjectAudience(audience)) return null;
+  return (
+    <ProjectRowActions
+      project={{ name, path: item.localPath || undefined }}
+      surface={surface}
+      onSurfaceChange={onSurfaceChange}
+      disabled={busy}
+      triggerClassName="desktop-menu-icon-button onboarding-project-actions"
+      triggerTabIndex={tabIndex}
+      menuPlacement="beside"
+      audience={audience}
+      {...offered}
+    />
+  );
+}
+
+/**
+ * Where a shared project lives, as one small mark after its name: the Cloud, or a
+ * computer. Shown only in the shared groups; the local group needs no mark.
+ */
+export function ProjectPlaceMark({ cloud }: { cloud: boolean }) {
+  const Icon = cloud ? CloudIcon : LocalIcon;
+  return <span className="onboarding-project-place-mark" aria-hidden="true"><Icon size={12} strokeWidth={1.85} /></span>;
+}
+
+/**
+ * One project on the Grid: a folder and one line of name. Every project is the same
+ * folder. The tooltip adds where it lives and when it last changed, and the name
+ * itself only when the line has cut it.
+ */
+function ProjectTile({
+  item,
+  name,
+  modified,
+  shared,
+  status,
+  previews,
+  agents,
+  presentation = "folder",
+  computerPower = "running",
+  ...button
+}: {
+  item: ProjectHomeItem;
+  name: string;
+  modified: string | null;
+  shared: boolean;
+  /** Why its folder cannot be opened now, said under its name. */
+  status?: string | null;
+  previews?: readonly ProjectAssetPreview[];
+  agents?: readonly HomepageCloudAgent[];
+  presentation?: "folder" | "computer";
+  computerPower?: ComputerVisualPowerState;
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { t } = useLocalization();
+  const caption = useProjectHomeItemCaption(item);
+  const isCloud = projectHomeItemLocation(item) === "cloud";
+  const place = isCloud ? caption : getWorkspaceParentPathForDisplay(item.localPath);
+  const tilePlace = isCloud ? place : compactDisplayPath(place, 1);
+  let powerLabel: string | null = null;
+  if (presentation === "computer" && !isCloud) {
+    powerLabel = t(`onboarding.computerMode.status.${computerPower}`);
+  }
+  const meta = [powerLabel ?? tilePlace, modified].filter(Boolean).join(" · ");
+  const hasPreviews = Boolean(previews && previews.length > 0);
+  const computerKind = isCloud ? "cloud" : "on-device";
+  const tileGlyph = presentation === "computer"
+    ? <ProjectComputerGlyph kind={computerKind} power={computerPower} previews={previews} />
+    : <ProjectFolderGlyph previews={previews} />;
+  const nameRef = useRef<HTMLElement>(null);
+  const [nameCut, setNameCut] = useState(false);
+  const measureName = () => {
+    const shown = nameRef.current;
+    setNameCut(Boolean(shown && shown.scrollWidth > shown.clientWidth));
+  };
+  return (
+    <Tooltip content={[nameCut && name, place, shared && t("hosts.home.shared"), modified].filter(Boolean).join(" · ")}>
+      <button type="button" className="onboarding-project-tile" onPointerEnter={measureName} onFocus={measureName} {...button}>
+        <span className={`onboarding-project-folder ${hasPreviews ? "has-previews" : ""}`} aria-hidden="true">
+          {tileGlyph}
+          {agents && agents.length > 0 && (
+            <span className="onboarding-project-folder-agents">
+              {agents.slice(0, 3).map((agent) => (
+                <span key={agent.id} className="onboarding-project-folder-agent">
+                  <AgentAvatarMark name={agent.name} avatar={agent.avatar} active={false} size={17} />
+                </span>
+              ))}
+            </span>
+          )}
+        </span>
+        <span className="onboarding-project-tile-label">
+          <bdi ref={nameRef} className="onboarding-project-tile-name">{name}</bdi>
+          <ProjectPlaceMark cloud={projectHomeItemLocation(item) === "cloud"} />
+        </span>
+        {status ? <span className="onboarding-project-status">{status}</span> : null}
+        {!status && meta ? <span className="onboarding-project-tile-meta" dir="auto">{meta}</span> : null}
+      </button>
+    </Tooltip>
+  );
+}
+
+function formatModificationTime(
   value: string | null | undefined,
   t: MessageFormatter,
   formatRelativeTime: (value: number, unit: Intl.RelativeTimeFormatUnit, options?: Intl.RelativeTimeFormatOptions) => string,
 ) {
-  if (!value) return t("onboarding.time.previouslyOpened");
+  if (!value) return null;
   const timestamp = new Date(value).getTime();
-  if (Number.isNaN(timestamp)) return t("onboarding.time.previouslyOpened");
+  if (Number.isNaN(timestamp)) return null;
   const elapsed = Math.max(0, Date.now() - timestamp);
   const minute = 60_000;
   const hour = 60 * minute;

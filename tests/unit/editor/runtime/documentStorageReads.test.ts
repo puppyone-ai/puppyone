@@ -1,7 +1,7 @@
 import type { DataPort, DocumentPersistencePort, FileContent } from "@puppyone/shared-ui";
 import { describe, expect, it, vi } from "vitest";
-import { DocumentEditingSession } from "../../../../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
-import { readDocumentStorageSnapshot } from "../../../../packages/shared-ui/src/editor/document-session/documentStorageReads";
+import { DocumentEditingSession } from "../../../../src/shared-ui/editor/document-session/DocumentEditingSession";
+import { readDocumentStorageSnapshot } from "../../../../src/shared-ui/editor/document-session/documentStorageReads";
 
 describe("document storage observation ordering", () => {
   it("retries a text/resource version mismatch using a newly read disk version", async () => {

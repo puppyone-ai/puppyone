@@ -71,8 +71,6 @@
   width: min(112px, 72%);
   height: 11px;
   border-radius: 999px;
-  background: var(--po-skeleton-base);
-  animation: pulse 1.6s ease-in-out infinite;
 }
 
 .desktop-cloud-overview-project-storage {
@@ -96,7 +94,7 @@
   background: var(--po-accent);
 }
 
+/* The pending track is a loading placeholder shape; it must not keep the idle track fill. */
 .desktop-cloud-overview-project-storage.is-loading .desktop-cloud-overview-project-storage-track {
-  background: var(--po-skeleton-base);
-  animation: pulse 1.6s ease-in-out infinite;
+  background: var(--po-placeholder-fill, var(--po-skeleton-base));
 }

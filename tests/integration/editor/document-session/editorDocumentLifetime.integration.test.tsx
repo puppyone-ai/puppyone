@@ -5,17 +5,18 @@ import { EditorView } from "@codemirror/view";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DataPort, DocumentDataNode, DocumentPersistencePort } from "../../../../packages/shared-ui/src/core/types";
-import { createWorkspaceContentChange } from "../../../../packages/shared-ui/src/core/workspaceContentChange";
-import { CodeMirrorDocumentModel } from "../../../../packages/shared-ui/src/editor/document-session/CodeMirrorDocumentModel";
-import { DocumentSessionBoundary } from "../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
-import { closeAllDocumentWorkingCopies, getOrCreateDocumentWorkingCopy } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { MarkdownCodeMirrorEditor } from "../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
-import { getDocumentInputRuntime, invalidateDocumentInputs, retireAllDocumentInputs } from "../../../../packages/shared-ui/src/editor/resource/DocumentInputRuntime";
-import { EditorTaskBoundary, useEditorTaskOwner } from "../../../../packages/shared-ui/src/editor/runtime/EditorTaskContext";
-import { holdEditorRuntimeAdmission } from "../../../../packages/shared-ui/src/editor/runtime/editorRuntimeAdmission";
-import { CodeMirrorCodeEditor } from "../../../../packages/shared-ui/src/editor/viewers/code/CodeMirrorCodeEditor";
-import { TextEditorFrame } from "../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
+import type { DataPort, DocumentDataNode, DocumentPersistencePort } from "../../../../src/shared-ui/core/types";
+import { createWorkspaceContentChange } from "../../../../src/shared-ui/core/workspaceContentChange";
+import { CodeMirrorDocumentModel } from "../../../../src/shared-ui/editor/document-session/CodeMirrorDocumentModel";
+import { DocumentSessionBoundary } from "../../../../src/shared-ui/editor/document-session/DocumentSessionBoundary";
+import { AUTO_SAVE_IDLE_MS } from "../../../../src/shared-ui/editor/document-session/autoSavePolicy";
+import { closeAllDocumentWorkingCopies, getOrCreateDocumentWorkingCopy } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
+import { MarkdownCodeMirrorEditor } from "../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor";
+import { getDocumentInputRuntime, invalidateDocumentInputs, retireAllDocumentInputs } from "../../../../src/shared-ui/editor/resource/DocumentInputRuntime";
+import { EditorTaskBoundary, useEditorTaskOwner } from "../../../../src/shared-ui/editor/runtime/EditorTaskContext";
+import { holdEditorRuntimeAdmission } from "../../../../src/shared-ui/editor/runtime/editorRuntimeAdmission";
+import { CodeMirrorCodeEditor } from "../../../../src/shared-ui/editor/viewers/code/CodeMirrorCodeEditor";
+import { TextEditorFrame } from "../../../../src/shared-ui/editor/viewers/shared/TextEditorFrame";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -70,6 +71,7 @@ describe.each(["code", "markdown"] as const)("%s document lifetime", (kind) => {
     await act(async () => render(true));
     const original = view(container);
     await act(async () => original.dispatch({ changes: { from: 5, insert: " edited" }, userEvent: "input.type" }));
+    await typingPause();
     expect(disk).toBe("alpha edited");
     await act(async () => render(false));
     const saves = persist.mock.calls.length;
@@ -79,8 +81,10 @@ describe.each(["code", "markdown"] as const)("%s document lifetime", (kind) => {
     expect(restored.state.doc.toString()).toBe("alpha edited");
     expect(persist).toHaveBeenCalledTimes(saves);
     await act(async () => { expect(undo(restored)).toBe(true); });
+    await typingPause();
     expect(disk).toBe("alpha");
     await act(async () => { expect(redo(restored)).toBe(true); });
+    await typingPause();
     expect(disk).toBe("alpha edited");
   });
 
@@ -123,3 +127,5 @@ function view(container: HTMLElement): EditorView {
   return requireEditorView(element);
 }
 async function ticks() { for (let count = 0; count < 12; count++) await Promise.resolve(); }
+/** Auto-save writes after the person stops typing. */
+async function typingPause() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, AUTO_SAVE_IDLE_MS + 20)); }); }

@@ -16,7 +16,7 @@ app.setPath("userData", userDataPath);
 app.commandLine.appendSwitch("disable-gpu");
 
 const officeCss = await fsp.readFile(
-  path.join(repoRoot, "packages/shared-ui/src/styles/editor/media-office-preview.css"),
+  path.join(repoRoot, "src/shared-ui/styles/editor/media-office-preview.css"),
   "utf8",
 );
 

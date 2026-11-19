@@ -1,12 +1,11 @@
-import { Bot, Cloud, Database, GitBranch, Link, Server, SquareTerminal } from "lucide-react";
+import { Bot, Database, GitBranch, Link, Server, SquareTerminal } from "lucide-react";
 import type { LocaleFormatters, MessageFormatter } from "@puppyone/localization/core";
 import {
   RENDERER_ASSET_PATHS,
   resolveRendererPublicAssetUrl,
 } from "@puppyone/shared-ui";
 import type {
-  DesktopCloudConnector,
-  DesktopCloudMcpEndpoint,
+  DesktopCloudAccessSurface,
   DesktopCloudRepoIdentity,
   DesktopCloudRepositoryView,
   DesktopCloudScope,
@@ -154,8 +153,9 @@ export async function copyText(value: string) {
 export function getCloudScopeRows(
   scopes: DesktopCloudScope[],
   identity: DesktopCloudRepoIdentity | null,
+  canonicalProjectId?: string | null,
 ): DesktopCloudRepositoryView[] {
-  const projectId = identity?.project_id ?? scopes[0]?.project_id ?? null;
+  const projectId = canonicalProjectId ?? identity?.project_id ?? scopes[0]?.project_id ?? null;
   if (!projectId) return [];
   return [
     projectRootRepositoryView(projectId),
@@ -203,39 +203,13 @@ export function isConnectorActiveStatus(status: string | null | undefined) {
 
 export function isScopeActive(
   scope: DesktopCloudRepositoryView,
-  connectors: DesktopCloudConnector[],
+  connectors: DesktopCloudAccessSurface[],
   endpointCount: number,
 ) {
   return Boolean(
     endpointCount > 0 ||
     connectors.some((connector) => isConnectorActiveStatus(connector.status)),
   );
-}
-
-export function countScopeAccessSurfaces(
-  scope: DesktopCloudRepositoryView,
-  connectors: DesktopCloudConnector[],
-  endpointCount: number,
-) {
-  void scope;
-  void connectors;
-  return 2 + Math.max(1, endpointCount);
-}
-
-export function scopeMatchesMcpEndpoint(scope: DesktopCloudRepositoryView, endpoint: DesktopCloudMcpEndpoint) {
-  const scopePath = normalizeCloudEntryPath(scope.path);
-  const endpointAccesses = endpoint.accesses ?? [];
-  if (endpointAccesses.length > 0) {
-    return endpointAccesses.some((access) => {
-      const accessPath = normalizeCloudEntryPath(access.path || "");
-      return scope.target.kind === "project_root"
-        ? accessPath === ""
-        : accessPath === scopePath;
-    });
-  }
-  const endpointPath = normalizeCloudEntryPath(endpoint.path ?? "");
-  if (scope.target.kind === "project_root" && !endpointPath) return true;
-  return endpointPath === scopePath;
 }
 
 export function profileSlug(value: string) {

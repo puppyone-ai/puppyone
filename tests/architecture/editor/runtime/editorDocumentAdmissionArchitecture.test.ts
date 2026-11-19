@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 const appSource = read("src/App.tsx");
 const controllerSource = read("src/features/editor-workbench/controller/useDesktopEditorWorkbench.ts");
 const runtimeSource = read("src/features/editor-workbench/runtime/EditorPaneDocumentRuntime.tsx");
-const coreTypesSource = read("packages/shared-ui/src/core/types.ts");
-const viewerTypesSource = read("packages/shared-ui/src/editor/registry/viewerTypes.ts");
+const coreTypesSource = read("src/shared-ui/core/types.ts");
+const viewerTypesSource = read("src/shared-ui/editor/registry/viewerTypes.ts");
 
 describe("document admission architecture", () => {
   it("keeps Explorer selection separate from document opening commands", () => {

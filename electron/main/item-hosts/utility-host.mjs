@@ -1,3 +1,4 @@
+import { createHostLiveness } from "./host-liveness.mjs";
 import { randomUUID } from "node:crypto";
 import { createHostRpc, hostError } from "../../../shared/item-host-contract/rpc.mjs";
 import { createNativeProcessOwner } from "./native-process-owner.mjs";
@@ -24,7 +25,6 @@ export function createUtilityHost({ utilityProcess, modulePath, identity, budget
   let closing = false;
   let closePromise = null;
   let escalationRequested = false;
-  let lastHeartbeat = Date.now();
   let failure = null;
   let resolveExit;
   let exitInfo = null;
@@ -38,11 +38,18 @@ export function createUtilityHost({ utilityProcess, modulePath, identity, budget
     onEvent({ type: "host-failed", code: error.code, message: error.message });
     child.kill();
   };
-  const watchdog = setInterval(() => {
-    if (Date.now() - lastHeartbeat > budget.policy.heartbeatTimeoutMs) {
-      fail(hostError("HOST_UNRESPONSIVE", "The execution host stopped responding."));
-    }
-  }, 2_000);
+  const liveness = createHostLiveness({ timeoutMs: budget.policy.heartbeatTimeoutMs,
+    probe: () => {
+      if (exited || closing) return;
+      try { child.postMessage({ type: "health-probe", generation }); }
+      catch { /* The exit event, not a failed probe, owns process cleanup. */ }
+    },
+    onChange: (state) => {
+      logger.info?.("Execution host health changed:", { generation, state, kind: identity.kind });
+      onEvent({ type: "host-health", state });
+    },
+  });
+  const watchdog = setInterval(() => liveness.tick(), 2_000);
   watchdog.unref?.();
   const forceExit = () => {
     escalationRequested = true;
@@ -64,13 +71,16 @@ export function createUtilityHost({ utilityProcess, modulePath, identity, budget
       }).catch(() => forceExit());
     }
     else if (message.type === "heartbeat") {
-      lastHeartbeat = Date.now();
+      liveness.observe();
       if (message.rss > budget.policy.utilityRssBytes) fail(hostError("HOST_MEMORY_BUDGET", "The execution host exceeded its memory budget."));
     } else if (message.type === "event") onEvent(message.event);
     else void rpc.receive(message).catch((error) => fail(error));
   });
   child.once("exit", (code) => {
-    if (code !== 0 && diagnosticBytes) logger.warn?.("Instance execution host exited:", { code, diagnosticBytes });
+    if (code !== 0 || failure) logger.warn?.("Instance execution host exited:", {
+      generation, kind: identity.kind, code, diagnosticBytes, failureCode: failure?.code ?? null,
+      expected: closing && !failure, health: liveness.snapshot().state,
+    });
     exited = true;
     clearInterval(watchdog);
     rpc.close(failure ?? hostError("HOST_EXITED", "The execution host exited."));
@@ -122,6 +132,6 @@ export function createUtilityHost({ utilityProcess, modulePath, identity, budget
       })]).finally(() => { clearTimeout(escalation); clearTimeout(deadline); closePromise = null; });
       return closePromise;
     },
-    diagnostics: () => ({ generation, pid: child.pid ?? null, exited, closing, failure: failure?.code ?? null, nativeProcesses: nativeProcesses.snapshot(), ...rpc.diagnostics() }),
+    diagnostics: () => ({ generation, pid: child.pid ?? null, exited, closing, failure: failure?.code ?? null, health: liveness.snapshot(), nativeProcesses: nativeProcesses.snapshot(), ...rpc.diagnostics() }),
   });
 }

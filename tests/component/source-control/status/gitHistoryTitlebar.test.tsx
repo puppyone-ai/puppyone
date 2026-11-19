@@ -1,15 +1,18 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopTitlebarActions } from "../../../../src/features/app-shell/DesktopTitlebarActions";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DEFAULT_TITLEBAR_ACTIONS_SETTINGS } from "../../../../src/preferences";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 
@@ -20,7 +23,7 @@ afterEach(() => {
 });
 
 describe("Git right-sidebar titlebar entries", () => {
-  it.each([false, true])("keeps one working Git entry on the right with centered project %s", (centered) => {
+  it("keeps one working Git entry on the right", () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -29,7 +32,6 @@ describe("Git right-sidebar titlebar entries", () => {
     const onShare = vi.fn();
     const onToggleWorkspaceSwitcher = vi.fn();
     const actionProps = {
-      titlebarActionsSettings: DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
       terminalSidebarOpen: false,
       terminalToolEnabled: true,
       gitChangesAvailable: true,
@@ -41,35 +43,28 @@ describe("Git right-sidebar titlebar entries", () => {
       shareEnabled: true,
       onShare,
     };
-    const render = (centered: boolean, changesEnabled = true) => act(() => root?.render(withTestLocalization(
+    const render = (changesEnabled = true) => act(() => {
+      preferences.getState().setTitlebarActionsSettings(current => ({ ...current, enabled: { ...current.enabled, changes: changesEnabled } }));
+      root?.render(withTestLocalization(
       <>
         <DesktopTitlebarContext
-          compactProjectMenu={centered}
-          activeGitStatus={null}
-          branchSwitcherOpen={false} branchSwitcherRef={createRef<HTMLDivElement>()}
-          gitStatusLoading={false} gitOperationLoading={null}
-          localBranches={[]} remoteBranches={[]}
+          titlebarLabel="Demo"
           workspace={{ id: "demo", name: "Demo", path: "/tmp/demo", status: "recording" }}
           workspaceFolders={[]} multiRootWorkspacesEnabled={false} availableProjects={[]}
-          workspaceSwitcherOpen={false} workspaceSwitcherRef={createRef<HTMLDivElement>()}
-          onCheckoutBranch={vi.fn(async () => true)}
-          onCloseBranchSwitcher={vi.fn()} onCloseWorkspaceSwitcher={vi.fn()}
-          onAddProject={vi.fn()} onAddExistingProject={vi.fn()}
-          onToggleBranchSwitcher={vi.fn()} onToggleWorkspaceSwitcher={onToggleWorkspaceSwitcher}
+          open={false} refObject={createRef<HTMLDivElement>()}
+          onClose={vi.fn()} onToggle={onToggleWorkspaceSwitcher}
         />
         <div data-header-trailing>
           <DesktopTitlebarActions
             {...actionProps}
-            titlebarActionsSettings={{
-              ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
-              enabled: { ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS.enabled, changes: changesEnabled },
-            }}
           />
         </div>
       </>,
-    )));
+    ));
+    });
 
-    render(centered);
+    render();
+    expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
     const context = container.querySelector(".desktop-titlebar-context");
     const trailing = container.querySelector("[data-header-trailing]");
     const changes = container.querySelector<HTMLButtonElement>(".desktop-titlebar-changes");
@@ -80,29 +75,27 @@ describe("Git right-sidebar titlebar entries", () => {
     expect(changes?.getAttribute("aria-label")).toContain("Pull 4 commits");
     expect(context?.querySelector(".desktop-titlebar-share")).toBeNull();
     expect(context?.querySelector(".desktop-titlebar-terminal")).toBeNull();
-    expect(trailing?.querySelector(".desktop-titlebar-share")).not.toBeNull();
+    expect(trailing?.querySelector(".desktop-titlebar-share")).toBeNull();
     expect(trailing?.querySelector(".desktop-titlebar-terminal")).not.toBeNull();
     expect(context?.querySelector(".desktop-titlebar-action-divider")).toBeNull();
     expect(Array.from(trailing?.querySelectorAll(".desktop-titlebar-action") ?? []).map((button) =>
       button.className,
     )).toEqual([
-      "desktop-titlebar-action desktop-titlebar-share",
       "desktop-titlebar-action desktop-titlebar-changes",
       "desktop-titlebar-action desktop-titlebar-terminal",
     ]);
 
     act(() => {
       changes?.click();
-      trailing?.querySelector<HTMLButtonElement>(".desktop-titlebar-share")?.click();
       trailing?.querySelector<HTMLButtonElement>(".desktop-titlebar-terminal")?.click();
       context?.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")?.click();
     });
     expect(onToggleGitChanges).toHaveBeenCalledOnce();
     expect(onToggleTerminal).toHaveBeenCalledOnce();
-    expect(onShare).toHaveBeenCalledOnce();
+    expect(onShare).not.toHaveBeenCalled();
     expect(onToggleWorkspaceSwitcher).toHaveBeenCalledOnce();
 
-    render(!centered);
+    render();
     expect(container.querySelectorAll(".desktop-titlebar-changes")).toHaveLength(1);
     expect(container.querySelector(".desktop-titlebar-context")?.contains(
       container.querySelector(".desktop-titlebar-changes"),
@@ -110,10 +103,11 @@ describe("Git right-sidebar titlebar entries", () => {
     expect(container.querySelector("[data-header-trailing]")?.contains(
       container.querySelector(".desktop-titlebar-changes"),
     )).toBe(true);
-    render(centered, false);
+    act(() => preferences.getState().setTitlebarActionsSettings(current => ({ ...current, enabled: { ...current.enabled, changes: false } })));
     expect(container.querySelector(".desktop-titlebar-changes")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-context .desktop-titlebar-action-divider")).toBeNull();
     expect(container.querySelector(".desktop-titlebar-terminal")).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.titlebarActions")!).enabled.changes).toBe(false);
   });
 
   it("retains Git in the workspace toolbar", () => {
@@ -122,7 +116,6 @@ describe("Git right-sidebar titlebar entries", () => {
     root = createRoot(container);
     act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions
-        titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
         terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable
         placement="toolbar" visibleGroups={["header", "right-sidebar"]}
         onToggleTerminal={vi.fn()}
@@ -137,13 +130,10 @@ describe("Git right-sidebar titlebar entries", () => {
     document.body.append(container);
     root = createRoot(container);
     const onToggleGitChanges = vi.fn();
+    preferences.getState().setTitlebarActionsSettings({ ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS, order: ["terminal", "changes"] });
 
     act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions
-        titlebarActionsSettings={{
-          ...DEFAULT_TITLEBAR_ACTIONS_SETTINGS,
-          order: ["terminal", "changes"],
-        }}
         terminalSidebarOpen={false}
         terminalToolEnabled
         gitChangesAvailable
@@ -199,7 +189,6 @@ describe("Git right-sidebar titlebar entries", () => {
 
     act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions
-        titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
         terminalSidebarOpen={false}
         terminalToolEnabled={false}
         gitChangesAvailable

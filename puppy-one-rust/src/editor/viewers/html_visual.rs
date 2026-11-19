@@ -690,6 +690,9 @@ mod tests {
         assert_eq!(boot["canImport"], true);
         assert_eq!(boot["generation"], 4);
         assert_eq!(boot["messages"]["editor.html.editBlock"], "Edit block");
+        // Block and link controls copy, projected ahead of the pin.
+        assert_eq!(boot["messages"]["editor.html.moveUp"], "Move up");
+        assert_eq!(boot["messages"]["editor.html.linkUrl"], "Link URL");
         assert!(html.contains("--po-canvas:"));
         assert!(html.contains("registerPrepare"));
     }

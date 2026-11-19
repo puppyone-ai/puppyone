@@ -6,12 +6,11 @@ const source = (path: string) => readFileSync(new URL(`../../../../${path}`, imp
 describe("appearance surface boundary", () => {
   it("keeps Root/Sub Theme identity in the product shell and out of shared editors", () => {
     const app = source("src/App.tsx");
-    const markdown = source("packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor.tsx");
-    const csv = source("packages/shared-ui/src/editor/viewers/csv/CsvTableEditor.tsx");
+    const markdown = source("src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor.tsx");
+    const csv = source("src/shared-ui/editor/viewers/csv/CsvTableEditor.tsx");
     const onboarding = source("src/components/MinimalOnboarding.tsx");
-    const assetHome = source("src/components/AssetLibraryHome.tsx");
     const restoring = source("src/features/app-shell/RestoringWorkspaceScreen.tsx");
-    const context = source("packages/shared-ui/src/core/appearance/EditorAppearanceContext.tsx");
+    const context = source("src/shared-ui/core/appearance/EditorAppearanceContext.tsx");
     const runtime = source("src/features/appearance/AppearanceRuntime.tsx");
 
     expect(app).toContain("<SurfaceAppearanceProvider value={surfaceAppearance}>");
@@ -20,7 +19,7 @@ describe("appearance surface boundary", () => {
     expect(runtime).toContain('"data-po-appearance-root": "true"');
     expect(runtime).toContain('"data-root-theme-id": appearance.rootThemeId');
     expect(runtime).toContain('"data-sub-theme-id": appearance.subThemeId');
-    for (const appearanceRoot of [onboarding, assetHome, restoring]) {
+    for (const appearanceRoot of [onboarding, restoring]) {
       expect(appearanceRoot).toContain("appearance.rootProps");
       expect(appearanceRoot).not.toContain("createTypographyRootProps");
       expect(appearanceRoot).not.toContain("data-sub-theme-id={subThemeId}");
@@ -40,21 +39,22 @@ describe("appearance surface boundary", () => {
   });
 
   it("projects product styles through public host tokens consumed by editor-owned CSS", () => {
-    const markdownCss = source("packages/shared-ui/src/styles/editor/markdown-content.css");
-    const csvCss = source("packages/shared-ui/src/styles/editor/csv-table-editor.css");
+    const markdownCss = source("src/shared-ui/styles/editor/markdown-theme-tokens.generated.css");
+    const csvCss = source("src/shared-ui/styles/editor/csv-table-editor.css");
     const compiler = source("electron/main/themes/theme-css-compiler.mjs");
 
     expect(markdownCss).toContain("--po-host-md-content-color");
     expect(markdownCss).toContain("--po-user-md-h1-size");
     expect(csvCss).toContain("--po-host-csv-surface-background");
-    expect(compiler).toContain('["--po-md-content-color", "--po-host-md-content-color"]');
+    expect(compiler).toContain("shared/markdown-theme-contract.json");
+    expect(compiler).toContain('name.replace("--po-md-", "--po-host-md-")');
     expect(compiler).toContain('["--po-csv-surface-background", "--po-host-csv-surface-background"]');
     expect(compiler).toContain("may only declare root-level public tokens");
   });
 
   it("projects the complete Markdown syntax palette through public host tokens", () => {
-    const markdownCss = source("packages/shared-ui/src/styles/editor/markdown-content.css");
-    const compiler = source("electron/main/themes/theme-css-compiler.mjs");
+    const markdownCss = source("src/shared-ui/styles/editor/markdown-theme-tokens.generated.css");
+    const contract = source("shared/markdown-theme-contract.json");
     const semanticTokens = [
       "constant",
       "special",
@@ -66,11 +66,20 @@ describe("appearance surface boundary", () => {
     ];
 
     for (const token of semanticTokens) {
-      expect(compiler).toContain(
-        `["--po-md-syntax-${token}", "--po-host-md-syntax-${token}"]`,
-      );
+      expect(contract).toContain(`"--po-md-syntax-${token}"`);
       expect(markdownCss).toContain(`--po-host-md-syntax-${token}`);
     }
+  });
+
+  it("keeps renderer adapters free of a competing Markdown palette or font defaults", () => {
+    const content = source("src/shared-ui/styles/editor/markdown-content.css");
+    const mermaid = source("src/shared-ui/editor/markdown/features/mermaid/mermaidRenderer.ts");
+    expect(content).not.toMatch(/--po-md-(?:content|code|inline|h[1-6]|syntax)[a-z-]*:\s*(?:#[0-9a-f]|color-mix|[0-9]+px)/);
+    expect(content).not.toMatch(/font-family:[^;]*!important/);
+    expect(content).toContain("background: var(--po-md-inline-code-background);");
+    expect(mermaid).toContain("--po-md-mermaid-${role}");
+    expect(mermaid).not.toMatch(/read\([^\n]+"#[0-9a-f]{3,8}"/);
+    expect(source("scripts/generate-builtin-sub-themes.mjs")).toContain("renderMarkdownProjection(fallbackSource)");
   });
 
   it("loads built-in Sub Theme CSS through the runtime host without private editor selectors", () => {
@@ -84,7 +93,7 @@ describe("appearance surface boundary", () => {
       "default-github",
       "default-newspaper",
       "windows-xp-luna-blue",
-    ].map((name) => `sub-themes/${name}/theme.css`);
+    ].map((name) => `src/features/themes/builtin/${name}/theme.css`);
 
     expect(themeFiles.map((path) => existsSync(new URL(`../../../../${path}`, import.meta.url))))
       .toEqual([true, true, true, true, true, true]);
@@ -122,7 +131,7 @@ describe("appearance surface boundary", () => {
     ];
 
     for (const name of ["default-github", "default-newspaper"]) {
-      const css = source(`sub-themes/${name}/theme.css`);
+      const css = source(`src/features/themes/builtin/${name}/theme.css`);
       for (const token of semanticTokens) {
         expect(css.match(new RegExp(`--po-md-syntax-${token}:`, "g"))).toHaveLength(2);
       }
@@ -130,7 +139,7 @@ describe("appearance surface boundary", () => {
   });
 
   it("keeps the Neutral Markdown syntax palette complete and achromatic", () => {
-    const css = source("sub-themes/default-neutral/theme.css");
+    const css = source("src/features/themes/builtin/default-neutral/theme.css");
     const syntaxColors = [...css.matchAll(/--po-md-syntax-[\w-]+:\s*(#[0-9a-f]{6})/gi)]
       .map((match) => match[1]);
 
@@ -143,7 +152,7 @@ describe("appearance surface boundary", () => {
 
   it("keeps every Markdown-focused syntax color at accessible text contrast", () => {
     for (const name of ["default-neutral", "default-github", "default-newspaper"]) {
-      const css = source(`sub-themes/${name}/theme.css`);
+      const css = source(`src/features/themes/builtin/${name}/theme.css`);
       const backgrounds = [...css.matchAll(/--po-md-code-block-background:\s*(#[0-9a-f]{6})/gi)]
         .map((match) => match[1]);
       const syntaxColors = [...css.matchAll(/--po-md-syntax-[\w-]+:\s*(#[0-9a-f]{6})/gi)]
@@ -164,7 +173,23 @@ describe("appearance surface boundary", () => {
     expect(foundations).toContain('font-family: "PuppyOne Open Sans"');
     expect(foundations).toContain('font-family: "PuppyOne PT Serif"');
     for (const name of ["default-github", "default-newspaper"]) {
-      expect(source(`sub-themes/${name}/theme.css`)).not.toContain("@font-face");
+      expect(source(`src/features/themes/builtin/${name}/theme.css`)).not.toContain("@font-face");
+    }
+  });
+
+  it("authors built-ins as self-describing public-token packages", () => {
+    for (const relativePath of [
+      "src/features/themes/builtin/default-neutral/theme.css",
+      "src/features/themes/builtin/default-warm/theme.css",
+      "src/features/themes/builtin/default-graphite/theme.css",
+      "src/features/themes/builtin/default-github/theme.css",
+      "src/features/themes/builtin/default-newspaper/theme.css",
+      "src/features/themes/builtin/windows-xp-luna-blue/theme.css",
+    ]) {
+      const css = source(relativePath);
+      expect(css).toContain("@puppyone-theme");
+      expect(css).not.toMatch(/--po-host-(?:md|csv)-/);
+      expect(css).not.toMatch(/\.cm-|\.markdown-codemirror-editor|\.csv-table-editor/);
     }
   });
 });

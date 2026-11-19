@@ -44,9 +44,9 @@ describe("Markdown presentation preferences", () => {
     expect(parseMarkdownPresentationSettings(serializeMarkdownPresentationSettings(settings)))
       .toEqual(settings);
     expect(resolveMarkdownPresentationStyle(settings)).toEqual({
-      "--po-md-h1-size": "34px",
-      "--po-md-h2-size": "26px",
-      "--po-md-h3-size": "21px",
+      "--po-md-h1-size": "var(--po-md-h1-size-large)",
+      "--po-md-h2-size": "var(--po-md-h2-size-large)",
+      "--po-md-h3-size": "var(--po-md-h3-size-large)",
       "--po-md-strong-weight": "700",
       "--po-md-strong-color": "var(--po-accent)",
     });

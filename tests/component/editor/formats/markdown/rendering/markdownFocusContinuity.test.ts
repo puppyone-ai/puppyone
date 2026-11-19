@@ -2,11 +2,11 @@
 import { EditorState, StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { markdownLivePreviewFocusEffect } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/livePreviewFocus";
+import { markdownLivePreviewFocusEffect } from "../../../../../../src/shared-ui/editor/markdown/core/state/livePreviewFocus";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 
 const views: EditorView[] = [];
 const snapshotOwners = new WeakMap<StateEffect<unknown>, "left" | "right">();

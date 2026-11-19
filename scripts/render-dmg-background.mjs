@@ -9,10 +9,11 @@ import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sourcePath = path.join(repositoryRoot, "build", "dmg-background.svg");
-const oneXPath = path.join(repositoryRoot, "build", "dmg-background.png");
-const twoXPath = path.join(repositoryRoot, "build", "dmg-background@2x.png");
-const tiffPath = path.join(repositoryRoot, "build", "dmg-background.tiff");
+const installerAssets = path.join(repositoryRoot, "assets", "installer");
+const sourcePath = path.join(installerAssets, "dmg-background.svg");
+const oneXPath = path.join(installerAssets, "dmg-background.png");
+const twoXPath = path.join(installerAssets, "dmg-background@2x.png");
+const tiffPath = path.join(installerAssets, "dmg-background.tiff");
 const width = 2048;
 const height = 1280;
 const scale = 2;

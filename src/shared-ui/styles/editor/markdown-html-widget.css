@@ -1,0 +1,198 @@
+.markdown-codemirror-editor .cm-md-html-widget {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-widget-content {
+  display: flow-root;
+  min-width: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-widget-toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: inline-flex;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.markdown-codemirror-editor .cm-md-html-widget:is(:hover, :focus-within, .is-doc-selected) .cm-md-html-widget-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.markdown-codemirror-editor .cm-md-html-source-toggle {
+  display: inline-grid;
+  width: 26px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 82%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--po-panel-raised) 92%, transparent);
+  color: var(--po-text-muted);
+  box-shadow: var(--po-shadow-sm);
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.markdown-codemirror-editor .cm-md-html-source-toggle:hover,
+.markdown-codemirror-editor .cm-md-html-source-toggle.active {
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.markdown-codemirror-editor .cm-md-html-block.is-loading {
+  position: relative;
+  min-height: 80px;
+}
+
+.markdown-codemirror-editor .cm-md-html-deferred {
+  display: flex;
+  min-height: 80px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 82%, transparent);
+  border-radius: var(--po-md-block-radius);
+  background: color-mix(in srgb, var(--po-panel) 26%, transparent);
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-meta, 13px);
+}
+
+.markdown-codemirror-editor .cm-md-html-deferred-load {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 90%, transparent);
+  border-radius: 5px;
+  background: var(--po-control);
+  color: var(--po-text);
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-block {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-block.is-loading {
+  min-height: 80px;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-block.is-loading .cm-md-html-trusted-frame {
+  position: absolute;
+  inset: 0;
+  height: 100% !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-frame {
+  display: block;
+  width: 100%;
+  min-height: 80px;
+  border: 0;
+  background: transparent;
+  color-scheme: inherit;
+  opacity: 1;
+  transition: opacity 90ms ease-out;
+  border-radius: var(--po-md-block-radius);
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-sizer {
+  visibility: hidden;
+  min-height: 80px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.markdown-codemirror-editor .cm-md-html-sizing-placeholder {
+  min-height: 80px;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--po-divider) 72%, transparent);
+  border-radius: var(--po-md-block-radius);
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--po-panel-raised) 70%, transparent), transparent),
+    color-mix(in srgb, var(--po-panel) 28%, transparent);
+  background-size: 240px 100%, auto;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-loader span {
+  display: block;
+  max-width: 680px;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-text-muted) 18%, transparent);
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-loader span:nth-child(1) {
+  width: 42%;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-loader span:nth-child(2) {
+  width: 62%;
+}
+
+.markdown-codemirror-editor .cm-md-html-trusted-loader span:nth-child(3) {
+  width: 54%;
+}
+
+.markdown-codemirror-editor .cm-md-html-source-fallback {
+  margin: 0;
+  padding: 0;
+  color: inherit;
+}
+
+.markdown-codemirror-editor .cm-md-html-source-fallback pre {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+  overflow: auto;
+  color: inherit;
+  font-family: var(--po-md-code-font);
+  font-size: var(--po-md-code-block-font-size);
+  line-height: var(--po-md-code-block-line-height);
+  white-space: pre-wrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-codemirror-editor .cm-md-html-widget-toolbar {
+    transition: none;
+  }
+}
+
+.markdown-codemirror-editor .cm-md-html-run {
+  /* CodeMirror lines use `white-space: pre`; a run follows HTML whitespace. */
+  white-space: normal;
+}
+
+/* A block root sharing its line with a list or quote marker keeps block
+   layout, so alignment resolves against the content width. */
+.markdown-codemirror-editor .cm-md-html-run.is-block {
+  display: inline-block;
+  vertical-align: top;
+}

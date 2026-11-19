@@ -1,13 +1,14 @@
 import { parseFileIconThemeId, type FileIconThemeId } from "@puppyone/shared-ui";
 import {
-  parseLoadingAnimationPreset,
+  parseSelectableLoadingStyle,
+  DEFAULT_SHOW_FILE_ICONS,
   parsePointerCursors,
   parseSidebarNavigationLayout,
   parseThemeMode,
   parseTypography,
   type DarkThemePreset,
   type LightThemePreset,
-  type LoadingAnimationPreset,
+  type LoadingPlaceholderStyle,
   type SidebarNavigationLayout,
   type ThemeMode,
   type TypographyPreferences,
@@ -39,7 +40,10 @@ export const APPEARANCE_PREFERENCES_SCHEMA_VERSION = 6 as const;
 export type AppearanceSharedPreferences = Readonly<{
   typography: TypographyPreferences;
   pointerCursors: boolean;
-  loadingAnimationPreset: LoadingAnimationPreset;
+  /** File glyphs in explorer rows; hidden leaves only the folder chevrons. */
+  showFileIcons: boolean;
+  /** The one loading style: placeholders and loading marks alike. */
+  loadingPlaceholderStyle: LoadingPlaceholderStyle;
   fileIconTheme: FileIconThemeId;
   sidebarNavigationLayout: SidebarNavigationLayout;
 }>;
@@ -71,7 +75,10 @@ export type LegacyAppearanceSnapshot = Readonly<{
   legacyTextSize: LegacyTextSize;
   typography: TypographyPreferences;
   pointerCursors: boolean;
-  loadingAnimationPreset: LoadingAnimationPreset;
+  /** Absent in pre-setting storage; the current value when re-reading another window's write. */
+  showFileIcons?: boolean;
+  /** Absent in pre-setting storage; the current value when re-reading another window's write. */
+  loadingPlaceholderStyle?: LoadingPlaceholderStyle;
   fileIconTheme: FileIconThemeId;
   sidebarNavigationLayout: SidebarNavigationLayout;
 }>;
@@ -258,8 +265,11 @@ function normalizeShared(
     pointerCursors: typeof shared.pointerCursors === "boolean"
       ? shared.pointerCursors
       : parsePointerCursors(String(legacy.pointerCursors)),
-    loadingAnimationPreset: parseLoadingAnimationPreset(
-      asString(shared.loadingAnimationPreset) ?? legacy.loadingAnimationPreset,
+    showFileIcons: typeof shared.showFileIcons === "boolean"
+      ? shared.showFileIcons
+      : legacy.showFileIcons ?? DEFAULT_SHOW_FILE_ICONS,
+    loadingPlaceholderStyle: parseSelectableLoadingStyle(
+      asString(shared.loadingPlaceholderStyle) ?? legacy.loadingPlaceholderStyle,
     ),
     fileIconTheme: parseFileIconThemeId(rawFileIconTheme) ?? legacy.fileIconTheme,
     sidebarNavigationLayout: parseSidebarNavigationLayout(
@@ -272,7 +282,8 @@ function sharedFromLegacy(legacy: LegacyAppearanceSnapshot): AppearanceSharedPre
   return {
     typography: migrateLegacyContentSize(legacy.typography, legacy.legacyTextSize),
     pointerCursors: legacy.pointerCursors,
-    loadingAnimationPreset: legacy.loadingAnimationPreset,
+    showFileIcons: legacy.showFileIcons ?? DEFAULT_SHOW_FILE_ICONS,
+    loadingPlaceholderStyle: parseSelectableLoadingStyle(legacy.loadingPlaceholderStyle),
     fileIconTheme: legacy.fileIconTheme,
     sidebarNavigationLayout: legacy.sidebarNavigationLayout,
   };

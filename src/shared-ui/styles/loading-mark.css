@@ -1,0 +1,125 @@
+/*
+ * The loading mark (LoadingMark.tsx): one indicator in the Appearance loading
+ * style shared with loading placeholders (loading-placeholder.css). Its figure
+ * follows where it sits (data-loading-figure):
+ *
+ * - relay (rounded, inline): three faint dots; a capsule stretches into the
+ *   next dot and settles there, back and forth.
+ * - gather (rounded, area): three dots in a row; the outer two slide into
+ *   the middle one, hold there as one, and part again.
+ * - blocks (dither, either layout): three pixel blocks on a one-pixel lattice,
+ *   painted by the OrderedDither canvas with a narrow sweeping light. Until
+ *   the first frame (or without a 2D canvas) the blocks hold a faint ink.
+ */
+.po-loading-mark {
+  --po-dither-cell: 1px;
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--po-loading-mark-ink);
+  vertical-align: middle;
+}
+
+/* Relay */
+.po-loading-mark[data-loading-figure="relay"] {
+  gap: var(--po-loading-mark-gap);
+  height: var(--po-loading-mark-unit);
+}
+
+.po-loading-mark[data-loading-figure="relay"] > [data-loading-mark-unit] {
+  display: block;
+  flex: 0 0 auto;
+  width: var(--po-loading-mark-unit);
+  height: var(--po-loading-mark-unit);
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.22;
+}
+
+.po-loading-mark[data-loading-figure="relay"] > [data-loading-mark-baton] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--po-loading-mark-unit);
+  height: var(--po-loading-mark-unit);
+  border-radius: 999px;
+  background: currentColor;
+  animation: po-loading-mark-relay 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+}
+
+@keyframes po-loading-mark-relay {
+  0%,
+  6% { left: 0; width: var(--po-loading-mark-unit); }
+  24% { left: 0; width: calc(var(--po-loading-mark-unit) * 2 + var(--po-loading-mark-gap)); }
+  42%,
+  52% { left: calc(var(--po-loading-mark-unit) + var(--po-loading-mark-gap)); width: var(--po-loading-mark-unit); }
+  70% {
+    left: calc(var(--po-loading-mark-unit) + var(--po-loading-mark-gap));
+    width: calc(var(--po-loading-mark-unit) * 2 + var(--po-loading-mark-gap));
+  }
+  88%,
+  100% { left: calc((var(--po-loading-mark-unit) + var(--po-loading-mark-gap)) * 2); width: var(--po-loading-mark-unit); }
+}
+
+/* Gather: the box sets the dot and the height; the row is as wide as its three dots. */
+.po-loading-mark[data-loading-figure="gather"] {
+  --po-loading-mark-dot: calc(var(--po-loading-mark-box) * 0.27);
+  --po-loading-mark-reach: calc(var(--po-loading-mark-box) * 0.5);
+  width: calc(var(--po-loading-mark-reach) * 2 + var(--po-loading-mark-dot));
+  height: var(--po-loading-mark-box);
+}
+
+.po-loading-mark[data-loading-figure="gather"] > [data-loading-mark-unit] {
+  position: absolute;
+  top: calc(50% - var(--po-loading-mark-dot) / 2);
+  left: calc(50% - var(--po-loading-mark-dot) / 2);
+  width: var(--po-loading-mark-dot);
+  height: var(--po-loading-mark-dot);
+  border-radius: 50%;
+  background: currentColor;
+  transform: translateX(var(--po-loading-mark-offset));
+  animation: po-loading-mark-gather 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+.po-loading-mark[data-loading-figure="gather"] > [data-loading-mark-unit="0"] { --po-loading-mark-offset: calc(var(--po-loading-mark-reach) * -1); }
+.po-loading-mark[data-loading-figure="gather"] > [data-loading-mark-unit="1"] { --po-loading-mark-offset: 0px; }
+.po-loading-mark[data-loading-figure="gather"] > [data-loading-mark-unit="2"] { --po-loading-mark-offset: var(--po-loading-mark-reach); }
+
+@keyframes po-loading-mark-gather {
+  0%,
+  12% { transform: translateX(var(--po-loading-mark-offset)) scale(1); opacity: 0.9; }
+  42%,
+  58% { transform: translateX(0) scale(1.35); opacity: 1; }
+  88%,
+  100% { transform: translateX(var(--po-loading-mark-offset)) scale(1); opacity: 0.9; }
+}
+
+/* Blocks (dither): square blocks; the canvas inks them once it has painted. */
+.po-loading-mark[data-loading-figure="blocks"] {
+  gap: var(--po-loading-mark-gap);
+}
+
+.po-loading-mark[data-loading-figure="blocks"] > [data-loading-mark-unit] {
+  display: block;
+  flex: 0 0 auto;
+  width: var(--po-loading-mark-unit);
+  height: var(--po-loading-mark-unit);
+  border-radius: 0;
+  background-color: var(--po-placeholder-fill, color-mix(in srgb, currentColor 40%, transparent));
+  animation: none;
+}
+
+/* The canvas inks in the mark's own colour, so a host can recolour either style. */
+.po-loading-mark .po-dither-canvas {
+  color: inherit;
+}
+
+/* Still: the relay rests on its first dot; the gather rests as its row of three. */
+@media (prefers-reduced-motion: reduce) {
+  .po-loading-mark,
+  .po-loading-mark > [data-loading-mark-unit],
+  .po-loading-mark > [data-loading-mark-baton] {
+    animation: none;
+  }
+}

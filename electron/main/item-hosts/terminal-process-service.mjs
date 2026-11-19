@@ -3,7 +3,7 @@ import { hostError } from "../../../shared/item-host-contract/rpc.mjs";
 import { randomUUID } from "node:crypto";
 import { createItemLifecycleSupervisor } from "./item-lifecycle-supervisor.mjs";
 
-export function createTerminalProcessService({ utilityProcess, modulePath, budget, appVersion,
+export function createTerminalProcessService({ utilityProcess, modulePath, budget, appVersion, hostEnvironment = {},
   initializeWorkspaceEditReview, terminalAgentActivityHost, onHostEvent = () => {},
   lifecycle = createItemLifecycleSupervisor(), createHost = createUtilityHost }) {
   const sessions = new Map();
@@ -50,7 +50,7 @@ export function createTerminalProcessService({ utilityProcess, modulePath, budge
       try {
       record.host = createHost({ utilityProcess, modulePath, budget,
         identity: { key: request.id, ownerId: sender.id, projectId: request.projectContext?.projectId ?? root, kind: "terminal" },
-        initialize: { ownerId: sender.id, root, appVersion },
+        initialize: { ownerId: sender.id, root, appVersion, hostEnvironment },
         handle: async (method, args) => {
           if (method !== "closeTerminalSession") lifecycle.assertActive(managed);
           if (method === "initializeWorkspaceEditReview" && args[0] === root) return initializeWorkspaceEditReview(root);

@@ -5,7 +5,7 @@ import {
   type DataPort,
   type Workspace,
   type WorkspaceFolder,
-} from "../../../../packages/shared-ui/src";
+} from "../../../../src/shared-ui";
 import { createWorkbenchDataService } from "../../../../src/features/data-workspace/workbenchDataPort";
 
 function workspace(id: string, name: string, path: string): Workspace {
@@ -50,6 +50,65 @@ function provider(name: string): DataPort {
 }
 
 describe("WorkbenchDataService", () => {
+  it("lists a window's other folders when one is gone, and says which failed", async () => {
+    const workbench = createWorkbenchWorkspace([workspace("a", "Alpha", "/alpha"), workspace("b", "Gone", "/gone")]);
+    const onFolderReadFailed = vi.fn();
+    const service = createWorkbenchDataService(workbench, {
+      createProvider: (folder) => folder.name === "Gone"
+        ? { listChildren: async () => { throw new Error("ENOENT: no such file or directory, realpath '/gone'"); } }
+        : provider(folder.name),
+      onFolderReadFailed,
+    });
+    const roots = await service.dataPort.listChildren(null);
+    expect(roots.map((root) => [root.name, root.children?.map((child) => child.name)])).toEqual([["Alpha", ["README.md"]], ["Gone", []]]);
+    expect(onFolderReadFailed).toHaveBeenCalledExactlyOnceWith(workbench.folders[1]);
+  });
+
+  it("never reads a folder already known to be gone, in a window of one folder or several", async () => {
+    for (const folders of [[workspace("b", "Gone", "/gone")], [workspace("a", "Alpha", "/alpha"), workspace("b", "Gone", "/gone")]]) {
+      const workbench = createWorkbenchWorkspace(folders);
+      const gone = provider("Gone");
+      const service = createWorkbenchDataService(workbench, {
+        createProvider: (folder) => (folder.name === "Gone" ? gone : provider(folder.name)),
+        unavailableFolderPaths: new Set(["/gone"]),
+      });
+      await expect(service.dataPort.listChildren(null)).resolves.toBeDefined();
+      expect(gone.listChildren).not.toHaveBeenCalled();
+    }
+  });
+
+  it("answers a read of a gone folder's file in the person's words, without touching the disk", async () => {
+    const workbench = createWorkbenchWorkspace([workspace("b", "Gone", "/gone")]);
+    const gone = provider("Gone");
+    const service = createWorkbenchDataService(workbench, {
+      createProvider: () => gone,
+      unavailableFolderPaths: new Set(["/gone"]),
+      unavailableFolderMessage: "This file’s folder can’t be opened right now.",
+    });
+    await expect(service.dataPort.readFile!("note.md")).rejects.toThrow("This file’s folder can’t be opened right now.");
+    expect(gone.readFile).not.toHaveBeenCalled();
+  });
+
+  it("copies readable absolute paths from the owning root, preserving decoded file names", () => {
+    const workbench = createWorkbenchWorkspace([
+      workspace("a", "Alpha", "/alpha"), workspace("b", "Beta", "/beta"),
+    ]);
+    const service = createWorkbenchDataService(workbench, { createProvider: () => ({ listChildren: async () => [] }) });
+    const root = workbench.folders[1]!.uri;
+    expect(service.getPathForCopy(createWorkspaceResourceUri(root, "docs/笔记 #1.md"))).toBe("/beta/docs/笔记 #1.md");
+    expect(service.getPathForCopy(createWorkspaceResourceUri(root, "docs"))).toBe("/beta/docs");
+    expect(service.getPathForCopy(root)).toBe("/beta");
+    expect(() => service.getPathForCopy("docs/readme.md")).toThrow(/ambiguous/);
+    expect(() => service.getPathForCopy("puppyone-local://workspace/missing/readme.md")).toThrow(/outside/);
+  });
+
+  it.each(["C:\\Projects\\Beta", "\\\\server\\share\\Beta"])("uses native separators for the root %s", (rootPath) => {
+    const workbench = createWorkbenchWorkspace([workspace("win", "Beta", rootPath)]);
+    const service = createWorkbenchDataService(workbench, { createProvider: () => ({ listChildren: async () => [] }) });
+    expect(service.getPathForCopy(createWorkspaceResourceUri(workbench.folders[0]!.uri, "docs/note.md")))
+      .toBe(`${rootPath}\\docs\\note.md`);
+  });
+
   it("routes projection leases and image imports through the document's owning Folder", async () => {
     const workbench = createWorkbenchWorkspace([workspace("a", "Alpha", "/alpha"), workspace("b", "Beta", "/beta")]);
     const providers = new Map<string, DataPort>();

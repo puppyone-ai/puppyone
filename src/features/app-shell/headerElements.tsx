@@ -13,7 +13,7 @@ import {
   type TitlebarActionId,
 } from "../../preferences";
 import type { MessageFormatter } from "@puppyone/localization";
-import { AgentEntryIcon } from "./AgentEntryIcon";
+import { AgentEntryIcon } from "../../components/brand/AgentEntryIcon";
 import { VersionControlIcon } from "../source-control/VersionControlIcon";
 import type { GitTitlebarStatus } from "../source-control/gitTitlebarStatus";
 import { HeaderFeatureCoachmark } from "./HeaderFeatureCoachmark";
@@ -47,7 +47,6 @@ export type HeaderElementRenderContext = {
     onToggle: () => void;
     sidebarOpen: boolean;
     status: GitTitlebarStatus;
-    cardId?: string;
   };
 };
 
@@ -75,16 +74,13 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
           onDismiss={() => context.coachmark.acknowledge("changes")}
           onPrimary={activate}
         >
-        <Tooltip content={open ? null : statusLabel}><button
+        <Tooltip content={toolbarPlacement ? undefined : statusLabel}><button
           className={toolbarPlacement
             ? "desktop-shell-toolbar-button desktop-shell-toolbar-changes"
             : "desktop-titlebar-action desktop-titlebar-changes"}
           type="button"
           aria-label={statusLabel}
-          aria-pressed={changes.cardId ? undefined : changes.sidebarOpen}
-          aria-haspopup={changes.cardId ? "dialog" : undefined}
-          aria-expanded={changes.cardId ? changes.sidebarOpen : undefined}
-          aria-controls={changes.cardId && changes.sidebarOpen ? changes.cardId : undefined}
+          aria-pressed={changes.sidebarOpen}
           data-has-git-status={hasStatus ? "true" : undefined}
           data-toolbar-action={toolbarPlacement ? "changes" : undefined}
           onClick={activate}
@@ -130,7 +126,7 @@ export const HEADER_ELEMENT_DEFINITIONS: readonly HeaderElementDefinition[] = [
           onDismiss={() => context.coachmark.acknowledge("agent")}
           onPrimary={activate}
         >
-        <Tooltip content={open ? null : toggleLabel}><button
+        <Tooltip content={toolbarPlacement ? undefined : toggleLabel}><button
           className={toolbarPlacement
             ? "desktop-shell-toolbar-button desktop-shell-toolbar-terminal"
             : "desktop-titlebar-action desktop-titlebar-terminal"}

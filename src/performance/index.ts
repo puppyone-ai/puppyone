@@ -1,0 +1,1 @@
+export { recordWorkspaceRequest } from "./editingLatencyProbe";

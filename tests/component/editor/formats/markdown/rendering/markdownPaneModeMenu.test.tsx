@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../../../../../src/preferencesStore";
 import { unavailableDocumentNavigation } from "../../../../../support/editor/documentFixtures";
 /**
  * @vitest-environment happy-dom
@@ -12,7 +13,7 @@ import {
 } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopEditorSplitView } from "../../../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import { withTestLocalization } from "../../../../../support/react/localization";
 
@@ -26,6 +27,8 @@ afterEach(() => {
   root = null;
   document.body.replaceChildren();
 });
+
+beforeEach(() => initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} }));
 
 describe("Markdown pane mode menu", () => {
   it("switches source mode from the three-dot pane menu without floating editor controls", async () => {
@@ -62,7 +65,6 @@ describe("Markdown pane mode menu", () => {
           }}
           editorTree={[node]}
           externalOpen={{ open: vi.fn() }}
-          fileIconTheme="default"
           layout={createEditorPaneLayout(path)}
           markdownEnvironment={workspaceState(node).markdownEnvironment}
           workspace={{
@@ -99,7 +101,7 @@ describe("Markdown pane mode menu", () => {
     );
     expect(document.querySelector<HTMLElement>(
       ".desktop-editor-pane-menu",
-    )?.style.width).toBe("155px");
+    )?.style.width).toBe("");
     const primaryActions = document.querySelector(".desktop-editor-pane-menu-primary-actions");
     expect(primaryActions?.firstElementChild).toBe(modeControl);
     expect(document.querySelector(".desktop-editor-pane-menu-secondary-actions")).toBeNull();

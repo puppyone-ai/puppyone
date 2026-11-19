@@ -5,7 +5,9 @@ import { registerLocalAgentSetupIpcHandlers } from "./main/ipc/local-agent-setup
 import { composeLocalAgentActivation } from "./main/compose-local-agent-activation.mjs";
 import { registerLocalAgentActivationIpcHandlers } from "./main/ipc/local-agent-activation-ipc.mjs";
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
-import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
+import { createCloudNativePreviewService, registerCloudNativePreviewIpc } from "./main/cloud-native-preview-service.mjs";
+import { createCloudPreviewResourceService, registerCloudPreviewResourceIpc } from "./main/cloud-preview-resource-service.mjs";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getDesktopReturnScheme, getDesktopReturnUrl, isDesktopReturnUrl } from "../shared/desktop/return-to-app-link.mjs";
 import fs from "node:fs";
@@ -13,6 +15,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import {
   getMimeType,
+  MAX_EDITOR_BYTES,
   openWorkspaceFileRangeStream,
   readWorkspaceTextFile,
   readWorkspaceFile,
@@ -21,8 +24,8 @@ import {
   resolveLocalWorkspaceIdentity,
   resolveWorkspacePath as resolveLocalWorkspacePath,
   workspaceFromPath,
-} from "../local-api/workspace.mjs";
-import { initializeWorkspaceEditReview } from "../local-api/edit-review.mjs";
+} from "./local-api/workspace.mjs";
+import { initializeWorkspaceEditReview } from "./local-api/edit-review.mjs";
 import { resolveRuntimeAppImage, setDevelopmentDockIcon } from "./main/app-icon.mjs";
 import { createUpdateService } from "./update-service.mjs";
 import { createAppPreviewRuntime } from "./app-preview-runtime.mjs";
@@ -42,11 +45,14 @@ import { registerProjectSessionIpc } from "./main/ipc/project-session-ipc.mjs";
 import { createAgentAttachmentStore } from "./main/agent/infrastructure/attachments/agent-attachment-store.mjs";
 import { createLocalAgentInventory } from "./main/agent/connections/local-agent-inventory.mjs";
 import { createDefaultAgentRuntimeHost } from "./main/agent/bootstrap/create-agent-runtime-host.mjs";
-import {
-  getCloudApiErrorMessage,
-  requestCloudApi,
-} from "./main/cloud-api-client.mjs";
-import { createCloudAuthService } from "./cloud-auth-service.mjs";
+import { getCloudApiErrorMessage } from "./main/cloud-api-client.mjs";
+import { createDesktopCloudRuntime } from "./main/cloud-runtime.mjs";
+import { createTemplateMarketplaceService } from "./main/template-marketplace-service.mjs";
+import { resolveTemplateStoreOrigin } from "../shared/desktop/template-link.mjs";
+import { createTemplateIntentStore } from "./main/template-intent-store.mjs";
+import { registerHostIpcHandlers } from "./main/ipc/host-ipc.mjs";
+import { createHostServiceLauncher } from "./host-service/launcher.mjs";
+import { hostServiceStateDir } from "./host-service/paths.mjs";
 import {
   createApplicationQuitIntent,
   createDocumentSessionCloseCoordinator,
@@ -57,6 +63,7 @@ import {
 } from "./main/desktop-launch-intent.mjs";
 import { registerAgentIpcHandlers } from "./main/ipc/agent-ipc.mjs";
 import { createWorkspaceResourceResolver } from "./main/workspace-resource-resolver.mjs";
+import { createMacosPreparedUpdate } from "./main/platform/macos/prepared-update.mjs";
 import { loadMacosResourceDrag } from "./main/platform/macos/resource-drag.mjs";
 import { registerResourceTransferIpcHandlers } from "./main/ipc/resource-transfer-ipc.mjs";
 import { registerAgentActivityIpcHandlers } from "./main/ipc/agent-activity-ipc.mjs";
@@ -65,9 +72,11 @@ import {
   registerThemeIpcHandlers,
   THEME_SELECTION_REQUESTED_CHANNEL,
 } from "./main/ipc/theme-ipc.mjs";
+import { SETTINGS_OPEN_REQUESTED_CHANNEL } from "./main/ipc/settings-ipc.mjs";
 import { registerAppPreviewIpcHandlers } from "./main/ipc/app-preview-ipc.mjs";
 import { registerBuildInfoIpcHandlers } from "./main/ipc/build-info-ipc.mjs";
 import { registerPlatformIpcHandlers } from "./main/ipc/platform-ipc.mjs";
+import cloudOpeningLog from "electron-log";
 import { registerCloudIpcHandlers } from "./main/ipc/cloud-ipc.mjs";
 import { registerCloudPublishIpcHandlers } from "./main/ipc/cloud-publish-ipc.mjs";
 import { registerMarkdownWebEmbedIpcHandlers } from "./main/ipc/markdown-web-embed-ipc.mjs";
@@ -102,11 +111,14 @@ import { createPuppyOneModelVerifier } from "./main/agent/runtimes/puppyone-agen
 import { registerWorkspaceFileIpcHandlers } from "./main/ipc/workspace-files-ipc.mjs";
 import { registerWorkspaceGitIpcHandlers } from "./main/ipc/workspace-git-ipc.mjs";
 import { registerWorkspaceNavigationIpcHandlers } from "./main/ipc/workspace-navigation-ipc.mjs";
+import { createImportOpeningRecovery } from "./main/project-import/opening.mjs";
+import { createAppFolderDiscovery } from "./main/project-import/app-folders.mjs";
 import { registerWorkspaceWatchIpcHandlers } from "./main/ipc/workspace-watch-ipc.mjs";
 import { registerWindowLayoutIpcHandlers } from "./main/ipc/window-layout-ipc.mjs";
 import { registerProjectAppearanceIpcHandlers } from "./main/ipc/project-appearance-ipc.mjs";
 import { registerGitMetadataWatchIpcHandlers } from "./main/ipc/git-metadata-watch-ipc.mjs";
-import { registerLocalFileProtocol } from "./main/local-file-protocol.mjs";
+import { parseLocalFileUrl, registerLocalFileProtocol } from "./main/local-file-protocol.mjs";
+import { createPreviewDocumentService, registerPreviewDocumentIpc, PREVIEW_DOCUMENT_SCHEME, PREVIEW_DOCUMENT_PRIVILEGES } from "./main/preview-document-service.mjs";
 import { installEmbeddedContentSessionSecurity } from "./main/embedded-pdf-security.mjs";
 import { createLocalFileCapabilityStore } from "./main/local-file-capabilities.mjs";
 import { createProjectAppearanceStore } from "./main/project-appearance/project-appearance-store.mjs";
@@ -127,8 +139,16 @@ import { acquireRendererOutputLease } from "./main/renderer-output-lease.mjs";
 import { createThemeService } from "./main/themes/theme-service.mjs";
 import { createSenderWorkspaceAuthorization } from "./main/workspace-authorization.mjs";
 import { createWorkspaceStateStore } from "./main/workspace-state-store.mjs";
+import { WorkspaceWindowIndex } from "./main/workspace/workspace-window-index.mjs";
 import { WindowWorkspaceState } from "./main/window-workspace-state.mjs";
+import { createFolderRelocation } from "./main/folder-relocation.mjs";
 import { createWindowWorkspaceCompositionService } from "./main/window-workspace-composition.mjs";
+import { createFileTarget, FILE_MODE_EXTENSIONS, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode, watchBoundFile } from "./main/file-mode.mjs";
+import { createSystemOpenRoute, findProjectWindowForFolder, OpenPathRejection } from "./main/system-open-route.mjs";
+import { createCliControlServer } from "./main/cli-control/cli-control-server.mjs";
+import { createCliControlRequests } from "./main/cli-control/cli-control-requests.mjs";
+import { resolveCliControlEndpoint } from "./main/cli-control/endpoint.mjs";
+import { CLI_CONTROL_LIMITS, CLI_LAUNCH_ARGUMENT } from "../shared/cli-control-contract/protocol.mjs";
 import { createWindowWorkspaceOperationQueue } from "./main/workspace/project-sessions/window-workspace-operation-queue.mjs";
 import {
   createProjectEntryService,
@@ -138,6 +158,8 @@ import {
 import { createProjectLocationGrantStore } from "./main/project-location-grants.mjs";
 import { createDesktopLocaleService } from "./main/localization/desktop-locale-service.mjs";
 import { createWorkspaceWatchService } from "./main/workspace-watch-service.mjs";
+import { createLocalComputerService } from "./main/local-computers/local-computer-service.mjs";
+import { registerLocalComputerIpcHandlers } from "./main/ipc/local-computer-ipc.mjs";
 import { createWorkspaceMutationTracker } from "./main/workspace-mutation-tracker.mjs";
 import { createGitMetadataWatchService } from "./main/git-metadata-watch-service.mjs";
 import { createDesktopTelemetryHost } from "./main/telemetry/bootstrap/create-desktop-telemetry-host.mjs";
@@ -178,6 +200,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const packageMetadata = require("../package.json");
 const projectRoot = path.resolve(__dirname, "..");
+const cloudRuntime = createDesktopCloudRuntime();
+const requestCloudApi = cloudRuntime.requestCloudApi;
 const preloadPath = path.join(__dirname, "preload.cjs");
 const rendererDistPath = path.join(projectRoot, "dist", "index.html");
 const desktopBuildInfo = loadDesktopBuildInfo({
@@ -191,8 +215,16 @@ const desktopApplicationIdentity = configureDesktopApplicationIdentity({
 });
 const desktopPlatformHost = createDesktopPlatformHost({
   safeStorage,
+  nativeImage,
+  systemVersion: process.getSystemVersion(),
 });
 const appName = desktopApplicationIdentity.applicationName;
+const templateStoreOrigin = resolveTemplateStoreOrigin({ isPackaged: app.isPackaged, override: process.env.PUPPYONE_TEMPLATE_STORE_ORIGIN });
+const templateIntents = createTemplateIntentStore({ origin: templateStoreOrigin, channel: desktopBuildInfo.channel });
+for (const argument of process.argv) {
+  // Invalid external intents are ignored.
+  if (typeof argument === "string" && argument.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) templateIntents.receive(argument);
+}
 
 // Resolve only core launch data before the single-instance boundary. A
 // duplicate CLI launch must exit before optional subsystems are constructed.
@@ -223,7 +255,8 @@ if (!app.isPackaged && !devServerUrl) {
 const rendererApplicationUrl = devServerUrl || pathToFileURL(rendererDistPath).toString();
 const mermaidRenderService = createMermaidRenderService({
   createHost: () => createMermaidRendererHost({ WebContentsView, session: electronSession,
-    url: new URL("mermaid-renderer.html", rendererApplicationUrl).href,
+    url: new URL("src/platform/mermaid/host.html", rendererApplicationUrl).href,
+    assetRoot: new URL(".", rendererApplicationUrl).href,
     preload: path.join(__dirname, "mermaid-preload.cjs"),
   }),
 });
@@ -242,6 +275,7 @@ const workspaceStateFilename = "desktop-workspace-state.json";
 const desktopWindowChromeOptions = desktopPlatformHost.windowChrome.browserWindowOptions;
 
 const privilegedSchemes = [
+  { scheme: PREVIEW_DOCUMENT_SCHEME, privileges: PREVIEW_DOCUMENT_PRIVILEGES },
   {
     scheme: "puppyone-local",
     privileges: {
@@ -279,13 +313,27 @@ const itemHostBudget = createItemHostBudget({}, { readMetrics: () => app.getAppM
 let stopLocaleNativeRefresh = null;
 const windowsById = new Map();
 const windowStateById = new Map();
-const workspaceWindowByPath = new Map();
+const workspaceWindows = new WorkspaceWindowIndex();
 const localFileCapabilities = createLocalFileCapabilityStore();
+/** True while a frame shows a projection of a page allowed to use its folder. */
+function isOfflineDocumentFrame(frameUrl) {
+  try {
+    const url = new URL(frameUrl);
+    url.hash = "";
+    const { token, purpose, requestPath } = parseLocalFileUrl(url.toString());
+    return purpose === "document-projection"
+      && localFileCapabilities.resolve({ token, purpose, requestPath })?.snapshot?.offline === true;
+  } catch {
+    return false;
+  }
+}
+const previewDocumentService = createPreviewDocumentService();
 let lastFocusedWindowId = null;
 let initialWindowReady = false;
 const trustedIpcMain = createTrustedIpcMain({
   ipcMain,
   applicationUrl: rendererApplicationUrl,
+  isAllowed: (event, channel, request) => isIpcAllowedInFileMode(windowStateById.get(event.sender.id)?.fileTarget, channel, request),
 });
 const nativeSurfaceOcclusion = createNativeSurfaceOcclusionCoordinator({
   onCallbackError: (error) => {
@@ -329,6 +377,12 @@ const nativeMenuService = createDesktopNativeMenuService({
   t: (messageId, values) => localeService.t(messageId, values),
   onNewWindow: () => createWindow(),
   onCheckForUpdates: checkForUpdatesFromNativeMenu,
+  menuSymbol: (symbolName) => desktopPlatformHost.menuSymbols.image(symbolName),
+  onOpenSettings: () => {
+    const window = getLastFocusedWindow();
+    if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return;
+    window.webContents.send(SETTINGS_OPEN_REQUESTED_CHANNEL);
+  },
   onManageExecutions: () => {
     const window = getLastFocusedWindow();
     return window && !window.isDestroyed() ? manageItemExecutions(window.webContents.id) : undefined;
@@ -340,7 +394,8 @@ const nativeMenuService = createDesktopNativeMenuService({
   },
   onOpenThemesDirectory: () => themeService.openDirectory(),
 });
-const applicationQuitIntent = createApplicationQuitIntent({ app });
+// A quit something kept from finishing also leaves a pending update restart unfinished.
+const applicationQuitIntent = createApplicationQuitIntent({ app, onCancel: () => updateService?.handleQuitCancelled() });
 const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
   dialog,
   t: (messageId, values) => localeService.t(messageId, values),
@@ -373,8 +428,13 @@ const terminalAgentActivityHost = createDefaultTerminalAgentActivityHost({
 const itemLifecycle = createItemLifecycleSupervisor();
 const manageItemExecutions = createItemLifecycleManager({ lifecycle: itemLifecycle, dialog,
   t: (id, values) => localeService.t(id, values) });
+const cliControlEndpoint = resolveCliControlEndpoint({
+  userDataPath: app.getPath("userData"),
+  uid: typeof process.getuid === "function" ? process.getuid() : null,
+});
 const terminalService = createTerminalProcessService({
   lifecycle: itemLifecycle,
+  hostEnvironment: createTerminalHostEnvironment(),
   utilityProcess,
   modulePath: path.join(__dirname, "utility", "terminal", "main.mjs"),
   budget: itemHostBudget,
@@ -489,26 +549,57 @@ const workspaceStateStore = createWorkspaceStateStore({
   workspaceFromPath,
   resolveWorkspaceIdentity: resolveLocalWorkspaceIdentity,
 });
+const localComputerService = createLocalComputerService({
+  stateDirectory: path.join(app.getPath("userData"), "local-computers"),
+  canonicalizeWorkspacePath,
+  publishSnapshot: (snapshot) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      try {
+        if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
+          window.webContents.send("local-computers:changed", snapshot);
+        }
+      } catch {
+        // Window may close during delivery.
+      }
+    }
+  },
+});
 const projectEntryService = createProjectEntryService({
   journalDirectory: () => path.join(app.getPath("userData"), "project-initialization"),
+  resolveTemplate: (source, locale) => templateMarketplaceService.resolveTemplate(source, locale),
+  validateTemplateSource: (plan) => templateMarketplaceService.validateSource(plan),
 });
 const projectEntryOperationSenders = new Set();
 const importSourceTasks = new Map();
+const importOpeningRecovery = createImportOpeningRecovery({
+  remember: (projectPath) => workspaceStateStore.addRecentWorkspacePaths([projectPath]),
+  open: openWorkspaceInCurrentWindow,
+});
 const projectLocationGrants = createProjectLocationGrantStore();
 /** Folder under the user's Documents directory that hosts projects created without a folder picker. */
 const DEFAULT_PROJECTS_FOLDER_NAME = "PuppyOne";
-const cloudAuthService = createCloudAuthService({
+const cloudAuthService = cloudRuntime.createAuthService({
   app,
-  requestCloudApi,
   getCloudApiErrorMessage,
   secureStorage: safeStorage,
   externalNavigation,
   getLocale: () => localeService.getSnapshot().locale,
   returnAppUrl: app.isPackaged ? getDesktopReturnUrl(desktopBuildInfo.channel) : null,
   localCloudWebUrl: desktopCloudConfiguration?.webOrigin,
+  templateMarketplace: { origin: templateStoreOrigin, apiBase: desktopCloudConfiguration?.apiBase ?? null },
   getWindows: () => BrowserWindow.getAllWindows(),
   revealWindow: revealLastFocusedWindow,
 });
+const templateMarketplaceService = createTemplateMarketplaceService({
+  origin: templateStoreOrigin, channel: desktopBuildInfo.channel, cloudAuthService,
+  allowLocalDownloads: !app.isPackaged,
+});
+const cloudNativePreviewService = createCloudNativePreviewService({ auth: cloudAuthService,
+  database: databasePreviewService, convertOffice: desktopPlatformHost.documents.convertOfficeDocumentToDocx,
+  fetchResource: (url, options) => net.fetch(url, options) });
+cloudAuthService.subscribe(() => { void cloudNativePreviewService.reconcileSession().catch(() => {}); });
+const cloudPreviewResourceService = createCloudPreviewResourceService({auth:cloudAuthService});
+cloudAuthService.subscribe((state) => cloudPreviewResourceService.reconcileSession(state.session));
 const gitOperationCoordinator = createGitOperationCoordinator();
 const gitAutoCommitHost = createGitAutoCommitHost({
   available: gitAutoCommitFeatureProfile.available,
@@ -538,16 +629,14 @@ const windowWorkspaceCompositionService = createWindowWorkspaceCompositionServic
   cleanupDetachedWorkspace: (window, folder) => projectSessions.closeRoot(window.webContents.id, folder.path),
   openProject: (window, folder) => projectSessions.open(window.webContents.id, folder),
   getWindowState: getOrCreateWindowState,
-  getWorkspaceWindow,
-  indexWorkspacePath: (folderPath, window) => workspaceWindowByPath.set(folderPath, window),
+  indexWorkspacePath: (folderPath, window) => workspaceWindows.add(folderPath, window),
   persistWorkspaceComposition: (workspaces, workbenchWorkspaceId) => (
     workspaces.length
       ? workspaceStateStore.rememberWorkspaceComposition(workspaces, { workbenchWorkspaceId })
       : workspaceStateStore.clearActiveWorkspaceComposition(workbenchWorkspaceId)
   ),
-  revealWindow: revealWorkspaceWindow,
   unindexWorkspacePath: (folderPath, window) => {
-    if (workspaceWindowByPath.get(folderPath) === window) workspaceWindowByPath.delete(folderPath);
+    workspaceWindows.remove(folderPath, window);
   },
   workspaceFromPath,
 });
@@ -588,9 +677,12 @@ async function createWindow(options = {}) {
     .filter((folderPath) => typeof folderPath === "string" && folderPath.trim())
     .map((folderPath) => path.resolve(folderPath));
   const appIconPath = desktopPlatformHost.windowChrome.supportsDockIcon ? null : resolveAppIconPath();
+  const fileTarget = options.initialFilePath ? createFileTarget(options.initialFilePath) : null;
+  // A background open shows the window without taking focus from the caller.
+  const activate = options.activate !== false;
   const window = new BrowserWindow({
-    width: 1280,
-    height: 840,
+    width: fileTarget ? 860 : 1180,
+    height: 760,
     minWidth: DESKTOP_WINDOW_MIN_WIDTH,
     minHeight: DESKTOP_WINDOW_MIN_HEIGHT,
     center: true,
@@ -620,6 +712,8 @@ async function createWindow(options = {}) {
     webContents: window.webContents,
     applicationUrl: rendererApplicationUrl,
     externalNavigation,
+    isAuthorizedCloudResource: cloudPreviewResourceService.allowed,
+    isOfflineDocumentFrame,
   });
   windowsById.set(webContentsId, window);
   window.webContents.once("destroyed", () => {
@@ -629,8 +723,23 @@ async function createWindow(options = {}) {
   windowStateById.set(webContentsId, new WindowWorkspaceState({
     initialWorkspaceId: options.initialWorkspaceId ?? null,
     initialWorkspacePaths,
+    initialCloudProject: options.initialCloudProject ?? null,
+    initialOpenPath: options.initialOpenPath ?? null,
+    fileTarget,
   }));
-  lastFocusedWindowId = webContentsId;
+  let stopWatchingFile = null;
+  if (fileTarget) {
+    workspaceWindows.add(fileTarget.rootPath, window);
+    window.setRepresentedFilename?.(fileTarget.path);
+    window.setTitle(fileTarget.name);
+    // The page's own <title> would otherwise replace the file name on load.
+    window.on("page-title-updated", (event) => event.preventDefault());
+    stopWatchingFile = watchBoundFile(fileTarget.path, () => {
+      if (!window.webContents.isDestroyed()) window.webContents.send("file-mode:file-changed");
+    });
+  }
+  if (activate) lastFocusedWindowId = webContentsId;
+  const present = () => (activate ? revealWindow(window) : showWindowInactive(window));
 
   window.on("focus", () => {
     reapplyNativeWindowChrome(window);
@@ -673,12 +782,12 @@ async function createWindow(options = {}) {
   });
 
   window.once("ready-to-show", () => {
-    revealWindow(window);
+    present();
   });
 
   window.webContents.once("did-finish-load", () => {
     console.info("puppyone renderer finished loading:", window.webContents.getURL());
-    revealWindow(window);
+    present();
   });
 
   window.webContents.on("did-start-navigation", (details) => {
@@ -703,7 +812,7 @@ async function createWindow(options = {}) {
       errorDescription,
       validatedURL,
     });
-    revealWindow(window);
+    present();
   });
 
   window.webContents.on("preload-error", (_event, preloadPathWithError, error) => {
@@ -724,17 +833,17 @@ async function createWindow(options = {}) {
 
   try {
     if (devServerUrl) {
-      await window.loadURL(devServerUrl);
+      await window.loadURL(fileTarget ? `${devServerUrl}#${FILE_MODE_HASH}` : devServerUrl);
       window.webContents.openDevTools({ mode: "detach" });
     } else {
-      await window.loadFile(rendererDistPath);
+      await window.loadFile(rendererDistPath, fileTarget ? { hash: FILE_MODE_HASH } : undefined);
     }
   } catch (error) {
     console.error("puppyone failed to open renderer:", error);
-    revealWindow(window);
+    present();
   }
 
-  revealWindow(window);
+  present();
 
   window.on("closed", () => {
     void projectSessions.closeWindow(webContentsId).then(({ closed }) => {
@@ -747,6 +856,7 @@ async function createWindow(options = {}) {
     nativeSurfacePointerPassthrough.releaseOwner(webContentsId);
     workspaceWatchService.stopForWindow(webContentsId);
     gitMetadataWatchService.stopForWindow(webContentsId);
+    stopWatchingFile?.();
     windowsById.delete(webContentsId);
     windowStateById.delete(webContentsId);
     if (lastFocusedWindowId === webContentsId) {
@@ -772,6 +882,18 @@ function revealWindow(window) {
   const state = windowStateById.get(window.webContents.id);
   state?.markFocused();
   desktopPlatformHost.windowChrome.focusApplication(app);
+}
+
+function showWindowInactive(window) {
+  if (!window || window.isDestroyed() || window.isVisible()) return;
+  window.center();
+  window.showInactive();
+}
+
+/** An already open target: brought forward, or left where it is for a background open. */
+function showExistingWindow(window, { activate = true } = {}) {
+  if (activate) revealWindow(window);
+  else showWindowInactive(window);
 }
 
 function reapplyNativeWindowChrome(window) {
@@ -826,19 +948,139 @@ function resolveAppIconPath() {
   });
 }
 
+async function queueTemplateIntent(value) {
+  const intent = templateIntents.receive(value);
+  if (!intent) return false;
+  if (initialWindowReady) {
+    const window = await createOrRevealWindow();
+    if (!window.isDestroyed() && templateIntents.assign(intent, window.webContents.id)) {
+      window.webContents.send("template:import-requested");
+    }
+  }
+  return true;
+}
+
 app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
+  const templateLink = argv.find(value => value.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`));
+  if (templateLink) { void queueTemplateIntent(templateLink).catch(() => console.warn("Unable to open the template import window.")); return; }
   void handleSecondInstanceLaunch({
     launchIntent,
     argv,
     workingDirectory,
     isPackaged: app.isPackaged,
-    openWorkspaceInNewWindow,
+    openFile: openSystemPath,
+    openWorkspaceInNewWindow: openSystemPath,
     revealOrCreateWindow: createOrRevealWindow,
     reportError: (message, error) => console.error(message, error),
   });
 });
 
+// macOS sends files as events. Windows and Linux name them on the command line.
+const pendingOpenPaths = initialLaunchIntent.filePath ? [initialLaunchIntent.filePath] : [];
+app.on("open-file", (event, targetPath) => {
+  event.preventDefault();
+  if (initialWindowReady) void openSystemPath(targetPath).catch((error) => console.error("Unable to open file:", error));
+  else pendingOpenPaths.push(targetPath);
+});
+
+/** Opens everything the system asked for. True when at least one window now shows it. */
+async function openPendingPaths() {
+  const results = await Promise.allSettled(pendingOpenPaths.splice(0).map(openSystemPath));
+  for (const result of results) {
+    if (result.status === "rejected") console.error("Unable to open file:", result.reason);
+  }
+  return results.some((result) => result.status === "fulfilled" && result.value);
+}
+
+const openPathFromSystem = createSystemOpenRoute({
+  isFileModeFile,
+  maxFileBytes: MAX_EDITOR_BYTES,
+  findFileWindow: (realPath) => {
+    for (const [id, state] of windowStateById) {
+      const window = state.fileTarget?.path === realPath ? windowsById.get(id) : null;
+      if (window && !window.isDestroyed()) return window;
+    }
+    return null;
+  },
+  findProjectWindow: (realPath) => findProjectWindowForFolder(
+    [...windowStateById].map(([id, state]) => ({ window: windowsById.get(id), state })),
+    realPath,
+  ),
+  showExistingWindow,
+  openFileWindow: (realPath, { activate }) => createWindow({ initialFilePath: realPath, activate }),
+  openProjectWindow: (realPath, { activate }) => openWorkspaceInNewWindow(realPath, { activate }),
+});
+
+/** The system's and a second instance's view of the route: true when a window shows the path. */
+async function openSystemPath(targetPath) {
+  try {
+    await openPathFromSystem(targetPath);
+    return true;
+  } catch (error) {
+    if (!(error instanceof OpenPathRejection)) throw error;
+    console.warn("Unable to open a path from the system:", error.message);
+    return false;
+  }
+}
+
+// `puppyone open` reaches this window manager through a per-user socket.
+const launchedByCli = process.argv.includes(CLI_LAUNCH_ARGUMENT);
+let allowCliWindows;
+const cliWindowsAllowed = new Promise((resolve) => { allowCliWindows = resolve; });
+let settleCliLaunchRequest = () => undefined;
+const cliLaunchRequest = new Promise((resolve) => { settleCliLaunchRequest = resolve; });
+const cliControlServer = gotSingleInstanceLock && cliControlEndpoint
+  ? createCliControlServer({
+      endpoint: cliControlEndpoint,
+      handle: createCliControlRequests({
+        app: Object.freeze({ name: appName, version: desktopBuildInfo.version, channel: desktopBuildInfo.channel }),
+        openExtensions: FILE_MODE_EXTENSIONS,
+        openMaxBytes: MAX_EDITOR_BYTES,
+        openPath: openPathFromSystem,
+        whenWindowsAllowed: () => cliWindowsAllowed,
+      }),
+      // A launch may quit after a refused request, so it waits until the CLI has the answer.
+      onResponseSent: (response) => {
+        if (response?.ok === false) settleCliLaunchRequest("failed");
+        else if (Array.isArray(response?.results)) {
+          settleCliLaunchRequest(response.results.some((result) => result.status !== "rejected") ? "opened" : "failed");
+        }
+      },
+    })
+  : null;
+if (cliControlServer) {
+  void cliControlServer.start().catch((error) => console.warn("Unable to accept command-line requests:", error));
+  app.once("will-quit", () => { void cliControlServer.close(); });
+}
+
+/** Where a launch by `puppyone open` ended: "opened", "failed", or "timeout" when no request came. */
+function waitForCliLaunchRequest() {
+  return Promise.race([
+    cliLaunchRequest,
+    new Promise((resolve) => setTimeout(() => resolve("timeout"), CLI_CONTROL_LIMITS.launchWaitMs).unref?.()),
+  ]);
+}
+
+/** Tells programs in the terminal which PuppyOne hosts them, so `puppyone open` reaches this one. */
+function createTerminalHostEnvironment() {
+  const bundlePath = resolveApplicationBundlePath();
+  return Object.freeze({
+    ...(cliControlEndpoint ? { PUPPYONE_CLI_ENDPOINT: cliControlEndpoint } : {}),
+    ...(bundlePath ? { PUPPYONE_APP_PATH: bundlePath } : {}),
+  });
+}
+
+/** The .app a packaged macOS build runs from. */
+function resolveApplicationBundlePath() {
+  if (!app.isPackaged || desktopPlatformHost.platform !== "macos") return null;
+  const bundlePath = path.resolve(process.execPath, "..", "..", "..");
+  return bundlePath.endsWith(".app") ? bundlePath : null;
+}
+
 app.on("open-url", (event, url) => {
+  if (url.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) {
+    event.preventDefault(); void queueTemplateIntent(url).catch(() => console.warn("Unable to open the template import window.")); return;
+  }
   if (!isDesktopReturnUrl(url, desktopBuildInfo.channel)) return;
   event.preventDefault();
   if (initialWindowReady) revealLastFocusedWindow();
@@ -854,12 +1096,21 @@ app.whenReady().then(async () => {
       console.warn("Unable to register the PuppyOne Desktop return link:", error);
     }
   }
-  installEmbeddedContentSessionSecurity(electronSession.defaultSession, { applicationUrl: rendererApplicationUrl });
+  installEmbeddedContentSessionSecurity(electronSession.defaultSession, { applicationUrl: rendererApplicationUrl,
+    isAuthorizedCloudResource: cloudPreviewResourceService.allowed });
   await localeService.initialize();
   const updatePreferenceStore = createDesktopUpdatePreferenceStore({
     filePath: path.join(app.getPath("userData"), "desktop-update-preferences.json"),
   });
   const updatePreferences = await updatePreferenceStore.read();
+  // A packaged macOS app restarts to update by swapping in an app prepared in
+  // the background, not by waiting on Squirrel.Mac after it has quit.
+  const preparedUpdate = app.isPackaged && desktopPlatformHost.platform === "macos"
+    ? await createMacosPreparedUpdate({
+      appBundlePath: path.resolve(app.getPath("exe"), "../../.."),
+      stagingRoot: path.join(app.getPath("cache"), `${path.basename(app.getPath("userData"))}.prepared-update`),
+    })
+    : null;
   updateService = createUpdateService({
     app,
     buildInfo: desktopBuildInfo,
@@ -871,6 +1122,7 @@ app.whenReady().then(async () => {
     persistAutomaticallyDownloadUpdates: (enabled) => updatePreferenceStore.write({
       automaticallyDownloadUpdates: enabled,
     }),
+    preparedUpdate,
   });
   telemetryHost = createDesktopTelemetryHost({
     app,
@@ -898,6 +1150,8 @@ app.whenReady().then(async () => {
     resolveCapability: localFileCapabilities.resolve,
     applicationUrl: rendererApplicationUrl,
   });
+  protocol.handle(PREVIEW_DOCUMENT_SCHEME, (request) => previewDocumentService.handle(request));
+  registerPreviewDocumentIpc(trustedIpcMain, previewDocumentService);
   registerProjectIconProtocol({
     protocol,
     store: projectAppearanceStore,
@@ -947,14 +1201,33 @@ app.whenReady().then(async () => {
   }
   await telemetryHost.start();
   updateService.start();
-  const initialWorkspaceComposition = initialLaunchIntent.workspacePath
-    ? { workspaceId: null, paths: [initialLaunchIntent.workspacePath] }
-    : await workspaceStateStore.readLastActiveWorkspaceComposition();
-  await createWindow({
-    initialWorkspaceId: initialWorkspaceComposition.workspaceId,
-    initialWorkspacePaths: initialWorkspaceComposition.paths,
-  });
+  allowCliWindows();
+  // A launch by `puppyone open` waits for its request instead of restoring the last project.
+  const cliLaunchOutcome = launchedByCli ? await waitForCliLaunchRequest() : "none";
+  const openedPendingPaths = await openPendingPaths();
+  if (cliLaunchOutcome === "failed" && !openedPendingPaths && windowsById.size === 0) {
+    app.quit();
+    return;
+  }
+  if (cliLaunchOutcome !== "opened" && !openedPendingPaths) {
+    const initialWorkspaceComposition = initialLaunchIntent.workspacePath
+      ? { workspaceId: null, paths: [initialLaunchIntent.workspacePath] }
+      : await workspaceStateStore.readLastActiveWorkspaceComposition();
+    await createWindow({
+      initialWorkspaceId: initialWorkspaceComposition.workspaceId,
+      initialWorkspacePaths: initialWorkspaceComposition.paths,
+    });
+  }
   initialWindowReady = true;
+  // Files that arrived while the first window was opening were queued behind it.
+  await openPendingPaths();
+  const launchTemplate = templateIntents.pending;
+  if (launchTemplate) {
+    const window = await createOrRevealWindow();
+    if (!window.isDestroyed() && templateIntents.assign(launchTemplate, window.webContents.id)) {
+      window.webContents.send("template:import-requested");
+    }
+  }
 
   app.on("activate", () => {
     void localeService.refreshSystemLanguages().catch((error) => {
@@ -988,6 +1261,8 @@ app.on("will-quit", () => {
   stopLocaleNativeRefresh?.();
   localeService.dispose();
   cloudAuthService.dispose();
+  // Last moment before exit: a prepared update is swapped in once the process ends.
+  updateService?.installOnQuit();
   updateService?.dispose();
   telemetryHost?.dispose();
   viewerPackHost?.destroyAllSessions();
@@ -1005,6 +1280,7 @@ app.on("will-quit", () => {
     powerMonitor.removeListener("resume", gitAutoCommitHost.reconcileAfterResume);
   }
   gitAutoCommitHost.closeAll();
+  void localComputerService.closeAll().catch(() => {});
   workspaceWatchService.closeAll();
   gitMetadataWatchService.closeAll();
 });
@@ -1016,6 +1292,7 @@ app.on("before-quit", createApplicationCloseCoordinator({
   getWindows: () => BrowserWindow.getAllWindows(),
   closeResources: async () => {
     await projectSessions.closeAllWindows();
+    await cloudNativePreviewService.closeAll();
     await Promise.all([agentService.closeAll(), terminalService.closeAll(), databasePreviewService.closeAll()]);
   },
   onFailure: async () => {
@@ -1095,12 +1372,14 @@ function registerIpcHandlers() {
   registerWorkspaceNavigationIpcHandlers({
     ipcMain: trustedIpcMain,
     workspaceStateStore,
+    getRestoringProjectForWindow,
     getInitialWorkspaceResultForWindow,
     forgetCurrentWindowWorkspace,
     showHomepageForCurrentWindow,
     openWorkspaceInCurrentWindow,
     openWorkspaceInNewWindow,
     createProjectForCurrentWindow,
+    openCloudProjectInNewWindow,
     connectImportSourceForCurrentWindow,
     listImportResourcesForCurrentWindow,
     importSourceForCurrentWindow,
@@ -1112,8 +1391,53 @@ function registerIpcHandlers() {
     selectWorkspaceForNewWindow,
     attachWorkspaceToCurrentWindow,
     detachWorkspaceFromCurrentWindow,
+    folderRelocation: createFolderRelocation({
+      listRecentWorkspaces: async () => (await workspaceStateStore.getRecentWorkspacesResult()).items
+        .map((item) => item.workspace),
+      windowFolderPaths: (sender) => {
+        const window = BrowserWindow.fromWebContents(sender);
+        return window && !window.isDestroyed() ? getOrCreateWindowState(window).folderPaths : [];
+      },
+      resolveIdentity: resolveLocalWorkspaceIdentity,
+      showOpenDialog: (window, options) => (window && !window.isDestroyed()
+        ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options)),
+      relocateRecent: (from, to) => workspaceStateStore.relocateRecentWorkspacePath(from, to),
+      // Registered below; only called once a person has confirmed a new place.
+      retireSharesAtMissingRoot: (rootPath) => hostIpc.retireSharesAtMissingRoot(rootPath),
+      // The gone place's sessions can do nothing more; the same folder reopens at its new place.
+      closeSessionsAt: async (rootPath) => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) await projectSessions.closeRoot(window.webContents.id, rootPath);
+        }
+      },
+      home: app.getPath("home"),
+    }),
+    getDialogOwnerWindow,
+    appFolders: createAppFolderDiscovery({ home: app.getPath("home") }),
   });
-  registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService });
+  // Failed Cloud Computer openings go to the app log file so a report can be
+  // matched to the server log by request id.
+  registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService, diagnostics: cloudOpeningLog });
+  // Sharing this computer's folders runs in the Puppyone Host service, which
+  // keeps sharing after this App quits; Desktop reaches it over a local channel.
+  const hostService = createHostServiceLauncher({ stateDir: hostServiceStateDir(app.getPath("userData")),
+    execPath: process.execPath, appPath: app.getAppPath(), isPackaged: app.isPackaged });
+  const hostIpc = registerHostIpcHandlers({ ipcMain: trustedIpcMain, app, auth: cloudAuthService,
+    apiBase: desktopCloudConfiguration?.apiBase, hostService,
+    authorizeWorkspaceRoot, dialog, BrowserWindow,
+    markWorkspaceShared: (rootPath, hostFolderId) =>
+      workspaceStateStore.setRecentWorkspaceHostFolder(rootPath, hostFolderId),
+    t: (id, values) => localeService.t(id, values) });
+  app.once("will-quit", () => hostIpc.dispose());
+  trustedIpcMain.handle("template:resolve", (_event, request) => templateMarketplaceService.resolveLink(request?.url, request?.locale));
+  trustedIpcMain.handle("template:read-intent", (event) => templateIntents.read(event.sender.id,
+    (ownerId) => BrowserWindow.getAllWindows().some(window => window.webContents.id === ownerId)));
+  // A first launch after installing from the store looks once for the link the
+  // store page copied. A link that arrived from the store itself goes first.
+  trustedIpcMain.handle("template:claim-copied-link", (event) => templateIntents.claimCopied(() => clipboard.readText(), event.sender.id));
+  trustedIpcMain.handle("template:acknowledge-intent", (event, id) => templateIntents.acknowledge(id, event.sender.id));
+  registerCloudNativePreviewIpc(trustedIpcMain, cloudNativePreviewService);
+  registerCloudPreviewResourceIpc(trustedIpcMain, cloudPreviewResourceService);
   registerCloudPublishIpcHandlers({
     ipcMain: trustedIpcMain,
     authorizeWorkspaceRoot,
@@ -1147,6 +1471,7 @@ function registerIpcHandlers() {
     shell,
     authorizeWorkspaceRoot,
     convertOfficeDocument: desktopPlatformHost.documents.convertOfficeDocumentToDocx,
+    decodesLegacyText: (event) => Boolean(windowStateById.get(event.sender.id)?.fileTarget),
     localFileCapabilities,
     workspaceWatchService,
     workspaceMutationTracker,
@@ -1184,6 +1509,13 @@ function registerIpcHandlers() {
   gitAutoCommitHost.registerIpcHandlers({
     ipcMain: trustedIpcMain,
     authorizeWorkspaceRoot,
+  });
+  registerLocalComputerIpcHandlers({
+    ipcMain: trustedIpcMain,
+    service: localComputerService,
+    requireRecentWorkspacePath: (folderPath) => (
+      workspaceStateStore.requireRecentWorkspacePath(folderPath)
+    ),
   });
   registerTerminalIpcHandlers({
     ipcMain: trustedIpcMain,
@@ -1296,6 +1628,14 @@ async function confirmUpdateRestartWithBlockers({
   return result.response === 1;
 }
 
+/** What this window is bringing back, known before the slow work of opening it starts. */
+function getRestoringProjectForWindow(sender) {
+  const state = windowStateById.get(sender.id);
+  const [folderPath] = state?.initialRestorePaths ?? [];
+  if (folderPath) return { kind: "local", path: folderPath };
+  return state?.initialCloudProject ? { kind: "cloud", projectId: state.initialCloudProject.projectId } : null;
+}
+
 async function getInitialWorkspaceResultForWindow(sender) {
   const window = BrowserWindow.fromWebContents(sender);
   if (!window || window.isDestroyed()) {
@@ -1309,6 +1649,17 @@ async function getInitialWorkspaceResultForWindow(sender) {
   }
 
   const state = windowStateById.get(window.webContents.id);
+  if (state?.fileTarget) {
+    const { size } = await fs.promises.stat(state.fileTarget.path).catch(() => ({ size: 0 }));
+    return {
+      workspaceId: null,
+      path: null,
+      workspace: null,
+      workspaces: [],
+      initialFile: { ...state.fileTarget, tooLarge: size > MAX_EDITOR_BYTES, sizeLimit: MAX_EDITOR_BYTES },
+      error: null,
+    };
+  }
   if (state?.folders.length) {
     const workspaces = state.folders.map((folder) => folder.workspace);
     return {
@@ -1316,6 +1667,8 @@ async function getInitialWorkspaceResultForWindow(sender) {
       path: state.folderPaths[0] ?? null,
       workspace: workspaces[0] ?? null,
       workspaces,
+      // The renderer may only ask after the window was assigned its folders.
+      initialOpenPath: state.takeInitialOpenPath() ?? null,
       error: null,
     };
   }
@@ -1327,6 +1680,7 @@ async function getInitialWorkspaceResultForWindow(sender) {
       path: null,
       workspace: null,
       workspaces: [],
+      initialCloudProject: state?.initialCloudProject ?? null,
       error: null,
     };
   }
@@ -1336,11 +1690,6 @@ async function getInitialWorkspaceResultForWindow(sender) {
     for (const initialPath of initialPaths) {
       const workspace = await workspaceFromPath(initialPath);
       const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
-      const existingWindow = getWorkspaceWindow(canonicalPath);
-      if (existingWindow && existingWindow !== window) {
-        revealWorkspaceWindow(existingWindow, canonicalPath);
-        throw new Error(`${workspace.name} is already open in another puppyone window.`);
-      }
       folders.push({ path: canonicalPath, workspace });
     }
 
@@ -1356,6 +1705,7 @@ async function getInitialWorkspaceResultForWindow(sender) {
       path: folders[0]?.path ?? null,
       workspace: workspaces[0] ?? null,
       workspaces,
+      initialOpenPath: state?.takeInitialOpenPath() ?? null,
       error: null,
     };
   } catch (error) {
@@ -1414,12 +1764,15 @@ async function createProjectForCurrentWindow(sender, request) {
       source: request.source,
       operationId: request.operationId,
       locale: request.locale ?? localeService.getSnapshot().locale,
+      numberIfTaken: request.numberIfTaken === true,
     });
     // Retain authority only for this committed operation, not another create.
     projectLocationGrants.bindCommittedOperation(sender, request.locationGrantId, request.operationId);
     try {
       assertOpen();
-      const result = await openWorkspaceInCurrentWindowNow(sender, project.path, {}, assertOpen);
+      const result = request.openInNewWindow === true
+        ? await openWorkspaceInNewWindow(project.path, { initialOpenPath: project.initialization.initialOpenPath })
+        : await openWorkspaceInCurrentWindowNow(sender, project.path, {}, assertOpen);
       return { initialization: project.initialization, opening: { status: "opened", result } };
     } catch (error) {
       return { initialization: project.initialization, opening: { status: "failed", message: error instanceof Error ? error.message : String(error) } };
@@ -1478,6 +1831,8 @@ async function importSourceForCurrentWindow(sender, request) {
     throw new Error("An import task ID is required.");
   }
   return runProjectEntryOperation(sender, async () => {
+    const completed = importOpeningRecovery.get(sender, taskId);
+    if (completed) return importOpeningRecovery.open(sender, taskId, completed);
     let source;
     if (descriptor.mode === "folder") {
       const ownerWindow = getDialogOwnerWindow(sender);
@@ -1528,7 +1883,7 @@ async function importSourceForCurrentWindow(sender, request) {
       });
       importSourceTasks.delete(sender.id);
       if (grantId) projectLocationGrants.revoke(sender, grantId);
-      return openWorkspaceInCurrentWindow(sender, project.path);
+      return importOpeningRecovery.open(sender, taskId, project);
     } finally {
       importSourceTasks.delete(sender.id);
     }
@@ -1591,24 +1946,6 @@ async function openWorkspaceInCurrentWindowNow(sender, folderPath, options, asse
   const workspace = await workspaceFromPath(folderPath);
   const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
   assertOpen();
-  const existingWindow = getWorkspaceWindow(canonicalPath);
-  if (existingWindow && existingWindow !== window) {
-    revealWorkspaceWindow(existingWindow, canonicalPath);
-    const existingState = getOrCreateWindowState(existingWindow);
-    if (options.remember !== false) {
-      await workspaceStateStore.rememberWorkspaceComposition(
-        existingState.folders.map((folder) => folder.workspace),
-        { workbenchWorkspaceId: existingState.workspaceId },
-      );
-    }
-    return {
-      status: "focused-existing",
-      workspaceId: existingState.workspaceId,
-      path: canonicalPath,
-      workspace,
-    };
-  }
-
   const state = getOrCreateWindowState(window);
   const folders = (state.compositionForPath(canonicalPath) ?? [{ workspace, path: canonicalPath }])
     .map((folder) => folder.path === canonicalPath ? { workspace, path: canonicalPath } : folder);
@@ -1633,26 +1970,10 @@ async function openWorkspaceInCurrentWindowNow(sender, folderPath, options, asse
 async function openWorkspaceInNewWindow(folderPath, options = {}) {
   const workspace = await workspaceFromPath(folderPath);
   const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
-  const existingWindow = getWorkspaceWindow(canonicalPath);
-  if (existingWindow) {
-    revealWorkspaceWindow(existingWindow, canonicalPath);
-    const existingState = getOrCreateWindowState(existingWindow);
-    if (options.remember !== false) {
-      await workspaceStateStore.rememberWorkspaceComposition(
-        existingState.folders.map((folder) => folder.workspace),
-        { workbenchWorkspaceId: existingState.workspaceId },
-      );
-    }
-    return {
-      status: "focused-existing",
-      workspaceId: existingState.workspaceId,
-      path: canonicalPath,
-      workspace,
-    };
-  }
-
   const window = await createWindow({
     initialWorkspacePath: canonicalPath,
+    initialOpenPath: options.initialOpenPath,
+    activate: options.activate,
   });
   const state = assignWindowWorkspace(window, workspace, canonicalPath, { cleanupPrevious: false });
   if (options.remember !== false) {
@@ -1666,6 +1987,20 @@ async function openWorkspaceInNewWindow(folderPath, options = {}) {
     path: canonicalPath,
     workspace,
   };
+}
+
+async function openCloudProjectInNewWindow(target) {
+  if (typeof target?.projectId !== "string" || !target.projectId.trim() || target.projectId.length > 256) {
+    throw new Error("A Cloud project ID is required.");
+  }
+  const session = await cloudAuthService.readSession();
+  if (!session || session.user_id !== target.userId) {
+    throw new Error("The signed-in Cloud account has changed.");
+  }
+  // Carry identity only. The new renderer restores auth and authorizes the
+  // repository through the existing Cloud workbench before opening any files.
+  await createWindow({ initialCloudProject: { projectId: target.projectId.trim(), userId: session.user_id } });
+  return { ok: true };
 }
 
 async function attachWorkspaceToCurrentWindow(sender, folderPath) {
@@ -1729,7 +2064,7 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
   projectSessions.assertWindowOpen(webContentsId);
   for (const folder of folders) projectSessions.retainForPresentation(webContentsId, folder);
   state.replaceFolders(folders);
-  for (const folder of folders) workspaceWindowByPath.set(folder.path, window);
+  for (const folder of folders) workspaceWindows.add(folder.path, window);
   const primaryPath = folders[0]?.path ?? null;
   if (primaryPath) void gitAutoCommitHost.assignWorkspace(window.webContents, primaryPath).catch((error) => {
     console.warn("Unable to initialize Git Auto Commit for workspace:", error);
@@ -1745,17 +2080,18 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
 }
 
 function releaseWindowWorkspaceById(webContentsId, window = null) {
+  cloudPreviewResourceService.revokeOwner(webContentsId);
+  void cloudNativePreviewService.closeOwner(webContentsId).catch(() => {});
   void databasePreviewService.closeOwner(webContentsId).catch(() => {});
   gitAutoCommitHost.releaseWindow(webContentsId);
   viewerPackHost?.destroySessionsForOwner(webContentsId);
   localFileCapabilities.revokeSender(webContentsId);
+  previewDocumentService.revokeOwner(webContentsId);
   const state = windowStateById.get(webContentsId);
+  if (state?.fileTarget) workspaceWindows.remove(state.fileTarget.rootPath, window);
   const workspacePaths = [...new Set([...(state?.folderPaths ?? []), ...projectSessions.snapshot(webContentsId).projects.map((project) => project.rootPath)])];
   for (const workspacePath of workspacePaths) {
-    const existingWindow = workspaceWindowByPath.get(workspacePath);
-    if (existingWindow === window || existingWindow?.isDestroyed()) {
-      workspaceWindowByPath.delete(workspacePath);
-    }
+    workspaceWindows.remove(workspacePath, window);
   }
   if (state) {
     state.releaseFolders();
@@ -1782,7 +2118,7 @@ async function forgetCurrentWindowWorkspaceNow(sender) {
   for (const root of state.folderPaths) {
     await projectSessions.closeRoot(window.webContents.id, root);
     state.forgetFolder(root);
-    if (workspaceWindowByPath.get(root) === window) workspaceWindowByPath.delete(root);
+    workspaceWindows.remove(root, window);
   }
   state.releaseFolders();
   if (releasedPath) await workspaceStateStore.removeRecentWorkspacePath(releasedPath);
@@ -1799,32 +2135,19 @@ function getOrCreateWindowState(window) {
 }
 
 function resolveWindowTitle(window) {
-  const workspace = windowStateById.get(window.webContents.id)?.primaryWorkspace;
+  const state = windowStateById.get(window.webContents.id);
+  if (state?.fileTarget) return state.fileTarget.name;
+  const workspace = state?.primaryWorkspace;
   return workspace ? `${appName} - ${workspace.name}` : appName;
 }
 
-function revealWorkspaceWindow(window, rootPath) {
-  revealWindow(window);
-  if (rootPath && !window.isDestroyed() && !getOrCreateWindowState(window).folderPaths.includes(rootPath)) {
-    window.webContents.send("workspace:open-requested", { rootPath });
-  }
-}
-
-function getWorkspaceWindow(canonicalPath) {
-  const window = workspaceWindowByPath.get(canonicalPath);
-  if (!window || window.isDestroyed()) {
-    workspaceWindowByPath.delete(canonicalPath);
-    return null;
-  }
-  return window;
-}
-
 function isOpenWorkspaceRoot(canonicalPath) {
-  return Boolean(getWorkspaceWindow(canonicalPath));
+  return workspaceWindows.has(canonicalPath);
 }
 
 function getWorkspaceRootsForSender(sender) {
-  return projectSessions.roots(sender.id);
+  const fileTarget = windowStateById.get(sender.id)?.fileTarget;
+  return fileTarget ? [fileTarget.rootPath] : projectSessions.roots(sender.id);
 }
 
 function getDialogOwnerWindow(sender) {

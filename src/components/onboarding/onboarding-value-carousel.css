@@ -1,0 +1,715 @@
+/* First run's three moments: one square stage the moments cross-fade in, and three
+   dots under it. Scenes are drawn on a 380px square and scaled with the picture. */
+.onboarding-value-carousel {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: center;
+  gap: var(--onboarding-carousel-gap, 14px);
+}
+
+.onboarding-value-stage {
+  position: relative;
+  width: var(--onboarding-hub-size);
+  height: var(--onboarding-hub-size);
+  user-select: none;
+}
+
+.onboarding-value-slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 420ms ease, visibility 0s linear 420ms;
+}
+
+.onboarding-value-slide.is-active {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 420ms ease 120ms, visibility 0s;
+}
+
+.onboarding-value-slide > .onboarding-value-hub {
+  margin: 0;
+}
+
+/* ---------- dots ---------- */
+.onboarding-value-dots {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.onboarding-value-dot {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  cursor: var(--po-clickable-cursor, default);
+  place-items: center;
+  transition: width 260ms ease;
+}
+
+.onboarding-value-dot::before {
+  grid-area: 1 / 1;
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--po-text) 22%, transparent);
+  content: "";
+  transition: width 260ms ease, background 160ms ease;
+}
+
+.onboarding-value-dot:hover::before {
+  background: color-mix(in srgb, var(--po-text) 40%, transparent);
+}
+
+.onboarding-value-dot:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 0;
+}
+
+.onboarding-value-dot.is-active {
+  width: 34px;
+}
+
+.onboarding-value-dot.is-active::before {
+  width: 22px;
+}
+
+/* The open dot fills as its moment plays; when it is full, the next moment opens. */
+.onboarding-value-dot > i {
+  grid-area: 1 / 1;
+  width: 22px;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--po-text) 62%, transparent);
+  transform-origin: left center;
+  animation: onboarding-value-progress var(--onboarding-slide-seconds) linear forwards;
+}
+
+@keyframes onboarding-value-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Reading, pointing or working on the page holds the moment; so does the page's own entrance. */
+:is(.onboarding-home-value:hover, .onboarding-home-value:focus-within, .is-empty-state-intro, .onboarding-value-carousel[data-pause-on-hover="true"]:hover) .onboarding-value-dot > i {
+  animation-play-state: paused;
+}
+
+/* ---------- scenes ---------- */
+.onboarding-scene {
+  --onboarding-scene-chart: var(--po-accent);
+  --onboarding-scene-done: var(--po-success);
+  --onboarding-scene-peak: var(--po-file-accent-html);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 380px;
+  height: 380px;
+  color: var(--po-text);
+  font-family: var(--po-font-sans);
+  zoom: calc(var(--onboarding-hub-scale, 1));
+}
+
+.onboarding-scene-card {
+  position: absolute;
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--po-border);
+  border-radius: 10px;
+  background: var(--po-panel-raised, var(--po-canvas));
+  box-shadow: 0 14px 30px -18px var(--po-shadow);
+}
+
+.onboarding-scene-card > i {
+  display: block;
+  width: 86%;
+  height: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--po-text) 12%, transparent);
+}
+
+.onboarding-scene-card > i.is-heading {
+  width: 46%;
+  height: 7px;
+  background: color-mix(in srgb, var(--po-text) 68%, transparent);
+}
+
+.onboarding-scene-card > i.is-short {
+  width: 52%;
+}
+
+.onboarding-scene-tag {
+  position: absolute;
+  inset-inline-end: 10px;
+  inset-block-end: 10px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--po-file-accent-html);
+  color: var(--po-text-inverse);
+  font-size: 9px;
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.onboarding-scene-dashboard-title {
+  font-size: 15px;
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 20px;
+}
+
+.onboarding-scene-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.onboarding-scene-kpis > span {
+  display: grid;
+  gap: 1px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--po-text) 5%, transparent);
+  color: var(--po-text-muted);
+  font-size: 9px;
+  line-height: 12px;
+  white-space: nowrap;
+}
+
+.onboarding-scene-kpis b {
+  color: var(--po-text);
+  font-size: 13px;
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 17px;
+}
+
+.onboarding-scene-chart {
+  position: relative;
+  display: block;
+  flex: 1;
+  min-height: 0;
+  /* Room for the tag the chart wears when it is picked or changed. */
+  margin-top: 22px;
+}
+
+.onboarding-scene-chart > svg {
+  position: absolute;
+  inset: 8px 8px 6px;
+  width: calc(100% - 16px);
+  height: calc(100% - 14px);
+  overflow: visible;
+}
+
+.onboarding-scene-axis {
+  stroke: var(--po-divider);
+  stroke-width: 1;
+}
+
+.onboarding-scene-bars rect {
+  fill: var(--onboarding-scene-chart);
+}
+
+.onboarding-scene-bars rect:nth-of-type(1) { opacity: 0.55; }
+.onboarding-scene-bars rect:nth-of-type(2) { opacity: 0.75; }
+
+.onboarding-scene-area {
+  fill: color-mix(in srgb, var(--onboarding-scene-chart) 12%, transparent);
+}
+
+.onboarding-scene-line {
+  fill: none;
+  stroke: var(--onboarding-scene-chart);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+}
+
+/* ---------- edit: circle it, say it, it's changed ---------- */
+.onboarding-scene-edit .onboarding-scene-card.is-markdown {
+  top: 34px;
+  left: 18px;
+  width: 168px;
+  height: 92px;
+  transform: rotate(-4deg);
+}
+
+.onboarding-scene-edit .onboarding-scene-card.is-sheet {
+  top: 26px;
+  left: 190px;
+  width: 172px;
+  height: 96px;
+  transform: rotate(4deg);
+}
+
+.onboarding-scene-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+}
+
+.onboarding-scene-grid i {
+  height: 8px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--po-file-accent-sheet) 14%, transparent);
+}
+
+.onboarding-scene-grid i:nth-child(-n + 4) {
+  background: color-mix(in srgb, var(--po-file-accent-sheet) 36%, transparent);
+}
+
+.onboarding-scene-grid-pick {
+  position: absolute;
+  top: 29px;
+  left: calc(12px + (100% - 24px) * 0.5 + 1px);
+  width: calc((100% - 24px) * 0.25 - 3px);
+  height: 42px;
+  border: 1.5px solid var(--onboarding-scene-chart);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--onboarding-scene-chart) 12%, transparent);
+  opacity: 0;
+}
+
+.onboarding-scene-edit .onboarding-scene-card.is-dashboard {
+  top: 92px;
+  left: 6px;
+  width: 368px;
+  height: 246px;
+  padding: 14px 16px 16px;
+}
+
+.onboarding-scene-edit .onboarding-scene-chart {
+  border: 1px solid var(--po-border-subtle, var(--po-border));
+  border-radius: 6px;
+}
+
+.onboarding-scene-redrawn .onboarding-scene-line {
+  stroke-dashoffset: 0;
+}
+
+.onboarding-scene-bars {
+  opacity: 0;
+}
+
+.onboarding-scene-selection {
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--onboarding-scene-done);
+  border-radius: 8px;
+}
+
+.onboarding-scene-selection b {
+  position: absolute;
+  top: -19px;
+  left: -2px;
+  padding: 3px 7px;
+  border-radius: 5px 5px 0 0;
+  background: var(--onboarding-scene-done);
+  color: var(--po-text-inverse);
+  font-size: 10px;
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.onboarding-scene-selection b.is-picked {
+  background: var(--onboarding-scene-chart);
+  opacity: 0;
+}
+
+.onboarding-scene-prompt {
+  position: absolute;
+  top: 322px;
+  left: 76px;
+  display: flex;
+  box-sizing: border-box;
+  width: 228px;
+  height: 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--po-border);
+  border-radius: 10px;
+  background: var(--po-panel-raised, var(--po-canvas));
+  box-shadow: 0 12px 26px -12px var(--po-shadow);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.onboarding-scene-prompt img {
+  width: 16px;
+  height: 16px;
+}
+
+.onboarding-scene-prompt > span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-scene-prompt kbd {
+  color: var(--po-text-subtle);
+  font-family: inherit;
+  font-size: 10px;
+}
+
+/* The moment plays only while it is open, and each step ends where the picture rests. */
+.is-active .onboarding-scene-edit .onboarding-scene-selection {
+  animation: onboarding-scene-select 2.3s ease both;
+}
+
+.is-active .onboarding-scene-edit .onboarding-scene-selection b.is-picked {
+  animation: onboarding-scene-picked 2.3s ease both;
+}
+
+.is-active .onboarding-scene-edit .onboarding-scene-selection b.is-done {
+  animation: onboarding-scene-appear 0.3s ease 2s backwards;
+}
+
+.is-active .onboarding-scene-prompt {
+  animation: onboarding-scene-rise 0.45s ease 0.6s backwards;
+}
+
+.is-active .onboarding-scene-bars {
+  animation: onboarding-scene-bars-out 2s ease both;
+}
+
+.is-active .onboarding-scene-redrawn :is(.onboarding-scene-area) {
+  animation: onboarding-scene-appear 0.6s ease 1.7s backwards;
+}
+
+.is-active .onboarding-scene-redrawn .onboarding-scene-line {
+  animation: onboarding-scene-draw 0.9s ease 1.4s backwards;
+}
+
+.is-active .onboarding-scene-card > i.is-flash {
+  animation: onboarding-scene-flash 1s ease 2.6s both;
+}
+
+.is-active .onboarding-scene-grid-pick {
+  animation: onboarding-scene-flash-box 1s ease 3s both;
+}
+
+@keyframes onboarding-scene-select {
+  0%, 10% { opacity: 0; border-color: var(--onboarding-scene-chart); }
+  20%, 85% { opacity: 1; border-color: var(--onboarding-scene-chart); }
+  100% { opacity: 1; border-color: var(--onboarding-scene-done); }
+}
+
+@keyframes onboarding-scene-picked {
+  0%, 10% { opacity: 0; }
+  20%, 85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes onboarding-scene-bars-out {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes onboarding-scene-appear {
+  from { opacity: 0; }
+}
+
+@keyframes onboarding-scene-rise {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes onboarding-scene-draw {
+  from { stroke-dashoffset: 1; }
+}
+
+@keyframes onboarding-scene-flash {
+  0%, 100% { background: color-mix(in srgb, var(--po-text) 12%, transparent); }
+  40%, 60% { background: color-mix(in srgb, var(--onboarding-scene-chart) 45%, transparent); }
+}
+
+@keyframes onboarding-scene-flash-box {
+  0%, 100% { opacity: 0; }
+  40%, 60% { opacity: 1; }
+}
+
+/* ---------- forward: hand the code to an Agent ---------- */
+.onboarding-scene-forward .onboarding-scene-card.is-dashboard {
+  top: 88px;
+  left: 14px;
+  width: 206px;
+  height: 222px;
+  gap: 5px;
+  padding: 12px;
+}
+
+.onboarding-scene-forward .onboarding-scene-dashboard-title {
+  font-size: 13px;
+  line-height: 17px;
+}
+
+.onboarding-scene-forward .onboarding-scene-kpis {
+  gap: 4px;
+}
+
+.onboarding-scene-forward .onboarding-scene-kpis > span {
+  padding: 4px 5px;
+  font-size: 8px;
+  line-height: 10px;
+}
+
+.onboarding-scene-forward .onboarding-scene-kpis b {
+  font-size: 10px;
+  line-height: 13px;
+}
+
+.onboarding-scene-settled .onboarding-scene-line {
+  stroke-dasharray: none;
+}
+
+.onboarding-scene-peak {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--onboarding-scene-peak);
+  color: var(--po-text-inverse);
+  font-size: 9px;
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.onboarding-scene-changed {
+  position: absolute;
+  inset: -3px;
+  border: 2px solid var(--onboarding-scene-done);
+  border-radius: 7px;
+}
+
+.onboarding-scene-changed b {
+  position: absolute;
+  top: -17px;
+  right: -2px;
+  padding: 2px 6px;
+  border-radius: 4px 4px 0 0;
+  background: var(--onboarding-scene-done);
+  color: var(--po-text-inverse);
+  font-size: 9px;
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+/* The dashboard's own link, and beside it the code that is only another way to send it. */
+.onboarding-scene-share {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.onboarding-scene-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-accent) 12%, transparent);
+  color: var(--po-accent-text, var(--po-accent));
+  font-size: 9px;
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 11px;
+  white-space: nowrap;
+}
+
+.onboarding-scene-qr {
+  width: 22px;
+  height: 22px;
+  padding: 2px;
+  border: 1px solid var(--po-border);
+  border-radius: 4px;
+  background: #fff;
+  fill: #111;
+  opacity: 0.8;
+}
+
+.onboarding-scene-wire {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.onboarding-scene-wire path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--po-accent) 70%, transparent);
+  stroke-width: 1.5;
+  stroke-dasharray: 0.02 0.03;
+  stroke-linecap: round;
+}
+
+.onboarding-scene-phone {
+  position: absolute;
+  top: 66px;
+  left: 236px;
+  display: flex;
+  box-sizing: border-box;
+  width: 136px;
+  height: 252px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 22px 8px 10px;
+  overflow: hidden;
+  border: 1.5px solid var(--po-border-strong, var(--po-border));
+  border-radius: 22px;
+  background: var(--po-panel-raised, var(--po-canvas));
+  box-shadow: 0 18px 36px -20px var(--po-shadow);
+}
+
+.onboarding-scene-phone::before {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 30px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--po-border-strong, var(--po-border));
+  content: "";
+  transform: translateX(-50%);
+}
+
+.onboarding-scene-phone-app {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--po-divider);
+  font-size: 10px;
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 13px;
+}
+
+.onboarding-scene-phone-app svg {
+  width: 13px;
+  height: 13px;
+}
+
+.onboarding-scene-phone-app img {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.onboarding-scene-message {
+  align-self: flex-start;
+  max-width: 92%;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--po-text) 6%, transparent);
+  font-size: 8.5px;
+  line-height: 12px;
+}
+
+.onboarding-scene-message.is-mine {
+  align-self: flex-end;
+  background: color-mix(in srgb, var(--po-text) 86%, var(--po-canvas));
+  color: var(--po-canvas);
+}
+
+/* The link arrives as a preview of the file itself, so the Agent is plainly handed it. */
+.onboarding-scene-message.is-link {
+  display: flex;
+  max-width: 96%;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--po-border);
+  background: var(--po-panel-raised, var(--po-canvas));
+  color: var(--po-text);
+}
+
+.onboarding-scene-link-thumb {
+  display: flex;
+  box-sizing: border-box;
+  width: 28px;
+  height: 24px;
+  flex: none;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--po-text) 6%, transparent);
+}
+
+.onboarding-scene-link-thumb i {
+  flex: 1;
+  border-radius: 1px;
+  background: var(--onboarding-scene-chart);
+}
+
+.onboarding-scene-link-thumb i:nth-child(1) { height: 40%; opacity: 0.55; }
+.onboarding-scene-link-thumb i:nth-child(2) { height: 65%; opacity: 0.75; }
+.onboarding-scene-link-thumb i:nth-child(3) { height: 90%; }
+
+.onboarding-scene-link-text {
+  display: grid;
+  min-width: 0;
+}
+
+.onboarding-scene-link-text b {
+  overflow: hidden;
+  font-size: 8.5px;
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-scene-link-text code {
+  color: var(--po-accent-text, var(--po-accent));
+}
+
+.onboarding-scene-message code {
+  font-size: 7.5px;
+  line-height: 10px;
+}
+
+.onboarding-scene-message.is-done {
+  color: var(--onboarding-scene-done);
+}
+
+.is-active .onboarding-scene-wire path {
+  animation: onboarding-scene-wire 0.8s ease 0.3s backwards;
+}
+
+.is-active :is(.onboarding-scene-message, .onboarding-scene-peak, .onboarding-scene-changed) {
+  animation: onboarding-scene-rise 0.4s ease var(--onboarding-scene-delay, 0s) backwards;
+}
+
+@keyframes onboarding-scene-wire {
+  from { stroke-dashoffset: 1; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-value-slide,
+  .onboarding-value-slide.is-active,
+  .onboarding-value-dot,
+  .onboarding-value-dot::before {
+    transition: none;
+  }
+
+  /* Without motion nothing moves on by itself; each moment rests on its outcome. */
+  .onboarding-value-dot > i,
+  .onboarding-value-slide * {
+    animation: none !important;
+  }
+}

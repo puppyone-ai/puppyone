@@ -19,27 +19,33 @@ export const itemHostBudgetDefaults = Object.freeze({
 });
 
 /** Leases include starting, hidden, failed and closing hosts until actual exit. */
-export function createItemHostBudget(limits = {}, { readMetrics, now = Date.now } = {}) {
+export function createItemHostBudget(limits = {}, { readMetrics, now = () => performance.now() } = {}) {
   const policy = Object.freeze({ ...itemHostBudgetDefaults, ...limits });
   const leases = new Map();
   let monitor = null;
   const memory = (entries) => entries.reduce((total, entry) => total + Math.max(entry.rss ?? 0, policy.reservationBytes), 0);
-  const sample = (metrics) => {
-    const byPid = new Map(metrics.map((metric) => [metric.pid, metric]));
-    for (const entry of leases.values()) {
-      const metric = byPid.get(entry.pid);
-      if (!metric || entry.failed) continue;
-      entry.rss = Math.max(0, metric.memory?.workingSetSize ?? 0) * 1024;
-      const cpu = metric.cpu?.percentCPUUsage ?? 0;
-      entry.cpuSince = cpu >= policy.sustainedCpuPercent ? entry.cpuSince ?? now() : null;
-      const memoryLimit = entry.role === "renderer" ? policy.rendererRssBytes : policy.utilityRssBytes;
-      const code = entry.rss > memoryLimit ? "HOST_MEMORY_BUDGET"
-        : entry.cpuSince !== null && now() - entry.cpuSince >= policy.sustainedCpuMs ? "HOST_CPU_BUDGET" : null;
-      if (code) {
-        entry.failed = true;
-        entry.onExceeded?.(hostError(code, "This instance exceeded its sustained process resource budget."));
-      }
+  function sampleProcess(entry, metric, sampledAt) {
+    if (entry.failed) return;
+    // Sustained CPU requires contiguous observations. A sleeping or stalled
+    // supervisor cannot count its missing samples as continuous CPU pressure.
+    if (!metric || entry.sampledAt == null || sampledAt - entry.sampledAt > 4000 || sampledAt < entry.sampledAt) entry.cpuSince = null;
+    entry.sampledAt = sampledAt;
+    if (!metric) return;
+    entry.rss = Math.max(0, metric.memory?.workingSetSize ?? 0) * 1024;
+    const cpu = metric.cpu?.percentCPUUsage ?? 0;
+    entry.cpuSince = cpu >= policy.sustainedCpuPercent ? entry.cpuSince ?? sampledAt : null;
+    const memoryLimit = entry.role === "renderer" ? policy.rendererRssBytes : policy.utilityRssBytes;
+    const code = entry.rss > memoryLimit ? "HOST_MEMORY_BUDGET"
+      : entry.cpuSince !== null && sampledAt - entry.cpuSince >= policy.sustainedCpuMs ? "HOST_CPU_BUDGET" : null;
+    if (code) {
+      entry.failed = true;
+      entry.onExceeded?.(hostError(code, "This instance exceeded its sustained process resource budget."));
     }
+  }
+  const sample = (metrics) => {
+    const sampledAt = now();
+    const byPid = new Map(metrics.map((metric) => [metric.pid, metric]));
+    for (const entry of leases.values()) sampleProcess(entry, byPid.get(entry.pid), sampledAt);
     // Aggregate pressure closes only the largest contributor, then waits for
     // confirmed release before selecting another. Siblings are not restarted.
     const entries = [...leases.values()];

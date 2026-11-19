@@ -6,15 +6,16 @@ import { EditorView } from "@codemirror/view";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DocumentSessionBoundary } from "../../../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
+import { afterTypingPause } from "../../../../../support/editor/autoSave";
+import { DocumentSessionBoundary } from "../../../../../../src/shared-ui/editor/document-session/DocumentSessionBoundary";
 import {
   closeAllDocumentWorkingCopies,
   closeDocumentWorkingCopy,
-} from "../../../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { MarkdownCodeMirrorEditor } from "../../../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
-import { markdownRevealedSourceField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
-import type { EditorSourceSnapshotPort } from "../../../../../../packages/shared-ui/src/editor/sourceSnapshot";
-import { TextEditorFrame } from "../../../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
+} from "../../../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
+import { MarkdownCodeMirrorEditor } from "../../../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor";
+import { markdownRevealedSourceField } from "../../../../../../src/shared-ui/editor/markdown/core/state/revealedSource";
+import type { EditorSourceSnapshotPort } from "../../../../../../src/shared-ui/editor/sourceSnapshot";
+import { TextEditorFrame } from "../../../../../../src/shared-ui/editor/viewers/shared/TextEditorFrame";
 import { withTestLocalization } from "../../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -56,7 +57,7 @@ describe("Markdown source snapshot boundary", () => {
     expect(toStringSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("starts frontend Markdown persistence immediately after an edit transaction", async () => {
+  it("starts frontend Markdown persistence once typing pauses after an edit transaction", async () => {
     const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -100,10 +101,7 @@ describe("Markdown source snapshot boundary", () => {
     }));
     expect(persist).not.toHaveBeenCalled();
 
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await afterTypingPause();
 
     expect(persist).toHaveBeenCalledTimes(1);
     expect(persist).toHaveBeenCalledWith(expect.objectContaining({
@@ -113,7 +111,7 @@ describe("Markdown source snapshot boundary", () => {
     }));
   });
 
-  it("keeps an immediate-save failure visible and retryable in auto mode", async () => {
+  it("keeps an auto-save failure visible and retryable in auto mode", async () => {
     const persist = vi.fn(async () => {
       throw new Error("disk unavailable");
     });
@@ -156,11 +154,7 @@ describe("Markdown source snapshot boundary", () => {
       changes: { from: 5, insert: " beta" },
       userEvent: "input.type",
     }));
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await afterTypingPause();
 
     expect(container.querySelector(".editor-inline-error")).not.toBeNull();
     expect(container.querySelector(".editor-save-chip.error")).not.toBeNull();

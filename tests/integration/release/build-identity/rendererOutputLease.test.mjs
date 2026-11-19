@@ -6,7 +6,7 @@ import { once } from "node:events";
 import { afterEach, describe, expect, it } from "vitest";
 import { build } from "vite";
 import { acquireRendererOutputLease } from "../../../../electron/main/renderer-output-lease.mjs";
-import { rendererOutputLeasePlugin } from "../../../../tooling/desktop/build/renderer-output-lease-plugin.mjs";
+import { rendererOutputLeasePlugin } from "../../../../scripts/desktop/build/renderer-output-lease-plugin.mjs";
 
 const roots = [];
 const releases = [];

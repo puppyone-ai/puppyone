@@ -89,24 +89,43 @@ describe("Claude Agent SDK runtime adapter", () => {
     await adapter.dispose();
   });
 
-  it("does not route third-party product traffic through Claude subscription OAuth", async () => {
-    const query = inspectionQuery({
-      email: "subscriber@example.test",
-      subscriptionType: "pro",
-      apiProvider: "firstParty",
-      tokenSource: "oauth",
-    });
+  it.each([
+    ["subscription OAuth", { email: "subscriber@example.test", subscriptionType: "pro", apiProvider: "firstParty", tokenSource: "oauth" }],
+    ["native token", { apiProvider: "firstParty", tokenSource: "ANTHROPIC_AUTH_TOKEN" }],
+    ["cloud credentials", { apiProvider: "bedrock" }],
+  ])("uses Claude Code's SDK-reported %s without requiring an API key", async (_label, account) => {
+    const query = inspectionQuery(account);
+    const sdk = { query: vi.fn(() => query) };
     const adapter = createAdapter({
-      sdk: { query: vi.fn(() => query) },
+      sdk,
       environment: { PATH: "/usr/bin", HOME: "/home/test" },
     });
 
     const inspection = await adapter.inspect();
 
     expect(inspection.account).toMatchObject({
-      account: null,
-      requiresRuntimeSetup: true,
-      error: expect.stringContaining("subscription OAuth cannot be used"),
+      account: { type: account.apiProvider, planType: account.subscriptionType ?? null },
+      requiresRuntimeSetup: false,
+    });
+    expect(inspection.account.error).toBeUndefined();
+    expect(sdk.query.mock.calls[0][0].options.env.ANTHROPIC_API_KEY).toBeUndefined();
+    await adapter.dispose();
+  });
+
+  it.each([
+    {},
+    { apiProvider: "firstParty", email: "subscriber@example.test", subscriptionType: "pro" },
+    { apiProvider: "firstParty", tokenSource: "none", apiKeySource: "none" },
+  ])("requires sign-in when a model catalog has no native credential source: %j", async (account) => {
+    const adapter = createAdapter({
+      sdk: { query: vi.fn(() => inspectionQuery(account)) },
+      environment: { PATH: "/usr/bin", HOME: "/home/test" },
+    });
+    const inspection = await adapter.inspect();
+    expect(inspection.models).not.toHaveLength(0);
+    expect(inspection.account).toMatchObject({
+      account: null, requiresRuntimeSetup: true,
+      error: expect.stringContaining("Sign in to Claude Code"),
     });
     await adapter.dispose();
   });

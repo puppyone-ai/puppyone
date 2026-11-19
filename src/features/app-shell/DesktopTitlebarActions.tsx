@@ -1,9 +1,7 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { Fragment, type ReactNode, type RefObject } from "react";
-import { Forward } from "lucide-react";
+import { useDesktopPreference } from "../../preferencesStore";
+import { Fragment, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
-import type { TitlebarActionsSettings } from "../../preferences";
 import type { DesktopUpdateState } from "../../types/electron";
 import {
   DesktopUpdateTitlebarButton,
@@ -15,24 +13,17 @@ import {
   type GitTitlebarStatus,
 } from "../source-control/gitTitlebarStatus";
 import type { HeaderCoachmarkId } from "./headerCoachmarks";
-import { GIT_HEADER_CARD_ID } from "./DesktopGitHeaderCard";
 
 type DesktopTitlebarActionsProps = {
   desktopUpdateState?: DesktopUpdateState | null;
-  titlebarActionsSettings: TitlebarActionsSettings;
   terminalSidebarOpen: boolean;
   terminalToolEnabled: boolean;
   gitChangesAvailable?: boolean;
   gitChangesOpen?: boolean;
   gitChangesStatus?: GitTitlebarStatus;
-  gitCardEnabled?: boolean;
-  gitAnchorRef?: RefObject<HTMLDivElement>;
   onUpdateNow?: () => void;
   onToggleTerminal: () => void;
   onToggleGitChanges?: () => void;
-  cloudEnabled?: boolean;
-  shareEnabled?: boolean;
-  onShare?: () => void;
   activeCoachmark?: HeaderCoachmarkId | null;
   onAcknowledgeCoachmark?: (id: HeaderCoachmarkId) => void;
   placement?: "titlebar" | "toolbar";
@@ -43,25 +34,20 @@ export type DesktopTitlebarActionGroup = "app-status" | "header" | "right-sideba
 
 export function DesktopTitlebarActions({
   desktopUpdateState = null,
-  titlebarActionsSettings,
   terminalSidebarOpen,
   terminalToolEnabled,
   gitChangesAvailable = false,
   gitChangesOpen = false,
   gitChangesStatus = EMPTY_GIT_TITLEBAR_STATUS,
-  gitCardEnabled = false,
-  gitAnchorRef,
   onUpdateNow = () => {},
   onToggleTerminal,
   onToggleGitChanges = () => {},
-  cloudEnabled = false,
-  shareEnabled = false,
-  onShare = () => {},
   activeCoachmark = null,
   onAcknowledgeCoachmark = () => {},
   placement = "titlebar",
   visibleGroups,
 }: DesktopTitlebarActionsProps) {
+  const titlebarActionsSettings = useDesktopPreference(s => s.titlebarActionsSettings);
   const { t } = useLocalization();
 
   const headerElementContext: HeaderElementRenderContext = {
@@ -81,7 +67,6 @@ export function DesktopTitlebarActions({
       onToggle: onToggleGitChanges,
       sidebarOpen: gitChangesOpen,
       status: gitChangesStatus,
-      cardId: gitCardEnabled && placement === "titlebar" ? GIT_HEADER_CARD_ID : undefined,
     },
   };
 
@@ -101,25 +86,6 @@ export function DesktopTitlebarActions({
           state={normalizedUpdateState}
           onUpdateNow={onUpdateNow}
         />
-      ),
-    });
-  }
-
-  if (cloudEnabled && shareEnabled && placement === "titlebar") {
-    const shareLabel = t("shell.titlebar.share");
-    titlebarActionItems.push({
-      group: "header",
-      id: "share",
-      node: (
-        <Tooltip content={shareLabel}><button
-          type="button"
-          className="desktop-titlebar-action desktop-titlebar-share"
-          aria-label={shareLabel}
-          onClick={onShare}
-        >
-          <Forward size={16} strokeWidth={1.8} aria-hidden="true" />
-          <span className="desktop-titlebar-share-label">{shareLabel}</span>
-        </button></Tooltip>
       ),
     });
   }
@@ -158,18 +124,14 @@ export function DesktopTitlebarActions({
       {visibleTitlebarActionItems.map((item, index) => {
         const previousItem = visibleTitlebarActionItems[index - 1];
         const separatesActionGroups = previousItem
-          ? previousItem.group !== item.group || previousItem.id === "share"
+          ? previousItem.group !== item.group
           : false;
         return (
           <Fragment key={item.id}>
             {separatesActionGroups && (
               <span className="desktop-titlebar-action-divider" aria-hidden="true" />
             )}
-            {item.id === "changes" && gitCardEnabled && placement === "titlebar" ? (
-              <div className="desktop-titlebar-git-card-anchor" ref={gitAnchorRef}>
-                {item.node}
-              </div>
-            ) : item.node}
+            {item.node}
           </Fragment>
         );
       })}

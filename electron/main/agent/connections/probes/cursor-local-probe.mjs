@@ -1,6 +1,11 @@
 import { assertExecutableIdentity } from "./executable-candidates.mjs";
 import { createProbeEnvironment, runBoundedProbeCommand } from "./bounded-probe-command.mjs";
 
+// Cursor's cold CLI bootstrap and account lookup exceed the generic local probe
+// budget. Keep both commands bounded without changing other providers' budgets.
+const CURSOR_VERSION_PROBE_TIMEOUT_MS = 5_000;
+const CURSOR_STATUS_PROBE_TIMEOUT_MS = 10_000;
+
 export function parseCursorLocalVersion(value) {
   return String(value).match(/\b(\d{4}\.\d{2}\.\d{2}(?:-[A-Za-z0-9._-]+)?|\d+\.\d+\.\d+)\b/)?.[1] ?? null;
 }
@@ -29,7 +34,7 @@ export async function probeCursorLocal({
     const versionResult = await runCommand(
       executablePath,
       [...(candidate.argsPrefix || []), "--version"],
-      { env: probeEnvironment, signal },
+      { env: probeEnvironment, signal, timeoutMs: CURSOR_VERSION_PROBE_TIMEOUT_MS, label: "Cursor version probe" },
     );
     const version = parseCursorLocalVersion(`${versionResult.stdout}\n${versionResult.stderr}`);
     if (versionResult.code !== 0 || !version) {
@@ -47,7 +52,7 @@ export async function probeCursorLocal({
       const statusResult = await runCommand(
         statusExecutablePath,
         [...(candidate.argsPrefix || []), "status"],
-        { env: probeEnvironment, signal },
+        { env: probeEnvironment, signal, timeoutMs: CURSOR_STATUS_PROBE_TIMEOUT_MS, label: "Cursor status probe" },
       );
       const statusOutput = `${statusResult.stdout}\n${statusResult.stderr}`;
       authentication = parseCursorAuthentication(statusOutput);

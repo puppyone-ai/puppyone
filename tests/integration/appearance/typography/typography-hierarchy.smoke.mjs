@@ -23,7 +23,7 @@ async function run() {
   });
   try {
     for (const style of ["default", "windows-xp"]) {
-      for (const [scale, expectedName, expectedPath] of [["small", 13, 12], ["medium", 14, 13], ["large", 16, 14]]) {
+      for (const [scale, expectedName, expectedPath, expectedCaption] of [["small", 13, 12, 11], ["medium", 14, 13, 12], ["large", 16, 14, 13]]) {
         const url = pathToFileURL(rendererPath);
         url.searchParams.set("style", style);
         url.searchParams.set("scale", scale);
@@ -67,9 +67,9 @@ async function run() {
           for (const key of ["header", "name", "standaloneName", "headerMenu", "rightSidebar"]) {
             assert(snapshot[key] === `${expectedName}px`, `${style}/${colorMode}/${scale}: ${key} is ${snapshot[key]}, expected ${expectedName}px`);
           }
-          for (const key of ["path", "standalonePath"]) {
-            assert(snapshot[key] === `${expectedPath}px`, `${style}/${colorMode}/${scale}: ${key} is ${snapshot[key]}, expected ${expectedPath}px`);
-          }
+          // The Homepage states a project's place in its caption size, one below a menu's.
+          assert(snapshot.path === `${expectedCaption}px`, `${style}/${colorMode}/${scale}: path is ${snapshot.path}, expected ${expectedCaption}px`);
+          assert(snapshot.standalonePath === `${expectedPath}px`, `${style}/${colorMode}/${scale}: standalonePath is ${snapshot.standalonePath}, expected ${expectedPath}px`);
           assert(snapshot.scopedName === "22px" && snapshot.scopedDetail === "20px", `${style}/${colorMode}/${scale}: standalone defaults overrode the menu profile`);
           console.log(JSON.stringify({ style, colorMode, scale, ...snapshot }));
         }

@@ -14,8 +14,8 @@ import {
 } from "./release-support/internal-release-workflow-policy.mjs";
 import { inspectMacReleaseReadiness } from "./release-support/macos-release-policy.mjs";
 import { resolveDesktopBuildIdentity } from "../shared/desktop-build-identity.mjs";
-import { createDesktopElectronBuilderConfig } from "../tooling/desktop/build/create-builder-config.mjs";
-import { getDesktopTargetDefinition } from "../tooling/desktop/targets/target-manifest.mjs";
+import { createDesktopElectronBuilderConfig } from "./desktop/build/create-builder-config.mjs";
+import { getDesktopTargetDefinition } from "./desktop/targets/target-manifest.mjs";
 import { resolveDesktopAppIcon } from "../shared/desktop/app-icon-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -70,7 +70,7 @@ const expectedDmgContents = [
 if (dmg.title !== "${productName} Installer") {
   errors.push("the macOS installer volume must use the channel-aware product name");
 }
-if (dmg.background !== "build/dmg-background.tiff") {
+if (dmg.background !== "assets/installer/dmg-background.tiff") {
   errors.push("the macOS installer must use the PuppyOne onboarding background");
 }
 if (dmg.iconSize !== 128 || dmg.iconTextSize !== 14) {

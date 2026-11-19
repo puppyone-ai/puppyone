@@ -6,6 +6,41 @@ import {
 } from "../../../../electron/main/trusted-ipc.mjs";
 
 describe("trusted Electron IPC facade", () => {
+  const trustedEvent = (applicationUrl) => {
+    const mainFrame = { url: applicationUrl };
+    return { sender: { id: 1, mainFrame }, senderFrame: mainFrame };
+  };
+
+  it("refuses a channel the window may not use before its handler runs", async () => {
+    const applicationUrl = "file:///app/dist/index.html";
+    const handlers = new Map();
+    const ipcMain = { handle: (channel, listener) => handlers.set(channel, listener), on: vi.fn() };
+    const isAllowed = vi.fn((event, channel, request) => request?.path === "plan.md");
+    const trusted = createTrustedIpcMain({ ipcMain, applicationUrl, isAllowed });
+    const listener = vi.fn(() => "done");
+    trusted.handle("workspace:read-file", listener);
+
+    const invoke = handlers.get("workspace:read-file");
+    await expect(invoke(trustedEvent(applicationUrl), { path: "plan.md" })).resolves.toBe("done");
+    await expect(invoke(trustedEvent(applicationUrl), { path: "secret.md" })).rejects.toThrow("not available");
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(isAllowed).toHaveBeenLastCalledWith(expect.anything(), "workspace:read-file", { path: "secret.md" });
+  });
+
+  it("drops a refused one-way event without running its listener", () => {
+    const applicationUrl = "file:///app/dist/index.html";
+    const handlers = new Map();
+    const ipcMain = { handle: vi.fn(), on: (channel, listener) => handlers.set(channel, listener) };
+    const logger = { warn: vi.fn() };
+    const trusted = createTrustedIpcMain({ ipcMain, applicationUrl, isAllowed: () => false, logger });
+    const listener = vi.fn();
+    trusted.on("terminal:input", listener);
+
+    handlers.get("terminal:input")({ ...trustedEvent(applicationUrl), preventDefault: vi.fn() }, {});
+    expect(listener).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
   it("accepts only the exact packaged document or exact development origin", () => {
     const packagedUrl = "file:///Applications/PuppyOne.app/Contents/Resources/app.asar/dist/index.html";
     expect(isTrustedApplicationFrameUrl(`${packagedUrl}#workspace`, packagedUrl)).toBe(true);

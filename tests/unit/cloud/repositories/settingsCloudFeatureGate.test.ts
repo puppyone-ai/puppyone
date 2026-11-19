@@ -5,41 +5,80 @@ import {
 } from "../../../../src/features/settings/sidebar/settingsSidebarModel";
 
 describe("Settings Cloud feature gate", () => {
-  it("keeps Account public while Cloud hosting remains experimental", () => {
-    const groups = resolveSettingsSidebarGroups({ cloudEnabled: false });
+  it("keeps the account, and only the account, while the Desktop is local-first", () => {
+    const context = { cloudEnabled: false, accountAvailable: true };
+    const groups = resolveSettingsSidebarGroups(context);
     const sections = groups.flatMap((group) => group.items.map((item) => item.id));
 
-    const cloudGroup = groups.find((group) => group.id === "cloud");
-    expect(sections).toContain("account");
-    expect(sections).not.toContain("cloud");
+    // An account is not Cloud: people buy compute on the website and use it
+    // here with Cloud off. The Plan sells storage and the Cloud Computer.
+    expect(groups.find((group) => group.id === "cloud")?.items.map((item) => item.id)).toEqual(["account"]);
+    // The group is the PuppyOne account, whether or not Cloud is on.
+    expect(groups.find((group) => group.id === "cloud")?.labelId).toBe("settings.sidebar.accountGroup");
+    expect(isSettingsSectionAvailable("account", context)).toBe(true);
+    expect(isSettingsSectionAvailable("seats", context)).toBe(false);
+    expect(isSettingsSectionAvailable("space", context)).toBe(false);
     expect(sections).not.toContain("other-app-imports");
-    expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account"]);
-    expect(isSettingsSectionAvailable("account", { cloudEnabled: false })).toBe(true);
-    expect(isSettingsSectionAvailable("cloud", { cloudEnabled: false })).toBe(false);
+    // Where a project is hosted is a fact about the project, and GitHub is one
+    // of the answers, so it survives our Cloud being switched off entirely.
+    expect(sections).toContain("cloud");
+    expect(isSettingsSectionAvailable("cloud", context)).toBe(true);
+    expect(groups.find((group) => group.id === "local-project")?.items.map((item) => item.id))
+      .toEqual(["local-project", "cloud", "git", "files"]);
     expect(sections).toContain("privacy");
-    expect(isSettingsSectionAvailable("privacy", { cloudEnabled: false })).toBe(true);
-    expect(isSettingsSectionAvailable("experimental", { cloudEnabled: false })).toBe(true);
-    expect(groups.map((group) => group.id)).toEqual(["desktop-app", "agents", "local-project", "cloud"]);
+    expect(isSettingsSectionAvailable("privacy", context)).toBe(true);
+    expect(isSettingsSectionAvailable("experimental", context)).toBe(true);
+    expect(groups.map((group) => group.id)).toEqual(["cloud", "desktop-app", "agents", "local-project"]);
     expect(groups.find((group) => group.id === "agents")?.items.map((item) => item.id)).toEqual(["local-agents", "model-connections"]);
-    expect(isSettingsSectionAvailable("model-connections", { cloudEnabled: false })).toBe(true);
+    expect(isSettingsSectionAvailable("model-connections", context)).toBe(true);
   });
 
-  it("reveals the complete Cloud settings group after PuppyOne Cloud is enabled", () => {
-    const cloudGroup = resolveSettingsSidebarGroups({ cloudEnabled: true })
+  it("shows no Account page in a build without PuppyOne accounts", () => {
+    const context = { cloudEnabled: false, accountAvailable: false };
+    expect(isSettingsSectionAvailable("account", context)).toBe(false);
+    expect(resolveSettingsSidebarGroups(context).map((group) => group.id))
+      .toEqual(["desktop-app", "agents", "local-project"]);
+  });
+
+  it("separates account identity from the selected Space at the same navigation level", () => {
+    const cloudGroup = resolveSettingsSidebarGroups({ cloudEnabled: true, accountAvailable: true, currentSpaceAvailable: true })
       .find((group) => group.id === "cloud");
 
-    expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account", "cloud"]);
-    expect(isSettingsSectionAvailable("account", { cloudEnabled: true })).toBe(true);
-    expect(isSettingsSectionAvailable("cloud", { cloudEnabled: true })).toBe(true);
+    // Identity, then what is held. Hosting moved to the project it describes,
+    // and invoices are a browser surface that Seats links out to.
+    expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account"]);
+    const spaceGroup = resolveSettingsSidebarGroups({ cloudEnabled: true, accountAvailable: true, currentSpaceAvailable: true }).find(group => group.id === "space");
+    expect(spaceGroup?.items.map(item => item.id)).toEqual(["space", "seats"]);
+    expect(cloudGroup?.labelId).toBe("settings.sidebar.accountGroup");
+    expect(isSettingsSectionAvailable("account", { cloudEnabled: true, accountAvailable: true })).toBe(true);
+    // Cloud leads once enabled: the nav scrolls, and an account below the fold
+    // is an account nobody finds. See settingsSidebarModel.ts.
+    expect(resolveSettingsSidebarGroups({ cloudEnabled: true, accountAvailable: true, currentSpaceAvailable: true }).map((group) => group.id))
+      .toEqual(["cloud", "space", "desktop-app", "agents", "local-project"]);
+    expect(isSettingsSectionAvailable("cloud", { cloudEnabled: true, accountAvailable: true })).toBe(true);
+  });
+
+  it("keeps app and account settings available in hosted-only workspaces", () => {
+    const context = { cloudEnabled: true, accountAvailable: true, localWorkspaceAvailable: false };
+    const sections = resolveSettingsSidebarGroups(context).flatMap(group => group.items.map(item => item.id));
+    expect(sections).toContain("general");
+    expect(sections).toContain("appearance");
+    expect(sections).toContain("account");
+    for (const section of ["local-project", "git", "files", "cloud"] as const) {
+      expect(isSettingsSectionAvailable(section, context)).toBe(false);
+      expect(sections).not.toContain(section);
+    }
   });
 
   it("shows the import settings page only while the import experiment is enabled", () => {
     expect(isSettingsSectionAvailable("other-app-imports", {
       cloudEnabled: false,
+      accountAvailable: true,
       otherAppImportsEnabled: false,
     })).toBe(false);
     expect(isSettingsSectionAvailable("other-app-imports", {
       cloudEnabled: false,
+      accountAvailable: true,
       otherAppImportsEnabled: true,
     })).toBe(true);
   });

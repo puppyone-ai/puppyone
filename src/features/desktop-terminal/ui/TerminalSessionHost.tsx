@@ -2,9 +2,9 @@ import type {
   AuxiliaryWorkbenchCreationRecipe,
   AuxiliaryWorkbenchHistoryContribution,
   AuxiliaryWorkbenchHistoryTarget,
-} from "../../app-shell/auxiliary-workbench/types";
+} from "../../../lib/workbench/types";
 import type { LocalAgentInstallationId } from "../../../../shared/local-agent-installation/types";
-import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents/model/localAgentInstallationAvailability";
+import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents";
 import type { DesktopTerminalLauncherId } from "../model/terminalLaunchers";
 import type { DesktopTerminalSession } from "../model/terminalSessions";
 import type { TerminalRuntimeHandle } from "../runtime/terminalRuntime";

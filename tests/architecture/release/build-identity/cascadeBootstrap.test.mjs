@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { cascadeBootstrapPlugin } from "../../../../tooling/styles/cascade-bootstrap-plugin.mjs";
+import { cascadeBootstrapPlugin } from "../../../../scripts/styles/cascade-bootstrap-plugin.mjs";
 
 describe("renderer cascade bootstrap", () => {
   it("registers the canonical order ahead of extracted CSS in both dev and build", () => {

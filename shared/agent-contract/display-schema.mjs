@@ -2,7 +2,7 @@ import { assertArray, assertRecord, contractError, enumValue, nonNegativeInteger
 import { DISPLAY_COLLECTION_KEYS, DISPLAY_VALUE_KEYS } from './display-state.mjs';
 
 export const agentDisplayLimits = Object.freeze({ maxEntries: 2_000, maxNodes: 100_000, maxBytes: 8 * 1024 * 1024, maxText: 128 * 1024 });
-const PART_KINDS = ['user', 'assistant', 'turn-summary', 'tool', 'command', 'file-change', 'plan', 'reasoning', 'warning', 'error', 'usage', 'permission', 'question', 'unknown'];
+const PART_KINDS = ['user', 'assistant', 'turn-summary', 'tool', 'command', 'file-change', 'plan', 'reasoning', 'warning', 'error', 'notification', 'system', 'usage', 'permission', 'question', 'unknown'];
 const ACTIVITY_STATUSES = ['queued', 'running', 'pending', 'in-progress', 'waiting-for-user', 'completed', 'succeeded', 'failed', 'warning', 'blocked', 'cancelled', 'interrupted', 'unknown'];
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -107,7 +107,7 @@ function validateEntry(key, entry) {
     if (key === 'rows') { idValue(entry.partId); if (!Number.isFinite(entry.estimatedHeight) || entry.estimatedHeight < 0) throw contractError(key, 'requires a valid height'); }
     else if (entry.kind === 'user' || entry.kind === 'assistant') textValue(entry.text, 'part.text');
   } else if (key === 'activities') {
-    enumValue(entry.kind, 'activity.kind', ['tool', 'command', 'file-change', 'plan', 'reasoning', 'warning', 'error']);
+    enumValue(entry.kind, 'activity.kind', ['tool', 'command', 'file-change', 'plan', 'reasoning', 'warning', 'error', 'notification', 'system']);
     enumValue(entry.status, 'activity.status', ACTIVITY_STATUSES); textValue(entry.output, 'activity.output');
   } else if (key === 'approvals' || key === 'questions') {
     if (entry.replyStatus != null) enumValue(entry.replyStatus, key+'.replyStatus', ['queued', 'dispatching', 'accepted', 'rejected', 'cancelled', 'outcome-unknown']);

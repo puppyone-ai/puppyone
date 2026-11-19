@@ -1,0 +1,190 @@
+import { Tooltip } from "../../../primitives/Tooltip";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bold, Copy, ImagePlus, Link2, RotateCcw, Trash2, Type } from "lucide-react";
+import { useLocalization } from "@puppyone/localization/react";
+import type { HtmlSelectionMessage } from "./htmlBridgeProtocol";
+import type { HtmlEditOperation, HtmlStyleProperty } from "./htmlEditCompiler";
+
+const COLORS = ["#111827", "#64748b", "#ffffff", "#ef4444", "#f97316", "#22c55e", "#14b8a6", "#2563eb", "#8b5cf6"];
+
+/** Host-owned controls stay inside their pane; document styles cannot reach this toolbar. */
+export function HtmlFloatingToolbar({ selection, viewport, text, image, alt, link = false, href = "",
+  blockMovable = false, canMoveUp = false, canMoveDown = false, disabled, canImport, apply, importImage, dismiss, onNativeControl, onCompositionChange }: {
+  selection: HtmlSelectionMessage; viewport: RefObject<HTMLDivElement>; text: boolean; image: boolean;
+  alt: string; link?: boolean; href?: string; blockMovable?: boolean; canMoveUp?: boolean; canMoveDown?: boolean;
+  disabled: boolean; canImport: boolean; onNativeControl: (open: boolean) => void;
+  onCompositionChange: (composing: boolean) => void;
+  apply: (operation: HtmlEditOperation) => boolean; importImage: (file: File) => void; dismiss: () => void;
+}) {
+  const { t } = useLocalization();
+  const toolbar = useRef<HTMLDivElement>(null);
+  const [popoverPosition, setPopoverPosition] = useState<CSSProperties>({});
+  const [palette, setPalette] = useState<"color" | "background-color" | "alt" | "href" | null>(link ? "href" : null);
+  const [altValue, setAltValue] = useState(alt);
+  const [hrefValue, setHrefValue] = useState(href);
+  const altComposing = useRef(false);
+  const hrefComposing = useRef(false);
+  const styles = selection.styles;
+  useEffect(() => { setAltValue(alt); }, [alt]);
+  useEffect(() => { setHrefValue(href); }, [href]);
+  useEffect(() => {
+    const element = toolbar.current;
+    const release = () => onNativeControl(false);
+    element?.addEventListener("cancel", release, true);
+    window.addEventListener("focus", release);
+    return () => { release(); onCompositionChange(false); element?.removeEventListener("cancel", release, true); window.removeEventListener("focus", release); };
+  }, [onNativeControl, onCompositionChange]);
+  useLayoutEffect(() => {
+    const pane = viewport.current, element = toolbar.current;
+    if (!pane || !element) return;
+    const place = () => {
+      const trigger = element.querySelector<HTMLElement>(`[data-palette="${palette}"]`);
+      const paneRect = pane.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const popoverWidth = palette === "href" ? 240 : 154;
+      const center = trigger ? trigger.getBoundingClientRect().left + trigger.offsetWidth / 2 - elementRect.left : elementRect.width / 2;
+      const minimum = paneRect.left + 8 - elementRect.left;
+      const maximum = paneRect.right - 8 - elementRect.left - popoverWidth;
+      setPopoverPosition({ left: Math.max(minimum, Math.min(center - popoverWidth / 2, Math.max(minimum, maximum))) });
+    };
+    place();
+    const observer = new ResizeObserver(place); observer.observe(pane); observer.observe(element);
+    return () => observer.disconnect();
+  }, [viewport, palette]);
+  const style = (property: HtmlStyleProperty, value: string) => apply({ kind: "style", property, value });
+  const button = (label: string, icon: ReactNode, action: () => void, pressed?: boolean, extraDisabled = false, className?: string) => <button type="button"
+    className={className} aria-label={label} disabled={disabled || extraDisabled} aria-pressed={pressed} onClick={action}>{icon}</button>;
+  const colorButton = (property: "color" | "background-color", value: string) => {
+    const textColor = property === "color";
+    return <button type="button" className="html-floating-toolbar__color-control"
+       aria-label={t(`editor.html.style.${property}`)} disabled={disabled}
+      data-palette={property} data-color-role={textColor ? "text" : "background"}
+      aria-expanded={palette === property} aria-haspopup="dialog"
+      onClick={() => setPalette(palette === property ? null : property)}>
+      {textColor
+        ? <span className="html-floating-toolbar__text-color" aria-hidden="true">
+          <span className="html-floating-toolbar__text-color-glyph" style={{ color: value }}>A</span>
+        </span>
+        : <span className="html-floating-toolbar__background-color-value" aria-hidden="true">
+          <span style={{ background: value }} />
+        </span>}
+    </button>;
+  };
+  const weight = Number.parseInt(String(styles.fontWeight), 10);
+  const bold = weight >= 600 || styles.fontWeight === "bold";
+  return <div ref={toolbar} className="html-floating-toolbar" data-html-control
+    onKeyDown={(event) => {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); if (palette) setPalette(null); else dismiss(); }
+    }}
+    onPointerDown={(event) => {
+      // Keep the text caret/selection when clicking a formatting button. Inputs still receive focus.
+      if ((event.target as Element).closest("button")) event.preventDefault();
+      event.stopPropagation();
+    }}>
+    <div className="html-floating-toolbar__row" data-po-scrollbar="hidden" role="toolbar" aria-label={t("editor.html.formatText")}>
+      {text && <>
+        <select aria-label={t("editor.html.style.font-size")}
+          value={String(styles.fontSize ?? "16px")} disabled={disabled}
+          onPointerDown={() => onNativeControl(true)} onBlur={() => onNativeControl(false)}
+          onKeyDown={(event) => { if (event.key === "Escape" || event.key === "Enter") onNativeControl(false); }}
+          onChange={(event) => { onNativeControl(false); style("font-size", event.target.value); }}>
+          {[...new Set([12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 72].map((size) => `${size}px`).concat(String(styles.fontSize ?? "16px")))]
+            .sort((a, b) => parseFloat(a) - parseFloat(b)).map((value) => <option key={value} value={value}>{parseFloat(value)}</option>)}
+        </select>
+        <span className="html-floating-toolbar__divider" />
+        <Tooltip content={t("editor.html.bold")}>
+          {button(t("editor.html.bold"), <Bold size={16} />, () => style("font-weight", bold ? "400" : "700"), bold)}
+        </Tooltip>
+        {colorButton("color", String(styles.color))}
+      </>}
+      <Tooltip content={t("editor.html.style.background-color")}>
+        {colorButton("background-color", String(styles.backgroundColor))}
+      </Tooltip>
+      {text && <>
+        <span className="html-floating-toolbar__divider" />
+        {(["left", "center", "right"] as const).map((align) => <Tooltip content={t(`editor.html.align.${align}`)} key={align}><button  type="button" disabled={disabled}
+           aria-label={t(`editor.html.align.${align}`)}
+          aria-pressed={styles.textAlign === align || styles.textAlign === "start" && align === "left"}
+          onClick={() => style("text-align", align)}>
+          {align === "left" ? <AlignLeft size={16} /> : align === "center" ? <AlignCenter size={16} /> : <AlignRight size={16} />}
+        </button></Tooltip>)}
+      </>}
+      {link && <>
+        <span className="html-floating-toolbar__divider" />
+        <Tooltip content={t("editor.html.linkUrl")}>
+          <button type="button" data-palette="href" aria-label={t("editor.html.linkUrl")} disabled={disabled}
+            aria-expanded={palette === "href"} aria-pressed={palette === "href"}
+            onClick={() => setPalette(palette === "href" ? null : "href")}>
+            <Link2 size={15} />
+          </button>
+        </Tooltip>
+      </>}
+      {image && <>
+        <label className="html-floating-toolbar__image" aria-disabled={disabled || !canImport}>
+          <ImagePlus size={16} /><span>{t("editor.html.replaceImage")}</span>
+          <input type="file" aria-label={t("editor.html.replaceImage")} accept="image/png,image/jpeg,image/gif,image/webp"
+            disabled={disabled || !canImport} onClick={() => onNativeControl(true)} onChange={(event) => {
+              onNativeControl(false);
+              const file = event.currentTarget.files?.[0]; event.currentTarget.value = "";
+              if (file) importImage(file);
+            }} />
+        </label>
+        <Tooltip content={t("editor.html.altText")}>
+          {button(t("editor.html.altText"), <Type size={16} />, () => setPalette(palette === "alt" ? null : "alt"), palette === "alt")}
+        </Tooltip>
+      </>}
+      {blockMovable && <>
+        <span className="html-floating-toolbar__divider" />
+        <Tooltip content={t("editor.html.moveUp")}>
+          {button(t("editor.html.moveUp"), <ArrowUp size={15} />, () => apply({ kind: "structure", action: "move-up" }), undefined, !canMoveUp)}
+        </Tooltip>
+        <Tooltip content={t("editor.html.moveDown")}>
+          {button(t("editor.html.moveDown"), <ArrowDown size={15} />, () => apply({ kind: "structure", action: "move-down" }), undefined, !canMoveDown)}
+        </Tooltip>
+        <Tooltip content={t("editor.html.duplicateBlock")}>
+          {button(t("editor.html.duplicateBlock"), <Copy size={14} />, () => apply({ kind: "structure", action: "duplicate" }))}
+        </Tooltip>
+        <Tooltip content={t("editor.html.deleteBlock")}>
+          {button(t("editor.html.deleteBlock"), <Trash2 size={14} />, () => apply({ kind: "structure", action: "delete" }), undefined, false, "html-floating-toolbar__danger")}
+        </Tooltip>
+      </>}
+    </div>
+    {palette && <div className={`html-floating-toolbar__popover${palette === "href" ? " html-floating-toolbar__popover--wide" : ""}`} style={popoverPosition} role="dialog"
+      aria-label={palette === "href" ? t("editor.html.linkUrl") : t(palette === "alt" ? "editor.html.altText" : `editor.html.style.${palette}`)}>
+      {palette === "href" && <input aria-label={t("editor.html.linkUrl")} placeholder="https://…"
+        value={hrefValue} disabled={disabled} onChange={(event) => {
+          setHrefValue(event.target.value);
+          if (!hrefComposing.current) apply({ kind: "attribute", name: "href", value: event.target.value });
+        }}
+        onCompositionStart={() => { hrefComposing.current = true; onCompositionChange(true); }}
+        onCompositionEnd={(event) => {
+          hrefComposing.current = false; apply({ kind: "attribute", name: "href", value: event.currentTarget.value }); onCompositionChange(false);
+        }}
+        onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+          apply({ kind: "attribute", name: "href", value: hrefValue }); setPalette(null);
+        } }} />}
+      {palette === "alt" && <input aria-label={t("editor.html.altText")} placeholder={t("editor.html.altText")}
+        value={altValue} disabled={disabled} onChange={(event) => {
+          setAltValue(event.target.value);
+          if (!altComposing.current) apply({ kind: "attribute", name: "alt", value: event.target.value });
+        }}
+        onCompositionStart={() => { altComposing.current = true; onCompositionChange(true); }}
+        onCompositionEnd={(event) => {
+          altComposing.current = false; apply({ kind: "attribute", name: "alt", value: event.currentTarget.value }); onCompositionChange(false);
+        }}
+        onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+          apply({ kind: "attribute", name: "alt", value: altValue }); setPalette(null);
+        } }} />}
+      {palette !== "href" && palette !== "alt" && <>
+        <div className="html-floating-toolbar__swatches">
+          {COLORS.map((color) => <Tooltip content={color} key={color}><button  type="button" className="html-floating-toolbar__swatch"
+            aria-label={t("editor.html.chooseColor", { color })} disabled={disabled} style={{ background: color }}
+            onClick={() => { style(palette, color); setPalette(null); }} /></Tooltip>)}
+          <Tooltip content={t("editor.html.removeStyle")}><button type="button" className="html-floating-toolbar__reset" disabled={disabled}
+             aria-label={t("editor.html.removeStyle")}
+            onClick={() => { style(palette, ""); setPalette(null); }}><RotateCcw size={13} /></button></Tooltip>
+        </div>
+      </>}
+    </div>}
+  </div>;
+}

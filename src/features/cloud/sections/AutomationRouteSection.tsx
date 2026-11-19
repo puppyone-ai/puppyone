@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
+import { CloudServiceUnavailable } from "../components/CloudServiceUnavailable";
 
 const LazyCloudProjectAutomationView = lazy(() => import("../../automation/CloudProjectAutomationView").then((module) => ({
   default: module.CloudProjectAutomationView,
@@ -24,6 +25,7 @@ export function CloudAutomationRouteSection({
         cloudSession={cloudSession}
         activeProvider={null}
         onCloudSessionChange={onSessionChange}
+        Unavailable={CloudServiceUnavailable}
       />
     </Suspense>
   );

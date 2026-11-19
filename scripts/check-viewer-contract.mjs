@@ -8,7 +8,7 @@ import { getPresetViewerDefinitionForViewerId } from "../electron/main/viewer-pa
 
 const require = createRequire(import.meta.url);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const formatRegistry = require("../packages/shared-ui/src/core/fileFormats.json");
+const formatRegistry = require("../shared/fileFormats.json");
 const errors = [];
 const mainSource = readFileSync(path.join(repoRoot, "electron/main.mjs"), "utf8");
 
@@ -33,9 +33,9 @@ const presetCoreFiles = [
     "viewerTypes.ts",
     "presetViewerContribution.ts",
     "builtinViewerContributions.ts",
-  ].map((fileName) => path.join(repoRoot, "packages/shared-ui/src/editor/registry", fileName)),
-  path.join(repoRoot, "packages/shared-ui/src/editor/markdown/contribution.ts"),
-  ...walkFiles(path.join(repoRoot, "packages/shared-ui/src/editor/viewers")),
+  ].map((fileName) => path.join(repoRoot, "src/shared-ui/editor/registry", fileName)),
+  path.join(repoRoot, "src/shared-ui/editor/markdown/contribution.ts"),
+  ...walkFiles(path.join(repoRoot, "src/shared-ui/editor/viewers")),
 ];
 for (const filePath of presetCoreFiles) {
   const source = readFileSync(filePath, "utf8");
@@ -48,7 +48,7 @@ for (const filePath of presetCoreFiles) {
 
 const documentSurfacePath = path.join(
   repoRoot,
-  "packages/shared-ui/src/editor/host/DocumentSurfaceHost.tsx",
+  "src/shared-ui/editor/host/DocumentSurfaceHost.tsx",
 );
 const documentSurfaceSource = readFileSync(documentSurfacePath, "utf8");
 if (!/export function DocumentSurfacePending[\s\S]*?role="status"[\s\S]*?aria-busy="true"[\s\S]*?aria-label=\{label\}/.test(documentSurfaceSource)) {
@@ -66,7 +66,7 @@ if (
 }
 
 const pdfContributionSource = readFileSync(
-  path.join(repoRoot, "packages/shared-ui/src/editor/viewers/pdf/contribution.ts"),
+  path.join(repoRoot, "src/shared-ui/editor/viewers/pdf/contribution.ts"),
   "utf8",
 );
 if (
@@ -80,7 +80,7 @@ if (
 }
 
 const pdfViewerSource = readFileSync(
-  path.join(repoRoot, "packages/shared-ui/src/editor/viewers/pdf/PdfViewer.tsx"),
+  path.join(repoRoot, "src/shared-ui/editor/viewers/pdf/PdfViewer.tsx"),
   "utf8",
 );
 for (const token of [
@@ -117,7 +117,7 @@ if (
 }
 
 const presetRendererSource = readFileSync(
-  path.join(repoRoot, "packages/shared-ui/src/editor/host/PresetViewerRenderer.tsx"),
+  path.join(repoRoot, "src/shared-ui/editor/host/PresetViewerRenderer.tsx"),
   "utf8",
 );
 if (
@@ -132,7 +132,7 @@ if (presetRendererSource.includes('viewer.surfaceIsolation === "isolated-webcont
 }
 
 const editorDocumentHostSource = readFileSync(
-  path.join(repoRoot, "packages/shared-ui/src/editor/host/EditorDocumentHost.tsx"),
+  path.join(repoRoot, "src/shared-ui/editor/host/EditorDocumentHost.tsx"),
   "utf8",
 );
 for (const token of ["exceedsUtf8ByteLimit", "viewer.resourcePolicy.maxSourceBytes", "editor.unavailable.resourceLimit"]) {
@@ -142,7 +142,7 @@ for (const token of ["exceedsUtf8ByteLimit", "viewer.resourcePolicy.maxSourceByt
 }
 
 const officeViewerSource = readFileSync(
-  path.join(repoRoot, "packages/shared-ui/src/editor/viewers/office/OfficeViewer.tsx"),
+  path.join(repoRoot, "src/shared-ui/editor/viewers/office/OfficeViewer.tsx"),
   "utf8",
 );
 if (!officeViewerSource.includes("maxBytes: maxSourceBytes")) {
@@ -150,7 +150,7 @@ if (!officeViewerSource.includes("maxBytes: maxSourceBytes")) {
 }
 
 const documentNavigationSource = readFileSync(
-  path.join(repoRoot, "packages/shared-ui/src/editor/navigation/documentNavigation.ts"),
+  path.join(repoRoot, "src/shared-ui/editor/navigation/documentNavigation.ts"),
   "utf8",
 );
 for (const token of [
@@ -166,7 +166,7 @@ for (const token of [
 }
 
 const csvCellEditorSource = readFileSync(
-  path.join(repoRoot, "packages/shared-ui/src/editor/viewers/csv/CsvCellEditor.tsx"),
+  path.join(repoRoot, "src/shared-ui/editor/viewers/csv/CsvCellEditor.tsx"),
   "utf8",
 );
 if (!csvCellEditorSource.includes("navigation.openReference(reference)")) {
@@ -179,9 +179,9 @@ for (const forbidden of ["window.open", "puppyoneDesktop", "<a "]) {
 }
 
 for (const relativePath of [
-  "packages/shared-ui/src/editor/viewers/html/HtmlPreviewFrame.tsx",
-  "packages/shared-ui/src/editor/viewers/html/HtmlVisualSurface.tsx",
-  "packages/shared-ui/src/editor/viewers/app/SandboxedAppFrame.tsx",
+  "src/shared-ui/editor/viewers/html/HtmlPreviewFrame.tsx",
+  "src/shared-ui/editor/viewers/html/HtmlVisualSurface.tsx",
+  "src/shared-ui/editor/viewers/app/SandboxedAppFrame.tsx",
 ]) {
   if (!readFileSync(path.join(repoRoot, relativePath), "utf8").includes("sandbox=")) {
     errors.push(`${relativePath} no longer implements its declared sandboxed-frame boundary`);
@@ -203,9 +203,9 @@ if (!mainSource.includes("plugins: true")) {
 }
 
 const documentSurfaceConsumers = [
-  path.join(repoRoot, "packages/shared-ui/src/editor/host/EditorDocumentHost.tsx"),
-  path.join(repoRoot, "packages/shared-ui/src/editor/host/PresetViewerRenderer.tsx"),
-  ...walkFiles(path.join(repoRoot, "packages/shared-ui/src/editor/viewers")),
+  path.join(repoRoot, "src/shared-ui/editor/host/EditorDocumentHost.tsx"),
+  path.join(repoRoot, "src/shared-ui/editor/host/PresetViewerRenderer.tsx"),
+  ...walkFiles(path.join(repoRoot, "src/shared-ui/editor/viewers")),
 ];
 for (const filePath of documentSurfaceConsumers) {
   const source = readFileSync(filePath, "utf8");

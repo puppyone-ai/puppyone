@@ -242,14 +242,9 @@ function DesktopCloudPermissionGroupRow({
   const allowedCount = group.muted ? 0 : group.specs.filter((command) => allowedKeys.has(command.key)).length;
   const groupEnabled = !group.muted && group.specs.every((command) => allowedKeys.has(command.key));
   const anyEnabled = allowedCount > 0;
-  const statusLabel = groupEnabled
-    ? t("cloud.access.permissions.allowed")
-    : allowedCount > 0
-      ? t("cloud.access.permissions.allowedRatio", { allowed: allowedCount, total: group.specs.length })
-      : t("cloud.status.off");
   const metaLabel = group.muted
     ? t("cloud.access.permissions.blockedByScope")
-    : t("cloud.access.permissions.groupMeta", { status: statusLabel, count: group.specs.length });
+    : t("cloud.access.permissions.groupMeta", { allowed: allowedCount, total: group.specs.length });
   return (
     <div className={`desktop-cloud-access-permission-group ${isFirst ? "first" : ""} ${group.muted ? "muted" : ""}`}>
       <div className="desktop-cloud-access-permission-group-header">

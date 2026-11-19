@@ -1,8 +1,15 @@
 import postcss from "postcss";
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { parse, walk } from "css-tree";
 import { THEME_TARGETS } from "./theme-package-contract.mjs";
 import { completeSelectionPairs, validateSelectionColors } from "./theme-selection-colors.mjs";
+import {
+  MARKDOWN_SIZE_PRESETS,
+  MARKDOWN_SIZE_ROLES,
+  MARKDOWN_DEFAULT_SIZE_PRESET,
+  resolveMarkdownTypographyPresets,
+} from "./markdown-typography-presets.mjs";
 
 const targetSet = new Set(THEME_TARGETS);
 const themeIdPattern = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*){2,}$/;
@@ -140,63 +147,19 @@ const typographyTokenMap = new Map([
   ["--po-code-font-size", Object.freeze({ host: "--po-theme-code-font-size", min: 10, max: 20 })],
   ["--po-terminal-font-size", Object.freeze({ host: "--po-theme-terminal-font-size", min: 10, max: 20 })],
 ]);
-const markdownTokenMap = new Map([
-  ["--po-md-selection-bg", "--po-host-md-selection-bg"],
-  ["--po-md-selection-inactive-bg", "--po-host-md-selection-inactive-bg"],
-  ["--po-md-surface-background", "--po-host-md-surface-background"],
-  ["--po-md-content-color", "--po-host-md-content-color"],
-  ["--po-md-content-font", "--po-host-md-content-font"],
-  ["--po-md-content-size", "--po-host-md-content-size"],
-  ["--po-md-content-weight", "--po-host-md-content-weight"],
-  ["--po-md-content-letter-spacing", "--po-host-md-content-letter-spacing"],
-  ["--po-md-content-line-height", "--po-host-md-content-line-height"],
-  ["--po-md-block-gap", "--po-host-md-block-gap"],
-  ["--po-md-heading-gap-before", "--po-host-md-heading-gap-before"],
-  ["--po-md-heading-gap-after", "--po-host-md-heading-gap-after"],
-  ["--po-md-heading-color", "--po-host-md-heading-color"],
-  ["--po-md-heading-weight", "--po-host-md-heading-weight"],
-  ["--po-md-heading-line-height", "--po-host-md-heading-line-height"],
-  ["--po-md-heading-border-color", "--po-host-md-heading-border-color"],
-  ["--po-md-h1-size", "--po-host-md-h1-size"],
-  ["--po-md-h2-size", "--po-host-md-h2-size"],
-  ["--po-md-h3-size", "--po-host-md-h3-size"],
-  ["--po-md-h4-size", "--po-host-md-h4-size"],
-  ["--po-md-h5-size", "--po-host-md-h5-size"],
-  ["--po-md-h6-size", "--po-host-md-h6-size"],
-  ["--po-md-h1-weight", "--po-host-md-h1-weight"],
-  ["--po-md-h2-weight", "--po-host-md-h2-weight"],
-  ["--po-md-h3-weight", "--po-host-md-h3-weight"],
-  ["--po-md-strong-weight", "--po-host-md-strong-weight"],
-  ["--po-md-strong-color", "--po-host-md-strong-color"],
-  ["--po-md-rule-color", "--po-host-md-rule-color"],
-  ["--po-md-link-color", "--po-host-md-link-color"],
-  ["--po-md-blockquote-color", "--po-host-md-blockquote-color"],
-  ["--po-md-blockquote-border-color", "--po-host-md-blockquote-border-color"],
-  ["--po-md-inline-code-background", "--po-host-md-inline-code-background"],
-  ["--po-md-inline-code-color", "--po-host-md-inline-code-color"],
-  ["--po-md-code-block-background", "--po-host-md-code-block-background"],
-  ["--po-md-code-block-color", "--po-host-md-code-block-color"],
-  ["--po-md-syntax-keyword", "--po-host-md-syntax-keyword"],
-  ["--po-md-syntax-string", "--po-host-md-syntax-string"],
-  ["--po-md-syntax-comment", "--po-host-md-syntax-comment"],
-  ["--po-md-syntax-constant", "--po-host-md-syntax-constant"],
-  ["--po-md-syntax-special", "--po-host-md-syntax-special"],
-  ["--po-md-syntax-type", "--po-host-md-syntax-type"],
-  ["--po-md-syntax-function", "--po-host-md-syntax-function"],
-  ["--po-md-syntax-property", "--po-host-md-syntax-property"],
-  ["--po-md-syntax-operator", "--po-host-md-syntax-operator"],
-  ["--po-md-syntax-meta", "--po-host-md-syntax-meta"],
-]);
+const markdownContract = JSON.parse(readFileSync(
+  new URL("../../../shared/markdown-theme-contract.json", import.meta.url), "utf8",
+));
+const markdownTokenMap = new Map(markdownContract.tokens.map(({ name }) => [
+  name, name.replace("--po-md-", "--po-host-md-"),
+]));
 const markdownIntegerSizeTokens = new Set([
-  "--po-md-content-size",
-  "--po-md-h1-size",
-  "--po-md-h2-size",
-  "--po-md-h3-size",
-  "--po-md-h4-size",
-  "--po-md-h5-size",
-  "--po-md-h6-size",
+  ...markdownContract.integerSizes,
+  ...markdownContract.integerSizes.flatMap(name => MARKDOWN_SIZE_PRESETS.map(preset => `${name}-${preset}`)),
 ]);
+const markdownSizeRoles = new Set(MARKDOWN_SIZE_ROLES);
 const csvTokenMap = new Map([
+  ["--po-editable-table-radius", "--po-host-csv-table-radius"],
   ["--po-csv-selection-bg", "--po-host-csv-selection-bg"],
   ["--po-csv-selection-inactive-bg", "--po-host-csv-selection-inactive-bg"],
   ["--po-csv-surface-background", "--po-host-csv-surface-background"],
@@ -221,6 +184,7 @@ export async function compileThemeCss({
   loadImport,
   resolveAssetUrl,
   allowReservedBuiltinId = false,
+  markdownTypographyDefaultsCss,
 }) {
   if (typeof css !== "string") throw new TypeError("Theme CSS must be a string.");
   if (
@@ -241,13 +205,17 @@ export async function compileThemeCss({
   validateAtRules(root);
   validateModeContract(root, supportedModes, target);
   validateApplicationModeIsolation(root, { target, supportedModes });
+  if (target === "markdown") {
+    validateDeclarations(root, { target, project: false });
+    resolveMarkdownTypographyPresets(root, markdownTypographyDefaultsCss);
+  }
   validateSelectionColors(root, {
     target,
     inheritedColors: applicationColorTokens,
     publicColors: new Set([
       ...applicationColorTokens,
       ...(target === "markdown" ? [...markdownTokenMap.keys()].filter((name) => /(?:color|background|selection-(?:bg|inactive-bg)|syntax-[a-z]+)$/.test(name)) : []),
-      ...(target === "csv" ? csvTokenMap.keys() : []),
+      ...(target === "csv" ? [...csvTokenMap.keys()].filter(name => !name.endsWith("-radius")) : []),
     ]),
   });
   completeSelectionPairs(root, target);
@@ -433,15 +401,28 @@ function validateAtRules(root) {
 
 function scopeRules(root, { themeId, target }) {
   const host = `[data-po-appearance-root][data-sub-theme-id="${themeId}"]`;
-  root.walkRules((rule) => {
+  for (const rule of collectRules(root)) {
     const selectors = splitSelectors(rule.selector);
-    const scoped = selectors.map((selector) => scopeSelector(selector, host, target));
-    const rootOnly = selectors.every((selector) => isApplicationRootSelector(selector));
-    if (!rootOnly) {
+    if (!selectors.every(isApplicationRootSelector)) {
       throw new TypeError(`${target} Sub Themes may only declare root-level public tokens.`);
     }
-    rule.selector = scoped.join(", ");
-  });
+    if (target !== "markdown") {
+      rule.selector = selectors.map((selector) => scopeSelector(selector, host, target)).join(", ");
+      continue;
+    }
+    // Resolve Markdown references on the pane, where document lang and inline
+    // context exist. A nested Appearance root ends this theme's scope, so a
+    // parent theme cannot style another pane/portal's registered profile.
+    const scopes = [...new Set(selectors.map(selector =>
+      hasDarkSelector(selector) ? `${host}:where(.dark)` : host,
+    ))].map(scopeRoot => {
+      const scope = postcss.atRule({ name: "scope", params: `(${scopeRoot}) to ([data-po-appearance-root])` });
+      const projection = rule.clone({ selector: ".markdown-codemirror-editor" });
+      scope.append(projection);
+      return scope;
+    });
+    rule.replaceWith(...scopes);
+  }
 }
 
 function scopeSelector(selector, host, target) {
@@ -568,7 +549,7 @@ function normalizeSourcePath(value) {
   return normalized.split(path.sep).join("/");
 }
 
-function validateDeclarations(root, { target }) {
+function validateDeclarations(root, { target, project = true }) {
   root.walkDecls((declaration) => {
     const property = declaration.prop.toLowerCase();
     const value = declaration.value.trim().toLowerCase();
@@ -592,13 +573,7 @@ function validateDeclarations(root, { target }) {
       declaration.prop = contract.host;
     }
     if (target === "markdown") {
-      const mapped = markdownTokenMap.get(property);
-      if (!mapped) throw new TypeError("Markdown Sub Themes may only declare public Markdown tokens.");
-      if (markdownIntegerSizeTokens.has(property) && parseIntegerPixelSize(value) === null) {
-        throw new TypeError(`Markdown size token ${property} must be a plain integer pixel value.`);
-      }
-      declaration.prop = mapped;
-      declaration.value = projectTokenReferences(declaration.value, markdownTokenMap);
+      validateMarkdownDeclaration(declaration, { property, value, project });
     }
     if (target === "csv") {
       const mapped = csvTokenMap.get(property);
@@ -613,6 +588,21 @@ function validateDeclarations(root, { target }) {
       throw new TypeError("Theme CSS contains an unsupported executable value.");
     }
   });
+}
+
+function validateMarkdownDeclaration(declaration, { property, value, project }) {
+  const mapped = markdownTokenMap.get(property);
+  if (!mapped) throw new TypeError("Markdown Sub Themes may only declare public Markdown tokens.");
+  const isPresetAlias = markdownSizeRoles.has(property)
+    && value === `var(${property}-${MARKDOWN_DEFAULT_SIZE_PRESET})`;
+  const isOmittedSize = !project && value.length === 0 && markdownIntegerSizeTokens.has(property);
+  if (markdownIntegerSizeTokens.has(property) && !isPresetAlias && !isOmittedSize && parseIntegerPixelSize(value) === null) {
+    throw new TypeError(`Markdown size token ${property} must be a plain integer pixel value.`);
+  }
+  if (project) {
+    declaration.prop = mapped;
+    declaration.value = projectTokenReferences(declaration.value, markdownTokenMap);
+  }
 }
 
 function projectTokenReferences(value, tokenMap) {

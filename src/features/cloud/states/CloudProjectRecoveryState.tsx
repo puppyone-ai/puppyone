@@ -30,7 +30,6 @@ export function CloudProjectRecoveryState({
   return (
     <CloudMainSection
       title={resolvedTitle}
-      count={t(loading ? "cloud.common.retrying" : "cloud.recovery.actionNeeded")}
       action={(
         <>
           {onConfirm && (
@@ -41,7 +40,7 @@ export function CloudProjectRecoveryState({
           )}
           <button className="desktop-cloud-row-action" type="button" disabled={loading} onClick={onRetry}>
             <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
-            <span>{t("cloud.common.retry")}</span>
+            <span role="status">{t(loading ? "cloud.common.retrying" : "cloud.common.retry")}</span>
           </button>
           {showUseAnotherAccount && (
             <button className="desktop-cloud-row-action" type="button" onClick={onUseAnotherAccount}>
@@ -59,13 +58,12 @@ export function CloudProjectRecoveryState({
       <div className="desktop-cloud-empty-state">
         <span><AlertTriangle size={22} /></span>
         <div>
-          <strong>{resolvedTitle}</strong>
-          <p>
-            {message}
-            {remoteLabel ? ` ${t("cloud.recovery.remote", { remote: remoteLabel })}` : ""}
-            {" "}
-            {t("cloud.recovery.localStatePreserved")}
-          </p>
+          <p role="alert">{message}</p>
+          <details>
+            <summary>{t("cloud.common.details")}</summary>
+            {remoteLabel && <p dir="auto">{t("cloud.recovery.remote", { remote: remoteLabel })}</p>}
+            <p>{t("cloud.recovery.localStatePreserved")}</p>
+          </details>
         </div>
       </div>
     </CloudMainSection>

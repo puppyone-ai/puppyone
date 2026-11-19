@@ -33,13 +33,15 @@ export function normalizeCommands(value) {
 
 export function normalizeAccount(value, models, environment = {}) {
   const account = value && typeof value === "object" ? value : {};
-  const hasNativeIdentity = Boolean(
-    account.email || account.organization || account.subscriptionType || account.tokenSource
-    || account.apiKeySource || account.apiProvider,
-  );
-  const hasApiKey = Boolean(account.apiKeySource || environment?.ANTHROPIC_API_KEY);
+  // Claude Code owns credential selection and billing. Its SDK reports the
+  // effective credential source without exposing the credential to this UI.
+  const hasNativeCredential = [account.tokenSource, account.apiKeySource].some((value) => {
+    const source = bounded(value, 160).toLowerCase();
+    return source.length > 0 && source !== "none";
+  });
+  const hasApiKey = Boolean(environment?.ANTHROPIC_API_KEY);
   const supportedCloud = Boolean(account.apiProvider && account.apiProvider !== "firstParty");
-  const authenticated = hasApiKey || supportedCloud;
+  const authenticated = hasNativeCredential || hasApiKey || supportedCloud;
   return {
     account: authenticated ? {
       type: bounded(account.apiProvider, 80) || "claude-code",
@@ -50,11 +52,9 @@ export function normalizeAccount(value, models, environment = {}) {
     requiresRuntimeSetup: !authenticated,
     ...(!authenticated ? {
       setupReason: "runtime-setup-required",
-      error: hasNativeIdentity && !authenticated
-        ? "Claude subscription OAuth cannot be used by a third-party product. Configure an Anthropic API key or a supported cloud provider, then refresh."
-        : models.length
-          ? "Configure an Anthropic API key or a supported cloud provider for Claude Code, then refresh."
-          : "Claude Code authentication and model access are unavailable.",
+      error: models.length
+        ? "Sign in to Claude Code or configure an Anthropic API key or a supported cloud provider, then refresh."
+        : "Claude Code authentication and model access are unavailable.",
     } : {}),
   };
 }

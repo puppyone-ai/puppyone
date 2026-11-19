@@ -41,6 +41,23 @@ describe("DOM PDF security in the shared App session", () => {
     const callback = vi.fn(); session.requestHook({ frame: null, referrer: "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html", url: "https://example.com" }, callback);
     expect(callback).toHaveBeenCalledWith({ cancel: true });
   });
+  it("admits only GET/HEAD for an exact retained Cloud PDF URL", () => {
+    const session = harness();
+    const retained = new Set(["https://cloud.example/api/v1/content/project/inline?path=book.pdf&token=signed"]);
+    installEmbeddedContentSessionSecurity(session, { isAuthorizedCloudResource: (url) => retained.has(url) });
+    const [url] = retained;
+    for (const method of ['GET', 'HEAD']) {
+      const callback = vi.fn(); session.requestHook({ frame: pdf, url, method }, callback);
+      expect(callback).toHaveBeenCalledWith({ cancel: false });
+    }
+    for (const request of [{ url, method: 'POST' }, { url: url + 'forged', method: 'GET' }]) {
+      const callback = vi.fn(); session.requestHook({ frame: pdf, ...request }, callback);
+      expect(callback).toHaveBeenCalledWith({ cancel: true });
+    }
+    retained.clear();
+    const callback = vi.fn(); session.requestHook({ frame: pdf, url, method: 'GET' }, callback);
+    expect(callback).toHaveBeenCalledWith({ cancel: true });
+  });
   it("prevents PDF navigating to arbitrary HTML while preserving other iframe navigation", () => {
     const listeners = new Map();
     installWindowNavigationSecurity({ webContents: { on: (event, fn) => listeners.set(event, fn), setWindowOpenHandler() {} },

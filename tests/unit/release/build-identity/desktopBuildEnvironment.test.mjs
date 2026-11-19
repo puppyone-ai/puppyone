@@ -5,7 +5,7 @@ describe("desktop build environment policy", () => {
   it("accepts production HTTPS endpoints and loopback development endpoints", () => {
     expect(inspectDesktopBuildEnvironment({
       VITE_DESKTOP_CLOUD_API_URL: "https://api.puppyone.ai/api/v1",
-      VITE_DESKTOP_CLOUD_WEB_URL: "https://app.puppyone.ai",
+      VITE_DESKTOP_CLOUD_WEB_URL: "https://try.puppyone.ai",
     })).toEqual([]);
     expect(inspectDesktopBuildEnvironment({
       VITE_DESKTOP_CLOUD_API_URL: "http://127.0.0.1:9090/api/v1",

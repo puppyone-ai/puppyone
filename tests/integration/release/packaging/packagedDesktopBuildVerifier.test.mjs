@@ -16,10 +16,10 @@ import {
 import {
   resolveDesktopApplicationIdentity,
 } from "../../../../shared/desktop/application-identity.mjs";
-import { getDesktopTargetDefinition } from "../../../../tooling/desktop/targets/target-manifest.mjs";
-import { verifyMacosAppIcon } from "../../../../tooling/desktop/build/macos-app-icon.mjs";
+import { getDesktopTargetDefinition } from "../../../../scripts/desktop/targets/target-manifest.mjs";
+import { verifyMacosAppIcon } from "../../../../scripts/desktop/build/macos-app-icon.mjs";
 
-vi.mock("../../../../tooling/desktop/build/macos-app-icon.mjs", () => ({ verifyMacosAppIcon: vi.fn() }));
+vi.mock("../../../../scripts/desktop/build/macos-app-icon.mjs", () => ({ verifyMacosAppIcon: vi.fn() }));
 beforeEach(() => { vi.mocked(verifyMacosAppIcon).mockReset().mockResolvedValue(undefined); });
 
 const { createPackage } = asarPackage;

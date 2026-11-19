@@ -40,7 +40,7 @@ describe("Cloud content width architecture", () => {
     }
 
     expect(organization).toContain("var(--desktop-cloud-catalog-padding-top)");
-    expect(sharedShell).toContain(":not(.desktop-cloud-landing-main-view):not(.desktop-cloud-automation-main-view)");
+    expect(sharedShell).toMatch(/\.desktop-cloud-main-view\.desktop-cloud-landing-main-view\s*\{[^}]*overflow:\s*hidden;[^}]*padding:\s*0;/s);
   });
 
   it("keeps activation copy and artwork compact and responds to the content pane", () => {

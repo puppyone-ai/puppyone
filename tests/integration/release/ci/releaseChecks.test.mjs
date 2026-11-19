@@ -82,6 +82,40 @@ describe("pre-release execution and evidence", () => {
     expect(await access(path.join(root, "artifacts/release-checks/.lock")).then(() => true, () => false)).toBe(false);
   });
 
+  it("retries only declared checks once, keeps every attempt, and reports a pass on retry", async () => {
+    const root = await fixture();
+    const calls = [];
+    const written = [];
+    const output = { write: (line) => { written.push(line); } };
+    const result = await runChecks(manifest({ ...check("flaky"), attempts: 2 }, check("steady")), {
+      repositoryRoot: root, sourceReader: identity, output,
+      environment: { GITHUB_ACTIONS: "true" },
+      execute: async (entry, { checkDir }) => {
+        calls.push(entry.id);
+        await writeFile(path.join(checkDir, "output.log"), `${entry.id} attempt ${calls.length}\n`);
+        return { status: entry.id === "flaky" && calls.length === 1 ? "failed" : "passed", durationMs: 2 };
+      },
+    });
+    expect(calls).toEqual(["flaky", "flaky", "steady"]);
+    expect(result.exitCode).toBe(0);
+    const flaky = result.report.checks[0];
+    expect(flaky.status).toBe("passed");
+    expect(flaky.attempts.map((attempt) => attempt.status)).toEqual(["failed", "passed"]);
+    expect(flaky.durationMs).toBe(4);
+    expect(result.report.checks[1].attempts).toBeUndefined();
+    expect(result.report.retriedChecks).toEqual(["flaky"]);
+    const runDirectory = path.dirname(result.reportPath);
+    expect(await readFile(path.join(runDirectory, "flaky/output.attempt-1.log"), "utf8")).toBe("flaky attempt 1\n");
+    expect(written.some((line) => line.includes("::warning title=Release check passed on retry::flaky"))).toBe(true);
+
+    const undeclared = await runChecks(manifest(check("once")), {
+      repositoryRoot: await fixture(), sourceReader: identity, output: null,
+      execute: async () => ({ status: "failed", durationMs: 1 }),
+    });
+    expect(undeclared.report.checks[0].attempts).toBeUndefined();
+    expect(undeclared.exitCode).toBe(1);
+  });
+
   it("marks unsupported platforms explicitly and rejects a selected unsupported group", async () => {
     const root = await fixture();
     const data = manifest({ ...check("mac-only"), platforms: ["darwin"] });

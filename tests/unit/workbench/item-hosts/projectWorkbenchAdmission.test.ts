@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "../../../../src/lib/workbench/ProjectWorkbenchStore";
 import type {
   AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe,
   AuxiliaryWorkbenchHistoryTarget, AuxiliaryWorkbenchPreparationContext,
-} from "../../../../src/features/app-shell/auxiliary-workbench/types";
+} from "../../../../src/lib/workbench/types";
 
 const owners: ProjectWorkbenchStore[] = [];
 afterEach(() => { owners.splice(0).forEach((owner) => owner.dispose()); });

@@ -71,6 +71,12 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       return () => ipcRenderer.removeListener("theme:selection-requested", listener);
     },
   },
+  onSettingsRequested: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = () => callback();
+    ipcRenderer.on("settings:open-requested", listener);
+    return () => ipcRenderer.removeListener("settings:open-requested", listener);
+  },
   setWindowMinimumWidth: (request) => (
     ipcRenderer.invoke("window-layout:set-minimum-width", request)
   ),
@@ -148,7 +154,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       const reason = payload?.reason === "git-auto-commit" ? "git-auto-commit" : "app-close";
       if (!requestId) return;
       try {
-        await callback({ requestId, reason });
+        await callback({ requestId, reason, discard: payload?.discard === true });
         ipcRenderer.send("document-session:flush-result", { requestId, ok: true });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -207,7 +213,48 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     return () => ipcRenderer.removeListener("cloud-auth:error", listener);
   },
   requestCloudApi: (request) => ipcRenderer.invoke("cloud:api-request", request),
+  cancelCloudSessionApi: (requestId) => ipcRenderer.invoke("cloud:session-api-cancel", requestId),
   requestCloudSessionApi: (request) => ipcRenderer.invoke("cloud:session-api-request", request),
+  listHostDevices: (expectedSession) => ipcRenderer.invoke("host:catalog", expectedSession),
+  registerHostFolder: (request) => ipcRenderer.invoke("host:register-folder", request),
+  connectHostDevice: (expectedSession) => ipcRenderer.invoke("host:connect", expectedSession),
+  disconnectHostDevice: () => ipcRenderer.invoke("host:disconnect"),
+  removeHostFolder: (request) => ipcRenderer.invoke("host:remove-folder", request),
+  updateHostFolder: (request) => ipcRenderer.invoke("host:update-folder", request),
+  revokeHostDevice: (request) => ipcRenderer.invoke("host:revoke-device", request),
+  getHostStatus: () => ipcRenderer.invoke("host:status"),
+  setHostSharingPaused: (request) => ipcRenderer.invoke("host:set-sharing-paused", request),
+  getHostAutostart: () => ipcRenderer.invoke("host:autostart"),
+  setHostAutostart: (request) => ipcRenderer.invoke("host:set-autostart", request),
+  onHostStatus: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("host:status-changed", listener);
+    return () => ipcRenderer.removeListener("host:status-changed", listener);
+  },
+  requestHostFolder: (request) => ipcRenderer.invoke("host:folder-request", request),
+  setHostExecution: (request) => ipcRenderer.invoke("host:set-execution", request),
+  stopRemoteHostSessions: () => ipcRenderer.invoke("host:stop-remote-sessions"),
+  openHostTerminal: (request) => ipcRenderer.invoke("host:exec-open", request),
+  writeHostTerminal: (request) => ipcRenderer.invoke("host:exec-input", request),
+  resizeHostTerminal: (request) => ipcRenderer.invoke("host:exec-resize", request),
+  interruptHostTerminal: (request) => ipcRenderer.invoke("host:exec-interrupt", request),
+  closeHostTerminal: (request) => ipcRenderer.invoke("host:exec-close", request),
+  onHostTerminalEvent: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("host:exec-event", listener);
+    return () => ipcRenderer.removeListener("host:exec-event", listener);
+  },
+  watchHostFolder: (request) => ipcRenderer.invoke("host:folder-watch", request),
+  stopHostFolderWatch: (request) => ipcRenderer.invoke("host:folder-watch-stop", request),
+  onHostFolderEvent: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("host:folder-event", listener);
+    return () => ipcRenderer.removeListener("host:folder-event", listener);
+  },
+  listRecentHostFolders: (expectedSession) => ipcRenderer.invoke("host:recent-folders", expectedSession),
+  recordRecentHostFolder: (request) => ipcRenderer.invoke("host:record-recent-folder", request),
+  closeRecentHostFolder: (request) => ipcRenderer.invoke("host:close-recent-folder", request),
+  forgetRecentHostFolder: (request) => ipcRenderer.invoke("host:forget-recent-folder", request),
   cloudInitializationGetState: (request) => ipcRenderer.invoke("cloud-initialization:get-state", request),
   cloudInitializationStart: (request) => ipcRenderer.invoke("cloud-initialization:start", request),
   cloudInitializationCleanup: (request) => ipcRenderer.invoke("cloud-initialization:cleanup", request),
@@ -222,12 +269,19 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   listCloudAccessPointDirectory: (request) => ipcRenderer.invoke("cloud:access-point-list-directory", request),
   getCloudAccessPointSemantics: (request) => ipcRenderer.invoke("cloud:access-point-semantics", request),
   openExternalUrl: (href) => ipcRenderer.invoke("system:open-external-url", href),
+  onFileModeFileChanged: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = () => callback();
+    ipcRenderer.on("file-mode:file-changed", listener);
+    return () => ipcRenderer.removeListener("file-mode:file-changed", listener);
+  },
   submitFeedback: (request) => ipcRenderer.invoke("feedback:submit", request),
   markdownWebEmbed: {
     create: (request) => ipcRenderer.invoke("markdown-web-embed:create", request),
     setBounds: (request) => ipcRenderer.invoke("markdown-web-embed:set-bounds", request),
     destroy: (request) => ipcRenderer.invoke("markdown-web-embed:destroy", request),
   },
+  getRestoringProject: () => ipcRenderer.invoke("window:get-restoring-project"),
   getInitialWorkspace: () => ipcRenderer.invoke("window:get-initial-workspace"),
   getLastWorkspace: () => ipcRenderer.invoke("workspace:get-last"),
   getRecentWorkspaces: () => ipcRenderer.invoke("workspace:get-recent"),
@@ -255,6 +309,38 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       return () => ipcRenderer.removeListener("project-appearance:changed", listener);
     },
   },
+  localComputers: {
+    getSnapshot: () => ipcRenderer.invoke("local-computers:snapshot"),
+    setExperimentalOptIn: (request) => ipcRenderer.invoke("local-computers:set-experimental-opt-in", {
+      enabled: request?.enabled === true,
+    }),
+    register: (request) => ipcRenderer.invoke("local-computers:register", {
+      workspacePath: request?.workspacePath,
+      name: request?.name,
+      startNow: request?.startNow,
+    }),
+    wake: (request) => ipcRenderer.invoke("local-computers:wake", {
+      id: request?.id,
+    }),
+    sleep: (request) => ipcRenderer.invoke("local-computers:sleep", {
+      id: request?.id,
+    }),
+    provisionDesktop: (request) => ipcRenderer.invoke("local-computers:provision-desktop", {
+      id: request?.id,
+    }),
+    remove: (request) => ipcRenderer.invoke("local-computers:remove", {
+      id: request?.id,
+    }),
+    connectScreen: (request) => ipcRenderer.invoke("local-computers:connect-screen", {
+      id: request?.id,
+    }),
+    onChanged: (callback) => {
+      if (typeof callback !== "function") return () => {};
+      const listener = (_event, snapshot) => callback(snapshot);
+      ipcRenderer.on("local-computers:changed", listener);
+      return () => ipcRenderer.removeListener("local-computers:changed", listener);
+    },
+  },
   removeRecentWorkspace: (folderPath) => ipcRenderer.invoke("workspace:remove-recent", folderPath),
   renameRecentWorkspace: (request) => ipcRenderer.invoke("workspace:rename-recent", request),
   forgetLastWorkspace: () => ipcRenderer.invoke("workspace:forget-last"),
@@ -272,6 +358,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   },
   openWorkspaceInCurrentWindow: (folderPath) => ipcRenderer.invoke("workspace:open-current", folderPath),
   openWorkspaceInNewWindow: (folderPath) => ipcRenderer.invoke("workspace:open-new-window", folderPath),
+  openCloudProjectInNewWindow: (target) => ipcRenderer.invoke("workspace:open-cloud-new-window", target),
   openDroppedWorkspaceInCurrentWindow: (folder) => {
     const folderPath = webUtils.getPathForFile(folder);
     if (typeof folderPath !== "string" || !folderPath.trim()) {
@@ -283,12 +370,27 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   selectFolderToAttach: () => ipcRenderer.invoke("workspace:select-folder-attach"),
   attachFolder: (folderPath) => ipcRenderer.invoke("workspace:attach-current", folderPath),
   detachFolder: (folderPath) => ipcRenderer.invoke("workspace:detach-current", folderPath),
+  getFolderStatus: (paths) => ipcRenderer.invoke("workspace:folder-status", { paths }),
+  getProjectPreviews: (paths) => ipcRenderer.invoke("workspace:project-previews", { paths }),
+  locateFolder: (folderPath) => ipcRenderer.invoke("workspace:locate-folder", { path: folderPath }),
+  relocateFolder: (token) => ipcRenderer.invoke("workspace:relocate-folder", { token }),
   selectFolderInNewWindow: () => ipcRenderer.invoke("workspace:select-folder-new-window"),
   selectLocalProjectLocation: () => ipcRenderer.invoke("workspace:select-project-location-current"),
   getDefaultLocalProjectLocation: () => ipcRenderer.invoke("workspace:default-project-location-current"),
+  resolveTemplateLink: (request) => ipcRenderer.invoke("template:resolve", request),
+  readTemplateImportIntent: () => ipcRenderer.invoke("template:read-intent"),
+  acknowledgeTemplateImportIntent: (id) => ipcRenderer.invoke("template:acknowledge-intent", id),
+  claimCopiedTemplateLink: () => ipcRenderer.invoke("template:claim-copied-link"),
+  onTemplateImportRequested: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("template:import-requested", handler);
+    return () => ipcRenderer.removeListener("template:import-requested", handler);
+  },
   createLocalProject: (request) => ipcRenderer.invoke("workspace:create-project-current", request),
   connectImportSource: (request) => ipcRenderer.invoke("workspace:import-source-connect", request),
   listImportResources: (request) => ipcRenderer.invoke("workspace:import-source-list", request),
+  listAppFolders: (app) => ipcRenderer.invoke("workspace:app-folders-list", app),
+  addAppFolders: (request) => ipcRenderer.invoke("workspace:app-folders-add", request),
   importSource: (request) => ipcRenderer.invoke("workspace:import-source-current", request),
   cancelImportSource: (request) => ipcRenderer.invoke("workspace:import-source-cancel", request),
   onImportSourceProgress: (listener) => {
@@ -327,8 +429,23 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   openDatabasePreview: (request) => ipcRenderer.invoke("database-preview:open", request),
   readDatabasePreviewPage: (request) => ipcRenderer.invoke("database-preview:page", request),
   closeDatabasePreview: (request) => ipcRenderer.invoke("database-preview:close", request),
+  openCloudDatabasePreview: (request) => ipcRenderer.invoke("cloud-preview:database-open", request),
+  readCloudDatabasePreviewPage: (request) => ipcRenderer.invoke("cloud-preview:database-page", request),
+  closeCloudNativePreview: (request) => ipcRenderer.invoke("cloud-preview:close", request),
+  convertCloudOfficeDocument: (request) => ipcRenderer.invoke("cloud-preview:office-convert", request),
+  watchCloudWorkspace: (request) => ipcRenderer.invoke("cloud-workspace:watch", request),
+  stopCloudWorkspaceWatch: (request) => ipcRenderer.invoke("cloud-workspace:stop", request),
+  onCloudWorkspaceEvent: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("cloud-workspace:event", listener);
+    return () => ipcRenderer.removeListener("cloud-workspace:event", listener);
+  },
+  retainCloudPreviewResource: (request) => ipcRenderer.invoke("cloud-preview:retain-resource", request),
+  revokeCloudPreviewResource: (request) => ipcRenderer.invoke("cloud-preview:revoke-resource", request),
   getFileUrl: (request) => ipcRenderer.invoke("workspace:get-file-url", request),
   createPreviewDocument: (request) => ipcRenderer.invoke("workspace:create-preview-document", request),
+  createSandboxedPreviewDocument: (request) => ipcRenderer.invoke("preview-document:create", request),
+  revokeSandboxedPreviewDocument: (request) => ipcRenderer.invoke("preview-document:revoke", request),
   revokeFileUrl: (request) => ipcRenderer.invoke("workspace:revoke-file-url", request),
   convertOfficeDocumentToDocx: (request) => ipcRenderer.invoke("workspace:convert-office-docx", request),
   cancelOfficeDocumentToDocxConversion: (request) => ipcRenderer.invoke("workspace:convert-office-docx-cancel", request),
@@ -423,6 +540,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     ipcRenderer.on("ai-edit-review:updated", listener);
     return () => ipcRenderer.removeListener("ai-edit-review:updated", listener);
   },
+  getPublishScope: (request) => ipcRenderer.invoke("workspace:publish-scope", request),
   getGitStatus: (request) => ipcRenderer.invoke("workspace:git-status", request),
   cancelGitStatus: (request) => ipcRenderer.invoke("workspace:git-status-cancel", request),
   getGitBranchGraph: (request) => ipcRenderer.invoke("workspace:git-branch-graph", request),

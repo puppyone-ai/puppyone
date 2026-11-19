@@ -1,0 +1,9 @@
+Format,Dateiendungen,Was du in puppyone tun kannst,Beispiel in diesem Projekt
+Markdown,.md,"Mit Live-Formatierung schreiben: Überschriften, Tabellen, Aufgabenlisten und Links zwischen Dateien",Getting Started.md
+Tabelle,.csv,Zellen wie in einer Tabellenkalkulation bearbeiten und Zeilen oder Spalten hinzufügen,Formats.csv
+Webseite,.html,Interaktive Seiten ansehen und ihren Text bearbeiten,How It Works.html
+Whiteboard,.excalidraw,"Formen zeichnen, Ideen verbinden und Notizen hinzufügen",Workspace Map.excalidraw
+PDF,.pdf,Dokumente lesen,
+Office-Dokumente,.docx .xlsx .pptx,"Dokumente, Tabellen und Folien ansehen",
+"Bilder, Audio und Video",.png .jpg .mp3 .mp4,Medien ansehen und abspielen,
+Code und Text,.txt .json .js .py,Mit Syntaxhervorhebung bearbeiten,

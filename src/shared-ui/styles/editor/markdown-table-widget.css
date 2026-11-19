@@ -1,0 +1,361 @@
+.markdown-codemirror-editor {
+  /* Resolve before the selected widget suppresses its inner native text paint. */
+  --cm-md-table-document-selection: var(--po-selection-background, var(--po-text-selection-bg));
+}
+
+:root[data-po-window-active="false"] .markdown-codemirror-editor {
+  --cm-md-table-document-selection: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
+}
+
+.markdown-codemirror-editor .cm-md-table-widget-wrap {
+  --cm-md-table-handle-gutter: var(--po-editable-table-handle-gutter);
+  --cm-md-table-interaction-gutter: var(--po-editable-table-interaction-gutter);
+  /* Markdown tracks come from markdownTableColumnLayout, which fits them to
+     the reading column and clamps them; cells never re-clamp a track with
+     the CSV editor's spreadsheet limits. */
+  --po-editable-table-cell-min-width: 0px;
+  --po-editable-table-cell-max-width: none;
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  margin: 0;
+  padding-block: 0 18px;
+  padding-inline: 0;
+  overflow: visible;
+  cursor: text;
+}
+
+.markdown-codemirror-editor .cm-md-table-scrollport {
+  --cm-md-table-interaction-start-inset: var(--cm-md-table-interaction-gutter);
+  --cm-md-table-reading-rail-end-inset: var(--cm-md-table-interaction-gutter);
+  box-sizing: border-box;
+  inline-size: calc(
+    100%
+    + var(--cm-md-table-interaction-start-inset)
+    + var(--cm-md-table-reading-rail-end-inset)
+  );
+  max-inline-size: calc(
+    100%
+    + var(--cm-md-table-interaction-start-inset)
+    + var(--cm-md-table-reading-rail-end-inset)
+  );
+  margin: 0;
+  margin-inline-start: calc(-1 * var(--cm-md-table-interaction-start-inset));
+  padding-block: var(--cm-md-table-handle-gutter) 0;
+  padding-inline: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  cursor: text;
+}
+
+@supports (width: 100cqw) {
+  .markdown-codemirror-editor .cm-md-table-scrollport {
+    --po-markdown-editor-gutter-inline: max(
+      var(--po-markdown-editor-gutter-min),
+      calc(
+        (var(--po-markdown-scroll-viewport-inline-size) - var(--po-markdown-editor-text-width)) / 2
+      )
+    );
+    /* The table scrollport is a wide-block viewport, independent of the
+       centered reading rail. One logical inset owns both clipping edges; the
+       default reaches the editor client edge while the clamp keeps custom
+       themes from placing interaction chrome outside a narrow editor. */
+    --cm-md-table-viewport-inline-inset: clamp(
+      0px,
+      var(--po-markdown-wide-block-edge-inset),
+      calc(var(--po-markdown-editor-gutter-inline) - var(--cm-md-table-interaction-gutter))
+    );
+    --cm-md-table-interaction-start-inset: calc(
+      var(--po-markdown-editor-gutter-inline) - var(--cm-md-table-viewport-inline-inset)
+    );
+    --cm-md-table-reading-rail-end-inset: var(--cm-md-table-interaction-start-inset);
+    /* Keep actual sizing on the wrapper-relative rule above. Container units
+       resolve against the scrollport content box, so reserved scrollbar
+       gutters do not enter the reading-rail calculation. */
+  }
+}
+
+.markdown-codemirror-editor .cm-md-table-scrollbar-rail {
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  block-size: var(--po-scrollbar-size, 12px);
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  cursor: default;
+}
+
+.markdown-codemirror-editor .cm-md-table-scrollbar-rail[hidden] {
+  display: none;
+}
+
+.markdown-codemirror-editor .cm-md-table-scrollbar-content {
+  display: block;
+  inline-size: 1px;
+  block-size: 1px;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-table-frame {
+  --cm-md-table-action-gutter: var(--po-editable-table-action-gutter);
+  display: inline-block;
+  min-width: max-content;
+  padding-block: 0 var(--cm-md-table-action-gutter);
+  padding-inline-start: var(--cm-md-table-interaction-start-inset);
+  padding-inline-end: var(--cm-md-table-reading-rail-end-inset);
+}
+
+.markdown-codemirror-editor .cm-md-table-surface {
+  position: relative;
+  display: inline-block;
+  min-width: max-content;
+  margin-inline-start: 0;
+  vertical-align: top;
+}
+
+.markdown-codemirror-editor .cm-md-table-column-resize-layer {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-table-column-resize-handle {
+  position: absolute;
+  width: 9px;
+  min-height: var(--po-editable-table-row-min-height);
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  cursor: col-resize;
+  opacity: 0;
+  pointer-events: none;
+  touch-action: none;
+  transform: translateX(-50%);
+  transition: opacity 100ms ease;
+}
+
+.markdown-codemirror-editor .cm-md-table-column-resize-handle::before {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 4px;
+  width: 1px;
+  background: transparent;
+  content: "";
+  transition: background-color 100ms ease, box-shadow 100ms ease;
+}
+
+.markdown-codemirror-editor .cm-md-table-column-resize-handle.is-visible,
+.markdown-codemirror-editor .cm-md-table-column-resize-handle.is-resizing {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.markdown-codemirror-editor .cm-md-table-column-resize-handle:hover::before,
+.markdown-codemirror-editor .cm-md-table-column-resize-handle.is-resizing::before {
+  background: var(--po-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--po-accent) 18%, transparent);
+}
+
+.markdown-codemirror-editor .cm-md-table-widget-wrap.is-column-resizing,
+.markdown-codemirror-editor .cm-md-table-widget-wrap.is-column-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+.markdown-codemirror-editor .cm-md-table-widget {
+  width: max-content;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--po-editable-table-border);
+  border-radius: var(--po-editable-table-radius);
+  border-collapse: separate;
+  border-spacing: 0;
+  /* Column tracks come from the semantic table model. Preview DOM and the
+     transient Markdown source editor therefore share one geometry instead of
+     asking the browser to recalculate intrinsic widths on every focus hop. */
+  table-layout: fixed;
+  background: var(--po-editable-table-background);
+  color: var(--po-editable-table-color);
+  font-size: var(--po-editable-table-font-size);
+  line-height: var(--po-editable-table-line-height);
+}
+
+.markdown-codemirror-editor .cm-md-table-widget.is-windowed {
+  contain: layout paint style;
+}
+
+.markdown-codemirror-editor .cm-md-table-widget.is-windowed .cm-md-table-virtual-spacer,
+.markdown-codemirror-editor .cm-md-table-widget.is-windowed .cm-md-table-virtual-spacer > td {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-table-widget.is-windowed .cm-md-table-virtual-spacer > td {
+  min-width: 0;
+  max-width: none;
+  line-height: 0;
+}
+
+/* Document selection sweeping over the table selects it as one block. */
+.markdown-codemirror-editor .cm-md-table-widget-wrap.is-doc-selected .cm-md-table-widget {
+  border-color: var(--cm-md-table-document-selection);
+  box-shadow: 0 0 0 1px var(--cm-md-table-document-selection);
+}
+
+.markdown-codemirror-editor .cm-md-table-widget th,
+.markdown-codemirror-editor .cm-md-table-widget td {
+  position: relative;
+  /* Classic table trick: height:1px lets the child stretch to the row's
+     computed height so cell padding clicks hit the editor, not the td. */
+  height: 1px;
+  min-width: var(--po-editable-table-cell-min-width);
+  max-width: var(--po-editable-table-cell-max-width);
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--po-editable-table-cell-border);
+  border-bottom: 1px solid var(--po-editable-table-cell-border);
+  text-align: left;
+  vertical-align: top;
+  white-space: normal;
+  transition: background-color 120ms ease;
+}
+
+.markdown-codemirror-editor .cm-md-table-widget th {
+  background: var(--po-editable-table-header-background);
+  color: var(--po-editable-table-header-color);
+  font-weight: var(--po-editable-table-header-font-weight);
+}
+
+.markdown-codemirror-editor .cm-md-table-widget td {
+  color: var(--po-editable-table-body-color);
+}
+
+.markdown-codemirror-editor .cm-md-table-widget th:last-child,
+.markdown-codemirror-editor .cm-md-table-widget td:last-child {
+  border-right: 0;
+}
+
+.markdown-codemirror-editor .cm-md-table-widget tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.markdown-codemirror-editor .cm-md-table-align-left {
+  text-align: left;
+}
+
+.markdown-codemirror-editor .cm-md-table-align-center {
+  text-align: center;
+}
+
+.markdown-codemirror-editor .cm-md-table-align-right {
+  text-align: right;
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: var(--po-editable-table-cell-min-width);
+  max-width: var(--po-editable-table-cell-max-width);
+  min-height: var(--po-editable-table-row-min-height);
+  height: 100%;
+  padding: var(--po-editable-table-cell-padding);
+  outline: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  cursor: text;
+}
+
+/*
+ * Focus chrome belongs on the cell (td/th), not the text span. Row height is
+ * driven by the tallest cell in the row, so a ring on the contenteditable
+ * hugs the text and leaves empty padding — the block-editor convention is a
+ * full-cell border-box perimeter instead.
+ */
+.markdown-codemirror-editor .cm-md-table-widget th:focus-within,
+.markdown-codemirror-editor .cm-md-table-widget td:focus-within {
+  position: relative;
+  z-index: 1;
+  outline: var(--po-editable-table-cell-focus-outline);
+  outline-offset: calc(-1 * var(--po-editable-table-selection-stroke));
+  box-shadow: none;
+}
+
+/* Drag handles, drop indicators, and structure controls are owned by the
+   shared editable-table primitive. Markdown owns only its scroll geometry. */
+
+.markdown-codemirror-editor .cm-md-table-widget-wrap.is-readonly .cm-md-table-structure-button {
+  display: none;
+}
+
+/* Menu chrome and states come from the shared editable-table menu. Only
+   Markdown's heading-free icon rows need intrinsic, content-hugging sizing. */
+.cm-md-table-context-menu.desktop-menu-surface {
+  width: max-content;
+  min-width: 0;
+  max-width: calc(100vw - 16px);
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content a {
+  --po-md-inline-foreground: var(--po-md-link-color);
+  color: var(--po-md-link-color);
+  text-decoration: none;
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content a:hover {
+  text-decoration: underline;
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content del,
+.markdown-codemirror-editor .cm-md-table-cell-content s {
+  color: inherit;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content strong,
+.markdown-codemirror-editor .cm-md-table-cell-content b {
+  color: var(--po-md-inline-foreground, var(--po-md-strong-color));
+  font-weight: var(--po-md-strong-weight);
+}
+
+.markdown-codemirror-editor .cm-md-table-widget th .cm-md-table-cell-content strong,
+.markdown-codemirror-editor .cm-md-table-widget th .cm-md-table-cell-content b {
+  font-weight: inherit;
+}
+
+.markdown-codemirror-editor .cm-md-table-cell-content em,
+.markdown-codemirror-editor .cm-md-table-cell-content i {
+  color: inherit;
+  font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-codemirror-editor .cm-md-table-widget,
+  .markdown-codemirror-editor .cm-md-table-widget th,
+  .markdown-codemirror-editor .cm-md-table-widget td,
+  .markdown-codemirror-editor .cm-md-table-cell-content {
+    transition: none;
+  }
+
+  .markdown-codemirror-editor .cm-md-table-column-resize-handle,
+  .markdown-codemirror-editor .cm-md-table-column-resize-handle::before {
+    transition: none;
+  }
+}

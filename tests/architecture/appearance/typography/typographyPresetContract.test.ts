@@ -19,7 +19,7 @@ describe("appearance preferences", () => {
     expect(css).not.toContain("data-text-size");
 
     expect(tokens).toMatch(
-      /:root,\s*:where\(\.app-shell, \.onboarding-shell, \.desktop-overlay-root, \.desktop-theme-preview-surface, \.dark\)\s*\{[^}]*--desktop-sidebar-font-size:\s*var\(--po-type-left-sidebar-content\);[^}]*--desktop-sidebar-font-size-meta:\s*var\(--po-type-left-sidebar-meta\);/s,
+      /:root,\s*:where\(\.app-shell, \.onboarding-shell, \.file-mode-window, \.desktop-overlay-root, \.desktop-theme-preview-surface, \.dark\)\s*\{[^}]*--desktop-sidebar-font-size:\s*var\(--po-type-left-sidebar-content\);[^}]*--desktop-sidebar-font-size-meta:\s*var\(--po-type-left-sidebar-meta\);/s,
     );
   });
 });

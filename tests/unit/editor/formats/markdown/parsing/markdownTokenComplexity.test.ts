@@ -2,13 +2,13 @@
  * @vitest-environment happy-dom
  */
 import { describe, expect, it } from "vitest";
-import { findMarkdownImageTokens } from "../../../../../../packages/shared-ui/src/editor/markdown/features/image/markdownImageModel";
-import { findMarkdownLinkTokens } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkModel";
-import { findWikiLinkTokens } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/wikiLinkModel";
+import { findMarkdownImageTokens } from "../../../../../../src/shared-ui/editor/markdown/features/image/markdownImageModel";
+import { findMarkdownLinkTokens } from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownLinkModel";
+import { findWikiLinkTokens } from "../../../../../../src/shared-ui/editor/markdown/core/links/wikiLinkModel";
 import {
   createMarkdownInlineFragment,
   MARKDOWN_INLINE_RICH_SOURCE_MAX_CHARS,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/preview/markdownInlineRenderer";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/preview/markdownInlineRenderer";
 
 describe("Markdown inline complexity bounds", () => {
   it("skips an already-inspected malformed link line instead of rescanning each opener", () => {

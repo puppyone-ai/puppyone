@@ -1,9 +1,10 @@
+import { initializeDesktopPreferences, desktopPreferencesStore } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import type { GitWorkingSelection } from "../../../../src/features/source-control/types";
 import { GitChangesSidebar } from "../../../../src/features/source-control/GitChangesSidebar";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -62,9 +63,6 @@ describe("Changes right sidebar", () => {
           repository={{
             status: null,
             puppyoneConfig: null,
-            gitDisplayMode: "professional",
-            gitSidebarLayout: "cards",
-            fileIconTheme: "default",
           }}
           view={{
             selectedWorkingFile: selection,
@@ -135,4 +133,9 @@ describe("Changes right sidebar", () => {
     expect(container.querySelector(".test-change-row")).not.toBeNull();
     expect(container.querySelector(".test-change-detail")).toBeNull();
   });
+});
+
+beforeEach(() => {
+  initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  desktopPreferencesStore.getState().setGitDisplayMode("professional");
 });

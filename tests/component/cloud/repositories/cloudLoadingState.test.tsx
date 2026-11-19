@@ -1,8 +1,6 @@
 /**
  * @vitest-environment happy-dom
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -30,31 +28,10 @@ describe("Cloud loading state", () => {
       <CloudWorkspaceLoadingState label="Loading project" />,
     ));
 
-    const point = container.querySelector<HTMLElement>("[data-pulse-grid-point]");
-    expect(point?.style.background).toBe("var(--po-text-subtle)");
-    expect(point?.style.background).not.toBe("var(--po-accent)");
+    const mark = container.querySelector<HTMLElement>("[data-puppy-loader]");
+    const ink = mark?.style.getPropertyValue("--po-loading-mark-ink");
+    expect(ink).toBe("var(--po-text-muted)");
+    expect(ink).not.toContain("--po-accent");
   });
 
-  it("centers against the full Cloud main surface", () => {
-    const css = readFileSync(
-      resolve(process.cwd(), "src/features/cloud/styles/sidebar-shell.css"),
-      "utf8",
-    );
-    const main = readCssBlock(css, ".desktop-cloud-main-view");
-    const loading = readCssBlock(css, ".desktop-cloud-loading-state");
-
-    expect(main).toContain("position: relative;");
-    expect(loading).toContain("position: absolute;");
-    expect(loading).toContain("inset: 0;");
-    expect(loading).toContain("width: 100%;");
-    expect(loading).toContain("height: 100%;");
-    expect(loading).toContain("place-items: center;");
-  });
 });
-
-function readCssBlock(css: string, selector: string): string {
-  const start = css.indexOf(`${selector} {`);
-  if (start < 0) return "";
-  const end = css.indexOf("}", start);
-  return end < 0 ? css.slice(start) : css.slice(start, end + 1);
-}

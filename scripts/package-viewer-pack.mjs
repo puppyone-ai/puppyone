@@ -4,7 +4,7 @@
  *
  * Usage:
  *   node scripts/package-viewer-pack.mjs \
- *     --source viewer-packs/glb \
+ *     --source tests/fixtures/extensions/viewer-packs/glb \
  *     --out artifacts/viewer-packs/ai.puppyone.viewer.glb-1.0.0.puppyplugin \
  *     --generate-test-key
  */

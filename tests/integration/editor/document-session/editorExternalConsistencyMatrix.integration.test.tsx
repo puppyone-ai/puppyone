@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { redo, undo } from "@codemirror/commands";
 import type { DataNode } from "@puppyone/shared-ui";
 import { createEditorInput } from "@puppyone/shared-ui";
@@ -18,16 +19,18 @@ import {
 } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { EditorDocumentHost } from "../../../../packages/shared-ui/src/editor/host/EditorDocumentHost";
-import { preloadPresetViewer } from "../../../../packages/shared-ui/src/editor/host/PresetViewerRenderer";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { closeAllDocumentWorkingCopies } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
+import { EditorDocumentHost } from "../../../../src/shared-ui/editor/host/EditorDocumentHost";
+import { preloadPresetViewer } from "../../../../src/shared-ui/editor/host/PresetViewerRenderer";
 import {
   PRESET_VIEWERS,
   resolveEditorViewer,
-} from "../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
+} from "../../../../src/shared-ui/editor/registry/viewerRegistry";
 import { EditorPaneDocumentRuntime } from "../../../../src/features/editor-workbench/runtime/EditorPaneDocumentRuntime";
 import { withTestLocalization } from "../../../support/react/localization";
+
+vi.mock("@excalidraw/excalidraw", () => import("../../../support/editor/excalidrawSdkFixture"));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -44,11 +47,20 @@ type FormatCase = Readonly<{
   readRuntimeMarker: (container: HTMLElement) => string | null;
   readEditorMarker: (container: HTMLElement) => string | null;
   applyLocalEdit: (container: HTMLElement) => void;
+  mountedHistoryOnly?: boolean;
 }>;
 
 const MARKERS = ["alpha", "agent", "human"] as const;
 
 const FORMAT_CASES: readonly FormatCase[] = [
+  {
+    label: "Whiteboard", viewerId: "excalidraw", path: "matrix-board.excalidraw", type: "whiteboard",
+    initial: whiteboardContent("alpha"), external: whiteboardContent("agent"), local: whiteboardContent("human"),
+    readRuntimeMarker: readWhiteboardMarker, readEditorMarker: readWhiteboardMarker,
+    applyLocalEdit: container => container.querySelector<HTMLButtonElement>("[data-whiteboard-marker]")!.click(),
+    // Excalidraw owns undo while mounted; persisted content survives a remount.
+    mountedHistoryOnly: true,
+  },
   {
     label: "Context Map",
     viewerId: "context-map",
@@ -168,6 +180,8 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+beforeEach(() => initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} }));
+
 describe("P0 editor external-consistency matrix", () => {
   it("requires every editable preset Viewer family to have a P0 consistency fixture", () => {
     const registeredEditableViewers = PRESET_VIEWERS
@@ -220,7 +234,7 @@ describe("P0 editor external-consistency matrix", () => {
   );
 
   it.each(FORMAT_CASES)(
-    "$label: retains edits and undo/redo after destroying and recreating its view",
+    "$label: retains saved edits after destroying and recreating its view",
     async (formatCase) => {
       const harness = await createEditorHarness(formatCase);
       await harness.render(formatCase.initial, "v1");
@@ -233,6 +247,21 @@ describe("P0 editor external-consistency matrix", () => {
       await harness.render(formatCase.local, "v3");
       await waitForMarker(formatCase.readEditorMarker, harness.container, "human");
       expect(harness.persist).toHaveBeenCalledTimes(saved);
+    },
+  );
+
+  it.each(FORMAT_CASES.filter(formatCase => !formatCase.mountedHistoryOnly))(
+    "$label: retains undo/redo after destroying and recreating its view",
+    async (formatCase) => {
+      const harness = await createEditorHarness(formatCase);
+      await harness.render(formatCase.initial, "v1");
+      await waitForMarker(formatCase.readEditorMarker, harness.container, "alpha");
+      act(() => formatCase.applyLocalEdit(harness.container));
+      await waitForMarker(formatCase.readEditorMarker, harness.container, "human");
+      await harness.save();
+      await harness.hide();
+      await harness.render(formatCase.local, "v3");
+      await waitForMarker(formatCase.readEditorMarker, harness.container, "human");
       const steps = formatCase.viewerId === "context-map" ? 2 : 1;
       for (let i = 0; i < steps; i++) act(() => historyCommand(harness.container, false));
       await waitForMarker(formatCase.readEditorMarker, harness.container, "alpha");
@@ -398,6 +427,17 @@ describe("P0 editor external-consistency matrix", () => {
   });
 });
 
+function whiteboardContent(marker: "alpha" | "agent" | "human") {
+  return JSON.stringify({ type: "excalidraw", version: 2, elements: [{
+    id: "matrix-shape", type: "rectangle", x: 0, y: 0, width: 20, height: 20,
+    version: { alpha: 1, human: 2, agent: 3 }[marker], customData: { marker },
+  }], appState: { viewBackgroundColor: "#ffffff" }, files: {} }) + "\n";
+}
+
+function readWhiteboardMarker(container: HTMLElement) {
+  return container.querySelector<HTMLElement>("[data-whiteboard-marker]")?.dataset.whiteboardMarker ?? null;
+}
+
 function codeMirrorCase(
   input: Omit<FormatCase, "readRuntimeMarker" | "readEditorMarker" | "applyLocalEdit">,
 ): FormatCase {
@@ -512,8 +552,9 @@ async function createEditorHarness(formatCase: FormatCase) {
         />,
       )));
       if (formatCase.viewerId === "html-artifact" && !container.querySelector(".cm-editor")) {
-        const sourceToggle = Array.from(container.querySelectorAll<HTMLButtonElement>(".html-editor-options button"))
-          .find((button) => button.textContent === "Show code");
+        const sourceToggle = container.querySelector<HTMLButtonElement>(
+          '.html-editor-options [role="menuitemradio"][data-mode="source"]',
+        ) ?? undefined;
         expect(sourceToggle, "HTML view must expose its source-mode command").toBeDefined();
         await act(async () => sourceToggle!.click());
       }
@@ -541,7 +582,7 @@ function runtimeElement(
         showSaveStatus: false,
         markdownBlockDragEnabled: false,
       }}
-      fileIconTheme="default"
+
       markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT}
       refreshKey={refreshKey}
       treeNode={node}

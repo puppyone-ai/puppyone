@@ -1,0 +1,129 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Automation configure rendering captured before extraction > disables creation, back, and closing while saving and restores them after failure > create failure 1`] = `
+{
+  "actions": [
+    {
+      "disabled": false,
+      "text": "Back",
+    },
+    {
+      "disabled": false,
+      "text": "Create Automation",
+    },
+  ],
+  "footer": "BackCreate Automation",
+}
+`;
+
+exports[`Automation configure rendering captured before extraction > disables creation, back, and closing while saving and restores them after failure > saving 1`] = `
+{
+  "actions": [
+    {
+      "disabled": true,
+      "text": "Back",
+    },
+    {
+      "disabled": true,
+      "text": "Creating…",
+    },
+  ],
+  "footer": "BackCreating…",
+}
+`;
+
+exports[`Automation configure rendering captured before extraction > keeps required field, source, destination and trigger errors in priority order > destination error wins 1`] = `
+{
+  "actions": [
+    {
+      "disabled": false,
+      "text": "Back",
+    },
+    {
+      "disabled": true,
+      "text": "Create Automation",
+    },
+  ],
+  "footer": "Folder path cannot leave the project root.BackCreate Automation",
+}
+`;
+
+exports[`Automation configure rendering captured before extraction > keeps required field, source, destination and trigger errors in priority order > ready 1`] = `
+{
+  "actions": [
+    {
+      "disabled": false,
+      "text": "Back",
+    },
+    {
+      "disabled": false,
+      "text": "Create Automation",
+    },
+  ],
+  "footer": "BackCreate Automation",
+}
+`;
+
+exports[`Automation configure rendering captured before extraction > keeps required field, source, destination and trigger errors in priority order > required field 1`] = `
+{
+  "actions": [
+    {
+      "disabled": false,
+      "text": "Back",
+    },
+    {
+      "disabled": true,
+      "text": "Create Automation",
+    },
+  ],
+  "footer": "Fill the required source fields.BackCreate Automation",
+}
+`;
+
+exports[`Automation configure rendering captured before extraction > keeps required field, source, destination and trigger errors in priority order > required field wins 1`] = `
+{
+  "actions": [
+    {
+      "disabled": false,
+      "text": "Back",
+    },
+    {
+      "disabled": true,
+      "text": "Create Automation",
+    },
+  ],
+  "footer": "Fill the required source fields.BackCreate Automation",
+}
+`;
+
+exports[`Automation configure rendering captured before extraction > keeps required field, source, destination and trigger errors in priority order > source missing wins 1`] = `
+{
+  "actions": [
+    {
+      "disabled": false,
+      "text": "Back",
+    },
+    {
+      "disabled": true,
+      "text": "Create Automation",
+    },
+  ],
+  "footer": "Choose a source resource or enter its ID.BackCreate Automation",
+}
+`;
+
+exports[`Automation configure rendering captured before extraction > keeps required field, source, destination and trigger errors in priority order > trigger error 1`] = `
+{
+  "actions": [
+    {
+      "disabled": false,
+      "text": "Back",
+    },
+    {
+      "disabled": true,
+      "text": "Create Automation",
+    },
+  ],
+  "footer": "Enter a five-part cron expression.BackCreate Automation",
+}
+`;

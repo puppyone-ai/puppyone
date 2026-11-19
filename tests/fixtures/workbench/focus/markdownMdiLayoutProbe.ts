@@ -1,5 +1,5 @@
-import { createMarkdownLayoutCoordinator } from "../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/layoutCoordinator";
-import { getEditorLayoutSnapshot } from "../../../../packages/shared-ui/src/editor/runtime/editorLayout";
+import { createMarkdownLayoutCoordinator } from "../../../../src/shared-ui/editor/markdown/platform/codemirror/layoutCoordinator";
+import { getEditorLayoutSnapshot } from "../../../../src/shared-ui/editor/runtime/editorLayout";
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
@@ -40,7 +40,8 @@ export const mdiLayoutProbe = {
     requireCondition(after.failures === before.failures, "A pane failed during nested resize");
     requireCondition(views.every((view, index) => view === fixture().views[index] && view.dom.isConnected), "Resize recreated a view");
     const batches = after.batches - before.batches;
-    requireCondition(batches > 0 && batches <= after.recentBatchMs.length, "Incomplete performance samples");
+    requireCondition(batches > 0 && batches <= after.recentBatchMs.length,
+      `Incomplete performance samples: ${batches} batches, ${after.recentBatchMs.length} retained`);
     const durations = after.recentBatchMs.slice(-batches).sort((a, b) => a - b);
     return { ...result, panes: count, batches, engineCommits: after.commits - before.commits, maxPasses: after.maxPasses,
       p95BatchMs: durations[Math.ceil(durations.length * 0.95) - 1], maxBatchMs: durations.at(-1) };

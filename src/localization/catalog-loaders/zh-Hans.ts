@@ -4,6 +4,7 @@ import automation from "../../../locales/renderer/zh-Hans/automation.json";
 import cloud from "../../../locales/renderer/zh-Hans/cloud.json";
 import common from "../../../locales/renderer/zh-Hans/common.json";
 import editor from "../../../locales/renderer/zh-Hans/editor.json";
+import hosts from "../../../locales/renderer/zh-Hans/hosts.json";
 import onboarding from "../../../locales/renderer/zh-Hans/onboarding.json";
 import plugins from "../../../locales/renderer/zh-Hans/plugins.json";
 import settings from "../../../locales/renderer/zh-Hans/settings.json";
@@ -20,6 +21,7 @@ export default mergeCatalogNamespaces({
   "cloud": cloud,
   "common": common,
   "editor": editor,
+  "hosts": hosts,
   "onboarding": onboarding,
   "plugins": plugins,
   "settings": settings,

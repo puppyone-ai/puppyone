@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import {
+  PlaceholderLayer,
   Tooltip,
   RENDERER_ASSET_PATHS,
   resolveRendererPublicAssetUrl,
@@ -81,7 +82,7 @@ export function CloudAutomationPage({
   const templates = buildAutomationTemplates(providerSpecs);
   const visibleTemplates = getAutomationTemplatesForCategory(templates, activeCategory);
   const activeCreationRunId = creationEcho && !isTerminalRunStatus(creationEcho.status)
-    ? creationEcho.runId
+    ? creationEcho.synchronizeRunId
     : null;
 
   const openNewAutomation = (template: AutomationTemplate | null = null) => {
@@ -91,15 +92,15 @@ export function CloudAutomationPage({
 
   const handleCreated = (echo: CloudAutomationCreationEcho) => {
     setCreationEcho(echo);
-    setHighlightedConnectionId(echo.connectionId);
+    setHighlightedConnectionId(echo.synchronizeBindingId);
   };
 
   const refreshCreationStatus = async () => {
     const echo = creationEcho;
-    if (echo?.runId) {
+    if (echo?.synchronizeRunId) {
       try {
-        const run = await getSynchronizeRun(cloudSession, echo.runId, onCloudSessionChange, apiBaseUrl);
-        setCreationEcho((current) => current?.runId === run.id ? {
+        const run = await getSynchronizeRun(cloudSession, echo.synchronizeRunId, onCloudSessionChange, apiBaseUrl);
+        setCreationEcho((current) => current?.synchronizeRunId === run.id ? {
           ...current,
           status: run.status,
           summary: run.result_summary || null,
@@ -129,7 +130,7 @@ export function CloudAutomationPage({
       try {
         const run = await getSynchronizeRun(cloudSession, runId, onCloudSessionChange, apiBaseUrl);
         if (cancelled) return;
-        setCreationEcho((current) => current?.runId === runId ? {
+        setCreationEcho((current) => current?.synchronizeRunId === runId ? {
           ...current,
           status: run.status,
           summary: run.result_summary || (isTerminalRunStatus(run.status) ? null : current.summary),
@@ -156,7 +157,6 @@ export function CloudAutomationPage({
       {hasAnyAutomation && (
         <header className="desktop-cloud-automation-add-more-header">
           <h2>{t("automation.page.addMoreSources")}</h2>
-          <p>{t("automation.page.addMoreDescription")}</p>
         </header>
       )}
       <nav
@@ -186,10 +186,11 @@ export function CloudAutomationPage({
         aria-label={t("automation.page.categoryTemplates", { category: formatAutomationCategory(activeCategory, t) })}
       >
         {providerSpecsLoading ? Array.from({ length: 4 }, (_, index) => (
-          <div className="desktop-cloud-automation-template-card skeleton" aria-hidden="true" key={index}>
-            <span />
-            <span />
-            <span />
+          <div className="desktop-cloud-automation-template-card skeleton po-placeholder-surface" aria-hidden="true" key={index}>
+            <span data-placeholder-shape="" />
+            <span data-placeholder-shape="" />
+            <span data-placeholder-shape="" />
+            <PlaceholderLayer phase={index * -0.11} />
           </div>
         )) : visibleTemplates.map((template) => (
           <AutomationTemplateCard key={template.id} template={template} onAdd={() => openNewAutomation(template)} />
@@ -213,7 +214,6 @@ export function CloudAutomationPage({
           <header className="desktop-cloud-automation-landing-header">
             <div className="desktop-cloud-automation-landing-copy">
               <h1>{t("automation.page.title")}</h1>
-              <p>{t("automation.page.description")}</p>
             </div>
             <button type="button" className="desktop-cloud-automation-new-button" onClick={() => openNewAutomation()}>
               {t("automation.page.new")}
@@ -355,7 +355,7 @@ function CloudAutomationAccessList({
               <div className="desktop-cloud-automation-connection-list">
                 {group.rows.map((row) => {
                   const connector = row.binding;
-                  const echo = creationEcho?.connectionId === connector.id ? creationEcho : null;
+                  const echo = creationEcho?.synchronizeBindingId === connector.id ? creationEcho : null;
                   const status = echo?.status || connector.status || "active";
                   const statusLabel = formatAutomationStatus(status, t);
                   const statusTone = getAutomationStatusTone(status);

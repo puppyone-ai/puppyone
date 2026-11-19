@@ -288,7 +288,7 @@ describe("Desktop Terminal architecture boundaries", () => {
 
   it("keeps plain output close to editor text while preserving ANSI tiers", () => {
     const tokens = source("src/styles/tokens.css");
-    const neutralTheme = source("sub-themes/default-neutral/theme.css");
+    const neutralTheme = source("src/features/themes/builtin/default-neutral/theme.css");
     const light = terminalNeutralTier(neutralTheme, ":root");
     const dark = terminalNeutralTier(neutralTheme, ".dark .theme-root");
 
@@ -316,7 +316,6 @@ describe("Desktop Terminal architecture boundaries", () => {
     );
     const settings = source("src/features/settings/SettingsView.tsx");
     const preferences = source("src/preferences.ts");
-    const desktopPreferences = source("src/features/app-shell/useDesktopPreferences.ts");
     const titlebarCss = source("src/styles/titlebar.css");
     expect(titlebarActions).toContain("onToggleTerminal");
     expect(titlebarActions).not.toContain("TerminalTitlebarMenu");
@@ -338,13 +337,12 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(header).toContain("onClick={onCreate}");
     expect(header).not.toContain("TerminalWorkbenchCreateMenu");
     expect(header).not.toContain("aria-haspopup");
-    expect(panel).toContain("workbench.items.length === 0 ? renderLauncher");
-    expect(panel).toContain(": workbench.root && <AuxiliaryWorkbenchViewport");
+    // An empty workbench shows only the launcher (inside its render boundary); otherwise the viewport.
+    expect(panel).toMatch(/workbench\.items\.length === 0 \?[\s\S]{0,240}?renderLauncher=\{renderLauncher\}[\s\S]{0,240}?:\s*workbench\.root && <AuxiliaryWorkbenchViewport/);
     expect(panel).not.toContain("sessionLayout");
     expect(settings).not.toContain("terminalLayout");
     expect(preferences).not.toContain("TerminalSessionLayout");
     expect(preferences).not.toContain("terminalSessionLayout");
-    expect(desktopPreferences).not.toContain("terminalSessionLayout");
     expect(titlebarCss).not.toContain(".desktop-titlebar-terminal-menu");
   });
 });

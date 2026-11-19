@@ -39,6 +39,7 @@ export function LanguageSettingRow() {
           aria-label={t("settings.language.selectorLabel")}
           value={preference}
           disabled={changing}
+          aria-busy={changing}
           onChange={(event) => {
             const nextPreference = event.target.value;
             if (isSelectableAppLanguagePreference(nextPreference)) {
@@ -47,7 +48,7 @@ export function LanguageSettingRow() {
           }}
         >
           <option value="system">
-            {t("settings.language.system", { language: systemLanguage })}
+            {changing && preference === "system" ? t("settings.language.changing") : t("settings.language.system", { language: systemLanguage })}
           </option>
           {localeDescriptors.filter((descriptor) => descriptor.productionReady).map((descriptor) => (
             <option
@@ -56,14 +57,14 @@ export function LanguageSettingRow() {
               lang={descriptor.locale}
               dir={descriptor.direction}
             >
-              {descriptor.label}
+              {changing && preference === descriptor.locale ? t("settings.language.changing") : descriptor.label}
             </option>
           ))}
         </select>
         {changing && (
-          <small className="desktop-language-setting-status" role="status">
+          <span className="desktop-settings-visually-hidden" role="status">
             {t("settings.language.changing")}
-          </small>
+          </span>
         )}
         {changeFailed && (
           <small className="desktop-language-setting-error" role="alert">

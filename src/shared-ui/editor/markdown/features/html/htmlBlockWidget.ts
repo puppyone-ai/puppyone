@@ -1,0 +1,419 @@
+import { EditorSelection } from "@codemirror/state";
+import { EditorView, WidgetType } from "@codemirror/view";
+import { bidiIsolate } from "@puppyone/localization/core";
+import type { MarkdownAssetUrlResolver } from "../../../registry/viewerTypes";
+import type { MarkdownHtmlBlockRenderProfile } from "../../core/features/markdownFeatureData";
+import { getMarkdownEmbedHost } from "../../platform/codemirror/embedHost";
+import { disposeWidgetSessionDom } from "../../platform/codemirror/widgetSession";
+import { bindInlineHtmlDomInteractions } from "./inlineHtmlDomAdapter";
+import { prepareHtmlListGeometry } from "./htmlListGeometry";
+import type { BrokeredMarkdownMediaUrlResolver } from "../media/markdownMediaReference";
+import type { MarkdownHtmlBlock } from "./htmlBlockModel";
+import { createBrokeredHtmlMediaResolver, hydrateDeferredHtmlMedia } from "./htmlMediaHydration";
+import { createSanitizedBlockHtmlFragment } from "./sanitizeHtml";
+import type { AssetBrokerHandle } from "../../platform/brokers/assetBroker";
+import {
+  createPrincipalFromView,
+  openMarkdownHref,
+} from "../../core/editor/markdownLivePreviewContext";
+import { MarkdownWidgetMeasureController } from "../../platform/codemirror/layoutCoordinator";
+import { estimateHtmlBlockLayoutHeight } from "./htmlBlockLayout";
+import {
+  getMarkdownLocalization,
+  type MarkdownLocalization,
+} from "../../core/editor/markdownLocalization";
+import {
+  MARKDOWN_RICH_BLOCK_EXECUTION,
+  type MarkdownMountedBlockExecution,
+} from "../../core/plans/markdownBlockExecution";
+import { markdownRevealedSourceEffect } from "../../core/state/revealedSource";
+import { createSourceToggleIcon, getMappedWidgetSourceRange } from "../../shared/widgets/widgetDom";
+
+const HTML_MEDIA_RESOLUTION_CONCURRENCY = 6;
+
+type MarkdownRenderableHtmlBlock = Omit<
+  MarkdownHtmlBlock,
+  "status" | "diagnostic"
+> & Readonly<{
+  profile: MarkdownHtmlBlockRenderProfile;
+  profileVersion: string;
+  requiresAssetBroker: boolean;
+  externalHref: string | null;
+}>;
+
+/**
+ * Immutable HTML-block descriptor. Message listeners, timers, measure, asset
+ * loads, and web-embed sessions belong to the mounted DOM session.
+ */
+export class HtmlBlockWidget extends WidgetType {
+  constructor(
+    private readonly block: MarkdownRenderableHtmlBlock,
+    private readonly documentPath: string,
+    private readonly markdownAssetUrlResolver: MarkdownAssetUrlResolver | null,
+    private readonly layoutEstimatedHeight = estimateHtmlBlockLayoutHeight(block.source),
+    private readonly execution: MarkdownMountedBlockExecution = MARKDOWN_RICH_BLOCK_EXECUTION,
+  ) {
+    super();
+  }
+
+  eq(widget: WidgetType): boolean {
+    return (
+      widget instanceof HtmlBlockWidget &&
+      widget.block.source === this.block.source &&
+      widget.block.tagName === this.block.tagName &&
+      widget.block.profile === this.block.profile &&
+      widget.block.profileVersion === this.block.profileVersion &&
+      widget.block.requiresAssetBroker === this.block.requiresAssetBroker &&
+      widget.block.externalHref === this.block.externalHref &&
+      widget.layoutEstimatedHeight === this.layoutEstimatedHeight &&
+      widget.execution.mode === this.execution.mode &&
+      widget.execution.budgetVersion === this.execution.budgetVersion &&
+      widget.documentPath === this.documentPath &&
+      widget.markdownAssetUrlResolver === this.markdownAssetUrlResolver
+    );
+  }
+
+  get estimatedHeight(): number {
+    return this.layoutEstimatedHeight;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const { direction, t } = getMarkdownLocalization(view);
+    const host = getMarkdownEmbedHost(view, {
+      resolveAssetUrl: this.markdownAssetUrlResolver,
+    });
+    const shell = document.createElement("div");
+    shell.className = "cm-md-html-widget";
+    shell.dir = direction;
+    const measure = new MarkdownWidgetMeasureController(host.layout);
+    let previewVersion = 0;
+    let activated = this.execution.mode !== "deferred";
+    let webEmbedId: string | null = null;
+    const activeAssetHandles = new Set<AssetBrokerHandle>();
+    let previewAbort = new AbortController();
+    let boundsUpdateListener: (() => void) | null = null;
+    let boundsResizeObserver: ResizeObserver | null = null;
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "cm-md-html-widget-toolbar";
+    const toggleButton = document.createElement("button");
+    toggleButton.className = "cm-md-html-source-toggle";
+    toggleButton.type = "button";
+    toolbar.appendChild(toggleButton);
+
+    const content = document.createElement("div");
+    content.className = "cm-md-html-widget-content";
+
+    const stopBoundsTracking = () => {
+      if (boundsUpdateListener) {
+        window.removeEventListener("scroll", boundsUpdateListener, { capture: true } as EventListenerOptions);
+        window.removeEventListener("resize", boundsUpdateListener);
+        boundsUpdateListener = null;
+      }
+      boundsResizeObserver?.disconnect();
+      boundsResizeObserver = null;
+    };
+    const startBoundsTracking = (embedId: string, element: HTMLElement) => {
+      stopBoundsTracking();
+      const updateBounds = () => {
+        if (!element.isConnected || webEmbedId !== embedId) return;
+        void host.webEmbeds.setBounds(embedId, getWebEmbedBounds(element));
+      };
+      boundsUpdateListener = updateBounds;
+      window.addEventListener("scroll", updateBounds, { passive: true, capture: true });
+      window.addEventListener("resize", updateBounds, { passive: true });
+      if ("ResizeObserver" in window) {
+        boundsResizeObserver = new ResizeObserver(updateBounds);
+        boundsResizeObserver.observe(element);
+      }
+    };
+    const clearPreviewLifecycle = () => {
+      previewAbort.abort();
+      previewAbort = new AbortController();
+      stopBoundsTracking();
+      for (const handle of activeAssetHandles) handle.revoke();
+      activeAssetHandles.clear();
+      if (webEmbedId) {
+        host.webEmbeds.destroy(webEmbedId);
+        webEmbedId = null;
+      }
+    };
+
+    const nextPreviewVersion = () => {
+      previewVersion += 1;
+      return previewVersion;
+    };
+    const isPreviewVersionCurrent = (version: number) => !measure.destroyed && previewVersion === version;
+
+    const createWebEmbedPlaceholder = (href: string) => {
+      const principal = createPrincipalFromView(view, "web-embed");
+      const embed = host.webEmbeds.create({
+        principal,
+        href,
+        privacyProfile: "temporary-no-credential",
+      });
+      webEmbedId = embed.id;
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "cm-md-html-web-embed";
+      wrapper.dataset.embedState = embed.state;
+
+      if (embed.state === "blocked") {
+        wrapper.textContent = t("editor.markdown.html.embedBlocked");
+        return wrapper;
+      }
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "cm-md-html-web-embed-load";
+      button.textContent = t("editor.markdown.html.loadEmbed", { href: bidiIsolate(href) });
+      button.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        button.disabled = true;
+        button.textContent = t("shared-ui.loading");
+        const initialBounds = getWebEmbedBounds(wrapper);
+        startBoundsTracking(embed.id, wrapper);
+        const activated = await host.webEmbeds.activate(embed.id, initialBounds);
+        if (!activated || !wrapper.isConnected) {
+          stopBoundsTracking();
+          return;
+        }
+        wrapper.dataset.embedState = activated.state;
+        if (activated.state === "loaded") {
+          wrapper.replaceChildren();
+          const frame = document.createElement("div");
+          frame.className = "cm-md-html-web-embed-frame";
+          frame.dataset.embedId = activated.id;
+          frame.dataset.embedHref = href;
+          frame.textContent = t("editor.markdown.html.embedded", { href: bidiIsolate(href) });
+          wrapper.appendChild(frame);
+          measure.schedule();
+        } else {
+          stopBoundsTracking();
+          button.disabled = false;
+          button.textContent = t("editor.markdown.html.loadEmbed", { href: bidiIsolate(href) });
+        }
+      });
+      wrapper.appendChild(button);
+      return wrapper;
+    };
+
+    /**
+     * Build an asset resolver that routes through the host's asset broker so
+     * all media loads are tracked under a capability principal and can be
+     * revoked on session dispose.
+     */
+    const buildBrokerAssetResolver = (version: number): BrokeredMarkdownMediaUrlResolver | null => {
+      if (!this.markdownAssetUrlResolver) return null;
+      return createBrokeredHtmlMediaResolver({
+        view,
+        host,
+        root: content,
+        handles: activeAssetHandles,
+        isCurrent: () => isPreviewVersionCurrent(version),
+        onLayoutChange: () => measure.schedule(),
+      });
+    };
+
+    const createPreviewBlock = (version: number) => {
+      const sanitizedOptions = {
+        openHref: (href: string) => {
+          openMarkdownHref(href, view);
+        },
+      };
+      if (!activated) {
+        return createDeferredHtmlPlaceholder(() => {
+          activated = true;
+          render();
+        });
+      }
+
+      const externalHref = this.block.externalHref;
+      if (externalHref) {
+        return createWebEmbedPlaceholder(externalHref);
+      }
+
+      const brokerResolver = buildBrokerAssetResolver(version);
+      if (this.block.profile !== "safe-block-with-media") {
+        return createSanitizedHtmlPreviewBlock(this.block, this.block.source, t, sanitizedOptions);
+      }
+
+      // The plan index includes broker availability, so this can occur only if
+      // a host violates the compiled-plan contract between projection and mount.
+      if (this.block.requiresAssetBroker && !brokerResolver) {
+        return createDefensiveHtmlSourceFallback(this.block.source);
+      }
+
+      const wrapper = createSanitizedHtmlPreviewBlock(this.block, this.block.source, t, {
+        ...sanitizedOptions,
+        deferredMedia: true,
+      });
+      if (brokerResolver) {
+        hydrateDeferredHtmlMedia({
+          root: wrapper,
+          documentPath: this.documentPath,
+          resolver: brokerResolver,
+          signal: previewAbort.signal,
+          isCurrent: () => isPreviewVersionCurrent(version),
+          onLayoutChange: () => measure.schedule(),
+        });
+      }
+      return wrapper;
+    };
+
+    const render = () => {
+      clearPreviewLifecycle();
+      const version = nextPreviewVersion();
+      content.replaceChildren(createPreviewBlock(version));
+      toggleButton.replaceChildren(createSourceToggleIcon());
+      const toggleLabel = t("editor.markdown.html.showSource");
+      toggleButton.setAttribute("aria-label", toggleLabel);
+      measure.schedule();
+    };
+
+    toggleButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const range = getMappedWidgetSourceRange(view, shell, this.block.to - this.block.from);
+      if (!range) return;
+      view.dispatch({
+        effects: markdownRevealedSourceEffect.of({ ...range, presentation: "block" }),
+        selection: EditorSelection.cursor(Math.min(range.to, range.from + 1)),
+        scrollIntoView: true,
+      });
+      queueMicrotask(() => {
+        if (view.dom.isConnected) view.focus();
+      });
+    });
+
+    render();
+    shell.append(toolbar, content);
+    measure.observe(shell);
+
+    host.sessions.mount(shell, () => ({
+      dispose() {
+        clearPreviewLifecycle();
+        measure.destroy();
+      },
+    }));
+
+    return shell;
+  }
+
+  destroy(dom: HTMLElement) {
+    disposeWidgetSessionDom(dom);
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
+function createSanitizedHtmlPreviewBlock(
+  block: MarkdownRenderableHtmlBlock,
+  source: string,
+  t: MarkdownLocalization["t"],
+  options: {
+    brokeredMedia?: boolean;
+    deferredMedia?: boolean;
+    openHref?: (href: string) => void;
+  } = {},
+): HTMLElement {
+  const result = createSanitizedBlockHtmlFragment(source, {
+    brokeredMedia: options.brokeredMedia === true,
+    deferredMedia: options.deferredMedia === true,
+  });
+  if (!result.supported) {
+    return createDefensiveHtmlSourceFallback(block.source, result.reasons[0]);
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "cm-md-html-rendered-surface cm-md-html-block";
+  wrapper.dataset.poScrollbar = "content";
+  wrapper.dir = "auto";
+  wrapper.appendChild(result.fragment);
+  prepareHtmlListGeometry(wrapper);
+  for (const pre of wrapper.querySelectorAll<HTMLElement>("pre")) {
+    pre.dataset.poScrollbar = "content";
+  }
+  bindInlineHtmlDomInteractions(wrapper, { openHref: options.openHref });
+  return wrapper;
+}
+
+function getWebEmbedBounds(element: HTMLElement): { x: number; y: number; width: number; height: number } {
+  // WebContentsView bounds are BrowserWindow content coordinates. DOMRect is
+  // already viewport-relative; adding window.scrollX/Y makes native overlays
+  // drift away from scrolled editor content.
+  const rect = element.getBoundingClientRect();
+  let left = Math.max(0, rect.left);
+  let top = Math.max(0, rect.top);
+  let right = Math.min(window.innerWidth, rect.right);
+  let bottom = Math.min(window.innerHeight, rect.bottom);
+
+  // Native child views do not honor renderer DOM overflow clipping. Showing a
+  // partially clipped view would let it paint over editor/app chrome, so hide
+  // it until the whole requested surface is inside every clipping ancestor.
+  for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    const style = window.getComputedStyle(ancestor);
+    const ancestorRect = ancestor.getBoundingClientRect();
+    if (/(auto|hidden|scroll|clip)/.test(style.overflowX)) {
+      left = Math.max(left, ancestorRect.left);
+      right = Math.min(right, ancestorRect.right);
+    }
+    if (/(auto|hidden|scroll|clip)/.test(style.overflowY)) {
+      top = Math.max(top, ancestorRect.top);
+      bottom = Math.min(bottom, ancestorRect.bottom);
+    }
+  }
+
+  const fullyVisible =
+    right > left &&
+    bottom > top &&
+    Math.abs(left - rect.left) < 1 &&
+    Math.abs(top - rect.top) < 1 &&
+    Math.abs(right - rect.right) < 1 &&
+    Math.abs(bottom - rect.bottom) < 1;
+  if (!fullyVisible) return { x: 0, y: 0, width: 0, height: 0 };
+
+  return {
+    x: Math.round(left),
+    y: Math.round(top),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  };
+}
+
+function createDeferredHtmlPlaceholder(onActivate: () => void): HTMLElement {
+  const placeholder = document.createElement("div");
+  placeholder.className = "cm-md-html-deferred";
+
+  const label = document.createElement("span");
+  label.textContent = "Large HTML preview is paused.";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "cm-md-html-deferred-load";
+  button.textContent = "Render preview";
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onActivate();
+  }, { once: true });
+
+  placeholder.append(label, button);
+  return placeholder;
+}
+
+function createDefensiveHtmlSourceFallback(source: string, reason?: string): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "cm-md-html-source-fallback";
+  wrapper.dataset.poScrollbar = "content";
+  if (reason) wrapper.dataset.reason = reason;
+  const sourceView = document.createElement("pre");
+  sourceView.dataset.poScrollbar = "content";
+  sourceView.textContent = source;
+  wrapper.appendChild(sourceView);
+
+  return wrapper;
+}

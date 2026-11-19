@@ -1,5 +1,6 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../preferencesStore";
 import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
   ClipboardPaste,
@@ -7,12 +8,13 @@ import {
   CopyPlus,
   ExternalLink,
   FileText,
-  FolderOpen,
   FolderPlus,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
   Scissors,
-  Share2,
+  Link2,
   Trash2,
   Workflow,
   X,
@@ -30,6 +32,7 @@ import {
   type FileIconThemeId,
   type PuppyFlowDocumentDefaults,
   useCssPixelCustomProperty,
+  FolderIcon,
 } from "@puppyone/shared-ui";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -39,6 +42,7 @@ import {
   DesktopSidebarActionMenu,
   resolveDesktopSidebarActionMenuPosition,
 } from "../../components/DesktopSidebarActionMenu";
+import { useDesktopSidebarMenuInteraction } from "../../components/useDesktopSidebarMenuInteraction";
 import {
   CREATE_NEW_SUBMENU_ID,
   type CreateNewItemId,
@@ -70,10 +74,10 @@ export type DesktopCreateEntryDraft = {
   anchor: DesktopCreateEntryAnchor;
   error: DesktopNodeActionError | null;
   creatingKind: DesktopCreateEntryKind | null;
-  selectedKind: DesktopCreateEntryKind | null;
-  name: string;
 };
 export type DesktopNodeActionMenuDraft = {
+  /** The clicked row may differ from the collapsed multi-selection command target. */
+  launcherPath?: string;
   node: DataNode;
   nodes: DataNode[];
   anchor: DesktopCreateEntryAnchor;
@@ -82,7 +86,7 @@ export type DesktopNodeActionMenuDraft = {
   renameExtensionValue: string;
   renameFocus: "name" | "type";
   error: DesktopNodeActionError | null;
-  operation: "rename" | "delete" | "open" | "reveal" | "paste" | "duplicate" | null;
+  operation: "copy-link" | "copy-path" | "rename" | "delete" | "open" | "reveal" | "paste" | "duplicate" | null;
 };
 
 export type DesktopNodeActionError = Readonly<
@@ -133,6 +137,7 @@ export function DesktopExplorerRowActions({
           aria-label={t("workspace.node.createNew")}
           aria-haspopup="menu"
           aria-expanded={createMenuOpen}
+          data-desktop-sidebar-menu-trigger="true"
           onClick={(event) => onCreate(parentPath, event.currentTarget.getBoundingClientRect())}
         >
           <Plus aria-hidden="true" />
@@ -145,6 +150,7 @@ export function DesktopExplorerRowActions({
           aria-label={t("workspace.node.moreActionsFor", { name: bidiIsolate(node.name) })}
           aria-haspopup="menu"
           aria-expanded={nodeMenuOpen}
+          data-desktop-sidebar-menu-trigger="true"
           onClick={(event) => onOpenNodeMenu(node, event.currentTarget.getBoundingClientRect())}
         >
           <OverflowDots orientation="vertical" />
@@ -167,21 +173,26 @@ export function DesktopExplorerRowActions({
   );
 }
 
+/**
+ * New, as the anchored menu (upward from the Sidebar launcher). Choosing a
+ * kind creates it at once in the target folder under its default,
+ * de-duplicated name (Untitled, Untitled 2, …) and opens it; there is no
+ * naming step. Renaming is the ordinary rename action afterwards.
+ */
 export function DesktopCreateEntryMenu({
   draft,
   mainEntries,
   submenuItemKinds,
-  fileIconTheme,
   onCancel,
   onSelectKind,
 }: {
   draft: DesktopCreateEntryDraft;
   mainEntries: readonly CreateNewMainMenuEntry[];
   submenuItemKinds: readonly CreateNewItemId[];
-  fileIconTheme?: FileIconThemeId | null;
   onCancel: () => void;
   onSelectKind: (kind: DesktopCreateEntryKind) => void;
 }) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const menuRef = useRef<HTMLDivElement>(null);
   const menuRowHeight = useCssPixelCustomProperty(
@@ -198,6 +209,9 @@ export function DesktopCreateEntryMenu({
   const suppressSubmenuFocusOpenRef = useRef(false);
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const submenuOptions = getConfiguredCreateEntryMenuItems(submenuItemKinds);
+  // Choosing a kind creates it at once; while it is written, the kinds rest.
+  const creating = draft.creatingKind !== null;
+  const errorMessage = formatDesktopNodeActionError(draft.error, t);
   const sidebarLauncher = draft.anchor.placement === "auto-end";
   const menuWidth = sidebarLauncher
     ? Math.max(CREATE_ENTRY_MENU_WIDTH, draft.anchor.width)
@@ -206,7 +220,8 @@ export function DesktopCreateEntryMenu({
   const separatorCount = Number(mainEntries.length > 0);
   const estimatedHeight = (menuPadding * 2)
     + (menuRowCount * menuRowHeight)
-    + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE);
+    + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE)
+    + (errorMessage ? MENU_ERROR_BLOCK_SIZE : 0);
   const position = getCreateEntryMenuPosition(draft.anchor, menuWidth, estimatedHeight);
   const documentDirection = document.documentElement.dir === "rtl" ? "rtl" : "ltr";
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
@@ -262,26 +277,22 @@ export function DesktopCreateEntryMenu({
     trigger.focus();
   };
 
-  useEffect(() => {
-    if (sidebarLauncher) return;
-    const frame = window.requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [sidebarLauncher]);
+  useLayoutEffect(() => {
+    clearSubmenuCloseTimer();
+    suppressSubmenuFocusOpenRef.current = false;
+    setSubmenuOpen(false);
+  }, [draft.anchor]);
 
   useEffect(() => {
     return () => clearSubmenuCloseTimer();
   }, []);
 
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && menuRef.current?.contains(target)) return;
-      onCancel();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+  useDesktopSidebarMenuInteraction({
+    menuRef,
+    anchor: draft.anchor,
+    onDismiss: onCancel,
+    autoFocus: !sidebarLauncher,
+    onEscape: (event) => {
       if (submenuOpen) {
         event.preventDefault();
         if (submenuCloseTimerRef.current !== null) {
@@ -293,27 +304,15 @@ export function DesktopCreateEntryMenu({
           ?.querySelector<HTMLButtonElement>(".desktop-create-entry-submenu-trigger");
         if (trigger && document.activeElement !== trigger) {
           suppressSubmenuFocusOpenRef.current = true;
-          trigger.focus();
+          trigger.focus({ preventScroll: true });
         } else {
           suppressSubmenuFocusOpenRef.current = false;
         }
         return;
       }
       onCancel();
-    };
-    const handleViewportChange = () => onCancel();
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", handleViewportChange);
-    window.addEventListener("scroll", handleViewportChange, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", handleViewportChange);
-      window.removeEventListener("scroll", handleViewportChange, true);
-    };
-  }, [submenuOpen, onCancel]);
+    },
+  });
 
   return (
     <DesktopMenuSurface
@@ -332,6 +331,7 @@ export function DesktopCreateEntryMenu({
       <DesktopNodeActionMenuItem
         icon={<CreateEntryGlyph option={getCreateEntryMenuItem("folder")} theme={fileIconTheme} />}
         label={getCreateEntryOptionLabel("folder", t)}
+        disabled={creating}
         onClick={() => onSelectKind("folder")}
       />
       {mainEntries.length > 0 && <DesktopMenuSeparator />}
@@ -343,6 +343,7 @@ export function DesktopCreateEntryMenu({
               key={option.kind}
               icon={<CreateEntryGlyph option={option} theme={fileIconTheme} />}
               label={getCreateEntryOptionLabel(option.kind, t)}
+              disabled={creating}
               onClick={() => onSelectKind(option.kind)}
             />
           );
@@ -408,6 +409,7 @@ export function DesktopCreateEntryMenu({
                   key={option.kind}
                   icon={<CreateEntryGlyph option={option} theme={fileIconTheme} />}
                   label={getCreateEntryOptionLabel(option.kind, t)}
+                  disabled={creating}
                   onClick={() => onSelectKind(option.kind)}
                 />
               ))}
@@ -415,145 +417,25 @@ export function DesktopCreateEntryMenu({
           </div>
         );
       })}
+      {errorMessage && <div className="desktop-node-action-error" role="alert" dir="auto">{errorMessage}</div>}
     </DesktopMenuSurface>
-  );
-}
-
-export function DesktopCreateEntryDialog({
-  draft,
-  fileIconTheme,
-  onChange,
-  onCancel,
-  onCreate,
-}: {
-  draft: DesktopCreateEntryDraft;
-  fileIconTheme?: FileIconThemeId | null;
-  onChange: Dispatch<SetStateAction<DesktopCreateEntryDraft | null>>;
-  onCancel: () => void;
-  onCreate: () => void;
-}) {
-  const { t } = useLocalization();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const selectedKind = draft.selectedKind;
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && draft.creatingKind === null) onCancel();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [draft.creatingKind, onCancel]);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => inputRef.current?.select());
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  if (!selectedKind) return null;
-
-  const selectedOption = getCreateEntryMenuItem(selectedKind);
-  const optionLabel = getCreateEntryOptionLabel(selectedKind, t);
-  const errorMessage = formatDesktopNodeActionError(draft.error, t);
-
-  return (
-    <DesktopDialogRoot
-      onClose={onCancel}
-      dismissOnBackdrop={draft.creatingKind === null}
-    >
-      <form
-        className="desktop-dialog-surface desktop-file-dialog desktop-create-entry-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="desktop-create-entry-title"
-        onClick={(event) => event.stopPropagation()}
-        onSubmit={(event) => {
-          event.preventDefault();
-          onCreate();
-        }}
-      >
-        <header className="desktop-dialog-header">
-          <div className="desktop-dialog-title-row">
-            <span className="desktop-dialog-leading file" aria-hidden="true">
-              <CreateEntryGlyph option={selectedOption} theme={fileIconTheme} size={16} />
-            </span>
-            <div>
-              <h2 id="desktop-create-entry-title">{getCreateEntryDialogTitle(selectedKind, t)}</h2>
-            </div>
-          </div>
-          <DesktopDialogCloseButton disabled={draft.creatingKind !== null} onClick={onCancel} />
-        </header>
-
-        <div
-          className="desktop-dialog-body desktop-file-dialog-body"
-          data-po-scrollbar="content"
-        >
-          <div className="desktop-dialog-field">
-            <input
-              ref={inputRef}
-              value={draft.name}
-              disabled={draft.creatingKind !== null}
-              aria-label={t("workspace.node.kindName", { kind: optionLabel })}
-              placeholder={t("workspace.node.kindName", { kind: optionLabel })}
-              onChange={(event) => {
-                const value = event.target.value;
-                onChange((current) => current ? { ...current, name: value, error: null } : current);
-              }}
-            />
-          </div>
-
-          {selectedKind === "slides" && (
-            <section className="desktop-slides-template" aria-label={t("workspace.node.create.slides.templateLabel")}>
-              <div className="desktop-slides-template-preview" aria-hidden="true">
-                <span>{t("workspace.node.create.slides.brand")}</span>
-                <strong>{t("workspace.node.create.slides.previewTitle")}</strong>
-                <i />
-              </div>
-              <div className="desktop-slides-template-copy">
-                <strong>{t("workspace.node.create.slides.defaultTemplate")}</strong>
-                <span>{t("workspace.node.create.slides.defaultTemplateDetail")}</span>
-              </div>
-              <span className="desktop-slides-template-selected" aria-hidden="true">✓</span>
-            </section>
-          )}
-
-          {errorMessage && <div className="desktop-dialog-error" dir="auto">{errorMessage}</div>}
-        </div>
-
-        <footer className="desktop-dialog-footer">
-          <button
-            className="desktop-dialog-button"
-            type="button"
-            disabled={draft.creatingKind !== null}
-            onClick={onCancel}
-          >
-            {t("common.action.cancel")}
-          </button>
-          <button
-            className="desktop-dialog-button primary file"
-            type="submit"
-            disabled={draft.creatingKind !== null || !draft.name.trim()}
-          >
-            {draft.creatingKind ? t("workspace.node.creating") : t("workspace.node.create")}
-          </button>
-        </footer>
-      </form>
-    </DesktopDialogRoot>
   );
 }
 
 export function DesktopNodeActionMenu({
   draft,
-  experimentalSettings,
   showRevealInFinder = true,
   showOpenInDefaultApp = true,
   canPaste = false,
   canCopy = true,
   canCut = true,
   canDuplicate = true,
+  pinned = false,
+  onTogglePin,
   onChange,
   onCancel,
+  onCopyPath,
+  onCopyLink,
   onCopy,
   onCut,
   onPaste,
@@ -563,18 +445,21 @@ export function DesktopNodeActionMenu({
   onDelete,
   onOpenInDefaultApp,
   onRevealInFinder,
-  onShare,
 }: {
   draft: DesktopNodeActionMenuDraft;
-  experimentalSettings?: ExperimentalSettings | null;
   showRevealInFinder?: boolean;
   showOpenInDefaultApp?: boolean;
   canPaste?: boolean;
   canCopy?: boolean;
   canCut?: boolean;
   canDuplicate?: boolean;
+  /** The file is pinned above the tree; offered for a single file only. */
+  pinned?: boolean;
+  onTogglePin?: () => void;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
+  onCopyPath: () => void;
+  onCopyLink?: () => void;
   onCopy: () => void;
   onCut: () => void;
   onPaste: () => void;
@@ -584,14 +469,11 @@ export function DesktopNodeActionMenu({
   onDelete: () => void;
   onOpenInDefaultApp: () => void;
   onRevealInFinder: () => void;
-  /** Experimental Share onboarding: offered for a single folder only. */
-  onShare?: () => void;
 }) {
   if (draft.mode === "rename") {
     return (
       <DesktopNodeRenameDialog
         draft={draft}
-        experimentalSettings={experimentalSettings}
         onChange={onChange}
         onCancel={onCancel}
         onRename={onRename}
@@ -608,8 +490,12 @@ export function DesktopNodeActionMenu({
         canCopy={canCopy}
         canCut={canCut}
         canDuplicate={canDuplicate}
+        pinned={pinned}
+        onTogglePin={onTogglePin}
         onChange={onChange}
         onCancel={onCancel}
+        onCopyPath={onCopyPath}
+        onCopyLink={onCopyLink}
         onCopy={onCopy}
         onCut={onCut}
         onPaste={onPaste}
@@ -618,7 +504,6 @@ export function DesktopNodeActionMenu({
         onDelete={onDelete}
         onOpenInDefaultApp={onOpenInDefaultApp}
         onRevealInFinder={onRevealInFinder}
-        onShare={onShare}
       />
   );
 }
@@ -631,8 +516,12 @@ function DesktopNodeActionPopover({
   canCopy,
   canCut,
   canDuplicate,
+  pinned,
+  onTogglePin,
   onChange,
   onCancel,
+  onCopyPath,
+  onCopyLink,
   onCopy,
   onCut,
   onPaste,
@@ -641,7 +530,6 @@ function DesktopNodeActionPopover({
   onDelete,
   onOpenInDefaultApp,
   onRevealInFinder,
-  onShare,
 }: {
   draft: DesktopNodeActionMenuDraft;
   showRevealInFinder: boolean;
@@ -650,8 +538,12 @@ function DesktopNodeActionPopover({
   canCopy: boolean;
   canCut: boolean;
   canDuplicate: boolean;
+  pinned: boolean;
+  onTogglePin?: () => void;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
+  onCopyPath: () => void;
+  onCopyLink?: () => void;
   onCopy: () => void;
   onCut: () => void;
   onPaste: () => void;
@@ -660,8 +552,6 @@ function DesktopNodeActionPopover({
   onDelete: () => void;
   onOpenInDefaultApp: () => void;
   onRevealInFinder: () => void;
-  /** Experimental Share onboarding: offered for a single folder only. */
-  onShare?: () => void;
 }) {
   const { t } = useLocalization();
   const platformCapabilities = useDesktopPlatformCapabilities();
@@ -680,15 +570,15 @@ function DesktopNodeActionPopover({
   const actionCount = Math.max(1, draft.nodes.length);
   const singleNodeAction = actionCount === 1;
   const errorMessage = formatDesktopNodeActionError(draft.error, t);
-  const showShare = Boolean(onShare) && singleNodeAction && draft.node.type === "folder";
-  const menuRowCount = 4
+  const showPin = Boolean(onTogglePin) && singleNodeAction && draft.node.type !== "folder";
+  const menuRowCount = 5 + Number(singleNodeAction && Boolean(onCopyLink))
+    + Number(showPin)
     + (draft.node.type === "folder" ? 2 : 0)
-    + Number(showShare)
     + Number(singleNodeAction && showOpenInDefaultApp && draft.node.type !== "folder")
     + Number(singleNodeAction && showRevealInFinder)
     + Number(singleNodeAction)
     + Number(singleNodeAction && draft.node.type !== "folder");
-  const separatorCount = 1 + Number(draft.node.type === "folder");
+  const separatorCount = 2 + Number(draft.node.type === "folder") + Number(showPin);
   const estimatedHeight = (menuPadding * 2)
     + (menuRowCount * menuRowHeight)
     + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE)
@@ -706,35 +596,7 @@ function DesktopNodeActionPopover({
     width: `${NODE_ACTION_MENU_WIDTH}px`,
   } as CSSProperties;
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && menuRef.current?.contains(target)) return;
-      onCancel();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCancel();
-    };
-    const handleViewportChange = () => onCancel();
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", handleViewportChange);
-    window.addEventListener("scroll", handleViewportChange, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", handleViewportChange);
-      window.removeEventListener("scroll", handleViewportChange, true);
-    };
-  }, [onCancel]);
+  useDesktopSidebarMenuInteraction({ menuRef, anchor: draft.anchor, onDismiss: onCancel });
 
   return (
     <DesktopSidebarActionMenu
@@ -745,6 +607,30 @@ function DesktopNodeActionPopover({
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
+      {showPin && (
+        <>
+          <DesktopNodeActionMenuItem
+            icon={pinned ? <PinOff size={14} /> : <Pin size={14} />}
+            label={pinned ? t("workspace.node.unpin") : t("workspace.node.pin")}
+            disabled={draft.operation !== null}
+            onClick={() => onTogglePin?.()}
+          />
+          <DesktopMenuSeparator />
+        </>
+      )}
+      <DesktopNodeActionMenuItem
+        icon={<Copy size={14} />}
+        label={t("workspace.node.copyPath")}
+        disabled={draft.operation !== null}
+        onClick={onCopyPath}
+      />
+      {onCopyLink && singleNodeAction && <DesktopNodeActionMenuItem
+        icon={<Link2 size={14} />}
+        label={t("workspace.node.copyLink")}
+        disabled={draft.operation !== null}
+        onClick={onCopyLink}
+      />}
+      <DesktopMenuSeparator />
       {draft.node.type === "folder" && (
         <DesktopNodeActionMenuItem
           icon={<FolderPlus size={14} />}
@@ -795,17 +681,9 @@ function DesktopNodeActionPopover({
           onClick={onOpenInDefaultApp}
         />
       )}
-      {showShare && (
-        <DesktopNodeActionMenuItem
-          icon={<Share2 size={14} />}
-          label={t("workspace.node.shareWith")}
-          disabled={draft.operation !== null}
-          onClick={() => onShare?.()}
-        />
-      )}
       {singleNodeAction && showRevealInFinder && (
         <DesktopNodeActionMenuItem
-          icon={<FolderOpen size={14} />}
+          icon={<FolderIcon size={14} />}
           label={draft.operation === "reveal" ? t("workspace.node.opening") : t("workspace.node.revealInFinder")}
           disabled={draft.operation !== null}
           onClick={onRevealInFinder}
@@ -853,24 +731,23 @@ function DesktopNodeActionPopover({
 
 function DesktopNodeRenameDialog({
   draft,
-  experimentalSettings,
   onChange,
   onCancel,
   onRename,
 }: {
   draft: DesktopNodeActionMenuDraft;
-  experimentalSettings?: ExperimentalSettings | null;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
   onRename: () => void;
 }) {
+  const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
   const { t } = useLocalization();
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const isFile = draft.node.type !== "folder";
   const fileTypeOptions = useMemo(
-    () => getDesktopFileTypeOptions(draft.renameExtensionValue, t, experimentalSettings),
-    [draft.renameExtensionValue, experimentalSettings, t],
+    () => getDesktopFileTypeOptions(draft.renameExtensionValue, t, { enablePuppyFlowFiles }),
+    [draft.renameExtensionValue, enablePuppyFlowFiles, t],
   );
   const title = draft.renameFocus === "type" && isFile
     ? t("workspace.node.changeType")
@@ -918,7 +795,7 @@ function DesktopNodeRenameDialog({
               <h2 id="desktop-node-rename-title">{title}</h2>
             </div>
           </div>
-          <DesktopDialogCloseButton disabled={draft.operation !== null} onClick={onCancel} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={draft.operation !== null} onClick={onCancel} /></Tooltip>
         </header>
 
         <div
@@ -1045,7 +922,7 @@ function CreateEntryGlyph({
 type DesktopFileTypeOption = {
   id: string;
   extension: string;
-  experimentalSetting?: keyof ExperimentalSettings;
+  experimentalSetting?: "enablePuppyFlowFiles";
 };
 
 const DESKTOP_FILE_TYPE_OPTIONS = [
@@ -1057,6 +934,7 @@ const DESKTOP_FILE_TYPE_OPTIONS = [
   { id: "text", extension: ".txt" },
   { id: "csv", extension: ".csv" },
   { id: "html", extension: ".html" },
+  { id: "whiteboard", extension: ".excalidraw" },
   { id: "app", extension: ".puppyoneapp" },
   { id: "puppyflow", extension: ".puppyflow", experimentalSetting: "enablePuppyFlowFiles" },
   { id: "javascript", extension: ".js" },
@@ -1115,7 +993,7 @@ export function validateDesktopNodeName(name: string): void {
 export function getDesktopFileTypeOptions(
   currentExtension: string,
   t: MessageFormatter,
-  experimentalSettings?: ExperimentalSettings | null,
+  experimentalSettings?: Pick<ExperimentalSettings, "enablePuppyFlowFiles"> | null,
 ): Array<{ label: string; extension: string }> {
   const extension = normalizeDesktopExtension(currentExtension);
   const options = DESKTOP_FILE_TYPE_OPTIONS
@@ -1169,6 +1047,7 @@ export function getCreateEntryInitialContent(
   kind: DesktopCreateEntryKind,
   templates: DesktopCreateEntryTemplates,
 ): string {
+  if (kind === "whiteboard") return `${JSON.stringify({ type: "excalidraw", version: 2, source: "https://excalidraw.com", elements: [], appState: { viewBackgroundColor: "#ffffff" }, files: {} }, null, 2)}\n`;
   if (kind === "json") return "{}\n";
   if (kind === "contextMap") return createDefaultContextMapDocumentContent();
   if (kind === "csv") {
@@ -1193,6 +1072,9 @@ export function normalizeCreateEntryName(kind: DesktopCreateEntryKind, value: st
   }
   if (name.includes("\0")) {
     throw new DesktopNodeNameError("name-unsupported");
+  }
+  if (kind === "whiteboard") {
+    return ensureCreateEntryExtension(name, /\.excalidraw(?:\.json)?$/i, ".excalidraw");
   }
   if (kind === "markdown") {
     return ensureCreateEntryExtension(name, /\.(md|markdown|mdx)$/i, ".md");
@@ -1229,10 +1111,6 @@ function ensureCreateEntryExtension(name: string, extensionPattern: RegExp, fall
 
 function getCreateEntryOptionLabel(kind: DesktopCreateEntryKind, t: MessageFormatter): string {
   return t(`workspace.node.create.kind.${kind}.label`);
-}
-
-function getCreateEntryDialogTitle(kind: DesktopCreateEntryKind, t: MessageFormatter): string {
-  return t(`workspace.node.create.kind.${kind}.title`);
 }
 
 export function toDesktopNodeActionError(error: unknown): DesktopNodeActionError {

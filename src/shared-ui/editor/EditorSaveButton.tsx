@@ -1,0 +1,116 @@
+"use client";
+import type { ReactNode } from "react";
+import { useLocalization } from "@puppyone/localization/react";
+
+export type SaveStatus = "clean" | "dirty" | "saving" | "saved" | "error";
+
+export type EditorSaveButtonProps = {
+  status: SaveStatus;
+  manual: boolean;
+  retryable?: boolean;
+  onSave: () => void;
+};
+
+export function EditorSaveButton({
+  status,
+  manual,
+  retryable = true,
+  onSave,
+}: EditorSaveButtonProps) {
+  const { t } = useLocalization();
+
+  if (status === "clean" || (status === "dirty" && !manual)) return null;
+
+  if (status === "saving") {
+    return (
+      <ChipPill tone="muted">
+        <span className="editor-save-pulse" aria-hidden />
+        <span>{t("editor.save.saving")}</span>
+      </ChipPill>
+    );
+  }
+
+  if (status === "saved") {
+    return (
+      <ChipPill tone="success">
+        <CheckIcon />
+        <span>{t("editor.save.saved")}</span>
+      </ChipPill>
+    );
+  }
+
+  if (status === "error") {
+    if (!retryable) return null;
+    return (
+      <ChipButton tone="error" onClick={onSave}>
+        <AlertIcon />
+        <span>{t("editor.save.failed")}</span>
+      </ChipButton>
+    );
+  }
+
+  return (
+    <ChipButton tone="action" onClick={onSave}>
+      <SaveDiskIcon />
+      <span>{t("editor.save.action")}</span>
+    </ChipButton>
+  );
+}
+
+function ChipPill({
+  tone,
+  children,
+}: {
+  tone: "muted" | "success";
+  children: ReactNode;
+}) {
+  return <span className={`editor-save-chip ${tone}`}>{children}</span>;
+}
+
+function ChipButton({
+  tone,
+  onClick,
+  children,
+}: {
+  tone: "action" | "error";
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      className={`editor-save-chip ${tone}`}
+      type="button"
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SaveDiskIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}

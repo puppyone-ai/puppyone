@@ -3,7 +3,7 @@ import type {
   AuxiliaryWorkbenchCloseAdapter,
   AuxiliaryWorkbenchCloseContext,
   AuxiliaryWorkbenchCloseDecision,
-} from "./types";
+} from "../../../lib/workbench/types";
 
 type PresentedCloseDecision = Exclude<AuxiliaryWorkbenchCloseDecision, { kind: "close" }>;
 

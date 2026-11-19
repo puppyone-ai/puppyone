@@ -1,3 +1,4 @@
+import { isAgentTranscriptActivity } from "../../../../../shared/agent-contract/activity-semantics.mjs";
 import type { AgentDraftReference, AgentPromptReferenceMention, AgentReferenceDisplay } from "../../domain/agent-contract";
 import type {
   AgentPart,
@@ -71,7 +72,7 @@ export function buildAgentTimeline(
 export function isVisibleAgentTimelinePart(part: AgentPart | undefined): part is AgentPart {
   // Interaction state belongs to the actionable docks, not a second transcript
   // label. Keep the snapshot intact and omit geometry in every interaction state.
-  if (!part || part.kind === "usage" || part.kind === "permission" || part.kind === "question") return false;
+  if (!part || !isAgentTranscriptActivity(part) || part.kind === "usage" || part.kind === "permission" || part.kind === "question") return false;
   if (part.kind !== "reasoning") return true;
   if (["queued", "running", "pending", "in-progress", "waiting-for-user"].includes(part.status)) return false;
   const summary = typeof part.detail.delta === "string"

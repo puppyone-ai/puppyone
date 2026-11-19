@@ -1,3 +1,4 @@
+import type { SessionRuntimeFailure } from "../../../../shared/session-transport/types";
 import type {
   AgentAccountReadRequest,
   AgentAccountState,
@@ -69,7 +70,7 @@ export interface AgentClientPort {
   }>;
   resolveAgentQuestion(request: AgentQuestionResolution): Promise<{ sessionId: string; requestId: string }>;
   onAgentSessionFrame?(callback: (frame: AgentSessionFrame) => void): () => void;
-  onAgentSessionFailure?(callback: (message: string) => void): () => void;
+  onAgentSessionFailure?(callback: (failure: SessionRuntimeFailure) => void): () => void;
 }
 
 export type AgentClientProvider = () => AgentClientPort | undefined;

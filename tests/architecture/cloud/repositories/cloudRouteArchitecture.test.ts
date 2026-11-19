@@ -28,9 +28,6 @@ describe("Cloud route architecture", () => {
       "mcp-endpoints",
       "identity",
     ]);
-    expect(getCloudProjectDetailResources("automation")).toEqual(
-      getCloudProjectDetailResources("access"),
-    );
     expect(getCloudProjectDetailResources("cli")).toEqual(
       getCloudProjectDetailResources("access"),
     );
@@ -46,7 +43,6 @@ describe("Cloud route architecture", () => {
     expect(getCloudRouteSurface("access")).toBe("landing");
     expect(getCloudRouteSurface("settings")).toBe("landing");
     expect(getCloudRouteSurface("history")).toBe("history");
-    expect(getCloudRouteSurface("automation")).toBe("automation");
     expect(getCloudRouteSurface("cloud-team")).toBe("standard");
   });
 });

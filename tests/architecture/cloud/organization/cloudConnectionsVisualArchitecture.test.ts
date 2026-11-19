@@ -21,10 +21,6 @@ const routeRegistrySource = readFileSync(
   new URL("../../../../src/features/cloud/access-points/pages/accessPointRoutes.ts", import.meta.url),
   "utf8",
 );
-const routeOutletSource = readFileSync(
-  new URL("../../../../src/features/cloud/routes/CloudProjectRouteOutlet.tsx", import.meta.url),
-  "utf8",
-);
 
 describe("Cloud Connections visual architecture", () => {
   it("uses the same landing title system as Access and Automation", () => {
@@ -50,13 +46,12 @@ describe("Cloud Connections visual architecture", () => {
     expect(routeRegistrySource).toContain('mcp: "mcp"');
     expect(routeRegistrySource).toContain('cli: "cli"');
     expect(routeRegistrySource).toContain('"git-sync": "git"');
-    expect(routeOutletSource).toContain("getAccessPointCatalogKindForSection");
   });
 
   it("does not maintain a second visual implementation for Connection routes", () => {
-    expect(routeOutletSource).not.toContain("CloudMcpSection");
-    expect(routeOutletSource).not.toContain("CloudCliSection");
-    expect(routeOutletSource).not.toContain("CloudGitSyncSection");
+    expect(routePageSource).not.toContain("CloudMcpSection");
+    expect(routePageSource).not.toContain("CloudCliSection");
+    expect(routePageSource).not.toContain("CloudGitSyncSection");
     expect(routePageSource).toContain("buildAccessPointProjection");
     expect(routePageSource).not.toContain("catalogFilterLocked");
     expect(routePageSource).not.toContain("catalogTitle");

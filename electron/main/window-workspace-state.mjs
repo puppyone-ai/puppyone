@@ -8,6 +8,9 @@ import path from "node:path";
  */
 export class WindowWorkspaceState {
   #initialWorkspacePaths;
+  #initialCloudProject;
+  #initialOpenPath;
+  #fileTarget;
   #workspaceId;
   #workspaceFolders = Object.freeze([]);
   #compositions = new Map();
@@ -16,6 +19,9 @@ export class WindowWorkspaceState {
     initialWorkspaceId = null,
     initialWorkspacePath = null,
     initialWorkspacePaths = null,
+    initialCloudProject = null,
+    initialOpenPath = null,
+    fileTarget = null,
     focusedAt = Date.now(),
   } = {}) {
     const requestedPaths = Array.isArray(initialWorkspacePaths)
@@ -27,11 +33,30 @@ export class WindowWorkspaceState {
         .map((folderPath) => folderPath.trim()),
     );
     this.#workspaceId = normalizeWorkspaceId(initialWorkspaceId) ?? createWorkbenchWorkspaceId();
+    this.#initialCloudProject = initialCloudProject ? Object.freeze({ ...initialCloudProject }) : null;
+    this.#initialOpenPath = typeof initialOpenPath === "string" && initialOpenPath ? initialOpenPath : null;
+    this.#fileTarget = fileTarget ? Object.freeze({ ...fileTarget }) : null;
     this.lastFocusedAt = focusedAt;
+  }
+
+  /** Set only for File Mode windows: the one file this window is bound to. */
+  get fileTarget() {
+    return this.#fileTarget;
   }
 
   get workspaceId() {
     return this.#workspaceId;
+  }
+
+  get initialCloudProject() {
+    return this.#initialCloudProject;
+  }
+
+  /** The document a new window opens on. A reload must not reopen it. */
+  takeInitialOpenPath() {
+    const openPath = this.#initialOpenPath;
+    this.#initialOpenPath = null;
+    return openPath;
   }
 
   get initialRestorePath() {
@@ -94,6 +119,7 @@ export class WindowWorkspaceState {
       retainedPaths: Object.freeze([...nextPaths].filter((folderPath) => previousPaths.has(folderPath))),
     });
     this.#workspaceFolders = nextFolders;
+    this.#initialCloudProject = null;
     this.#initialWorkspacePaths = Object.freeze(nextFolders.map((folder) => folder.path));
     if (nextFolders.length) {
       const key = compositionKey(nextFolders);
@@ -107,6 +133,7 @@ export class WindowWorkspaceState {
     const released = this.#workspaceFolders;
     this.#workspaceFolders = Object.freeze([]);
     this.#initialWorkspacePaths = Object.freeze([]);
+    this.#initialCloudProject = null;
     return released;
   }
 }

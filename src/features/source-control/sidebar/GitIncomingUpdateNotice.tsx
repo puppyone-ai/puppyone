@@ -23,6 +23,7 @@ export function GitIncomingUpdateNotice({
   return (
     <aside
       className="desktop-git-incoming-notice"
+      aria-label={title}
       data-diverged={diverged ? "true" : undefined}
       role="status"
       aria-live="polite"
@@ -32,7 +33,6 @@ export function GitIncomingUpdateNotice({
       </span>
       <GitOperationButton
         className="desktop-git-incoming-notice-pull"
-        tooltip={title}
         disabled={disabled}
         icon="download"
         label={t("source-control.sync.pull")}

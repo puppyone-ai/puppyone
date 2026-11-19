@@ -9,40 +9,32 @@ or at http://www.apache.org/licenses/LICENSE-2.0.
 
 ---
 
+Apache ECharts
+Copyright 2017-2026 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+---
+
 Third-party software
 
 This product bundles, depends on, or is built with software from third
 parties. Each such component is distributed under its own license. Notable
 third-party components include, but are not limited to:
 
-  - PostgreSQL                         (PostgreSQL License)
-  - Supabase (supabase/supabase)       (Apache License 2.0)
-  - PostgREST                          (MIT License)
-  - GoTrue / supabase-auth             (MIT License)
-  - Kong                               (Apache License 2.0)
-  - Redis                              (BSD-3-Clause / RSALv2-SSPLv1, see upstream)
-  - MinIO                              (GNU AGPL v3)
-  - FastAPI                            (MIT License)
-  - Starlette                          (BSD-3-Clause)
-  - Pydantic                           (MIT License)
-  - SQLAlchemy                         (MIT License)
-  - ARQ                                (MIT License)
-  - Next.js                            (MIT License)
   - React                              (MIT License)
   - docx-preview / docxjs              (Apache License 2.0)
   - @aiden0z/pptx-renderer             (Apache License 2.0)
   - SheetJS Community Edition          (Apache License 2.0)
   - JSZip                              (MIT OR GPL-3.0-or-later; MIT selected)
   - saxes                              (ISC License)
-  - Tailwind CSS                       (MIT License)
   - Commander.js                       (MIT License)
-  - Docker                             (Apache License 2.0)
-  - E2B                                (Apache License 2.0)
-  - OpenCode (anomalyco/opencode)      (MIT License; see THIRD_PARTY_NOTICES.md)
+  - OpenCode (anomalyco/opencode)      (MIT License; see licenses/THIRD_PARTY_NOTICES.md)
   - Claudian (YishenTu/claudian)       (MIT License; frontend reference only)
-  - B00merang Windows-XP icon theme    (GPL-2.0; see THIRD_PARTY_NOTICES.md)
-  - Git official logomark              (CC BY 3.0; see THIRD_PARTY_NOTICES.md)
-  - Crystal Clear configure icon       (LGPL-2.1-or-later; see THIRD_PARTY_NOTICES.md)
+  - B00merang Windows-XP icon theme    (GPL-2.0; see licenses/THIRD_PARTY_NOTICES.md)
+  - Git official logomark              (CC BY 3.0; see licenses/THIRD_PARTY_NOTICES.md)
+  - Crystal Clear configure icon       (LGPL-2.1-or-later; see licenses/THIRD_PARTY_NOTICES.md)
 
 For the full text of each component's license, please refer to the
 upstream project. Inclusion of a component in this list does not imply

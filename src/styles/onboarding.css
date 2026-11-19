@@ -11,22 +11,42 @@
   color: var(--po-text);
 }
 
-.onboarding-titlebar {
+.onboarding-shell > .desktop-titlebar {
   position: absolute;
-  z-index: 2;
   top: 0;
   inset-inline: 0;
-  box-sizing: border-box;
-  height: 38px;
-  border-bottom: 1px solid var(--po-header-divider);
-  background: var(--po-header);
 }
 
 .onboarding-homepage-shell {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  padding: 48px;
+  padding: 48px var(--desktop-utility-page-padding-inline);
+}
+
+/* Most starts end within a beat. The mark is for one that does not. */
+.onboarding-restoring-mark {
+  animation: onboarding-restoring-mark-reveal 1ms linear 400ms backwards;
+}
+
+@keyframes onboarding-restoring-mark-reveal {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Fills the projects' area, so the mark sits at its centre rather than under the head. */
+.onboarding-project-list-wait {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  place-items: center;
+}
+
+/* The same reveal, sooner: this wait is always felt, but can still be over in a beat. */
+.onboarding-project-list-loading {
+  animation: onboarding-restoring-mark-reveal 1ms linear 120ms backwards;
 }
 
 .onboarding-homepage {
@@ -34,11 +54,19 @@
   --onboarding-page-gap: 30px;
   --onboarding-title-primary-gap: 58px;
   --onboarding-primary-actions-gap: 30px;
-  --onboarding-primary-inset-start: 24px;
-  --onboarding-primary-inset-end: 18px;
+  /* The page has three levels of type and no others: the title, this body, and the
+     caption below it. A group's label is the product's section label: the caption's
+     size in its quiet ink and medium weight, as in Settings and the menus. */
   --onboarding-row-font-size: var(--po-type-ui-body, 14px);
-  --onboarding-row-font-weight: 500;
+  --onboarding-row-font-weight: var(--po-text-weight-regular, 400);
+  --onboarding-caption-font-size: var(--po-type-ui-caption, 12px);
   --onboarding-row-line-height: 18px;
+  /* A Grid cell, the gutter between cells, and the folder centred in a cell. A name
+     may use its whole cell, so the gutter is what keeps two long names apart. */
+  --onboarding-tile-width: 120px;
+  --onboarding-tile-gap: 14px;
+  --onboarding-folder-width: 104px;
+  --onboarding-preview-badge-size: 7px;
   display: grid;
   width: min(680px, 100%);
   max-height: 100%;
@@ -49,13 +77,58 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-  --onboarding-title-primary-gap: 24px;
-  --onboarding-primary-actions-gap: 18px;
+  --onboarding-column-width: 400px;
+  width: min(900px, 100%);
+  --onboarding-title-primary-gap: 28px;
+  --onboarding-primary-actions-gap: 8px;
   grid-template-columns: minmax(0, 1fr);
 }
 
+.onboarding-homepage-shell[data-onboarding-state="projects"] {
+  /* The shared Header owns account controls; only the project list scrolls. The head
+     sits evenly between the Header and the folders, whose cells carry their own inset.
+     The list runs to the window's edge, so what is below shows there, cut by the
+     window as in Finder, and says without a scrollbar that there is more. */
+  --onboarding-title-inset: 24px;
+  padding-block-start: calc(var(--desktop-chrome-height) + var(--onboarding-title-inset));
+  padding-inline: 40px;
+  padding-block-end: 0;
+}
+
+@media (max-width: 820px) {
+  .onboarding-homepage-shell[data-onboarding-state="projects"] {
+    padding-inline: var(--desktop-utility-page-padding-inline);
+  }
+}
+
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
-  height: fit-content;
+  /* Five calm Finder-proportioned folders across a focused column, with start actions
+     on the left and logo-only Agent marks on the right of one non-wrapping header row. */
+  --onboarding-column-width: 100%;
+  --onboarding-title-primary-gap: 20px;
+  --onboarding-primary-actions-gap: 0;
+  width: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  height: 100%;
+}
+
+.onboarding-shell[data-onboarding-state="projects"] .onboarding-brand-lockup {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.onboarding-shell[data-onboarding-state="projects"] .onboarding-launcher {
+  /* The projects' area runs from the head to the page's end, whatever the history's
+     length: a wait is centred in it, a dropped folder lands anywhere in it, and only
+     the list inside scrolls. */
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .onboarding-launcher {
@@ -77,7 +150,7 @@
   align-items: center;
   justify-self: center;
   justify-content: flex-start;
-  gap: 12px;
+  gap: 8px;
   margin-block-end: var(--onboarding-title-primary-gap);
   color: var(--po-text-muted);
   text-align: start;
@@ -89,53 +162,109 @@
   min-width: 0;
 }
 
-.onboarding-brand-mark {
-  display: grid;
-  box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  place-items: center;
-  color: var(--po-text-muted);
-}
-
-.onboarding-brand-mark-artwork {
-  display: block;
-  width: 28px;
-  max-width: 28px;
-  height: 28px;
-  object-fit: contain;
-  pointer-events: none;
-}
-
-/* Keep the canonical brand asset intact while reducing its visual weight on
- * dark onboarding surfaces. The transformed warm-white face resolves near
- * the adjacent --po-text-muted silver; dark linework remains crisp. */
-.onboarding-shell.dark .onboarding-brand-mark-artwork {
-  filter: grayscale(1) brightness(0.7);
-}
-
-.onboarding-brand-name,
-.onboarding-brand-prompt {
+.onboarding-brand-name {
+  margin: 0;
   font-family: var(--po-font-sans);
   font-size: var(--po-type-ui-heading, 19px);
   font-weight: var(--po-text-weight-medium, 500);
-  letter-spacing: -0.035em;
-  line-height: 22px;
+  line-height: var(--po-line-height-tight);
+  text-wrap: balance;
 }
 
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-name {
-  white-space: nowrap;
+/* The product's name in the Header, in the same muted ink as a project's name there. */
+.onboarding-header-brand {
+  color: var(--desktop-titlebar-text-muted);
 }
 
-.onboarding-brand-prompt {
-  display: block;
-  max-width: 100%;
+/* First run has nothing to frame yet. A picture of the moment on the left, and on the
+   right what it means and the keys. The picture stays the quieter of the two: it
+   illustrates the words, it does not compete with them. */
+.onboarding-home-value {
+  /* The picture and its gap step down with the window rather than leave it. */
+  --onboarding-hub-size: 270px;
+  --onboarding-hub-scale: 0.71;
+  display: flex;
+  width: 100%;
   min-width: 0;
-  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  gap: 64px;
+}
+
+@media (max-width: 1039px) {
+  .onboarding-home-value {
+    --onboarding-hub-size: 250px;
+    --onboarding-hub-scale: 0.66;
+    gap: 48px;
+  }
+}
+
+/* Down to the smallest window, the column narrows so the picture still fits beside it. */
+@media (max-width: 859px) {
+  .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
+    --onboarding-column-width: 340px;
+  }
+
+  .onboarding-home-value {
+    --onboarding-hub-size: 220px;
+    --onboarding-hub-scale: 0.58;
+    gap: 32px;
+  }
+}
+
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-lockup {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-copy {
+  gap: 12px;
+}
+
+/* Each moment's words share one cell and cross-fade with the picture. */
+.onboarding-brand-moments {
+  display: grid;
+  width: 100%;
+}
+
+.onboarding-brand-moments > .onboarding-brand-copy {
+  grid-area: 1 / 1;
+  align-content: start;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 420ms ease, visibility 0s linear 420ms;
+}
+
+.onboarding-brand-moments > .onboarding-brand-copy.is-active {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 420ms ease 120ms, visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-brand-moments > .onboarding-brand-copy,
+  .onboarding-brand-moments > .onboarding-brand-copy.is-active {
+    transition: none;
+  }
+}
+
+/* Each title is written as two short lines; the break is part of the copy. */
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-name {
+  color: var(--po-text);
+  font-size: var(--po-type-ui-display, 25px);
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 1.28;
+  white-space: pre-line;
+  text-wrap: wrap;
+}
+
+.onboarding-brand-pitch {
+  margin: 0;
   color: var(--po-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: var(--onboarding-row-font-size);
+  line-height: 1.6;
+  text-wrap: pretty;
 }
 
 .onboarding-home-primary {
@@ -145,22 +274,29 @@
   box-sizing: border-box;
   justify-self: center;
   justify-items: start;
-  padding: var(--onboarding-primary-inset-start) 0 var(--onboarding-primary-inset-end);
+  padding: 0;
   margin-block-end: var(--onboarding-primary-actions-gap);
-  border-block: 1px solid var(--po-border);
-  border-inline: 0;
+  border: 0;
   border-radius: 0;
   background: transparent;
-  transition: border-color 120ms ease;
+  transition: background 120ms ease;
 }
 
 .onboarding-home-primary[data-onboarding-primary="projects"] {
-  max-height: min(332px, calc(100vh - 380px));
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  justify-items: stretch;
+  row-gap: 8px;
+  border-radius: var(--po-card-radius);
+}
+
+.onboarding-home-primary[data-onboarding-primary="projects"]:has(> .onboarding-project-list-wait) {
   grid-template-rows: minmax(0, 1fr);
 }
 
+/* The projects sit directly on the page; a fill appears only to receive a dragged folder. */
 .onboarding-shell.dragging .onboarding-home-primary[data-onboarding-primary="projects"] {
-  border-color: var(--po-border-strong);
+  background: var(--po-hover);
 }
 
 .onboarding-telemetry-disclosure {
@@ -195,7 +331,7 @@
 }
 
 .onboarding-telemetry-disclosure a:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
+  outline: 2px solid var(--po-focus-ring);
   outline-offset: 2px;
 }
 
@@ -212,114 +348,53 @@
   width: 100%;
   max-width: 100%;
   justify-self: center;
-  justify-items: start;
-  gap: 2px;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  justify-items: stretch;
+  gap: 8px;
   padding: 0 0 18px;
 }
 
 .onboarding-entry-action {
-  box-sizing: border-box;
-  width: fit-content;
+  width: 100%;
   min-width: 0;
-  max-width: 100%;
-  height: var(--po-menu-item-height);
-  min-height: var(--po-menu-item-height);
-  justify-content: flex-start;
-  gap: var(--po-menu-item-gap);
-  padding: 0 calc(var(--po-menu-item-padding-inline) - 1px);
-  border: 1px solid transparent;
-  border-radius: var(--desktop-control-radius);
-  background: transparent;
-  color: var(--po-text-muted);
-  font-family: var(--po-font-sans);
   font-size: var(--onboarding-row-font-size);
   font-weight: var(--onboarding-row-font-weight);
-  line-height: var(--onboarding-row-line-height);
-  text-align: start;
-  cursor: var(--po-clickable-cursor, default);
-  transition:
-    border-color 130ms ease-out,
-    background 130ms ease-out,
-    color 130ms ease-out,
-    opacity 130ms ease-out;
+  transition: background 130ms ease-out, color 130ms ease-out;
 }
 
-.onboarding-entry-action .po-button__icon {
-  display: grid;
-  width: var(--po-menu-icon-slot-size);
-  max-width: var(--po-menu-icon-slot-size);
-  height: var(--po-menu-icon-slot-size);
-  flex: 0 0 var(--po-menu-icon-slot-size);
-  place-items: center;
-}
-
-.onboarding-entry-action .po-button__icon > svg {
-  width: 14px;
-  max-width: 14px;
-  height: 14px;
-  stroke-width: 1.85;
+.onboarding-entry-action :is(.po-button__icon, .po-button__label) {
+  display: inline-flex;
+  align-items: center;
 }
 
 .onboarding-entry-action .po-button__label {
   min-width: 0;
   overflow: hidden;
-  font-family: var(--po-font-sans);
-  font-size: var(--onboarding-row-font-size);
-  font-weight: var(--onboarding-row-font-weight);
-  line-height: var(--onboarding-row-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.onboarding-entry-action:hover:not(:disabled),
-.onboarding-entry-action:focus-visible {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--po-text) 5%, transparent);
-  color: var(--po-text-muted);
-}
-
-.onboarding-entry-action.is-dragging {
-  border-color: transparent;
-  background: transparent;
-  color: var(--po-text);
+.onboarding-entry-action.is-dragging,
+.onboarding-shell.dragging .onboarding-entry-action[data-onboarding-action="open"] {
+  background: var(--po-control-hover);
 }
 
 .onboarding-entry-action:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
+  outline: 2px solid var(--po-focus-ring);
   outline-offset: 2px;
 }
 
 .onboarding-entry-action:disabled {
-  border-color: transparent;
-  background: transparent;
+  background: var(--po-control);
   color: var(--po-text-disabled);
   cursor: default;
 }
 
-.onboarding-entry-action-default {
-  border-color: var(--po-accent);
-  background: var(--po-accent);
-  color: var(--po-text-inverse);
-  font-weight: var(--po-text-weight-medium, 500);
-}
-
-.onboarding-entry-action-default:hover:not(:disabled),
-.onboarding-entry-action-default:focus-visible:not(:disabled) {
-  border-color: color-mix(in srgb, var(--po-accent) 88%, var(--po-canvas));
+/* The shared Button's hover is neutral, which would take a primary action's colour. */
+.onboarding-entry-action-default:hover:not(:disabled) {
   background: color-mix(in srgb, var(--po-accent) 88%, var(--po-canvas));
   color: var(--po-text-inverse);
-}
-
-/* Dropping a folder always targets "Open a folder", not the default action. */
-.onboarding-shell.dragging .onboarding-entry-action[data-onboarding-action="open"] {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--po-text) 5%, transparent);
-  color: var(--po-text);
-}
-
-/* Import stays in the same compact CTA system without adding a decorative rule. */
-.onboarding-entry-import-area {
-  display: contents;
 }
 
 .onboarding-entry-import .po-button__label {
@@ -408,36 +483,167 @@
 }
 
 .onboarding-project-list {
+  /* Persistent navigation affordance: legible in both light and dark themes. */
+  --po-scrollbar-presentation-thumb: color-mix(in srgb, var(--po-text-muted) 40%, transparent);
+  --po-scrollbar-presentation-thumb-hover: color-mix(in srgb, var(--po-text-muted) 60%, transparent);
+  /* The scrollbar's lane hangs outside the column, so that the projects keep its width. */
   display: grid;
-  width: 100%;
+  width: calc(100% + var(--po-scrollbar-size));
   min-width: 0;
   min-height: 0;
-  max-height: clamp(88px, calc(100vh - 428px), 284px);
   align-content: start;
   gap: 2px;
-  padding: 0;
-  overflow: auto;
+  margin: 0;
+  padding-inline: 0;
+  padding-block: 8px;
+  list-style: none;
+  overflow-y: auto;
+  /* The arrow keys scroll a project clear of the fades at either end. */
+  scroll-padding-block: 8px;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
   border: 0;
   border-radius: 0;
   background: transparent;
+  mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent);
 }
 
 .onboarding-project-row {
   width: 100%;
+  height: 44px;
+  gap: 12px;
+  color: var(--po-text);
+}
+
+.onboarding-project-icon {
+  position: relative;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.onboarding-project-icon.is-cloud,
+.onboarding-project-cloud-badge {
+  color: var(--po-brand-blue);
+}
+
+.onboarding-project-cloud-badge {
+  position: absolute;
+  inset-inline-end: -4px;
+  inset-block-end: -3px;
+}
+
+.onboarding-project-cloud-link {
+  position: absolute;
+  inset-inline-end: 34px;
+  top: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.onboarding-project-list .onboarding-project-cloud-link {
+  font-size: var(--onboarding-caption-font-size);
+}
+
+.onboarding-project-row-wrap:hover .onboarding-project-cloud-link,
+.onboarding-project-row-wrap:has(:focus-visible) .onboarding-project-cloud-link,
+.onboarding-project-row-wrap[data-menu-open] .onboarding-project-cloud-link {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.onboarding-project-row-wrap:has(.onboarding-project-cloud-link):hover .onboarding-project-row,
+.onboarding-project-row-wrap:has(.onboarding-project-cloud-link):has(:focus-visible) .onboarding-project-row {
+  padding-inline-end: 132px;
+}
+
+.homepage-cloud-account {
+  display: flex;
+  min-width: 0;
+  max-width: min(360px, calc(100vw - 180px));
+  height: var(--desktop-titlebar-control-height);
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+  color: var(--desktop-titlebar-text-muted);
+}
+
+/* Account text follows the same Header role as project, branch and Share labels. */
+.homepage-cloud-account,
+.homepage-cloud-sign-in,
+.homepage-cloud-feedback .desktop-cloud-row-action {
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
+}
+
+.homepage-cloud-feedback {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.homepage-cloud-feedback .desktop-cloud-row-action {
+  color: var(--desktop-titlebar-text-muted);
+}
+
+.homepage-cloud-feedback > span,
+span.homepage-cloud-feedback {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.homepage-cloud-feedback.is-error {
+  color: var(--po-danger);
+}
+
+.homepage-cloud-sign-in {
+  width: auto;
+  gap: 6px;
+  padding-inline: 7px 8px;
+  color: var(--desktop-titlebar-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  white-space: nowrap;
 }
 
 .onboarding-project-row .desktop-menu-item-icon {
+  width: 34px;
+  height: 26px;
+  flex: 0 0 34px;
   color: inherit;
   opacity: 1;
 }
 
+.onboarding-project-row .onboarding-project-icon {
+  width: 34px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Keyboard focus lights a project as hover does. Focus a pointer left behind, on a
+   tile it clicked or a button a dialog handed back to, must not stay lit after it. */
 .onboarding-project-row-wrap {
   position: relative;
   min-width: 0;
 }
 
-.onboarding-project-remove {
+/* A dialog closing over a resting pointer uncovers a project nobody pointed at. The
+   rows wait, not the list, so that the wheel still scrolls it in the meantime. */
+:root[data-pointer-resting] .onboarding-project-row-wrap {
+  pointer-events: none;
+}
+
+.onboarding-project-actions {
   position: absolute;
   z-index: 1;
   top: 50%;
@@ -447,22 +653,33 @@
   transform: translateY(-50%);
 }
 
-.onboarding-project-row-wrap:hover .onboarding-project-remove,
-.onboarding-project-row-wrap:focus-within .onboarding-project-remove,
-.onboarding-project-row-wrap.is-removing .onboarding-project-remove {
+.onboarding-project-row-wrap:hover .onboarding-project-actions,
+.onboarding-project-row-wrap:has(:focus-visible) .onboarding-project-actions,
+.onboarding-project-row-wrap[data-menu-open] .onboarding-project-actions {
   opacity: 1;
   pointer-events: auto;
 }
 
-.desktop-menu-icon-button.onboarding-project-remove:hover:not(:disabled),
-.desktop-menu-icon-button.onboarding-project-remove:focus-visible:not(:disabled) {
-  background: color-mix(in srgb, var(--po-danger) 10%, transparent);
-  color: var(--po-danger);
+.onboarding-project-actions > svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* The dots brighten alone; a backdrop would weigh on a page of quiet folders. */
+.desktop-menu-icon-button.onboarding-project-actions:hover:not(:disabled),
+.desktop-menu-icon-button.onboarding-project-actions:focus-visible:not(:disabled),
+.onboarding-project-row-wrap[data-menu-open] .desktop-menu-icon-button.onboarding-project-actions {
+  background: transparent;
+  color: var(--po-text);
+}
+
+.desktop-menu-icon-button.onboarding-project-actions:focus-visible:not(:disabled) {
+  outline: 2px solid var(--po-focus-ring);
 }
 
 .onboarding-project-row-wrap:hover .onboarding-project-row:not(:disabled),
-.onboarding-project-row-wrap:focus-within .onboarding-project-row:not(:disabled),
-.onboarding-project-row-wrap.is-removing .onboarding-project-row {
+.onboarding-project-row-wrap:has(:focus-visible) .onboarding-project-row:not(:disabled),
+.onboarding-project-row-wrap[data-menu-open] .onboarding-project-row {
   background: var(--po-hover);
   color: var(--po-text);
 }
@@ -478,8 +695,8 @@
 }
 
 .onboarding-project-row-wrap:hover .desktop-menu-item-trailing,
-.onboarding-project-row-wrap:focus-within .desktop-menu-item-trailing,
-.onboarding-project-row-wrap.is-removing .desktop-menu-item-trailing {
+.onboarding-project-row-wrap:has(:focus-visible) .desktop-menu-item-trailing,
+.onboarding-project-row-wrap[data-menu-open] .desktop-menu-item-trailing {
   opacity: 0;
 }
 
@@ -497,6 +714,7 @@
   min-width: 0;
   flex: 1 1 auto;
   direction: ltr;
+  font-size: var(--onboarding-caption-font-size);
   text-align: start;
 }
 
@@ -504,15 +722,763 @@
   max-width: 112px;
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: var(--po-text-size-hint, 12px);
-  font-weight: 500;
+  font-size: var(--onboarding-caption-font-size);
+  font-weight: var(--onboarding-row-font-weight);
   text-overflow: ellipsis;
   text-transform: none;
   white-space: nowrap;
 }
 
+/* The head of a page with projects: left, the three place actions in compact toolbar
+   geometry; right, compact logo-only Agent marks on one non-wrapping row. */
+.onboarding-start-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.onboarding-start-actions .onboarding-entry-action {
+  width: auto;
+  height: var(--po-control-size-compact);
+  min-height: var(--po-control-size-compact);
+  padding-inline: 10px;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: var(--po-text-weight-medium, 500);
+}
+
+.onboarding-start-actions .onboarding-entry-action:hover:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.onboarding-start-actions .onboarding-entry-action[data-onboarding-action="create"] {
+  background: color-mix(in srgb, var(--po-text) 9%, transparent);
+  color: var(--po-text);
+}
+
+.onboarding-start-actions .onboarding-entry-action[data-onboarding-action="create"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--po-text) 14%, transparent);
+  color: var(--po-text);
+}
+
+.onboarding-start-actions .onboarding-entry-action:disabled {
+  background: var(--po-control);
+  color: var(--po-text-disabled);
+}
+
+.onboarding-agent-strip {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-inline-start: auto;
+}
+
+.onboarding-agent-group {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.onboarding-agent-place-mark {
+  display: inline-grid;
+  width: 20px;
+  height: var(--po-control-size-compact);
+  flex: 0 0 20px;
+  place-items: center;
+  color: var(--po-text-subtle);
+}
+
+.onboarding-agent {
+  position: relative;
+  display: inline-grid;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
+  flex: 0 0 var(--po-control-size-compact);
+  box-sizing: border-box;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: var(--desktop-control-radius);
+  background: var(--po-panel-raised);
+  color: var(--po-text);
+  cursor: var(--po-clickable-cursor, default);
+  font-family: var(--po-font-sans);
+  font-size: var(--onboarding-caption-font-size);
+  font-weight: var(--onboarding-row-font-weight);
+  line-height: 1;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+button.onboarding-agent:hover:not(:disabled) {
+  border-color: var(--po-border);
+  background: var(--po-hover);
+}
+
+.onboarding-agent:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: 2px;
+}
+
+button.onboarding-agent:disabled {
+  color: var(--po-text-disabled);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.onboarding-agent.is-face {
+  cursor: default;
+}
+
+.onboarding-agent.is-face .desktop-project-reach-mark {
+  --reach-mark-ground: var(--po-panel-raised);
+  background: transparent;
+  box-shadow: none;
+  color: var(--po-text);
+}
+
+.onboarding-agent.is-face .desktop-project-reach-mark > :is(img, svg) {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  opacity: 1;
+}
+
+.onboarding-agent-brand {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 4px;
+  color: currentColor;
+  font-size: var(--onboarding-caption-font-size);
+  font-weight: var(--po-text-weight-semibold, 600);
+}
+
+.onboarding-agent-brand :is(img, svg) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.onboarding-agent-brand.is-fallback {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.onboarding-agent-connected {
+  position: absolute;
+  inset-inline-end: -1px;
+  bottom: -1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--po-success);
+  box-shadow: 0 0 0 1.5px var(--po-canvas);
+}
+
+.onboarding-agent-sep {
+  width: 1px;
+  height: 14px;
+  margin-inline: 3px;
+  background: var(--po-divider);
+}
+
+.onboarding-agent.onboarding-agent-connect {
+  border-color: transparent;
+  background: transparent;
+  color: var(--po-text-muted);
+}
+
+button.onboarding-agent.onboarding-agent-connect:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+/* The section row above the groups: Projects on the left, order and layout on the right. */
+.onboarding-projects-head {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.onboarding-projects-title {
+  margin: 0;
+  color: var(--po-text);
+  font-family: var(--po-font-sans);
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 20px;
+}
+
+/* The view controls sit on the column's right edge, so each menu aligns its trailing
+   edge with the control that opens it and stays inside narrow windows. */
+.onboarding-view-menu {
+  position: absolute;
+  z-index: 20;
+  inset-inline-end: 0;
+  width: max-content;
+  min-width: 104px;
+  box-sizing: border-box;
+  inset-block-start: calc(100% + var(--po-menu-padding));
+  padding: var(--po-menu-padding);
+}
+
+.onboarding-view-menu .desktop-menu-section-list {
+  display: grid;
+  gap: 2px;
+}
+
+.onboarding-project-toolbar {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.onboarding-project-view {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.onboarding-view-menu-root {
+  position: relative;
+  flex: none;
+}
+
+.onboarding-view-menu-root .po-icon-button[aria-expanded="true"] {
+  background: var(--po-selected);
+  color: var(--po-text);
+}
+
+.onboarding-view-menu-root .po-icon-button.is-active {
+  color: var(--po-text);
+}
+
+.onboarding-view-menu-root .po-icon-button:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: -2px;
+}
+
+.onboarding-view-menu-root .po-icon-button:disabled {
+  color: var(--po-text-disabled);
+  cursor: default;
+}
+
+/* Monochrome folder back and front in the theme's own ink: never coloured, shadowed or
+   outlined. When top-level assets exist, up to three calm preview sheets sit between the
+   back and front using theme surface and file-accent tokens, without motion. */
+.onboarding-project-folder {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.project-folder-glyph {
+  display: block;
+  overflow: visible;
+  width: 100%;
+  height: 100%;
+}
+
+/* Switcher and menu rows keep a 14px icon slot; Homepage List rows use the 34x26 folder. */
+.onboarding-project-icon > .project-folder-glyph {
+  flex: none;
+  width: 19px;
+  height: 15px;
+  margin: -0.5px -2.5px;
+}
+
+.onboarding-project-row .onboarding-project-icon > .project-folder-glyph {
+  width: 34px;
+  height: 26px;
+  margin: 0;
+}
+
+.project-folder-back {
+  fill: color-mix(in srgb, var(--po-project-folder-back) 80%, var(--po-canvas));
+  transition: fill 130ms ease-out;
+}
+
+.project-folder-front {
+  fill: color-mix(in srgb, var(--po-project-folder-front) 78%, var(--po-canvas));
+  transition: fill 130ms ease-out;
+}
+
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) svg .project-folder-back {
+  fill: color-mix(in srgb, var(--po-project-folder-back) 90%, var(--po-canvas));
+}
+
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) svg .project-folder-front {
+  fill: color-mix(in srgb, var(--po-project-folder-front) 88%, var(--po-canvas));
+}
+
+.project-folder-stage {
+  position: relative;
+  display: block;
+  width: 104px;
+  height: 78px;
+}
+
+.project-folder-stage-back {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.project-folder-stage-front {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.project-folder-preview {
+  --project-preview-accent: var(--po-file-accent-default);
+  position: absolute;
+  display: flex;
+  width: 44px;
+  height: 37px;
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 2.5px;
+  padding: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--po-panel-raised, var(--po-project-folder-sheet));
+  box-shadow: 0 0 0 1px var(--po-border-subtle), var(--po-elevation-low);
+}
+
+.project-folder-preview[data-preview-kind="html"] {
+  --project-preview-accent: var(--po-file-accent-html);
+}
+
+.project-folder-preview[data-preview-kind="md"] {
+  --project-preview-accent: var(--po-file-accent-markdown);
+}
+
+.project-folder-preview[data-preview-kind="csv"] {
+  --project-preview-accent: var(--po-file-accent-sheet);
+}
+
+.project-folder-stage > .project-folder-preview:nth-child(2) {
+  inset-inline-start: 8px;
+  top: 8px;
+  transform: rotate(-6.5deg);
+}
+
+.project-folder-stage > .project-folder-preview:nth-child(3) {
+  z-index: 1;
+  inset-inline-start: 30px;
+  top: 3px;
+  transform: rotate(1.5deg);
+}
+
+.project-folder-stage > .project-folder-preview:nth-child(4) {
+  inset-inline-start: 52px;
+  top: 8px;
+  transform: rotate(6.5deg);
+}
+
+.project-folder-stage[data-preview-count="1"] > .project-folder-preview:nth-child(2) {
+  inset-inline-start: 30px;
+  top: 4px;
+  transform: rotate(1.5deg);
+}
+
+.project-folder-stage[data-preview-count="2"] > .project-folder-preview:nth-child(2) {
+  inset-inline-start: 16px;
+  top: 6px;
+  transform: rotate(-4.5deg);
+}
+
+.project-folder-stage[data-preview-count="2"] > .project-folder-preview:nth-child(3) {
+  inset-inline-start: 44px;
+  top: 4px;
+  transform: rotate(4.5deg);
+}
+
+.project-folder-preview-title,
+.project-folder-preview-line {
+  display: block;
+  height: 2.5px;
+  border-radius: 1.5px;
+  background: color-mix(in srgb, var(--po-text) 13%, transparent);
+}
+
+.project-folder-preview-title {
+  width: 42%;
+  height: 3px;
+  background: color-mix(in srgb, var(--po-text) 52%, transparent);
+}
+
+.project-folder-preview-title.is-short {
+  width: 32%;
+}
+
+.project-folder-preview-line.is-short {
+  width: 74%;
+}
+
+.project-folder-preview-bars {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  gap: 2.5px;
+  padding-inline: 1.5px;
+  padding-block-top: 2px;
+  border-block-end: 1px solid var(--po-border-subtle);
+}
+
+.project-folder-preview-bars > i {
+  display: block;
+  flex: 1 1 0;
+  border-radius: 1px 1px 0 0;
+  background: color-mix(in srgb, var(--project-preview-accent) 56%, transparent);
+}
+
+.project-folder-preview-bars > i.is-low {
+  height: 42%;
+  opacity: 0.6;
+}
+
+.project-folder-preview-bars > i.is-mid {
+  height: 66%;
+  opacity: 0.8;
+}
+
+.project-folder-preview-bars > i.is-high {
+  height: 90%;
+}
+
+.project-folder-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5px;
+}
+
+.project-folder-preview-grid > i {
+  display: block;
+  height: 3.5px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--project-preview-accent) 16%, transparent);
+}
+
+.project-folder-preview-grid > i:nth-child(-n + 3) {
+  background: color-mix(in srgb, var(--project-preview-accent) 42%, transparent);
+}
+
+.project-folder-preview-badge {
+  position: absolute;
+  inset-inline-end: 2.5px;
+  top: 2.5px;
+  padding: 1px 2.5px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--project-preview-accent) 16%, var(--po-panel-raised));
+  color: color-mix(in srgb, var(--project-preview-accent) 88%, var(--po-text));
+  font-family: var(--po-font-mono);
+  font-size: var(--onboarding-preview-badge-size);
+  font-weight: var(--po-text-weight-semibold, 600);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+/* On a fanned stack, the left sheet exposes its outer-left shoulder while the middle sheet
+   covers its right edge; place its badge on that exposed shoulder so every asset's type shows. */
+.project-folder-stage:not(.is-compact):is([data-preview-count="2"], [data-preview-count="3"]) > .project-folder-preview:nth-child(2) .project-folder-preview-badge {
+  inset-inline-start: 2.5px;
+  inset-inline-end: auto;
+}
+
+.project-folder-stage:not(.is-compact):is([data-preview-count="2"], [data-preview-count="3"]) > .project-folder-preview:nth-child(2) .project-folder-preview-title {
+  margin-block-start: 9px;
+}
+
+/* Compact folder with peeking assets for List rows (.fga.sm). */
+.project-folder-stage.is-compact {
+  width: 34px;
+  height: 26px;
+}
+
+.project-folder-stage.is-compact > .project-folder-preview {
+  width: 15px;
+  height: 12px;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--po-border-subtle);
+}
+
+.project-folder-stage.is-compact > .project-folder-preview:nth-child(2) {
+  inset-inline-start: 4px;
+  top: 3px;
+}
+
+.project-folder-stage.is-compact > .project-folder-preview:nth-child(3) {
+  inset-inline-start: 9.5px;
+  top: 1px;
+}
+
+.project-folder-stage.is-compact > .project-folder-preview:nth-child(4) {
+  inset-inline-start: 15px;
+  top: 3px;
+}
+
+.project-folder-stage.is-compact[data-preview-count="1"] > .project-folder-preview:nth-child(2) {
+  inset-inline-start: 9.5px;
+  top: 1.5px;
+}
+
+.project-folder-stage.is-compact[data-preview-count="2"] > .project-folder-preview:nth-child(2) {
+  inset-inline-start: 6.5px;
+  top: 2px;
+}
+
+.project-folder-stage.is-compact[data-preview-count="2"] > .project-folder-preview:nth-child(3) {
+  inset-inline-start: 12.5px;
+  top: 1px;
+}
+
+.project-folder-stage.is-compact :is(.project-folder-preview-title, .project-folder-preview-line) {
+  height: 1.5px;
+}
+
+.project-folder-stage.is-compact .project-folder-preview-bars {
+  padding-inline: 1px;
+  gap: 1px;
+}
+
+.project-folder-stage.is-compact .project-folder-preview-grid {
+  gap: 1px;
+}
+
+.project-folder-stage.is-compact .project-folder-preview-grid > i {
+  height: 1.5px;
+}
+
+/* Agents with access to a Cloud project sit at the bottom-right corner of its folder. */
+.onboarding-project-folder-agents {
+  position: absolute;
+  z-index: 4;
+  inset-inline-end: 0;
+  bottom: -3px;
+  display: flex;
+}
+
+.onboarding-project-folder-agent {
+  position: relative;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: var(--desktop-control-radius);
+  background: var(--po-panel-raised);
+  box-shadow: 0 0 0 1.5px var(--po-canvas), var(--po-elevation-low);
+}
+
+.onboarding-project-folder-agent + .onboarding-project-folder-agent {
+  margin-inline-start: -5px;
+}
+
+.onboarding-project-folder-agent .desktop-project-reach-mark {
+  --reach-mark-ground: var(--po-panel-raised);
+  background: transparent;
+  box-shadow: none;
+  color: var(--po-text);
+}
+
+.onboarding-project-folder-agent .desktop-project-reach-mark > :is(img, svg) {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  opacity: 1;
+}
+
+.onboarding-project-tile {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--po-card-radius);
+  background: transparent;
+  color: var(--po-text);
+  font-family: var(--po-font-sans);
+  cursor: var(--po-clickable-cursor, default);
+  transition: background 130ms ease-out, color 130ms ease-out;
+}
+
+.onboarding-project-tile:disabled {
+  cursor: default;
+}
+
+.onboarding-project-tile:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: -2px;
+}
+
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .onboarding-project-tile:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.onboarding-project-row-wrap.is-dragging .onboarding-project-tile {
+  opacity: 0.62;
+}
+
+.onboarding-project-tile-name {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+}
+
+/* A project whose folder cannot be opened now: its folder fades, and a caption under
+   its name says why, in the page's own caption type and muted ink. */
+.onboarding-project-row-wrap[data-unavailable="true"] :is(.onboarding-project-folder, .onboarding-project-icon) {
+  opacity: 0.4;
+}
+
+.onboarding-project-status,
+.onboarding-project-tile-meta {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: var(--onboarding-caption-font-size);
+  font-weight: var(--onboarding-row-font-weight);
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-project-status {
+  color: var(--po-text-muted);
+}
+
+/* A tile has no room for the link's label; its tooltip still says what it opens. */
+.onboarding-project-tile ~ .onboarding-project-cloud-link {
+  width: 24px;
+  min-width: 0;
+  height: 24px;
+  justify-content: center;
+  padding: 0;
+}
+
+.onboarding-project-tile ~ .onboarding-project-cloud-link > span {
+  display: none;
+}
+
+/* Five Finder-proportioned folders across the page, sharing equal cells down to the smallest window. */
+.onboarding-project-list[data-project-layout="grid"] {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  column-gap: var(--onboarding-tile-gap);
+  row-gap: 12px;
+}
+
+@media (max-width: 820px) {
+  .onboarding-project-list[data-project-layout="grid"] {
+    column-gap: 10px;
+  }
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile {
+  align-content: start;
+  justify-items: center;
+  gap: 2px;
+  padding: 10px 6px 10px;
+  text-align: center;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-folder {
+  width: var(--onboarding-folder-width);
+  height: 78px;
+  margin-block-end: 6px;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-folder > .project-folder-glyph {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile-name {
+  display: block;
+  max-width: 100%;
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: var(--onboarding-row-font-weight);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A tile's one line: the name, and in a shared group the small mark of where it lives. */
+.onboarding-project-tile-label {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* Where a shared project lives, in the page's quiet ink: the Cloud or a computer. The
+   group already says who can open it; the local group needs no mark at all. */
+.onboarding-project-place-mark {
+  display: none;
+  flex: none;
+  color: var(--po-text-subtle);
+}
+
+.onboarding-project-group:is([data-project-group^="space:"], [data-project-group="team-shared"], [data-project-group="personal-shared"], [data-project-group="shared-unresolved"]) .onboarding-project-place-mark {
+  display: inline-flex;
+}
+
+.onboarding-project-row .onboarding-project-place-mark {
+  margin-inline-start: 6px;
+  vertical-align: -1px;
+}
+
+.onboarding-project-list[data-project-layout="grid"] :is(.onboarding-project-actions, .onboarding-project-cloud-link) {
+  top: 4px;
+  transform: none;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-actions {
+  inset-inline-end: 4px;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-cloud-link {
+  inset-inline: 4px auto;
+}
+
 .onboarding-homepage-error {
-  width: min(520px, 100%);
+  flex: 0 0 auto;
+  width: min(760px, 100%);
 }
 
 .onboarding-error {
@@ -527,8 +1493,8 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--po-danger) 6%, transparent);
   color: var(--po-danger);
-  font-size: var(--po-text-size-label, 13px);
-  font-weight: 520;
+  font-size: var(--onboarding-row-font-size);
+  font-weight: var(--onboarding-row-font-weight);
   line-height: 1.4;
 }
 
@@ -536,17 +1502,7 @@
   margin-top: 1px;
 }
 
-@media (max-width: 820px) {
-  .onboarding-shell {
-    padding: 40px 28px;
-  }
-}
-
 @media (max-width: 520px) {
-  .onboarding-shell {
-    padding: 28px 18px;
-  }
-
   .onboarding-project-row .desktop-menu-item-label {
     max-width: 100%;
     flex: 1 1 auto;
@@ -562,7 +1518,8 @@
 }
 
 @media (hover: none) {
-  .onboarding-project-remove {
+  .onboarding-project-cloud-link,
+  .onboarding-project-actions {
     opacity: 1;
     pointer-events: auto;
   }
@@ -572,47 +1529,339 @@
   }
 }
 
-@media (max-height: 760px) {
-  .onboarding-homepage {
-    --onboarding-page-gap: 24px;
-    --onboarding-title-primary-gap: 46px;
-    --onboarding-primary-actions-gap: 14px;
-  }
+/* A link to another project uses the same quiet control geometry as the project list. */
+.project-cloud-link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--po-menu-item-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  font: inherit;
+  font-size: var(--po-text-size-hint, 12px);
+  white-space: nowrap;
+}
+.project-cloud-link-button:hover {
+  color: var(--po-text);
+  background: var(--po-hover);
+}
+.project-cloud-link-button:focus-visible {
+  outline: 1px solid var(--po-accent);
+  outline-offset: -1px;
+}
+.project-cloud-link-button svg {
+  color: var(--po-brand-blue);
+}
 
-  .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-    --onboarding-title-primary-gap: 24px;
-  }
+/* The projects by where they are: the Cloud, this computer, each other computer.
+   The page scrolls as one, with the single list's lane and fades; the lists inside
+   lie flat in it, so a group never scrolls on its own or cuts off its last row. */
+.onboarding-project-groups {
+  --po-scrollbar-presentation-thumb: color-mix(in srgb, var(--po-text-muted) 40%, transparent);
+  --po-scrollbar-presentation-thumb-hover: color-mix(in srgb, var(--po-text-muted) 60%, transparent);
+  display: grid;
+  width: calc(100% + var(--po-scrollbar-size));
+  min-width: 0;
+  min-height: 0;
+  align-content: start;
+  gap: 20px;
+  /* Scrolled to its end, the last row still stands clear of the window's edge. */
+  padding-block: 4px 40px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  /* A focused project scrolls clear of the next group's head as well as the fades. */
+  scroll-padding-block: 36px 16px;
+  mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 16px), transparent);
+}
 
-  .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
-    --onboarding-page-gap: 14px;
-  }
+.onboarding-project-groups .onboarding-project-list {
+  width: 100%;
+  overflow: visible;
+  padding-block: 0;
+  scrollbar-gutter: auto;
+  mask-image: none;
+}
 
-  .onboarding-project-list {
-    max-height: clamp(88px, calc(100vh - 418px), 260px);
+/* One rectangle holds a group: its rule, its label and its projects share the same
+   left and right edges. In a list those are the rows' own inset. On the Grid they are
+   the cells' outer edges, which the names may reach and never pass: the group itself
+   is the grid, the head spans its columns, and five cells and their gutters fill the
+   column, so the rules end where the toolbar does. */
+.onboarding-project-group {
+  --onboarding-group-inset: 8px;
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  row-gap: 2px;
+  transition: opacity 160ms ease;
+}
+
+/* An empty Space keeps the Grid's edges too, so every heading's mark lines up. */
+.onboarding-project-groups:has(.onboarding-project-list[data-project-layout="grid"]) > .onboarding-project-group {
+  --onboarding-group-inset: 0px;
+}
+
+.onboarding-project-group:has(.onboarding-project-list[data-project-layout="grid"]) {
+  --onboarding-group-inset: 0px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  column-gap: var(--onboarding-tile-gap);
+  row-gap: 12px;
+}
+
+@media (max-width: 820px) {
+  .onboarding-project-group:has(.onboarding-project-list[data-project-layout="grid"]) {
+    column-gap: 10px;
   }
 }
 
-@media (max-height: 620px) {
-  .onboarding-homepage-shell {
-    padding-top: 28px;
-    padding-bottom: 28px;
-  }
+/* A single visual grid per audience, even when its entries come from different
+   owners. Keep each list's semantics and keyboard handling; don't add device rows. */
+.onboarding-project-group-content {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
 
-  .onboarding-homepage {
-    --onboarding-page-gap: 20px;
-    --onboarding-title-primary-gap: 34px;
-    --onboarding-primary-actions-gap: 18px;
-  }
+.onboarding-project-group:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-project-group-content,
+.onboarding-project-group-content > .onboarding-project-list[data-project-layout="grid"] {
+  display: contents;
+}
 
-  .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-    --onboarding-title-primary-gap: 24px;
-  }
+.onboarding-team-selector {
+  max-width: 220px;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  padding: 2px 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
 
-  .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
-    --onboarding-page-gap: 18px;
-  }
+.onboarding-team-selector:hover:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
 
-  .onboarding-project-list {
-    max-height: clamp(72px, calc(100vh - 408px), 180px);
+/* An audience heading names who can open its projects, not where they live. It is a
+   label, not a title: small and quiet, close above its projects, under a hairline that
+   turns the page to the next group. Like a menu's separator, the hairline runs exactly
+   as wide as the content it divides, never past it; the first group has none. */
+.onboarding-project-group-head {
+  --onboarding-group-ink: var(--po-text-subtle);
+  display: flex;
+  grid-column: 1 / -1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  margin-inline: var(--onboarding-group-inset);
+  padding-block: 0 4px;
+  /* A label belongs to the projects under it: it sits nearer them than the rule above. */
+  margin-block-end: -4px;
+  color: var(--onboarding-group-ink);
+  font-family: var(--po-font-sans);
+  font-size: var(--onboarding-caption-font-size);
+  line-height: 18px;
+}
+
+.onboarding-project-group:has(.onboarding-project-list[data-project-layout="grid"]) > .onboarding-project-group-head {
+  margin-block-end: -8px;
+}
+
+.onboarding-project-group + .onboarding-project-group .onboarding-project-group-head {
+  padding-block-start: 20px;
+  border-block-start: 1px solid var(--po-divider);
+}
+
+.onboarding-project-group-title {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--po-text-weight-medium, 500);
+}
+
+.onboarding-project-group-title bdi {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The place's shape before its name, the same square the Header shows. */
+.onboarding-project-group-mark {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--po-text-subtle);
+}
+
+/* The plan a space is on, beside its name: where a project lives says who pays. */
+.onboarding-space-plan {
+  min-height: 18px;
+}
+
+.onboarding-space-role {
+  color: var(--po-text-subtle);
+}
+
+.onboarding-project-group-detail {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-project-group-resume {
+  margin-inline-start: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+  font-weight: var(--po-text-weight-medium, 500);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.onboarding-project-group-resume:hover {
+  color: var(--po-text);
+}
+
+.onboarding-project-group-spacer {
+  flex: 1 0 0;
+}
+
+.onboarding-project-group-actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Who is in a Space and what it pays is reached from the Space's own heading. */
+.onboarding-space-manage {
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--desktop-toolbar-action-radius);
+  background: transparent;
+  color: var(--po-text-subtle);
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+  line-height: 18px;
+}
+
+.onboarding-space-manage:hover,
+.onboarding-space-manage:focus-visible {
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.onboarding-space-manage:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+}
+
+/* Unavailability belongs to the folder, not the entire personal audience. */
+.onboarding-project-group[data-inactive] .onboarding-project-list,
+.onboarding-project-row-wrap[data-host-folder][data-inactive] {
+  opacity: 0.5;
+}
+
+/* While a project is dragged, each group that takes it is filled faintly, inside its
+   own bounds, and more deeply once the project is over it. No outline: a fill in the
+   page's ink, like a selection. Groups that cannot take it step back. */
+.onboarding-project-group::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 -6px;
+  border-radius: var(--po-card-radius);
+  background: transparent;
+  pointer-events: none;
+  transition: background 140ms ease;
+}
+
+.onboarding-project-groups[data-project-dragging] .onboarding-project-group:not([data-drop-available]) {
+  opacity: 0.38;
+}
+
+/* A place chosen from the Header comes into view under it, filled for a moment. */
+.onboarding-project-group {
+  scroll-margin-top: 12px;
+}
+
+.onboarding-project-group[data-project-group-focus]::before {
+  background: color-mix(in srgb, var(--po-text) 6%, transparent);
+}
+
+.onboarding-project-group[data-project-group-focus] .onboarding-project-group-head {
+  color: var(--po-text);
+}
+
+.onboarding-project-group[data-drop-available]::before {
+  background: color-mix(in srgb, var(--po-text) 4%, transparent);
+}
+
+.onboarding-project-group[data-drop-over]::before {
+  background: color-mix(in srgb, var(--po-text) 9%, transparent);
+}
+
+/* What letting go does, at the end of the heading, where the group's actions were. */
+.onboarding-project-group-drop-hint {
+  flex: none;
+  color: var(--po-text-muted);
+  font-weight: var(--po-text-weight-medium, 500);
+  transition: color 140ms ease;
+}
+
+.onboarding-project-group[data-drop-over] .onboarding-project-group-drop-hint,
+.onboarding-project-group[data-drop-over] .onboarding-project-group-head {
+  color: var(--po-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-project-group,
+  .onboarding-project-group::before {
+    transition: none;
   }
+}
+
+.onboarding-cloud-space-empty {
+  margin: 0;
+  min-height: 32px;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  padding: 8px var(--onboarding-group-inset, 8px);
+  color: var(--po-text-subtle);
+  font-size: var(--onboarding-caption-font-size);
+}
+
+.onboarding-project-group-empty,
+.onboarding-project-groups-note {
+  margin: 0;
+  padding: 2px 8px 6px;
+  color: var(--po-text-subtle);
+  font-size: var(--onboarding-caption-font-size);
+  line-height: 18px;
+}
+
+.onboarding-project-groups-note {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }

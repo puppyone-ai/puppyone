@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useMemo, type CSSProperties } from "react";
 import { Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -107,7 +108,6 @@ export function AuxiliaryWorkbenchHeader({
   return (
     <header
       className="desktop-terminal-subheader"
-      data-window-no-drag="true"
       style={{
         "--desktop-terminal-header-gap": `${WORKBENCH_SESSION_HEADER_METRICS.gap}px`,
         "--desktop-terminal-tab-control-height": `${WORKBENCH_SESSION_HEADER_METRICS.createControl}px`,
@@ -174,12 +174,12 @@ export function AuxiliaryWorkbenchHeader({
               onClose={onClose}
             />
           )}
-          <DesktopMenuIconButton
+          <Tooltip content={t("workspace.workbench.newTab")}><DesktopMenuIconButton
             className="desktop-terminal-new-button"
             label={t("workspace.workbench.newTab")}
             icon={<Plus size={14} strokeWidth={1.9} aria-hidden="true" />}
             onClick={onCreate}
-          />
+          /></Tooltip>
         </div>
       </div>
     </header>

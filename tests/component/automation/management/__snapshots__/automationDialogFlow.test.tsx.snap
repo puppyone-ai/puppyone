@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CloudNewAutomationDialog > locks empty catalog 1`] = `"No Automation sources are available."`;
+
+exports[`CloudNewAutomationDialog > locks error wins over empty 1`] = `"Unable to load Automation sources: ⁨offline⁩"`;
+
+exports[`CloudNewAutomationDialog > locks loading wins over error and empty 1`] = `"Loading Automation sources…"`;
+
+exports[`CloudNewAutomationDialog > locks missing selected provider 1`] = `"This Automation source is no longer available.Choose another source"`;

@@ -10,6 +10,8 @@ import {
 import { createPortal } from "react-dom";
 import { useLocalization } from "@puppyone/localization";
 import {
+  FloatingNotice,
+  FloatingNoticePortal,
   getAiEditFileForPath,
   getEditorPanes,
   type AiEditRequest,
@@ -28,7 +30,6 @@ import {
   type EditorPaneLayoutState,
   type EditorPaneSplitOptions,
   type EditorSplitDirection,
-  type FileIconThemeId,
   type MarkdownWorkspaceEnvironment,
   type ViewerExtensionHostAdapter,
   type Workspace,
@@ -56,11 +57,12 @@ import { toWorkspaceRelativePath } from "../../desktop-agent-presence";
 
 export type DesktopEditorSplitViewProps = Readonly<{
   aiEditRequest: AiEditRequest | null;
+  /** The project's first document is still on its way to these panes. */
+  entering?: boolean;
   dataPort: DataPort;
   documentSourceKind?: DocumentSourceKind;
   editorGroup: EditorGroupState;
   editorInteractionPreferences: EditorInteractionPreferences;
-  fileIconTheme: FileIconThemeId;
   layout: EditorPaneLayoutState;
   editorTree: readonly DataNode[];
   markdownEnvironment: MarkdownWorkspaceEnvironment;
@@ -75,6 +77,8 @@ export type DesktopEditorSplitViewProps = Readonly<{
   externalOpen?: Readonly<{
     open: (path: string) => void | Promise<void>;
   }>;
+  /** The host surface's notice column; drop failures join it instead of overlapping. */
+  noticeStack?: HTMLElement | null;
   onClosePane: (paneId: string) => void;
   onFocusPane: (paneId: string) => void;
   onResizeSplit: (splitId: string, ratio: number) => void;
@@ -99,11 +103,11 @@ export type DesktopEditorSplitViewProps = Readonly<{
 
 export function DesktopEditorSplitView({
   aiEditRequest,
+  entering = false,
   dataPort,
   documentSourceKind = "local",
   editorGroup,
   editorInteractionPreferences,
-  fileIconTheme,
   layout,
   editorTree,
   markdownEnvironment,
@@ -113,6 +117,7 @@ export function DesktopEditorSplitView({
   workspace,
   resolveWorkspaceResource,
   externalOpen,
+  noticeStack,
   onClosePane,
   onFocusPane,
   onMovePane,
@@ -163,9 +168,13 @@ export function DesktopEditorSplitView({
 
   return (
     <div className="desktop-editor-split-view" data-pane-count={paneCount}>
-      {fileDrop.dropFailed && (
-        <div className="desktop-workspace-surface-alert" role="alert">{t("workspace.drag.exportFailed")}</div>
-      )}
+      <FloatingNoticePortal stack={noticeStack}>
+        {fileDrop.dropFailed && (
+          <FloatingNotice tone="danger" onDismiss={fileDrop.dismissDropFailure}>
+            {t("workspace.drag.exportFailed")}
+          </FloatingNotice>
+        )}
+      </FloatingNoticePortal>
       <EditorLayoutNode
         node={layout.root}
         touchesBlockEnd
@@ -177,13 +186,13 @@ export function DesktopEditorSplitView({
         <EditorPane
           activePaneId={layout.activePaneId}
           aiEditRequest={aiEditRequest}
+          entering={entering}
           dataPort={dataPort}
           documentSourceKind={documentSourceKind}
           editorById={editorById}
           editorNodeIndex={editorNodeIndex}
           editorInteractionPreferences={editorInteractionPreferences}
           externalOpen={externalOpen}
-          fileIconTheme={fileIconTheme}
           fileDrop={fileDrop}
           pane={pane}
           paneCount={paneCount}
@@ -273,13 +282,13 @@ function EditorSplit({
 type EditorPaneProps = Readonly<{
   activePaneId: string;
   aiEditRequest: AiEditRequest | null;
+  entering: boolean;
   dataPort: DataPort;
   documentSourceKind: DocumentSourceKind;
   editorById: ReadonlyMap<string, EditorGroupState["editors"][number]>;
   editorNodeIndex: EditorNodeIndex;
   editorInteractionPreferences: EditorInteractionPreferences;
   externalOpen?: DesktopEditorSplitViewProps["externalOpen"];
-  fileIconTheme: FileIconThemeId;
   fileDrop: EditorFileDropController;
   pane: EditorPaneLayoutLeaf;
   paneCount: number;
@@ -300,13 +309,13 @@ type EditorPaneProps = Readonly<{
 function EditorPane({
   activePaneId,
   aiEditRequest,
+  entering,
   dataPort,
   documentSourceKind,
   editorById,
   editorNodeIndex,
   editorInteractionPreferences,
   externalOpen,
-  fileIconTheme,
   fileDrop,
   pane,
   paneCount,
@@ -349,6 +358,7 @@ function EditorPane({
     ? editorWorkspaceResource?.providerPath
       ?? toWorkspaceRelativePath(editorWorkspace.path, editor.resource)
     : null;
+  const emptyState = entering ? "opening" : "empty";
   const paneMenuContribution = menuContribution?.editorResource === editor?.resource
     ? menuContribution?.contribution ?? null
     : null;
@@ -358,7 +368,7 @@ function EditorPane({
       active={active}
       actionsOpen={actionsOpen}
       agentPresencePath={agentPresencePath}
-      contentState={editor ? "document" : "empty"}
+      contentState={editor ? "document" : emptyState}
       editorLabel={editor?.label ?? null}
       findCommand={findCommand}
       fileDrop={fileDrop}
@@ -388,7 +398,6 @@ function EditorPane({
           documentSourceKind={documentSourceKind}
           editor={editor}
           editorInteractionPreferences={editorInteractionPreferences}
-          fileIconTheme={fileIconTheme}
           markdownEnvironment={markdownEnvironment}
           documentNavigation={documentNavigation}
           refreshKey={refreshKey}

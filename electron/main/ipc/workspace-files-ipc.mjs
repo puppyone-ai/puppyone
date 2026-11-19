@@ -16,8 +16,8 @@ import {
   resolveExistingWorkspacePath,
   resolveWorkspaceNode,
   writeWorkspaceTextFile,
-} from "../../../local-api/workspace.mjs";
-import { absorbWorkspaceEditReviewPath as updateWorkspaceEditReviewPath } from "../../../local-api/edit-review.mjs";
+} from "../../local-api/workspace.mjs";
+import { absorbWorkspaceEditReviewPath as updateWorkspaceEditReviewPath } from "../../local-api/edit-review.mjs";
 
 async function absorbWorkspaceEditReviewPath(rootPath, resource) {
   try { await updateWorkspaceEditReviewPath(rootPath, resource); }
@@ -34,7 +34,7 @@ import { openPdfResource } from "../pdf-resource.mjs";
 import {
   instantiateWorkspaceTemplate,
   loadBundledSlidesFont,
-} from "../../../local-api/workspace-templates.mjs";
+} from "../../local-api/workspace-templates.mjs";
 
 const MAX_OFFICE_CONVERSIONS_PER_WINDOW = 2;
 const DEFAULT_NATIVE_MESSAGES = Object.freeze({
@@ -76,6 +76,7 @@ export function registerWorkspaceFileIpcHandlers({
   workspaceMutationTracker = null,
   gitMetadataWatchService = null,
   convertOfficeDocument = unsupportedOfficeDocumentConverter,
+  decodesLegacyText = () => false,
   t = defaultTranslate,
 }) {
   const officeConversionSessionsBySender = new Map();
@@ -102,7 +103,7 @@ export function registerWorkspaceFileIpcHandlers({
     if (typeof filePath !== "string" || filePath.trim().length === 0) {
       throw new Error("File path is required.");
     }
-    return readWorkspaceTextFile(rootPath, filePath);
+    return readWorkspaceTextFile(rootPath, filePath, { decodeLegacyText: decodesLegacyText(event) });
   });
 
   ipcMain.handle("workspace:get-file-url", async (event, request) => {
@@ -175,7 +176,8 @@ export function registerWorkspaceFileIpcHandlers({
     const bytes = Buffer.from(request.content, "utf8");
     const token = localFileCapabilities.issue({ senderId: requireIpcSenderId(event), rootPath, relativePath,
       scope: "exact", purpose: "document-projection", reuse: false,
-      snapshot: { bytes, relativePath, version: randomUUID(), interactive: request.interactive === true } });
+      snapshot: { bytes, relativePath, version: randomUUID(), interactive: request.interactive === true,
+        offline: request.interactive === true && request.offline === true } });
     return { url: buildLocalFileCapabilityUrl({ relativePath, token, purpose: "document-projection" }) };
   });
 

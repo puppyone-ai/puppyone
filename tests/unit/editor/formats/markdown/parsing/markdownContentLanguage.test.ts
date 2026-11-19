@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeContentLanguage,
   resolveMarkdownContentLanguage,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/presentation/markdownContentLanguage";
+} from "../../../../../../src/shared-ui/editor/markdown/core/presentation/markdownContentLanguage";
 
 describe("Markdown content language", () => {
   it("detects a Chinese document independently from the interface locale", () => {

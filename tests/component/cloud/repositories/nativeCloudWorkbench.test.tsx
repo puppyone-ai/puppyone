@@ -1,16 +1,18 @@
+import { workspaceFixtureBridge, fixtureWorkspaceWatch, fileVersion, liveEntry, liveWorkbench } from "../../../fixtures/cloud/repositories/liveWorkspace";
+import { nativeSnapshot } from "../../../fixtures/cloud/repositories/nativeRepository";
 /** @vitest-environment happy-dom */
-import { act, useCallback, useEffect, useState, type ReactNode } from "react";
+import { act, useEffect, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopWorkspaceLocationSurface } from "../../../../src/features/app-shell/DesktopWorkspaceLocationSurface";
-import { DesktopProjectLocationControls } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
+import { ProjectShell } from "../../../../src/components/ProjectShell";
 import { useNativeCloudWorkbench, type NativeCloudWorkbench } from "../../../../src/features/cloud/workbench/useNativeCloudWorkbench";
-import { useCloudWorkspaceSwitch } from "../../../../src/features/cloud/workbench/useCloudWorkspaceSwitch";
-import { CloudWorkspaceSwitchDialog } from "../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog";
+import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import { withTestLocalization } from "../../../support/react/localization";
+import { workspaceContentChangeMatchesResource } from "@puppyone/shared-ui";
 
-vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({ useDesktopPlatformCapabilities: () => ({ platform: "macos" }) }));
+vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({ useDesktopPlatformCapabilities: () => ({ platform: "macos", windowChrome: { mode: "overlay" } }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const session: DesktopCloudSession = { api_base_url: API, user_id: "owner", user_email: "owner@example.com",
@@ -20,35 +22,31 @@ const context = { status: "resolved" as const, projectId: "project", projectName
 let root: Root | null = null;
 let mounted = 0;
 let cloud: NativeCloudWorkbench;
-let bridge: ReturnType<typeof vi.fn>;
+let bridge: ReturnType<typeof vi.fn<(request: any) => unknown>>;
 
 function LocalEditor() {
   const [text, setText] = useState("Local original");
   useEffect(() => { mounted++; }, []);
   return <input aria-label="local readme.md" value={text} onInput={(event) => setText(event.currentTarget.value)} />;
 }
-function Harness({ linked = true, currentSession = session, localIdentity = "local-project", enabled = true, initializationPending = false }: {
-  linked?: boolean; currentSession?: DesktopCloudSession | null; localIdentity?: string;
-  enabled?: boolean; initializationPending?: boolean;
+// The window shows a local folder, or a Cloud project opened as its own
+// project in the retained shell (puppy-issues ADR-001). The Cloud project is
+// committed for one folder identity and account; anything else returns home.
+function Harness({ currentSession = session, localIdentity = "local-project", enabled = true }: {
+  currentSession?: DesktopCloudSession | null; localIdentity?: string; enabled?: boolean;
 }) {
   const [selection, setSelection] = useState<{ scope: string; account: string } | null>(null);
   const active = enabled && selection?.scope === localIdentity && currentSession !== null && selection.account === currentSession.user_id;
   const location = active ? "cloud" : "local";
   useEffect(() => { if (selection && !active) setSelection(null); }, [active, selection]);
-  cloud = useNativeCloudWorkbench({ context: linked ? context : { status: "local-only", projectId: null },
-    session: currentSession, apiBaseUrl: API, localWorkspaceIdentity: localIdentity, active,
+  cloud = useNativeCloudWorkbench({ context, session: currentSession, apiBaseUrl: API, active,
     filesVisibilitySettings: { showHiddenFiles: true, excludePatterns: [] } });
-  const onCommit = useCallback(() => {
-    if (currentSession) setSelection({ scope: localIdentity, account: currentSession.user_id });
-  }, [currentSession, localIdentity]);
-  const controller = useCloudWorkspaceSwitch({ enabled, scope: localIdentity, session: currentSession,
-    service: cloud.service, providerError: cloud.error, initializationPending, onCommit });
   return <>
-    <DesktopProjectLocationControls projectLocation={{ current: location, localAvailable: true, cloudState: linked ? "available" : "unavailable" }}
-      onViewLocal={() => { controller.cancel(); setSelection(null); }} onViewCloud={controller.request} />
+    <button type="button" onClick={() => { if (currentSession) setSelection({ scope: localIdentity, account: currentSession.user_id }); }}>
+      Open Cloud project</button>
+    <button type="button" onClick={() => setSelection(null)}>Open folder</button>
     <DesktopWorkspaceLocationSurface location={location} local={<LocalEditor />}
       cloud={cloud.dataPort && cloud.visited ? <div data-cloud-storage={cloud.dataPort.documentPersistence?.storageIdentity}>{cloud.editorWorkbench.state.editors.map((editor) => <span key={editor.id}>{editor.label}</span>)}</div> : null} />
-    <CloudWorkspaceSwitchDialog controller={controller} gate={currentSession ? <button>Create Cloud version</button> : <button>Sign in</button>} />
   </>;
 }
 
@@ -62,124 +60,106 @@ const click = async (label: string) => {
   await act(async () => { button.click(); });
 };
 const surface = (name: string) => document.querySelector<HTMLElement>(`[data-workspace-location="${name}"]`)!;
+beforeEach(() => cloudCache.clear());
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; window.localStorage.clear(); vi.restoreAllMocks(); mounted = 0; });
 
 function installBridge() {
   bridge = vi.fn(async (request) => {
     const path = new URL(request.path, API).searchParams.get("path");
-    if (request.path.includes("/stat")) return { exists: true, type: "markdown", path, name: "readme.md" };
-    if (request.path.includes("/cat")) return { content_text: "Cloud original", head_commit_id: "cloud-head" };
-    return { entries: [{ type: "markdown", name: "readme.md", path: "readme.md" }], head_commit_id: "cloud-head" };
+    if (request.path.includes("/stat")) return { exists: true, type: "markdown", path, name: "readme.md", ...nativeSnapshot("cloud-head") };
+    if (request.path.includes("/file?")) return { path, type: "markdown", content_text: "Cloud original", ...nativeSnapshot("cloud-head") };
+    return { entries: [{ type: "markdown", name: "readme.md", path: "readme.md" }], ...nativeSnapshot("cloud-head") };
   });
-  window.puppyoneDesktop = { requestCloudSessionApi: bridge } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+  window.puppyoneDesktop = { requestCloudSessionApi: workspaceFixtureBridge(bridge), ...fixtureWorkspaceWatch() } as unknown as NonNullable<typeof window.puppyoneDesktop>;
 }
 
-describe("native Cloud workbench switching", () => {
-  it("switches the main surface without a dialog and restores the exact local editor host and draft", async () => {
+describe("native Cloud workbench for a Cloud project opened beside a local folder", () => {
+  it("notifies opened Cloud documents after publication using an owned root", async () => {
+    installBridge(); await render(<Harness />); await click("Open Cloud project");
+    const [node] = await cloud.dataPort!.listChildren(null);
+    const before = cloud.refreshToken.sequence;
+    await act(async () => cloud.refresh());
+    expect(workspaceContentChangeMatchesResource(cloud.refreshToken, node!.path, before)).toBe(true);
+    expect(workspaceContentChangeMatchesResource(cloud.refreshToken, "puppyone-workspace://different-root/readme.md", before)).toBe(false);
+  });
+  it("refreshes from native file events without focus polling or Git publication", async () => {
+    installBridge();
+    let listener!: (event: {id: string; type: "change"; generation: string}) => void;
+    let subscription!: {id: string; generation: string};
+    window.puppyoneDesktop!.onCloudWorkspaceEvent = callback => { listener = callback; return () => {}; };
+    window.puppyoneDesktop!.watchCloudWorkspace = async input => { subscription = input; return { id: input.id }; };
+    await render(<Harness />); await click("Open Cloud project");
+    const initial = cloud.refreshToken.sequence;
+    await act(async () => listener({ ...subscription, type: "change" }));
+    expect(cloud.refreshToken.sequence).toBe(initial + 1);
+    await click("Open folder");
+    await act(async () => listener({ ...subscription, type: "change" }));
+    expect(cloud.refreshToken.sequence).toBe(initial + 1);
+  });
+
+  it("does not let a slow path lookup replace the user's newer file selection", async () => {
+    installBridge(); await render(<Harness />); await click("Open Cloud project");
+    const [node] = await cloud.dataPort!.listChildren(null);
+    cloud.service!.invalidateReads();
+    let finish!: (value: unknown) => void;
+    bridge.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    let pending!: Promise<void>;
+    await act(async () => { pending = cloud.onActivePathChange("slow.md"); });
+    await act(async () => cloud.onActivePathChange(node!.path, node));
+    await act(async () => { finish({ entries: [liveEntry("slow.md", "slow")] }); await pending; });
+    expect(cloud.editorWorkbench.activePath).toBe(node!.path);
+  });
+
+  it("shows committed content without an arrival cover and retains Header and drafts", async () => {
+    const shell = (location: "local" | "cloud", active = true) => <ProjectShell workspaceLocation={location} active={active}>
+      <input aria-label="Retained content" defaultValue="Unsaved draft" />
+    </ProjectShell>;
+    await render(shell("local"));
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Retained content"]')!;
+    input.value = "Local draft";
+    await render(shell("cloud"));
+    expect(document.querySelector(".desktop-titlebar")?.getAttribute("data-workspace-kind")).toBe("cloud");
+    expect(document.querySelector(".desktop-shell")?.getAttribute("data-workspace-kind")).toBe("cloud");
+    for (const [location, active] of [["cloud", true], ["cloud", true], ["cloud", false]] as const) {
+      await render(shell(location, active));
+      expect(document.querySelector(".desktop-cloud-header-reveal")).toBeNull();
+      expect(document.querySelector(".desktop-cloud-entry-light, .desktop-cloud-entry-sweep")).toBeNull();
+      expect(document.querySelector('input[aria-label="Retained content"]')).toBe(input);
+      expect(input.value).toBe("Local draft");
+    }
+    await render(shell("local"));
+    expect(document.querySelector(".desktop-titlebar")?.getAttribute("data-workspace-kind")).toBeNull();
+    await render(shell("cloud"));
+    expect(document.querySelector(".desktop-cloud-header-reveal")).toBeNull();
+    expect(document.querySelector(".desktop-cloud-entry-light, .desktop-cloud-entry-sweep")).toBeNull();
+    expect(input.value).toBe("Local draft");
+  });
+
+  it("shows the Cloud project without a dialog and restores the exact local editor host and draft", async () => {
     installBridge(); await render(<Harness />);
     const local = document.querySelector<HTMLInputElement>('input[aria-label="local readme.md"]')!;
     // Native text inputs retain their DOM working state while the provider is hidden.
     act(() => { local.value = "Local unsaved draft"; local.dispatchEvent(new Event("input", { bubbles: true })); });
     expect(bridge).not.toHaveBeenCalled();
-    await click("Cloud");
+    await click("Open Cloud project");
     expect(surface("local").hidden).toBe(true); expect(surface("cloud").hidden).toBe(false);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(document.querySelector('button[data-project-location="cloud"]')?.getAttribute("aria-pressed")).toBe("true");
     const [node] = await cloud.dataPort!.listChildren(null);
     await act(async () => { await cloud.onActivePathChange(node!.path, node); });
     expect(cloud.editorWorkbench.activePath).toBe(node!.path);
     expect((await cloud.dataPort!.readFile!(node!.path)).content).toBe("Cloud original");
     const cloudHost = document.querySelector('[data-cloud-storage]');
-    await click("This Mac");
+    await click("Open folder");
     expect(surface("local").hidden).toBe(false); expect(surface("cloud").hidden).toBe(true);
     expect(document.querySelector('input[aria-label="local readme.md"]')).toBe(local);
     expect(local.value).toBe("Local unsaved draft"); expect(mounted).toBe(1);
-    await click("Cloud");
+    await click("Open Cloud project");
     expect(document.querySelector('[data-cloud-storage]')).toBe(cloudHost);
     expect(cloud.editorWorkbench.activePath).toBe(node!.path);
   });
 
-  it("keeps the local workbench while an unhosted project awaits explicit creation", async () => {
-    installBridge(); await render(<Harness linked={false} />); await click("Create Cloud");
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Create Cloud version");
-    expect(surface("local").hidden).toBe(false);
-    expect(surface("cloud").hidden).toBe(true);
-    expect(document.querySelector('[role="dialog"] aside, [role="dialog"] nav')).toBeNull();
-    expect(bridge).not.toHaveBeenCalled();
-    expect(cloud.surfaceService.folder.capabilities.read).toBe(false);
-    expect(await cloud.surfaceService.dataPort.listChildren(null)).toEqual([]);
-    expect(cloud.surfaceService.dataPort.documentPersistence).toBeUndefined();
-    // Publishing completion prepares the same provider, rather than selecting early.
-    await render(<Harness initializationPending />);
-    expect(surface("local").hidden).toBe(false);
-    expect(bridge).not.toHaveBeenCalled();
-    await render(<Harness />);
-    expect(surface("cloud").hidden).toBe(false);
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-  });
-
-  it("does not switch on a later publication completion after cancellation", async () => {
-    installBridge(); await render(<Harness linked={false} />); await click("Create Cloud");
-    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-    await render(<Harness />);
-    expect(surface("local").hidden).toBe(false);
-    expect(bridge).not.toHaveBeenCalled();
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-  });
-
-  it("waits for sign-in and actual file access before selecting Cloud", async () => {
-    installBridge(); await render(<Harness currentSession={null} />); await click("Cloud");
-    expect(surface("local").hidden).toBe(false);
-    expect(surface("cloud").hidden).toBe(true);
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Sign in");
-    expect(bridge).not.toHaveBeenCalled();
-    await render(<Harness />);
-    expect(bridge).toHaveBeenCalled();
-    expect(surface("cloud").hidden).toBe(false);
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-  });
-
-  it("does not select Cloud when authentication returns after the dialog was dismissed", async () => {
-    installBridge(); await render(<Harness currentSession={null} />); await click("Cloud");
-    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-    await render(<Harness />);
-    expect(surface("local").hidden).toBe(false);
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(bridge).not.toHaveBeenCalled();
-  });
-
-  it("keeps local drafts on a failed file preflight and retries only on request", async () => {
-    installBridge(); bridge.mockRejectedValueOnce(Object.assign(new Error("Denied"), { status: 403 }));
-    await render(<Harness />); await click("Cloud");
-    expect(surface("local").hidden).toBe(false);
-    expect(document.querySelector('[role="alert"]')).not.toBeNull();
-    expect(bridge).toHaveBeenCalledOnce();
-    await click("Retry");
-    expect(surface("cloud").hidden).toBe(false);
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-  });
-
-  it.each(["cancel", "repository", "disabled", "account"])('revokes a pending file response on %s change', async (change) => {
-    installBridge();
-    let finish!: (value: unknown) => void;
-    bridge.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    await render(<Harness />); await click("Cloud");
-    expect(surface("local").hidden).toBe(false);
-    if (change === "cancel") await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-    if (change === "repository") await render(<Harness localIdentity="another-project" />);
-    if (change === "disabled") await render(<Harness enabled={false} />);
-    if (change === "account") await render(<Harness currentSession={null} />);
-    await act(async () => finish({ entries: [], head_commit_id: "stale" }));
-    expect(surface("local").hidden).toBe(false);
-    if (change === "account") {
-      await render(<Harness currentSession={{ ...session, user_id: "another-account", session_generation: "second" }} />);
-      expect(cloud.service!.workspace.id).toContain("another-account");
-      expect(surface("cloud").hidden).toBe(false);
-    } else expect(document.querySelector('[role="dialog"]')).toBeNull();
-  });
-
   it("changes the storage namespace on account change and revokes the previous provider", async () => {
-    installBridge(); await render(<Harness />); await click("Cloud");
+    installBridge(); await render(<Harness />); await click("Open Cloud project");
     const previousPort = cloud.dataPort!; const previousId = cloud.service!.workspace.id;
     await render(<Harness currentSession={{ ...session, user_id: "another-account", session_generation: "second" }} />);
     expect(cloud.service!.workspace.id).not.toBe(previousId);
@@ -188,7 +168,7 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("separates editor tabs across repository changes", async () => {
-    installBridge(); await render(<Harness />); await click("Cloud");
+    installBridge(); await render(<Harness />); await click("Open Cloud project");
     const [node] = await cloud.dataPort!.listChildren(null);
     await act(async () => { await cloud.onActivePathChange(node!.path, node); });
     expect(cloud.editorWorkbench.state.editors).toHaveLength(1);

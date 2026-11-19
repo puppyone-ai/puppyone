@@ -1,6 +1,7 @@
-import { ChevronRight, Minus, Plus, Undo2 } from "lucide-react";
+import { Minus, Plus, Undo2 } from "lucide-react";
 import {
   Tooltip,
+  DisclosureIcon,
   FileGlyphIcon,
   STANDARD_CONTROL_SIZE,
   VirtualSidebarList,
@@ -40,7 +41,7 @@ export function SourceControlSectionHeader({
 }) {
   const titleContent = (
     <>
-      {onToggle && <ChevronRight size={14} className={`po-disclosure-icon ${expanded ? "expanded" : ""}`} />}
+      {onToggle && <DisclosureIcon expanded={Boolean(expanded)} size={14} />}
       {leadingIcon && <span className="desktop-git-section-leading-icon">{leadingIcon}</span>}
       <span>{title}</span>
       {showCount ? (
@@ -175,7 +176,7 @@ function SourceControlPreviewResourceRow({
           <FileGlyphIcon name={getGitResourceIconName(resource)} size={18} theme={fileIconTheme} />
         </span>
         <span className="desktop-working-tree-copy">
-          <Tooltip content={displayPath} overflowOnly><span className="desktop-working-tree-name">{displayName}</span></Tooltip>
+          <span className="desktop-working-tree-name">{displayName}</span>
           <GitResourceStatusMarker resource={resource} />
         </span>
       </button>
@@ -222,7 +223,7 @@ export function SourceControlWorkingTreeRow({
           <FileGlyphIcon name={getGitResourceIconName(resource)} size={18} theme={fileIconTheme} />
         </span>
         <span className="desktop-working-tree-copy">
-          <Tooltip content={displayPath} overflowOnly><span className="desktop-working-tree-name">{displayName}</span></Tooltip>
+          <span className="desktop-working-tree-name">{displayName}</span>
           <GitResourceStatusMarker resource={resource} />
         </span>
       </button>

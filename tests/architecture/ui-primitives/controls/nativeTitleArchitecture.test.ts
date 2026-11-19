@@ -4,10 +4,7 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../../../..");
-const SOURCE_ROOTS = [
-  path.join(REPOSITORY_ROOT, "src"),
-  path.join(REPOSITORY_ROOT, "packages", "shared-ui", "src"),
-];
+const SOURCE_ROOTS = [path.join(REPOSITORY_ROOT, "src")];
 const PUBLIC_ASSET_ROOT = path.join(REPOSITORY_ROOT, "public");
 const ARCHITECTURE_SCAN_TIMEOUT_MS = 15_000;
 

@@ -1,7 +1,7 @@
-import { scrollCodeMirrorIntoView } from "../../../../packages/shared-ui/src/editor/codemirror/navigationIntent";
-import { dispatchTypographyChange } from "../../../../packages/shared-ui/src/core/typography";
+import { scrollCodeMirrorIntoView } from "../../../../src/shared-ui/editor/codemirror/navigationIntent";
+import { dispatchTypographyChange } from "../../../../src/shared-ui/core/typography";
 import { EditorView } from "@codemirror/view";
-import { createMarkdownLayoutCoordinator } from "../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/layoutCoordinator";
+import { createMarkdownLayoutCoordinator } from "../../../../src/shared-ui/editor/markdown/platform/codemirror/layoutCoordinator";
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));

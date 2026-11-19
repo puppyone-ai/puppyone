@@ -1,0 +1,70 @@
+@layer features {
+  /* The same Agent mark in the Header, its card and the invitation roster. */
+  .desktop-project-reach-mark {
+    --reach-mark-ground: var(--desktop-titlebar-bg, var(--po-header));
+    --reach-mark-outline: color-mix(in srgb, currentColor 30%, transparent);
+    position: relative;
+    display: grid;
+    grid-template: 100% / 100%;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--reach-mark-fill, var(--reach-mark-ground));
+    box-shadow: inset 0 0 0 1px var(--reach-mark-outline), 0 0 0 1.5px var(--reach-mark-ground);
+    color: var(--desktop-titlebar-text-muted, var(--po-text-muted));
+    font-size: var(--po-type-ui-micro);
+    line-height: 1;
+    font-weight: var(--po-text-weight-medium, 500);
+  }
+  .desktop-project-reach-mark[data-reach-creature] { background: none; box-shadow: none; }
+  .desktop-project-reach-mark[data-reach-creature] > svg {
+    width: 100%; height: 100%; overflow: visible; opacity: 1; transition: filter 0.16s ease;
+  }
+  .desktop-project-reach-mark[data-reach-creature]:not([data-reach-activity]) > svg { filter: saturate(0.6) brightness(0.9); }
+  .desktop-agent-creature-edge {
+    fill: var(--reach-mark-ground); stroke: var(--reach-mark-ground); stroke-width: 9; stroke-linejoin: round;
+  }
+  .desktop-agent-creature-eyes ellipse { fill: #18181b; }
+  .desktop-agent-creature-eyes path { fill: none; stroke: #18181b; stroke-width: 4.5; stroke-linecap: round; }
+  .desktop-project-reach-mark > img, .desktop-project-reach-mark > svg { width: 62%; height: 62%; opacity: 0.7; }
+  .desktop-project-reach-mark:is([data-reach-brand="grok-bot"], [data-reach-brand="hermes"],
+    [data-reach-brand="manus"], [data-reach-brand="opencode"]) > img {
+    flex: none;
+    width: calc(100% / var(--po-agent-brand-image-scale, 1));
+    height: calc(100% / var(--po-agent-brand-image-scale, 1));
+    border-radius: 50%;
+  }
+  .desktop-project-reach-mark[data-reach-activity] {
+    --reach-mark-fill: color-mix(in srgb, var(--po-surface-panel-raised, var(--po-panel)) 92%, var(--reach-mark-ground));
+    color: var(--desktop-titlebar-text, var(--po-text));
+    transform-origin: 50% 100%;
+    animation: desktop-project-reach-hop 2.8s ease-in-out infinite;
+  }
+  .desktop-project-reach-mark[data-reach-activity]::before {
+    content: ""; position: absolute; inset-block-end: 0.5px; inset-inline-end: 0.5px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--po-success); opacity: 0;
+    animation: desktop-project-reach-ripple 2.8s ease-out infinite; animation-delay: inherit;
+  }
+  .desktop-project-reach-mark[data-reach-activity]::after {
+    content: ""; position: absolute; inset-block-end: -1px; inset-inline-end: -1px; box-sizing: content-box;
+    width: 6px; height: 6px; border: 1.5px solid var(--reach-mark-ground); border-radius: 50%; background: var(--po-success);
+  }
+  .desktop-project-reach-mark[data-reach-activity] > img,
+  .desktop-project-reach-mark[data-reach-activity] > svg { opacity: 1; }
+  @keyframes desktop-project-reach-hop {
+    0%, 26%, 100% { translate: 0 0; rotate: 0deg; scale: 1; }
+    5% { translate: 0 -3px; rotate: -8deg; scale: 0.97 1.03; }
+    10% { translate: 0 0; rotate: 0deg; scale: 1.06 0.94; }
+    15% { translate: 0 -2px; rotate: 7deg; scale: 0.98 1.02; }
+    20% { translate: 0 0; rotate: 0deg; scale: 1.04 0.96; }
+  }
+  @keyframes desktop-project-reach-ripple {
+    0% { opacity: 0.55; scale: 1; }
+    30%, 100% { opacity: 0; scale: 3; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-project-reach-mark[data-reach-activity], .desktop-project-reach-mark[data-reach-activity]::before { animation: none; }
+    .desktop-project-reach-mark[data-reach-creature] > svg { transition: none; }
+  }
+}

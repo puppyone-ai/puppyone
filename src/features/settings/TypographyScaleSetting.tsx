@@ -1,17 +1,13 @@
+import { useDesktopPreference } from "../../preferencesStore";
 import { useLocalization } from "@puppyone/localization";
-import type { TypographyPreferences } from "../../preferences";
 import {
   TYPOGRAPHY_SCALE_OPTIONS,
   withTypographyScale,
 } from "../typography";
 
-export function TypographyScaleSetting({
-  preferences,
-  onChange,
-}: {
-  preferences: TypographyPreferences;
-  onChange: (preferences: TypographyPreferences) => void;
-}) {
+export function TypographyScaleSetting() {
+  const preferences = useDesktopPreference(s => s.typographyPreferences);
+  const onChange = useDesktopPreference(s => s.setTypographyPreferences);
   const { t } = useLocalization();
 
   return (

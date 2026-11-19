@@ -3,10 +3,12 @@ import { useEffect, useState, type ReactNode, type Ref } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { PuppyBrandMark } from "./brand/PuppyBrandMark";
+import { useWindowNavigation } from "./WindowNavigation";
 
 type DesktopWindowChromeProps = {
+  /** Header presentation location; shell content separately owns the committed provider. */
+  workspaceLocation?: "local" | "cloud";
   context?: ReactNode;
-  centeredContext?: ReactNode;
   actions?: ReactNode;
   tabs?: ReactNode;
   sessionTabsHostRef?: Ref<HTMLDivElement>;
@@ -20,8 +22,8 @@ type DesktopWindowChromeProps = {
  * hit testing.
  */
 export function DesktopWindowChrome({
+  workspaceLocation = "local",
   context,
-  centeredContext,
   actions,
   tabs,
   sessionTabsHostRef,
@@ -30,16 +32,18 @@ export function DesktopWindowChrome({
   const fullScreen = useWindowFullScreenState();
   const windowActive = useWindowActivityState();
   const platformCapabilities = useDesktopPlatformCapabilities();
+  const account = useWindowNavigation()?.trailing;
 
   return (
     <header
       className="desktop-titlebar"
+      // States the committed place; the Header keeps the theme color in both.
+      data-workspace-kind={workspaceLocation === "cloud" ? "cloud" : undefined}
       data-window-drag-region="true"
       data-window-chrome-mode={platformCapabilities?.windowChrome.mode}
       data-window-platform={platformCapabilities?.platform}
       data-window-active={windowActive ? "true" : "false"}
       data-window-full-screen={fullScreen ? "true" : undefined}
-      data-centered-project={centeredContext ? "true" : undefined}
     >
       <div className="desktop-titlebar-layout">
         <div className="desktop-titlebar-leading">
@@ -63,22 +67,17 @@ export function DesktopWindowChrome({
               <div
                 ref={sessionTabsHostRef}
                 className="desktop-titlebar-session-tabs-host"
-                data-window-no-drag="true"
               >
                 {tabs}
               </div>
             )}
           </div>
         </div>
-        {centeredContext && (
-          <div className="desktop-titlebar-centered-context" data-window-no-drag="true">
-            {centeredContext}
-          </div>
-        )}
         <div className="desktop-titlebar-trailing">
-          {actions && (
+          {(actions || account) && (
             <div className="desktop-titlebar-actions">
               {actions}
+              {account}
             </div>
           )}
           <div className="desktop-window-controls" data-window-no-drag="true">

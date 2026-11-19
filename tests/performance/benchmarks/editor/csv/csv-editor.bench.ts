@@ -1,11 +1,11 @@
 import { bench, describe } from "vitest";
-import { CsvDocumentModel } from "../../../../../packages/shared-ui/src/editor/viewers/csv/CsvDocumentModel";
+import { CsvDocumentModel } from "../../../../../src/shared-ui/editor/viewers/csv/CsvDocumentModel";
 import {
   buildTabularProjectionItems,
   calculateFixedTabularWindow,
   calculateVariableTabularWindow,
   createTabularOffsets,
-} from "../../../../../packages/shared-ui/src/editor/table/tabularWindow";
+} from "../../../../../src/shared-ui/editor/table/tabularWindow";
 
 const BENCHMARK_OPTIONS = {
   iterations: 3,

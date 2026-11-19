@@ -60,6 +60,8 @@ export function countMarkerPixels(image, color) {
 }
 
 /** Compare actual composited Editor pixels with its own page after children leave. */
+const SURFACE_TILE_SIZE = 8;
+
 export async function compareEditorRegion(window, composite) {
   const region = await window.webContents.executeJavaScript(`(() => {
     const r=document.querySelector('.desktop-editor-pane').getBoundingClientRect();
@@ -74,13 +76,23 @@ export async function compareEditorRegion(window, composite) {
   }).resize({ width: region.width, height: region.height, quality: "good" });
   const expected = crop(page, page.getSize().width / content.width);
   const actual = crop(composite, composite.getSize().width / outer.width, content.x - outer.x, content.y - outer.y);
-  const a = actual.toBitmap(), b = expected.toBitmap();
+  return { region, mismatchRatio: measureSurfaceMismatch(actual, expected), actual, expected };
+}
+
+/**
+ * OS-composited captures and capturePage rasterize the same glyphs differently,
+ * and how far apart varies by macOS release. Comparing coarse tiles averages
+ * that antialiasing away while a residual surface, which fills whole tiles,
+ * still counts in full.
+ */
+export function measureSurfaceMismatch(actual, expected) {
+  const { width, height } = actual.getSize();
+  const size = { width: Math.ceil(width / SURFACE_TILE_SIZE), height: Math.ceil(height / SURFACE_TILE_SIZE) };
+  const a = actual.resize({ ...size, quality: "good" }).toBitmap();
+  const b = expected.resize({ ...size, quality: "good" }).toBitmap();
   let mismatches = 0;
   for (let offset = 0; offset < a.length; offset += 4) {
-    // OS-composited Retina captures and capturePage can rasterize the same
-    // glyph edges differently. Ignore that sub-pixel antialiasing while still
-    // treating a meaningful painted surface difference as a mismatch.
     if ([0, 1, 2].some(channel => Math.abs(a[offset + channel] - b[offset + channel]) > 50)) mismatches++;
   }
-  return { region, mismatchRatio: mismatches / (a.length / 4), actual, expected };
+  return mismatches / (a.length / 4);
 }

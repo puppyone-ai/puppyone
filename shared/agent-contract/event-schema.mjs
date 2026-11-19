@@ -41,7 +41,8 @@ const PAYLOAD_KEYS = Object.freeze({
   "approval.resolved": blockerPayloadKeys("decision", "reason"),
   "question.requested": blockerPayloadKeys("questions"),
   "question.resolved": blockerPayloadKeys("resolution", "rejected", "reason"),
-  "provider.activity": activityPayloadKeys(),
+  "provider.notification": ["message", "severity", "source"],
+  "provider.activity": activityPayloadKeys("category", "message"),
   "provider.connection.updated": ["scope", "requestId", "recoveryId", "state", "message", "attempt", "maxAttempts", "maxRetries"],
   "provider.warning": ["code", "stage", "source", "actions", "message", "recoverable", "diagnostic", "attempt", "maxAttempts", "maxRetries"],
   "provider.error": ["code", "stage", "source", "actions", "message", "recoverable", "diagnostic"],
@@ -87,6 +88,14 @@ export function assertAgentEventEnvelope(value) {
   }
   if ((event.type === "turn.started" || event.type === "user.message") && payload.promptMentions !== undefined) {
     assertPromptMentions(payload.promptMentions, event.type === "user.message" ? payload.text : payload.prompt, event.type);
+  }
+  if (event.type === "provider.notification") {
+    requiredString(payload.message, "Agent notification.message", 4_000);
+    enumValue(payload.severity, "Agent notification.severity", ["info", "warning", "error"]);
+    if (payload.source !== undefined) requiredString(payload.source, "Agent notification.source", 200);
+  }
+  if (event.type === "provider.activity" && payload.category !== undefined) {
+    enumValue(payload.category, "Agent activity.category", ["authentication", "compaction", "status"]);
   }
   if (event.type === "provider.connection.updated") {
     enumValue(payload.state, "AgentEvent(provider.connection.updated).payload.state", ["reconnecting", "fallback", "connected"]);

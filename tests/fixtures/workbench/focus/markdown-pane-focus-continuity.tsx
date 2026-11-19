@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { EditorView } from "@codemirror/view";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import {
@@ -15,13 +16,14 @@ import {
 import "@puppyone/shared-ui/shared-ui.css";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import "../../../../src/cloud-globals.css";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 import "../../../../src/styles.css";
 import "../../../../src/styles/cascade.css";
 import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
 import { requireEditorView } from "../../../support/editor/editorView";
+
+initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
 declare global {
   interface Window {
@@ -107,7 +109,6 @@ function HorizontalMarkdownSplitFixture() {
         editorGroup={editorGroup}
         editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
         editorTree={tree}
-        fileIconTheme="default"
         layout={layout}
         markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT}
         workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}

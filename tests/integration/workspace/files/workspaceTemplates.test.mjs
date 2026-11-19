@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   BUILT_IN_SLIDES_TEMPLATE_ID,
   instantiateWorkspaceTemplate,
-} from "../../../../local-api/workspace-templates.mjs";
+} from "../../../../electron/local-api/workspace-templates.mjs";
 import { parseAppPreviewManifest } from "../../../../shared/appPreviewManifest.js";
 
 let workspaceRoot = null;

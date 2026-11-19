@@ -1,10 +1,12 @@
 import {
   canonicalizeResourcePath,
   createDocumentAssetImportPort,
+  isHtmlFolderFileName,
   type AiEditRequest,
   type DataNode,
   type DataNodeKind,
   type DataPort,
+  type HtmlFolderAccessSession,
   type Workspace,
 } from "@puppyone/shared-ui";
 import type {
@@ -20,13 +22,16 @@ import type {
   GitBranchGraphSnapshot,
   GitRepositoryInvalidatedEvent,
   GitRepositoryWatchResult,
+  GitRemoteSummary,
   GitStatusSnapshot,
   GitWorkingDiffScope,
   LastWorkspaceResult,
   PuppyoneWorkspaceConfig,
   RecentWorkspacesResult,
   WorkspaceImportSourceRequest,
+  WorkspaceImportSourceResult,
   WorkspaceImportResourcePage,
+  WorkspaceAppFolder,
   WorkspaceImportProgress,
   WorkspaceCreateProjectRequest,
   WorkspaceCreateProjectResult,
@@ -37,7 +42,9 @@ import type {
   WorkspaceImportEntriesResult,
   WorkspaceAttachResult,
   WorkspaceDetachResult,
+  WorkspacePublishScope,
   WorkspaceOpenResult,
+  CloudProjectWindowTarget,
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
 import {
@@ -46,6 +53,7 @@ import {
 } from "../features/data-workspace/appPreviewCreation";
 import { parseAppPreviewManifest } from "../../shared/appPreviewManifest.js";
 import { createDatabasePreviewPort } from "../platform/databasePreviewClient";
+import { requestHtmlFolderAccessConsent } from "./htmlFolderAccessConsent";
 
 export type { Workspace };
 export type FileKind = DataNodeKind;
@@ -64,11 +72,15 @@ export function createLocalDataPort(rootPath: string): DataPort {
       database: createDatabasePreviewPort(rootPath, getDesktopBridge),
       documentProjection: { async create(path, content, signal, options) {
         signal.throwIfAborted();
-        const { url } = await getDesktopBridge().createPreviewDocument({ rootPath, path, content, interactive: options?.interactive });
+        const { url } = await getDesktopBridge().createPreviewDocument({ rootPath, path, content, interactive: options?.interactive, offline: options?.offline });
         const close = async () => { await getDesktopBridge().revokeFileUrl({ url }); };
         if (signal.aborted) { await close(); signal.throwIfAborted(); }
         return { url, close };
       } },
+      htmlFolderAccess: {
+        open: (documentPath) => openHtmlFolderAccess(rootPath, documentPath),
+        confirm: requestHtmlFolderAccessConsent,
+      },
     },
     listChildren: (folderPath) => loadFolderChildren(rootPath, folderPath),
     resolveNode: (path) => getDesktopBridge().resolveNode({ rootPath, path }),
@@ -190,6 +202,46 @@ export function createLocalDataPort(rootPath: string): DataPort {
   };
 }
 
+/** The folder holding the page, never a project root, and only its own text files. */
+function openHtmlFolderAccess(rootPath: string, documentPath: string): HtmlFolderAccessSession | null {
+  const { parentPath: folderPath } = splitDataPath(canonicalizeResourcePath(documentPath));
+  if (!folderPath) return null;
+  const folderName = folderPath.slice(folderPath.lastIndexOf("/") + 1);
+  const filePath = (name: string) => {
+    if (!isHtmlFolderFileName(name)) throw new Error("This page can only use text files directly in its folder.");
+    return `${folderPath}/${name}`;
+  };
+  const modifiedOf = (node: FileNode) => {
+    const seconds = Number(node.modified);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null;
+  };
+  return {
+    folderName,
+    list: async () => (await loadFolderChildren(rootPath, folderPath))
+      .filter((node) => node.type !== "folder" && isHtmlFolderFileName(node.name))
+      .map((node) => ({ name: node.name, modified: modifiedOf(node) })),
+    read: async (name) => {
+      const path = filePath(name);
+      const [file, node] = await Promise.all([
+        getDesktopBridge().readFile({ rootPath, path }),
+        getDesktopBridge().resolveNode({ rootPath, path }),
+      ]);
+      if (typeof file.content !== "string" || (file.encoding && file.encoding !== "utf-8")) {
+        throw new Error(`${name} is not a UTF-8 text file.`);
+      }
+      return { content: file.content, version: file.version ?? null, modified: modifiedOf(node) };
+    },
+    write: async (name, content, expectedVersion) => {
+      const result = await getDesktopBridge().writeFile({ rootPath, path: filePath(name), content, expectedVersion });
+      return { version: requireWorkspaceWriteSuccess(result).version };
+    },
+    create: async (name) => {
+      filePath(name);
+      await getDesktopBridge().createEntry({ rootPath, parentPath: folderPath, name, kind: "file", content: "" });
+    },
+  };
+}
+
 function requireWorkspaceWriteSuccess(
   result: Awaited<ReturnType<ReturnType<typeof getDesktopBridge>["writeFile"]>>,
 ): Extract<typeof result, { ok: true }> {
@@ -280,6 +332,10 @@ export async function getLastWorkspace(): Promise<LastWorkspaceResult> {
   return getDesktopBridge().getLastWorkspace();
 }
 
+export async function getRestoringProject() {
+  return getDesktopBridge().getRestoringProject();
+}
+
 export async function getInitialWorkspace(): Promise<LastWorkspaceResult> {
   return getDesktopBridge().getInitialWorkspace();
 }
@@ -298,6 +354,11 @@ export async function removeRecentWorkspace(folderPath: string): Promise<void> {
 
 export async function renameRecentWorkspace(folderPath: string, name: string): Promise<void> {
   await getDesktopBridge().renameRecentWorkspace({ folderPath, name });
+}
+
+/** Calls back when a File Mode window's file changes on disk. */
+export function subscribeFileModeFileChanges(callback: () => void): () => void {
+  return getDesktopBridge().onFileModeFileChanged(callback);
 }
 
 export async function openExternalUrl(href: string): Promise<void> {
@@ -328,6 +389,10 @@ export async function openWorkspaceInCurrentWindow(folderPath: string): Promise<
 
 export async function openWorkspaceInNewWindow(folderPath: string): Promise<WorkspaceOpenResult> {
   return getDesktopBridge().openWorkspaceInNewWindow(folderPath);
+}
+
+export async function openCloudProjectInNewWindow(target: CloudProjectWindowTarget): Promise<void> {
+  await getDesktopBridge().openCloudProjectInNewWindow(target);
 }
 
 export async function openDroppedWorkspaceInCurrentWindow(folder: File): Promise<WorkspaceOpenResult> {
@@ -392,7 +457,15 @@ export async function listImportResources(request: {
   return getDesktopBridge().listImportResources(request);
 }
 
-export async function importSource(request: WorkspaceImportSourceRequest): Promise<WorkspaceOpenResult | null> {
+export async function listAppFolders(app: string): Promise<WorkspaceAppFolder[]> {
+  return (await getDesktopBridge().listAppFolders(app)).folders;
+}
+
+export async function addAppFolders(request: { app: string; paths: string[] }): Promise<{ added: number }> {
+  return getDesktopBridge().addAppFolders(request);
+}
+
+export async function importSource(request: WorkspaceImportSourceRequest): Promise<WorkspaceImportSourceResult | null> {
   return getDesktopBridge().importSource(request);
 }
 
@@ -475,6 +548,20 @@ export async function getWorkspaceGitStatus(
   } finally {
     signal?.removeEventListener("abort", cancel);
   }
+}
+
+/**
+ * How many files and bytes a folder would make reachable, with ignore rules
+ * already applied. Hosts that predate the query return null so the surface can
+ * state nothing instead of stating a guess.
+ */
+export async function getWorkspacePublishScope(
+  rootPath: string,
+  path = "",
+): Promise<WorkspacePublishScope | null> {
+  const bridge = getDesktopBridge();
+  if (typeof bridge.getPublishScope !== "function") return null;
+  return bridge.getPublishScope({ rootPath, path });
 }
 
 export async function getWorkspaceCloudInitializationState(
@@ -585,8 +672,10 @@ export async function initializeWorkspaceGitRepository(rootPath: string): Promis
 export async function removeWorkspaceGitRemote(
   rootPath: string,
   remoteName = "puppyone",
+  expectedRemotes?: readonly GitRemoteSummary[],
 ): Promise<GitStatusSnapshot> {
-  return getDesktopBridge().removeGitRemote({ rootPath, remoteName });
+  return getDesktopBridge().removeGitRemote({ rootPath, remoteName,
+    ...(expectedRemotes ? { expectedRemotes: [...expectedRemotes] } : {}) });
 }
 
 export async function readPuppyoneWorkspaceConfig(rootPath: string): Promise<PuppyoneWorkspaceConfig> {

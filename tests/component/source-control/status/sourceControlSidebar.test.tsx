@@ -125,7 +125,6 @@ describe("Git sidebar status groups", () => {
 
   it("keeps local groups flat without rendering a remote provider surface", () => {
     const surface = renderSidebar({
-      gitSidebarLayout: "dividers",
       status: createDivergedGitHubStatus(),
     });
     const committedSection = surface.querySelector<HTMLElement>(".desktop-git-resizable-section-committed");
@@ -367,7 +366,6 @@ describe("Git sidebar status groups", () => {
 
 function renderSidebar(options: Partial<{
   gitDisplayMode: "simple" | "professional";
-  gitSidebarLayout: "cards" | "dividers";
   onCommit: (message?: string) => Promise<boolean>;
   onContinue: () => Promise<boolean>;
   onInitialize: () => Promise<boolean>;
@@ -389,7 +387,6 @@ function renderSidebar(options: Partial<{
         status: options.status ?? createGitStatus(),
         puppyoneConfig: null,
         gitDisplayMode: options.gitDisplayMode ?? "professional",
-        gitSidebarLayout: options.gitSidebarLayout ?? "cards",
         fileIconTheme: "default",
       }}
       view={{

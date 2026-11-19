@@ -6,30 +6,20 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
-const archiveRoot = resolve("archive/desktop-cloud-catalog");
-const productionRoots = [resolve("src"), resolve("electron"), resolve("packages/shared-ui/src")];
-
-const requiredArchiveFiles = [
-  "src/features/cloud/components/ProjectBrowser.tsx",
-  "src/features/cloud/components/CloudTemplateStore.tsx",
-  "src/features/cloud/components/CloudProjectCreateDialog.tsx",
-  "src/features/cloud/data/useCloudProjectCatalog.ts",
-  "src/features/cloud/hooks/useCloudProjectHome.ts",
-  "src/features/cloud/routes/CloudGlobalRouteOutlet.tsx",
-  "src/features/cloud/CloudServicePanel.tsx",
-  "src/components/MinimalOnboarding.tsx",
-  "src/components/AssetLibraryHome.tsx",
-];
-for (const relativePath of requiredArchiveFiles) {
-  if (!existsSync(path.join(archiveRoot, relativePath))) {
-    errors.push(`retired Cloud catalog asset is missing from archive: ${relativePath}`);
-  }
-}
+const productionRoots = [resolve("src"), resolve("electron")];
 
 const lineBudgets = new Map([
-  ["src/features/cloud/CloudServiceMainView.tsx", 260],
-  ["src/features/cloud/routes/CloudRouter.tsx", 160],
-  ["src/features/cloud/routes/CloudProjectRouteOutlet.tsx", 240],
+  ["src/features/cloud/files/cloudDataPort.ts", 390],
+  ["src/features/cloud/files/cloudFileReads.ts", 100],
+  ["src/features/cloud/files/cloudWorkspaceClient.ts", 80],
+  ["src/features/cloud/files/cloudWorkspaceSession.ts", 220],
+  ["src/features/cloud/files/cloudWorkspaceFiles.ts", 180],
+  ["src/features/cloud/files/cloudWorkspaceWatch.ts", 80],
+  ["src/features/cloud/files/cloudWorkspaceProtocol.ts", 80],
+  ["src/features/cloud/files/contracts.ts", 150],
+  ["src/features/cloud/initialization/CloudPublishTask.tsx", 80],
+  ["src/features/cloud/initialization/CloudPublishDialog.tsx", 60],
+  ["src/features/cloud/initialization/CloudInitializationRoute.tsx", 130],
   ["src/features/cloud/project/context/useCurrentRepositoryCloudContext.ts", 300],
   ["src/features/cloud/data/useDesktopCloudData.ts", 300],
   ["src/features/cloud/initialization/CloudInitializationView.tsx", 450],
@@ -69,28 +59,58 @@ const productionCode = productionFiles
   .filter((filePath) => /\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(filePath))
   .map((filePath) => ({ filePath, source: readAbsolute(filePath) }));
 
+// The account workspace now has an authenticated, typed native-window entry.
+// It does not restore the archived Cloud catalog's renderer navigation API.
+const cloudWindowOwners = new Set([
+  "src/App.tsx", "src/lib/localFiles.ts", "src/types/electron.d.ts",
+  "electron/main/ipc/workspace-navigation-ipc.mjs", "electron/main.mjs", "electron/preload.cjs",
+]);
+
 for (const { filePath, source } of productionCode) {
-  const relativePath = path.relative(repoRoot, filePath);
-  if (/\b(?:from\s+|import\s*\()["'][^"']*archive\/desktop-cloud-catalog/.test(source)) {
-    errors.push(`${relativePath} imports retired code from archive/desktop-cloud-catalog`);
-  }
+  // Compare and report repository paths with "/" on every platform (Windows CI).
+  const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
   for (const token of [
     "CloudProjectBrowser",
+    "CloudServiceSidebar",
+    "CloudServiceMainView",
+    "CloudShareProvider",
+    "ShareWizardDialog",
+    "ProjectReachDialog",
+    "ProjectReachControl",
+    "ProjectReachPeople",
+    "useProjectShareActivity",
+    "enableShareOnboarding",
+    "CLOUD_HUB_ENTRY_SECTION",
+    "CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES",
     "CloudTemplateStore",
     "CloudProjectCreateDialog",
     "useCloudProjectCatalog",
     "useCloudProjectHome",
-    "listCloudProjects",
     "listCloudTemplates",
-    "createCloudProject",
     "openCloudProjectInNewWindow",
     "cloudOnlyWorkspace",
     "cloud://",
   ]) {
+    if (token === "openCloudProjectInNewWindow" && cloudWindowOwners.has(relativePath)) continue;
     if (token === "cloud://" ? /(?<![\w-])cloud:\/\//.test(source) : source.includes(token)) {
       errors.push(`${relativePath} reintroduced retired Cloud catalog token ${token}`);
     }
   }
+}
+
+// Cloud is on only when the build ships it and the user turns on the Cloud
+// experiment. The same build flag also says whether the build has PuppyOne
+// accounts, which never wait for Cloud. Both decisions live in the flags entry
+// (useCloudEnabled() and useAccountAvailable()), so nothing else may read it.
+const cloudDecisionOwner = "src/features/flags/index.tsx";
+for (const { filePath, source } of productionCode) {
+  const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
+  if (relativePath !== cloudDecisionOwner && /useFeatureFlag\(\s*["']cloudWorkspace["']\s*\)/.test(source)) {
+    errors.push(`${relativePath} reads the cloudWorkspace build flag directly; use useCloudEnabled() or useAccountAvailable()`);
+  }
+}
+if (!read(cloudDecisionOwner).includes("experimentalSettings.enableCloudWorkspace")) {
+  errors.push(`${cloudDecisionOwner} must combine the build flag with the user's Cloud experiment`);
 }
 
 const routeIds = read("src/features/cloud/routes/cloudRouteIds.ts");
@@ -106,7 +126,6 @@ for (const requiredRouteContract of [
   "resources: readonly CloudProjectDetailResource[]",
   "getCloudProjectDetailResources",
   "getCloudRouteSurface",
-  "CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES",
 ]) {
   if (!routeDefinitions.includes(requiredRouteContract)) {
     errors.push(`Cloud route descriptors are missing ${requiredRouteContract}`);
@@ -115,7 +134,6 @@ for (const requiredRouteContract of [
 for (const stableSection of [
   'id: "contents"',
   'id: "history"',
-  'id: "automation"',
   'id: "mcp"',
   'id: "cli"',
   'id: "git-sync"',
@@ -127,17 +145,12 @@ for (const stableSection of [
   }
 }
 
-const sidebar = read("src/features/cloud/CloudServiceSidebar.tsx");
-if (!sidebar.includes("CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES") || sidebar.includes("onBackToProjects")) {
-  errors.push("Cloud sidebar must be stable current-Project + Organization navigation");
+const publishDialog = read("src/features/cloud/initialization/CloudPublishDialog.tsx");
+if (publishDialog.includes("sidebar") || publishDialog.includes("<aside") || publishDialog.includes("<nav")) {
+  errors.push("Cloud publish must remain a single task without services navigation");
 }
-
-const cloudRouter = read("src/features/cloud/routes/CloudRouter.tsx");
-for (const outlet of ["CloudOrganizationRouteOutlet", "CloudProjectRouteOutlet"]) {
-  if (!cloudRouter.includes(outlet)) errors.push(`CloudRouter must delegate through ${outlet}`);
-}
-if (cloudRouter.includes("../sections/") || cloudRouter.includes("ProjectBrowser")) {
-  errors.push("CloudRouter must remain an orchestration boundary");
+for (const retiredFile of ["CloudDialog.tsx", "CloudServiceSidebar.tsx", "CloudServiceMainView.tsx", "routes/CloudRouter.tsx", "routes/CloudProjectRouteOutlet.tsx", "organization/CloudOrganizationRouteOutlet.tsx"]) {
+  if (existsSync(resolve(`src/features/cloud/${retiredFile}`))) errors.push(`retired Cloud Hub returned: ${retiredFile}`);
 }
 
 const accessPointDomainFiles = [
@@ -169,24 +182,6 @@ for (const obsoleteAccessFile of [
   }
 }
 
-const accessPointRouteOutlet = read("src/features/cloud/routes/CloudProjectRouteOutlet.tsx");
-for (const obsoleteRouteToken of [
-  "catalogFilterLocked",
-  "catalogTitle",
-  "catalogDescription",
-  "focusedFilter",
-  'activeSection === "mcp"',
-  'activeSection === "cli"',
-  'activeSection === "git-sync"',
-]) {
-  if (accessPointRouteOutlet.includes(obsoleteRouteToken)) {
-    errors.push(`Cloud Project route must delegate Access Point intent instead of branching on ${obsoleteRouteToken}`);
-  }
-}
-if (!accessPointRouteOutlet.includes("getAccessPointCatalogKindForSection") || !accessPointRouteOutlet.includes("AccessPointRoutePage")) {
-  errors.push("Cloud Project route must delegate Connections through the Access Point route registry");
-}
-
 const accessPointUi = [
   ...walkFiles(resolve("src/features/cloud/access-points/components")),
   ...walkFiles(resolve("src/features/cloud/access-points/pages")),
@@ -213,9 +208,9 @@ for (const uiDependency of ["react", "lucide-react", "@puppyone/shared-ui"]) {
   }
 }
 
-const mainView = read("src/features/cloud/CloudServiceMainView.tsx");
-if (!mainView.includes("getCloudProjectDetailResources") || !mainView.includes("projectId:")) {
-  errors.push("CloudServiceMainView must load only the Project resolved from the current repository");
+const publishTask = read("src/features/cloud/initialization/CloudPublishTask.tsx");
+if (!publishTask.includes("cloudPublishState") || !publishTask.includes("CloudFileWorkspaceGate") || publishTask.includes("useDesktopCloudData")) {
+  errors.push("Cloud publish must reuse preparation/recovery without loading the retired Hub's service inventory");
 }
 
 const cloudData = read("src/features/cloud/data/useDesktopCloudData.ts");
@@ -378,6 +373,35 @@ const cloudClassNames = new Set(
 for (const className of cloudClassNames) {
   if (!rendererSource.includes(className)) {
     errors.push(`Cloud CSS class has no renderer owner: ${className}`);
+  }
+}
+
+const cloudFiles = "src/features/cloud/files/";
+const dataPort = read(`${cloudFiles}cloudDataPort.ts`);
+if (!dataPort.includes('from "./cloudWorkspaceClient"') || /cloudApiRequest|requestCloudSessionApi|reads\.fetch/.test(dataPort)) {
+  errors.push("Cloud DataPort must adapt the file client, not assemble HTTP operations.");
+}
+// One provider-wide mutation chain made new files wait behind every save.
+if (/mutationTail|serializeMutation/.test(dataPort) || !dataPort.includes("ResourceOperationQueue")) {
+  errors.push("Cloud DataPort must order mutations by overlapping path, not through one provider-wide chain.");
+}
+// Only the pinned session talks HTTP; file I/O and change events go through it.
+for (const name of ["cloudWorkspaceFiles.ts", "cloudWorkspaceWatch.ts", "cloudWorkspaceClient.ts"]) {
+  if (/cloudApiRequest|requestCloudSessionApi/.test(read(`${cloudFiles}${name}`))) {
+    errors.push(`${cloudFiles}${name} must issue requests through cloudWorkspaceSession`);
+  }
+}
+// Change events name paths; dropping them forces a whole-workspace refresh.
+if (!read(`${cloudFiles}cloudWorkspaceWatch.ts`).includes("invalidatePaths")) {
+  errors.push("Cloud file events must invalidate caches by the paths they name.");
+}
+for (const { filePath, source } of productionCode) {
+  const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
+  if (relativePath.startsWith(cloudFiles) && /from\s+["'][^"']*workbench\/|import\(["'][^"']*workbench\//.test(source)) {
+    errors.push(`${relativePath} must not depend on Cloud workbench presentation`);
+  }
+  if (/cloud\/workbench\/cloud(?:DataPort|WorkbenchReads|HtmlProjection)/.test(source)) {
+    errors.push(`${relativePath} uses a retired Cloud file ownership path`);
   }
 }
 

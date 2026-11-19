@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EditorView } from "@codemirror/view";
-import { createCodeMirrorLayoutEngine } from "../../../../packages/shared-ui/src/editor/codemirror/layoutEngine";
+import { createCodeMirrorLayoutEngine } from "../../../../src/shared-ui/editor/codemirror/layoutEngine";
 
 describe("CodeMirror application compatibility contract", () => {
   it("proves the queued measurement ran synchronously through public APIs", () => {

@@ -5,7 +5,10 @@
   --agent-dock-padding-top: 12px;
   --agent-dock-padding-bottom: 12px;
   --agent-control-size: var(--po-control-size);
-  --agent-primary-action-visual-size: 28px;
+  /* Send is a standard Header-sized control: same height and corner radius
+   * as Header buttons, filled only to mark the primary action. */
+  --agent-primary-action-visual-size: var(--agent-composer-control-size);
+  --agent-primary-action-radius: var(--desktop-toolbar-action-radius);
   --agent-primary-action-separation: 4px;
   --agent-radius-composer: 8px;
   --agent-radius-message: var(--agent-radius-composer);
@@ -16,12 +19,16 @@
    * length so its one-line resting height remains valid inside calc(). */
   --agent-composer-line-height: 1.5em;
   --agent-composer-input-padding-block: 12px;
-  --agent-composer-text-inset-inline: 16px;
+  --agent-composer-text-inset-inline: 12px;
   --agent-composer-text-max-height: 120px;
   /* One visible text line at rest; CodeMirror grows naturally until max-height. */
   --agent-composer-input-min-height: calc(var(--agent-composer-line-height) + var(--agent-composer-input-padding-block) + var(--agent-composer-input-padding-block));
-  --agent-composer-toolbar-height: 38px;
-  --agent-composer-toolbar-padding-inline: 8px;
+  /* Composer controls share the Header control height, one step below Left
+   * Sidebar rows; transcript controls keep --agent-control-size. */
+  --agent-composer-control-size: var(--desktop-titlebar-control-height);
+  --agent-composer-toolbar-inset: 6px;
+  --agent-composer-toolbar-height: calc(var(--agent-composer-control-size) + var(--agent-composer-toolbar-inset));
+  --agent-composer-toolbar-padding-inline: var(--agent-composer-toolbar-inset);
   /* Prompt and picker labels share one text edge even when either inset changes. */
   --agent-composer-picker-padding-inline: calc(var(--agent-composer-text-inset-inline) - var(--agent-composer-toolbar-padding-inline));
   --agent-reference-card-height: 40px;

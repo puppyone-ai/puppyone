@@ -13,6 +13,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { compileThemeCss } from "./theme-css-compiler.mjs";
+import { DEFAULT_MARKDOWN_THEME_CSS } from "./markdown-theme-defaults.generated.mjs";
 import { parseThemeManifest } from "./theme-package-contract.mjs";
 import { parseSingleFileThemeCss } from "./theme-single-file-contract.mjs";
 
@@ -237,7 +238,9 @@ function createStarterThemeCss({ themeId, themeName }) {
   }
 }
 
-@puppyone markdown {}
+@puppyone markdown {
+${DEFAULT_MARKDOWN_THEME_CSS}
+}
 
 @puppyone csv {}
 `;

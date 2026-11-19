@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { Mail } from "lucide-react";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
+import { PlaceholderLayer } from "@puppyone/shared-ui";
 import "./organization.css";
 import {
   getCloudOrganizationEntitlements,
@@ -74,9 +75,6 @@ export function CloudOrganizationTeamPage({
   return (
     <CloudOrganizationPageShell
       title={t("cloud.route.cloud-team.title")}
-      description={t("cloud.team.description", {
-        organization: bidiIsolate(organization?.name ?? t("cloud.organization.yours")),
-      })}
       actions={(
         <>
           <CloudOrganizationSelector organizationData={orgData} />
@@ -135,13 +133,14 @@ export function CloudOrganizationTeamPage({
         </div>
 
         {orgData.loading && members.length === 0 && (
-          <div className="desktop-cloud-team-loading">
+          <div className="desktop-cloud-team-loading po-placeholder-surface">
             {Array.from({ length: 3 }).map((_, index) => (
               <div key={index}>
-                <span />
-                <div><i /><i /></div>
+                <span data-placeholder-shape="" />
+                <div><i data-placeholder-shape="" /><i data-placeholder-shape="" /></div>
               </div>
             ))}
+            <PlaceholderLayer halo />
           </div>
         )}
 
@@ -173,7 +172,7 @@ export function CloudOrganizationPageShell({
   children,
 }: {
   title: string;
-  description: string;
+  description?: string;
   actions?: ReactNode;
   children: ReactNode;
 }) {
@@ -184,7 +183,7 @@ export function CloudOrganizationPageShell({
           <header className="desktop-cloud-org-header">
             <div className="desktop-cloud-org-header-copy">
               <h1>{title}</h1>
-              <p>{description}</p>
+              {description && <p>{description}</p>}
             </div>
             {actions && <div className="desktop-cloud-org-actions">{actions}</div>}
           </header>

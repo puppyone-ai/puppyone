@@ -4,13 +4,13 @@ import {
   getMimeType,
   isLocalFilePreviewable,
   resolveCopyNameExtension,
-} from "../../../../local-api/files/file-format-policy.mjs";
+} from "../../../../electron/local-api/files/file-format-policy.mjs";
 import {
   normalizeRelativePath,
   resolveWorkspacePath,
-} from "../../../../local-api/files/path-policy.mjs";
-import { buildGitSourceControlSnapshot } from "../../../../local-api/git/source-control-model.mjs";
-import { normalizePuppyoneWorkspaceConfig } from "../../../../local-api/workspace-config.mjs";
+} from "../../../../electron/local-api/files/path-policy.mjs";
+import { buildGitSourceControlSnapshot } from "../../../../electron/local-api/git/source-control-model.mjs";
+import { normalizePuppyoneWorkspaceConfig } from "../../../../electron/local-api/workspace-config.mjs";
 
 describe("local file-format policy", () => {
   it("keeps MIME, semantic kind, preview, and compound-extension decisions together", () => {

@@ -10,6 +10,7 @@ runItemHost({
     let stream = null;
     const service = createTerminalService({
       appVersion: identity.appVersion,
+      hostEnvironment: identity.hostEnvironment,
       initializeWorkspaceEditReview: (root) => callMain("initializeWorkspaceEditReview", [root]),
       terminalAgentActivityHost: {
         prepareTerminalSession: (request) => callMain("prepareTerminalSession", [request]),

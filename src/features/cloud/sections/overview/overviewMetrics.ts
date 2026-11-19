@@ -1,5 +1,5 @@
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudDashboard,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepoIdentity,
@@ -30,18 +30,18 @@ export function getCloudOverviewMetrics({
   identity,
 }: {
   scopes: DesktopCloudScope[];
-  connectors: DesktopCloudConnector[];
+  connectors: DesktopCloudAccessSurface[];
   mcpEndpoints: DesktopCloudMcpEndpoint[];
   identity: DesktopCloudRepoIdentity | null;
 }) {
-  const scopeRows = getCloudScopeRows(scopes, identity);
+  const scopeRows = getCloudScopeRows(scopes, identity, connectors[0]?.project_id);
   const accessRows = buildAccessPointRows({
     scopeRows,
     connectors,
     mcpEndpoints,
     identity,
     apiBaseUrl: null,
-  }).filter(isAccessPointNavigationResource);
+  }).filter((row) => !row.accessPoint.placeholder && isAccessPointNavigationResource(row));
 
   return {
     accessPointCount: accessRows.length,

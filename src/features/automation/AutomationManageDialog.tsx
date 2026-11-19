@@ -33,7 +33,7 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../components/DesktopOverlayPortal";
 import {
   formatProviderLabel,
   getCloudProviderIconUrl,
@@ -272,7 +272,7 @@ export function CloudManageAutomationDialog({
             >
               <Trash2 size={14} />
             </button></Tooltip>
-            <DesktopDialogCloseButton disabled={busy !== null} onClick={onClose} />
+            <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={busy !== null} onClick={onClose} /></Tooltip>
           </div>
         </header>
         <div

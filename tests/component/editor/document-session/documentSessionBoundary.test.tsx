@@ -5,13 +5,14 @@ import React, { useLayoutEffect } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterTypingPause } from "../../../support/editor/autoSave";
 import {
   createWorkspaceResourceUri,
   createWorkspaceRootUri,
-} from "../../../../packages/shared-ui/src/core/resourceUri";
-import { DocumentSessionBoundary } from "../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
-import { useEditableDocumentSource } from "../../../../packages/shared-ui/src/editor/document-session/EditableDocumentSourceContext";
-import type { DocumentPersistedCommit } from "../../../../packages/shared-ui/src/editor/document-session/types";
+} from "../../../../src/shared-ui/core/resourceUri";
+import { DocumentSessionBoundary } from "../../../../src/shared-ui/editor/document-session/DocumentSessionBoundary";
+import { useEditableDocumentSource } from "../../../../src/shared-ui/editor/document-session/EditableDocumentSourceContext";
+import type { DocumentPersistedCommit } from "../../../../src/shared-ui/editor/document-session/types";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -56,11 +57,8 @@ describe("DocumentSessionBoundary", () => {
       await Promise.resolve();
     });
 
-    await act(async () => {
-      edit?.();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await act(async () => { edit?.(); });
+    await afterTypingPause();
 
     expect(persistence.persist).toHaveBeenCalledWith(expect.objectContaining({
       path: documentId,
@@ -134,11 +132,8 @@ describe("DocumentSessionBoundary", () => {
       await Promise.resolve();
     });
 
-    await act(async () => {
-      edit?.();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await act(async () => { edit?.(); });
+    await afterTypingPause();
 
     expect(persistence.persist).toHaveBeenCalledWith(expect.objectContaining({
       path: "strict.md",
@@ -181,7 +176,7 @@ describe("DocumentSessionBoundary", () => {
 
     act(() => renderDocument("a.md", onPersistedA, (edit) => { editA = edit; }));
     act(() => editA?.());
-    await act(async () => Promise.resolve());
+    await afterTypingPause();
     expect(persistence.persist).toHaveBeenCalledWith(expect.objectContaining({
       path: "a.md",
       content: "updated a.md",

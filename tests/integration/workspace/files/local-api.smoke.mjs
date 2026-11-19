@@ -1,4 +1,4 @@
-import { listFolderChildren, workspaceFromPath } from "../../../../local-api/workspace.mjs";
+import { listFolderChildren, workspaceFromPath } from "../../../../electron/local-api/workspace.mjs";
 
 const rootPath = process.argv[2] ?? process.cwd();
 const workspace = await workspaceFromPath(rootPath);

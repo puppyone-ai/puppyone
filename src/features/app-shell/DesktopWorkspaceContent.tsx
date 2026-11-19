@@ -1,5 +1,5 @@
+import { useDesktopPreference } from "../settings";
 import {
-  useMemo,
   type ComponentProps,
   type ReactNode,
 } from "react";
@@ -7,7 +7,6 @@ import {
   DataWorkspace,
   type AiEditRequest,
   type DataNode,
-  type EditorInteractionPreferences,
   type Workspace,
   type WorkspaceContentChange,
   type WorkspaceFolder,
@@ -15,17 +14,15 @@ import {
 import { useLocalization } from "@puppyone/localization";
 import type { DesktopGitController } from "../source-control";
 import type { SettingsSection } from "../settings";
-import type { DesktopView } from "../../components/DesktopCloudShell";
+import type { DesktopView } from "../../components/ProjectShell";
 import type { DesktopUpdatesController } from "../updates";
-import type { FilesVisibilitySettings } from "../../preferences";
 import {
   formatFileOperationNotice,
   type FileClipboardController,
 } from "../data-workspace/useFileClipboard";
 import type { PuppyoneWorkspaceConfig } from "../../types/electron";
 import type { DesktopCreateEntryAnchorInput } from "../data-workspace/nodeActions";
-import { isViewerPluginsEnabled, PluginsDialog } from "../plugins";
-import type { DesktopPreferencesController } from "./useDesktopPreferences";
+import { PluginsDialog } from "../plugins";
 import {
   useWorkspaceSurfaceContent,
   type DesktopWorkspaceCloudSurfaceController,
@@ -35,11 +32,10 @@ import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } fr
 import type { DesktopEditorWorkbenchController } from "../editor-workbench/controller/useDesktopEditorWorkbench";
 import type { ResolvedWorkbenchDataResource } from "../data-workspace/workbenchDataPort";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
-import { CloudDialog } from "../cloud/CloudDialog";
+import { CloudPublishDialog } from "../cloud";
 import { DesktopWorkspaceLocationSurface } from "./DesktopWorkspaceLocationSurface";
+import { DesktopLocalComputerWorkspace } from "./DesktopLocalComputerWorkspace";
 import { DesktopCloudFileWorkspace } from "../cloud/workbench/DesktopCloudFileWorkspace";
-import { CloudWorkspaceSwitchDialog } from "../cloud/workbench/CloudWorkspaceSwitchDialog";
-import type { CloudWorkspaceSwitch } from "../cloud/workbench/useCloudWorkspaceSwitch";
 import type { NativeCloudWorkbench } from "../cloud/workbench/useNativeCloudWorkbench";
 
 type DataWorkspacePort = ComponentProps<typeof DataWorkspace>["dataPort"];
@@ -52,9 +48,8 @@ type DesktopWorkspaceContentProps = {
   cloudOpen?: boolean;
   cloudWorkspaceActive?: boolean;
   cloudWorkbench?: NativeCloudWorkbench;
-  cloudWorkspaceSwitch?: CloudWorkspaceSwitch;
-  cloudLocationControls?: ReactNode;
   dataPort: DataWorkspacePort | null;
+  workspaceEntering?: boolean;
   editorWorkbench: DesktopEditorWorkbenchController;
   externalOpen: Readonly<{
     open: (path: string) => void | Promise<void>;
@@ -73,7 +68,7 @@ type DesktopWorkspaceContentProps = {
   openNodeActionPath: string | null;
   onCreateEntryMenu: (parentPath: string | null, anchorRect: DesktopCreateEntryAnchorInput) => void;
   onDismissCreateEntryMenu: () => void;
-  onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
+  onFilesVisibilityChange: () => void;
   onNavigate: (view: DesktopView) => void;
   onCloseCloud: () => void;
   onClosePlugins: () => void;
@@ -85,7 +80,6 @@ type DesktopWorkspaceContentProps = {
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
   onSelectSettingsSection: (section: SettingsSection) => void;
   onUnlinkWorkspace: () => Promise<void>;
-  preferences: DesktopPreferencesController;
   puppyoneConfig: PuppyoneWorkspaceConfig | null;
   puppyoneConfigError: string | null;
   puppyoneConfigLoading: boolean;
@@ -102,6 +96,10 @@ type DesktopWorkspaceContentProps = {
   workspaceFolders: readonly WorkspaceFolder[];
   resolveWorkspaceResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
   workspaceSurfaceError?: string | null;
+  /** What this local folder's Cloud project means; the folder is never blocked. */
+  cloudProjectNotice?: ReactNode;
+  /** This window's folders that cannot be opened now, said in the notice stack. */
+  folderNotices?: ReactNode;
   workspaceKey: string;
   workspaceRefreshToken: WorkspaceContentChange;
   workspaceAtomicRefreshToken: number;
@@ -117,9 +115,8 @@ export function DesktopWorkspaceContent({
   cloudOpen = false,
   cloudWorkspaceActive = false,
   cloudWorkbench,
-  cloudWorkspaceSwitch,
-  cloudLocationControls,
   dataPort,
+  workspaceEntering = false,
   editorWorkbench,
   externalOpen,
   fileClipboardController,
@@ -133,7 +130,7 @@ export function DesktopWorkspaceContent({
   openNodeActionPath,
   onCreateEntryMenu,
   onDismissCreateEntryMenu,
-  onFilesVisibilitySettingsChange,
+  onFilesVisibilityChange,
   onNavigate,
   onCloseCloud,
   onClosePlugins,
@@ -145,7 +142,6 @@ export function DesktopWorkspaceContent({
   onPuppyoneConfigChange,
   onSelectSettingsSection,
   onUnlinkWorkspace,
-  preferences,
   puppyoneConfig,
   puppyoneConfigError,
   puppyoneConfigLoading,
@@ -162,16 +158,16 @@ export function DesktopWorkspaceContent({
   workspaceFolders,
   resolveWorkspaceResource,
   workspaceSurfaceError = null,
+  cloudProjectNotice,
+  folderNotices,
   workspaceKey,
   workspaceRefreshToken,
   workspaceAtomicRefreshToken,
   sidebarCreateMenuOpen,
 }: DesktopWorkspaceContentProps) {
+  const viewerPluginsEnabled = useDesktopPreference(s => s.experimentalSettings.enableViewerPlugins);
   const { t } = useLocalization();
   const fileOperationNotice = formatFileOperationNotice(fileClipboardController.notice, t);
-  const viewerPluginsEnabled = isViewerPluginsEnabled({
-    settings: preferences.experimentalSettings,
-  });
   const {
     adapter: viewerExtensionAdapter,
     hostAvailable: externalViewerPacksEnabled,
@@ -182,20 +178,10 @@ export function DesktopWorkspaceContent({
     workspaceKey,
     workspacePath: workspace.path,
   });
-  const editorInteractionPreferences = useMemo<EditorInteractionPreferences>(() => ({
-    showSaveStatus: false,
-    markdownBlockDragEnabled: preferences.experimentalSettings.enableMarkdownBlockDrag,
-    markdownHeadingOutlineEnabled: preferences.experimentalSettings.enableMarkdownHeadingOutline,
-  }), [
-    preferences.experimentalSettings.enableMarkdownBlockDrag,
-    preferences.experimentalSettings.enableMarkdownHeadingOutline,
-  ]);
   const {
     availableSurfaceIds,
-    cloudSurface,
+    cloudPublishTask,
     cloudFileState,
-    cloudSwitchGate,
-    cloudSwitchAuthenticationRequired,
     gitEnabled,
     resolvedActiveView,
     resolvedSurface,
@@ -205,14 +191,13 @@ export function DesktopWorkspaceContent({
     cloud,
     desktopUpdates,
     git,
-    onFilesVisibilitySettingsChange,
+    onFilesVisibilityChange,
     onOpenGitChanges,
     onOpenImport,
     onPuppyoneConfigChange,
     onSelectSettingsSection,
     onUnlinkWorkspace,
-    preferences,
-    puppyoneConfig,
+      puppyoneConfig,
     puppyoneConfigError,
     puppyoneConfigLoading,
     puppyoneConfigSaving,
@@ -227,9 +212,10 @@ export function DesktopWorkspaceContent({
     activeDocumentPath,
     activeExplorerPath,
     dataPort: fileSurfacePort,
+    workspaceEntering,
     editorWorkbench,
     externalOpen,
-    editorInteractionPreferences,
+    showSaveStatus: false,
     fileClipboardController,
     fileOperationNotice,
     onActiveDataNodeChange,
@@ -241,8 +227,7 @@ export function DesktopWorkspaceContent({
     onCreateEntryMenu,
     onDismissCreateEntryMenu,
     onNodeActionMenu,
-    preferences,
-    resolvedSurface,
+      resolvedSurface,
     sidebarCompanion,
     sidebarUtility,
     viewerExtensionAdapter,
@@ -252,6 +237,8 @@ export function DesktopWorkspaceContent({
     workspaceRefreshToken,
     workspaceAtomicRefreshToken,
     workspaceSurfaceError,
+    cloudProjectNotice,
+    folderNotices,
     sidebarCreateMenuOpen,
     navigation: {
       activeView: resolvedActiveView,
@@ -272,7 +259,7 @@ export function DesktopWorkspaceContent({
     },
   } : null;
   const workspaceSurface = dataPort && fileSurfaceProps
-    ? <DesktopDataWorkspaceSurface {...fileSurfaceProps} />
+    ? <DesktopLocalComputerWorkspace surfaceProps={fileSurfaceProps} />
     : resolvedSurface.content.main;
 
   return (
@@ -285,15 +272,8 @@ export function DesktopWorkspaceContent({
               providerStateContent={cloudFileState} />
           : null}
       />
-      {cloudWorkspaceSwitch && <CloudWorkspaceSwitchDialog controller={cloudWorkspaceSwitch} gate={cloudSwitchGate}
-        authenticationRequired={cloudSwitchAuthenticationRequired} />}
       {cloudOpen && (
-        <CloudDialog
-          sidebar={cloudSurface.sidebar}
-          main={cloudSurface.main}
-          onClose={onCloseCloud}
-          locationControls={cloudLocationControls}
-        />
+        <CloudPublishDialog onClose={onCloseCloud}>{cloudPublishTask}</CloudPublishDialog>
       )}
       {pluginsOpen && viewerPluginsEnabled && (
         <PluginsDialog

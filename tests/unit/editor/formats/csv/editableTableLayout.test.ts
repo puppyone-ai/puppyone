@@ -3,7 +3,7 @@ import {
   EDITABLE_TABLE_COLUMN_MAX_WIDTH,
   EDITABLE_TABLE_COLUMN_MIN_WIDTH,
   estimateEditableTableColumnWidths,
-} from "../../../../../packages/shared-ui/src/editor/table/editableTableLayout";
+} from "../../../../../src/shared-ui/editor/table/editableTableLayout";
 
 describe("editable table layout", () => {
   it("uses the same bounded visual-width model for CSV and Markdown cells", () => {

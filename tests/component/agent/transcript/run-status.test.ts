@@ -58,7 +58,7 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(userReferences.textContent).not.toContain("README.md");
     const historyMention = userText.querySelector(".desktop-agent-history-mention");
     expect(historyMention?.textContent).toBe("@docs/README.md");
-    expect(historyMention?.getAttribute("data-tooltip")).toBe("docs/README.md");
+    expect(historyMention?.hasAttribute("data-tooltip")).toBe(false);
     expect(historyMention?.getAttribute("data-reference-kind")).toBe("workspace-file");
     expect(userReferences.compareDocumentPosition(userText) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     expect(container.querySelector(".desktop-agent-message.is-assistant")?.getAttribute("aria-label")).toBe("OpenCode");
@@ -170,7 +170,7 @@ describe("Desktop Agent renderer surfaces", () => {
 
     act(() => vi.advanceTimersByTime(5_000));
     expect(container.querySelector(".desktop-agent-working-indicator")?.textContent).toBe("Thinking · 5s");
-    expect(container.querySelectorAll("[data-puppy-loader='dots']")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
   });
 
   it("excludes approval wait from the active run duration", () => {
@@ -258,7 +258,7 @@ describe("Desktop Agent renderer surfaces", () => {
     const indicator = container.querySelector(".desktop-agent-working-indicator");
     expect(indicator?.textContent).toContain("Working");
     expect(indicator?.textContent).not.toContain("Working through the request");
-    expect(indicator?.querySelector("[data-puppy-loader='dots']")).not.toBeNull();
+    expect(indicator?.querySelector("[data-puppy-loader]")).not.toBeNull();
     expect(container.querySelector(".desktop-agent-spin")).toBeNull();
   });
 

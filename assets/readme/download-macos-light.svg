@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="196" height="44" viewBox="0 0 196 44" role="img" aria-label="Download puppyone 0.4.0 for macOS">
+  <rect width="196" height="44" rx="9" fill="#1f1e1c"/>
+  <path transform="translate(9.6 10.6) scale(0.95)" fill="#ffffff" d="M16.71 12.37c.02-2.08 1.7-3.08 1.78-3.13a3.83 3.83 0 0 0-3.02-1.64c-1.27-.13-2.51.76-3.16.76-.67 0-1.68-.75-2.77-.73a4.01 4.01 0 0 0-3.38 2.06c-1.46 2.53-.37 6.25 1.03 8.3.7 1 1.52 2.12 2.6 2.08 1.05-.04 1.45-.67 2.72-.67 1.26 0 1.64.67 2.74.65 1.14-.02 1.86-1 2.53-2.02a8.3 8.3 0 0 0 1.16-2.36 3.6 3.6 0 0 1-2.23-3.3Zm-2.07-6.12a3.66 3.66 0 0 0 .84-2.62 3.72 3.72 0 0 0-2.41 1.25 3.5 3.5 0 0 0-.86 2.52 3.08 3.08 0 0 0 2.43-1.15Z"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="38" y="19" font-size="13" font-weight="600" fill="#ffffff">Download for macOS</text>
+    <text x="38" y="33" font-size="11" fill="#aeaca7">v0.4.0 · Oct 28, 2026</text>
+  </g>
+</svg>

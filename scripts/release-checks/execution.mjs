@@ -2,7 +2,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { finished } from "node:stream/promises";
-import { readFile, mkdir, mkdtemp, open, unlink, writeFile } from "node:fs/promises";
+import { readFile, mkdir, mkdtemp, open, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { inspectArtifact, retainArtifact } from "./artifacts.mjs";
 import { createPlan, validateManifest } from "./manifest.mjs";
@@ -169,9 +169,22 @@ export async function runChecks(manifest, {
       else if (signal?.aborted) result = { status: "cancelled", durationMs: 0 };
       else if (dependencyFailed) result = { status: "blocked", message: "A required check did not pass", durationMs: 0 };
       else {
-        try {
-          result = await execute(check, { repositoryRoot, checkDir, environment: { ...environment, ...checkEnvironment }, platform, signal, output });
-        } catch (error) { result = { status: "failed", message: error.message, durationMs: 0 }; }
+        // Real-time UI acceptance may declare one bounded retry. Every attempt
+        // and its log are kept, and a pass on retry is reported, never hidden.
+        const attempts = check.attempts ?? 1;
+        const history = [];
+        for (let attempt = 1; attempt <= attempts; attempt += 1) {
+          try {
+            result = await execute(check, { repositoryRoot, checkDir, environment: { ...environment, ...checkEnvironment }, platform, signal, output });
+          } catch (error) { result = { status: "failed", message: error.message, durationMs: 0 }; }
+          history.push({ attempt, status: result.status, message: result.message ?? null, durationMs: result.durationMs ?? 0 });
+          if (!["failed", "timed-out"].includes(result.status) || signal?.aborted || attempt === attempts) break;
+          await rename(path.join(checkDir, "output.log"), path.join(checkDir, `output.attempt-${attempt}.log`)).catch(() => {});
+          output?.write(`[release-checks] ${check.id}: attempt ${attempt} ${result.status}; retrying (${attempt + 1}/${attempts})\n`);
+        }
+        if (history.length > 1) {
+          result = { ...result, attempts: history, durationMs: history.reduce((sum, entry) => sum + entry.durationMs, 0) };
+        }
       }
       const artifacts = [];
       for (const [index, { artifactPath, owned }] of declaredArtifacts.entries()) {
@@ -199,6 +212,13 @@ export async function runChecks(manifest, {
       await writeFile(path.join(checkDir, "result.json"), `${JSON.stringify(entry, null, 2)}\n`);
       await save();
       output?.write(`[release-checks] ${check.id}: ${entry.status} (${(entry.durationMs / 1000).toFixed(1)}s)\n`);
+    }
+    report.retriedChecks = report.checks
+      .filter((entry) => entry.status === "passed" && entry.attempts?.length > 1)
+      .map((entry) => entry.id);
+    for (const id of report.retriedChecks) {
+      output?.write(`[release-checks] ${id}: passed only after a retry; see its attempt logs\n`);
+      if (environment.GITHUB_ACTIONS === "true") output?.write(`::warning title=Release check passed on retry::${id} failed once before passing\n`);
     }
     report.completedAt = new Date().toISOString();
     report.sourceAfter = await sourceReader(repositoryRoot);

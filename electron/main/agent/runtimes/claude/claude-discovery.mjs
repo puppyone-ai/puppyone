@@ -147,7 +147,7 @@ export async function discoverClaudeRuntime({
     message: useLocal
       ? `Claude Code ${local.version} is ready for the official Agent SDK compatibility handshake.`
       : compatible.status === "not-installed"
-        ? "Claude Code was not found. Install the native Claude Code product, configure an API key or supported cloud provider, then refresh."
+        ? "Claude Code was not found. Install Claude Code, complete its sign-in or provider setup, then refresh."
         : redactSecretText(compatible.message),
     ...(compatible.diagnostic ? { diagnostic: redactSecretText(compatible.diagnostic) } : {}),
   };

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +10,7 @@ import {
 } from "../../../../electron/main/project-entry-service.mjs";
 import { createLocalProjectImportService } from "../../../../electron/main/project-import/service.mjs";
 import { createImportSourceRegistry } from "../../../../electron/main/project-import/registry.mjs";
+import { createFolderImportSource } from "../../../../electron/main/project-import/sources/folder.mjs";
 import { LOCAL_IMPORT_SOURCES } from "../../../../shared/project-import/sources.mjs";
 
 let parentPath;
@@ -30,9 +32,10 @@ describe("project entry service", () => {
         return module.createImportSource({ cloneGit: vi.fn(), requireGitRepository, requireProjectName });
       },
     });
-    for (const descriptor of LOCAL_IMPORT_SOURCES.filter((source) => source.operational)) {
+    for (const descriptor of LOCAL_IMPORT_SOURCES.filter((source) => source.operational && source.mode !== "app")) {
       await expect(registry.require(descriptor.id)).resolves.toMatchObject({ descriptor });
     }
+    await expect(registry.require("obsidian")).rejects.toMatchObject({ code: "IMPORT_SOURCE_UNAVAILABLE" });
     await expect(registry.require("notion")).rejects.toMatchObject({ code: "IMPORT_SOURCE_UNAVAILABLE" });
   });
 
@@ -48,6 +51,36 @@ describe("project entry service", () => {
     await expect(service.createProject({ parentPath, name: "Notes" })).rejects.toMatchObject({
       code: "PROJECT_ALREADY_EXISTS",
     });
+  });
+
+  it("numbers a taken name only when asked, and never reuses a folder", async () => {
+    const service = createProjectEntryService();
+    const create = (operationId, extra = {}) => service.createProject({ parentPath, name: "CRM", operationId, numberIfTaken: true, ...extra });
+
+    await expect(create(randomUUID())).resolves.toMatchObject({ name: "CRM" });
+    await writeFile(path.join(parentPath, "CRM", "mine.md"), "my notes");
+    await expect(create(randomUUID())).resolves.toMatchObject({ name: "CRM 2", path: path.join(parentPath, "CRM 2") });
+    await writeFile(path.join(parentPath, "CRM 3"), "a file, not a folder");
+    await expect(create(randomUUID())).resolves.toMatchObject({ name: "CRM 4" });
+    await expect(readFile(path.join(parentPath, "CRM", "mine.md"), "utf8")).resolves.toBe("my notes");
+    await expect(service.createProject({ parentPath, name: "CRM", operationId: randomUUID() })).rejects.toMatchObject({ code: "PROJECT_ALREADY_EXISTS" });
+  });
+
+  it("gives a retry the name its first attempt chose", async () => {
+    const service = createProjectEntryService();
+    const operationId = randomUUID();
+    const request = { parentPath, name: "CRM", operationId, numberIfTaken: true };
+    const first = await service.createProject(request);
+    await expect(service.createProject(request)).resolves.toMatchObject({ name: first.name, path: first.path });
+    expect((await readdir(parentPath)).filter((name) => name.startsWith("CRM"))).toEqual(["CRM"]);
+  });
+
+  it("keeps a numbered name within the project name limit", async () => {
+    const service = createProjectEntryService();
+    const name = "n".repeat(120);
+    await service.createProject({ parentPath, name, operationId: randomUUID(), numberIfTaken: true });
+    const second = await service.createProject({ parentPath, name, operationId: randomUUID(), numberIfTaken: true });
+    expect(second.name).toBe(`${"n".repeat(118)} 2`);
   });
 
   it("rejects traversal, credentials in URLs, unsupported hosts, and malformed repository URLs", () => {
@@ -194,21 +227,25 @@ describe("project entry service", () => {
     });
   });
 
-  it("copies an exported folder into a new local project and leaves the source independent", async () => {
+  it("copies a registered folder source into a new local project and leaves the source independent", async () => {
     const sourcePath = path.join(parentPath, "notion-export");
     const destination = path.join(parentPath, "projects");
     await mkdir(path.join(sourcePath, "pages"), { recursive: true });
     await mkdir(destination);
     await writeFile(path.join(sourcePath, "pages", "note.md"), "source\n");
 
-    const service = createProjectEntryService();
+    const service = createLocalProjectImportService({
+      validateName: requireProjectName,
+      descriptors: [{ id: "test-folder", mode: "folder", operational: true }],
+      adapters: { "test-folder": createFolderImportSource({ requireProjectName }) },
+    });
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "obsidian", sourcePath },
+      source: { kind: "folder", provider: "test-folder", sourcePath },
     })).resolves.toMatchObject({
       path: path.join(destination, "notion-export"),
       name: "notion-export",
-      provider: "obsidian",
+      provider: "test-folder",
     });
     await writeFile(path.join(destination, "notion-export", "pages", "note.md"), "local\n");
     expect(await readFile(path.join(sourcePath, "pages", "note.md"), "utf8")).toBe("source\n");
@@ -224,10 +261,14 @@ describe("project entry service", () => {
     await writeFile(path.join(sourcePath, "note.md"), "source");
     await writeFile(path.join(destination, "vault", "note.md"), "existing");
 
-    const service = createProjectEntryService();
+    const service = createLocalProjectImportService({
+      validateName: requireProjectName,
+      descriptors: [{ id: "test-folder", mode: "folder", operational: true }],
+      adapters: { "test-folder": createFolderImportSource({ requireProjectName }) },
+    });
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "obsidian", sourcePath },
+      source: { kind: "folder", provider: "test-folder", sourcePath },
     })).rejects.toMatchObject({ code: "PROJECT_ALREADY_EXISTS" });
     expect(await readFile(path.join(destination, "vault", "note.md"), "utf8")).toBe("existing");
     expect(await readdir(destination)).toEqual(["vault"]);
@@ -241,10 +282,14 @@ describe("project entry service", () => {
     await writeFile(path.join(parentPath, "outside.txt"), "private");
     await symlink(path.join(parentPath, "outside.txt"), path.join(sourcePath, "linked.txt"));
 
-    const service = createProjectEntryService();
+    const service = createLocalProjectImportService({
+      validateName: requireProjectName,
+      descriptors: [{ id: "test-folder", mode: "folder", operational: true }],
+      adapters: { "test-folder": createFolderImportSource({ requireProjectName }) },
+    });
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "obsidian", sourcePath },
+      source: { kind: "folder", provider: "test-folder", sourcePath },
     })).rejects.toThrow(/symbolic link/);
     expect(await readdir(destination)).toEqual([]);
     expect(await readFile(path.join(parentPath, "outside.txt"), "utf8")).toBe("private");
@@ -256,10 +301,14 @@ describe("project entry service", () => {
     await mkdir(destination, { recursive: true });
     await writeFile(path.join(sourcePath, "note.md"), "source");
 
-    const service = createProjectEntryService();
+    const service = createLocalProjectImportService({
+      validateName: requireProjectName,
+      descriptors: [{ id: "test-folder", mode: "folder", operational: true }],
+      adapters: { "test-folder": createFolderImportSource({ requireProjectName }) },
+    });
     await expect(service.importProject({
       parentPath: destination,
-      source: { kind: "folder", provider: "obsidian", sourcePath },
+      source: { kind: "folder", provider: "test-folder", sourcePath },
     })).rejects.toThrow(/outside the source folder/);
     expect(await readdir(destination)).toEqual([]);
     expect(await readFile(path.join(sourcePath, "note.md"), "utf8")).toBe("source");
