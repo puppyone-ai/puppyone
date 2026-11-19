@@ -490,6 +490,9 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
             p.start(crate::cloud::publication::Action::Initialize, cx)
         })
     });
+    // Escape puts the dialog away without cancelling the publication.
+    command(&view, cx, Command::Escape);
+    view.read_with(cx, |s, cx| assert!(!s.has_dialog("CloudPublish", cx)));
     settle_cloud(&view, cx, "the publication", &|s, cx| {
         let p = s.cloud.read(cx).publish.read(cx);
         if let Some(error) = p.outcome.as_ref().and_then(|o| o.error.as_ref()) {

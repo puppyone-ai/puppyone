@@ -500,6 +500,8 @@ impl Shell {
                     .session
                     .update(cx, |e, cx| e.refresh_published(cx));
                 self.session.docs.update(cx, |d, _| d.observe_publication());
+                let history = self.sidebar.read(cx).cloud_history.clone();
+                history.update(cx, |h, cx| h.refresh_published(cx));
             }
             SidebarEvent::Closed => self.frame.focus.focus(window, cx),
             SidebarEvent::GitFailure => return self.git_failure(cx),

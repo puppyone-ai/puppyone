@@ -575,3 +575,92 @@ fn an_empty_event_read_is_not_completion_and_unknown_outcomes_are_not_success() 
         );
     }
 }
+
+fn hub_for(fake: &Arc<Fake>, project: &str, storage: &str, dir: &std::path::Path) -> Arc<Hub> {
+    Hub::new(
+        Client::new(fake.clone(), project.into(), "wb-1".into()),
+        storage.into(),
+        dir.to_path_buf(),
+        Box::new(|| {}),
+    )
+}
+
+/// `useCloudAgentWorkspace.test.tsx`: what a hosted chat holds belongs to
+/// its workspace identity (API, account, Project, root): another account,
+/// API or Project starts empty, and the same identity finds it again.
+#[test]
+fn a_chats_pending_message_belongs_to_its_workspace_identity() {
+    let dir = tempfile::tempdir().unwrap();
+    let fake = Fake::new(|_| Err(lost()));
+    let own = "puppyone-cloud://api/user-1/project-a/root/";
+    let first = controller(&hub_for(&fake, "project-a", own, dir.path()), "tab-1");
+    first.set_draft("Private draft".into());
+    first.submit("Private draft".into());
+    settle(&first, "the lost receipt", |s| {
+        s.error.is_some() && !s.submitting
+    });
+    drop(first);
+    for other in [
+        "puppyone-cloud://api/user-2/project-a/root/",
+        "puppyone-cloud://other-api/user-1/project-a/root/",
+        "puppyone-cloud://api/user-1/project-b/root/",
+    ] {
+        let project = if other.contains("project-b") {
+            "project-b"
+        } else {
+            "project-a"
+        };
+        let elsewhere = controller(&hub_for(&fake, project, other, dir.path()), "tab-1");
+        settle(&elsewhere, "the other identity", |s| !s.loading);
+        let state = elsewhere.snapshot();
+        assert!(state.pending.is_none() && state.draft.is_empty(), "{other}");
+    }
+    let again = controller(&hub_for(&fake, "project-a", own, dir.path()), "tab-1");
+    settle(&again, "the same identity", |s| !s.loading);
+    assert_eq!(
+        again.snapshot().pending.map(|p| p.prompt).as_deref(),
+        Some("Private draft")
+    );
+}
+
+/// `keeps a delayed admission with its original project while the user
+/// changes projects`: a late receipt lands on the chat that sent it, never
+/// on the next Project's.
+#[test]
+fn a_late_receipt_lands_on_the_chat_that_sent_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let held = Mutex::new(held);
+    let fake = Fake::new(move |r| {
+        if r.path == "/agents/runs" {
+            let _ = held.lock().unwrap().recv_timeout(Duration::from_secs(5));
+            let request = r.body.as_ref().unwrap()["request_id"].as_str().unwrap();
+            return Ok(run("run-1", request, "succeeded", 2));
+        }
+        Ok(json!([]))
+    });
+    let first = controller(
+        &hub_for(
+            &fake,
+            "project-a",
+            "puppyone-cloud://api/user-1/project-a/root/",
+            dir.path(),
+        ),
+        "tab-1",
+    );
+    first.submit("Private instruction".into());
+    let next = controller(
+        &hub_for(
+            &fake,
+            "project-b",
+            "puppyone-cloud://api/user-1/project-b/root/",
+            dir.path(),
+        ),
+        "tab-1",
+    );
+    release.send(()).unwrap();
+    settle(&first, "the late receipt", |s| !s.runs.is_empty());
+    settle(&next, "the next project", |s| !s.loading);
+    assert!(next.snapshot().runs.is_empty());
+    assert!(next.snapshot().draft.is_empty());
+}

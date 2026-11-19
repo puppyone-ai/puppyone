@@ -471,3 +471,97 @@ fn current_branch(root: &Path) -> Option<String> {
     use git::GitOps as _;
     git::Cli { helper: None }.status(root).ok()?.branch
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    use std::sync::Arc;
+
+    fn organizations(list: serde_json::Value) -> crate::cloud::auth::Responder {
+        Arc::new(move |request| {
+            assert_eq!(request.path, "/organizations/");
+            Ok(serde_json::json!({"code": 0, "data": list.clone()}))
+        })
+    }
+    fn settle(
+        cx: &mut gpui::TestAppContext,
+        mut done: impl FnMut(&mut gpui::TestAppContext) -> bool,
+    ) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
+        loop {
+            cx.run_until_parked();
+            if done(cx) {
+                return;
+            }
+            assert!(std::time::Instant::now() < deadline, "did not settle");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+    fn signed_in(cx: &mut gpui::TestAppContext, list: serde_json::Value) -> Entity<CloudPublish> {
+        cx.executor().allow_parking();
+        let (broker, browser) = crate::cloud::auth::responding_account_fixture(organizations(list));
+        cx.update(|cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+        settle(cx, |cx| {
+            cx.update(|cx| crate::features::cloud::account::has_account(cx))
+        });
+        cx.new(|_| CloudPublish::default())
+    }
+    fn ready(cx: &mut gpui::TestAppContext, publish: &Entity<CloudPublish>) {
+        publish.update(cx, |p, cx| p.load_organizations(cx));
+        settle(cx, |cx| {
+            publish.read_with(cx, |p, _| {
+                matches!(p.organizations, Organizations::Ready(_))
+            })
+        });
+    }
+
+    /// `useCloudOrganizationData`: several organizations need an explicit
+    /// choice and nothing is remembered from before; a single one is the
+    /// choice; a destination chosen before the page opened is kept only if
+    /// the account may still create projects there, never swapped.
+    #[gpui::test]
+    fn a_publication_asks_which_organization_unless_there_is_only_one(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let two = serde_json::json!([
+            {"id": "a", "name": "A", "can_create_projects": true},
+            {"id": "b", "name": "B", "can_create_projects": false}]);
+        let publish = signed_in(cx, two);
+        ready(cx, &publish);
+        publish.read_with(cx, |p, _| assert_eq!(p.selected, None));
+        publish.update(cx, |p, cx| p.select("a".into(), cx));
+        publish.read_with(cx, |p, _| assert_eq!(p.selected.as_deref(), Some("a")));
+        // A destination the account may not create in is not swapped for
+        // another: it cannot be used.
+        publish.update(cx, |p, cx| p.set_target(Some("b".into()), cx));
+        publish.read_with(cx, |p, _| {
+            assert_eq!(p.selected, None);
+            assert_eq!(p.destination(), Some(None));
+        });
+        publish.update(cx, |p, cx| p.select("a".into(), cx));
+        publish.read_with(cx, |p, _| assert_eq!(p.selected, None));
+        let one = signed_in(cx, serde_json::json!([{"id": "solo", "name": "Solo"}]));
+        ready(cx, &one);
+        one.read_with(cx, |p, _| assert_eq!(p.selected.as_deref(), Some("solo")));
+    }
+
+    /// `drops an old account response that completes after the active
+    /// account`: a list read for an earlier scope is not adopted.
+    #[gpui::test]
+    fn a_list_read_for_an_earlier_scope_is_dropped(cx: &mut gpui::TestAppContext) {
+        let publish = signed_in(cx, serde_json::json!([{"id": "a", "name": "A"}]));
+        publish.update(cx, |p, cx| {
+            p.load_organizations(cx);
+            // Another checkout or account: the scope's epoch moves on.
+            p.epoch += 1;
+        });
+        cx.run_until_parked();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        cx.run_until_parked();
+        publish.read_with(cx, |p, _| {
+            assert!(matches!(p.organizations, Organizations::Loading));
+            assert_eq!(p.selected, None);
+        });
+    }
+}

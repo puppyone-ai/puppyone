@@ -26701,6 +26701,429 @@
           "test": "features::settings::sidebar::settings_sidebar_model::tests::project_and_import_pages_follow_visibility"
         }
       ]
+    },
+    {
+      "id": "cloud-history-sidebar",
+      "acceptance": "Cloud History lives in the window's own right sidebar beside Changes (no separate Cloud shell) and closes outside a hosted Project. It reads only when shown, 80 summaries per page through the signed cursor, keeps every loaded commit (never truncated), shows loading in the full sidebar, and selects the head; a rapid double click appends a cursor page once and a moved snapshot or drifting continuation restarts from the first page rather than merging. Opening a commit reads its paths once and returning reuses the list; another view paints the cached snapshot at once and revalidates it; a failed first page offers Try again; a hosted run's publication reads the first page again. Requests are shared across views, cancelled only when the last view leaves, settled only by the current flight, and isolated by account, session generation, API and Project. Loading more is the only list action besides selection.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/history/cloudHistoryData.test.tsx",
+          "sha256": "610163ef02685d257f467464060a4c34a2521cb63d4713b740fc4669c7ade1c6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud History data lifecycle > single-flights rapid loadMore calls for the same cursor"
+            },
+            {
+              "index": 1,
+              "name": "Cloud History data lifecycle > refreshes atomically when a continuation page belongs to another snapshot"
+            },
+            {
+              "index": 2,
+              "name": "Cloud History data lifecycle > refreshes instead of merging continuation metadata drift"
+            },
+            {
+              "index": 3,
+              "name": "Cloud History data lifecycle > refreshes after the server reports an unavailable signed snapshot"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/history/cloudProjectHistory.test.tsx",
+          "sha256": "defefe7e73dff02258a830804c4e0a5f52ea2a2e682ac886082705faedd0ec82",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud project history > keeps local Changes in the app shell instead of creating a Cloud workspace shell"
+            },
+            {
+              "index": 1,
+              "name": "Cloud project history > keeps the full Cloud timeline instead of truncating it to the first 20 commits"
+            },
+            {
+              "index": 2,
+              "name": "Cloud project history > gives the initial sidebar loader the full available sidebar height"
+            },
+            {
+              "index": 5,
+              "name": "Cloud project history > keeps rendered commit rows stable when an older cursor page is appended"
+            },
+            {
+              "index": 7,
+              "name": "Cloud project history > offers incremental loading without adding write actions"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/history/cloudWorkspaceHistorySidebar.test.tsx",
+          "sha256": "8168fd81ae662de37aa80b2c9c7badb873696efa7d5967cbb936ec29e6f5ffbb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud History in the workspace sidebar > only fetches when visible; selecting a commit and returning use the same response"
+            },
+            {
+              "index": 1,
+              "name": "Cloud History in the workspace sidebar > appends a cursor page once even on a rapid double click"
+            },
+            {
+              "index": 2,
+              "name": "Cloud History in the workspace sidebar > offers recovery after a failed initial request and refreshes after publication"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/history/historyRepository.test.ts",
+          "sha256": "6e82049cf8c6b7057ae5f1da0d70f98442013fc62e426dbefb88334e0ff00d5d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "History request ownership > shares one request and only aborts when its last subscriber leaves"
+            },
+            {
+              "index": 1,
+              "name": "History request ownership > reuses a remounted subscription and revalidates cached rows on reopen"
+            },
+            {
+              "index": 2,
+              "name": "History request ownership > a mutation detaches an older read and late completion cannot refill its cache"
+            },
+            {
+              "index": 3,
+              "name": "History request ownership > isolates account, API endpoint, revision and project identities"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::cloud_history::tests::the_sidebar_pages_reads_detail_on_demand_and_shares_snapshots"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::cloud_history::tests::the_list_and_detail_render_in_a_window"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::cloud_history::tests::flights_are_shared_released_and_settled_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::history::tests::pages_merge_within_one_snapshot_and_restart_otherwise"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::history::tests::requests_read_eighty_summaries_per_page_and_detail_separately"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::the_header_entries_switch_and_close_the_right_sidebar"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::cloud_history_closes_outside_a_hosted_project"
+        }
+      ]
+    },
+    {
+      "id": "cloud-history-graph-model",
+      "acceptance": "The History graph model lays out lanes from the commits' ancestry: a linear history stays on one lane, a merge opens a lane that closes at the common parent with each side keeping its colour, duplicate or foreign parents draw nothing extra, and refs become markers beside the graph with heads outside the loaded history on rows of their own.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/history/cloudProjectHistory.test.tsx",
+          "sha256": "defefe7e73dff02258a830804c4e0a5f52ea2a2e682ac886082705faedd0ec82",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Cloud project history > maps merge parents and named refs into stable multi-lane Cloud rows"
+            },
+            {
+              "index": 6,
+              "name": "Cloud project history > assigns a new path color when a closed lane is reused by another branch"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::graph::tests::a_linear_history_stays_on_one_lane"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::graph::tests::a_merge_opens_a_lane_and_closes_it_at_the_common_parent"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::graph::tests::duplicate_or_foreign_parents_draw_nothing_extra"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::graph::tests::refs_become_markers_beside_the_graph_and_outside_heads_get_their_own_rows"
+        }
+      ]
+    },
+    {
+      "id": "cloud-agent-workbench",
+      "acceptance": "The hosted Agent's chats are tabs of the native workbench opened from the launcher; opening one sends nothing, each keeps its own composer and draft, and moving a chat into a split keeps the same content instance without reading runs again. A second conversation may run while another is active, and closing a tab never stops its run. History is read once per Agent for concurrent refreshes, never preloads transcripts, refuses a conversation another tab shows, and opening one restores only its runs. A tab holding an unconfirmed submission cannot be closed until it is confirmed, while other tabs stay usable; after a restart a pending submission is confirmed by its original receipt and never submitted twice.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/agent/cloudAgentWorkbench.test.tsx",
+          "sha256": "c09faef69943e896817e7ecc5a028ed760b532614cf3da25d4e37b7a02ecee4b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Cloud native workbench > uses native tabs and launcher, preserving each mounted composer and draft without requests"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Cloud native workbench > moves chats into native split groups without remounting editors or refetching runs"
+            },
+            {
+              "index": 2,
+              "name": "Desktop Cloud native workbench > allows a second conversation during an active run and never stops a task by closing its tab"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Cloud native workbench > uses the native history search/back/list and restores only the selected transcript"
+            },
+            {
+              "index": 4,
+              "name": "Desktop Cloud native workbench > shares concurrent history requests, excludes open sessions and never preloads transcripts"
+            },
+            {
+              "index": 5,
+              "name": "Desktop Cloud native workbench > protects an uncertain submission receipt while letting the user open another tab"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Cloud native workbench > recovers a pending submission in a secondary tab after reload using its original receipt"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Cloud native workbench > restores tab locators after reload without duplicate submissions"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_share::the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::an_empty_tab_sends_nothing"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::split_move_and_overflow_keep_the_same_content_instance"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::closing_a_tab_never_stops_its_run"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::one_history_request_per_agent_and_an_open_conversation_is_not_opened_twice"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::opening_a_conversation_reads_its_runs_and_sends_nothing"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::a_hosted_chat_with_an_unconfirmed_submission_cannot_close"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::a_pending_receipt_survives_a_restart_and_is_confirmed_on_load"
+        }
+      ]
+    },
+    {
+      "id": "cloud-agent-view-identity",
+      "acceptance": "What a hosted chat holds (its draft and pending submission) belongs to its workspace identity — API, account, Project and root: another account, API or Project starts empty and the same identity finds it again. Showing a local project closes the hosted Agent's location and the hosted Project brings its own workbench back. A late receipt lands on the chat that sent it, never on the next Project's.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/agent/useCloudAgentWorkspace.test.tsx",
+          "sha256": "3dc9180e8fe30af86b3e17e76d21496c4c3cfc20a532aae35e522f4e4b210c55",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Agent view identity > isolates drafts and visibility on actor change"
+            },
+            {
+              "index": 1,
+              "name": "Cloud Agent view identity > isolates drafts and visibility on origin change"
+            },
+            {
+              "index": 2,
+              "name": "Cloud Agent view identity > isolates drafts and visibility on project change"
+            },
+            {
+              "index": 5,
+              "name": "Cloud Agent view identity > collapses when leaving Cloud and keeps the conversation closed until explicitly reopened"
+            },
+            {
+              "index": 6,
+              "name": "Cloud Agent view identity > keeps a delayed admission with its original project while the user changes projects"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::a_chats_pending_message_belongs_to_its_workspace_identity"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::controller::tests::a_late_receipt_lands_on_the_chat_that_sent_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_share::the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own"
+        }
+      ]
+    },
+    {
+      "id": "cloud-sign-in-explainer",
+      "acceptance": "Header Sign in and the place menu's Sign in open the same explainer without starting browser sign-in until it is confirmed; its two Cloud moments auto-advance, loop, pause on hover and switch on a dot; Escape or Close dismisses it without starting sign-in; a browser sign-in failure is shown in the dialog with retry; completing sign-in closes it.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/auth/cloudSignInDialog.test.tsx",
+          "sha256": "1067b28d654eb311333d54d01eafdf5986409792242965a36ac2230e9acb483e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud sign-in explainer dialog > opens the explainer dialog on Header Sign in without starting OAuth until confirmed"
+            },
+            {
+              "index": 1,
+              "name": "Cloud sign-in explainer dialog > auto-advances and loops across the two Cloud moments and switches on dot click"
+            },
+            {
+              "index": 2,
+              "name": "Cloud sign-in explainer dialog > opens the same explainer dialog when choosing Sign in from the Header place menu"
+            },
+            {
+              "index": 3,
+              "name": "Cloud sign-in explainer dialog > dismisses on Escape or close button, surfaces OAuth errors, and closes automatically once signed in"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sign_in_dialog::header_sign_in_opens_explainer_switches_moments_and_completes_oauth"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sign_in_dialog::place_menu_sign_in_opens_explainer_and_dismissals_never_start_oauth"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sign_in_dialog::oauth_failure_surfaces_error_in_dialog_and_allows_retry"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-dialog",
+      "acceptance": "Publishing a folder is one task in the window's own dialog layer with no services navigation or provider switch; Escape (or Close) puts the dialog away without cancelling the publication, which completes in the background and the Header states the run; signed out, the same dialog asks to sign in and Escape closes it.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/dialog/cloudPublishDialog.test.tsx",
+          "sha256": "d6b265ec9484b75434b23f0fb1c13ac68aee6d5c864d2da8057ed765ea9ee9d2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "single-task Cloud publish dialog > uses the shared overlay without mounting services navigation"
+            },
+            {
+              "index": 1,
+              "name": "single-task Cloud publish dialog > dismisses with Escape without cancelling the publish operation"
+            },
+            {
+              "index": 2,
+              "name": "single-task Cloud publish dialog > closes from its explicit Close control and never offers a provider switch"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-organization-choice",
+      "acceptance": "A publication asks which organization unless there is only one, remembering no earlier choice (so nothing carries over to another Cloud host); a destination chosen before the page opened is kept only if the account may still create projects there and is never swapped for another; a list read for an earlier checkout or account is dropped.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/organization/cloudOrganizationData.test.tsx",
+          "sha256": "31ba7e6f1b4ab9a7da35263e152115f39be5af9a9fad03a2f74dc34ca4ceb17a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "useCloudOrganizationData > ignores remembered ownership when a create flow requires an explicit organization"
+            },
+            {
+              "index": 1,
+              "name": "useCloudOrganizationData > requires an explicit choice for multiple organizations and loads only the selected one"
+            },
+            {
+              "index": 2,
+              "name": "useCloudOrganizationData > does not reuse an organization preference on another Cloud host"
+            },
+            {
+              "index": 4,
+              "name": "useCloudOrganizationData > drops an old account response that completes after the active account"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::tests::a_publication_asks_which_organization_unless_there_is_only_one"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::tests::a_list_read_for_an_earlier_scope_is_dropped"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -32282,6 +32705,20 @@
               "name": "Access Point domain > does not fabricate persisted Access or healthy Git from a Scope, URL or orphan adapter"
             }
           ]
+        },
+        {
+          "path": "tests/component/cloud/organization/cloudAccessCatalog.test.tsx",
+          "sha256": "6e9c3c2c521fee32f6a581815d43004c0282ecab226745c0dec5046a8838c301",
+          "cases": [
+            {
+              "index": 0,
+              "name": "AccessPointRoutePage catalog > filters access points by method, status, and search and opens the selected point"
+            },
+            {
+              "index": 1,
+              "name": "AccessPointRoutePage catalog > starts new access as an Agent connection with MCP selected"
+            }
+          ]
         }
       ]
     },
@@ -32890,6 +33327,16 @@
               "name": "Cloud Agent durable client > rejects a restricted Scope before requesting a whole workspace"
             }
           ]
+        },
+        {
+          "path": "tests/component/cloud/agent/useCloudAgentWorkspace.test.tsx",
+          "sha256": "3dc9180e8fe30af86b3e17e76d21496c4c3cfc20a532aae35e522f4e4b210c55",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Cloud Agent view identity > isolates drafts and visibility on scope change"
+            }
+          ]
         }
       ]
     },
@@ -32972,7 +33419,7 @@
     {
       "id": "cloud-identifiers-refused-not-encoded",
       "kind": "out-of-scope",
-      "reason": "TS percent-encodes an organization or project id that contains '/' into one path segment (org%2F1, a%2Fb) and reads an organization's seat usage for the team details of its initialization route. The native client refuses an identifier that is not a single safe path segment before sending anything (Cloud issues no such ids), and its first publication chooses a Space without reading seat usage.",
+      "reason": "TS percent-encodes an organization or project id that contains '/' into one path segment (org%2F1, a%2Fb) and reads an organization's members, entitlements and seat usage for the team details of its initialization route. The native client refuses an identifier that is not a single safe path segment before sending anything (Cloud issues no such ids), and its first publication chooses a Space without reading the organization's members, entitlements or seat usage (so there is no member read to fail).",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/project-and-space-services.md",
       "typescript": [
         {
@@ -32986,6 +33433,16 @@
             {
               "index": 9,
               "name": "cloud API client delegation > getCloudProject URL-encodes the project id in the path"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/organization/cloudOrganizationData.test.tsx",
+          "sha256": "31ba7e6f1b4ab9a7da35263e152115f39be5af9a9fad03a2f74dc34ca4ceb17a",
+          "cases": [
+            {
+              "index": 3,
+              "name": "useCloudOrganizationData > keeps a member read failure distinct from a successful non-owner result"
             }
           ]
         }
@@ -33156,6 +33613,64 @@
             {
               "index": 6,
               "name": "Cloud IPC structured error transport > returns session API data in a versioned success envelope"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-history-graph-not-drawn",
+      "kind": "gap",
+      "reason": "TS draws the Cloud History sidebar as a lane graph (an SVG beside the rows, inline ref labels, ref-only rows that are not buttons) next to the commit detail in the local History hierarchy. The native sidebar computes the same lane model (workspace::cloud::graph) but draws Cloud commits through the local History's day timeline, so no lanes, ref markers or ref-only rows are shown.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/history.md",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/history/cloudProjectHistory.test.tsx",
+          "sha256": "defefe7e73dff02258a830804c4e0a5f52ea2a2e682ac886082705faedd0ec82",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Cloud project history > selects graph commits and presents them with the canonical local History hierarchy"
+            },
+            {
+              "index": 8,
+              "name": "Cloud project history > uses native button-list semantics and keeps ref-only rows non-interactive"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "react-hook-render-mechanics",
+      "kind": "out-of-scope",
+      "reason": "These check React rendering mechanics: that a hook does not reload when a parent passes a new callback identity, memoized values keep their identity, or an effect does not re-run on an unrelated prop. GPUI views own their state and are not re-rendered from props, so there is no hook dependency to keep stable; the behaviour the hook serves is covered by the feature's own rows.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/history/cloudHistoryData.test.tsx",
+          "sha256": "610163ef02685d257f467464060a4c34a2521cb63d4713b740fc4669c7ade1c6",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Cloud History data lifecycle > does not reload when a parent passes an unstable session callback"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hosted-chat-survives-session-generation",
+      "kind": "out-of-scope",
+      "reason": "TS keys a hosted chat's in-memory draft by the session generation too, so the same account signing in again sees an empty composer until it returns to the old generation. The native app keeps a hosted chat's draft and pending submission in its persisted identity (API, account, Project, root), so they survive the same account signing in again; this is what lets a pending receipt be confirmed after a re-sign-in, and another account never sees them.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/hosted-agent-runs.md",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/agent/useCloudAgentWorkspace.test.tsx",
+          "sha256": "3dc9180e8fe30af86b3e17e76d21496c4c3cfc20a532aae35e522f4e4b210c55",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Cloud Agent view identity > isolates drafts and visibility on generation change"
             }
           ]
         }

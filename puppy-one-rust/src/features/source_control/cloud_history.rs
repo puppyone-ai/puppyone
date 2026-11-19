@@ -457,6 +457,13 @@ impl CloudHistory {
                 })
             })
     }
+    /// A hosted run's accepted changes: an open History reads its first page
+    /// again (`useCloudHistoryData` refreshes after publication).
+    pub fn refresh_published(&mut self, cx: &mut Context<Self>) {
+        if self.is_open() {
+            self.load(cx);
+        }
+    }
     /// `load` (also Refresh and the first page's Try again).
     pub fn load(&mut self, cx: &mut Context<Self>) {
         self.request += 1;
@@ -1314,7 +1321,11 @@ mod tests {
             assert!(h.commits[0].changes.is_empty());
             assert_eq!(h.labels[&id(1)][0].name, "main");
         });
-        view.update(cx, |h, cx| h.load_more(cx));
+        // A rapid double click appends the cursor page once.
+        view.update(cx, |h, cx| {
+            h.load_more(cx);
+            h.load_more(cx);
+        });
         settle(cx, |cx| view.read_with(cx, |h, _| !h.loading_more));
         view.read_with(cx, |h, _| {
             assert_eq!(h.commits.len(), 3);
@@ -1352,6 +1363,20 @@ mod tests {
         });
         settle(cx, |cx| other.read_with(cx, |h, _| h.page.is_none()));
         assert_eq!(reads.lock().unwrap().len(), 4);
+        // A hosted run's publication reads the first page again.
+        view.update(cx, |h, cx| h.refresh_published(cx));
+        settle(cx, |cx| {
+            view.read_with(cx, |h, _| h.page.is_none() && !h.loading)
+        });
+        assert_eq!(
+            reads
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|r| *r == "/content/p1/commits")
+                .count(),
+            3
+        );
         // The view belongs to its Project; closing drops everything.
         cx.update(|cx| {
             assert!(view.read(cx).matches(Some("p1"), cx));
