@@ -37469,6 +37469,110 @@
           "test": "agent::domain::transcript::tests::every_harness_keeps_its_rows_stable_across_later_completions"
         }
       ]
+    },
+    {
+      "id": "html-empty-page",
+      "acceptance": "Only a definitely empty page (whitespace, comments, the html/head/body shell, a title and metadata, including the New HTML template) shows the empty state; visible elements, scripts, styles, stylesheets and refreshes keep the page in the preview.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/html/htmlDocumentEmpty.test.ts",
+          "sha256": "2390d8995929c3268025358786f10edc40b144bd330fba1ab97de1d5aa622827",
+          "cases": [
+            {
+              "index": 0,
+              "name": "empty HTML documents > recognizes an empty page without changing its source: "
+            },
+            {
+              "index": 1,
+              "name": "empty HTML documents > recognizes an empty page without changing its source:  \n"
+            },
+            {
+              "index": 2,
+              "name": "empty HTML documents > recognizes an empty page without changing its source: <!-- empty -->"
+            },
+            {
+              "index": 3,
+              "name": "empty HTML documents > recognizes an empty page without changing its source: <!doctype html><html><head><title>Untitled</title><meta charset=\"utf-8\"></head><body>\n</body></html>"
+            },
+            {
+              "index": 4,
+              "name": "empty HTML documents > keeps visible and potentially dynamic content in the preview: <h1>Hello</h1>"
+            },
+            {
+              "index": 5,
+              "name": "empty HTML documents > keeps visible and potentially dynamic content in the preview: <img src=\"cover.png\">"
+            },
+            {
+              "index": 6,
+              "name": "empty HTML documents > keeps visible and potentially dynamic content in the preview: <svg></svg>"
+            },
+            {
+              "index": 7,
+              "name": "empty HTML documents > keeps visible and potentially dynamic content in the preview: <canvas></canvas>"
+            },
+            {
+              "index": 8,
+              "name": "empty HTML documents > keeps visible and potentially dynamic content in the preview: <div id=\"root\"></div><script>document.querySelector(\"#root\").textContent=\"Ready\"</script>"
+            },
+            {
+              "index": 9,
+              "name": "empty HTML documents > keeps visible and potentially dynamic content in the preview: <script>document.body.textContent=\"Ready\"</script>"
+            },
+            {
+              "index": 10,
+              "name": "empty HTML documents > keeps visible and potentially dynamic content in the preview: <style>body::before{content:\"Hello\"}</style>"
+            },
+            {
+              "index": 11,
+              "name": "empty HTML documents > keeps visible and potentially dynamic content in the preview: <link rel=\"stylesheet\" href=\"page.css\">"
+            },
+            {
+              "index": 12,
+              "name": "empty HTML documents > keeps visible and potentially dynamic content in the preview: <meta http-equiv=\"refresh\" content=\"0;url=next.html\">"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html::tests::an_empty_page_is_recognised_and_dynamic_content_is_kept"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html::tests::previews_carry_the_interaction_stylesheet_and_empty_pages_are_recognised"
+        }
+      ]
+    },
+    {
+      "id": "html-preview-document-projection",
+      "acceptance": "The preview document puts the policy ahead of the page's own head, resolves the page's own relative base once (unsafe bases and refreshes leave) and never mistakes script text, comments or quoted angles for tags.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/html/htmlVisualEditing.test.ts",
+          "sha256": "8a67f94591219e495972ef694d6951edd33ae5087248c33b39bdccf96d5d18c5",
+          "cases": [
+            {
+              "index": 26,
+              "name": "HTML projection and resource boundaries > builds preview headers structurally and honors the original relative base"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_preview::tests::the_policy_leads_the_head_and_the_page_keeps_its_own_markup"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_preview::tests::base_and_refresh_leave_and_only_safe_bases_resolve"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_preview::tests::script_text_comments_and_quoted_angles_are_not_tags"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -46894,6 +46998,154 @@
             {
               "index": 11,
               "name": "Agent runtime registry > selects the configured default without readiness fallback and keeps lifecycle dispatch neutral"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "html-preview-is-the-live-page",
+      "kind": "out-of-scope",
+      "reason": "TS previews an HTML file as a script-less safe projection and runs its scripts only in interaction mode. The native Preview is the Interact page by design: it runs the page's scripts, always under the interactive sandbox and policy (opaque origin without same-origin or top navigation, connect-src https only, links kept in the page), which html_preview::tests::page_scripts_run_inside_the_sandbox_boundaries verifies.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/html/preview-policy.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/html/htmlVisualEditing.test.ts",
+          "sha256": "8a67f94591219e495972ef694d6951edd33ae5087248c33b39bdccf96d5d18c5",
+          "cases": [
+            {
+              "index": 23,
+              "name": "HTML projection and resource boundaries > allows original page scripts only in interaction mode while retaining sandbox boundaries"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bundled-html-visual-modules",
+      "kind": "out-of-scope",
+      "reason": "Native Edit mode runs the product's own HtmlVisualSurface modules (source index, edit compiler, visual session, editing projection, frame bridge, page viewport and image reference) bundled into assets/web/html-visual.js from the product sources by tools/import-html-visual.mjs, with a provenance receipt that the verify html-visual gate rebuilds and compares. These cases exercise that bundled TypeScript inside the page, not native code; the native side (Edit admission, UTF-16 change application to the authoritative text, typed page messages, the boot page) is covered by editor::viewers::html_visual tests.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/html/visual-edit.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/html/htmlVisualEditing.test.ts",
+          "sha256": "8a67f94591219e495972ef694d6951edd33ae5087248c33b39bdccf96d5d18c5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "HTML source-based visual editing > keeps imported references portable when workbench identities are encoded Resource URIs"
+            },
+            {
+              "index": 1,
+              "name": "HTML source-based visual editing > preserves an unquoted attribute's trailing slash when inserting another attribute"
+            },
+            {
+              "index": 2,
+              "name": "HTML source-based visual editing > does not snapshot or parse the complete document during a local typing gesture"
+            },
+            {
+              "index": 3,
+              "name": "HTML source-based visual editing > fails closed for excessive source size, DOM count, depth and non-UTF8 declarations"
+            },
+            {
+              "index": 4,
+              "name": "HTML source-based visual editing > opens losslessly, retaining BOM, CRLF, comments, entities, quotes and Unicode"
+            },
+            {
+              "index": 5,
+              "name": "HTML source-based visual editing > edits repeated text by source identity and keeps all bytes outside its text range"
+            },
+            {
+              "index": 6,
+              "name": "HTML source-based visual editing > maps later targets after repeated text changes and attribute insertions"
+            },
+            {
+              "index": 7,
+              "name": "HTML source-based visual editing > supports empty text regions and table-cell attribute locations"
+            },
+            {
+              "index": 8,
+              "name": "HTML source-based visual editing > does not flatten nested emphasis or links"
+            },
+            {
+              "index": 9,
+              "name": "HTML source-based visual editing > rejects ambiguous or template input: <p>{{ name }}</p>"
+            },
+            {
+              "index": 10,
+              "name": "HTML source-based visual editing > rejects ambiguous or template input: <% name %>"
+            },
+            {
+              "index": 11,
+              "name": "HTML source-based visual editing > rejects ambiguous or template input: <div a=\"unterminated>"
+            },
+            {
+              "index": 12,
+              "name": "HTML source-based visual editing > rejects ambiguous or template input: <img src=a src=b>"
+            },
+            {
+              "index": 13,
+              "name": "HTML source-based visual editing > rejects template extensions and responsive image replacement"
+            },
+            {
+              "index": 14,
+              "name": "HTML source-based visual editing > does not create a transaction for unchanged text"
+            },
+            {
+              "index": 15,
+              "name": "HTML source-based visual editing > preserves a single history through detached edits, undo and source edits"
+            },
+            {
+              "index": 16,
+              "name": "HTML source-based visual editing > retires stale commands and clears history on an external baseline"
+            },
+            {
+              "index": 17,
+              "name": "HTML source-based visual editing > validates the complete transaction before any source mutation"
+            },
+            {
+              "index": 18,
+              "name": "HTML source-based visual editing > changes only the selected inline declaration and respects important"
+            },
+            {
+              "index": 19,
+              "name": "HTML source-based visual editing > rejects invalid style payload url(https://evil.example)"
+            },
+            {
+              "index": 20,
+              "name": "HTML source-based visual editing > rejects invalid style payload red; position: fixed"
+            },
+            {
+              "index": 21,
+              "name": "HTML source-based visual editing > rejects invalid style payload expression(alert(1))"
+            },
+            {
+              "index": 22,
+              "name": "HTML source-based visual editing > rejects invalid style payload red !important"
+            },
+            {
+              "index": 24,
+              "name": "HTML projection and resource boundaries > accepts only finite, bounded scroll state from the interactive page"
+            },
+            {
+              "index": 25,
+              "name": "HTML projection and resource boundaries > accepts only a finite, bounded pointer or a leave from the interactive page"
+            },
+            {
+              "index": 27,
+              "name": "HTML projection and resource boundaries > strips active markup and forged mapping while preserving original source"
+            },
+            {
+              "index": 28,
+              "name": "HTML projection and resource boundaries > preserves static SVG charts without script, foreign content or external use references"
+            },
+            {
+              "index": 29,
+              "name": "HTML projection and resource boundaries > calculates portable image references respecting base and Unicode paths"
+            },
+            {
+              "index": 30,
+              "name": "HTML projection and resource boundaries > rejects oversized, non-finite and unrecognized bridge messages"
             }
           ]
         }

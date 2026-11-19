@@ -205,28 +205,90 @@ fn surface(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> HtmlS
     }
 }
 
-/// `htmlDocumentEmpty`: nothing but whitespace, comments and an empty skeleton.
+/// `isHtmlDocumentEmpty`: only a definitely empty document — nothing but a
+/// doctype, the html/head/body shell, comments, a title, metadata and
+/// whitespace. Scripts, styles, stylesheets and refreshes may produce
+/// content, so such pages still run in the preview.
 pub fn is_empty_page(text: &str) -> bool {
-    let mut rest = text.to_string();
-    while let (Some(a), Some(b)) = (rest.find("<!--"), rest.find("-->")) {
-        if b < a {
-            break;
+    let mut rest = text;
+    let mut in_title = false;
+    while !rest.is_empty() {
+        let Some(open) = rest.find('<') else {
+            return in_title || rest.trim().is_empty();
+        };
+        if !in_title && !rest[..open].trim().is_empty() {
+            return false;
         }
-        rest.replace_range(a..b + 3, "");
+        rest = &rest[open..];
+        if let Some(comment) = rest.strip_prefix("<!--") {
+            rest = comment.find("-->").map_or("", |end| &comment[end + 3..]);
+            continue;
+        }
+        let Some(close) = tag_end(rest) else {
+            // An unterminated tag is text to the parser.
+            return in_title;
+        };
+        let tag = &rest[1..close];
+        rest = &rest[close + 1..];
+        let closing = tag.starts_with('/');
+        let name: String = tag
+            .trim_start_matches('/')
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+            .collect::<String>()
+            .to_ascii_lowercase();
+        if in_title {
+            if closing && name == "title" {
+                in_title = false;
+            }
+            continue;
+        }
+        match name.as_str() {
+            "" if tag.starts_with('!') => {}
+            "html" | "head" | "body" | "base" => {}
+            "title" => in_title = !closing,
+            "meta" => {
+                let refresh =
+                    meta_http_equiv(tag).is_some_and(|value| value.eq_ignore_ascii_case("refresh"));
+                if refresh {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
     }
-    let lower = rest.to_ascii_lowercase();
-    let stripped: String = [
-        "<!doctype html>",
-        "<html>",
-        "</html>",
-        "<head>",
-        "</head>",
-        "<body>",
-        "</body>",
-    ]
-    .iter()
-    .fold(lower, |acc, tag| acc.replace(tag, ""));
-    stripped.trim().is_empty()
+    true
+}
+
+/// The index of the `>` that ends the tag `tag` opens, outside quotes.
+fn tag_end(tag: &str) -> Option<usize> {
+    let mut quote = None;
+    for (index, c) in tag.char_indices().skip(1) {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (None, '"' | '\'') => quote = Some(c),
+            (None, '>') => return Some(index),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// A `<meta>` tag's `http-equiv` value.
+fn meta_http_equiv(tag: &str) -> Option<String> {
+    let lower = tag.to_ascii_lowercase();
+    let at = lower.find("http-equiv")?;
+    let value = tag[at + "http-equiv".len()..]
+        .trim_start()
+        .strip_prefix('=')?
+        .trim_start();
+    Some(match value.chars().next()? {
+        quote @ ('"' | '\'') => value[1..].split(quote).next()?.to_owned(),
+        _ => value
+            .split(|c: char| c.is_whitespace() || c == '>' || c == '/')
+            .next()?
+            .to_owned(),
+    })
 }
 
 fn page_element(
@@ -940,6 +1002,36 @@ mod tests {
         ));
         assert!(is_empty_page("  <!-- nothing -->  "));
         assert!(!is_empty_page("<body><p>content</p></body>"));
+    }
+
+    /// `htmlDocumentEmpty.test.ts`: `recognizes an empty page without
+    /// changing its source`; `keeps visible and potentially dynamic content
+    /// in the preview`.
+    #[test]
+    fn an_empty_page_is_recognised_and_dynamic_content_is_kept() {
+        for source in [
+            "",
+            " \n",
+            "<!-- empty -->",
+            "<!doctype html><html><head><title>Untitled</title><meta charset=\"utf-8\"></head><body>\n</body></html>",
+            // The New HTML document template.
+            "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Untitled</title>\n</head>\n<body>\n\n</body>\n</html>\n",
+        ] {
+            assert!(is_empty_page(source), "{source:?}");
+        }
+        for source in [
+            "<h1>Hello</h1>",
+            "<img src=\"cover.png\">",
+            "<svg></svg>",
+            "<canvas></canvas>",
+            "<div id=\"root\"></div><script>document.querySelector(\"#root\").textContent=\"Ready\"</script>",
+            "<script>document.body.textContent=\"Ready\"</script>",
+            "<style>body::before{content:\"Hello\"}</style>",
+            "<link rel=\"stylesheet\" href=\"page.css\">",
+            "<meta http-equiv=\"refresh\" content=\"0;url=next.html\">",
+        ] {
+            assert!(!is_empty_page(source), "{source:?}");
+        }
     }
 
     fn open_html_surface(

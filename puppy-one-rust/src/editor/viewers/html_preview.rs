@@ -283,6 +283,40 @@ mod tests {
         );
     }
 
+    /// `allows original page scripts only in interaction mode while
+    /// retaining sandbox boundaries` (the boundaries): the page keeps its
+    /// scripts under an opaque-origin sandbox without top navigation,
+    /// connects only over https and loads local images and styles.
+    #[test]
+    fn page_scripts_run_inside_the_sandbox_boundaries() {
+        let page = interactive_document(
+            "<button onclick=\"this.textContent='Clicked'\">Click</button><script>window.pageReady=true</script>",
+            BASE,
+            INTERACTIVE_CSP,
+            "",
+        );
+        assert!(page.contains("window.pageReady=true"));
+        assert!(
+            page.contains("script-src 'unsafe-inline' https: puppyone-preview: puppyone-local:")
+        );
+        assert!(page.contains("target=\"_self\""));
+        let sandbox = INTERACTIVE_HEADER.split("; sandbox ").nth(1).unwrap();
+        assert!(sandbox.contains("allow-scripts"));
+        assert!(
+            !sandbox.contains("allow-same-origin") && !sandbox.contains("allow-top-navigation")
+        );
+        let directive = |name: &str| {
+            INTERACTIVE_CSP
+                .split(';')
+                .map(str::trim)
+                .find(|d| d.starts_with(name))
+                .unwrap()
+        };
+        assert_eq!(directive("connect-src"), "connect-src https:");
+        assert!(directive("img-src").contains("puppyone-local:"));
+        assert!(directive("style-src").contains("puppyone-local:"));
+    }
+
     #[test]
     fn base_and_refresh_leave_and_only_safe_bases_resolve() {
         let page = interactive_document(
