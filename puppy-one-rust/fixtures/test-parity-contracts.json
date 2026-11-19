@@ -26259,6 +26259,448 @@
           "test": "cloud::publication::preparation::tests::the_missing_step_is_reported_and_branch_names_never_collide"
         }
       ]
+    },
+    {
+      "id": "cloud-live-files",
+      "acceptance": "Live Cloud files are read and written through the workspace's authenticated file API, not Git: an Agent's write is read before any commit and the bytes written are what the Agent reads. An absent workspace is opened once for concurrent consumers; concurrent listings coalesce and a change mid-read reads again. Writes are no-clobber and compare-and-swap: an old draft cannot overwrite an Agent's save, a file another writer creates first is never clobbered (no listing is used to check), and foreign revisions or another workspace generation never reach the writer; moves and deletes keep native names. Path escapes, scope roots and read-only grants fail before any mutation. A persistent watch invalidates cached listings. A paused workspace is reported and resumes only on an explicit retry, a replacement generation retires the lease instead of redirecting a retained draft, late answers and queued saves after an account or project switch are refused, and a cancelled opening never allocates a workspace. Previews read live bytes with their own authority (no signed Git URL), text is bounded at 8 MiB with no published fallback, and independently constructed clients see one workbench identity.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudDataPort.test.ts",
+          "sha256": "d04b5c141aa87263a07c4a4a7035a3a5558b9bee08df4f74fcdcddf76fc77439",
+          "cases": [
+            {
+              "index": 0,
+              "name": "live Cloud files > reads Agent writes before any Git commit, and writes bytes the Agent can read"
+            },
+            {
+              "index": 1,
+              "name": "live Cloud files > opens an absent workspace once for concurrent consumers"
+            },
+            {
+              "index": 2,
+              "name": "live Cloud files > coalesces concurrent directory reads without retaining a stale listing after invalidation"
+            },
+            {
+              "index": 3,
+              "name": "live Cloud files > protects an old editor draft after an Agent save"
+            },
+            {
+              "index": 4,
+              "name": "live Cloud files > does not send restored Git baselines or another workspace generation to the writer"
+            },
+            {
+              "index": 5,
+              "name": "live Cloud files > creates with no-clobber and keeps native names during move and delete"
+            },
+            {
+              "index": 6,
+              "name": "live Cloud files > does not clobber a file another writer creates just before ours, and never lists to check"
+            },
+            {
+              "index": 7,
+              "name": "live Cloud files > rejects path escapes, scope roots and read-only writes"
+            },
+            {
+              "index": 8,
+              "name": "live Cloud files > keeps a persistent watch; file notifications invalidate cached directories"
+            },
+            {
+              "index": 9,
+              "name": "live Cloud files > reports paused workspaces and only resumes on explicit retry"
+            },
+            {
+              "index": 10,
+              "name": "live Cloud files > refuses a replacement generation instead of redirecting a retained draft"
+            },
+            {
+              "index": 11,
+              "name": "live Cloud files > rejects late responses and queued saves after account or project switches"
+            },
+            {
+              "index": 12,
+              "name": "live Cloud files > does not allocate a workspace after a pending open loses its account or project"
+            },
+            {
+              "index": 13,
+              "name": "live Cloud files > previews accepted HTML snapshots and live binary bytes without signing Git URLs"
+            },
+            {
+              "index": 15,
+              "name": "live Cloud files > bounds preview and editor bytes without using a published fallback"
+            },
+            {
+              "index": 16,
+              "name": "live Cloud files > exposes the same workbench identity to independently constructed clients"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::live_files_share_the_facade_without_a_local_root_or_git_fallback"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::explicit_opening_wakes_once_and_only_observes_pending_operation"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::concurrent_reads_coalesce_and_a_change_mid_read_reads_again"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::mutations_are_no_clobber_and_cas_returns_remote_bytes_without_replaying"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::content_integrity_and_foreign_revisions_fail_closed"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_move_invalidates_both_parents_and_a_delete_invalidates_the_subtree"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::readonly_grants_and_invalid_paths_fail_before_mutation_dispatch"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::scoped_events_drop_the_named_subtree_and_unknown_events_drop_every_listing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::explicit_opening_recovery_and_access_denial_never_wake"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::lease_revocation_interrupts_reads_and_rejects_late_mutation_receipts"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::explicit_opening_cancelled_at_files_cannot_deliver_a_provider"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::preview_authority_is_not_a_snapshot_boolean_and_handles_are_independent"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_cloud_workspace_bounds_text_at_8_mib"
+        }
+      ]
+    },
+    {
+      "id": "cloud-html-resources",
+      "acceptance": "An HTML document's relative resources (document- and CSS-relative) resolve through its own protocol root against the workspace provider, which serves live bytes on demand with its authority rechecked after each read; parent and internal links and foreign origins are refused before any read; a revoked document's late reads are discarded; external and absolute resources stay under the page's policy. Resources are fetched rather than inlined, so no capability URL is persisted, no parent Blob URL is exposed and there is no inlining cycle.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudHtmlProjection.test.ts",
+          "sha256": "0ffc199090e50a824a6da2f6634b61a6204dc1d3c87a8756f5a5129b63b84950",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud HTML resource projection > resolves document/CSS-relative resources without persisting capability URLs"
+            },
+            {
+              "index": 1,
+              "name": "Cloud HTML resource projection > preserves target identity and uses the authored workspace base"
+            },
+            {
+              "index": 2,
+              "name": "Cloud HTML resource projection > rejects escapes, cancelled projections and dependency cycles"
+            },
+            {
+              "index": 3,
+              "name": "Cloud HTML resource projection > leaves external bases and already absolute resources under the existing CSP"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudDataPort.test.ts",
+          "sha256": "d04b5c141aa87263a07c4a4a7035a3a5558b9bee08df4f74fcdcddf76fc77439",
+          "cases": [
+            {
+              "index": 14,
+              "name": "live Cloud files > embeds live asset bytes in opaque HTML projections without exposing parent Blob URLs"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::protocol_rejects_foreign_origins_methods_and_lookalike_urls_before_provider_reads"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::local_protocol_refuses_internal_leaf_and_parent_links"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::provider_authority_is_rechecked_after_read_and_through_budgeted_sources"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::file_tests::protocol_revocation_during_a_worker_read_discards_the_late_response"
+        }
+      ]
+    },
+    {
+      "id": "cloud-native-previews",
+      "acceptance": "A Cloud file's Office or database preview reads a private snapshot of its live bytes through the workspace's authority and never touches its siblings; oversized, missing, revoked and cancelled inputs are refused before anything is served; a database with an active recovery sidecar is refused and a database keeps one snapshot; a signed-out account or lost permission revokes previews already acquired.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudNativePreviewService.test.mjs",
+          "sha256": "6153cc5da7e2f1c8978b6911f3bb11e479dcadcf3cd0d42cd70913423d462f5c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "authenticated Cloud native decoder leases > shares the read-only engine, keeps bytes private and drains before deleting input"
+            },
+            {
+              "index": 1,
+              "name": "authenticated Cloud native decoder leases > converts only supported Office inputs and cleans up on success"
+            },
+            {
+              "index": 5,
+              "name": "authenticated Cloud native decoder leases > rejects session changes and revokes existing leases without revoking token refreshes"
+            },
+            {
+              "index": 6,
+              "name": "authenticated Cloud native decoder leases > rejects recovery sidecars and changing HEAD before starting a decoder"
+            },
+            {
+              "index": 7,
+              "name": "authenticated Cloud native decoder leases > bounds declared and actual download bytes: 'budget-exceeded'/'9000000000'"
+            },
+            {
+              "index": 8,
+              "name": "authenticated Cloud native decoder leases > bounds declared and actual download bytes: 'missing-member'/'1'"
+            },
+            {
+              "index": 9,
+              "name": "authenticated Cloud native decoder leases > bounds declared and actual download bytes: 'budget-exceeded'/'-1'"
+            },
+            {
+              "index": 10,
+              "name": "authenticated Cloud native decoder leases > cancels a pending download and waits for it before removing its private directory"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudWorkspacePreview.test.mjs",
+          "sha256": "d4ba3c2494379d0bbd846feea3301c31c0ef33f7b0ee4ffdd0134253b01920b0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "live native previews > decodes uncommitted workspace bytes and cleans up the private snapshot"
+            },
+            {
+              "index": 1,
+              "name": "live native previews > rejects a database changed during snapshot acquisition"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_admission_grants_a_private_snapshot_without_sibling_file_access"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_admission_uses_the_retained_provider_root_and_never_reopens_the_display_path"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_admission_rejects_oversized_missing_revoked_and_precancelled_inputs_before_serving"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::database_previews_refuse_active_sidecars_and_keep_one_snapshot"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::permission_loss_revokes_previously_acquired_preview_access"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::preview_authority_is_not_a_snapshot_boolean_and_handles_are_independent"
+        }
+      ]
+    },
+    {
+      "id": "cloud-request-budgets-and-diagnostics",
+      "acceptance": "Each Cloud route has its own budget: an opening POST waits up to 120 s, a status wait 65 s, ordinary reads including the read-only repository-context query 15 s, and file transfers are never cut short by a request deadline. The run event read is bounded and carries no credential the caller can see. A request needs the caller's account lease and never adopts another. Errors keep their status, allowlisted code, retry decision and request id without parsing message text. A failed opening request (status, open or files stage) writes one local line with its stage, method, status, code, retry decision, request id and duration and never the project or path; other requests, successes, cancellations and superseded requests write nothing, and writing it never changes the outcome.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/electron.cloud-ipc.test.mjs",
+          "sha256": "89db4960fb322b7516bd6504a3b7c034197c2e5a0088c20b88c2e75638150fe5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud IPC structured error transport > applies a deadline only to the read-only context query: /projects/project-1/repository-context"
+            },
+            {
+              "index": 1,
+              "name": "Cloud IPC structured error transport > applies a deadline only to the read-only context query: /projects/project-1/initialization/abandon"
+            },
+            {
+              "index": 2,
+              "name": "Cloud IPC structured error transport > applies a deadline only to the read-only context query: /projects/project-1/workbench"
+            },
+            {
+              "index": 3,
+              "name": "Cloud IPC structured error transport > applies a deadline only to the read-only context query: /content/project-1/write"
+            },
+            {
+              "index": 4,
+              "name": "Cloud IPC structured error transport > bounds the authenticated run SSE subscription without exposing credentials"
+            },
+            {
+              "index": 5,
+              "name": "Cloud IPC structured error transport > requires a renderer account lease instead of silently adopting Main's account"
+            },
+            {
+              "index": 7,
+              "name": "Cloud IPC structured error transport > preserves status and code without parsing Electron rejection text"
+            },
+            {
+              "index": 8,
+              "name": "Cloud IPC structured error transport > carries the server's retry decision and request id to the Renderer"
+            },
+            {
+              "index": 9,
+              "name": "Cloud Computer opening diagnostics > GET /projects/p/workbench is the status stage of opening"
+            },
+            {
+              "index": 10,
+              "name": "Cloud Computer opening diagnostics > GET /projects/p/workbench?wait_seconds=20 is the status stage of opening"
+            },
+            {
+              "index": 11,
+              "name": "Cloud Computer opening diagnostics > POST /projects/p/workbench is the open stage of opening"
+            },
+            {
+              "index": 12,
+              "name": "Cloud Computer opening diagnostics > GET /projects/p/workbench/files?generation=g&path= is the files stage of opening"
+            },
+            {
+              "index": 13,
+              "name": "Cloud Computer opening diagnostics > POST /projects/p/workbench/files?generation=g&path=a is the null stage of opening"
+            },
+            {
+              "index": 14,
+              "name": "Cloud Computer opening diagnostics > PUT /projects/p/workbench/file?generation=g&path=a is the null stage of opening"
+            },
+            {
+              "index": 15,
+              "name": "Cloud Computer opening diagnostics > POST /projects/p/workbench/sync is the null stage of opening"
+            },
+            {
+              "index": 16,
+              "name": "Cloud Computer opening diagnostics > POST /projects/p/repository-context is the null stage of opening"
+            },
+            {
+              "index": 17,
+              "name": "Cloud Computer opening diagnostics > writes one local line per failed opening request, naming no project or path"
+            },
+            {
+              "index": 18,
+              "name": "Cloud Computer opening diagnostics > stays quiet for other requests, successes and cancellations"
+            },
+            {
+              "index": 19,
+              "name": "Cloud Computer opening diagnostics > never lets a failing log change the request's outcome"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::model::request_policy_tests::workbench_waits_and_file_transfers_get_their_own_budgets"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_bounded_event_read_ends_at_its_heartbeat_or_its_deadline_without_touching_the_run"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::an_old_lease_is_refused_before_any_send_or_refresh"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::api_refusals_keep_their_safe_code_retry_decision_and_plain_request_id"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::opening::tests::an_opening_failure_is_one_private_line_and_a_cancellation_is_none"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::open_post_and_root_files_failures_surface_diagnostics_in_recovery_dialog"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::opening::tests::stale_running_workspace_and_open_post_failures_preserve_codes_reopen_and_reuse_entries"
+        }
+      ]
+    },
+    {
+      "id": "settings-account-and-space-navigation",
+      "acceptance": "The Account page follows the build, not Cloud: with Cloud off it is the account group's only page, and a build without accounts has no account group. Once Cloud is on the Space group (Space, then Plan) follows the account at the same level. Project pages need a local workspace, so a hosted-only window keeps the app and account settings but no project pages, and the import page appears only while the import experiment is on.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/settingsCloudFeatureGate.test.ts",
+          "sha256": "72e72057690c52a10f70273ae94d685b58bb5e2d70c33f4e14e2c8300f8fe95e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Settings Cloud feature gate > keeps the account, and only the account, while the Desktop is local-first"
+            },
+            {
+              "index": 1,
+              "name": "Settings Cloud feature gate > shows no Account page in a build without PuppyOne accounts"
+            },
+            {
+              "index": 2,
+              "name": "Settings Cloud feature gate > separates account identity from the selected Space at the same navigation level"
+            },
+            {
+              "index": 3,
+              "name": "Settings Cloud feature gate > keeps app and account settings available in hosted-only workspaces"
+            },
+            {
+              "index": 4,
+              "name": "Settings Cloud feature gate > shows the import settings page only while the import experiment is enabled"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::sidebar::settings_sidebar_model::tests::account_follows_the_build_and_the_space_group_follows_cloud"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::sidebar::settings_sidebar_model::tests::plan_navigation_keeps_price_reachable_without_a_project_and_follows_cloud"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::sidebar::settings_sidebar_model::tests::project_and_import_pages_follow_visibility"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -32586,6 +33028,134 @@
             {
               "index": 6,
               "name": "Cloud publish push progress > reports the transfer as part of the uploading step"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-previews-without-signed-urls",
+      "kind": "out-of-scope",
+      "reason": "TS fetches Cloud previews through backend-signed endpoints and admits retained resources to Chromium's embedded PDF viewer, so it must refuse forged signed endpoints, reference-count identical signatures, keep PDF frames from navigating into other retained resources and refuse late signatures. The native app signs nothing: preview bytes come through the workspace's authenticated file API under the window's lease, and PDFs are rendered natively by PDFium from those bytes, so no signed URL, embedded PDF frame or navigation policy exists.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/pdf.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudNativePreviewService.test.mjs",
+          "sha256": "6153cc5da7e2f1c8978b6911f3bb11e479dcadcf3cd0d42cd70913423d462f5c",
+          "cases": [
+            {
+              "index": 2,
+              "name": "authenticated Cloud native decoder leases > rejects forged signed endpoints before native fetch: https://other.test/private?path=data.sqlite&token=x"
+            },
+            {
+              "index": 3,
+              "name": "authenticated Cloud native decoder leases > rejects forged signed endpoints before native fetch: https://cloud-fixture.puppyone.ai/api/v1/content/other/inline?path=data.sqlite&token=x"
+            },
+            {
+              "index": 4,
+              "name": "authenticated Cloud native decoder leases > rejects forged signed endpoints before native fetch: https://cloud-fixture.puppyone.ai/api/v1/content/fixture-project/inline?path=other.sqlite&token=x"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudPreviewResourceService.test.mjs",
+          "sha256": "a56c6a1033568940d43331550bb48678a7993ab75bc546706fc657250d4bb1c3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud preview authority in the embedded PDF policy > signs through native auth and grants only the exact retained resource"
+            },
+            {
+              "index": 1,
+              "name": "Cloud preview authority in the embedded PDF policy > reference-counts identical backend signatures and restricts revocation to the owner"
+            },
+            {
+              "index": 2,
+              "name": "Cloud preview authority in the embedded PDF policy > does not let PDF frames navigate into a retained HTML or media resource"
+            },
+            {
+              "index": 3,
+              "name": "Cloud preview authority in the embedded PDF policy > revokes expired resources and account changes without revoking a same-session token refresh"
+            },
+            {
+              "index": 4,
+              "name": "Cloud preview authority in the embedded PDF policy > rejects a forged provider endpoint: https://other.test/api/v1/content/project/inline?path=scope%2Freport.pdf&token=synthetic"
+            },
+            {
+              "index": 5,
+              "name": "Cloud preview authority in the embedded PDF policy > rejects a forged provider endpoint: https://cloud-fixture.puppyone.ai/api/v1/content/other/inline?path=scope%2Freport.pdf&token=synthetic"
+            },
+            {
+              "index": 6,
+              "name": "Cloud preview authority in the embedded PDF policy > rejects a forged provider endpoint: https://cloud-fixture.puppyone.ai/api/v1/content/project/inline?path=scope%2Fother.pdf&token=synthetic"
+            },
+            {
+              "index": 7,
+              "name": "Cloud preview authority in the embedded PDF policy > rejects a late signature after the requesting window retires"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudWorkspacePreview.test.mjs",
+          "sha256": "d4ba3c2494379d0bbd846feea3301c31c0ef33f7b0ee4ffdd0134253b01920b0",
+          "cases": [
+            {
+              "index": 2,
+              "name": "live native previews > admits only retained live PDF blob capabilities, then revokes them"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-renderer-main-ports",
+      "kind": "out-of-scope",
+      "reason": "TS renderers reach Main-owned services (native preview decoders, Cloud requests and reads) through IPC ports: binding a port to its scope and session, closing a failed startup, acknowledging cancellation, converting IPC bytes, versioned success envelopes, and GET ownership per renderer (listeners cleaned up, a destroyed renderer aborted, duplicate ids refused). The native app calls those services in process from the window that owns them; what the services guarantee is covered by their own rows.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudNativePreviewClient.test.ts",
+          "sha256": "e2a5cc7c04a66487a018019c6e3f52d0d50bfd588f77e26422c63ccad7058199",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud native preview port lifecycle > binds the remote scope and session without exposing a native root"
+            },
+            {
+              "index": 1,
+              "name": "Cloud native preview port lifecycle > closes failed startup and preserves the public native error"
+            },
+            {
+              "index": 2,
+              "name": "Cloud native preview port lifecycle > exposes cancellation before a delayed decoder startup acknowledges ready"
+            },
+            {
+              "index": 3,
+              "name": "Cloud native preview port lifecycle > converts IPC bytes to the shared Office input and retains native warnings"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/electron.cloud-read-requests.test.mjs",
+          "sha256": "519fd3392fc3ca9b84e2d8d9776e1ba94e769f8646504456bd061db8473fa5c2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud GET ownership > isolates renderers, cleans listeners and never cancels writes"
+            },
+            {
+              "index": 1,
+              "name": "Cloud GET ownership > aborts a destroyed renderer and rejects duplicate or invalid ids"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/electron.cloud-ipc.test.mjs",
+          "sha256": "89db4960fb322b7516bd6504a3b7c034197c2e5a0088c20b88c2e75638150fe5",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Cloud IPC structured error transport > returns session API data in a versioned success envelope"
             }
           ]
         }

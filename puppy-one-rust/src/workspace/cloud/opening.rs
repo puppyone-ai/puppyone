@@ -416,6 +416,53 @@ mod tests {
     use super::{Failure, Recovery};
     use crate::cloud::auth::Error;
 
+    /// `electron.cloud-ipc.test.mjs` (opening diagnostics): a failed opening
+    /// request is one local line naming its stage, method, status, code,
+    /// retry decision, request id and duration — never the project or a
+    /// path; a cancelled or superseded request writes nothing.
+    #[test]
+    fn an_opening_failure_is_one_private_line_and_a_cancellation_is_none() {
+        use crate::cloud::auth::model::Diagnostic;
+        use reqwest::Method;
+        use std::time::Duration;
+        let ours = |id: &str| {
+            crate::platform::diagnostics::recorded("[cloud-opening] request failed")
+                .into_iter()
+                .filter(|l| l["fields"]["request_id"] == id)
+                .collect::<Vec<_>>()
+        };
+        let diagnostic = Diagnostic::read(
+            &serde_json::json!({"data": {"retryable": true}}),
+            Some("req-opening-log-9"),
+        );
+        super::record_failure_elapsed(
+            "open",
+            &Method::POST,
+            &Error::Response(503, Some("workbench_connection_unavailable"), diagnostic),
+            Duration::from_millis(5),
+        );
+        let lines = ours("req-opening-log-9");
+        assert_eq!(lines.len(), 1);
+        let fields = lines[0]["fields"].as_object().unwrap();
+        assert_eq!(
+            serde_json::Value::Object(fields.clone()),
+            serde_json::json!({"stage": "open", "method": "POST", "status": 503,
+                "code": "workbench_connection_unavailable", "retryable": true,
+                "request_id": "req-opening-log-9", "duration_ms": 5})
+        );
+        let quiet = Diagnostic::read(&serde_json::json!({}), Some("req-opening-quiet"));
+        for error in [Error::Cancelled, Error::SessionChanged] {
+            super::record_failure_elapsed("status", &Method::GET, &error, Duration::ZERO);
+        }
+        super::record_failure_elapsed(
+            "status",
+            &Method::GET,
+            &Error::Response(500, None, quiet),
+            Duration::ZERO,
+        );
+        assert_eq!(ours("req-opening-quiet").len(), 1, "only the real failure");
+    }
+
     /// `cloudOpeningFailureClassification`: what "Couldn't open Cloud
     /// Computer" says, decided by what the person can do next, and the
     /// server's code and request id shown beside it.
