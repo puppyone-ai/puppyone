@@ -23015,6 +23015,701 @@
         }
       ],
       "environment": "a temporary Agent data directory; an in-process session feed"
+    },
+    {
+      "id": "cloud-cross-repository-contracts",
+      "acceptance": "The Cloud contracts the product pins are pinned here byte for byte and followed. cloud-git-acceptance-v1.json: its refusal codes are exactly the ones recognized as size refusals, in the '<human reason> (puppyone-refusal=<code>)' format, and the same content cannot pass on retry; merge commits, octopus merges and unrelated histories are accepted and Cloud never rewrites history, so the preflight refuses only Git LFS; a receive pack may be 2 GiB. cloud-project-publish-v1.json: the organization is an explicit request field, the Project is the server's, the target is the Project root, nothing binds the folder or registers the device, the create request carries exactly the declared fields, the issued credential is never echoed, and the remote is 'puppyone' pushed to refs/heads/main without force.",
+      "typescript": [
+        {
+          "path": "tests/architecture/cloud/publish/cloudGitAcceptanceContract.test.ts",
+          "sha256": "09accf2b54ff9ea331370f1d0bf350032b7c750f8a3f353b2058d1219e8df82d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Git acceptance cross-repository contract > is the pinned server contract"
+            },
+            {
+              "index": 1,
+              "name": "Cloud Git acceptance cross-repository contract > names exactly the refusal codes Desktop treats as size refusals"
+            },
+            {
+              "index": 2,
+              "name": "Cloud Git acceptance cross-repository contract > states the content rules Desktop's preflight follows"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/cloud/publish/cloudPublishContract.test.ts",
+          "sha256": "0d8240c4d677d450afef9f8b368924217cfd888946292ba81929006e99add054",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Project publish cross-repository contract > uses the pinned backend-compatible v1 fixture"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::the_git_acceptance_contract_is_pinned_and_its_codes_are_recognized"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::api::tests::the_publish_requests_follow_the_pinned_cloud_contract"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::every_repository_shape_but_lfs_passes_the_preflight"
+        }
+      ],
+      "environment": "the pinned contract files"
+    },
+    {
+      "id": "cloud-folder-association",
+      "acceptance": "A local folder is never blocked or switched in place by its Cloud association (ADR-001): it opens as a local project, its place notice follows the association, asking for its Cloud project opens that project in the same window, and a failed Cloud opening keeps the folder open with its recovery. A first publication runs as one durable transaction: an existing puppyone remote or an unborn branch is refused before anything is created, then the journal, the Project, the credential, the canonical remote and the pinned commit follow in order, and a crash after the remote is added resumes without another Project. Agent marks in the Header hop only while at work, never with reduced motion.",
+      "typescript": [
+        {
+          "path": "tests/architecture/cloud/repositories/cloudRepositoryContextArchitecture.test.ts",
+          "sha256": "f31b7090bf6c3c1a3d6bab99c8d991ba475a89d4b8a02922b6856b50ad8182bd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "repository-context architecture > never blocks or switches a local folder on its Cloud association (ADR-001)"
+            },
+            {
+              "index": 3,
+              "name": "repository-context architecture > keeps Initialize remote mutation inside the durable main-process transaction"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/cloud/share/agentPresenceMotionArchitecture.test.ts",
+          "sha256": "f7c86a7a3bc491d14d9b060130dbda853b4b541481eb2ef37fff1ebc7bdfd315",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent presence motion > stills a working Agent's mark for those who ask for less motion"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::project_place::tests::notices_follow_the_association"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_linked_folder_opens_its_cloud_project_in_the_same_window"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::a_first_publication_walks_every_checkpoint_and_leaves_nothing_behind"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::an_existing_puppyone_remote_is_refused_before_anything_is_created"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::an_unborn_branch_is_refused_before_anything_is_created"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_crash_right_after_the_remote_is_added_resumes_without_another_project"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::git_push_tests::real_first_push_sends_the_pinned_commit_and_reconciles_an_identical_retry"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::cloud_agents_ui::tests::only_a_working_header_mark_hops_and_never_with_reduced_motion"
+        }
+      ],
+      "environment": "test windows with fake Cloud services; real Git repositories and a smart-HTTP server for publication"
+    },
+    {
+      "id": "office-preview-product-bundle",
+      "acceptance": "The Office preview is the product's own preview, bundled from the pinned product sources with a provenance receipt (tools/import-office-viewer.mjs --check, a verify.py gate, fails on any drift): a successful preview is headerless and read-only with floating controls, Word renders on a stable paper surface with visible zoom and the font compatibility faces, PowerPoint shows a thumbnail rail and one central slide stage, and spreadsheet navigation stays at the bottom. Like the product's desktop host, the native host passes no Office editor action. The native page boots that bundle and reads only typed messages.",
+      "typescript": [
+        {
+          "path": "tests/architecture/editor/formats/office/officePreviewExperience.test.ts",
+          "sha256": "7a561b560108c0c163ca6dd405d39f7f4e7497e6d2be2a1a306bece9c7efe094",
+          "cases": [
+            {
+              "index": 0,
+              "name": "lightweight Office preview experience > keeps the successful preview headerless and read-only"
+            },
+            {
+              "index": 1,
+              "name": "lightweight Office preview experience > renders Word on a stable paper surface with visible zoom and font compatibility"
+            },
+            {
+              "index": 2,
+              "name": "lightweight Office preview experience > reserves only an explicit host-owned Office editor action"
+            },
+            {
+              "index": 3,
+              "name": "lightweight Office preview experience > presents PowerPoint as a thumbnail rail and one central slide stage"
+            },
+            {
+              "index": 4,
+              "name": "lightweight Office preview experience > keeps spreadsheet navigation familiar and at the bottom of the viewport"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "editor::viewers::office::tests::the_page_boots_the_product_bundle_and_reads_only_typed_messages"
+        }
+      ],
+      "environment": "the bundled product Office preview in a WebView"
+    },
+    {
+      "id": "markdown-pane-mode-and-table-tracks",
+      "acceptance": "A Markdown document offers Live Preview and Source Code as a segmented choice in its pane menu (the menu stays open while switching), alongside Find. Markdown table columns are fixed tracks computed from the table and the reading width, whole pixels within their bounds, so focusing a cell cannot resize the table.",
+      "typescript": [
+        {
+          "path": "tests/architecture/editor/runtime/desktopEditorArchitecture.test.ts",
+          "sha256": "2cbd5c0dfd36af09fa91733674f21980bccb5b492fbb708e805819f0676640cb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop editor architecture > exposes Markdown Source Code through the pane menu in the Desktop workspace"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
+          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
+          "cases": [
+            {
+              "index": 18,
+              "name": "Markdown rich-block boundary affordance > uses semantic fixed column tracks so cell focus cannot resize a Markdown table"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "editor::host::tests::markdown_contributes_its_mode_segments"
+        },
+        {
+          "package": "po-editor",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "editor::markdown::features::table::layout::tests::tracks_match_the_product_at_every_reading_width"
+        },
+        {
+          "package": "po-editor",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "editor::markdown::features::table::layout::tests::explicit_tracks_are_whole_pixels_within_their_bounds"
+        }
+      ],
+      "environment": "a native editor host in a test window"
+    },
+    {
+      "id": "native-vocabulary-gate",
+      "acceptance": "The native-only copy (assets/native-locales.json) is held to the product's vocabulary with the product's own generated rules and matcher, imported from the pinned checkout (tools/check-native-vocabulary.mjs, a verify.py gate). A prohibited word is reported with its concept and the replacement, or a request to describe the consequence when the concept has no user-facing word; inflected forms and copy inside plural bodies are caught, while placeholder names, links, values that are not strings and longer unrelated words are not. Only strings the baseline does not record fail, an exemption whose string is gone is stale so the baseline can only shrink, and the native copy passes with its committed baseline.",
+      "typescript": [
+        {
+          "path": "tests/architecture/localization/vocabulary/userVocabularyGate.test.mjs",
+          "sha256": "cfe85e9bb77450b748d0f32a7dddd5d031be0957f3d7cbdc7a0bacf73b20f878",
+          "cases": [
+            {
+              "index": 6,
+              "name": "the gate reads user-facing wording only > reports the prohibited word, its concept and the replacement"
+            },
+            {
+              "index": 7,
+              "name": "the gate reads user-facing wording only > asks for a consequence when the concept has no user-facing word"
+            },
+            {
+              "index": 8,
+              "name": "the gate reads user-facing wording only > catches inflected forms"
+            },
+            {
+              "index": 9,
+              "name": "the gate reads user-facing wording only > does not match a longer unrelated word"
+            },
+            {
+              "index": 10,
+              "name": "the gate reads user-facing wording only > ignores placeholder names and links, which the user never reads"
+            },
+            {
+              "index": 11,
+              "name": "the gate reads user-facing wording only > still reads the copy inside plural and select bodies"
+            },
+            {
+              "index": 12,
+              "name": "the gate reads user-facing wording only > skips values that are not strings"
+            },
+            {
+              "index": 13,
+              "name": "the baseline exempts existing strings and may only shrink > fails only for strings the baseline does not record"
+            },
+            {
+              "index": 14,
+              "name": "the baseline exempts existing strings and may only shrink > reports recorded strings that disappeared so the baseline can shrink"
+            },
+            {
+              "index": 17,
+              "name": "the gate is wired into the repository checks > passes against the whole repository with the committed baseline"
+            },
+            {
+              "index": 18,
+              "name": "the gate is wired into the repository checks > keeps every exempt string in a catalog that still exists"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "python",
+          "python": "tools/test_native_vocabulary.py",
+          "test": "NativeVocabularyTests.test_the_native_copy_passes_with_its_committed_baseline"
+        },
+        {
+          "package": "python",
+          "python": "tools/test_native_vocabulary.py",
+          "test": "NativeVocabularyTests.test_the_product_matcher_reads_only_user_facing_copy"
+        }
+      ],
+      "environment": "Node with the pinned product checkout"
+    },
+    {
+      "id": "window-chrome-and-menu-placement",
+      "acceptance": "On macOS there is no sidebar footer and Settings lives in the application menu: PuppyOne > Settings… (⌘,) opens the focused window's Settings dialog and Escape closes it. A row whose menu is open keeps its trigger lit. A pane menu stays below its handle and, near the bottom of the window, scrolls within the space left (up to 360px). In full screen the window has no title, so the native reveal bar carries no application title, and leaving full screen restores it.",
+      "typescript": [
+        {
+          "path": "tests/architecture/platform/menus/settingsNativeMenuBridge.test.ts",
+          "sha256": "f248fb1b816ec01b86166fdaab4657eb0fd893c540adfd6ced0e4c08a68cee39",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native Settings menu bridge > routes PuppyOne > Settings… to the focused window's Settings dialog"
+            },
+            {
+              "index": 1,
+              "name": "native Settings menu bridge > drops the sidebar footer bar only where the application menu states Settings"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/platform/menus/menuSurfaceAppearance.test.ts",
+          "sha256": "d0de16c45c308b21fed20e616a8bee7120663709164f5a83954afe2eb28531ed",
+          "cases": [
+            {
+              "index": 5,
+              "name": "desktop menu appearance architecture > keeps the launcher and its owning Sidebar row active while a menu is open"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/platform/menus/titlebarMenuOverlayArchitecture.test.ts",
+          "sha256": "e54dd5e60e3959752a444f6d3012190c3b1ce0da24f3385636c74c0f95bc817a",
+          "cases": [
+            {
+              "index": 6,
+              "name": "titlebar menu overlay architecture > keeps a fixed-below pane menu below its trigger and scrolls within remaining space"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/platform/native-surfaces/titlebarDragRegionArchitecture.test.ts",
+          "sha256": "a8963f2226b46d3a9e9be1b7c460f90259895c824ebbf847aa34fc12a18e9e67",
+          "cases": [
+            {
+              "index": 4,
+              "name": "titlebar drag-region architecture > keeps the native fullscreen reveal bar free of application titles"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::explorer_row_menus_light_their_trigger_and_dismiss"
+        },
+        {
+          "package": "po-editor",
+          "features": [
+            "dev-capture"
+          ],
+          "test": "editor::workbench::pane::tests::the_menu_scrolls_within_the_space_below_its_handle"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::session::title_tests::full_screen_shows_no_title_and_leaving_it_restores_one"
+        }
+      ],
+      "environment": "test windows; window-title and menu-placement rules in memory"
+    },
+    {
+      "id": "macos-release-signing-policy",
+      "acceptance": "A Stable macOS build is releasable only with a Developer ID signer and one complete notarization credential set; a partial set (an App Store Connect key without its id and issuer, a .p12 without its password) is refused with the missing names, and Dev and Internal builds are always ad-hoc signed and never released.",
+      "typescript": [
+        {
+          "path": "tests/architecture/release/build-identity/macosReleasePolicy.test.mjs",
+          "sha256": "36c4e7e7cb1edaa06677c0074942c06d7494a9bd64f09c3b7d59bec0f78ef0c3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "macOS stable release policy > accepts the production package config with complete signing and notarization credentials"
+            },
+            {
+              "index": 1,
+              "name": "macOS stable release policy > rejects internal signing overrides and partial notarization credentials"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "SigningPlanTest.test_stable_needs_a_signer_and_one_complete_notarization_set"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "SigningPlanTest.test_dev_and_internal_are_always_ad_hoc"
+        }
+      ],
+      "environment": "the release signing planner with fake credentials"
+    },
+    {
+      "id": "settings-payments-surfaces-and-locales",
+      "acceptance": "Every price lives on Plan: Account shows the Space's plan as a compact reading with a link to Plan (and the AI credit balance with its top-ups), and Plan is reachable without a project and follows Cloud. While the Payments experiment is off nothing is priced: Plan reads no billing and the built-in Agent offers only the person's own connections. Every product locale carries the core Settings, Typography, Privacy, Local Agents, Agent file activity, Language and Local Project copy, and none the retired sidebar entries.",
+      "typescript": [
+        {
+          "path": "tests/architecture/settings/feature-flags/paymentsSurfaceArchitecture.test.ts",
+          "sha256": "a5ec368dc7cf4601a33754e907459e08045992d221a2085cc302167ea2a0e006",
+          "cases": [
+            {
+              "index": 0,
+              "name": "payments surfaces in Settings > splits state from purchase, and puts every price on Plan"
+            },
+            {
+              "index": 1,
+              "name": "payments surfaces in Settings > prices nothing while the payments experiment is off"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/settings/preferences/settingsVisualArchitecture.test.ts",
+          "sha256": "382066b9082a626dbd6259708611ebf1f3fb6fffa29f4d3cac3623086889f6c4",
+          "cases": [
+            {
+              "index": 4,
+              "name": "settings visual architecture > keeps every supported locale complete for core settings and Typography"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_share::settings_manage_one_space_its_members_and_its_plan"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::signed_out_plan_renders_comparable_prices_and_routes_every_offer_to_account"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::sidebar::settings_sidebar_model::tests::plan_navigation_keeps_price_reachable_without_a_project_and_follows_cloud"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_share::the_plan_page_reads_billing_only_with_payments_on_and_keeps_readings_through_an_outage"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::compute::tests::without_payments_only_own_connections_are_routes"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::core_settings_copy_is_complete_in_every_product_locale"
+        }
+      ],
+      "environment": "test windows with fake Cloud billing; the shipped product catalogs"
+    },
+    {
+      "id": "update-interaction-boundaries",
+      "acceptance": "Updates are checked in the background on the product's cadence and stop with the service; nothing older than the running version or tampered is ever offered; automatic, manual and enabled downloads each prepare the update once without restarting, and turning automatic downloads off mid-download keeps the archive. Once an update is downloaded or blocked, further checks stay quiet rather than checking again. A prepared update installs on an ordinary quit, and a cancelled restart keeps the prepared app. The titlebar shows an update command only for an actionable state.",
+      "typescript": [
+        {
+          "path": "tests/architecture/updates/installation/desktop-update.architecture.test.ts",
+          "sha256": "fc32aeceeaebdba36cff07676063273fa9eea58db9fa8989333b9a408003cbb0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop update interaction boundaries > keeps blocked updates in Settings and never rechecks a downloaded payload"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::background_checks_start_once_follow_the_cadence_and_stop_with_the_service"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::an_older_or_tampered_update_is_never_offered"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::automatic_manual_and_enabled_downloads_prepare_once_without_restarting"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::disabling_automatic_updates_during_download_preserves_the_in_flight_archive"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::menu::actionable_and_cancelled_restart_states_keep_menu_checks_quiet"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::a_prepared_update_installs_on_ordinary_quit_without_a_restart_request"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::cancelled_restarts_keep_the_prepared_app_and_ordinary_quit_installs_without_relaunch"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::header::update_tests::absent_capability_and_nonactionable_update_states_render_no_titlebar_command"
+        }
+      ],
+      "environment": "a local HTTP update feed with signed test archives; an isolated profile"
+    },
+    {
+      "id": "pane-collapse-resize-and-large-lists",
+      "acceptance": "Side panes open and close by moving their frame over animated resize tracks, never with reduced motion or while resizing; a collapsed Explorer has one expansion action in the Header; a click on a collapsed edge does not expand it, and dragging from it hands off to direct resize. One controller owns every pane gesture: a drag commits once on release (through release jitter), a collapse preview retreats, and cancel or Escape rolls back. A frame that moves keeps its content at the open width. Long Explorer and Changes lists paint only the rows in view.",
+      "typescript": [
+        {
+          "path": "tests/architecture/ui-primitives/sidebar/sidebarArchitecture.test.ts",
+          "sha256": "f9a15c051073c8032f5a61b2477dd2ec33d569686ded32f2c7852abd4ccbd990",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Sidebar architecture > collapses panes through animated resize tracks without expanded-state toggle buttons"
+            },
+            {
+              "index": 6,
+              "name": "Sidebar architecture > gives the collapsed explorer one Header-owned expansion action"
+            },
+            {
+              "index": 7,
+              "name": "Sidebar architecture > keeps collapsed pane edges resize-only without midpoint expansion buttons"
+            },
+            {
+              "index": 8,
+              "name": "Sidebar architecture > gives one controller ownership of pointer gestures across every pane"
+            },
+            {
+              "index": 10,
+              "name": "Sidebar architecture > keeps direct resize canonical while visibility transitions preserve content width"
+            },
+            {
+              "index": 11,
+              "name": "Sidebar architecture > enforces one large-list policy with a bounded mounted-row budget"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_layout::closing_the_explorer_moves_its_frame_unless_motion_is_reduced"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::panes::motion::tests::resizes_and_reduced_motion_do_not_animate"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::native_buttons_toggle_slots_and_open_settings"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::panes::gesture::tests::a_click_on_a_collapsed_edge_does_not_expand"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::panes::gesture::tests::edge_expansion_hands_off_to_direct_resize"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::panes::tests::a_drag_commits_on_release_and_rolls_back_on_cancel"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::panes::gesture::tests::collapse_previews_through_release_jitter_and_commits_once"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_layout::a_collapse_preview_retreats_and_escape_rolls_back"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::panes::tests::a_moving_frame_keeps_its_content_at_the_open_width"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::large_tree_uses_gpui_virtual_rows"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::tests::large_git_snapshot_only_paints_visible_rows"
+        }
+      ],
+      "environment": "test windows; pane gesture and motion models in memory"
+    },
+    {
+      "id": "local-git-push-gating-and-workspace-config",
+      "acceptance": "A branch with incoming commits must take them before it can push, and nothing is pushed or published while a rebase, merge, cherry-pick or revert waits for its conflicts; a conflicted operation continues once resolved or aborts. The workspace config migrates version 1 and 2 Git metadata into the version 3 source of truth, writes only its own sections so a historical Project, Cloud or checkout identity (and an obsolete local Project id) is not kept, keeps the unnamed fields of each section, and refuses an unsupported version.",
+      "typescript": [
+        {
+          "path": "tests/architecture/workspace/files/localWorkspaceArchitecture.test.mjs",
+          "sha256": "289cdc3f07c3904e00e85de20b8687e417ba7d72658fcd6c8b77f6f509d34cf5",
+          "cases": [
+            {
+              "index": 3,
+              "name": "source-control presentation model > requires incoming commits to be integrated before a diverged branch can push"
+            },
+            {
+              "index": 4,
+              "name": "source-control presentation model > fails closed while a repository operation is waiting for conflict resolution"
+            },
+            {
+              "index": 5,
+              "name": "workspace config normalization > migrates v1 Git metadata into the v3 source-of-truth shape"
+            },
+            {
+              "index": 6,
+              "name": "workspace config normalization > strips historical Cloud, Project, and checkout identity from the local config"
+            },
+            {
+              "index": 7,
+              "name": "workspace config normalization > ignores obsolete local Project ids and rejects unsupported config versions"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::tests::a_diverged_or_interrupted_branch_cannot_push_or_publish"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::tests::a_conflicted_merge_continues_once_resolved_or_aborts"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::sync_config::tests::a_rebase_conflict_is_surfaced_and_finished_before_push"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::workspace_config::tests::legacy_documents_normalize_like_the_product"
+        }
+      ],
+      "environment": "Git snapshots in memory and real repositories; config documents in memory"
+    },
+    {
+      "id": "pointer-cursor-policy-and-loading-motion",
+      "acceptance": "Actions (buttons, rows, switches, menu items) keep the arrow; links and navigation destinations (tabs, the Terminal and Agent launchers, Agent history and file references, CSV references, learn-more links) take the hand only while Pointer cursors is on, as its description promises. Loading placeholders and marks stay still when reduced motion is asked for.",
+      "typescript": [
+        {
+          "path": "tests/architecture/ui-primitives/controls/semanticNavigationCursor.test.ts",
+          "sha256": "d9301629e2a081318cfd4267ff83120d63dc7795dbee9a16079e21452e784886",
+          "cases": [
+            {
+              "index": 0,
+              "name": "semantic navigation cursor contract > enables the hand cursor only for destinations when the preference is on"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/feedback/loadingPlaceholderArchitecture.test.ts",
+          "sha256": "98f1845db21e1977424da59f4452bf9d1ea663cf000c098ffb75eeaa5a48fc53",
+          "cases": [
+            {
+              "index": 2,
+              "name": "loading placeholder styles > keeps both styles still for reduced motion"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "theme::tests::the_hand_is_only_for_destinations_and_only_when_asked_for"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::loading::model::tests::rounded_keyframes_and_reduced_motion_keep_the_product_figures"
+        }
+      ],
+      "environment": "the cursor policy and loading model in memory"
     }
   ],
   "openAcceptance": [
@@ -23418,6 +24113,24 @@
               "name": "titlebar typography architecture > continues native Windows caption-button geometry through the app actions"
             }
           ]
+        },
+        {
+          "path": "tests/architecture/release/build-identity/macosReleasePolicy.test.mjs",
+          "sha256": "36c4e7e7cb1edaa06677c0074942c06d7494a9bd64f09c3b7d59bec0f78ef0c3",
+          "cases": [
+            {
+              "index": 11,
+              "name": "cross-platform stable release workflow > builds macOS and Windows in parallel and publishes only their complete Release Set"
+            },
+            {
+              "index": 12,
+              "name": "cross-platform stable release workflow > rejects a workflow that can publish before the Windows build succeeds"
+            },
+            {
+              "index": 13,
+              "name": "cross-platform stable release workflow > requires both native builders to consume one shared build timestamp"
+            }
+          ]
         }
       ]
     },
@@ -23608,13 +24321,133 @@
               "name": "Terminal preview launcher > normalizes release tags into npm-compatible versions"
             }
           ]
+        },
+        {
+          "path": "tests/architecture/release/build-identity/cloudEnvironmentPairing.test.mjs",
+          "sha256": "328f52dd54222a82fed042c21acb566d020bcecd198699f8ac9889204bbd44b7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop channel to Cloud environment pairing > builds Internal packages against the Qubits staging Cloud"
+            },
+            {
+              "index": 1,
+              "name": "Desktop channel to Cloud environment pairing > builds every Stable platform against the production Cloud"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/release/build-identity/macosReleasePolicy.test.mjs",
+          "sha256": "36c4e7e7cb1edaa06677c0074942c06d7494a9bd64f09c3b7d59bec0f78ef0c3",
+          "cases": [
+            {
+              "index": 2,
+              "name": "macOS stable release policy > requires upload credentials and a tag matching the package version"
+            },
+            {
+              "index": 3,
+              "name": "macOS stable release policy > uses immutable version and mutable latest R2 prefixes"
+            },
+            {
+              "index": 4,
+              "name": "continuous integration workflow > runs source gates without release authority and pins actions"
+            },
+            {
+              "index": 5,
+              "name": "macOS internal release workflow > builds once and delegates atomic publication"
+            },
+            {
+              "index": 6,
+              "name": "macOS internal release workflow > keeps the green-main gate fail-closed without .event == \"push\""
+            },
+            {
+              "index": 7,
+              "name": "macOS internal release workflow > keeps the green-main gate fail-closed without .head_sha == env.GITHUB_SHA"
+            },
+            {
+              "index": 8,
+              "name": "macOS internal release workflow > keeps the green-main gate fail-closed without .status == \"completed\""
+            },
+            {
+              "index": 9,
+              "name": "macOS internal release workflow > keeps the green-main gate fail-closed without .conclusion == \"success\""
+            },
+            {
+              "index": 10,
+              "name": "macOS internal release workflow > rejects an Internal workflow without the green-main source gate"
+            },
+            {
+              "index": 14,
+              "name": "atomic Stable Release Set publisher > rejects serial upload_bundle transfers"
+            },
+            {
+              "index": 15,
+              "name": "atomic Stable Release Set publisher > rejects serial upload_asset_set transfers"
+            },
+            {
+              "index": 16,
+              "name": "atomic Stable Release Set publisher > rejects serial stage_bundle transfers"
+            },
+            {
+              "index": 17,
+              "name": "atomic Stable Release Set publisher > rejects missing coverage or an independent verification pool: --target \"${WINDOWS_BUNDLE_DIRECTORY}\" \"${PUBLIC_UPDATE_ORIGIN}/${WINDOWS_LATEST_PREFIX}\""
+            },
+            {
+              "index": 18,
+              "name": "atomic Stable Release Set publisher > rejects missing coverage or an independent verification pool: --include-aliases true"
+            },
+            {
+              "index": 19,
+              "name": "atomic Stable Release Set publisher > rejects missing coverage or an independent verification pool: --concurrency 3"
+            },
+            {
+              "index": 20,
+              "name": "atomic Stable Release Set publisher > rejects missing coverage or an independent verification pool: # One pool bounds ALL platform/origin requests, including latest aliases."
+            },
+            {
+              "index": 21,
+              "name": "atomic Stable Release Set publisher > validates both targets before mutation and compensates incomplete commits"
+            },
+            {
+              "index": 22,
+              "name": "atomic Stable Release Set publisher > rejects the old append-after-publication model"
+            },
+            {
+              "index": 23,
+              "name": "desktop release publisher workflow > publishes immutable GitHub and R2 records before mutable pointers"
+            },
+            {
+              "index": 24,
+              "name": "desktop release publisher workflow > requires the existing-release check to receive the Internal draft policy"
+            },
+            {
+              "index": 25,
+              "name": "desktop release publisher workflow > requires final GitHub verification to preserve the Internal draft policy"
+            },
+            {
+              "index": 26,
+              "name": "desktop release publisher workflow > requires every machine-origin verification stage to remain Stable-only"
+            },
+            {
+              "index": 27,
+              "name": "desktop release publisher workflow > keeps the distribution preflight read-only and ahead of deployment authority"
+            },
+            {
+              "index": 28,
+              "name": "desktop legacy archive workflow > verifies archive copies and catalog state before optional deletion"
+            },
+            {
+              "index": 29,
+              "name": "desktop Stable update feed monitor workflow > checks every shipped feed on a schedule without deployment authority"
+            }
+          ]
         }
       ]
     },
     {
       "id": "ts-repository-ci-infrastructure",
       "kind": "out-of-scope",
-      "reason": "These test the TS repository's own CI runner, Vitest discovery and evidence files, and the Vite renderer output lease. The native frontend has no renderer build, and its verification runs through tools/verify.py and tools/test_runner.py with their own tests (exact test discovery, per-test isolation, source-unchanged receipts).",
+      "reason": "These test the TS repository's own development tooling: its CI runner and release-check wiring, Vitest discovery and evidence files, the Vite renderer output lease, the readability ratchets (ESLint baselines, dependency-cruiser, the Git ratchet), the generation of vocabulary rules from the Product Philosophy table, and the visual-matrix smoke wiring. The native frontend has no renderer build: its verification runs through tools/verify.py and tools/test_runner.py with their own tests (exact test discovery, per-test isolation, source-unchanged receipts), strict clippy and tools/check-ui-boundaries.py, and it applies the product's generated vocabulary rules as they are (native-vocabulary-gate).",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
       "typescript": [
         {
@@ -23762,6 +24595,288 @@
             {
               "index": 18,
               "name": "appearance profile architecture > gates the representative visual matrix in CI"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/localization/vocabulary/userVocabularyGate.test.mjs",
+          "sha256": "cfe85e9bb77450b748d0f32a7dddd5d031be0957f3d7cbdc7a0bacf73b20f878",
+          "cases": [
+            {
+              "index": 0,
+              "name": "vocabulary rules come from the Product Philosophy table > names every prohibited word, in both scripts, without duplicates"
+            },
+            {
+              "index": 1,
+              "name": "vocabulary rules come from the Product Philosophy table > keeps a word the same table sanctions as user-facing wording"
+            },
+            {
+              "index": 2,
+              "name": "vocabulary rules come from the Product Philosophy table > carries the replacement wording and the concept into each rule"
+            },
+            {
+              "index": 3,
+              "name": "vocabulary rules come from the Product Philosophy table > digests the table alone, so unrelated document edits do not invalidate the rules"
+            },
+            {
+              "index": 4,
+              "name": "vocabulary rules come from the Product Philosophy table > records the document provenance of the generated rules"
+            },
+            {
+              "index": 5,
+              "name": "vocabulary rules come from the Product Philosophy table > refuses a document without the table"
+            },
+            {
+              "index": 15,
+              "name": "the gate is wired into the repository checks > runs inside npm run check:boundaries"
+            },
+            {
+              "index": 16,
+              "name": "the gate is wired into the repository checks > names the wording authority in the Documentation Authority section"
+            },
+            {
+              "index": 19,
+              "name": "the gate is wired into the repository checks > holds generated rules that still match the authority document when it is checked out"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/platform/readability/readabilityGates.test.mjs",
+          "sha256": "ea448548a42ebad864772778106770e690ea1b1fe539132eadbb3583089f8225",
+          "cases": [
+            {
+              "index": 0,
+              "name": "readability gates reject new code, without suppressing bug rules > enforces no-nested-ternary"
+            },
+            {
+              "index": 1,
+              "name": "readability gates reject new code, without suppressing bug rules > covers src/a.ts"
+            },
+            {
+              "index": 2,
+              "name": "readability gates reject new code, without suppressing bug rules > covers src/shared-ui/a.ts"
+            },
+            {
+              "index": 3,
+              "name": "readability gates reject new code, without suppressing bug rules > covers electron/a.ts"
+            },
+            {
+              "index": 4,
+              "name": "readability gates reject new code, without suppressing bug rules > covers electron/local-api/a.ts"
+            },
+            {
+              "index": 5,
+              "name": "readability gates reject new code, without suppressing bug rules > covers shared/a.ts"
+            },
+            {
+              "index": 6,
+              "name": "readability gates reject new code, without suppressing bug rules > covers src/a.mts"
+            },
+            {
+              "index": 7,
+              "name": "readability gates reject new code, without suppressing bug rules > covers electron/a.cts"
+            },
+            {
+              "index": 8,
+              "name": "readability gates reject new code, without suppressing bug rules > covers electron/local-api/a.tsx"
+            },
+            {
+              "index": 9,
+              "name": "readability gates reject new code, without suppressing bug rules > covers electron/a.mjs"
+            },
+            {
+              "index": 10,
+              "name": "readability gates reject new code, without suppressing bug rules > covers electron/local-api/a.mjs"
+            },
+            {
+              "index": 11,
+              "name": "readability gates reject new code, without suppressing bug rules > covers shared/a.js"
+            },
+            {
+              "index": 12,
+              "name": "readability gates reject new code, without suppressing bug rules > covers src/a.js"
+            },
+            {
+              "index": 13,
+              "name": "readability gates reject new code, without suppressing bug rules > covers src/shared-ui/a.mjs"
+            },
+            {
+              "index": 14,
+              "name": "readability gates reject new code, without suppressing bug rules > covers electron/a.cjs"
+            },
+            {
+              "index": 15,
+              "name": "readability gates reject new code, without suppressing bug rules > ignores source-like evidence under artifacts"
+            },
+            {
+              "index": 16,
+              "name": "readability gates reject new code, without suppressing bug rules > leaves length and shape to review, and keeps nested ternaries out"
+            },
+            {
+              "index": 17,
+              "name": "native ESLint baseline rejects new files, increased counts and unsuppressed bugs"
+            },
+            {
+              "index": 18,
+              "name": "native ESLint pruning removes fixed counts and the Git ratchet disallows bug suppressions"
+            },
+            {
+              "index": 19,
+              "name": "documents native suppression granularity: replacement at the same file/rule/count needs review"
+            },
+            {
+              "index": 20,
+              "name": "dependency-cruiser catches all directions, aliases, cycles and unresolved imports in both domain layouts"
+            },
+            {
+              "index": 21,
+              "name": "discovers future root domains even after the entire features directory is removed"
+            },
+            {
+              "index": 22,
+              "name": "dependency checks reject stale debt; pruning only removes and never writes new debt"
+            },
+            {
+              "index": 23,
+              "name": "Git ratchet supports only genuine exact renames (modified=false)"
+            },
+            {
+              "index": 24,
+              "name": "Git ratchet supports only genuine exact renames (modified=true)"
+            },
+            {
+              "index": 25,
+              "name": "Git ratchet rejects growth, same-total transfers, stale deleted files and invalid bases"
+            },
+            {
+              "index": 26,
+              "name": "CI selects the PR base/pre-push SHA and fails closed when it is missing or invalid"
+            },
+            {
+              "index": 27,
+              "name": "CI fetches the supplied comparison commit and catches growth earlier in a multi-commit push"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/release/build-identity/cascadeBootstrap.test.mjs",
+          "sha256": "add3d0b8c879bc1644bcd99c40275fc0894f6a8e65bfe87dd7b2995de4ffc8f0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "renderer cascade bootstrap > registers the canonical order ahead of extracted CSS in both dev and build"
+            },
+            {
+              "index": 1,
+              "name": "renderer cascade bootstrap > keeps the bootstrap in the application build pipeline"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/release/ci/ciElectronSmokeSandbox.test.mjs",
+          "sha256": "799681022aabcf9e88dcba9f4bcb4079113c1ade392461fdfa5b7dec2bc41d38",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CI Electron smoke sandbox boundary > scopes the hosted Linux fallback and virtual display to Electron fixtures"
+            },
+            {
+              "index": 1,
+              "name": "CI Electron smoke sandbox boundary > keeps the smoke fixture on the current split-view input contract"
+            },
+            {
+              "index": 2,
+              "name": "CI Electron smoke sandbox boundary > keeps pane input and PDF ownership inside the renderer DOM"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/release/ci/ciIntegrationGates.test.mjs",
+          "sha256": "5ff0df900808efbf3326d4c6a91cc18b1fc33369f36da3023eea617b248779a6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "integration branch quality gates > runs the required source and Desktop jobs on both canonical branches"
+            },
+            {
+              "index": 1,
+              "name": "integration branch quality gates > signs in with email through the paired Cloud Web before Build can pass"
+            },
+            {
+              "index": 2,
+              "name": "integration branch quality gates > requires updater P0 checks on every native platform in the contracts matrix"
+            },
+            {
+              "index": 3,
+              "name": "integration branch quality gates > makes every test typecheck and the complete core denominator part of the source gate"
+            },
+            {
+              "index": 4,
+              "name": "integration branch quality gates > requires real HTML navigation and visual editing in both native App plans"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/settings/experiments/projectReachGate.test.mjs",
+          "sha256": "d5ef7e379575da9492dc7c524c984579d515f1be09f586e94abf939ebf32fbe8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project reach experiment gate > accepts a two-path tree with one flag owner set, declared entries and one data layer"
+            },
+            {
+              "index": 1,
+              "name": "project reach experiment gate > holds for the repository itself"
+            },
+            {
+              "index": 2,
+              "name": "project reach experiment gate > rejects a surface that reads the stored flag instead of the consumption point"
+            },
+            {
+              "index": 3,
+              "name": "project reach experiment gate > rejects a fork in a leaf component outside the declared render entries"
+            },
+            {
+              "index": 4,
+              "name": "project reach experiment gate > rejects extra decisions inside a declared entry and a fork that bypasses the public entry"
+            },
+            {
+              "index": 5,
+              "name": "project reach experiment gate > rejects a new-path file that re-decides or reaches a transport itself"
+            },
+            {
+              "index": 6,
+              "name": "project reach experiment gate > rejects a second copy of a shared share or Git fact"
+            },
+            {
+              "index": 7,
+              "name": "project reach experiment gate > rejects a contract that names a file the repository no longer has"
+            },
+            {
+              "index": 8,
+              "name": "project reach experiment gate > rejects a convention document that lost the fork or retirement contract"
+            },
+            {
+              "index": 9,
+              "name": "project reach experiment gate > rejects an experiment that defaults on, loses its settings row or reads the flag twice"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/terminal/screen/xtermWebglAtlasPatch.test.mjs",
+          "sha256": "ae1f617882eede13c0f340343954b41042d6b9ddb90435ccc61b74a53d2f195b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "xterm WebGL glyph-atlas patch > replaces mipmap generation with explicit non-mipmapped filters"
+            },
+            {
+              "index": 1,
+              "name": "xterm WebGL glyph-atlas patch > is idempotent and fails closed if the upstream bundle shape changes"
+            },
+            {
+              "index": 2,
+              "name": "xterm WebGL glyph-atlas patch > runs after installs and leaves both published bundles on the safe path"
             }
           ]
         }
@@ -25148,7 +26263,7 @@
     {
       "id": "ts-source-architecture",
       "kind": "out-of-scope",
-      "reason": "These read the TypeScript, Electron or build sources as text and assert how that repository is organised: which module imports or registers what, where an identifier may or may not appear, which file owns a rule or a drawing, how stylesheets are layered and imported, and what the development orchestrator watches. They describe the TS codebase, not behaviour a person can observe beyond what the behavioural rows test. The native frontend is a different codebase whose organisation is enforced by Rust module privacy, its crate split, tools/check-ui-boundaries.py and strict clippy; the behaviour these rules protect is mapped to native tests in the behavioural rows (for appearance: theme packages, Sub Theme resolution, typography roles, selection paint, elevation, file icons).",
+      "reason": "These read the TypeScript, Electron or build sources as text and assert how that repository is organised: which module imports, registers or portals what, where an identifier, attribute or marker may or may not appear, which file owns a rule or a drawing, how stylesheets are layered and imported, how the Electron main process orders its start-up, and what the development orchestrator watches. They describe the TS codebase, not behaviour a person can observe beyond what the behavioural rows test. The native frontend is a different codebase whose organisation is enforced by Rust module privacy, its crate split, tools/check-ui-boundaries.py and strict clippy; where such a rule protects product behaviour (cursor policy, pane gestures, Sub Theme resolution, chat-history ownership, Cloud association, menu placement, file icons), that behaviour is mapped to native tests in its own row.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
       "typescript": [
         {
@@ -25386,6 +26501,610 @@
               "name": "Desktop Agent architecture boundaries > keeps local executable inventory main-owned, lazy and separate from OpenCode provider authority"
             }
           ]
+        },
+        {
+          "path": "tests/architecture/cloud/environment/accessSurfacesArchitecture.test.ts",
+          "sha256": "d3b4420bffa4782cb1de31eabb3094fbc7b5d71a0e07903e7e69acfbf7b653d8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Access surfaces in the Cloud facade > keeps no legacy leaf resource aliases"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/cloud/repositories/cloudRepositoryContextArchitecture.test.ts",
+          "sha256": "f31b7090bf6c3c1a3d6bab99c8d991ba475a89d4b8a02922b6856b50ad8182bd",
+          "cases": [
+            {
+              "index": 1,
+              "name": "repository-context architecture > keeps local association discovery separate from account project navigation"
+            },
+            {
+              "index": 2,
+              "name": "repository-context architecture > opens a Cloud project only as its own project, through the shared account navigation"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/csv/csvTableVisualArchitecture.test.ts",
+          "sha256": "1d9f3db62e7372de065becb05bcacfa4b341e2126ed115453c5aeae09cbad02d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV table visual architecture > projects links through the format-neutral navigation port"
+            },
+            {
+              "index": 3,
+              "name": "CSV table visual architecture > assigns the two-axis CSV viewport to exactly one scroll owner"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/runtime/editorDocumentAdmissionArchitecture.test.ts",
+          "sha256": "ff758b8f7c4ee9783924ff86695ecf607d919ca77942de9a1f5b07477c1007ca",
+          "cases": [
+            {
+              "index": 0,
+              "name": "document admission architecture > keeps Explorer selection separate from document opening commands"
+            },
+            {
+              "index": 1,
+              "name": "document admission architecture > does not expose path-only workbench open commands"
+            },
+            {
+              "index": 2,
+              "name": "document admission architecture > proves restored resources before publishing them to the workbench"
+            },
+            {
+              "index": 3,
+              "name": "document admission architecture > excludes folders from document and Viewer Host types"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/runtime/editorHostHierarchy.test.ts",
+          "sha256": "40c37d3a7e684d129da533ca416e257b7137498fcd904bfa593a735cd8de1492",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor host hierarchy > keeps the host chain explicit and attaches routing at the document boundary"
+            },
+            {
+              "index": 1,
+              "name": "editor host hierarchy > routes format implementations from isolated viewer packages"
+            },
+            {
+              "index": 2,
+              "name": "editor host hierarchy > does not restore the former flat ownership paths"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/runtime/editorPaneHostArchitecture.test.ts",
+          "sha256": "72968577d1f7be982642f4cf3d4547b38018ffa957547956c5fe620edafcb994",
+          "cases": [
+            {
+              "index": 0,
+              "name": "persistent editor pane host architecture > keeps pane runtimes outside the recursive split-tree ownership boundary"
+            },
+            {
+              "index": 1,
+              "name": "persistent editor pane host architecture > owns one stable host per semantic pane and reattaches it before paint"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/runtime/presetViewerPreloadArchitecture.test.ts",
+          "sha256": "b92c783e9358746bb0e27b2debe84e763ce1bfa9aaa71be5655dc59537c781cd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "preset viewer preload cache > starts route acquisition from the selected document rather than the retained preview"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/mermaid/mermaidRuntimeBoundary.test.ts",
+          "sha256": "e44afa9d3796875ff89e6b2484878bb4ce187f6a926cabf9885ec94bed0cd7fc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Mermaid computation boundary > keeps the engine out of shared rendering and the application bootstrap"
+            },
+            {
+              "index": 1,
+              "name": "Mermaid computation boundary > keeps the compute preload capability small and engine cache version explicit"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/extensions/viewer-packs/packageDependencies.test.mjs",
+          "sha256": "70c1d42b4d95b15989766bdff80d97422b94a216a30736683db624ead41c3371",
+          "cases": [
+            {
+              "index": 0,
+              "name": "viewer pack security boundaries > ships every main-process runtime import as a production dependency"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/document-session/editorInteractionSessionArchitecture.test.ts",
+          "sha256": "71b90996a983eaa604a1b21890f76d7af33c55bf29e1d0c560e719d727263cc8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor interaction session architecture > owns native passthrough through idempotent session leases"
+            },
+            {
+              "index": 1,
+              "name": "editor interaction session architecture > funnels renderer terminal events through one lifecycle boundary"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/model-connections/routing/builtInComputeArchitecture.test.mjs",
+          "sha256": "8ea97a8dee80c0a295228195cbf0e0c75d177c7a089acb615c79c8f1c63eec0c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Built-in compute selection ownership > keeps compute-source names out of Harness routing"
+            },
+            {
+              "index": 1,
+              "name": "Built-in compute selection ownership > keeps connection configuration exclusively in Settings"
+            },
+            {
+              "index": 2,
+              "name": "Built-in compute selection ownership > limits Chat to selecting verified catalog models"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/platform/launch/desktopLaunchOrder.test.mjs",
+          "sha256": "22eaffb917592617ef63f330aad5c81b72848205fa5851b4233b8235873190f5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop launch intent > keeps optional subsystem construction behind the single-instance boundary"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/platform/menus/titlebarMenuOverlayArchitecture.test.ts",
+          "sha256": "e54dd5e60e3959752a444f6d3012190c3b1ce0da24f3385636c74c0f95bc817a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "titlebar menu overlay architecture > portals project and place menus out of the clipped Header tree"
+            },
+            {
+              "index": 1,
+              "name": "titlebar menu overlay architecture > keeps every portal-owned overlay above App Shell chrome"
+            },
+            {
+              "index": 2,
+              "name": "titlebar menu overlay architecture > keeps portal menu interactions inside the controlled open state"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/platform/native-surfaces/titlebarDragRegionArchitecture.test.ts",
+          "sha256": "a8963f2226b46d3a9e9be1b7c460f90259895c824ebbf847aa34fc12a18e9e67",
+          "cases": [
+            {
+              "index": 0,
+              "name": "titlebar drag-region architecture > keeps native hit testing in the dedicated window chrome contract"
+            },
+            {
+              "index": 1,
+              "name": "titlebar drag-region architecture > renders chrome as a sibling of the workbench and keeps Shared UI process-neutral"
+            },
+            {
+              "index": 2,
+              "name": "titlebar drag-region architecture > keeps the Header full width and mounts the optional Project rail below it"
+            },
+            {
+              "index": 3,
+              "name": "titlebar drag-region architecture > keeps right alignment stable while retaining hidden sidebar-edge rollout code"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/platform/security/externalNavigationAuthority.test.mjs",
+          "sha256": "b240e683431d62ddd0e038a53f98413f429e8b43b073dd4b719026958ab90827",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop window navigation security > keeps the Electron shell opener private to the external navigation service"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/settings/preferences/settingsVisualArchitecture.test.ts",
+          "sha256": "382066b9082a626dbd6259708611ebf1f3fb6fffa29f4d3cac3623086889f6c4",
+          "cases": [
+            {
+              "index": 1,
+              "name": "settings visual architecture > keeps General app-scoped and moves project identity into Local Project"
+            },
+            {
+              "index": 3,
+              "name": "settings visual architecture > owns cross-surface text controls in Typography rather than Appearance or Editor"
+            },
+            {
+              "index": 5,
+              "name": "settings visual architecture > keeps version identity in Settings General and out of every Side Panel placement"
+            },
+            {
+              "index": 6,
+              "name": "settings visual architecture > offers one loading style from Appearance with localized labels"
+            },
+            {
+              "index": 7,
+              "name": "settings visual architecture > uses one flat Settings contract and removes legacy card primitives"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/terminal/sessions/desktop-terminal.architecture.test.ts",
+          "sha256": "0e51c0a541ca2e5b1f456d08253734a2456594afc253c60b4a729e1c924a02d9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Terminal architecture boundaries > keeps the workbench generic and terminal lifetime owned by its project"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Terminal architecture boundaries > keeps terminal presentation styles co-located with the feature"
+            },
+            {
+              "index": 3,
+              "name": "Desktop Terminal architecture boundaries > keeps Terminal visibility separate from its native Group manager"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/sidebar/sidebarArchitecture.test.ts",
+          "sha256": "f9a15c051073c8032f5a61b2477dd2ec33d569686ded32f2c7852abd4ccbd990",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Sidebar architecture > keeps the dependency direction and CSS ownership explicit"
+            },
+            {
+              "index": 2,
+              "name": "Sidebar architecture > keeps Data alive and projects one resolved surface into both regions"
+            },
+            {
+              "index": 3,
+              "name": "Sidebar architecture > removes legacy File Sidebar navigation when the Project rail owns navigation"
+            },
+            {
+              "index": 4,
+              "name": "Sidebar architecture > keeps Feature composition out of shared layers and Auxiliary routing independent"
+            },
+            {
+              "index": 9,
+              "name": "Sidebar architecture > gives the Project one surface: the rail states name, place and switching between projects"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/source-control/status/sourceControlVisualArchitecture.test.ts",
+          "sha256": "672d6bc122451b15ebbda6800719d024823f804906f07e10c6103c42ed3b1b36",
+          "cases": [
+            {
+              "index": 2,
+              "name": "source-control visual architecture > keeps remote provider surfaces out while retaining one compact incoming notice"
+            },
+            {
+              "index": 6,
+              "name": "source-control visual architecture > keeps remote Fetch lifecycle out of the presentational sidebar"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/source-control/diff/formatAwareDiffArchitecture.test.ts",
+          "sha256": "4b89fefd19f9ab05837d0a8298677447c50803464aeb207964406dfb45562aa3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "format-aware diff architecture > keeps format decisions in the ordered registry rather than Git commit detail"
+            },
+            {
+              "index": 1,
+              "name": "format-aware diff architecture > keeps async lifecycle generic and heavy DOCX parsing behind provider and worker boundaries"
+            },
+            {
+              "index": 2,
+              "name": "format-aware diff architecture > keeps resource authority and cancellation in trusted IPC"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/controls/explicitTooltipArchitecture.test.ts",
+          "sha256": "770710c9068c6bba011da00c97836b37cc9434334af3c6aced0c1e92984a43b2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "explicit tooltip architecture > keeps Markdown DOM controls free of implicit activation without suppressing explicit mode hints"
+            },
+            {
+              "index": 1,
+              "name": "explicit tooltip architecture > installs the native-title guard and the product-authored tooltip layer at startup"
+            },
+            {
+              "index": 2,
+              "name": "explicit tooltip architecture > only activates product tooltips through explicit Tooltip composition"
+            },
+            {
+              "index": 3,
+              "name": "explicit tooltip architecture > keeps generic controls free of automatic tooltip wrappers"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/controls/nativeTitleArchitecture.test.ts",
+          "sha256": "86763284d026667adebb35de42be81df9d7eb4ee7041c9cbca463a27998de433",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native title architecture > keeps browser-native title bubbles out of product DOM"
+            },
+            {
+              "index": 1,
+              "name": "native title architecture > keeps native title bubbles out of SVG assets"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/controls/semanticNavigationCursor.test.ts",
+          "sha256": "d9301629e2a081318cfd4267ff83120d63dc7795dbee9a16079e21452e784886",
+          "cases": [
+            {
+              "index": 1,
+              "name": "semantic navigation cursor contract > marks button-backed shell and Agent destinations as navigation"
+            },
+            {
+              "index": 2,
+              "name": "semantic navigation cursor contract > marks document-reference actions while preserving editable text cursors"
+            },
+            {
+              "index": 3,
+              "name": "semantic navigation cursor contract > forbids feature CSS from creating pointer cursors outside the policy boundary"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/dialogs/globalDialogOverlayArchitecture.test.ts",
+          "sha256": "34070cddf05ea6161cb07930410c0b8efcec1200a729a4274a7b67759f38e2b2",
+          "cases": [
+            {
+              "index": 3,
+              "name": "global dialog overlay architecture > portals src/features/cloud/initialization/CloudPublishConfirmationDialog.tsx through the shared overlay layer"
+            },
+            {
+              "index": 5,
+              "name": "global dialog overlay architecture > portals src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchCloseDialog.tsx through the shared overlay layer"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/feedback/loadingPlaceholderArchitecture.test.ts",
+          "sha256": "98f1845db21e1977424da59f4452bf9d1ea663cf000c098ffb75eeaa5a48fc53",
+          "cases": [
+            {
+              "index": 0,
+              "name": "loading placeholder styles > ships both styles with the shared UI patterns"
+            },
+            {
+              "index": 1,
+              "name": "loading placeholder styles > is an Appearance preference applied at the surface appearance boundary"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workbench/feedback/helpLauncherPlacementArchitecture.test.ts",
+          "sha256": "bc6b5e0cfac7c8023d5f146616c152a8305f79e1bf7d187bf7486eb0779041ef",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Help launcher placement > moves the launcher to the Project rail experiment while keeping the modal in the global overlay"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workbench/layout/auxiliaryWorkbenchArchitecture.test.ts",
+          "sha256": "8f9534bb37a985ed4d3be32940adde3ca74073480c76cf68aa9bb4f288215b92",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Project-owned auxiliary workbench architecture > does not add execution administration to the primary Sidebar surface"
+            },
+            {
+              "index": 1,
+              "name": "Project-owned auxiliary workbench architecture > owns shared geometry independently of Terminal and isolates vendor adapters"
+            },
+            {
+              "index": 2,
+              "name": "Project-owned auxiliary workbench architecture > keeps serializable topology independent from feature runtimes"
+            },
+            {
+              "index": 3,
+              "name": "Project-owned auxiliary workbench architecture > composes mutually exclusive Right Sidebar surfaces and a lazy Agent contribution"
+            },
+            {
+              "index": 4,
+              "name": "Project-owned auxiliary workbench architecture > preserves Item views across Tab reorder and keeps close feature-authoritative"
+            },
+            {
+              "index": 5,
+              "name": "Project-owned auxiliary workbench architecture > separates presentation from command selection and leaves focus in the DOM"
+            },
+            {
+              "index": 6,
+              "name": "Project-owned auxiliary workbench architecture > keeps feature branding in the generic Item snapshot and Workbench chrome"
+            },
+            {
+              "index": 7,
+              "name": "Project-owned auxiliary workbench architecture > keeps Tab Bar chrome outside the content split-drop coordinate space"
+            },
+            {
+              "index": 8,
+              "name": "Project-owned auxiliary workbench architecture > pins every Terminal runtime to the Item root captured at creation"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workbench/layout/editorPaneChromeHitTargetArchitecture.test.ts",
+          "sha256": "864b3a921a2b09f5ed4a638f0030edb9224f48962aabc21f6d556b11eb811836",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor pane chrome hit-target architecture > keeps first-gesture hit testing independent from visual reveal state"
+            },
+            {
+              "index": 1,
+              "name": "editor pane chrome hit-target architecture > routes both the initial press and preview warmup through the stable button"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workbench/layout/editorSplitPaneArchitecture.test.ts",
+          "sha256": "f884cdf68f001efc1c7558fc3f72cf501c7ea154bb0e1d1d292a0d49aa563f53",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor split-pane architecture > keeps file selection out of the Header"
+            },
+            {
+              "index": 1,
+              "name": "editor split-pane architecture > projects the pane tree inside the Data editor region"
+            },
+            {
+              "index": 3,
+              "name": "editor split-pane architecture > isolates editor focus, overlay, and drag gesture state by scope"
+            },
+            {
+              "index": 4,
+              "name": "editor split-pane architecture > previews split resize outside React and commits durable metadata once"
+            },
+            {
+              "index": 5,
+              "name": "editor split-pane architecture > coalesces Workbench metadata persistence behind an explicit flush boundary"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workbench/layout/terminalSplitArchitecture.test.ts",
+          "sha256": "f7670fe803beed217aafda3091042768110caa0504bd73b94ffb4d11f9ae9f53",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal native split architecture > shares only process-neutral split structure with Editor"
+            },
+            {
+              "index": 1,
+              "name": "Terminal native split architecture > keeps Group geometry outside Runtime and PTY ownership"
+            },
+            {
+              "index": 2,
+              "name": "Terminal native split architecture > moves Tabs between complete Group leaves without taking over file drops"
+            },
+            {
+              "index": 3,
+              "name": "Terminal native split architecture > derives capacity from the character grid without tmux or a pane cap"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workbench/navigation/projectNavigationArchitecture.test.ts",
+          "sha256": "11741414dfb4a18e4360ed9bb1f61454692ef456a6ac897f15980ee5f563ae81",
+          "cases": [
+            {
+              "index": 0,
+              "name": "one project navigation policy across shell surfaces > binds every switcher to the same Local/Cloud commands and pending selection"
+            },
+            {
+              "index": 1,
+              "name": "one project navigation policy across shell surfaces > opens every project through the one window navigation, so no entry can miss the wait"
+            },
+            {
+              "index": 2,
+              "name": "one project navigation policy across shell surfaces > routes both New folder actions to the shared launcher"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workbench/navigation/titlebarExternalOpenArchitecture.test.ts",
+          "sha256": "3fe876ea4065285a4cda3041744df0ad0da327ae00d311691a0d7b73ba576c55",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pane-scoped external-open architecture > keeps file-scoped actions out of the product Header"
+            },
+            {
+              "index": 1,
+              "name": "pane-scoped external-open architecture > delegates external file opening exclusively to the system default app"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workspace/explorer/firstProjectStarterArchitecture.test.ts",
+          "sha256": "19522db825acac4767be77cadd3dc917954b7bc4accb3b137aefcd3947bd531c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project initialization ownership > keeps file generation out of the mounted workspace and editor open intent"
+            },
+            {
+              "index": 1,
+              "name": "project initialization ownership > routes create, open, import, and restore through one entry bootstrap intent"
+            },
+            {
+              "index": 2,
+              "name": "project initialization ownership > routes home and in-project setup through one Project entry flow"
+            },
+            {
+              "index": 3,
+              "name": "project initialization ownership > shares one Import source preview between home and Project setup"
+            },
+            {
+              "index": 4,
+              "name": "project initialization ownership > shares one materializer between project templates and Slides"
+            },
+            {
+              "index": 5,
+              "name": "project initialization ownership > packages the offline template content and safe publication primitive"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workspace/file-mode/fileModeBoundary.test.mjs",
+          "sha256": "b13586ab38f56f2944cf85de47fcbe10811f57b170eb47f5185802526bf95f09",
+          "cases": [
+            {
+              "index": 0,
+              "name": "File Mode boundary > loads the project application only when the window needs it"
+            },
+            {
+              "index": 1,
+              "name": "File Mode boundary > reads the window mode in one place"
+            },
+            {
+              "index": 2,
+              "name": "File Mode boundary > keeps the project application unaware of File Mode"
+            },
+            {
+              "index": 3,
+              "name": "File Mode boundary > brings no project feature into the file window"
+            },
+            {
+              "index": 4,
+              "name": "File Mode boundary > opens files before the first window restores a project"
+            }
+          ]
         }
       ]
     },
@@ -25592,6 +27311,856 @@
             {
               "index": 9,
               "name": "Desktop Agent sidebar visual contract > renders file mentions as quiet accent-colored atomic references without a drag overlay"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/cloud/repositories/cloudContentWidthArchitecture.test.ts",
+          "sha256": "195f43a3b6513119f31c7e0535d49e6738d6ff0d7381b39c2f4db4476939632f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud content width architecture > shares the editor-scale 900px reading rail across project pages"
+            },
+            {
+              "index": 1,
+              "name": "Cloud content width architecture > derives every Cloud catalog top inset from the Team and Billing shell rhythm"
+            },
+            {
+              "index": 2,
+              "name": "Cloud content width architecture > keeps activation copy and artwork compact and responds to the content pane"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
+          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown editor layout > keeps supporting quotes quieter than body copy in every theme"
+            },
+            {
+              "index": 1,
+              "name": "Markdown editor layout > publishes one inline foreground context instead of quote-specific descendant overrides"
+            },
+            {
+              "index": 2,
+              "name": "Markdown editor layout > shares its reading width with other document-like product surfaces"
+            },
+            {
+              "index": 3,
+              "name": "Markdown editor layout > keeps the centered reading rail invariant when stacked panes cross the overflow threshold"
+            },
+            {
+              "index": 4,
+              "name": "Markdown editor layout > keeps canonical Markdown source invisible until Live Preview commits"
+            },
+            {
+              "index": 5,
+              "name": "Markdown editor layout > keeps Markdown source mode typography uniform"
+            },
+            {
+              "index": 6,
+              "name": "Markdown editor layout > shares the minimum document inset while only inline padding responds to width"
+            },
+            {
+              "index": 7,
+              "name": "Markdown editor layout > keeps the full-width block edge separate from the document reading rail"
+            },
+            {
+              "index": 8,
+              "name": "Markdown editor layout > keeps ordinary editable-line geometry independent of empty-line DOM"
+            },
+            {
+              "index": 9,
+              "name": "Markdown editor layout > keeps task checkbox visuals compact inside a reliable desktop hit target"
+            },
+            {
+              "index": 10,
+              "name": "Markdown editor layout > keeps the visible dash separate from its pointer target without expandable chrome"
+            },
+            {
+              "index": 11,
+              "name": "Markdown HTML media layout > caps raw HTML images at the reading rail without replacing authored sizing"
+            },
+            {
+              "index": 12,
+              "name": "Markdown HTML media layout > uses one semantic presentation profile without a second HTML widget gap"
+            },
+            {
+              "index": 13,
+              "name": "Markdown HTML media layout > keeps emphasis weight consistent across Markdown presentation adapters"
+            },
+            {
+              "index": 14,
+              "name": "Markdown image presentation > fills the rich content rail for block images without a product pixel cap"
+            },
+            {
+              "index": 15,
+              "name": "Markdown Mermaid viewport > keeps dense diagrams inside a bounded two-axis scrollport"
+            },
+            {
+              "index": 16,
+              "name": "Markdown rich-block boundary affordance > paints state on the inner surface so wrapper spacing stays outside the ring"
+            },
+            {
+              "index": 17,
+              "name": "Markdown rich-block boundary affordance > keeps the outer table frame unchanged on hover and cell focus"
+            },
+            {
+              "index": 19,
+              "name": "Markdown rich-block boundary affordance > keeps vertical scrolling at the document level for code blocks"
+            },
+            {
+              "index": 20,
+              "name": "Markdown rich-block boundary affordance > keeps editable and highlighted code glyph metrics identical"
+            },
+            {
+              "index": 21,
+              "name": "Markdown rich-block boundary affordance > maps Markdown code tokens through theme-adaptive semantic colors"
+            },
+            {
+              "index": 22,
+              "name": "Markdown rich-block boundary affordance > keeps code panels free of language metadata and its reserved row"
+            },
+            {
+              "index": 23,
+              "name": "Markdown rich-block boundary affordance > reveals the HTML source control only for hover, keyboard focus, or selection"
+            },
+            {
+              "index": 24,
+              "name": "Markdown table affordance layout > uses Markdown colors for prose dividers and shared tokens for table lines"
+            },
+            {
+              "index": 25,
+              "name": "Markdown table affordance layout > splits the editor-edge scrollport from the reading-rail table track"
+            },
+            {
+              "index": 26,
+              "name": "Markdown table affordance layout > uses one shared, pixel-centered structure control for Markdown and CSV"
+            },
+            {
+              "index": 27,
+              "name": "Markdown table affordance layout > keeps compact drag grips inside larger pointer targets"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/code/codeEditorVisualArchitecture.test.ts",
+          "sha256": "564c1699ef2e82d644fea101ef0e9592147fc34684c548257863ef89265507c7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "code editor visual architecture > keeps the gutter integrated with the editor surface"
+            },
+            {
+              "index": 1,
+              "name": "code editor visual architecture > reveals folding controls only on hover or the active line"
+            },
+            {
+              "index": 2,
+              "name": "code editor visual architecture > keeps code comments quiet without changing their letterforms"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/context-map/contextMapStyle.test.ts",
+          "sha256": "1e4d6beb8dd0c5097e15ccf7a542ef24738ee138c77d51c41a51f756230d4a42",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Context Map radial style geometry > removes radial guide rings and the canvas dot grid"
+            },
+            {
+              "index": 1,
+              "name": "Context Map radial style geometry > separates warm map-like references from the blue hierarchy lines"
+            },
+            {
+              "index": 2,
+              "name": "Context Map radial style geometry > keeps hierarchy and reference paths substantial at overview scale"
+            },
+            {
+              "index": 3,
+              "name": "Context Map radial style geometry > keeps radial cards out of document flow after the shared card rule is applied"
+            },
+            {
+              "index": 4,
+              "name": "Context Map radial style geometry > keeps radial folders visually unchanged when expanded"
+            },
+            {
+              "index": 5,
+              "name": "Context Map radial style geometry > uses a label cue instead of a rectangular focus frame on tree folders"
+            },
+            {
+              "index": 6,
+              "name": "Context Map radial style geometry > keeps layered nodes absolutely positioned after the shared card rule"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/csv/csvTableVisualArchitecture.test.ts",
+          "sha256": "1d9f3db62e7372de065becb05bcacfa4b341e2126ed115453c5aeae09cbad02d",
+          "cases": [
+            {
+              "index": 1,
+              "name": "CSV table visual architecture > keeps CSV semantic while sharing the Markdown table language"
+            },
+            {
+              "index": 2,
+              "name": "CSV table visual architecture > gives row and column handles an opaque grid-border fill and a matching rim"
+            },
+            {
+              "index": 4,
+              "name": "CSV table visual architecture > keeps resting insets in content while sticky panes target the real viewport edges"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/fallback/binaryFallbackVisualArchitecture.test.ts",
+          "sha256": "6fb788cc4292078e28e413f54a1d0a5c54fcf6dfa36fcf03dfdff509db67f5b2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "binary fallback visual architecture > keeps the fallback surface flat and independent from the code preview frame"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownMathTypographyContract.test.ts",
+          "sha256": "5496569094b61dee444f1a5e9c795ec9192b37cc91796016cbd05791c52f23da",
+          "cases": [
+            {
+              "index": 0,
+              "name": "markdown math typography contract > keeps editor prose fonts from reaching math widgets"
+            },
+            {
+              "index": 1,
+              "name": "markdown math typography contract > leaves math font-role mapping to the upstream KaTeX stylesheet"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/navigation/editorFindArchitecture.test.tsx",
+          "sha256": "7389fc4ed0f0a84d729ce3b4860e134d5124b0d64eecc475d1cfa3d4af835023",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor find architecture > keeps the find overlay host out of the editor flex and overflow contracts"
+            },
+            {
+              "index": 1,
+              "name": "editor find architecture > keeps the find widget compact and separates primary input from secondary controls"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/platform/menus/menuSurfaceAppearance.test.ts",
+          "sha256": "d0de16c45c308b21fed20e616a8bee7120663709164f5a83954afe2eb28531ed",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop menu appearance architecture > derives every popup from the Header's Appearance surface"
+            },
+            {
+              "index": 1,
+              "name": "desktop menu appearance architecture > keeps ordinary menu copy regular and section labels only medium"
+            },
+            {
+              "index": 2,
+              "name": "desktop menu appearance architecture > does not let project or create-entry menus replace shared typography or material"
+            },
+            {
+              "index": 3,
+              "name": "desktop menu appearance architecture > takes its width from the menu, not from the longest row"
+            },
+            {
+              "index": 4,
+              "name": "desktop menu appearance architecture > routes richer popup implementations through the shared menu tokens"
+            },
+            {
+              "index": 6,
+              "name": "desktop menu appearance architecture > keeps branch metadata within the shared menu weight scale"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/platform/menus/titlebarMenuOverlayArchitecture.test.ts",
+          "sha256": "e54dd5e60e3959752a444f6d3012190c3b1ce0da24f3385636c74c0f95bc817a",
+          "cases": [
+            {
+              "index": 3,
+              "name": "titlebar menu overlay architecture > uses a compact fixed width for the project menu"
+            },
+            {
+              "index": 4,
+              "name": "titlebar menu overlay architecture > fits a titlebar menu into a narrow viewport instead of clipping it"
+            },
+            {
+              "index": 5,
+              "name": "titlebar menu overlay architecture > centers pane chrome overlays on their trigger and clamps them to the editor boundary"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/settings/preferences/settingsVisualArchitecture.test.ts",
+          "sha256": "382066b9082a626dbd6259708611ebf1f3fb6fffa29f4d3cac3623086889f6c4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "settings visual architecture > uses Settings surface tokens instead of popup-menu colors and shadows"
+            },
+            {
+              "index": 2,
+              "name": "settings visual architecture > shares grouped settings layout between New Menu and Local Agents"
+            },
+            {
+              "index": 8,
+              "name": "settings visual architecture > locks the compact Appearance-derived dimensions and responsive rules"
+            },
+            {
+              "index": 9,
+              "name": "settings visual architecture > keeps hover feedback on interactive controls rather than layout rows"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/terminal/sessions/desktop-terminal.architecture.test.ts",
+          "sha256": "0e51c0a541ca2e5b1f456d08253734a2456594afc253c60b4a729e1c924a02d9",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Desktop Terminal architecture boundaries > keeps plain output close to editor text while preserving ANSI tiers"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/sidebar/sidebarArchitecture.test.ts",
+          "sha256": "f9a15c051073c8032f5a61b2477dd2ec33d569686ded32f2c7852abd4ccbd990",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Sidebar architecture > reserves hover for hover and uses the selected token for persistent navigation"
+            },
+            {
+              "index": 12,
+              "name": "Sidebar architecture > retains the light/small/narrow visual contract in shared semantic tokens"
+            },
+            {
+              "index": 13,
+              "name": "Sidebar architecture > retains the light/default/default visual contract in shared semantic tokens"
+            },
+            {
+              "index": 14,
+              "name": "Sidebar architecture > retains the light/large/wide visual contract in shared semantic tokens"
+            },
+            {
+              "index": 15,
+              "name": "Sidebar architecture > retains the dark/small/narrow visual contract in shared semantic tokens"
+            },
+            {
+              "index": 16,
+              "name": "Sidebar architecture > retains the dark/default/default visual contract in shared semantic tokens"
+            },
+            {
+              "index": 17,
+              "name": "Sidebar architecture > retains the dark/large/wide visual contract in shared semantic tokens"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/sidebar/sidebarSpacingArchitecture.test.ts",
+          "sha256": "db225e2bbe11e74bc4407765f33f14635829ff965e2c1c9ea9a0e0c926914598",
+          "cases": [
+            {
+              "index": 0,
+              "name": "sidebar spacing architecture > keeps Workspace menu rows on the shared control geometry"
+            },
+            {
+              "index": 1,
+              "name": "sidebar spacing architecture > lets Cloud History use the same full workspace rectangle as local History"
+            },
+            {
+              "index": 2,
+              "name": "sidebar spacing architecture > shares one visible boundary between the Explorer scrollbar and Editor"
+            },
+            {
+              "index": 3,
+              "name": "sidebar spacing architecture > gives resizable panes one boundary painter without hidden border width"
+            },
+            {
+              "index": 4,
+              "name": "sidebar spacing architecture > defines one visual edge contract"
+            },
+            {
+              "index": 5,
+              "name": "sidebar spacing architecture > uses one shared quiet divider for both sidebars"
+            },
+            {
+              "index": 6,
+              "name": "sidebar spacing architecture > keeps top and bottom navigation on one scroll-aware edge contract"
+            },
+            {
+              "index": 7,
+              "name": "sidebar spacing architecture > maps the Data tree onto the shared edge contract"
+            },
+            {
+              "index": 8,
+              "name": "sidebar spacing architecture > reveals low-frequency tree actions on hover, keyboard focus, or an open menu"
+            },
+            {
+              "index": 9,
+              "name": "sidebar spacing architecture > keeps Data row colors authoritative while Agent mirrors them one way"
+            },
+            {
+              "index": 10,
+              "name": "sidebar spacing architecture > draws every ancestor guide column with one depth-bounded layer"
+            },
+            {
+              "index": 11,
+              "name": "sidebar spacing architecture > keeps Explorer motion from re-rasterizing rows at fractional Windows scales"
+            },
+            {
+              "index": 12,
+              "name": "sidebar spacing architecture > keeps Settings on the shared scroll-list padding"
+            },
+            {
+              "index": 13,
+              "name": "sidebar spacing architecture > keeps Git edges shared while nested lists own scrolling"
+            },
+            {
+              "index": 14,
+              "name": "sidebar spacing architecture > keeps every remaining page-level sidebar on the shared block edge"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/source-control/status/sourceControlVisualArchitecture.test.ts",
+          "sha256": "672d6bc122451b15ebbda6800719d024823f804906f07e10c6103c42ed3b1b36",
+          "cases": [
+            {
+              "index": 0,
+              "name": "source-control visual architecture > keeps the Cloud publish reminder in reading and action order"
+            },
+            {
+              "index": 1,
+              "name": "source-control visual architecture > aligns every Git section empty state with its section label"
+            },
+            {
+              "index": 3,
+              "name": "source-control visual architecture > nests History under the primary Changes entry instead of exposing two header actions"
+            },
+            {
+              "index": 4,
+              "name": "source-control visual architecture > keeps file review inside Changes and restores the established section actions"
+            },
+            {
+              "index": 5,
+              "name": "source-control visual architecture > reserves card surfaces for providers and keeps local source-control groups flat"
+            },
+            {
+              "index": 7,
+              "name": "source-control visual architecture > keeps file status as a quiet inline marker without moving row actions"
+            },
+            {
+              "index": 8,
+              "name": "source-control visual architecture > keeps the no-version-control state to one calm enable action"
+            },
+            {
+              "index": 9,
+              "name": "source-control visual architecture > shares the responsive setup type scale with the Cloud entry state"
+            },
+            {
+              "index": 10,
+              "name": "source-control visual architecture > keeps Cloud and Version Control in one full-surface coordinate system"
+            },
+            {
+              "index": 11,
+              "name": "source-control visual architecture > reuses the canonical navigation icon in the Cloud-sized entry footprint"
+            },
+            {
+              "index": 12,
+              "name": "source-control visual architecture > uses one canonical file diff surface in Changes and History"
+            },
+            {
+              "index": 13,
+              "name": "source-control visual architecture > keeps commit detail message-first with one compact metadata row"
+            },
+            {
+              "index": 14,
+              "name": "source-control visual architecture > keeps file actions at toolbar emphasis"
+            },
+            {
+              "index": 15,
+              "name": "source-control visual architecture > shares one 24px action-size contract across Source Control"
+            },
+            {
+              "index": 16,
+              "name": "source-control visual architecture > assigns solid emphasis to only the next workflow action"
+            },
+            {
+              "index": 17,
+              "name": "source-control visual architecture > keeps diff typography dense and color subordinate to content"
+            },
+            {
+              "index": 18,
+              "name": "source-control visual architecture > matches file rows to the left-sidebar type scale while preserving the shared file-icon system"
+            },
+            {
+              "index": 19,
+              "name": "source-control visual architecture > keeps the History timeline to collapsible date dividers and one-line commit messages"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/dialogs/globalDialogOverlayArchitecture.test.ts",
+          "sha256": "34070cddf05ea6161cb07930410c0b8efcec1200a729a4274a7b67759f38e2b2",
+          "cases": [
+            {
+              "index": 6,
+              "name": "global dialog overlay architecture > keeps the shared backdrop fixed to the viewport and blurred"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/feedback/loadingPlaceholderArchitecture.test.ts",
+          "sha256": "98f1845db21e1977424da59f4452bf9d1ea663cf000c098ffb75eeaa5a48fc53",
+          "cases": [
+            {
+              "index": 3,
+              "name": "loading placeholder styles > retires highlight sweeps from placeholders"
+            },
+            {
+              "index": 4,
+              "name": "loading placeholder styles > gives every placeholder surface marked shapes and the style layer"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workbench/layout/editorPaneChromeHitTargetArchitecture.test.ts",
+          "sha256": "864b3a921a2b09f5ed4a638f0030edb9224f48962aabc21f6d556b11eb811836",
+          "cases": [
+            {
+              "index": 2,
+              "name": "editor pane chrome hit-target architecture > keeps a complete inside frame while limiting accent to press or drag"
+            },
+            {
+              "index": 3,
+              "name": "editor pane chrome hit-target architecture > renders edge drop intent as an edge-to-edge fill without decorative framing"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workbench/layout/editorSplitPaneArchitecture.test.ts",
+          "sha256": "f884cdf68f001efc1c7558fc3f72cf501c7ea154bb0e1d1d292a0d49aa563f53",
+          "cases": [
+            {
+              "index": 2,
+              "name": "editor split-pane architecture > fills the editor region and uses overlay handles with dedicated resize lanes"
+            },
+            {
+              "index": 6,
+              "name": "editor split-pane architecture > keeps one Sidebar and Editor layout boundary under an overlay sash"
+            },
+            {
+              "index": 7,
+              "name": "editor split-pane architecture > does not project the Sidebar divider through the Header"
+            },
+            {
+              "index": 8,
+              "name": "editor split-pane architecture > lets Header context grow independently without nested flex-shrink phases"
+            },
+            {
+              "index": 9,
+              "name": "editor split-pane architecture > shares neutral, hover, and active resize-boundary states across panes"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/workspace/homepage/homepageVisualContract.test.ts",
+          "sha256": "0f3f349c294da23801ad696ae2771eabef800fbdaa1a10e9b475079164c75874",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Homepage visual contract > draws every folder's back and front in the theme's ink alone: no colour, outline, gradient or shadow"
+            },
+            {
+              "index": 1,
+              "name": "Homepage visual contract > allows asset preview sheets inside folders to use only theme surface, elevation and file-accent tokens, without rising or breathing animations"
+            },
+            {
+              "index": 2,
+              "name": "Homepage visual contract > keeps colour out of the groups: their labels, rules and drop targets are ink"
+            },
+            {
+              "index": 3,
+              "name": "Homepage visual contract > sets group labels and top-bar actions in the product's own type tokens, never a hardcoded size"
+            },
+            {
+              "index": 4,
+              "name": "Homepage visual contract > divides groups with a hairline on each later heading's own edge, in the divider's ink"
+            },
+            {
+              "index": 5,
+              "name": "Homepage visual contract > page > sets the projects on the page itself, with a fill only for a folder dragged over it"
+            },
+            {
+              "index": 6,
+              "name": "Homepage visual contract > page > takes its buttons from the shared Button and its values from the theme"
+            },
+            {
+              "index": 7,
+              "name": "Homepage visual contract > page > sets every size in the product's type tokens: the first-run title, the body, the caption and a button's meta"
+            },
+            {
+              "index": 8,
+              "name": "Homepage visual contract > page > lets the project scrollport use remaining height without fixed list caps"
+            },
+            {
+              "index": 9,
+              "name": "Homepage visual contract > page > preserves the upper rhythm and reclaims space only below the project list"
+            },
+            {
+              "index": 10,
+              "name": "Homepage visual contract > page > uses one page skeleton and one framed primary section for both home states"
+            },
+            {
+              "index": 11,
+              "name": "Homepage visual contract > page > names the product in the Header in the muted ink of a project's Header"
+            },
+            {
+              "index": 12,
+              "name": "Homepage visual contract > page > brightens the project actions on their own, with a ring for the keyboard"
+            },
+            {
+              "index": 13,
+              "name": "Homepage visual contract > page > lifts the first-run New in the accent's own hover"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-hub-retired-pages",
+      "kind": "out-of-scope",
+      "reason": "TS v0.4.4 retired the Cloud Hub: its router, sidebar, main view and Share wizard are deleted (cloudNavigationInformationArchitecture asserts it) and Cloud destinations such as Access, Team and Billing open on the Web. The Overview, Access and Connections, Automation and Organization page components, their route table and stylesheets remain in the repository, but no desktop view mounts them (AutomationRouteSection and OverviewSection are imported by nothing), so these cases describe pages and routes a person cannot reach in the product. The native frontend never had the Hub, and its Cloud pieces (publication, Cloud projects, the Cloud Computer, sharing and plans) have their own rows.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/architecture/automation/management/automationVisualArchitecture.test.ts",
+          "sha256": "7b4ef2c61791c9a88d22fa26d4b998dcab0ed5f3bf341fcbe681a774044d3169",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Automation landing visual architecture > keeps the reference first-screen spacing rhythm"
+            },
+            {
+              "index": 1,
+              "name": "Automation landing visual architecture > derives card surfaces and text from PuppyOne theme tokens"
+            },
+            {
+              "index": 2,
+              "name": "Automation landing visual architecture > locks typography and controls to the original Git visual baseline"
+            },
+            {
+              "index": 3,
+              "name": "Automation landing visual architecture > keeps Automation CSS split, ordered, layered, and owned by the feature"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/cloud/organization/cloudConnectionsVisualArchitecture.test.ts",
+          "sha256": "77bea2fec675061e2d9beb0411ee5c152c32befc6519732614946805f493af1e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Connections visual architecture > uses the same landing title system as Access and Automation"
+            },
+            {
+              "index": 1,
+              "name": "Cloud Connections visual architecture > renders MCP, CLI, and Git through the exact Access Point list"
+            },
+            {
+              "index": 2,
+              "name": "Cloud Connections visual architecture > does not maintain a second visual implementation for Connection routes"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/cloud/organization/cloudOrganizationVisualArchitecture.test.ts",
+          "sha256": "528e576121a98cc4ebf65d3cc8c4e62288797d965b4c6b2120d5b5c93de85999",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud organization visual architecture > shares the standard Cloud catalog shell and restrained heading hierarchy"
+            },
+            {
+              "index": 1,
+              "name": "Cloud organization visual architecture > uses quiet shared surfaces for both member and billing content"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/cloud/repositories/cloudOverviewVisualArchitecture.test.ts",
+          "sha256": "c03ef31cf2589703e9ba867635ce19d949b55927de05ecfdf12710be0368a083",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Overview visual architecture > puts task-first connection paths before the secondary file inventory"
+            },
+            {
+              "index": 1,
+              "name": "Cloud Overview visual architecture > uses one rounded file frame without filters or extra headers"
+            },
+            {
+              "index": 2,
+              "name": "Cloud Overview visual architecture > renders compact entries with modification time and product file icons"
+            },
+            {
+              "index": 3,
+              "name": "Cloud Overview visual architecture > gives storage a full-width unlabeled track above two quiet facts"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/cloud/repositories/cloudNavigationInformationArchitecture.test.ts",
+          "sha256": "564a2889c8433569903a5d080cf206d911cd40f25fae896c35d44d3f8cac65fc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Hub retirement > removes the Hub, its sidebar and both Share onboarding presentations"
+            },
+            {
+              "index": 1,
+              "name": "Cloud Hub retirement > cannot revive Share from a preference or another local entry"
+            },
+            {
+              "index": 2,
+              "name": "Cloud Hub retirement > retains service metadata and Web destinations without a navigation tree"
+            },
+            {
+              "index": 3,
+              "name": "Cloud Hub retirement > keeps authentication on the publish task rather than an MCP invitation"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/cloud/repositories/cloudRouteArchitecture.test.ts",
+          "sha256": "02ffebbad28dacb39728424451f81883cb548ca111628353459d5fd42bfa4187",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud route architecture > declares one descriptor for every route id"
+            },
+            {
+              "index": 1,
+              "name": "Cloud route architecture > keeps route-owned data plans out of the view orchestrator"
+            },
+            {
+              "index": 2,
+              "name": "Cloud route architecture > declares the shell surface alongside each route"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/cloud/repositories/cloudLoadingStateArchitecture.test.ts",
+          "sha256": "1f1eed5f5e879a6281866439b7bb41f95b5ba37f62c8a492e6f10af41dc51050",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud loading state layout > centers against the full Cloud main surface"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/ui-primitives/dialogs/globalDialogOverlayArchitecture.test.ts",
+          "sha256": "34070cddf05ea6161cb07930410c0b8efcec1200a729a4274a7b67759f38e2b2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "global dialog overlay architecture > portals src/features/automation/AutomationCreateDialog.tsx through the shared overlay layer"
+            },
+            {
+              "index": 1,
+              "name": "global dialog overlay architecture > portals src/features/automation/AutomationManageDialog.tsx through the shared overlay layer"
+            },
+            {
+              "index": 2,
+              "name": "global dialog overlay architecture > portals src/features/cloud/access-points/components/AccessPointManageDialog.tsx through the shared overlay layer"
+            },
+            {
+              "index": 4,
+              "name": "global dialog overlay architecture > portals src/features/cloud/sections/access/CreateAccessDialog.tsx through the shared overlay layer"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rtl-layout-without-rtl-locale",
+      "kind": "out-of-scope",
+      "reason": "TS v0.4.4 ships eight locales (de, en, es, fr, ja, ko, pt-BR, zh-Hans) and none is right-to-left, so no person can see a right-to-left layout; these cases keep the TS stylesheets and icons direction-neutral for a future RTL locale. The native frontend ships the same eight locales and lays out left to right.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/architecture/localization/direction/rtlArchitecture.test.ts",
+          "sha256": "7d7392d839c30ca22f3c774ff88c27a008a66ead4febbdeef400b49cae4ed08d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "RTL architecture > keeps application UI spacing and borders direction-neutral"
+            },
+            {
+              "index": 1,
+              "name": "RTL architecture > mirrors directional icons and binary switch motion"
+            },
+            {
+              "index": 2,
+              "name": "RTL architecture > pins technical content to explicit LTR islands"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "telemetry-ingest-service",
+      "kind": "out-of-scope",
+      "reason": "The Cloudflare worker that ingests Desktop telemetry, its D1 repository and migrations live in the TS repository but are a server, not the desktop app. The native app is a client of that service: it sends the same allowlisted, fixed-shape events (no workspace, account or network fields) to the same ingest URL, which the telemetry contract and service rows test.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/architecture/telemetry/ingest/telemetrySchema.test.mjs",
+          "sha256": "514bfb22dbe0ad574c4ecbc457a7e2d93480038aa7da09d251191ad722984648",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloudflare D1 Desktop telemetry repository > defines exact unique sets without network or workspace columns"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-local-api-module",
+      "kind": "out-of-scope",
+      "reason": "These call the Electron main process's local API module directly (electron/local-api: its file-format and path helpers and its Git source-control presentation model), which shapes the data the TS renderer receives over IPC. The native app has no such module or process boundary: formats resolve through the shared format registry, workspace paths are typed provider-relative paths that refuse any parent, root or absolute component, and the Changes sidebar reads the Git snapshot directly. The product behaviour behind these helpers is mapped in the format-routing, workspace-file-operation and Git rows.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+      "typescript": [
+        {
+          "path": "tests/architecture/workspace/files/localWorkspaceArchitecture.test.mjs",
+          "sha256": "289cdc3f07c3904e00e85de20b8687e417ba7d72658fcd6c8b77f6f509d34cf5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local file-format policy > keeps MIME, semantic kind, preview, and compound-extension decisions together"
+            },
+            {
+              "index": 1,
+              "name": "local path policy > normalizes safe paths and rejects paths outside the workspace"
+            },
+            {
+              "index": 2,
+              "name": "source-control presentation model > derives stable groups and action availability without filesystem or Git side effects"
             }
           ]
         }

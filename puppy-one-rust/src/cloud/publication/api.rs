@@ -381,6 +381,58 @@ mod tests {
         )
     }
 
+    /// `cloudPublishContract`: `contracts/cloud-project-publish-v1.json` is
+    /// the backend-compatible contract the product pins, byte for byte, and
+    /// these requests follow it: the organization is an explicit request
+    /// field, the Project is the server's, the target is the Project root,
+    /// nothing binds the folder or registers the device, and the issued
+    /// credential is never echoed back.
+    #[test]
+    fn the_publish_requests_follow_the_pinned_cloud_contract() {
+        use sha2::Digest;
+        const CONTRACT: &str = include_str!("../../../contracts/cloud-project-publish-v1.json");
+        let digest = sha2::Sha256::digest(CONTRACT.as_bytes());
+        let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(
+            hex,
+            "6158201c48957b88fc103aca756417316305d25ea3109cbe5d3e2cf1f3d1823d"
+        );
+        let contract: Value = serde_json::from_str(CONTRACT).unwrap();
+        assert_eq!(contract["contract"], "puppyone.cloud-project-publish");
+        assert_eq!(contract["version"], 1);
+        assert_eq!(
+            contract["identity"],
+            json!({
+                "organization": "explicit request field",
+                "project": "server-created Project id",
+                "repository_target": "project_root",
+                "local_binding": false,
+                "device_registration": false,
+            })
+        );
+        let operations = &contract["operations"];
+        let create = &operations["create_empty_project"];
+        assert_eq!(create["request"]["org_id"], "required string");
+        let record = record();
+        let payload = serde_json::to_value(&record.create_payload).unwrap();
+        let mut sent: Vec<&String> = payload.as_object().unwrap().keys().collect();
+        let mut declared: Vec<&String> = create["request"].as_object().unwrap().keys().collect();
+        sent.sort();
+        declared.sort();
+        assert_eq!(sent, declared, "no additional properties");
+        assert_eq!(payload["org_id"], "org-1");
+        let issue = &operations["issue_project_root_credential"];
+        assert_eq!(issue["response_echoes_credential"], false);
+        assert_eq!(issue["response"]["remote"]["username"], GIT_USERNAME);
+        assert_eq!(issue["request"]["target"]["kind"], "project_root");
+        assert_eq!(contract["git"]["remote_name"], super::super::git::REMOTE);
+        assert_eq!(
+            contract["git"]["destination_ref"],
+            super::super::git::DESTINATION_REF
+        );
+        assert_eq!(contract["git"]["force_push"], false);
+    }
+
     /// `accepts a server-allocated display name without losing the durable
     /// Project identity`; `rejects a Project response that omits the
     /// explicitly requested Organization`.

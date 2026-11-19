@@ -151,11 +151,22 @@ pub(super) fn agent_mark(name: &str, avatar: Option<&str>, look: Look, t: Theme)
         .child(drawing)
         .when(active, |d| d.child(dot(t.success, 0.5)))
         .when(waiting && header, |d| d.child(dot(t.accent, 1.)));
-    if active && header {
+    if hops(
+        active,
+        header,
+        crate::platform::accessibility::reduce_motion(),
+    ) {
         hop(mark, name)
     } else {
         mark.into_any_element()
     }
+}
+
+/// Only a Header mark at work hops, and never for a person who asked for
+/// less motion (`agent-avatar.css`: `prefers-reduced-motion` stills
+/// `[data-reach-activity]`).
+fn hops(active: bool, header: bool, reduce_motion: bool) -> bool {
+    active && header && !reduce_motion
 }
 
 /// Compact `AgentAvatarMark` inside a Homepage Agent tile (`18 × 18`, `4px`
@@ -206,12 +217,8 @@ pub(in crate::app) fn compact_agent_face(
         .child(inner)
         .into_any_element()
 }
-/// `desktop-project-reach-hop`: a mark at work hops now and then; a person
-/// who asked for less motion sees it still.
+/// `desktop-project-reach-hop`: a mark at work hops now and then.
 fn hop(mark: Div, name: &str) -> AnyElement {
-    if crate::platform::accessibility::reduce_motion() {
-        return mark.into_any_element();
-    }
     let lift = |delta: f32| -> f32 {
         // 0%, 26%, 100%: rest; 5%: up 3; 10%: down; 15%: up 2; 20%: down.
         let keys = [
@@ -931,6 +938,17 @@ mod tests {
             last_active_at: None,
             activity_known: true,
         }
+    }
+
+    /// `agentPresenceMotion`: a working Agent's Header mark hops, a resting
+    /// one or one in a list does not, and none hops for a person who asked
+    /// for less motion.
+    #[test]
+    fn only_a_working_header_mark_hops_and_never_with_reduced_motion() {
+        assert!(hops(true, true, false));
+        assert!(!hops(true, true, true));
+        assert!(!hops(false, true, false));
+        assert!(!hops(true, false, false));
     }
 
     /// `CloudWorkspaceAgentPeople`: only what is live stands on its own —

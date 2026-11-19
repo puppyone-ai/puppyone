@@ -502,7 +502,7 @@ fn archive_name(version: &str) -> String {
 #[gpui::test]
 fn fixtures_release_their_profile_and_http_listener(cx: &mut gpui::TestAppContext) {
     let feed = Feed::new(vec![]);
-    let address = feed.url.socket_addrs(|| None).unwrap()[0];
+    let listening = feed.listening();
     let updates = service(&feed, true, cx);
     updates.update(cx, |u, cx| u.set_automatically_download(false, cx).unwrap());
     let root = updates.root.path().to_path_buf();
@@ -510,10 +510,11 @@ fn fixtures_release_their_profile_and_http_listener(cx: &mut gpui::TestAppContex
     drop(updates);
     cx.run_until_parked();
     assert!(!root.exists());
+    assert!(listening());
     drop(feed);
-    assert!(
-        std::net::TcpStream::connect_timeout(&address, std::time::Duration::from_secs(1)).is_err()
-    );
+    // The listener belongs to the worker thread, which drop joins. (Probing
+    // the port raced with other tests binding the same ephemeral port.)
+    assert!(!listening(), "the feed's worker and its listener are gone");
 }
 
 #[cfg(target_os = "macos")]

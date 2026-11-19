@@ -42,7 +42,7 @@ impl Service {
     }
 }
 
-/// The fields Settings edits; `extra` keeps the rest of the document.
+/// The fields Settings edits; `extra` keeps the rest of its sections.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorkspaceConfig {
     pub source_service: Service,
@@ -179,7 +179,13 @@ impl WorkspaceConfig {
     }
     /// The document as written, unknown keys preserved.
     pub fn to_json(&self) -> Value {
-        let mut out = self.extra.as_object().cloned().unwrap_or_default();
+        // `normalizePuppyoneWorkspaceConfig` writes only its own sections, so
+        // a historical project, Cloud or checkout identity is not kept;
+        // each section keeps the fields it does not name.
+        let mut out: Map<String, Value> = ["sync", "git", "backup"]
+            .into_iter()
+            .filter_map(|key| Some((key.to_owned(), self.extra.get(key)?.clone())))
+            .collect();
         let merge = |out: &mut Map<String, Value>, key: &str, fields: Value| {
             let mut section = out
                 .get(key)
@@ -238,7 +244,6 @@ impl WorkspaceConfig {
             }
         }
         let updated = out.remove("updatedAt");
-        ordered.extend(out);
         if let Some(v) = updated {
             ordered.insert("updatedAt".into(), v);
         }
@@ -374,9 +379,9 @@ mod tests {
     fn legacy_documents_normalize_like_the_product() {
         let config = WorkspaceConfig::normalize(&json!({
             "version": 2,
-            "git": {"primaryRemote": "origin", "watchedBranch": "main"},
+            "git": {"primaryRemote": "origin", "watchedBranch": "main", "kept": 1},
             "backup": {"enabled": true},
-            "custom": {"kept": 1}
+            "custom": {"dropped": 1}
         }))
         .unwrap();
         assert_eq!(config.source_service, Service::Github);
@@ -386,9 +391,44 @@ mod tests {
         assert_eq!(config.backup_remote.as_deref(), Some("origin"));
         let out = config.to_json();
         assert_eq!(out["version"], 3);
-        assert_eq!(out["custom"]["kept"], 1);
+        // A section keeps the fields it does not name; nothing else is kept.
+        assert_eq!(out["git"]["kept"], 1);
+        assert!(out.get("custom").is_none());
         assert_eq!(out["sync"]["sourceOfTruth"]["branch"], "main");
         assert!(WorkspaceConfig::normalize(&json!({"version": 9})).is_err());
+        // `localWorkspaceArchitecture`: version 1 Git metadata becomes the
+        // version 3 source of truth.
+        let out = WorkspaceConfig::normalize(&json!({
+            "version": 1,
+            "git": {"primaryRemote": "origin", "watchedBranch": "main"},
+            "backup": {"enabled": true, "service": "github"}
+        }))
+        .unwrap()
+        .to_json();
+        assert_eq!(out["version"], 3);
+        assert_eq!(
+            out["sync"]["sourceOfTruth"],
+            json!({"service": "github", "remote": "origin", "branch": "main"})
+        );
+        assert_eq!(
+            out["backup"],
+            json!({"enabled": true, "service": "github", "remote": "origin", "branch": "main"})
+        );
+        // Historical Cloud, Project and checkout identity is stripped, and
+        // an obsolete local Project id is ignored.
+        for legacy in [
+            json!({"version": 2,
+                "project": {"id": "01234567-89ab-4def-8123-456789abcdef",
+                            "workspaceInstanceId": "workspace-instance-1234"},
+                "cloud": {"projectId": "cloud-project-123", "origin": "https://API.PUPPYONE.AI"}}),
+            json!({"project": {"id": "not-a-uuid"}}),
+        ] {
+            let out = WorkspaceConfig::normalize(&legacy).unwrap().to_json();
+            assert_eq!(out["version"], 3);
+            assert!(out.get("project").is_none() && out.get("cloud").is_none());
+        }
+        let unsupported = WorkspaceConfig::normalize(&json!({"version": 4})).unwrap_err();
+        assert!(unsupported.contains("Unsupported PuppyOne config version"));
     }
 
     #[test]

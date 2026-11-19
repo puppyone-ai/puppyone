@@ -28,12 +28,21 @@ pub fn font_size(medium: f32) -> f32 {
 }
 
 thread_local! {static POINTER_CURSORS: std::cell::Cell<bool> = const {std::cell::Cell::new(false)};}
-/// Appearance → Pointer cursors (`--po-clickable-cursor`).
+/// Appearance → Pointer cursors (`data-pointer-cursors`).
 pub fn set_pointer_cursors(enabled: bool) {
     POINTER_CURSORS.with(|p| p.set(enabled));
 }
-/// Cursor for clickable controls: the arrow unless the user opted into hands.
+/// Cursor for actions (buttons, rows, switches, menu items): always the
+/// arrow (`--po-action-cursor: default`). The hand is reserved for
+/// destinations, [`navigation_cursor`].
 pub fn clickable_cursor() -> gpui::CursorStyle {
+    gpui::CursorStyle::Arrow
+}
+/// Cursor for links and navigation destinations (`a[href]`, tabs,
+/// `data-po-interaction="navigation"`): the hand only while the person
+/// opted into pointer cursors ("Show a hand cursor only over links and
+/// navigation destinations").
+pub fn navigation_cursor() -> gpui::CursorStyle {
     if POINTER_CURSORS.with(|p| p.get()) {
         gpui::CursorStyle::PointingHand
     } else {
@@ -963,6 +972,21 @@ mod tests {
             }
         }
     }
+    /// `semanticNavigationCursor`: actions keep the arrow; links and
+    /// navigation destinations take the hand only while Pointer cursors is on.
+    #[test]
+    fn the_hand_is_only_for_destinations_and_only_when_asked_for() {
+        use gpui::CursorStyle::{Arrow, PointingHand};
+        set_pointer_cursors(false);
+        assert_eq!((clickable_cursor(), navigation_cursor()), (Arrow, Arrow));
+        set_pointer_cursors(true);
+        assert_eq!(
+            (clickable_cursor(), navigation_cursor()),
+            (Arrow, PointingHand)
+        );
+        set_pointer_cursors(false);
+    }
+
     #[test]
     fn the_product_scrollbar_reveals_on_hover_and_for_900ms_after_a_scroll() {
         let scrollbar = product_scrollbar(&Theme::new(false));

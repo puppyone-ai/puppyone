@@ -87,7 +87,7 @@ impl WorkbenchLauncher {
             // `:disabled`: a contribution at its `maximumItems`.
             .disabled(!available)
             .when(available, |b| {
-                b.cursor(theme::clickable_cursor())
+                b.cursor(theme::navigation_cursor())
                     .hover(move |b| b.bg(t.hover).text_color(t.text))
             })
             .when(!available, |b| b.opacity(0.52))

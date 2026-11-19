@@ -191,23 +191,12 @@ impl WindowSession {
         root: Option<PathBuf>,
         name: &str,
     ) {
+        let project = root.is_some().then_some(name);
         let (title, path, edited) = match file {
-            Some((title, path, dirty)) => (title, Some(path), dirty),
-            None => {
-                let app = super::windows::application_name();
-                let title = if root.is_some() && !name.is_empty() {
-                    format!("{app} - {name}")
-                } else {
-                    app.to_owned()
-                };
-                (title, root, false)
-            }
+            Some((title, path, dirty)) => (Some(title), Some(path), dirty),
+            None => (None, root, false),
         };
-        let title = if window.is_fullscreen() {
-            String::new()
-        } else {
-            title
-        };
+        let title = window_title(title, project, window.is_fullscreen());
         let next = (title, path, edited);
         if self.title.as_ref() != Some(&next) {
             window.set_window_title(&next.0);
@@ -215,5 +204,45 @@ impl WindowSession {
             window.set_window_edited(next.2);
             self.title = Some(next);
         }
+    }
+}
+
+/// `resolveWindowTitle`: a file window's file, else "PuppyOne - <project>"
+/// (the app alone without a project); nothing in full screen, so the native
+/// reveal bar carries no application title.
+fn window_title(file: Option<String>, project: Option<&str>, fullscreen: bool) -> String {
+    if fullscreen {
+        return String::new();
+    }
+    let app = super::windows::application_name();
+    match (file, project) {
+        (Some(file), _) => file,
+        (None, Some(name)) if !name.is_empty() => format!("{app} - {name}"),
+        (None, _) => app.to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod title_tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    /// `titlebarDragRegionArchitecture`: the full-screen reveal bar is free
+    /// of application titles, and leaving full screen restores the title.
+    #[test]
+    fn full_screen_shows_no_title_and_leaving_it_restores_one() {
+        let app = super::super::windows::application_name();
+        assert_eq!(window_title(None, Some("notes"), true), "");
+        assert_eq!(window_title(Some("plan.md".into()), None, true), "");
+        assert_eq!(
+            window_title(None, Some("notes"), false),
+            format!("{app} - notes")
+        );
+        assert_eq!(window_title(None, Some(""), false), app);
+        assert_eq!(window_title(None, None, false), app);
+        assert_eq!(
+            window_title(Some("plan.md".into()), Some("notes"), false),
+            "plan.md"
+        );
     }
 }

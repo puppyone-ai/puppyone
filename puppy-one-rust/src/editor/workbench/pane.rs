@@ -15,6 +15,23 @@ use std::rc::Rc;
 /// `PANE_HANDLE_REVEAL_RATIO`.
 pub const REVEAL_RATIO: f32 = 1. / 3.;
 const MENU_MAX_HEIGHT: f32 = 360.;
+/// The menu's top inside its pane: the 13px handle 4px down, then a 4px gap.
+const MENU_TOP: f32 = 4. + 13. + 4.;
+
+/// `useAnchoredOverlayPosition` with `placementPreference: "below"`: the
+/// menu stays below its handle and scrolls within the space left above the
+/// window's 8px margin, up to its 360px maximum.
+fn menu_max_height(pane_top: f32, viewport_height: f32) -> f32 {
+    (viewport_height - pane_top - MENU_TOP - 8.).clamp(1., MENU_MAX_HEIGHT)
+}
+
+/// Where a pane menu draws: its pane, and the height of the window it must
+/// stay inside.
+#[derive(Clone, Copy, Debug)]
+pub struct MenuPlace {
+    pub pane: Bounds<Pixels>,
+    pub viewport_height: Pixels,
+}
 const ACTION: f32 = 28.;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -256,11 +273,15 @@ pub fn menu(
     chrome: &PaneChrome,
     contribution: &Contribution,
     dark: bool,
-    pane: Bounds<Pixels>,
+    place: MenuPlace,
     on_action: OnAction,
     on_dismiss: OnDismiss,
     on_key: OnKey,
 ) -> Option<AnyElement> {
+    let MenuPlace {
+        pane,
+        viewport_height,
+    } = place;
     if !chrome.open {
         return None;
     }
@@ -414,12 +435,15 @@ pub fn menu(
         rows.push(row);
     }
     let dismiss = on_dismiss.clone();
-    let top = px(4. + 13. + 4.);
+    let top = px(MENU_TOP);
     let mut surface = Menu::new("desktop-editor-pane-menu")
         .palette(t_)
         .elevation(SurfaceElevation::Low)
         .max_w(pane.size.width - px(16.))
-        .max_h(px(MENU_MAX_HEIGHT))
+        .max_h(px(menu_max_height(
+            f32::from(pane.origin.y),
+            f32::from(viewport_height),
+        )))
         .scroll_handle(chrome.scroll.clone())
         .track_focus(&chrome.focus)
         .on_key_down(move |e: &KeyDownEvent, window, cx| on_key(e, window, cx))
@@ -520,6 +544,16 @@ mod tests {
                 && !c.closes(&Action::Segment("source"))
                 && c.closes(&Action::Find)
         );
+    }
+
+    /// `titlebarMenuOverlayArchitecture`: a pane menu stays below its
+    /// handle and, near the window's bottom, scrolls within the space left.
+    #[test]
+    fn the_menu_scrolls_within_the_space_below_its_handle() {
+        assert_eq!(menu_max_height(0., 800.), MENU_MAX_HEIGHT);
+        // A pane starting 426px down a 600px window: 600 - 426 - 21 - 8.
+        assert_eq!(menu_max_height(426., 600.), 145.);
+        assert_eq!(menu_max_height(590., 600.), 1.);
     }
 
     #[test]

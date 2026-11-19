@@ -178,7 +178,7 @@ impl RenderOnce for OnboardingTelemetryDisclosure {
                     .id("onboarding-telemetry-learn-more")
                     .underline()
                     .text_decoration_color(theme::alpha(t.subtle, 0.45))
-                    .cursor(theme::clickable_cursor())
+                    .cursor(theme::navigation_cursor())
                     .hover(move |s| s.text_color(t.muted).text_decoration_color(t.muted))
                     .on_click(|_, _, cx| cx.open_url(crate::platform::telemetry::DISCLOSURE_URL))
                     .child(tr("onboarding.telemetry.learnMore")),

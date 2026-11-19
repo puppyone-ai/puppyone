@@ -1224,6 +1224,54 @@ mod tests {
         assert_eq!(s.remotes, ["origin"]);
         assert!(!s.setup_required());
     }
+    /// `localWorkspaceArchitecture`: a branch with incoming commits takes
+    /// them before it can push, and nothing is pushed or published while a
+    /// repository operation waits for its conflicts.
+    #[test]
+    fn a_diverged_or_interrupted_branch_cannot_push_or_publish() {
+        let target = |exists| {
+            Some(SyncTarget {
+                remote: "origin".into(),
+                branch: "main".into(),
+                exists,
+            })
+        };
+        let outgoing = Snapshot {
+            head: "abc123".into(),
+            branch: "main".into(),
+            ahead: 1,
+            target: target(true),
+            ..Default::default()
+        };
+        assert!(outgoing.can_push());
+        let diverged = Snapshot {
+            behind: 1,
+            ..outgoing.clone()
+        };
+        assert!(!diverged.can_push());
+        for operation in [
+            RepositoryOperation::Rebase,
+            RepositoryOperation::Merge,
+            RepositoryOperation::CherryPick,
+            RepositoryOperation::Revert,
+        ] {
+            let waiting = Snapshot {
+                operation: Some(operation),
+                ..outgoing.clone()
+            };
+            assert!(!waiting.can_push(), "{operation:?}");
+            let unpublished = Snapshot {
+                target: target(false),
+                ..waiting
+            };
+            assert!(!unpublished.can_publish(), "{operation:?}");
+        }
+        let unpublished = Snapshot {
+            target: target(false),
+            ..outgoing
+        };
+        assert!(unpublished.can_publish() && !unpublished.can_push());
+    }
     #[test]
     fn empty_commits_take_the_product_default_message() {
         let dir = tempfile::tempdir().unwrap();

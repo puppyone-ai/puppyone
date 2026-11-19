@@ -144,14 +144,16 @@ impl HistoryBrowser {
                         &[("title", title.into())],
                     )))
                     .when(!disabled, |d| {
-                        d.on_click(cx.listener(move |s, _, _, cx| {
-                            if s.opening.is_some() {
-                                return;
-                            }
-                            s.opening = Some(target.id.clone());
-                            cx.emit(HistoryBrowserEvent::Open(target.clone()));
-                            cx.notify();
-                        }))
+                        d.cursor(theme::navigation_cursor()).on_click(cx.listener(
+                            move |s, _, _, cx| {
+                                if s.opening.is_some() {
+                                    return;
+                                }
+                                s.opening = Some(target.id.clone());
+                                cx.emit(HistoryBrowserEvent::Open(target.clone()));
+                                cx.notify();
+                            },
+                        ))
                     }),
             )
             .into_any_element()

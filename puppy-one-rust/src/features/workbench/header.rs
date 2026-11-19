@@ -251,7 +251,7 @@ impl Workbench {
                 .text_size(px(m.header.content))
                 .line_height(px(m.header.line_height))
                 .text_color(fg)
-                .cursor(theme::clickable_cursor())
+                .cursor(theme::navigation_cursor())
                 .when(active, |d| d.bg(t.control))
                 .when(!active, |d| {
                     d.group_hover(group_name.clone(), |s| {

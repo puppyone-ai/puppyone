@@ -927,6 +927,132 @@ mod tests {
         assert_eq!(relative_past_in("ja", 5, Day), "5 日前");
     }
     use super::*;
+
+    /// `settingsVisualArchitecture`: every product locale carries the core
+    /// Settings, Typography, Privacy, Local Agents, Agent file activity,
+    /// Language and Local Project copy, and none the retired sidebar entries.
+    #[test]
+    fn core_settings_copy_is_complete_in_every_product_locale() {
+        let mut present: Vec<String> = [
+            "sidebar.localProject",
+            "sidebar.privacy",
+            "sidebar.projectInfo",
+            "sidebar.localAgents",
+            "sidebar.agents",
+            "sidebar.createNew",
+            "sidebar.typography",
+            "general.title",
+            "general.detail",
+            "localAgents.title",
+            "localAgents.detail",
+            "localAgents.activeChat.title",
+            "localAgents.toggle",
+            "localAgents.history.title",
+            "localAgents.history.detail",
+            "localAgents.history.toggle",
+            "localAgentHooks.title",
+            "localAgentHooks.manage",
+            "localAgentHooks.choose",
+            "localAgentHooks.status.installed",
+            "appearance.agentFileActivity.title",
+        ]
+        .map(String::from)
+        .into();
+        let groups: [(&str, &[&str]); 5] = [
+            (
+                "typography",
+                &[
+                    "title",
+                    "detail",
+                    "textSize.title",
+                    "textSize.ariaLabel",
+                    "textSize.scale.small",
+                    "textSize.scale.medium",
+                    "textSize.scale.large",
+                    "textSize.useScale",
+                    "preview.ariaLabel",
+                    "preview.leftSidebar",
+                    "preview.editor",
+                    "preview.rightSidebar",
+                    "preview.chat",
+                    "preview.message",
+                ],
+            ),
+            (
+                "privacy",
+                &[
+                    "title",
+                    "detail",
+                    "productAnalyze.title",
+                    "productAnalyze.detail",
+                    "productAnalyze.error",
+                    "productAnalyze.learnMore",
+                ],
+            ),
+            (
+                "appearance.agentFileActivity.permission",
+                &[
+                    "title",
+                    "detail",
+                    "accessTitle",
+                    "accessDetail",
+                    "localOnly",
+                    "enable",
+                    "enabling",
+                    "error",
+                ],
+            ),
+            (
+                "language",
+                &["selectorLabel", "system", "changing", "changeFailed"],
+            ),
+            (
+                "localProject",
+                &[
+                    "title",
+                    "detail",
+                    "name",
+                    "path",
+                    "mode",
+                    "modeLocal",
+                    "status",
+                    "protected",
+                    "recentWorkspace",
+                    "unlink.title",
+                    "unlink.action",
+                    "unlink.progress",
+                    "unlink.confirm",
+                ],
+            ),
+        ];
+        for (group, keys) in groups {
+            present.extend(keys.iter().map(|key| format!("{group}.{key}")));
+        }
+        let retired = [
+            "sidebar.language",
+            "sidebar.editor",
+            "sidebar.defaultApps",
+            "sidebar.localAgentHooks",
+        ];
+        let catalogs = data()["catalogs"].as_object().unwrap();
+        assert_eq!(catalogs.len(), 8);
+        for (locale, catalog) in catalogs {
+            for key in &present {
+                assert!(
+                    catalog[format!("settings.{key}")]
+                        .as_str()
+                        .is_some_and(|text| !text.is_empty()),
+                    "{locale}: settings.{key}"
+                );
+            }
+            for key in retired {
+                assert!(
+                    catalog[format!("settings.{key}")].is_null(),
+                    "{locale}: settings.{key}"
+                );
+            }
+        }
+    }
     /// `DesktopLocaleService`: the system's first supported language is
     /// chosen (regional tags fall back to their language), the OS is
     /// followed only while the preference is System, an unsupported

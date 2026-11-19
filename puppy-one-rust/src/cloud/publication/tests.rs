@@ -633,8 +633,27 @@ fn the_git_acceptance_contract_is_pinned_and_its_codes_are_recognized() {
         .map(|c| c.as_str().unwrap())
         .collect();
     assert_eq!(codes, git::LIMIT_CODES);
-    assert_eq!(contract["commit_graph"]["merge_commits"], "accepted");
+    assert_eq!(
+        contract["refusals"]["format"],
+        "<human reason> (puppyone-refusal=<code>)"
+    );
+    assert_eq!(contract["refusals"]["same_content_can_pass"], false);
+    // Desktop must not refuse what Cloud accepts, and refuses only what it
+    // cannot represent.
+    assert_eq!(
+        contract["commit_graph"],
+        serde_json::json!({
+            "merge_commits": "accepted",
+            "octopus_merges": "accepted",
+            "unrelated_histories": "accepted",
+            "server_rewrites_history": false,
+        })
+    );
     assert_eq!(contract["content"]["git_lfs"], "unsupported");
+    assert_eq!(
+        contract["limits"]["receive_pack_bytes"],
+        2u64 * 1024 * 1024 * 1024
+    );
     for code in git::LIMIT_CODES {
         let reason = format!("remote: error: refused (puppyone-refusal={code})");
         assert_eq!(git::refusal_code(&reason), Some(code));

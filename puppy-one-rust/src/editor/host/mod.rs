@@ -1586,7 +1586,10 @@ impl Render for DocumentEditor {
                 &self.chrome,
                 &self.contribution(cx),
                 self.dark,
-                bounds,
+                pane::MenuPlace {
+                    pane: bounds,
+                    viewport_height: window.viewport_size().height,
+                },
                 Rc::new(move |action, window, cx| {
                     let _ = run.update(cx, |this, cx| this.run_pane_action(action, window, cx));
                 }),
