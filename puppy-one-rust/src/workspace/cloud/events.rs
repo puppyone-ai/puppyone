@@ -392,6 +392,34 @@ mod tests {
         }
     }
 
+    /// `cloudWorkspaceEvents.test.mjs`: "decodes split UTF-8 frames and
+    /// heartbeats without requiring Agent cursors", with its chunks verbatim.
+    #[test]
+    fn heartbeats_and_split_frames_decode_without_event_ids() {
+        let mut parser = Parser::default();
+        let mut events = Vec::new();
+        for chunk in [
+            ": keepalive\r\n\r\nevent: cha",
+            "nge\ndata: {\"generation\":\"one\",\"reset\":true}\n\n",
+        ] {
+            parser
+                .feed(chunk.as_bytes(), "one", &mut |p| events.push(p))
+                .unwrap();
+        }
+        assert_eq!(events, vec![None]);
+        // An `unavailable` the server does not call retryable is a decision
+        // that ends the subscription, not an interruption to reconnect from.
+        assert_eq!(
+            parser.feed(
+                b": keepalive\n\nevent: unavailable\ndata: {}\n\n",
+                "one",
+                &mut |p| events.push(p)
+            ),
+            Err(auth::Error::Http(409))
+        );
+        assert_eq!(events, vec![None]);
+    }
+
     #[test]
     fn scoped_changes_accept_legacy_and_current_wire_shapes_and_deduplicate_paths() {
         for legacy in [true, false] {

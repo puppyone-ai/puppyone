@@ -231,4 +231,91 @@ mod tests {
         assert!(!page.contains("return-form\""));
         assert!(page.contains(r#"role="alert""#));
     }
+
+    /// `electron.cloud-loopback-callback.test.mjs`: all eight Desktop
+    /// languages have the whole page copy; each renders its success heading
+    /// from the browser's language, the app's language comes first, and a
+    /// sign-in the app did not complete has its own localized failure, with
+    /// no return form. The page is self-contained: no script, no image, and
+    /// a policy that allows only its inline style, embedded font and form.
+    #[test]
+    fn every_desktop_language_has_its_page_and_a_distinct_failure() {
+        let copy = data()["copy"].as_object().unwrap();
+        assert_eq!(
+            copy.keys().map(String::as_str).collect::<Vec<_>>(),
+            ["en", "es", "pt-BR", "fr", "de", "ja", "ko", "zh-Hans"]
+        );
+        let keys: Vec<_> = copy["en"].as_object().unwrap().keys().collect();
+        for entry in copy.values() {
+            let entry = entry.as_object().unwrap();
+            assert_eq!(entry.keys().collect::<Vec<_>>(), keys);
+            for (key, value) in entry {
+                if matches!(key.as_str(), "returnButton" | "openAppManually") {
+                    assert!(!value.as_str().unwrap().trim().is_empty());
+                } else {
+                    let lines = value.as_array().unwrap();
+                    assert_eq!(lines.len(), 3, "{key}");
+                    assert!(lines.iter().all(|l| !l.as_str().unwrap().trim().is_empty()));
+                }
+            }
+        }
+        for (accept, tag, heading) in [
+            ("es-ES,es;q=0.9", "es", "Sesión iniciada correctamente"),
+            ("pt-BR,pt;q=0.9", "pt-BR", "Login realizado com sucesso"),
+            ("fr-FR,fr;q=0.9", "fr", "Connexion réussie"),
+            ("de-DE,de;q=0.9", "de", "Anmeldung erfolgreich"),
+            ("ja-JP,ja;q=0.9", "ja", "ログインが完了しました"),
+            ("ko-KR,ko;q=0.9", "ko", "로그인 완료"),
+            ("zh-CN,zh;q=0.9", "zh-Hans", "登录成功"),
+        ] {
+            let chosen = locale("", Some(accept));
+            assert_eq!(chosen, tag);
+            let page = String::from_utf8(response(
+                200,
+                Outcome::Success,
+                chosen,
+                Some("/auth/return/x"),
+            ))
+            .unwrap();
+            assert!(page.contains(&format!(r#"<html lang="{tag}">"#)));
+            assert!(page.contains(heading));
+        }
+        let preferred = locale("ja", Some("en-US"));
+        let page = String::from_utf8(response(200, Outcome::Success, preferred, None)).unwrap();
+        assert!(page.contains("ログインが完了しました"));
+        let failed = String::from_utf8(response(
+            400,
+            Outcome::Failed,
+            locale("", Some("zh-CN,zh;q=0.9,en;q=0.8")),
+            None,
+        ))
+        .unwrap();
+        assert!(failed.starts_with("HTTP/1.1 400 "));
+        assert!(failed.contains(r#"<html lang="zh-Hans">"#));
+        assert!(failed.contains("登录未完成") && failed.contains("请返回应用重试"));
+        assert!(!failed.contains("登录成功") && !failed.contains("/auth/return/"));
+        let success = String::from_utf8(response(
+            200,
+            Outcome::Success,
+            "en",
+            Some("/auth/return/x"),
+        ))
+        .unwrap();
+        for part in [
+            "Cache-Control: no-store",
+            "default-src 'none'",
+            "font-src data:",
+            "form-action 'self'",
+            "frame-src 'self'",
+            "Return to PuppyOne Desktop",
+            "You can close this browser tab.",
+            "data:font/woff2;base64,",
+            r#"method="post""#,
+            r#"target="puppyone-return-frame""#,
+            r#"name="puppyone-return-frame""#,
+        ] {
+            assert!(success.contains(part), "{part}");
+        }
+        assert!(!success.contains("<script") && !success.contains("<img"));
+    }
 }

@@ -64,6 +64,10 @@ pub(super) struct FakeRemote {
     pub responder: Mutex<Option<Responder>>,
     pub screen_responder: Mutex<Option<ScreenResponder>>,
     pub keep_workspace_events: bool,
+    /// Template downloads sent: (url, access token).
+    pub templates: Mutex<Vec<(String, String)>>,
+    /// How many template downloads the store refuses as unauthenticated.
+    pub template_refusals: AtomicU64,
 }
 impl Default for FakeRemote {
     fn default() -> Self {
@@ -89,6 +93,8 @@ impl Default for FakeRemote {
             responder: Mutex::default(),
             screen_responder: Mutex::default(),
             keep_workspace_events: false,
+            templates: Mutex::default(),
+            template_refusals: AtomicU64::new(0),
         }
     }
 }
@@ -170,6 +176,26 @@ impl Remote for FakeRemote {
         } else {
             Ok(())
         }
+    }
+    fn template_download(
+        &self,
+        session: &Session,
+        url: &url::Url,
+        _: &serde_json::Value,
+        _: &Fence,
+    ) -> Result<serde_json::Value> {
+        self.templates
+            .lock()
+            .unwrap()
+            .push((url.to_string(), session.access.0.clone()));
+        if self
+            .template_refusals
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+            .is_ok()
+        {
+            return Err(Error::InvalidCredentials);
+        }
+        Ok(serde_json::json!({"schema_version": 1}))
     }
     fn initialize(&self, _: &Session, _: &Fence) -> Result<()> {
         self.inits.fetch_add(1, Ordering::SeqCst);

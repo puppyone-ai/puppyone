@@ -533,6 +533,23 @@ mod tests {
         }
     }
 
+    /// `electron.cloud-auth-service.test.mjs`: "rejects ... malformed requests
+    /// without dispatch" — an id that is not a template's is refused before
+    /// the store or the account is asked anything.
+    #[test]
+    fn a_malformed_template_id_is_refused_before_anything_is_sent() {
+        let (_, descriptor) = package(&[("Plan.md", "# Week")]);
+        let fake = fake(false, descriptor);
+        for (id, release) in [("../../private", RELEASE), (ID, "../../private")] {
+            assert!(
+                store_of(&fake)
+                    .download(id, release, |_| unreachable!("no account"), 0)
+                    .is_err()
+            );
+        }
+        assert!(asked(&fake).is_empty());
+    }
+
     /// `describes a template for the card and says when it needs an
     /// account`, `pins the preview's selected release`.
     #[test]

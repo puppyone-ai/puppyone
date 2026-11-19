@@ -24900,6 +24900,614 @@
         }
       ],
       "environment": "a local Cloud HTTP fixture; test windows with fake Cloud services"
+    },
+    {
+      "id": "cloud-workspace-event-stream",
+      "acceptance": "The Cloud file event stream decodes split UTF-8 frames, CRLF framing and heartbeats without event ids; a change without a generation, malformed JSON or a frame over 32 KiB fails the stream, and a stream that closes early reconnects (bounded). A subscription is a value its window owns: dropping it (release or window close) stops the stream, and no other window can reach it. A change that arrives after the account changed wakes no one and the stream is let go. Transport loss reconnects on the same authenticated GET without waking compute and the watcher hears a revalidation; a refused (403) stream is asked for once and its watcher hears the failure, while a retryable unavailable reconnects. Path hints are forwarded once each; a scoped change without the legacy reset flag needs paths, and empty lists, the overflow marker, parent/current/empty segments, absolute paths, backslashes, NUL bytes, non-strings, paths over 4096 UTF-16 units or more than 256 paths are a change of unknown scope (exact TS oracle over every reset flag and chunking). The named paths reach the subscriber.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudWorkspaceEvents.test.mjs",
+          "sha256": "82a31ee22399d070ef19a7a6df959462503a0a6e6461cfb484e53f59e31fe29a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace file events > decodes split UTF-8 frames and heartbeats without requiring Agent cursors"
+            },
+            {
+              "index": 1,
+              "name": "workspace file events > rejects malformed, oversized and prematurely closed streams"
+            },
+            {
+              "index": 2,
+              "name": "workspace file events > owns subscriptions by window and stops transport on window close or explicit release"
+            },
+            {
+              "index": 3,
+              "name": "workspace file events > drops late events after an account change"
+            },
+            {
+              "index": 4,
+              "name": "workspace subscription recovery > retries transport loss on the same authenticated GET without resuming compute"
+            },
+            {
+              "index": 5,
+              "name": "workspace subscription recovery > never retries revoked authority and distinguishes server transport interruption"
+            },
+            {
+              "index": 6,
+              "name": "workspace file event paths > forwards the workspace-relative paths a change names, once each"
+            },
+            {
+              "index": 7,
+              "name": "workspace file event paths > accepts a scoped change without the legacy reset flag only when it names paths"
+            },
+            {
+              "index": 8,
+              "name": "workspace file event paths > treats an empty list as a change of unknown scope"
+            },
+            {
+              "index": 9,
+              "name": "workspace file event paths > treats the overflow marker as a change of unknown scope"
+            },
+            {
+              "index": 10,
+              "name": "workspace file event paths > treats a parent segment as a change of unknown scope"
+            },
+            {
+              "index": 11,
+              "name": "workspace file event paths > treats a current segment as a change of unknown scope"
+            },
+            {
+              "index": 12,
+              "name": "workspace file event paths > treats an absolute path as a change of unknown scope"
+            },
+            {
+              "index": 13,
+              "name": "workspace file event paths > treats an empty segment as a change of unknown scope"
+            },
+            {
+              "index": 14,
+              "name": "workspace file event paths > treats a backslash as a change of unknown scope"
+            },
+            {
+              "index": 15,
+              "name": "workspace file event paths > treats a NUL byte as a change of unknown scope"
+            },
+            {
+              "index": 16,
+              "name": "workspace file event paths > treats a non-string as a change of unknown scope"
+            },
+            {
+              "index": 17,
+              "name": "workspace file event paths > treats an over-long path as a change of unknown scope"
+            },
+            {
+              "index": 18,
+              "name": "workspace file event paths > treats too many paths as a change of unknown scope"
+            },
+            {
+              "index": 19,
+              "name": "workspace file event paths > delivers path hints to the subscribing window"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::events::tests::heartbeats_and_split_frames_decode_without_event_ids"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::events::tests::actual_typescript_event_parser_oracle_including_fragmented_unicode"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::events::tests::scoped_changes_accept_legacy_and_current_wire_shapes_and_deduplicate_paths"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::events::tests::invalid_path_hints_reset_everything_only_with_the_legacy_reset_flag"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::parser_handles_fragmented_utf8_crlf_and_bounded_change_frames"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::non_sse_responses_fail_closed_and_transport_reconnects_are_bounded"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::document_and_tree_subscriptions_share_one_stream_and_last_drop_stops_it"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_late_event_after_an_account_change_is_dropped_and_ends_the_stream"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::revoked_event_streams_are_asked_once_and_interruptions_reconnect"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_scoped_change_reaches_the_subscriber_with_its_paths"
+        }
+      ]
+    },
+    {
+      "id": "cloud-endpoint-allowlist",
+      "acceptance": "Only the PuppyOne host family over HTTPS, or localhost development, is ever a Cloud endpoint: empty, blank, non-HTTP and unparsable values, an insecure production endpoint (never upgraded), other hosts, link-local metadata and private addresses, and a lookalike parent domain are refused. A trailing slash names the same endpoint and another host does not. There is no implicit endpoint: without an explicit packaged or development configuration Cloud is not configured.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/environment/cloudEndpoint.test.mjs",
+          "sha256": "605a78457bd2757becf0d1132bbfcbb8c5cdefe229135f7a572bb5417804b419",
+          "cases": [
+            {
+              "index": 0,
+              "name": "normalizeCloudApiBaseUrl > rejects empty / non-string / non-http input"
+            },
+            {
+              "index": 3,
+              "name": "normalizeCloudApiBaseUrl > SSRF guard: rejects non-PuppyOne hosts and internal/metadata targets"
+            },
+            {
+              "index": 4,
+              "name": "normalizeCloudApiBaseUrl > SSRF guard: allows the PuppyOne host family and localhost (dev)"
+            },
+            {
+              "index": 5,
+              "name": "resolveCloudApiBaseUrl > requires an explicit endpoint or explicit fallback"
+            },
+            {
+              "index": 9,
+              "name": "sameCloudApiBaseUrl > treats trailing-slash / scheme-normalized variants as equal"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::model::configuration_tests::endpoints_are_validated_never_upgraded_and_compare_after_normalizing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::model::configuration_tests::endpoints_follow_the_desktop_allowlist"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::model::source_tests::a_packaged_app_reads_only_its_file_and_a_development_build_only_vite_names"
+        }
+      ]
+    },
+    {
+      "id": "cloud-api-error-transport",
+      "acceptance": "A repository-context resolution that cannot reach Cloud, times out or is cancelled is reported as such after one send, never retried. Through the real HTTP adapter a refusal keeps the server's allowlisted code, its retry decision and a plain request id; an id that is not a plain token and an unlisted code are dropped; a 409's safe data.code (initialization_not_abandonable) is kept rather than classified with every 409; an unreachable Cloud is unavailable; and a reply whose body stalls after its headers times out like one that never answers.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/environment/electron.cloud-api-client.test.mjs",
+          "sha256": "98702c480b33e6c0f8579d4a4630461a0c30db6d67f7897f9434bd7f89e3e55f",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Electron Cloud API error transport > classifies transport failures without retrying the request"
+            },
+            {
+              "index": 4,
+              "name": "Electron Cloud API error transport > classifies transport failures without retrying the request"
+            },
+            {
+              "index": 5,
+              "name": "Electron Cloud API error transport > classifies transport failures without retrying the request"
+            },
+            {
+              "index": 6,
+              "name": "Electron Cloud API error transport > keeps the server's code, retry decision and request id on an error response"
+            },
+            {
+              "index": 7,
+              "name": "Electron Cloud API error transport > ignores a request id that is not a plain token"
+            },
+            {
+              "index": 8,
+              "name": "Electron Cloud API error transport > preserves timeout semantics when the response body aborts after headers"
+            },
+            {
+              "index": 11,
+              "name": "Electron Cloud API error transport > preserves a safe backend data.code instead of classifying every 409 alike"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::transport_failures_of_a_context_resolution_are_classified_after_one_send"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::api_refusals_keep_their_safe_code_retry_decision_and_plain_request_id"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::a_body_that_stalls_after_its_headers_times_out"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::failure::tests::connection_reasons_come_from_structured_evidence_only"
+        }
+      ]
+    },
+    {
+      "id": "cloud-auth-leases-and-refresh",
+      "acceptance": "A request under another account's lease, or an obsolete lease of the same account, is refused as a changed session before it is sent and before any refresh; a lease survives a same-account token refresh. Twenty concurrent requests share one refresh and one business initialization, and twenty concurrent 401s from the old token reuse one new token; the saved sign-in holds only the refresh credential and nothing public holds a token. A network failure while refreshing keeps the credential and the account offline; a refused (401) refresh signs out and clears it; a 403 answer is the account's: it is neither refreshed nor signed out.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
+          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
+          "cases": [
+            {
+              "index": 0,
+              "name": "main-owned Cloud Auth Broker > rejects a renderer mutation for a different account before dispatch or refresh"
+            },
+            {
+              "index": 1,
+              "name": "main-owned Cloud Auth Broker > rejects an obsolete renderer generation even for the same account"
+            },
+            {
+              "index": 2,
+              "name": "main-owned Cloud Auth Broker > permits a matching renderer lease across a same-account token refresh"
+            },
+            {
+              "index": 6,
+              "name": "main-owned Cloud Auth Broker > coalesces twenty concurrent restore/API requests into one refresh and never exposes tokens"
+            },
+            {
+              "index": 7,
+              "name": "main-owned Cloud Auth Broker > coalesces twenty concurrent late 401 responses into one access-token refresh"
+            },
+            {
+              "index": 8,
+              "name": "main-owned Cloud Auth Broker > keeps the credential and returns offline-authenticated on a network refresh failure"
+            },
+            {
+              "index": 9,
+              "name": "main-owned Cloud Auth Broker > clears a revoked refresh credential but does not refresh or clear on a 403 API response"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::an_old_lease_is_refused_before_any_send_or_refresh"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::twenty_requests_share_refresh_and_initialization_without_exposing_secrets"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::simultaneous_old_token_401s_reuse_the_new_token"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::offline_restore_keeps_identity_and_invalid_refresh_revokes_it"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::a_forbidden_answer_neither_refreshes_nor_signs_out"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::the_saved_sign_in_holds_only_the_refresh_credential_and_bad_records_are_set_aside"
+        }
+      ]
+    },
+    {
+      "id": "cloud-auth-cancellation-and-inference-stream",
+      "acceptance": "Cancelling an authenticated request that is still waiting for its answer ends it at once as cancelled. The managed inference stream is sent by the app with the bearer, the request id as both idempotency key and request id, no redirects, sent once; a change of account ends the open stream.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
+          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
+          "cases": [
+            {
+              "index": 3,
+              "name": "main-owned Cloud Auth Broker > preserves the caller's cancellation signal on an authenticated wallet request"
+            },
+            {
+              "index": 4,
+              "name": "main-owned Cloud Auth Broker > keeps Agent bearer auth in Main and aborts the open stream on sign-out"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::a_caller_cancellation_ends_an_authenticated_request_at_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::an_open_inference_stream_carries_its_ids_and_ends_when_the_account_changes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::managed_inference_posts_once_with_its_key_and_streams_the_reply"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::transport_rejects_redirects_and_privileged_or_oversized_configurations"
+        }
+      ]
+    },
+    {
+      "id": "cloud-auth-native-sign-in",
+      "acceptance": "The app owns the browser sign-in: the login page gets no verifier or token, a callback is exchanged once (a replay and a concurrent duplicate are refused), and no Cloud handoff route is used. Asking again shows the same page of the same pending attempt, which still finishes. A pending sign-in expires (signed out, its browser actions retired) and its listener closes. A wrong host, origin or state is refused without consuming the attempt. A sign-in cut short cannot adopt a late answer. Signing out always completes locally even when remote revocation is unavailable, and a late result of the old generation is refused.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
+          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
+          "cases": [
+            {
+              "index": 10,
+              "name": "main-owned Cloud Auth Broker > owns Supabase PKCE, consumes callbacks once and never calls a cloud handoff"
+            },
+            {
+              "index": 11,
+              "name": "main-owned Cloud Auth Broker > reopens the same pending sign-in page instead of waiting silently"
+            },
+            {
+              "index": 12,
+              "name": "main-owned Cloud Auth Broker > expires pending native login and closes the listener"
+            },
+            {
+              "index": 13,
+              "name": "main-owned Cloud Auth Broker > rejects a mismatched port or state without consuming the valid attempt"
+            },
+            {
+              "index": 14,
+              "name": "main-owned Cloud Auth Broker > cannot adopt a delayed OAuth response after sign-out"
+            },
+            {
+              "index": 15,
+              "name": "main-owned Cloud Auth Broker > always completes local logout and rejects an old-generation late result when remote revoke is unavailable"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::native_pkce_and_email_handoffs_use_the_real_http_adapter_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::concurrent_callbacks_dispatch_only_one_exchange"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::cancelling_a_native_attempt_closes_the_listener_and_fences_late_callbacks"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::reopening_a_pending_sign_in_shows_the_same_page_of_the_same_attempt"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::expiry_finishes_the_public_attempt_and_retires_queued_browser_actions"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::callback_parser_rejects_host_origin_duplicates_framing_and_token_urls"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::a_late_keychain_write_is_rolled_back_before_new_account_commit"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::failed_remote_logout_does_not_keep_local_credentials_or_pretend_remote_revocation"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::late_read_is_discarded_and_late_write_reports_unknown"
+        }
+      ]
+    },
+    {
+      "id": "cloud-auth-never-replays-across-actors",
+      "acceptance": "A request still in flight when the session changes is never sent again: a read ends as a changed session and a mutation as an unknown outcome, whatever account signs in next, and a renewal for another account ends the old lease instead of retargeting it.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
+          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
+          "cases": [
+            {
+              "index": 18,
+              "name": "main-owned Cloud Auth Broker > never replays an idempotent mutation under a different Cloud actor"
+            },
+            {
+              "index": 19,
+              "name": "main-owned Cloud Auth Broker > does not replay a main-owned mutation without a canonical idempotency key"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::late_read_is_discarded_and_late_write_reports_unknown"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::wrong_account_refresh_and_changed_environment_never_retarget_a_lease"
+        }
+      ]
+    },
+    {
+      "id": "cloud-template-authorization",
+      "acceptance": "A template download is sent as the signed-in account only to the store's fixed origin, once more with a renewed session when the store refuses the first, keeping the same lease; signed out, nothing is sent; a malformed template or release id is refused before anything is sent; the store's own requests carry no credential and follow no redirect.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
+          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
+          "cases": [
+            {
+              "index": 20,
+              "name": "Main-only template authorization > refreshes an expired session and sends tokens only to the fixed website origin"
+            },
+            {
+              "index": 21,
+              "name": "Main-only template authorization > refreshes once on a 401 and preserves the same account lease"
+            },
+            {
+              "index": 22,
+              "name": "Main-only template authorization > rejects signed-out, foreign-tenant and malformed requests without dispatch"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::template_downloads_go_as_the_account_and_once_more_after_a_refusal"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::store::tests::a_malformed_template_id_is_refused_before_anything_is_sent"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::store::tests::store_requests_carry_no_credentials_and_follow_no_redirects"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::store::tests::only_this_templates_package_address_is_downloaded"
+        }
+      ]
+    },
+    {
+      "id": "cloud-sign-in-result-page",
+      "acceptance": "The sign-in result page has the whole copy in all eight Desktop languages, renders each success heading from the browser's language with the app's language first, and has a distinct localized failure without the return form when the app did not complete the sign-in. It is self-contained (no script or image; only inline style, the embedded font, the form and the return frame are allowed; no-store). The listener binds loopback, forwards only the exact callback path and state, answers a replayed callback as used, and returns the app to the front only on the one-time POST.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-loopback-callback.test.mjs",
+          "sha256": "d567ea6e6d1d1bd722340cb0b6499e7df0a5ad8011a76873a952a05d7ed44f7b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop OAuth loopback callback > has complete result and return-button copy for all eight Desktop languages"
+            },
+            {
+              "index": 2,
+              "name": "desktop OAuth loopback callback > binds a random 127.0.0.1 port and forwards only the exact callback path"
+            },
+            {
+              "index": 3,
+              "name": "desktop OAuth loopback callback > shows a distinct localized failure when the Desktop exchange does not complete"
+            },
+            {
+              "index": 4,
+              "name": "desktop OAuth loopback callback > renders the success page in es-ES,es;q=0.9"
+            },
+            {
+              "index": 5,
+              "name": "desktop OAuth loopback callback > renders the success page in pt-BR,pt;q=0.9"
+            },
+            {
+              "index": 6,
+              "name": "desktop OAuth loopback callback > renders the success page in fr-FR,fr;q=0.9"
+            },
+            {
+              "index": 7,
+              "name": "desktop OAuth loopback callback > renders the success page in de-DE,de;q=0.9"
+            },
+            {
+              "index": 8,
+              "name": "desktop OAuth loopback callback > renders the success page in ja-JP,ja;q=0.9"
+            },
+            {
+              "index": 9,
+              "name": "desktop OAuth loopback callback > renders the success page in ko-KR,ko;q=0.9"
+            },
+            {
+              "index": 10,
+              "name": "desktop OAuth loopback callback > renders the success page in zh-CN,zh;q=0.9"
+            },
+            {
+              "index": 11,
+              "name": "desktop OAuth loopback callback > uses the Desktop language preference ahead of the browser language"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::result_page::tests::every_desktop_language_has_its_page_and_a_distinct_failure"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::result_page::tests::the_page_speaks_the_apps_language_else_the_browsers"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::native_pkce_and_email_handoffs_use_the_real_http_adapter_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::callback_parser_rejects_host_origin_duplicates_framing_and_token_urls"
+        }
+      ]
+    },
+    {
+      "id": "cloud-remote-credential-storage",
+      "acceptance": "The hosted Git secret reaches Git only through a secure credential helper (never on a command line, never to a shell or path helper); an inherited plaintext or unknown helper is reset for the canonical URL only; a credential the helper cannot read back fails closed and the person's prior remote and helper values are restored.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/workspaceCloudRemoteCredentials.test.mjs",
+          "sha256": "d07e7689c3d86f1cff2a4131e52f22e699e5e1339e143d631cb0bfd58e06bdf8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace Cloud Git credential storage > passes the secret only over git credential approve stdin"
+            },
+            {
+              "index": 1,
+              "name": "workspace Cloud Git credential storage > rejects the credential and restores the prior remote state when verification fails"
+            },
+            {
+              "index": 2,
+              "name": "workspace Cloud Git credential storage > resets an inherited plaintext helper before approving the credential"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::shell_and_path_helpers_never_receive_the_secret"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::an_unknown_helper_is_reset_only_for_the_canonical_url_and_restored_on_abandon"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::a_helper_that_cannot_read_the_credential_back_fails_closed_and_restores"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::detach_restores_the_values_that_were_there_before"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -30775,6 +31383,138 @@
             {
               "index": 2,
               "name": "local folder Cloud notice > never broadens a scoped checkout into its whole Cloud project"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-endpoint-validated-not-repaired",
+      "kind": "out-of-scope",
+      "reason": "TS normalizes whatever endpoint it is given: it strips a query and fragment, accepts a bare production origin as the API base and prefixes a relative API path with '/'. The native app validates its one configured Environment instead of repairing it: the API base must end in /api/v1, a query, fragment or credentials refuse the configuration, and Environment::api_url refuses any path that is not absolute (all callers use fixed absolute paths). Insecure endpoints are refused, never upgraded, in both.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/endpoints.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/environment/cloudEndpoint.test.mjs",
+          "sha256": "605a78457bd2757becf0d1132bbfcbb8c5cdefe229135f7a572bb5417804b419",
+          "cases": [
+            {
+              "index": 1,
+              "name": "normalizeCloudApiBaseUrl > strips trailing slashes, hash and query"
+            },
+            {
+              "index": 2,
+              "name": "normalizeCloudApiBaseUrl > does not silently rewrite an insecure or incomplete production endpoint"
+            },
+            {
+              "index": 8,
+              "name": "normalizeCloudApiPath > ensures a leading slash and defaults empty to '/'"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-endpoint-from-repository-remote",
+      "kind": "out-of-scope",
+      "reason": "TS derives an API base from a repository's PuppyOne remote (cloudApiBaseUrlFromRemote) and, unless the configured API is loopback, sends that repository's requests there. The native app never takes an endpoint from a remote: a remote can only name a Project on the configured origin (or the explicit loopback hosted-Git mapping), so a repository cannot redirect requests or credentials to another Cloud.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/endpoints.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/environment/cloudEndpoint.test.mjs",
+          "sha256": "605a78457bd2757becf0d1132bbfcbb8c5cdefe229135f7a572bb5417804b419",
+          "cases": [
+            {
+              "index": 6,
+              "name": "cloudApiBaseUrlFromRemote > derives the /api/v1 base from a git remote origin"
+            },
+            {
+              "index": 7,
+              "name": "cloudApiBaseUrlFromRemote > returns null for invalid remotes"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-main-network-composition",
+      "kind": "out-of-scope",
+      "reason": "These check how Electron's Main process composes its network stack: Chromium's net.fetch instead of Node's fetch (with credentials 'omit' and bypassCustomProtocolHandlers), a transport that must be injected, a DataPort's session guard not mistaken for a fetch transport, an opt-in bytes response and multipart (FormData) bodies no TS caller sends, and an HTTP status written into the error message so it survives IPC serialization. The native app has one in-process reqwest client (no cookie store; redirects refused, see transport_rejects_redirects_and_privileged_or_oversized_configurations), JSON replies only, and typed errors that keep their status without crossing an IPC boundary; server prose is never shown.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/README.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/environment/electron.cloud-api-client.test.mjs",
+          "sha256": "98702c480b33e6c0f8579d4a4630461a0c30db6d67f7897f9434bd7f89e3e55f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Main Cloud network composition > routes both configuration and credential requests through the supplied native transport"
+            },
+            {
+              "index": 1,
+              "name": "Main Cloud network composition > requires an explicit runtime transport"
+            },
+            {
+              "index": 2,
+              "name": "Electron Cloud API error transport > does not treat the session guard forwarded by a DataPort as a fetch transport"
+            },
+            {
+              "index": 9,
+              "name": "Electron Cloud API error transport > returns successful binary responses without attempting JSON decoding"
+            },
+            {
+              "index": 10,
+              "name": "Electron Cloud API error transport > puts HTTP status in the serialized message as well as the local Error"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
+          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
+          "cases": [
+            {
+              "index": 5,
+              "name": "main-owned Cloud Auth Broker > adds auth without overriding the multipart boundary for managed Office uploads"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-auth-replay-after-same-account-sign-in",
+      "kind": "gap",
+      "reason": "When the same account signs in again while a request is in flight, TS replays it once under the new session if it is a read-only repository-context POST or a mutation with a canonical idempotency key. The native broker ends the old lease instead: the read reports a changed session and the mutation an unknown outcome, so the caller has to ask again.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/auth/refresh-and-generations.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
+          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
+          "cases": [
+            {
+              "index": 16,
+              "name": "main-owned Cloud Auth Broker > replays a read-only repository-context POST once after a newer session generation wins"
+            },
+            {
+              "index": 17,
+              "name": "main-owned Cloud Auth Broker > replays a keyed main-owned mutation once when only the same user's generation changes"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sign-in-page-launch-fallback",
+      "kind": "out-of-scope",
+      "reason": "TS's result page runs a nonce'd script that reveals a puppyone:// launch link when returning to the app fails. The native page is deliberately script-free (its policy allows no script): the return button POSTs to the listener, which stays for 10 minutes, and no launch fallback is drawn (recorded as an intentional difference in Loopback Callback).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/auth/loopback-callback.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-loopback-callback.test.mjs",
+          "sha256": "d567ea6e6d1d1bd722340cb0b6499e7df0a5ad8011a76873a952a05d7ed44f7b",
+          "cases": [
+            {
+              "index": 1,
+              "name": "desktop OAuth loopback callback > offers a system launch fallback only for a known Desktop URL"
             }
           ]
         }

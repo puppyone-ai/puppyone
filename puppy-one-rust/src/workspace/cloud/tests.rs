@@ -1146,6 +1146,59 @@ fn a_late_event_after_an_account_change_is_dropped_and_ends_the_stream() {
         "no reconnect"
     );
 }
+/// `cloudWorkspaceEvents.test.mjs`: "never retries revoked authority and
+/// distinguishes server transport interruption" — a refused stream is asked
+/// for once and its watcher hears the failure; a retryable `unavailable`
+/// is an interruption the same GET recovers from, without waking compute.
+#[test]
+fn revoked_event_streams_are_asked_once_and_interruptions_reconnect() {
+    let f = Fixture::new();
+    let ws = f.open();
+    *f.state.file_failure.lock().unwrap() = Some((403, "access_denied"));
+    let (watch, _) = subscription(&ws);
+    wait(|| matches!(watch.next(), Some(WatchEvent::Failed(_))));
+    // Longer than the first reconnect delay (250 ms).
+    thread::sleep(Duration::from_millis(400));
+    assert_eq!(f.state.count("GET", "/events"), 1);
+
+    let f = Fixture::new();
+    let (ws, shared) = f.scoped();
+    let (watch, _) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    while watch.next().is_some() {}
+    f.state
+        .event("event: unavailable\ndata: {\"retryable\":true}\n\n");
+    wait(|| f.state.stream_count.load(Ordering::SeqCst) >= 2);
+    let mut heard = vec![];
+    wait(|| {
+        heard.extend(watch.next());
+        !heard.is_empty()
+    });
+    assert!(
+        heard.iter().all(|e| matches!(e, WatchEvent::Invalidated)),
+        "{heard:?}"
+    );
+    assert!(ws.read(p("live.md")).is_ok());
+    assert_eq!(f.state.count("GET", "/events"), 2);
+    assert_eq!(f.state.count("POST", "/workbench"), 0);
+}
+/// `cloudWorkspaceEvents.test.mjs`: "delivers path hints to the subscribing
+/// window" — the paths a change names reach the subscription, once each.
+#[test]
+fn a_scoped_change_reaches_the_subscriber_with_its_paths() {
+    let f = Fixture::new();
+    let (ws, shared) = f.scoped();
+    let (watch, count) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    while watch.next().is_some() {}
+    let before = count.load(Ordering::SeqCst);
+    changed_paths(&f, &["docs/a.md", "docs/a.md"]);
+    wait(|| count.load(Ordering::SeqCst) > before);
+    let Some(WatchEvent::Changed(paths)) = watch.next() else {
+        panic!("expected the named paths");
+    };
+    assert_eq!(paths, [RelativePath::new(p("docs/a.md")).unwrap()]);
+}
 #[test]
 fn reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease() {
     let f = Fixture::new();
