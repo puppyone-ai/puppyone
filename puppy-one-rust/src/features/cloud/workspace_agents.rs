@@ -47,8 +47,13 @@ pub enum Invite {
     Out(i64),
     /// Nobody came before the message lapsed.
     Lapsed,
-    /// The Agent let in, by id, and since when (ms).
-    Joined(String, i64),
+    /// The Agent let in, by id, and since when (ms); `reached` once it has
+    /// connected, which then stands even when its sessions age out of the list.
+    Joined {
+        id: String,
+        since: i64,
+        reached: bool,
+    },
 }
 /// What the invite shows now: [`Invite`] with an Agent asking to join
 /// answered where it asks.
@@ -401,12 +406,23 @@ impl CloudAgents {
                 .map(|a| a.agent.id.clone());
             if let Some(id) = newcomer {
                 if self.dialog_open && self.invite_open {
-                    self.invite_flow = Invite::Joined(id, crate::clock::now_ms());
+                    self.invite_flow = Invite::Joined {
+                        id,
+                        since: crate::clock::now_ms(),
+                        reached: false,
+                    };
                     self.ticker = None;
                 } else {
                     self.reset_invite(cx);
                 }
             }
+        }
+        // Once the Agent the invite ended on has connected, it is in for good.
+        let connected_now = self.joined().is_some_and(connected);
+        if let Invite::Joined { reached, .. } = &mut self.invite_flow
+            && connected_now
+        {
+            *reached = true;
         }
         // A newcomer, or one asking to join, ends the wait.
         let answered = self.invite.as_ref().is_some_and(|known| {
@@ -441,7 +457,7 @@ impl CloudAgents {
     pub fn start_invite(&mut self, cx: &mut Context<Self>) {
         self.confirming = None;
         self.invite_open = true;
-        if matches!(self.invite_flow, Invite::Joined(..) | Invite::Lapsed) {
+        if matches!(self.invite_flow, Invite::Joined { .. } | Invite::Lapsed) {
             self.reset_invite(cx);
         }
         self.tick(cx);
@@ -475,7 +491,8 @@ impl CloudAgents {
     /// lapsed.
     pub fn invite_phase(&self) -> InvitePhase {
         if let Some(agent) = self.joined() {
-            return if connected(agent) {
+            let reached = matches!(self.invite_flow, Invite::Joined { reached: true, .. });
+            return if reached || connected(agent) {
                 InvitePhase::Joined
             } else {
                 InvitePhase::Connecting
@@ -500,7 +517,7 @@ impl CloudAgents {
     /// Captures: the Agent let in long enough ago to be overdue.
     #[cfg(feature = "dev-capture")]
     pub fn capture_overdue(&mut self, cx: &mut Context<Self>) {
-        if let Invite::Joined(_, since) = &mut self.invite_flow {
+        if let Invite::Joined { since, .. } = &mut self.invite_flow {
             *since -= CONNECT_WAIT.as_millis() as i64;
         }
         cx.notify();
@@ -516,13 +533,13 @@ impl CloudAgents {
     /// The Agent the invite ended on.
     pub fn joined(&self) -> Option<&WorkspaceAgent> {
         match &self.invite_flow {
-            Invite::Joined(id, _) => self.agents.iter().find(|a| &a.agent.id == id),
+            Invite::Joined { id, .. } => self.agents.iter().find(|a| &a.agent.id == id),
             _ => None,
         }
     }
     /// Let in long enough ago that it should have connected by now.
     pub fn connect_overdue(&self) -> bool {
-        matches!(self.invite_flow, Invite::Joined(_, since)
+        matches!(self.invite_flow, Invite::Joined { since, reached: false, .. }
             if crate::clock::now_ms() - since >= CONNECT_WAIT.as_millis() as i64)
     }
     /// The countdown moves once a second while the message is out and the
@@ -1046,6 +1063,93 @@ mod tests {
         });
     }
 
+    /// Connected means any session of the Agent's grant is known; a list of
+    /// sessions that could not be read says nothing either way.
+    #[test]
+    fn an_agent_is_connected_once_any_session_of_its_grant_is_known() {
+        let at = |known, active, last: Option<&str>| WorkspaceAgent {
+            agent: serde_json::from_value(agent("c1")).unwrap(),
+            active,
+            last_active_at: last.map(str::to_owned),
+            activity_known: known,
+        };
+        assert!(!connected(&at(true, false, None)));
+        assert!(connected(&at(true, true, None)));
+        assert!(connected(&at(true, false, Some("2026-10-30T12:00:08Z"))));
+        assert!(connected(&at(false, false, None)));
+    }
+
+    fn connecting(server: &Server, agents: &Entity<CloudAgents>, cx: &mut TestAppContext) {
+        agents.update(cx, |a, cx| {
+            a.set_dialog_open(true, cx);
+            a.open(Opener::Invite, cx);
+            a.copy_invite(cx)
+        });
+        cx.run_until_parked();
+        *server.connections.lock().unwrap() = json!([agent("c1"), agent("c2")]);
+        next_poll(cx);
+        assert_eq!(phase(agents, cx), InvitePhase::Connecting);
+    }
+    fn session(grant: &str) -> Value {
+        json!([{"grant_id": grant, "state": "active", "created_at": "2026-10-30T12:00:00Z",
+            "closed_at": null, "lease_until": "2099-01-01T00:00:00Z", "commands_running": 1,
+            "last_command_at": "2026-10-30T12:00:05Z"}])
+    }
+
+    /// The server lists recent sessions only: an Agent that has connected
+    /// stays in when its sessions age out while the dialog is open.
+    #[gpui::test]
+    fn an_agent_that_connected_stays_in_when_its_sessions_age_out(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        connecting(&server, &agents, cx);
+        *server.sessions.lock().unwrap() = Some(session("g-c2"));
+        next_poll(cx);
+        assert_eq!(phase(&agents, cx), InvitePhase::Joined);
+        *server.sessions.lock().unwrap() = Some(json!([]));
+        next_poll(cx);
+        assert_eq!(phase(&agents, cx), InvitePhase::Joined);
+        agents.update(cx, |a, _| {
+            if let Invite::Joined { since, .. } = &mut a.invite_flow {
+                *since -= CONNECT_WAIT.as_millis() as i64;
+            }
+        });
+        agents.read_with(cx, |a, _| assert!(!a.connect_overdue()));
+    }
+
+    /// Another Agent's session does not let this one in.
+    #[gpui::test]
+    fn only_the_new_agents_own_session_counts(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        connecting(&server, &agents, cx);
+        *server.sessions.lock().unwrap() = Some(session("g-c1"));
+        next_poll(cx);
+        assert_eq!(phase(&agents, cx), InvitePhase::Connecting);
+    }
+
+    /// Waiting for it to connect is not a message out: closing the dialog or
+    /// taking the seat starts the invite over, and the Agent stays listed.
+    #[gpui::test]
+    fn closing_or_taking_the_seat_while_it_connects_starts_over(cx: &mut TestAppContext) {
+        let (server, agents) = setup(cx);
+        connecting(&server, &agents, cx);
+        agents.update(cx, |a, cx| a.close_invite(cx));
+        agents.read_with(cx, |a, _| {
+            assert_eq!(a.invite_phase(), InvitePhase::Give);
+            assert!(a.agents.iter().any(|x| x.agent.id == "c2"));
+        });
+        agents.update(cx, |a, cx| {
+            a.open(Opener::Invite, cx);
+            a.copy_invite(cx)
+        });
+        cx.run_until_parked();
+        *server.connections.lock().unwrap() = json!([agent("c1"), agent("c2"), agent("c3")]);
+        next_poll(cx);
+        assert_eq!(phase(&agents, cx), InvitePhase::Connecting);
+        agents.read_with(cx, |a, _| assert_eq!(a.joined().unwrap().agent.id, "c3"));
+        agents.update(cx, |a, cx| a.start_invite(cx));
+        assert_eq!(phase(&agents, cx), InvitePhase::Give);
+    }
+
     /// An Agent let in that never reaches the workspace is not shown as in:
     /// past the first machine start it is said not to have connected.
     #[gpui::test]
@@ -1061,7 +1165,7 @@ mod tests {
         next_poll(cx);
         assert_eq!(phase(&agents, cx), InvitePhase::Connecting);
         agents.update(cx, |a, _| {
-            if let Invite::Joined(_, since) = &mut a.invite_flow {
+            if let Invite::Joined { since, .. } = &mut a.invite_flow {
                 *since -= CONNECT_WAIT.as_millis() as i64;
             }
         });

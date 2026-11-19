@@ -247,6 +247,19 @@ fn the_invite_waits_for_the_agent_and_lets_it_in_where_it_asks(cx: &mut TestAppC
     draw(cx);
     assert!(cx.debug_bounds("cloud-agent-invite-connecting").is_some());
     assert!(cx.debug_bounds("cloud-agent-invite-joined").is_none());
+    // Past a first machine start it says the Agent has not connected yet.
+    agents.update(cx, |a, cx| {
+        if let crate::features::cloud::Invite::Joined { since, .. } = &mut a.invite_flow {
+            *since -= 11 * 60 * 1000;
+        }
+        cx.notify();
+    });
+    draw(cx);
+    assert!(
+        cx.debug_bounds("cloud-agent-invite-not-connected")
+            .is_some()
+    );
+    assert!(cx.debug_bounds("cloud-agent-invite-connecting").is_none());
     *stage.lock().unwrap() = 3;
     agents.update(cx, |a, cx| a.refresh(cx));
     settle_cloud(&view, cx, "the Agent in", &|s, cx| {

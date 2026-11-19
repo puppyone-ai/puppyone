@@ -515,7 +515,8 @@ impl WindowCloud {
         let name = agent.agent.name.clone();
         let avatar = agent.agent.avatar.clone();
         let joined = agents.invite_phase() == InvitePhase::Joined;
-        let (title, hint) = match (joined, agents.connect_overdue()) {
+        let overdue = !joined && agents.connect_overdue();
+        let (title, hint) = match (joined, overdue) {
             (true, _) => ("native.agentInvite.joined", "native.agentInvite.joinedHint"),
             (false, false) => (
                 "native.agentInvite.connecting",
@@ -531,11 +532,12 @@ impl WindowCloud {
         v_flex()
             .id("cloud-agent-invite-joined")
             .debug_selector(move || {
-                if joined {
-                    "cloud-agent-invite-joined".into()
-                } else {
-                    "cloud-agent-invite-connecting".into()
+                match (joined, overdue) {
+                    (true, _) => "cloud-agent-invite-joined",
+                    (false, false) => "cloud-agent-invite-connecting",
+                    (false, true) => "cloud-agent-invite-not-connected",
                 }
+                .into()
             })
             .items_center()
             .pt(px(18.))

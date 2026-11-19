@@ -37,6 +37,8 @@ pub use spaces::{
     CloudSpaces, Status as SpacesStatus, global as global_spaces, mark as space_mark,
     name as space_name, plan_badge as space_plan_badge, read as global_spaces_read,
 };
+#[cfg(test)]
+pub use workspace_agents::Invite;
 #[cfg(feature = "dev-capture")]
 pub use workspace_agents::lab_client as lab_agents_client;
 pub use workspace_agents::{CloudAgents, CopyStatus, InvitePhase, Opener, status as agent_status};
