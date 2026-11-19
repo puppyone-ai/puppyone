@@ -636,6 +636,56 @@ mod tests {
             assert!(lines.contains(&size.as_str()), "{output}");
         }
     }
+    /// `queues early input until the session connection is ready without
+    /// retrying it`: what is typed while the session is still being
+    /// prepared waits for its process, which reads it exactly once.
+    #[test]
+    fn input_typed_before_the_process_starts_reaches_it_once() {
+        let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        let (release, gate) = mpsc::channel::<()>();
+        let terminal = Terminal::spawn_prepared(
+            dir.path().into(),
+            "shell",
+            Wake::default(),
+            format!("early-input-{}", uuid::Uuid::new_v4()),
+            move || {
+                gate.recv().unwrap();
+                Ok(Some(LaunchCommand {
+                    executable: "/bin/sh".into(),
+                    arguments: vec![
+                        "-c".into(),
+                        "read first; read second; printf '<%s|%s>\\n' \"$first\" \"$second\""
+                            .into(),
+                    ],
+                    environment: vec![],
+                }))
+            },
+        );
+        terminal.input(b"early\n".to_vec()).unwrap();
+        release.send(()).unwrap();
+        terminal.input(b"late\n".to_vec()).unwrap();
+        let mut output = String::new();
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        loop {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            match terminal
+                .events
+                .recv_timeout(remaining)
+                .expect("the session did not finish")
+            {
+                Event::Started { .. } => (),
+                Event::Data(bytes) => output.push_str(&String::from_utf8_lossy(&bytes)),
+                Event::Error(error) => panic!("{error}"),
+                Event::Exit(code) => {
+                    assert_eq!(code, 0);
+                    break;
+                }
+            }
+        }
+        // Read once each, in order: a replay would read `early` twice.
+        assert!(output.contains("<early|late>"), "{output}");
+    }
     #[test]
     fn closing_a_terminal_during_preparation_releases_its_lease_without_starting_the_late_command()
     {

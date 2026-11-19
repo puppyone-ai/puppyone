@@ -177,10 +177,19 @@ impl Layout {
             }
         }
     }
+    /// `moveItem`: `tab` joins `target` at `index`. A group its last tab
+    /// left for another group folds into its sibling; closing a group's
+    /// last tab keeps the slot (see [`Layout::remove`]).
     pub fn move_tab(&mut self, tab: Id, target: Id, index: usize) {
-        if !self.groups.contains_key(&target)
-            || !self.groups.values().any(|g| g.tabs.contains(&tab))
-        {
+        let Some(source) = self
+            .groups
+            .iter()
+            .find(|(_, g)| g.tabs.contains(&tab))
+            .map(|(id, _)| *id)
+        else {
+            return;
+        };
+        if !self.groups.contains_key(&target) {
             return;
         }
         self.remove(tab);
@@ -188,6 +197,9 @@ impl Layout {
         g.tabs.insert(index.min(g.tabs.len()), tab);
         g.active = Some(tab);
         self.active_group = target;
+        if source != target {
+            self.remove_empty_group(source);
+        }
     }
     pub fn split(&mut self, target: Id, axis: Axis, after: bool, tab: Option<Id>) -> Id {
         let group = self.id();
@@ -242,25 +254,38 @@ impl Layout {
             }
         }
     }
-    /// `splitRatioBounds`: the first child's share that keeps both sides at
-    /// their minimum, given the split's size along its axis.
+    /// `workbenchSplitRatioBounds`: the first child's share that keeps both
+    /// sides at their minimum, given the split's size along its axis, to a
+    /// thousandth within 1%..99%. When both minimums cannot fit, the share
+    /// is fixed in proportion to them.
     pub fn ratio_bounds(
         axis: Axis,
         total: f32,
         first: (f32, f32),
         second: (f32, f32),
     ) -> (f32, f32) {
+        let round = |ratio: f32| ((ratio * 1_000.).round() / 1_000.).clamp(0.01, 0.99);
         let available = (total - DIVIDER).max(1.);
         let (a, b) = match axis {
             Axis::Horizontal => (first.0, second.0),
             Axis::Vertical => (first.1, second.1),
         };
-        let minimum = (a / available).clamp(0., 1.);
-        let maximum = (1. - b / available).clamp(0., 1.);
-        if minimum > maximum {
-            (0.5, 0.5)
-        } else {
-            (minimum, maximum)
+        if a + b > available {
+            let proportional = round(a / (a + b).max(1.));
+            return (proportional, proportional);
+        }
+        (round(a / available), round(1. - b / available))
+    }
+    /// `canPlaceWorkbenchSplit`: a target of `size` splits along `axis` when
+    /// both sides keep their minimums, with the divider between them.
+    pub fn fits(axis: Axis, size: (f32, f32), source: (f32, f32), target: (f32, f32)) -> bool {
+        match axis {
+            Axis::Horizontal => {
+                size.0 >= source.0 + DIVIDER + target.0 && size.1 >= source.1.max(target.1)
+            }
+            Axis::Vertical => {
+                size.1 >= source.1 + DIVIDER + target.1 && size.0 >= source.0.max(target.0)
+            }
         }
     }
     pub fn find(&self, id: Id) -> Option<&Node> {
@@ -321,6 +346,55 @@ mod tests {
         assert!((min - 0.4).abs() < 1e-6 && (max - 0.6).abs() < 1e-6);
         assert!(l.groups.contains_key(&group));
     }
+    /// `Terminal split constraints`: minimums add along a split's axis (with
+    /// its divider) and take the larger across it, recursively; a split is
+    /// admitted from the items' minimums, not their count; resize bounds
+    /// come from each child's minimum and fall back to their proportion.
+    #[test]
+    fn minimums_nest_admit_splits_and_bound_resizing() {
+        let mut l = Layout::default();
+        let a = l.add(0);
+        let b = l.add(0);
+        let c = l.add(0);
+        let right = l.split(0, Axis::Horizontal, true, Some(b));
+        l.split(right, Axis::Vertical, true, Some(c));
+        assert_eq!(a, l.groups[&0].tabs[0]);
+        assert_eq!(Layout::min_size(&l.tree, &|_| (100., 80.)), (201., 161.));
+        let terminal = crate::features::workbench::ItemKind::Terminal.minimum_size();
+        assert_eq!(terminal, (188., 196.));
+        assert!(Layout::fits(
+            Axis::Horizontal,
+            (377., 200.),
+            terminal,
+            terminal
+        ));
+        assert!(!Layout::fits(
+            Axis::Horizontal,
+            (376., 200.),
+            terminal,
+            terminal
+        ));
+        assert!(Layout::fits(
+            Axis::Vertical,
+            (300., 393.),
+            terminal,
+            terminal
+        ));
+        assert!(!Layout::fits(
+            Axis::Vertical,
+            (300., 392.),
+            terminal,
+            terminal
+        ));
+        assert_eq!(
+            Layout::ratio_bounds(Axis::Horizontal, 601., (200., 100.), (100., 100.)),
+            (0.333, 0.833)
+        );
+        assert_eq!(
+            Layout::ratio_bounds(Axis::Horizontal, 201., (200., 100.), (100., 100.)),
+            (0.667, 0.667)
+        );
+    }
     #[test]
     fn launchers_are_independent_and_last_close_is_empty() {
         let mut l = Layout::default();
@@ -346,5 +420,52 @@ mod tests {
         assert_eq!(l.groups[&0].tabs, vec![b, a]);
         l.move_tab(c, 0, 1);
         assert_eq!(l.groups[&0].tabs, vec![b, c, a]);
+        // The group its only tab left folds away.
+        assert!(!l.groups.contains_key(&group));
+        assert!(matches!(l.tree, Node::Group(0)));
+        assert!(l.valid());
+    }
+    /// `moves a sole Tab across the layout without leaving an empty Group`,
+    /// `inserts a Tab ... and collapses its empty source Group`, `keeps a
+    /// multi-Tab source Group when one member joins another Bar`, `closes
+    /// ... and collapses a Group only when ...`: a group whose last tab moves
+    /// elsewhere (to another bar or into a new split) folds into its
+    /// sibling; one that keeps a tab stays; closing a group's last tab keeps
+    /// its slot until the group is closed.
+    #[test]
+    fn a_group_its_last_tab_left_folds_away_and_one_left_by_a_close_stays() {
+        let mut l = Layout::default();
+        let a = l.add(0);
+        let b = l.add(0);
+        let c = l.add(0);
+        let right = l.split(0, Axis::Horizontal, true, Some(b));
+        assert_eq!(
+            (l.groups[&0].tabs.clone(), l.groups[&right].tabs.clone()),
+            (vec![a, c], vec![b])
+        );
+        // The sole tab moves to a new split on the left: no empty group.
+        let left = l.split(0, Axis::Horizontal, false, Some(b));
+        assert_eq!(l.groups.keys().copied().collect::<Vec<_>>(), [0, left]);
+        assert_eq!(l.groups[&left].tabs, vec![b]);
+        assert_eq!(l.active_group, left);
+        // A member of a multi-tab group joins another bar: both stay.
+        let d = l.add(left);
+        l.move_tab(b, 0, 1);
+        assert_eq!(l.groups[&0].tabs, vec![a, b, c]);
+        assert_eq!(l.groups[&left].tabs, vec![d]);
+        // Its last member joins too: the group folds away.
+        l.move_tab(d, 0, 3);
+        assert_eq!(l.groups.keys().copied().collect::<Vec<_>>(), [0]);
+        assert!(matches!(l.tree, Node::Group(0)));
+        // Moving within one bar keeps the only group.
+        l.move_tab(a, 0, 3);
+        assert_eq!(l.groups[&0].tabs, vec![b, c, d, a]);
+        // Closing a split group's last tab keeps its slot until it is closed.
+        let lone = l.split(0, Axis::Vertical, true, Some(a));
+        l.remove(a);
+        assert!(l.groups[&lone].tabs.is_empty());
+        assert!(l.remove_empty_group(lone));
+        assert!(!l.remove_empty_group(0), "the last group stays");
+        assert!(l.valid());
     }
 }

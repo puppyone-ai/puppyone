@@ -263,7 +263,8 @@ fn split_move_and_overflow_keep_the_same_content_instance(cx: &mut TestAppContex
         assert_eq!(p.content.len(), 12);
         assert_eq!(p.layout.groups[&group].active, Some(tab));
         p.layout.move_tab(tab, 0, 0);
-        assert!(p.layout.remove_empty_group(group));
+        // The group its only tab left folds away.
+        assert!(!p.layout.groups.contains_key(&group));
         p.layout.navigate(0, "end");
         assert_eq!(
             p.layout.groups[&0].active,
@@ -598,4 +599,81 @@ fn a_terminal_asks_before_closing_only_while_it_starts_or_runs(cx: &mut TestAppC
         assert!(!asks(cx, tab));
         assert!(view.read_with(cx, |s, _| !s.project().unwrap().content.contains_key(&tab)));
     }
+}
+
+/// `opens the launcher from plus`, `keeps multiple blank tabs independent
+/// ... and in-place promotion`, `creates independent blank Items within one
+/// Group`: `+` adds a blank launcher tab to its own group and selects it,
+/// without a menu; blank tabs are independent "New tab"s; an item chosen in
+/// one takes that tab's place, keeping the others and the current
+/// selection; closing a blank tab removes only it.
+#[gpui::test]
+fn plus_adds_independent_blank_tabs_and_an_item_fills_the_one_it_was_chosen_in(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let root = tempfile::tempdir().unwrap();
+    let (view, cx) = cx.add_window_view(Workbench::new);
+    view.update(cx, |s, cx| {
+        s.show(root.path().to_path_buf(), cx);
+        s.project_mut().unwrap().loading = false;
+        s.add(0, cx);
+    });
+    let draw = |cx: &mut VisualTestContext| {
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+    };
+    draw(cx);
+    for _ in 0..2 {
+        let plus = cx.debug_bounds("workbench-new-tab-0").unwrap().center();
+        cx.simulate_click(plus, Modifiers::none());
+        draw(cx);
+    }
+    let tabs = view.read_with(cx, |s, cx| {
+        let p = s.project().unwrap();
+        let tabs = p.layout.groups[&0].tabs.clone();
+        assert_eq!(p.layout.groups.len(), 1);
+        assert_eq!(p.layout.groups[&0].active, tabs.last().copied());
+        for tab in &tabs {
+            assert!(matches!(p.content[tab], Content::Launcher));
+            assert_eq!(s.tab_title(*tab, &p.content[tab], cx), "New tab");
+        }
+        assert!(s.context_menu.is_none());
+        tabs
+    });
+    assert_eq!(tabs.len(), 3);
+    assert_eq!(
+        tabs.iter().collect::<std::collections::HashSet<_>>().len(),
+        3
+    );
+    let item = view.update(cx, |s, cx| {
+        let item = Probe {
+            kind: ItemKind::Chat,
+            view: cx.new(|_| ProbeView {
+                draft: String::new(),
+            }),
+            presentation: Rc::default(),
+            closes: Rc::default(),
+        };
+        s.place(0, Some(tabs[0]), Rc::new(item), cx)
+    });
+    assert_eq!(item, Some(tabs[0]));
+    view.read_with(cx, |s, _| {
+        let p = s.project().unwrap();
+        assert_eq!(p.layout.groups[&0].tabs, tabs);
+        assert_eq!(p.layout.groups[&0].active, Some(tabs[2]));
+        assert_eq!(p.content[&tabs[0]].kind(), Some(ItemKind::Chat));
+        assert!(matches!(p.content[&tabs[1]], Content::Launcher));
+        assert!(matches!(p.content[&tabs[2]], Content::Launcher));
+    });
+    view.update(cx, |s, cx| s.close(tabs[1], false, cx));
+    view.read_with(cx, |s, _| {
+        assert_eq!(
+            s.project().unwrap().layout.groups[&0].tabs,
+            [tabs[0], tabs[2]]
+        );
+        assert_eq!(s.confirm, None);
+    });
 }

@@ -31185,6 +31185,205 @@
           "test": "agent::connections::legacy_local_agent_inventory::tests::catalog_is_alphabetical_and_built_in_comes_last"
         }
       ]
+    },
+    {
+      "id": "workbench-blank-tabs",
+      "acceptance": "`+` adds a blank launcher tab to its own group and selects it, without a menu; blank tabs are independent 'New tab's; an Agent chosen in one becomes its item in that tab's place, keeping the other tabs and the current selection, and committed only once its preparation succeeds (a chat that cannot be restored leaves the launcher); closing a blank tab removes only it. A launcher tab showing History is titled and marked as History until Back. An installed Agent stays launchable whatever an old activation receipt says, and an Agent hidden in Settings has no row even when detected.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/launcher/desktop-terminal.blank-launcher-flow.test.tsx",
+          "sha256": "5c3e939c81caad4df8f7027da488f80447ceb28b85d18e9de1b15e417b38deb5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Unified Workbench blank launcher flow > does not let a failed activation receipt hide an installed CLI in the chat launcher"
+            },
+            {
+              "index": 2,
+              "name": "Unified Workbench blank launcher flow > intersects discovered Agents with the Active Chat visibility settings"
+            },
+            {
+              "index": 3,
+              "name": "Unified Workbench blank launcher flow > opens the launcher from plus and resolves an Agent choice into a Chat Tab"
+            },
+            {
+              "index": 5,
+              "name": "Unified Workbench blank launcher flow > keeps multiple blank tabs independent, with neutral icons and in-place promotion"
+            },
+            {
+              "index": 6,
+              "name": "Unified Workbench blank launcher flow > opens global Chat history explicitly and commits a restored Chat only after preparation"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/launcher/desktop-terminal.workbench-controller.test.tsx",
+          "sha256": "405cd08ac76f4ab96d8caa5241e0df392ddd62c096847ee86a754659f27ce3e7",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Terminal Workbench controller > creates independent blank Items within one Group"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::plus_adds_independent_blank_tabs_and_an_item_fills_the_one_it_was_chosen_in"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::admission::tests::completion_replaces_only_its_launcher_without_stealing_a_new_selection"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::the_history_browser_opens_only_when_asked_and_back_returns_to_the_launcher"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::a_history_chat_that_cannot_resume_goes_back_to_the_launcher"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::a_pending_history_preparation_blocks_terminal_launch_in_the_same_tab"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::hidden_agents_have_no_row_even_when_detected"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::setup::tests::discovered_clis_override_every_stale_activation_receipt_in_the_rendered_launcher"
+        }
+      ]
+    },
+    {
+      "id": "terminal-tab-identity",
+      "acceptance": "A terminal tab is titled by its folder; its accessible label names the session's number in its project ('Terminal 2'), the CLI it runs ('Codex', or 'Shell'), its folder and its status; its overflow detail is the folder and status. Each project numbers its terminals on its own.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/tabs/terminalSessionHeader.test.ts",
+          "sha256": "1d8495fd05ac6e1f2e4b52ec6303900292acfb0a05dcf611e2503ec073318b70",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal Session Header presentation > projects one consistent identity for the rail and overflow menu"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::workbench::launch_tests::a_terminal_tab_names_its_session_cli_folder_and_status"
+        }
+      ]
+    },
+    {
+      "id": "workbench-split-constraints",
+      "acceptance": "Minimum sizes add along a split's axis, with its 1px divider, and take the larger across it, recursively through nested splits; a split is admitted from the items' minimums (a terminal's is 188x196), not from how many panes there are; resize bounds come from each child's minimum, to a thousandth, and when both minimums cannot fit the share is fixed in proportion to them.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/layout/terminalSplitConstraints.test.ts",
+          "sha256": "2f47eff17d529f8e0a9e143f6678e5323504bc398c7f0bb9b43b8f2107d8894c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal split constraints > propagates mixed-axis minimums recursively"
+            },
+            {
+              "index": 1,
+              "name": "Terminal split constraints > admits a split from measured cell-grid minimums rather than pane count"
+            },
+            {
+              "index": 2,
+              "name": "Terminal split constraints > derives resize bounds from each recursive child minimum"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::layout::tests::minimums_nest_admit_splits_and_bound_resizing"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::layout::tests::split_bounds_keep_both_sides_at_their_minimum"
+        }
+      ]
+    },
+    {
+      "id": "terminal-session-transport",
+      "acceptance": "Closing a terminal while it is still being prepared releases it without starting the late command; input typed before its process starts waits for it and is read once, in order; showing the session elsewhere or hiding it never closes it; a session whose setup fails after its PTY started is released; a session's own failure shows on it and on no other.",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/item-hosts/terminalSessionBridge.test.ts",
+          "sha256": "89493fce10b60371a9cb48782764015fd08bd1ec3dbf36129c073a73f16c8f0c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DOM terminal session transport > hands off termination during startup without waiting for its create receipt"
+            },
+            {
+              "index": 1,
+              "name": "DOM terminal session transport > queues early input until the session connection is ready without retrying it"
+            },
+            {
+              "index": 3,
+              "name": "DOM terminal session transport > releases the local screen connection without closing project-owned execution"
+            },
+            {
+              "index": 4,
+              "name": "DOM terminal session transport > closes a newly created PTY when connection setup fails"
+            },
+            {
+              "index": 7,
+              "name": "DOM terminal session transport > ignores failures from other instances and surfaces its own runtime failure"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::tests::closing_a_terminal_during_preparation_releases_its_lease_without_starting_the_late_command"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::tests::input_typed_before_the_process_starts_reaches_it_once"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::a_hidden_workbench_withdraws_presentation_and_keeps_its_items"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::terminal::shell::bootstrap_tests::a_failed_bootstrap_write_or_flush_waits_for_the_real_shell_and_releases_its_session"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::terminal::view::startup_tests::native_startup_timeout_begins_at_pty_start_and_exit_or_error_removes_the_cover"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::workbench::tests::a_terminal_asks_before_closing_only_while_it_starts_or_runs"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -38526,6 +38725,16 @@
               "name": "Desktop Terminal reducer state machine > preserves every ownership invariant across reproducible randomized command sequences"
             }
           ]
+        },
+        {
+          "path": "tests/unit/workbench/tabs/terminalSessionHeader.test.ts",
+          "sha256": "1d8495fd05ac6e1f2e4b52ec6303900292acfb0a05dcf611e2503ec073318b70",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Terminal Session Header presentation > uses the session identity while a launcher is still being selected"
+            }
+          ]
         }
       ]
     },
@@ -38596,6 +38805,20 @@
               "name": "Unified Workbench launcher > uses detected Terminal Agent commands and keeps Terminal in the same launch group"
             }
           ]
+        },
+        {
+          "path": "tests/component/workbench/launcher/desktop-terminal.blank-launcher-flow.test.tsx",
+          "sha256": "5c3e939c81caad4df8f7027da488f80447ceb28b85d18e9de1b15e417b38deb5",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Unified Workbench blank launcher flow > does not let a failed activation receipt hide an installed CLI in the terminal launcher"
+            },
+            {
+              "index": 4,
+              "name": "Unified Workbench blank launcher flow > uses detected Terminal CLI Agents when the Chat contribution is absent"
+            }
+          ]
         }
       ]
     },
@@ -38638,6 +38861,272 @@
             {
               "index": 7,
               "name": "Unified Workbench launcher > delays compact feedback outside the Agent list, adds results immediately, and preserves keyed focus"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal-legacy-split-ui",
+      "kind": "out-of-scope",
+      "reason": "These cases exercise TS's terminal-only split UI (TerminalGroupViewport, TerminalSessionHeader, TerminalSplitResizeHandle, useTerminalTabMoveDrag and its drop-target resolver), which only the terminal split visual smoke harness renders; the product's terminal tabs live in the Auxiliary Workbench. Native terminals have only the Workbench's header, splits and drags, mapped with the workbench tests.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/workbench-contribution.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tabs/desktop-terminal.menu.test.tsx",
+          "sha256": "684d8e177b414d38280e22711d7bf8e39f9b177fe80c37b97ea6711989a82f90",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Desktop Terminal tab session manager > manages sessions from the Terminal tab bar"
+            },
+            {
+              "index": 6,
+              "name": "Desktop Terminal tab session manager > uses the native click as the single source of pointer Tab activation"
+            },
+            {
+              "index": 7,
+              "name": "Desktop Terminal tab session manager > suppresses only the click derived from a completed drag"
+            },
+            {
+              "index": 8,
+              "name": "Desktop Terminal tab session manager > keeps roving-tab keyboard navigation on the complete session order"
+            },
+            {
+              "index": 9,
+              "name": "Desktop Terminal tab session manager > labels a runtime-free launcher tab without requiring a Terminal runtime"
+            },
+            {
+              "index": 10,
+              "name": "Desktop Terminal tab session manager > compresses inactive tabs and moves excess sessions into an accessible menu"
+            },
+            {
+              "index": 11,
+              "name": "Desktop Terminal tab session manager > measures stable Header capacity and expands from overflow back to full tabs"
+            },
+            {
+              "index": 12,
+              "name": "Desktop Terminal tab session manager > enables continuous Header motion after initial measurement, without an activation timer"
+            },
+            {
+              "index": 13,
+              "name": "Desktop Terminal tab session manager > keeps visible overflow tabs mounted while the active width pushes across the rail"
+            },
+            {
+              "index": 14,
+              "name": "Desktop Terminal tab session manager > uses one activity grid for every Agent while preserving its idle brand mark"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/layout/desktop-terminal.split-layout.test.tsx",
+          "sha256": "9b502a89ac718c3f0b9125b2c2c8d3b6b3d11ce214e18f8557ba72b9958ba9f6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal Group-owned Tab layout > renders one complete local Tab Bar and only its active Session host"
+            },
+            {
+              "index": 1,
+              "name": "Terminal Group-owned Tab layout > keeps the local new-Tab action immediately after the Tab strip"
+            },
+            {
+              "index": 2,
+              "name": "Terminal Group-owned Tab layout > creates left and right Group leaves, each with its own Tab Bar and content"
+            },
+            {
+              "index": 3,
+              "name": "Terminal Group-owned Tab layout > switches Tabs inside one Group without remounting another Group's host"
+            },
+            {
+              "index": 4,
+              "name": "Terminal Group-owned Tab layout > renders four-edge drop previews inside the target content viewport"
+            },
+            {
+              "index": 5,
+              "name": "Terminal Group-owned Tab layout > keeps Header insertion and content-edge Group movement as disjoint drop zones"
+            },
+            {
+              "index": 6,
+              "name": "Terminal Group-owned Tab layout > opens a relative insertion slot so target-Bar Tabs move out of the way"
+            },
+            {
+              "index": 7,
+              "name": "Terminal Group-owned Tab layout > previews every Tab in a Group as an ordered block before Bar merge"
+            },
+            {
+              "index": 8,
+              "name": "Terminal Group-owned Tab layout > repositions the dragged Tab itself during a same-Bar reorder preview"
+            },
+            {
+              "index": 9,
+              "name": "Terminal Group-owned Tab layout > renders each Group header without a move handle or reserved grip space"
+            },
+            {
+              "index": 10,
+              "name": "Terminal Group-owned Tab layout > keeps stable Session host identities while nested Group geometry changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/layout/desktop-terminal.split-resize.test.tsx",
+          "sha256": "e3d935d73b740588bf61e2c6e46689010d8ca070afb839e767a23ee655c0f47d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal split resizing > previews pointer movement outside React and commits one bounded ratio"
+            },
+            {
+              "index": 1,
+              "name": "Terminal split resizing > restores committed geometry when the lifecycle cancels"
+            },
+            {
+              "index": 2,
+              "name": "Terminal split resizing > supports keyboard resize, bounds, and 50/50 reset"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workbench/tabs/desktop-terminal.tab-move.test.tsx",
+          "sha256": "8727265720c4de1a4341f364a7a2d3b275557949393a96bde41484112509ec4c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal Session tab movement > does not activate an inactive Session until an ordinary press completes"
+            },
+            {
+              "index": 1,
+              "name": "Terminal Session tab movement > keeps ordinary Tab activation tolerant of four pixels of pointer jitter"
+            },
+            {
+              "index": 2,
+              "name": "Terminal Session tab movement > uses the Ghostty grip as a drag-first Group source after three pixels"
+            },
+            {
+              "index": 3,
+              "name": "Terminal Session tab movement > moves a whole Group at a content edge without applying Tab split admission"
+            },
+            {
+              "index": 4,
+              "name": "Terminal Session tab movement > merges a whole Group into another Tab Bar as one ordered block"
+            },
+            {
+              "index": 5,
+              "name": "Terminal Session tab movement > moves one live Session to the nearest Terminal Group edge after the threshold"
+            },
+            {
+              "index": 6,
+              "name": "Terminal Session tab movement > keeps dragging when Pointer Capture does not retarget events to the source"
+            },
+            {
+              "index": 7,
+              "name": "Terminal Session tab movement > hands an active pointer to the window fallback when capture is revoked"
+            },
+            {
+              "index": 8,
+              "name": "Terminal Session tab movement > prioritizes a Tab Bar insertion slot over the surrounding Group edge"
+            },
+            {
+              "index": 9,
+              "name": "Terminal Session tab movement > never resolves the surrounding Pane chrome as a content split target"
+            },
+            {
+              "index": 10,
+              "name": "Terminal Session tab movement > treats the empty remainder of the Header rail as an append insertion slot"
+            },
+            {
+              "index": 11,
+              "name": "Terminal Session tab movement > resolves stable same-Bar slots after excluding the dragged Tab"
+            },
+            {
+              "index": 12,
+              "name": "Terminal Session tab movement > shows rejected intent but commits no move"
+            },
+            {
+              "index": 13,
+              "name": "Terminal Session tab movement > clears preview, body state, and native lease after a sustained window blur"
+            },
+            {
+              "index": 14,
+              "name": "Terminal Session tab movement > keeps a drag alive across a transient window blur-focus handoff"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workbench/tabs/terminalSessionHeaderLayout.test.ts",
+          "sha256": "df05335e3e64042664ddfc4827982d1e02604cfac35931616baa03ed97ca96e1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal Session Header adaptive layout > uses equal full tabs and narrows them before compacting"
+            },
+            {
+              "index": 1,
+              "name": "Terminal Session Header adaptive layout > keeps the active tab full while reducing every inactive tab to its icon"
+            },
+            {
+              "index": 2,
+              "name": "Terminal Session Header adaptive layout > keeps the active tab and nearest icon tabs visible before overflowing"
+            },
+            {
+              "index": 3,
+              "name": "Terminal Session Header adaptive layout > moves the visible window with the newly activated compact or hidden tab"
+            },
+            {
+              "index": 4,
+              "name": "Terminal Session Header adaptive layout > preserves the visible window when activation moves between rendered tabs"
+            },
+            {
+              "index": 5,
+              "name": "Terminal Session Header adaptive layout > anchors activation to the physical edge implied by session direction"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "workbench-closed-slot-stays",
+      "kind": "out-of-scope",
+      "reason": "TS removes a split group as soon as its last item closes. Native keeps the emptied split slot showing a launcher, with a close-group control, so the next Agent or terminal can be chosen in the cell already laid out; a group whose last tab moves to another group still folds away at once.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/right-sidebar/workbench-topology.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/launcher/desktop-terminal.workbench-controller.test.tsx",
+          "sha256": "405cd08ac76f4ab96d8caa5241e0df392ddd62c096847ee86a754659f27ce3e7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Terminal Workbench controller > creates, activates, splits and closes mixed Item kinds through one topology"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal-ipc-transport",
+      "kind": "out-of-scope",
+      "reason": "TS carries a terminal between the renderer and the main process over IPC: output frames are acknowledged once parsed and numbered (a skipped sequence fails visibly), creation subscribes to and unsubscribes from shared events, and a create receipt is kept for an explicit close when rollback fails. A native session lives in the App's process with its own channels, so there are no acknowledgements, sequence numbers, shared subscriptions or receipts.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/pty-host.md",
+      "typescript": [
+        {
+          "path": "tests/unit/workbench/item-hosts/terminalSessionBridge.test.ts",
+          "sha256": "89493fce10b60371a9cb48782764015fd08bd1ec3dbf36129c073a73f16c8f0c",
+          "cases": [
+            {
+              "index": 2,
+              "name": "DOM terminal session transport > acknowledges canonical output only after the terminal has parsed it"
+            },
+            {
+              "index": 5,
+              "name": "DOM terminal session transport > unsubscribes after failed creation without closing an unrelated session"
+            },
+            {
+              "index": 6,
+              "name": "DOM terminal session transport > retains the receipt for explicit close when connection rollback fails"
+            },
+            {
+              "index": 8,
+              "name": "DOM terminal session transport > fails visibly instead of accepting a skipped output sequence"
             }
           ]
         }

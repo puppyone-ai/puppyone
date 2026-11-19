@@ -440,17 +440,8 @@ impl Workbench {
             .iter()
             .map(minimum)
             .fold((1f32, 1f32), |(w, h), (a, b)| (w.max(a), h.max(b)));
-        let (width, height) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
-        match axis {
-            Axis::Horizontal => {
-                width >= source_min.0 + layout::DIVIDER + target_min.0
-                    && height >= source_min.1.max(target_min.1)
-            }
-            Axis::Vertical => {
-                height >= source_min.1 + layout::DIVIDER + target_min.1
-                    && width >= source_min.0.max(target_min.0)
-            }
-        }
+        let size = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+        Layout::fits(axis, size, source_min, target_min)
     }
 }
 

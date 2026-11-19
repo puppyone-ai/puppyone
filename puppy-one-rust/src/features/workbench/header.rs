@@ -309,6 +309,7 @@ impl Workbench {
                 );
             let close = (!compact).then(|| {
                 gpui_kit::base::Button::new(("close-tab", tab))
+                    .debug_selector(move || format!("workbench-close-{tab}"))
                     .accessibility_label(close_label.clone())
                     .absolute()
                     .right(px(1.))
@@ -338,6 +339,7 @@ impl Workbench {
             rail = rail.child(
                 div()
                     .id(("tab-frame", tab))
+                    .debug_selector(move || format!("workbench-tab-{tab}"))
                     .group(group_name.clone())
                     .absolute()
                     .left(px(drawn.x))
@@ -396,6 +398,7 @@ impl Workbench {
                 false,
             )
             .left(px(create_start))
+            .debug_selector(move || format!("workbench-new-tab-{group}"))
             .on_click(cx.listener(move |s, _, _, cx| s.add(group, cx))),
         );
         if g.tabs.is_empty() && self.project().unwrap().layout.groups.len() > 1 {

@@ -692,12 +692,20 @@ fn the_history_browser_opens_only_when_asked_and_back_returns_to_the_launcher(
     draw(cx);
     assert!(launcher.read_with(cx, |l, _| l.history.is_empty()));
     assert!(cx.debug_bounds("history-permission-allow").is_none());
+    let title = |cx: &mut VisualTestContext| cx.update(|_, cx| launcher.launcher_title(tab, cx));
+    let marked = |cx: &mut VisualTestContext| {
+        cx.update(|_, cx| launcher.launcher_mark(tab, gpui::rgb(0), cx).is_some())
+    };
+    assert_eq!((title(cx), marked(cx)), (None, false));
     let open = cx.debug_bounds("launcher-history").unwrap().center();
     cx.simulate_click(open, Modifiers::none());
     draw(cx);
     let browser = launcher.read_with(cx, |l, _| l.history.get(&tab).cloned());
     assert!(cx.debug_bounds("history-permission-allow").is_some());
     assert!(cx.debug_bounds("launcher-shell").is_none());
+    // The tab is titled and marked as History while it shows it.
+    assert_eq!(title(cx).as_deref(), Some("Chat history"));
+    assert!(marked(cx));
     assert!(workbench.read_with(cx, |w, _| w.is_launcher(root.path(), tab)));
     browser
         .expect("the browser fills the launcher tab")
@@ -705,4 +713,61 @@ fn the_history_browser_opens_only_when_asked_and_back_returns_to_the_launcher(
     draw(cx);
     assert!(launcher.read_with(cx, |l, _| l.history.is_empty()));
     assert!(cx.debug_bounds("launcher-shell").is_some());
+    assert_eq!((title(cx), marked(cx)), (None, false));
+}
+
+/// `intersects discovered Agents with the Active Chat visibility settings`:
+/// an Agent hidden in Settings has no launcher row even when detected; the
+/// Built-in Agent is never hidden.
+#[gpui::test]
+fn hidden_agents_have_no_row_even_when_detected(cx: &mut TestAppContext) {
+    use crate::agent::connections::legacy_runtime_registry::Runtime;
+    let (workbench, launcher, cx) = compose(cx);
+    launcher.update(cx, |l, cx| l.show_local(PathBuf::from("/project"), cx));
+    workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    let installation = |runtime, id, label: &str| Installation {
+        runtime,
+        id,
+        label: label.into(),
+        executable: PathBuf::from(format!("/fixture/{id}")),
+        chat: true,
+    };
+    let rows = |cx: &mut VisualTestContext| {
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+        [
+            "launcher-agent-claude",
+            "launcher-agent-codex",
+            "launcher-agent-puppyone-agent",
+        ]
+        .map(|selector| cx.debug_bounds(selector).is_some())
+    };
+    launcher.update(cx, |l, cx| {
+        l.discovery_override = true;
+        l.scanning = false;
+        l.installations = vec![
+            installation(Runtime::Claude, "claude", "Claude Code"),
+            installation(Runtime::Codex, "codex", "Codex"),
+            installation(
+                Runtime::PuppyOne,
+                agents::BUILT_IN_AGENT_ID,
+                agents::BUILT_IN_AGENT_LABEL,
+            ),
+        ];
+        cx.notify();
+    });
+    assert_eq!(rows(cx), [true, true, true]);
+    launcher.update(cx, |l, cx| {
+        l.set_preferences(
+            vec!["claude".into(), agents::BUILT_IN_AGENT_ID.into()],
+            AgentRoutingPreferences::default(),
+            false,
+            cx,
+        );
+        cx.notify();
+    });
+    assert_eq!(rows(cx), [false, true, true]);
 }
