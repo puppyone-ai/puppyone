@@ -282,8 +282,12 @@ fn native_history_read_failure_renders_retry_but_confirmed_missing_history_does_
 ) {
     use crate::features::desktop_agent::OpenFailure;
     use std::cell::Cell;
+    cx.executor().allow_parking();
     cx.update(gpui_kit::init);
+    let root = tempfile::tempdir().unwrap();
     let (view, cx) = cx.add_window_view(Workbench::new);
+    // A failure belongs to the project shown when it happened.
+    view.update(cx, |w, cx| w.show(root.path().to_path_buf(), cx));
     let retries = Rc::new(Cell::new(0));
     for (code, retryable, message) in [
         (
@@ -675,5 +679,275 @@ fn plus_adds_independent_blank_tabs_and_an_item_fills_the_one_it_was_chosen_in(
             [tabs[0], tabs[2]]
         );
         assert_eq!(s.confirm, None);
+    });
+}
+
+/// An item whose close decision, busy state and release the test drives.
+struct Releasing {
+    view: Entity<ProbeView>,
+    decision: Rc<Cell<CloseDecision>>,
+    running: Rc<Cell<bool>>,
+    releases: Rc<RefCell<Vec<async_channel::Sender<bool>>>>,
+}
+impl WorkbenchItem for Releasing {
+    fn kind(&self) -> ItemKind {
+        ItemKind::Terminal
+    }
+    fn snapshot(&self, _: &App) -> ItemSnapshot {
+        ItemSnapshot {
+            title: "releasing".into(),
+            accessible_label: "releasing".into(),
+            detail: None,
+            icon_key: None,
+            status: ItemStatus::Running,
+            running: self.running.get(),
+            resource_id: None,
+        }
+    }
+    fn view(&self) -> AnyView {
+        self.view.clone().into()
+    }
+    fn retained(&self, _: &App) -> RetainedItem {
+        RetainedItem::Terminal {
+            title: "releasing".into(),
+            runtime: None,
+        }
+    }
+    fn close_decision(&self, _: &App) -> CloseDecision {
+        self.decision.get()
+    }
+    fn close_copy(&self, blocked: bool, title: String) -> CloseCopy {
+        CloseCopy {
+            title,
+            detail: "",
+            action: "",
+            blocked,
+        }
+    }
+    fn commit_close(&self) -> Option<futures_util::future::LocalBoxFuture<'static, bool>> {
+        use futures_util::FutureExt as _;
+        let (release, released) = async_channel::bounded(1);
+        self.releases.borrow_mut().push(release);
+        Some(async move { released.recv().await.unwrap_or(false) }.boxed_local())
+    }
+    fn watch(&self, cx: &mut Context<Workbench>) -> Subscription {
+        cx.observe(&self.view, |_, _, cx| cx.notify())
+    }
+}
+
+/// `Auxiliary Workbench close coordinator`: a close commits before the tab
+/// leaves the topology, and the tab goes only once its item is released;
+/// a busy item waits for an explicit confirmation and a blocked one never
+/// commits; repeated requests while a release is pending commit once; a
+/// release that fails keeps the tab, asking again only while the item is
+/// still busy, and a later request retries; pending closes of different
+/// items never affect each other.
+#[gpui::test]
+fn closes_commit_first_wait_for_their_release_and_stay_apart(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let root = tempfile::tempdir().unwrap();
+    let (view, cx) = cx.add_window_view(Workbench::new);
+    struct Handle {
+        tab: Id,
+        decision: Rc<Cell<CloseDecision>>,
+        running: Rc<Cell<bool>>,
+        releases: Rc<RefCell<Vec<async_channel::Sender<bool>>>>,
+    }
+    let handles: Vec<Handle> = view.update(cx, |s, cx| {
+        s.show(root.path().to_path_buf(), cx);
+        s.project_mut().unwrap().loading = false;
+        (0..2)
+            .map(|_| {
+                let handle = Handle {
+                    tab: 0,
+                    decision: Rc::new(Cell::new(CloseDecision::Close)),
+                    running: Rc::new(Cell::new(false)),
+                    releases: Rc::default(),
+                };
+                let item = Releasing {
+                    view: cx.new(|_| ProbeView {
+                        draft: String::new(),
+                    }),
+                    decision: handle.decision.clone(),
+                    running: handle.running.clone(),
+                    releases: handle.releases.clone(),
+                };
+                let tab = s.place(0, None, Rc::new(item), cx).unwrap();
+                Handle { tab, ..handle }
+            })
+            .collect()
+    });
+    let (a, b) = (&handles[0], &handles[1]);
+    let open = |cx: &mut VisualTestContext, tab: Id| {
+        view.read_with(cx, |s, _| s.project().unwrap().content.contains_key(&tab))
+    };
+    let release = |cx: &mut VisualTestContext, handle: &Handle, released: bool| {
+        let sender = handle.releases.borrow_mut().remove(0);
+        sender.send_blocking(released).unwrap();
+        cx.run_until_parked();
+    };
+    // An immediate close commits; the tab stays until the release, and a
+    // repeated request meanwhile commits nothing more.
+    view.update(cx, |s, cx| {
+        s.close(a.tab, false, cx);
+        s.close(a.tab, false, cx);
+    });
+    assert_eq!(a.releases.borrow().len(), 1);
+    assert!(open(cx, a.tab));
+    // A release that fails keeps the tab without asking (the item is not
+    // busy); asking again retries.
+    release(cx, a, false);
+    assert!(open(cx, a.tab));
+    assert_eq!(view.read_with(cx, |s, _| s.confirm), None);
+    // Busy now: it asks first, and commits only once confirmed.
+    a.decision.set(CloseDecision::Confirm);
+    a.running.set(true);
+    view.update(cx, |s, cx| s.close(a.tab, false, cx));
+    assert_eq!(view.read_with(cx, |s, _| s.confirm), Some(a.tab));
+    assert!(a.releases.borrow().is_empty());
+    view.update(cx, |s, cx| s.close(a.tab, true, cx));
+    assert_eq!(a.releases.borrow().len(), 1);
+    // While it is pending, another item's close is its own.
+    b.decision.set(CloseDecision::Confirm);
+    view.update(cx, |s, cx| s.close(b.tab, false, cx));
+    assert_eq!(view.read_with(cx, |s, _| s.confirm), Some(b.tab));
+    // A refused release of a still-busy item asks again.
+    release(cx, a, false);
+    assert!(open(cx, a.tab));
+    assert_eq!(view.read_with(cx, |s, _| s.confirm), Some(a.tab));
+    view.update(cx, |s, cx| s.dismiss_close(cx));
+    // The other's confirmed close goes through on its own.
+    view.update(cx, |s, cx| s.close(b.tab, true, cx));
+    release(cx, b, true);
+    assert!(!open(cx, b.tab));
+    assert!(open(cx, a.tab));
+    // A blocked item only keeps its tab; even a forced close cannot commit.
+    a.decision.set(CloseDecision::Blocked);
+    view.update(cx, |s, cx| {
+        s.close(a.tab, false, cx);
+        assert_eq!(s.confirm, Some(a.tab));
+        assert!(s.close_copy(a.tab, cx).unwrap().blocked);
+        s.close(a.tab, true, cx);
+    });
+    assert!(a.releases.borrow().is_empty());
+    view.update(cx, |s, cx| s.dismiss_close(cx));
+    // Once it can go, a confirmed close removes it after its release.
+    a.decision.set(CloseDecision::Confirm);
+    view.update(cx, |s, cx| s.close(a.tab, true, cx));
+    release(cx, a, true);
+    assert!(!open(cx, a.tab));
+}
+
+/// `keeps a failed creation and its retry confined to the original project`:
+/// a creation failure shows and retries only in the project it happened
+/// in; another project's creations and dismissals leave it there, and it
+/// is back with its Retry when its project is shown again.
+#[gpui::test]
+fn a_creation_failure_stays_with_its_project(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let (a, b) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (view, cx) = cx.add_window_view(Workbench::new);
+    let retries = Rc::new(Cell::new(0));
+    let tab = view.update(cx, |s, cx| {
+        s.show(a.path().to_path_buf(), cx);
+        s.project_mut().unwrap().loading = false;
+        let tab = s.new_launcher_tab(0, cx).unwrap();
+        let retried = retries.clone();
+        s.fail_creation(
+            tab,
+            "temporary".into(),
+            Some(Rc::new(move |_, _| retried.set(retried.get() + 1))),
+            cx,
+        );
+        tab
+    });
+    assert_eq!(
+        view.read_with(cx, |s, _| s.creation_failure_tab()),
+        Some(tab)
+    );
+    view.update_in(cx, |s, w, cx| {
+        s.show(b.path().to_path_buf(), cx);
+        s.project_mut().unwrap().loading = false;
+        assert_eq!(s.creation_failure_tab(), None);
+        let other = s.new_launcher_tab(0, cx).unwrap();
+        assert_eq!(other, tab, "tab ids repeat across projects");
+        s.retry_creation(w, cx);
+        s.clear_creation_failure(cx);
+        s.remove_tab(b.path(), other, cx);
+        assert!(s.creation_notice(cx).is_none());
+    });
+    cx.run_until_parked();
+    assert_eq!(retries.get(), 0);
+    view.update_in(cx, |s, w, cx| {
+        s.show(a.path().to_path_buf(), cx);
+        assert_eq!(s.creation_failure_tab(), Some(tab));
+        assert!(s.creation_notice(cx).is_some());
+        s.retry_creation(w, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(retries.get(), 1);
+    assert_eq!(view.read_with(cx, |s, _| s.creation_failure_tab()), None);
+}
+
+/// `Auxiliary Workbench topology`: terminals and chats share one tab
+/// stack; either kind splits into its own group and moves back as one
+/// tab, its group folding away; a tab alone in its group cannot be split
+/// out of it; closing the last tab leaves a valid empty workbench.
+#[gpui::test]
+fn mixed_kinds_share_a_bar_and_split_or_move_as_single_tabs(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let root = tempfile::tempdir().unwrap();
+    let (view, cx) = cx.add_window_view(Workbench::new);
+    view.update(cx, |s, cx| {
+        s.show(root.path().to_path_buf(), cx);
+        s.project_mut().unwrap().loading = false;
+        let terminal = Releasing {
+            view: cx.new(|_| ProbeView {
+                draft: String::new(),
+            }),
+            decision: Rc::new(Cell::new(CloseDecision::Close)),
+            running: Rc::default(),
+            releases: Rc::default(),
+        };
+        let chat = Probe {
+            kind: ItemKind::Chat,
+            view: cx.new(|_| ProbeView {
+                draft: String::new(),
+            }),
+            presentation: Rc::default(),
+            closes: Rc::default(),
+        };
+        let t = s.place(0, None, Rc::new(terminal), cx).unwrap();
+        let c = s.place(0, None, Rc::new(chat), cx).unwrap();
+        let wide = Bounds::new(point(px(0.), px(0.)), size(px(1200.), px(800.)));
+        {
+            let p = s.project().unwrap();
+            assert_eq!(p.layout.groups[&0].tabs, vec![t, c]);
+            assert_eq!(p.layout.groups[&0].active, Some(c));
+            assert_eq!(
+                [p.content[&t].kind(), p.content[&c].kind()],
+                [Some(ItemKind::Terminal), Some(ItemKind::Chat)]
+            );
+        }
+        assert!(s.can_split(c, 0, Axis::Horizontal, wide));
+        s.split(0, Axis::Horizontal, Some(c), true, cx);
+        let right = s.group_of(c).unwrap();
+        assert_ne!(right, 0);
+        assert_eq!(s.project().unwrap().layout.groups[&0].tabs, vec![t]);
+        // Alone in its group, a tab cannot split out of it.
+        assert!(!s.can_split(t, 0, Axis::Horizontal, wide));
+        s.project_mut().unwrap().layout.move_tab(c, 0, 1);
+        let p = s.project().unwrap();
+        assert_eq!(p.layout.groups.keys().copied().collect::<Vec<_>>(), [0]);
+        assert_eq!(p.layout.groups[&0].tabs, vec![t, c]);
+        assert_eq!(p.content[&c].kind(), Some(ItemKind::Chat));
+        let path = root.path().to_path_buf();
+        s.remove_tab(&path, t, cx);
+        s.remove_tab(&path, c, cx);
+        let p = s.project().unwrap();
+        assert!(p.content.is_empty() && p.layout.valid());
     });
 }

@@ -314,6 +314,9 @@ impl Workbench {
 
     /// `retryCreation`: the contribution tries the same creation again.
     pub(super) fn retry_creation(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.shown_failure().is_none() {
+            return;
+        }
         let Some(failure) = self.creation_failure.take() else {
             return;
         };
@@ -329,7 +332,7 @@ impl Workbench {
         use crate::ui::components::{
             FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
         };
-        let failure = self.creation_failure.as_ref()?;
+        let failure = self.shown_failure()?;
         let ty = theme::ty();
         let entity = cx.entity();
         let retry = entity.clone();

@@ -121,12 +121,23 @@ impl Workbench {
         retry: Option<CreationRetry>,
         cx: &mut Context<Self>,
     ) {
+        let Some(root) = self.root.clone() else {
+            return;
+        };
         self.creation_failure = Some(CreationFailure {
+            root,
             tab,
             message,
             retry,
         });
         cx.notify();
+    }
+
+    /// The reported failure, if it belongs to the shown project.
+    pub(super) fn shown_failure(&self) -> Option<&CreationFailure> {
+        self.creation_failure
+            .as_ref()
+            .filter(|f| self.root.as_ref() == Some(&f.root))
     }
 
     /// A saved tab of `item` in the shown project (tests).
@@ -149,12 +160,14 @@ impl Workbench {
     /// The tab whose creation failure is reported.
     #[cfg(test)]
     pub fn creation_failure_tab(&self) -> Option<Id> {
-        self.creation_failure.as_ref().map(|f| f.tab)
+        self.shown_failure().map(|f| f.tab)
     }
 
-    /// A new creation replaces the reported failure.
+    /// A new creation in the shown project replaces its reported failure;
+    /// another project's stays with it.
     pub fn clear_creation_failure(&mut self, cx: &mut Context<Self>) {
-        if self.creation_failure.take().is_some() {
+        if self.shown_failure().is_some() {
+            self.creation_failure = None;
             cx.notify();
         }
     }
@@ -443,7 +456,9 @@ impl Workbench {
     /// `close.decide`, then `close.commit`: a busy item asks first, a
     /// blocked one only keeps its tab.
     pub(super) fn close(&mut self, id: Id, force: bool, cx: &mut Context<Self>) {
-        if force && self.close_blocked {
+        // A close already committed waits for its release: asking again
+        // commits nothing more.
+        if (force && self.close_blocked) || self.closing.contains(&id) {
             return;
         }
         let Some(root) = self.root.clone() else {
@@ -477,9 +492,7 @@ impl Workbench {
             return;
         };
         self.confirm = None;
-        if !self.closing.insert(id) {
-            return;
-        }
+        self.closing.insert(id);
         // The tab closes once its item is released; a refusal presents the
         // latest decision again.
         cx.spawn(async move |this, cx| {
@@ -512,7 +525,11 @@ impl Workbench {
             cx.defer(move |cx| host.tab_removed(id, cx));
         }
         // A failure reported for a closed tab has nothing left to retry.
-        if self.creation_failure.as_ref().is_some_and(|f| f.tab == id) {
+        if self
+            .creation_failure
+            .as_ref()
+            .is_some_and(|f| f.tab == id && f.root == root)
+        {
             self.creation_failure = None;
         }
         if self.confirm == Some(id) {

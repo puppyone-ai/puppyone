@@ -202,6 +202,15 @@ impl Layout {
         }
     }
     pub fn split(&mut self, target: Id, axis: Axis, after: bool, tab: Option<Id>) -> Id {
+        // A lone tab dropped on the side of its sibling it already holds
+        // stays where it is, with its split and ratio.
+        if let Some(tab) = tab
+            && let Some(source) = self.lone_group(tab)
+            && self.adjacent(target, source, axis, after)
+        {
+            self.activate(source, tab);
+            return source;
+        }
         let group = self.id();
         let split = self.id();
         self.groups.insert(group, Group::default());
@@ -234,6 +243,40 @@ impl Layout {
             self.move_tab(tab, group, 0);
         }
         group
+    }
+    /// The group holding only `tab`, if any.
+    fn lone_group(&self, tab: Id) -> Option<Id> {
+        self.groups
+            .iter()
+            .find(|(_, g)| g.tabs == [tab])
+            .map(|(id, _)| *id)
+    }
+    /// Whether `source` is already `target`'s sibling on that side of a
+    /// split along `axis`.
+    fn adjacent(&self, target: Id, source: Id, axis: Axis, after: bool) -> bool {
+        fn visit(node: &Node, pair: (Id, Id), along: Axis) -> bool {
+            match node {
+                Node::Group(_) => false,
+                Node::Split {
+                    axis,
+                    first,
+                    second,
+                    ..
+                } => {
+                    (*axis == along
+                        && matches!(**first, Node::Group(a) if a == pair.0)
+                        && matches!(**second, Node::Group(b) if b == pair.1))
+                        || visit(first, pair, along)
+                        || visit(second, pair, along)
+                }
+            }
+        }
+        let pair = if after {
+            (target, source)
+        } else {
+            (source, target)
+        };
+        visit(&self.tree, pair, axis)
     }
     /// `workbenchSplitNodeMinimumSize`: a split adds its children along its
     /// axis (plus the 1px divider) and takes the larger across it.
@@ -394,6 +437,60 @@ mod tests {
             Layout::ratio_bounds(Axis::Horizontal, 201., (200., 100.), (100., 100.)),
             (0.667, 0.667)
         );
+    }
+    /// `Workbench split tree model`: taking a nested group's last tab folds
+    /// its parent; moving a lone tab keeps every unaffected split, and
+    /// placing it beside its sibling where it already is changes nothing,
+    /// ratio included; a resize changes only its own split.
+    #[test]
+    fn moves_fold_parents_keep_other_splits_and_a_no_op_keeps_the_ratio() {
+        let mut l = Layout::default();
+        let a = l.add(0);
+        let b = l.add(0);
+        let c = l.add(0);
+        let right = l.split(0, Axis::Horizontal, true, Some(b));
+        let lower = l.split(right, Axis::Vertical, true, Some(c));
+        let Node::Split { id: outer, .. } = l.tree else {
+            panic!("a split")
+        };
+        let inner = match &l.tree {
+            Node::Split { second, .. } => match **second {
+                Node::Split { id, .. } => id,
+                _ => panic!("a nested split"),
+            },
+            _ => unreachable!(),
+        };
+        l.resize(inner, 0.62);
+        l.resize(outer, 0.4);
+        // Placing `c` below `b` where it already is: nothing moves.
+        let before = format!("{:?}", l.tree);
+        assert_eq!(l.split(right, Axis::Vertical, true, Some(c)), lower);
+        assert_eq!(format!("{:?}", l.tree), before);
+        assert_eq!(l.groups[&right].tabs, vec![b]);
+        // `c` joins `a`'s bar: its group folds and the inner split goes,
+        // while the outer split keeps its identity and ratio.
+        l.move_tab(c, 0, 1);
+        assert!(!l.groups.contains_key(&lower));
+        let Node::Split {
+            id,
+            ratio,
+            first,
+            second,
+            ..
+        } = &l.tree
+        else {
+            panic!("a split")
+        };
+        assert_eq!((*id, *ratio), (outer, 0.4));
+        assert!(
+            matches!(**first, Node::Group(0)) && matches!(**second, Node::Group(g) if g == right)
+        );
+        assert_eq!(l.groups[&0].tabs, vec![a, c]);
+        // A resize of a split that is gone changes nothing.
+        let before = format!("{:?}", l.tree);
+        l.resize(inner, 0.2);
+        assert_eq!(format!("{:?}", l.tree), before);
+        assert!(l.valid());
     }
     #[test]
     fn launchers_are_independent_and_last_close_is_empty() {

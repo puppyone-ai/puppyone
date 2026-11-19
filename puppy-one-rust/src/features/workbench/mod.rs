@@ -190,6 +190,8 @@ pub struct Workbench {
 /// `AuxiliaryWorkbenchCreationFailure`: the tab, the item it was to be
 /// (`label`) and the contribution's retry (`retryCreation`).
 struct CreationFailure {
+    /// The project it happened in: it shows and retries only there.
+    root: PathBuf,
     tab: Id,
     message: String,
     retry: Option<CreationRetry>,
