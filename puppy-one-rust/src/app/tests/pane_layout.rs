@@ -371,3 +371,89 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     draw(cx);
     assert!(renders(cx) > pushed, "the window refreshed");
 }
+
+/// `cancels a live width preview on blur`: leaving the window mid-drag
+/// rolls the preview back and stores nothing, even when the release comes
+/// later.
+#[gpui::test]
+fn leaving_the_window_ends_a_drag_unstored(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    cx.update(|w, cx| {
+        w.activate_window();
+        w.draw(cx).clear(cx);
+    });
+    let stored = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            let p = &s.prefs.store.read(cx).state;
+            (p.sidebar_collapsed, p.explorer_width)
+        })
+    };
+    let before = stored(cx);
+    drag(&view, cx, (322., 400.), &[(422., 400.)], false);
+    view.read_with(cx, |s, _| assert_eq!(s.frame.layout.editor.x, 420.));
+    cx.deactivate_window();
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(s.panes.read(cx).dragging().is_none());
+        assert_eq!(s.frame.layout.editor.x, 320.);
+    });
+    cx.simulate_mouse_up(
+        point(px(422.), px(400.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    assert_eq!(stored(cx), before);
+}
+/// `cancels a stale drag when a newer external visibility command wins`,
+/// `keeps explorer resize values inside the expanded range`, `removes the
+/// explorer resize handle after collapse so Header owns expansion`: a
+/// command that opens a pane ends a drag of its edge without committing
+/// it; a release within range stores that width; a closed Explorer has no
+/// edge to grab.
+#[gpui::test]
+fn a_command_wins_over_a_drag_and_a_closed_explorer_has_no_edge(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    let stored = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            let p = &s.prefs.store.read(cx).state;
+            (p.sidebar_collapsed, p.explorer_width)
+        })
+    };
+    drag(&view, cx, (1275., 400.), &[(1000., 400.)], false);
+    command(&view, cx, Command::ToggleRightSidebar);
+    cx.simulate_mouse_up(
+        point(px(900.), px(400.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    view.read_with(cx, |s, cx| {
+        let panes = s.panes.read(cx);
+        assert!(panes.dragging().is_none());
+        assert_eq!((panes.right().open, panes.right().width), (true, 560.));
+    });
+    command(&view, cx, Command::ToggleRightSidebar);
+    drag(&view, cx, (322., 400.), &[(502., 400.)], true);
+    assert_eq!(stored(cx), (false, 500.));
+    drag(&view, cx, (502., 400.), &[(60., 400.)], true);
+    assert!(stored(cx).0);
+    drag(&view, cx, (2., 400.), &[(300., 400.)], false);
+    view.read_with(cx, |s, cx| {
+        assert!(s.panes.read(cx).dragging().is_none());
+        assert_eq!(s.frame.layout.editor.x, 0.);
+    });
+    cx.simulate_mouse_up(
+        point(px(300.), px(400.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    assert!(stored(cx).0, "a press at the window start opens nothing");
+}

@@ -847,6 +847,16 @@ mod tests {
         .unwrap();
         assert_eq!((p.explorer_width, p.right_sidebar_width), (252., 320.));
         assert!(p.sidebar_collapsed);
+        // Large preferences stay for the live layout to bound.
+        let wide = Preferences::from_stored(serde_json::json!({
+            "explorer_width": 900.0,
+            "right_sidebar_width": 1400.0,
+        }))
+        .unwrap();
+        assert_eq!(
+            (wide.explorer_width, wide.right_sidebar_width),
+            (900., 1400.)
+        );
         let fresh = Preferences::from_stored(serde_json::json!({ "version": 2 })).unwrap();
         assert_eq!(
             (

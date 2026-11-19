@@ -211,8 +211,16 @@ impl PaneLayout {
     /// minimum, or Home on the focused edge.)
     pub fn toggle_explorer(&mut self, cx: &mut Context<Self>) {
         let before = self.open_state();
+        self.abandon_drag(Side::Start);
         self.explorer.open = !self.explorer.open;
         self.changed(before, true, cx);
+    }
+    /// A command that opens or closes a pane wins over a drag of its edge
+    /// still under way: the drag ends without committing anything.
+    fn abandon_drag(&mut self, side: Side) {
+        if self.drag.as_ref().is_some_and(|d| d.config.side == side) {
+            self.drag = None;
+        }
     }
     /// Open or close the right sidebar; what it shows stays (the closing
     /// frame keeps its content). Whether it is open is not stored.
@@ -221,6 +229,7 @@ impl PaneLayout {
             return;
         }
         let before = self.open_state();
+        self.abandon_drag(Side::End);
         self.right.open = open;
         self.changed(before, false, cx);
     }

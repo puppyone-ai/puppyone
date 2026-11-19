@@ -175,6 +175,68 @@ mod tests {
         assert_eq!(explorer_max_width(1000., true), 352.);
         assert_eq!(explorer_max_width(700., true), 220.);
     }
+    /// `desktop three-pane layout`: spare width goes to the main pane, then
+    /// the right sidebar up to the live workbench (never past the Explorer's
+    /// cap); passive narrowing takes the main pane to its floor, then the
+    /// right sidebar, then the Explorer; below every minimum the layout keeps
+    /// its minimum; a closed pane takes nothing at any width; saved widths
+    /// come back as soon as the window allows; every pane stays within its
+    /// range at every width.
+    #[test]
+    fn the_three_panes_share_the_width_as_the_product_policy_says() {
+        use pane::*;
+        assert_eq!(MIN_EXPLORER_WIDTH, 220.);
+        let resolve = |w: f32| resolve_pane_widths(w, 320., 560.);
+        // The main pane: what the open panes and the Explorer's gutter leave.
+        let main = |(e, r, l): (f32, f32, f32)| {
+            l - e
+                - r
+                - if e > 0. {
+                    EXPLORER_RESIZE_GUTTER_WIDTH
+                } else {
+                    0.
+                }
+        };
+        assert_eq!(resolve(1440.), (320., 560., 1440.));
+        assert_eq!(main(resolve(1440.)), 552.);
+        let wide = resolve_pane_widths(2200., 1200., 1600.);
+        assert_eq!(wide, (MAX_EXPLORER_WIDTH, 1352., 2200.));
+        assert_eq!(main(wide), MIN_MAIN_PANE_WIDTH);
+        assert_eq!(right_sidebar_max_width(2200., MAX_EXPLORER_WIDTH), 1352.);
+        assert_eq!(right_sidebar_max_width(1440., 320.), 792.);
+        assert_eq!(right_sidebar_max_width(2200., 320.), 1552.);
+        assert_eq!(main(resolve(1240.)), 352.);
+        assert_eq!(resolve(1100.), (320., 452., 1100.));
+        assert_eq!(resolve(900.), (252., MIN_RIGHT_SIDEBAR_WIDTH, 900.));
+        assert_eq!(
+            resolve(640.),
+            (MIN_EXPLORER_WIDTH, MIN_RIGHT_SIDEBAR_WIDTH, 868.)
+        );
+        for w in [640., 900., 1440.] {
+            assert_eq!(
+                resolve_pane_widths(w, 0., 0.).0 + resolve_pane_widths(w, 0., 0.).1,
+                0.
+            );
+        }
+        assert_eq!(resolve_pane_widths(640., 0., 560.), (0., 320., 640.));
+        assert_eq!(
+            resolve_pane_widths(900., 380., 560.).1,
+            MIN_RIGHT_SIDEBAR_WIDTH
+        );
+        assert_eq!(resolve_pane_widths(1600., 380., 560.), (380., 560., 1600.));
+        for w in [640., 888., 900., 968., 1100., 1208., 1440., 1920.] {
+            let (e, r, l) = resolve(w);
+            assert!(
+                (MIN_EXPLORER_WIDTH..=MAX_EXPLORER_WIDTH).contains(&e),
+                "{w}"
+            );
+            assert!(
+                r >= MIN_RIGHT_SIDEBAR_WIDTH && r <= right_sidebar_max_width(l, e),
+                "{w}"
+            );
+            assert!(main((e, r, l)) >= MIN_MAIN_PANE_WIDTH, "{w}");
+        }
+    }
     #[test]
     fn the_window_minimum_follows_the_open_panes() {
         assert_eq!(window_minimum_width(true, true, 0.), 868.);
