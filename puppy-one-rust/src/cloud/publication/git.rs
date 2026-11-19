@@ -450,6 +450,33 @@ pub fn push_limit_failure(diagnostic: &str) -> bool {
     }
     pack_limit_failure(diagnostic) || PROCESSING.is_match(diagnostic)
 }
+/// What a failed first push is, once Cloud main is known not to hold its
+/// commit: an explicit refusal wins over the disconnect Git may append.
+pub(super) fn push_failure(stderr: &str) -> PublishError {
+    if push_limit_failure(stderr) {
+        return PublishError::new(
+            Code::PushLimitExceeded,
+            if pack_limit_failure(stderr) {
+                "This upload exceeds the allowed size. A single Cloud push can be at most 2 GiB. Reduce the upload size before trying again."
+            } else {
+                "This upload exceeds a Cloud processing limit. Reduce its size before trying again."
+            },
+            true,
+        );
+    }
+    if uncertain_push_failure(stderr) {
+        return PublishError::new(
+            Code::PushUncertain,
+            "The connection was interrupted. Retry to check the result and send again if needed.",
+            true,
+        );
+    }
+    PublishError::new(
+        Code::PushFailed,
+        "Cloud did not accept the upload. Retry after correcting the cause.",
+        true,
+    )
+}
 /// `isUncertainPushFailure`: transport loss after the request may have
 /// arrived.
 pub fn uncertain_push_failure(stderr: &str) -> bool {
@@ -788,30 +815,7 @@ impl GitOps for Cli {
                         false,
                     ));
                 }
-                // An explicit refusal wins over the disconnect Git may append.
-                if push_limit_failure(&stderr) {
-                    return Err(PublishError::new(
-                        Code::PushLimitExceeded,
-                        if pack_limit_failure(&stderr) {
-                            "This upload exceeds the allowed size. A single Cloud push can be at most 2 GiB. Reduce the upload size before trying again."
-                        } else {
-                            "This upload exceeds a Cloud processing limit. Reduce its size before trying again."
-                        },
-                        true,
-                    ));
-                }
-                if uncertain_push_failure(&stderr) {
-                    return Err(PublishError::new(
-                        Code::PushUncertain,
-                        "The connection was interrupted. Retry to check the result and send again if needed.",
-                        true,
-                    ));
-                }
-                Err(PublishError::new(
-                    Code::PushFailed,
-                    "Cloud did not accept the upload. Retry after correcting the cause.",
-                    true,
-                ))
+                Err(push_failure(&stderr))
             }
         }
     }

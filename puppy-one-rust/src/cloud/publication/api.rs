@@ -381,6 +381,32 @@ mod tests {
         )
     }
 
+    /// `electron.cloud-publish-error-contract.test.mjs`: a service that is
+    /// being upgraded is told by its structured reason alone; a message that
+    /// merely sounds like one is not.
+    #[test]
+    fn a_service_upgrade_is_read_from_the_reason_never_the_message() {
+        for reason in [
+            "database_schema_outdated",
+            "schema_migration_required",
+            "service_upgrade_required",
+        ] {
+            let error = mutation_error(
+                Code::ProjectCreateFailed,
+                "Request failed",
+                &AuthError::Response(503, Some(reason), Default::default()),
+            );
+            assert_eq!(error.code, Code::ServiceUpgradeRequired, "{reason}");
+            assert!(error.retryable);
+        }
+        let prose = mutation_error(
+            Code::ProjectCreateFailed,
+            "database schema migration required",
+            &AuthError::Response(503, None, Default::default()),
+        );
+        assert_eq!(prose.code, Code::ProjectCreateFailed);
+    }
+
     /// `cloudPublishContract`: `contracts/cloud-project-publish-v1.json` is
     /// the backend-compatible contract the product pins, byte for byte, and
     /// these requests follow it: the organization is an explicit request

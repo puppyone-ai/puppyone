@@ -25905,6 +25905,360 @@
           "test": "workspace::cloud::spaces::tests::provisioning_is_not_retried_after_any_other_failure"
         }
       ]
+    },
+    {
+      "id": "cloud-publish-canonical-remote",
+      "acceptance": "A first publication writes only the remote this Cloud issues for the Project: the configured Cloud's own origin over HTTPS with the canonical project path; another environment's origin (production vs Qubits or a sibling puppyone.ai host), credentials, queries and other projects are refused; a configured HTTPS Git origin is honoured only for loopback API development.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/canonicalCloudGitRemote.test.mjs",
+          "sha256": "f94ef2098ecdd808bcaa6ba376dfefc61c09006a23e3e6b864e9a16311193ca4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "the Git remote a first publish writes > accepts the paired production Cloud's own origin"
+            },
+            {
+              "index": 1,
+              "name": "the Git remote a first publish writes > accepts the paired Qubits Cloud's own origin"
+            },
+            {
+              "index": 2,
+              "name": "the Git remote a first publish writes > rejects a Qubits app given a production remote: another environment's remote would link a Cloud this app cannot open"
+            },
+            {
+              "index": 3,
+              "name": "the Git remote a first publish writes > rejects a production app given a Qubits remote: another environment's remote would link a Cloud this app cannot open"
+            },
+            {
+              "index": 4,
+              "name": "the Git remote a first publish writes > rejects a sibling puppyone.ai host: another environment's remote would link a Cloud this app cannot open"
+            },
+            {
+              "index": 5,
+              "name": "the Git remote a first publish writes > uses a configured HTTPS Git origin only for loopback API development"
+            },
+            {
+              "index": 6,
+              "name": "the Git remote a first publish writes > still requires the canonical project path"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::issued_remotes_must_be_canonical_and_trusted"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::only_the_configured_origin_or_explicit_hosted_mapping_is_trusted"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-readiness",
+      "acceptance": "Publishing needs a real first commit: an unborn branch (even a named one) is refused before anything is created, and a named branch with committed history passes the preflight.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/cloudPublishReadiness.test.ts",
+          "sha256": "e410d1b4aaf036247892257aa17841d79b20cd75066c3e544e02dcea18d47399",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish readiness > requires a real first commit even when an unborn branch has a name"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish readiness > does not trust a head id when the repository reports zero commits"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish readiness > allows a named branch with committed history"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::an_unborn_branch_is_refused_before_anything_is_created"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::every_repository_shape_but_lfs_passes_the_preflight"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-push-reconciliation",
+      "acceptance": "A normal first push is confirmed by Git's own acknowledgement; a commit that another attempt already published counts as published; an empty Cloud main after an unresolved send lets the same commit be sent again in a fresh attempt; a different commit on Cloud main is never taken for success or overwritten.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/cloudPublishReceipt.test.mjs",
+          "sha256": "be7460ee1e60dbd262163da4adf3f1e9fa6ba9a5ab658ea68a8677fc9d598e08",
+          "cases": [
+            {
+              "index": 0,
+              "name": "initial push receipt > normal initialization uses Git push acknowledgement without auxiliary network calls"
+            },
+            {
+              "index": 10,
+              "name": "initial push receipt > a rejected retry is successful when another attempt published the same commit"
+            },
+            {
+              "index": 11,
+              "name": "initial push receipt > a rejected receipt does not strand a retry when the remote is empty"
+            },
+            {
+              "index": 12,
+              "name": "initial push receipt > never converts a different remote commit into success or overwrites it"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::git_push_tests::real_first_push_sends_the_pinned_commit_and_reconciles_an_identical_retry"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::an_old_upload_landing_just_before_retry_is_not_a_failure"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::an_unresolved_send_is_retried_with_its_commit_in_a_fresh_attempt"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_cloud_main_that_wins_the_absent_race_is_never_overwritten"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_different_commit_landing_concurrently_wins_over_retry"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-service-upgrade",
+      "acceptance": "A Cloud that is being upgraded (database_schema_outdated, schema_migration_required, service_upgrade_required) is told by its structured reason alone and the publication can resume; a message that merely sounds like one is not read as an upgrade.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/electron.cloud-publish-error-contract.test.mjs",
+          "sha256": "6e11cad6ee09b7c5412a3c024466e35b2a4c435e2db1eaefcccf333ace112756",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish structured service compatibility errors > maps database_schema_outdated without parsing server messages"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish structured service compatibility errors > maps schema_migration_required without parsing server messages"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish structured service compatibility errors > maps service_upgrade_required without parsing server messages"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish structured service compatibility errors > does not infer compatibility failures from an unstructured message"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::api::tests::a_service_upgrade_is_read_from_the_reason_never_the_message"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-git-diagnostics",
+      "acceptance": "A credential that cannot be verified fails closed, restores the previous configuration, and its diagnostic never carries the secret or a credential-bearing URL. The first push has its own long budget and an uncertain end is reconciled, never replayed blindly. After a failed push Cloud main is checked once: the pinned commit there is success, anything else a conflict; otherwise each refusal Cloud or Git gives is classified (contract refusal codes first, then the words of every known server: size, processing and graph budgets, HTTP 413 and request-body limits are PUSH_LIMIT_EXCEEDED, a lost connection PUSH_UNCERTAIN, an unknown code or a corrupt pack PUSH_FAILED), all retryable; an explicit size refusal names the 2 GiB limit even when Cloud main cannot be read, and Git's progress output decides nothing.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/electron.cloud-publish-git.test.mjs",
+          "sha256": "195217f56c79f7fecf4ad9865932639e7114d5c4991b5cb4606f7ff6269308ce",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish Git diagnostics > reports credential setup failure while redacting credential material"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish Git diagnostics > uses the long initial-push budget and reconciles an uncertain timeout"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish Git diagnostics > classifies connection timed out after checking that the desired ref was not published"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: reworded entirely (puppyone-refusal=git_object_count_limit) after checking that the desired ref was not published"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish Git diagnostics > classifies ! [remote rejected] main -> main (anything (puppyone-refusal=git_graph_limit)) after checking that the desired ref was not published"
+            },
+            {
+              "index": 5,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: Git pack temporary disk budget exceeded after checking that the desired ref was not published"
+            },
+            {
+              "index": 6,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: Git pack metadata budget exceeded after checking that the desired ref was not published"
+            },
+            {
+              "index": 7,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: something new (puppyone-refusal=git_future_thing) after checking that the desired ref was not published"
+            },
+            {
+              "index": 8,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: Git pack exceeds the 2147483648-byte limit for this operation after checking that the desired ref was not published"
+            },
+            {
+              "index": 9,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: completed Git pack exceeds the storage processing budget after checking that the desired ref was not published"
+            },
+            {
+              "index": 10,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: Git object count budget exceeded after checking that the desired ref was not published"
+            },
+            {
+              "index": 11,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: Git single-object budget exceeded after checking that the desired ref was not published"
+            },
+            {
+              "index": 12,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: Git temporary disk budget exceeded after checking that the desired ref was not published"
+            },
+            {
+              "index": 13,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: Git output budget exceeded after checking that the desired ref was not published"
+            },
+            {
+              "index": 14,
+              "name": "Cloud publish Git diagnostics > classifies ! [remote rejected] main -> main (Git graph budget exceeded) after checking that the desired ref was not published"
+            },
+            {
+              "index": 15,
+              "name": "Cloud publish Git diagnostics > classifies ! [remote rejected] main -> main (published object count budget exceeded) after checking that the desired ref was not published"
+            },
+            {
+              "index": 16,
+              "name": "Cloud publish Git diagnostics > classifies RPC failed; HTTP 413 curl 22 The requested URL returned error: 413\nfatal: the remote end hung up unexpectedly after checking that the desired ref was not published"
+            },
+            {
+              "index": 17,
+              "name": "Cloud publish Git diagnostics > classifies remote: Git request body exceeds max allowed 2147483648 bytes after checking that the desired ref was not published"
+            },
+            {
+              "index": 18,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: incoming pack expansion budget exceeded after checking that the desired ref was not published"
+            },
+            {
+              "index": 19,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: incoming expanded pack budget exceeded after checking that the desired ref was not published"
+            },
+            {
+              "index": 20,
+              "name": "Cloud publish Git diagnostics > classifies remote: unpack invalid pack: Git pack checksum mismatch after checking that the desired ref was not published"
+            },
+            {
+              "index": 21,
+              "name": "Cloud publish Git diagnostics > handles explicit size rejection when status is unavailable or already accepted (false)"
+            },
+            {
+              "index": 22,
+              "name": "Cloud publish Git diagnostics > handles explicit size rejection when status is unavailable or already accepted (true)"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/publish/electron.cloud-publish-transfer.test.mjs",
+          "sha256": "f50ed59d303a71a62204c5a3ce331268689d383b68c334ecad3dc62dc5afd082",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Cloud publish push progress > classifies a failure by Git's error, not by the progress printed before it"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::diagnostics_never_carry_secrets"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::credential_tests::a_helper_that_cannot_read_the_credential_back_fails_closed_and_restores"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::an_uncertain_push_is_never_replayed_blindly_and_a_landed_one_reconciles"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::every_first_push_diagnostic_has_its_publish_code"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::the_git_acceptance_contract_is_pinned_and_its_codes_are_recognized"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::git_push_tests::real_first_push_refuses_a_competing_main_even_when_the_server_allows_forcing"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-folder-preparation",
+      "acceptance": "Before anything needs an account a first publication prepares the folder itself: version history, a first snapshot of its files signed by the account (else Git's own identity), and a named branch, in that order and only the steps still missing, so preparing it twice changes nothing. When no identity can sign the snapshot the missing step is reported (a snapshot or a branch waits for an identity; version history does not); a new branch never takes a name a local branch has (main, puppyone-publish, puppyone-publish-2, …).",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/publishPreparation.test.ts",
+          "sha256": "0c2220c18ec2fb58a1a0a6f0493e4e575518300c4d7ff320c8303f590e29350f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "preparing a folder before anyone has an account > enables version history, takes the first snapshot and names a branch, in that order"
+            },
+            {
+              "index": 1,
+              "name": "preparing a folder before anyone has an account > leaves a prepared folder alone, so running it twice costs nothing"
+            },
+            {
+              "index": 2,
+              "name": "preparing a folder before anyone has an account > commits under the supplied identity and omits it when there is none"
+            },
+            {
+              "index": 3,
+              "name": "preparing a folder before anyone has an account > reports the step that is still missing, and whether an account would supply it"
+            },
+            {
+              "index": 4,
+              "name": "preparing a folder before anyone has an account > never takes a branch name that already exists"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::preparation::tests::a_plain_folder_is_prepared_once_and_left_alone_after"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::preparation::tests::git_identity_signs_without_an_account_and_a_detached_head_gets_a_free_name"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::preparation::tests::the_missing_step_is_reported_and_branch_names_never_collide"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -27812,6 +28166,20 @@
               "name": "Desktop Agent preload boundary > exposes the versioned feed and routes user intent through one command channel"
             }
           ]
+        },
+        {
+          "path": "tests/unit/cloud/publish/electron.cloud-publish-ipc.test.mjs",
+          "sha256": "e43813e784686eb2693b3b0fb7a96cf17ef19df90d983e304c2d39025e6eece1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish progress IPC > sends main-owned progress only to the renderer that started the publish"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish progress IPC > does not expose authorization exceptions across the IPC boundary"
+            }
+          ]
         }
       ]
     },
@@ -28846,6 +29214,48 @@
             {
               "index": 2,
               "name": "Cloud publish coordinator: retry and restart > retry of a rejected receipt uses a fresh attempt and only retargets after definitive rejection"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/publish/cloudPublishReceipt.test.mjs",
+          "sha256": "be7460ee1e60dbd262163da4adf3f1e9fa6ba9a5ab658ea68a8677fc9d598e08",
+          "cases": [
+            {
+              "index": 1,
+              "name": "initial push receipt > lost push response resolves by the bound receipt without ref discovery or backoff"
+            },
+            {
+              "index": 2,
+              "name": "initial push receipt > does not accept a project mismatch as success"
+            },
+            {
+              "index": 3,
+              "name": "initial push receipt > does not accept a attempt mismatch as success"
+            },
+            {
+              "index": 4,
+              "name": "initial push receipt > does not accept a commit mismatch as success"
+            },
+            {
+              "index": 5,
+              "name": "initial push receipt > does not accept a ref mismatch as success"
+            },
+            {
+              "index": 6,
+              "name": "initial push receipt > does not accept a pending mismatch as success"
+            },
+            {
+              "index": 7,
+              "name": "initial push receipt > does not accept a absent mismatch as success"
+            },
+            {
+              "index": 8,
+              "name": "initial push receipt > does not accept a redirect mismatch as success"
+            },
+            {
+              "index": 9,
+              "name": "initial push receipt > a durable rejection terminates reconciliation"
             }
           ]
         }
@@ -32134,6 +32544,48 @@
             {
               "index": 9,
               "name": "cloud API client delegation > getCloudProject URL-encodes the project id in the path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-transfer-progress",
+      "kind": "gap",
+      "reason": "TS reads Git's own push progress while uploading (share sent, bytes and rate, split across pipe chunks, redraws held to an interval but never the finish, a failing listener never reaching the push, progress lines stripped from the diagnostic) and shows the transfer under the uploading step. The native publication reports stages only: Uploading has no bytes or rate.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/first-publication/README.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/electron.cloud-publish-transfer.test.mjs",
+          "sha256": "f50ed59d303a71a62204c5a3ce331268689d383b68c334ecad3dc62dc5afd082",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish transfer reading > reads how much is sent and how fast from Git's own progress line"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish transfer reading > survives a progress line split across pipe chunks"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish transfer reading > holds redraws to the interval, but never drops the finish"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish transfer reading > keeps the last measured bytes and rate when a redraw omits them"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish transfer reading > never lets a failing listener reach the push"
+            },
+            {
+              "index": 5,
+              "name": "Cloud publish transfer reading > leaves only Git's diagnostic once the progress redraws are removed"
+            },
+            {
+              "index": 6,
+              "name": "Cloud publish push progress > reports the transfer as part of the uploading step"
             }
           ]
         }

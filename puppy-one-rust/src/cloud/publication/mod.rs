@@ -18,6 +18,7 @@ pub mod fixtures;
 pub mod git;
 pub mod journal;
 mod migrate;
+pub mod preparation;
 #[cfg(test)]
 mod tests;
 pub mod vault;
@@ -187,6 +188,10 @@ pub fn valid_branch(branch: &str) -> bool {
 /// Visible steps (`createCloudPublishProgressChannel`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
+    /// `publishPreparation`'s local steps, before anything needs an account.
+    EnablingVersionControl,
+    CreatingSnapshot,
+    CreatingBranch,
     Validating,
     CreatingProject,
     SecuringCredential,

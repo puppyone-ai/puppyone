@@ -685,6 +685,108 @@ fn the_git_acceptance_contract_is_pinned_and_its_codes_are_recognized() {
     ));
 }
 
+/// `electron.cloud-publish-git.test.mjs` ("classifies … after checking that
+/// the desired ref was not published"): each diagnostic Cloud or Git gives
+/// for a failed first push, with its refusal code first, then its words.
+#[test]
+fn every_first_push_diagnostic_has_its_publish_code() {
+    for (diagnostic, code) in [
+        ("connection timed out", Code::PushUncertain),
+        (
+            "remote: unpack invalid pack: reworded entirely (puppyone-refusal=git_object_count_limit)",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "! [remote rejected] main -> main (anything (puppyone-refusal=git_graph_limit))",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git pack temporary disk budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git pack metadata budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: something new (puppyone-refusal=git_future_thing)",
+            Code::PushFailed,
+        ),
+        (
+            "remote: unpack invalid pack: Git pack exceeds the 2147483648-byte limit for this operation",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: completed Git pack exceeds the storage processing budget",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git object count budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git single-object budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git temporary disk budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git output budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "! [remote rejected] main -> main (Git graph budget exceeded)",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "! [remote rejected] main -> main (published object count budget exceeded)",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "RPC failed; HTTP 413 curl 22 The requested URL returned error: 413\nfatal: the remote end hung up unexpectedly",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: Git request body exceeds max allowed 2147483648 bytes",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: incoming pack expansion budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: incoming expanded pack budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git pack checksum mismatch",
+            Code::PushFailed,
+        ),
+    ] {
+        let error = git::push_failure(diagnostic);
+        assert_eq!(error.code, code, "{diagnostic}");
+        assert!(error.retryable, "{diagnostic}");
+    }
+    // An explicit size refusal names the single-push limit even when Cloud
+    // main could not be read afterwards.
+    let size = git::push_failure(
+        "RPC failed; HTTP 413 curl 22\nfatal: the remote end hung up unexpectedly",
+    );
+    assert_eq!(size.code, Code::PushLimitExceeded);
+    assert!(size.message.contains("2 GiB"));
+    // Git's progress before the error decides nothing.
+    let progress = "Enumerating objects: 42, done.\nCounting objects: 100% (42/42), done.\n\
+        Writing objects:  45% (19/42), 4.50 MiB | 1.02 MiB/s\r\
+        Writing objects: 100% (42/42), 11.45 MiB | 1.00 MiB/s, done.\n";
+    let after = git::push_failure(&format!(
+        "{progress}error: RPC failed; HTTP 413 curl 22 The requested URL returned error: 413\n"
+    ));
+    assert_eq!(after.code, Code::PushLimitExceeded);
+    assert_eq!(git::push_failure(progress).code, Code::PushFailed);
+}
+
 /// `electron.cloud-publish-repository-shapes`: Desktop must not refuse what
 /// the native Version Engine accepts. Every shape but Git LFS passes the
 /// preflight, and stock Git carries its history to a bare repository.

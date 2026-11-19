@@ -318,9 +318,44 @@ impl CloudPublish {
         self.running = Some(Stage::Validating);
         cx.notify();
         let epoch = self.epoch;
+        // A first publication prepares the folder itself (`useCloudInitialization`):
+        // version history, a first snapshot signed by the account, a branch.
+        let prepare = matches!(action, Action::Initialize) && request.operation_id.is_none();
+        let author = crate::features::cloud::account::snapshot(cx)
+            .and_then(|s| s.account)
+            .map(|a| a.email);
         let (tx, rx) = async_channel::unbounded::<Result<Stage, Outcome>>();
         std::thread::spawn(move || {
             let progress_tx = tx.clone();
+            let mut request = request;
+            if prepare {
+                use crate::cloud::publication::preparation::{Step, prepare};
+                let prepared = prepare(&request.root, author.as_deref(), &mut |step| {
+                    let _ = progress_tx.send_blocking(Ok(match step {
+                        Step::EnablingVersionControl => Stage::EnablingVersionControl,
+                        Step::CreatingSnapshot => Stage::CreatingSnapshot,
+                        Step::CreatingBranch => Stage::CreatingBranch,
+                    }));
+                });
+                if let Err(code) = prepared {
+                    let error = crate::cloud::publication::PublishError::new(
+                        code,
+                        "The folder could not be prepared for publishing.",
+                        true,
+                    );
+                    let _ = tx.send_blocking(Err(Outcome {
+                        ok: false,
+                        state: None,
+                        record: None,
+                        error: Some(error),
+                        project: None,
+                    }));
+                    return;
+                }
+                if let Some(branch) = current_branch(&request.root) {
+                    request.source_branch = branch;
+                }
+            }
             let outcome = coordinator.start(&request, &mut |stage| {
                 let _ = progress_tx.send_blocking(Ok(stage));
             });

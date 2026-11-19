@@ -32,7 +32,11 @@ const STEPS: [&str; 5] = ["project", "access", "remote", "upload", "finish"];
 /// `resolveCloudPublishProgressActiveIndex`.
 pub(super) fn step_of(stage: Stage) -> usize {
     match stage {
-        Stage::Validating | Stage::CreatingProject => 0,
+        Stage::EnablingVersionControl
+        | Stage::CreatingSnapshot
+        | Stage::CreatingBranch
+        | Stage::Validating
+        | Stage::CreatingProject => 0,
         Stage::SecuringCredential => 1,
         Stage::ConfiguringRemote => 2,
         Stage::CheckingRemote | Stage::Uploading | Stage::Confirming => 3,
@@ -41,6 +45,9 @@ pub(super) fn step_of(stage: Stage) -> usize {
 }
 fn stage_key(stage: Stage) -> &'static str {
     match stage {
+        Stage::EnablingVersionControl => "cloud.initialize.progress.enabling-version-control",
+        Stage::CreatingSnapshot => "cloud.initialize.progress.creating-snapshot",
+        Stage::CreatingBranch => "cloud.initialize.progress.creating-branch",
         Stage::Validating => "cloud.initialize.progress.validating",
         Stage::CreatingProject => "cloud.initialize.progress.creating-project",
         Stage::SecuringCredential => "cloud.initialize.progress.securing-credential",
