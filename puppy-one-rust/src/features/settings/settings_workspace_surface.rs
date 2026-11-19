@@ -104,8 +104,7 @@ impl SettingsWorkspaceSurface {
         if page == Page::Account {
             self.refresh_compute(cx);
         }
-        // Account reads the space's plan too (`useAccountPlan`).
-        if matches!(page, Page::Plan | Page::Account) {
+        if page == Page::Plan {
             self.load_plan(false, cx);
         }
         if matches!(page, Page::Space | Page::SpaceSettings) {
@@ -197,9 +196,7 @@ impl SettingsWorkspaceSurface {
         let expected_plan = self.plan_scope_context(cx);
         if expected_plan.is_none() && self.plan_context().is_some() {
             self.reset_plan();
-        } else if matches!(self.page, Page::Plan | Page::Account)
-            && self.plan_context() != expected_plan.as_ref()
-        {
+        } else if self.page == Page::Plan && self.plan_context() != expected_plan.as_ref() {
             self.load_plan(false, cx);
         }
         cx.notify();
@@ -312,7 +309,7 @@ impl SettingsWorkspaceSurface {
         }
         // `useAccountPlan`: coming back to the window reads Plan again.
         cx.observe_window_activation(window, |s, window, cx| {
-            if window.is_window_active() && matches!(s.page, Page::Plan | Page::Account) {
+            if window.is_window_active() && s.page == Page::Plan {
                 s.activate_plan(cx);
             }
         })
