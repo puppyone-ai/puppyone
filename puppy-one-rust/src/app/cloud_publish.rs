@@ -878,6 +878,41 @@ mod tests {
     #[test]
     fn every_first_push_failure_has_its_own_message_in_every_locale() {
         const GENERAL: &str = "cloud.message.project-publish-failed";
+        // The window names exactly the failures publication can return
+        // (`CLOUD_PUBLISH_ERROR_CODES`, in order).
+        let wire: Vec<&str> = Code::all().map(Code::as_str).collect();
+        assert_eq!(
+            wire,
+            [
+                "SESSION_REQUIRED",
+                "IDENTITY_MISMATCH",
+                "ORGANIZATION_REQUIRED",
+                "REPOSITORY_REQUIRED",
+                "COMMIT_REQUIRED",
+                "BRANCH_REQUIRED",
+                "SOURCE_MISSING",
+                "MERGE_TIP_UNSUPPORTED",
+                "LFS_UNSUPPORTED",
+                "REMOTE_CONFLICT",
+                "REMOTE_REF_CONFLICT",
+                "PROJECT_CREATE_FAILED",
+                "PROJECT_UNAVAILABLE",
+                "CREDENTIAL_FAILED",
+                "SERVICE_UPGRADE_REQUIRED",
+                "REMOTE_CONFIG_FAILED",
+                "PUSH_FAILED",
+                "PUSH_LIMIT_EXCEEDED",
+                "PUSH_UNCERTAIN",
+                "LOCAL_FINALIZE_FAILED",
+                "CLEANUP_FAILED",
+                "CLEANUP_NOT_ALLOWED",
+                "COMPENSATION_FAILED",
+                "JOURNAL_CORRUPT",
+                "JOURNAL_IO_FAILED",
+                "PERMISSION_DENIED",
+                "UNKNOWN",
+            ]
+        );
         for code in Code::all() {
             let message = failure_copy(code);
             assert_eq!(message == GENERAL, code == Code::Unknown, "{code:?}");

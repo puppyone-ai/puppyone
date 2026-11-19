@@ -416,6 +416,211 @@ mod tests {
     use super::{Failure, Recovery};
     use crate::cloud::auth::Error;
 
+    /// `cloudOpeningFailureClassification`: what "Couldn't open Cloud
+    /// Computer" says, decided by what the person can do next, and the
+    /// server's code and request id shown beside it.
+    #[test]
+    fn workspace_opening_failures_say_what_to_do_next_and_carry_their_diagnostics() {
+        use crate::cloud::auth::model::Diagnostic;
+        use Recovery::{Account, None as Nothing, Retry};
+        for (label, status, reason, code, recovery, reopen) in [
+            (
+                "server start deadline",
+                503,
+                Some("workbench_start_timeout"),
+                "workspace-start-timeout",
+                Retry,
+                false,
+            ),
+            (
+                "client start deadline",
+                504,
+                Some("workbench_start_timeout"),
+                "workspace-start-timeout",
+                Retry,
+                false,
+            ),
+            (
+                "readiness timeout",
+                503,
+                Some("workbench_connection_timeout"),
+                "workspace-start-timeout",
+                Retry,
+                false,
+            ),
+            (
+                "still starting",
+                503,
+                Some("workbench_preparing"),
+                "workspace-preparing",
+                Retry,
+                false,
+            ),
+            (
+                "connection lost",
+                503,
+                Some("workbench_connection_unavailable"),
+                "workspace-connection-unavailable",
+                Retry,
+                false,
+            ),
+            (
+                "unclassified server error",
+                500,
+                None,
+                "workspace-open-failed",
+                Retry,
+                false,
+            ),
+            (
+                "gateway error",
+                502,
+                None,
+                "workspace-open-failed",
+                Retry,
+                false,
+            ),
+            (
+                "observer capacity",
+                503,
+                Some("workbench_observer_capacity"),
+                "workspace-open-failed",
+                Retry,
+                false,
+            ),
+            (
+                "generation replaced",
+                409,
+                Some("workbench_generation_changed"),
+                "workspace-changed",
+                Retry,
+                true,
+            ),
+            (
+                "paused during handoff",
+                409,
+                Some("workbench_not_running"),
+                "workspace-changed",
+                Retry,
+                true,
+            ),
+            (
+                "not ready",
+                409,
+                Some("workbench_not_ready"),
+                "workspace-changed",
+                Retry,
+                true,
+            ),
+            (
+                "operation fenced",
+                409,
+                Some("workbench_operation_replaced"),
+                "workspace-changed",
+                Retry,
+                true,
+            ),
+            (
+                "authorization revision moved",
+                409,
+                Some("workbench_context_changed"),
+                "workspace-changed",
+                Retry,
+                true,
+            ),
+            (
+                "disk lost",
+                503,
+                Some("workbench_disk_lost"),
+                "workspace-disk-lost",
+                Retry,
+                false,
+            ),
+            (
+                "needs recovery",
+                409,
+                Some("workbench_requires_recovery"),
+                "workspace-recovery-required",
+                Nothing,
+                false,
+            ),
+            (
+                "plan required",
+                402,
+                None,
+                "workspace-plan-required",
+                Account,
+                false,
+            ),
+            (
+                "access denied",
+                403,
+                Some("workbench_access_denied"),
+                "workspace-access-denied",
+                Nothing,
+                false,
+            ),
+            (
+                "project not ready",
+                409,
+                Some("workbench_unavailable"),
+                "project-unavailable",
+                Nothing,
+                false,
+            ),
+            (
+                "provider not configured",
+                503,
+                Some("workbench_provider_not_configured"),
+                "workspace-not-configured",
+                Nothing,
+                false,
+            ),
+        ] {
+            let failure = Failure::described(Some(status), reason, None);
+            assert_eq!(
+                (failure.code, failure.recovery, failure.reopen),
+                (code, recovery, reopen),
+                "{label}"
+            );
+        }
+        // The server's code and request id beside the message.
+        let failure = Failure::auth(Error::Response(
+            503,
+            Some("workbench_start_timeout"),
+            Diagnostic::read(&serde_json::json!({}), Some("req-7f3a")),
+        ));
+        assert_eq!(
+            failure.diagnostic(),
+            Some((
+                Some("workbench_start_timeout".to_owned()),
+                Some("req-7f3a".to_owned())
+            ))
+        );
+        // The HTTP status when the server named no code.
+        assert_eq!(
+            Failure::auth(Error::Http(500)).diagnostic(),
+            Some((Some("HTTP 500".to_owned()), None))
+        );
+        // No server string outside the workspace namespace, no malformed
+        // request id.
+        let private = Failure::auth(Error::Response(
+            503,
+            None,
+            Diagnostic::read(&serde_json::json!({}), Some("id with spaces")),
+        ));
+        assert_eq!(
+            private.diagnostic(),
+            Some((Some("HTTP 503".to_owned()), None))
+        );
+        assert_eq!(
+            Failure::described(Some(503), Some("private_customer_key"), None).diagnostic(),
+            Some((Some("HTTP 503".to_owned()), None))
+        );
+        // Nothing to report without a server answer.
+        assert_eq!(Failure::auth(Error::Cancelled).diagnostic(), None);
+    }
+
     #[test]
     fn opening_failures_preserve_status_and_access_recovery() {
         // The presentation must distinguish access/account decisions from a

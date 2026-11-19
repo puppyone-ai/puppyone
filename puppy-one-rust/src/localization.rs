@@ -1285,6 +1285,39 @@ mod tests {
             }
         }
     }
+    /// `cloudOpeningFailureClassification`: every message the opening table
+    /// names, and the diagnostic copy, exists in every product locale.
+    #[test]
+    fn cloud_opening_failure_copy_exists_in_every_product_locale() {
+        let keys = [
+            "message.workspace-start-timeout",
+            "message.workspace-preparing",
+            "message.workspace-connection-unavailable",
+            "message.workspace-open-failed",
+            "message.workspace-changed",
+            "message.workspace-disk-lost",
+            "message.workspace-recovery-required",
+            "message.workspace-plan-required",
+            "message.workspace-access-denied",
+            "message.project-unavailable",
+            "message.workspace-not-configured",
+            "opening.failedTitle",
+            "opening.diagnosticCode",
+            "opening.diagnosticRequest",
+            "opening.copyDiagnostic",
+            "opening.diagnosticCopied",
+        ];
+        let catalogs = data()["catalogs"].as_object().unwrap();
+        assert_eq!(catalogs.len(), 8);
+        for (locale, catalog) in catalogs {
+            for key in keys {
+                assert!(
+                    catalog[format!("cloud.{key}")].is_string(),
+                    "{locale}: cloud.{key}"
+                );
+            }
+        }
+    }
     #[test]
     fn computer_mode_messages_resolve_in_every_product_locale() {
         let keys = [

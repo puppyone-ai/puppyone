@@ -69,6 +69,23 @@ pub(super) fn notice_of(context: &Association) -> Option<Notice> {
         }
     })
 }
+/// What opening a linked folder's Cloud project does
+/// (`resolveLocalFolderCloudEntry`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum LinkedEntry {
+    /// Opens the Cloud project as its own project.
+    Open,
+    /// Continues the first publication that is still running or saved,
+    /// instead of opening the Cloud project it is creating.
+    Publish,
+}
+pub(super) fn linked_entry(publication_pending: bool) -> LinkedEntry {
+    if publication_pending {
+        LinkedEntry::Publish
+    } else {
+        LinkedEntry::Open
+    }
+}
 /// `localFolderCloudNoticeKey`: a new folder or a new meaning shows again.
 pub(super) fn notice_key(root: &std::path::Path, notice: &Notice) -> String {
     let kind = match notice {
@@ -461,6 +478,11 @@ impl WindowCloud {
         self.dialog_focus.focus(window, cx);
         cx.notify();
     }
+    /// A first publication of this folder is running or saved.
+    pub(super) fn publication_pending(&self, cx: &App) -> bool {
+        let publish = self.publish.read(cx);
+        publish.running.is_some() || publish.outcome.as_ref().is_some_and(|o| o.record.is_some())
+    }
     /// `LocalFolderCloudNotice`: the folder stays usable; this only says
     /// what its Cloud project means and offers the one action that helps.
     pub(super) fn local_folder_notice_view(&self, cx: &App) -> Option<FloatingNotice> {
@@ -506,9 +528,14 @@ impl WindowCloud {
                     NoticeAction::new(
                         "local-folder-notice-open",
                         tr("cloud.localFolderNotice.openProject"),
-                        move |_, cx| {
-                            let _ = host.update(cx, |_, cx| {
-                                cx.emit(CloudEvent::OpenCloud(project.clone()))
+                        move |w, cx| {
+                            let _ = host.update(cx, |s, cx| {
+                                match linked_entry(s.publication_pending(cx)) {
+                                    LinkedEntry::Publish => s.put_in_cloud(w, cx),
+                                    LinkedEntry::Open => {
+                                        cx.emit(CloudEvent::OpenCloud(project.clone()))
+                                    }
+                                }
                             });
                         },
                     )
@@ -911,6 +938,72 @@ mod tests {
             "/"
         );
         assert!(cloud_address(Some("  ")).is_none());
+    }
+
+    /// `localFolderCloudNoticeState`: every association has its notice, an
+    /// unnamed project and an origin-less environment stay presentable, a
+    /// linked folder opens its Cloud project unless a first publication is
+    /// pending, and the dismissal key follows the folder and the meaning.
+    #[test]
+    fn every_association_has_its_notice_and_a_pending_publication_continues() {
+        let resolved = Association::Resolved {
+            project: "p1".into(),
+            name: " Vault ".into(),
+        };
+        assert_eq!(
+            notice_of(&resolved),
+            Some(Notice::Linked {
+                project: "p1".into(),
+                name: Some("Vault".into()),
+                openable: true
+            })
+        );
+        assert_eq!(
+            notice_of(&Association::WrongHost {
+                origin: "http://api.puppyone.ai".into()
+            }),
+            Some(Notice::OtherEnvironment {
+                origin: Some("http://api.puppyone.ai".into())
+            })
+        );
+        assert_eq!(
+            notice_of(&Association::WrongHost { origin: " ".into() }),
+            Some(Notice::OtherEnvironment { origin: None })
+        );
+        assert_eq!(
+            notice_of(&Association::NotFound {
+                project: "p1".into()
+            }),
+            Some(Notice::Missing)
+        );
+        assert_eq!(
+            notice_of(&Association::NotAuthorized),
+            Some(Notice::NoAccess)
+        );
+        assert_eq!(
+            notice_of(&Association::LocatorConflict),
+            Some(Notice::Ambiguous)
+        );
+        for unreachable in [
+            Association::TemporarilyUnavailable,
+            Association::Unresolvable,
+            Association::Mismatch,
+        ] {
+            assert!(
+                matches!(
+                    notice_of(&unreachable),
+                    Some(Notice::Unreachable { cause: Some(_) })
+                ),
+                "{unreachable:?}"
+            );
+        }
+        assert_eq!(linked_entry(false), LinkedEntry::Open);
+        assert_eq!(linked_entry(true), LinkedEntry::Publish);
+        let linked = notice_of(&resolved).unwrap();
+        let other = Notice::OtherEnvironment { origin: None };
+        let (a, b) = (std::path::Path::new("/a"), std::path::Path::new("/b"));
+        assert_ne!(notice_key(a, &linked), notice_key(b, &linked));
+        assert_ne!(notice_key(a, &linked), notice_key(a, &other));
     }
 
     #[test]

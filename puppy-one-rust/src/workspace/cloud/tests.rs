@@ -111,6 +111,28 @@ fn explicit_opening_wakes_once_and_only_observes_pending_operation() {
     assert!(prepared.into_parts().is_ok());
 }
 
+/// `cloudWorkspaceReadiness`: a server that ignores `wait_seconds` and
+/// answers a pending opening at once is polled at most once a second, and a
+/// ready answer is used without any added delay.
+#[test]
+fn a_fast_legacy_answer_is_paced_and_a_ready_one_is_not_delayed() {
+    let f = Fixture::new();
+    let mut waiting = opening_row("starting");
+    waiting["operation"] =
+        json!({"pending":true,"deadline":null,"error":null,"retryable":true,"phase":"connecting"});
+    f.state.opening_status.lock().unwrap().extend([
+        opening_row("paused"),
+        waiting.clone(),
+        opening_row("running"),
+    ]);
+    *f.state.opening_reply.lock().unwrap() = Some(waiting);
+    let started = Instant::now();
+    explicit_open(&f, &Cancellation::default(), |_| {}).unwrap();
+    let elapsed = started.elapsed();
+    assert_eq!(f.state.count("GET", "/workbench"), 3);
+    assert!(elapsed >= Duration::from_secs(1), "{elapsed:?}");
+    assert!(elapsed < Duration::from_secs(2), "{elapsed:?}");
+}
 /// N-7: `initializing` and `checking_files` mean the wait is for the files.
 /// N-8: the operation's reason decides the copy and the action.
 #[test]
@@ -1093,6 +1115,37 @@ fn document_and_tree_subscriptions_share_one_stream_and_last_drop_stops_it() {
     assert_eq!(f.state.stream_count.load(Ordering::SeqCst), 2);
     assert_eq!(f.state.streams.lock().unwrap().len(), 1);
 }
+/// `cloudWorkspaceEvents.test.mjs`: "drops late events after an account
+/// change" — the change is never delivered and the stream is let go.
+#[test]
+fn a_late_event_after_an_account_change_is_dropped_and_ends_the_stream() {
+    let f = Fixture::new();
+    let (ws, shared) = f.scoped();
+    let (watch, count) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    while watch.next().is_some() {}
+    f.broker.sign_out();
+    wait(|| f.broker.subscribe().borrow().account.is_none());
+    let before = count.load(Ordering::SeqCst);
+    f.state.event(&format!(
+        "event: change\ndata: {{\"generation\":\"{GENERATION}\",\"paths\":[\"live.md\"]}}\n\n"
+    ));
+    wait(|| f.state.streams.lock().unwrap().is_empty());
+    // A retired lease answers every read with its failure, never the change.
+    assert!(matches!(watch.next(), Some(WatchEvent::Failed(e)) if e.kind == ErrorKind::StaleLease));
+    assert_eq!(
+        count.load(Ordering::SeqCst),
+        before,
+        "the late change wakes no one"
+    );
+    let n = f.state.stream_count.load(Ordering::SeqCst);
+    thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+        f.state.stream_count.load(Ordering::SeqCst),
+        n,
+        "no reconnect"
+    );
+}
 #[test]
 fn reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease() {
     let f = Fixture::new();
@@ -1143,6 +1196,26 @@ fn subscription_revalidates_a_change_between_read_and_registration() {
         "changed before subscription"
     );
     assert_eq!(f.state.stream_count.load(Ordering::SeqCst), 1);
+}
+/// `cloudWorkspaceHandoff`: a prepared opening is a one-use receipt. It is
+/// consumed once and the next opening asks the API again; a receipt whose
+/// generation moved, or whose sign-in ended, is refused before its root is
+/// shown.
+#[test]
+fn a_prepared_opening_is_one_use_and_ends_with_its_generation_or_sign_in() {
+    let f = Fixture::new();
+    let first = f.prepare().unwrap();
+    let asked = f.state.count("GET", "/workbench");
+    first.into_parts().unwrap();
+    f.prepare().unwrap().into_parts().unwrap();
+    assert_eq!(f.state.count("GET", "/workbench"), asked + 1);
+    let moved = f.prepare().unwrap();
+    moved.shared.invalidate();
+    assert!(moved.into_parts().is_err());
+    let signed_out = f.prepare().unwrap();
+    f.broker.sign_out();
+    wait(|| f.broker.subscribe().borrow().account.is_none());
+    assert!(signed_out.into_parts().is_err());
 }
 #[test]
 fn readiness_receipts_expire_and_cancellation_prevents_any_api_dispatch() {
@@ -1435,6 +1508,33 @@ fn scoped_events_drop_the_named_subtree_and_unknown_events_drop_every_listing() 
         ws.list(p(folder)).unwrap();
     }
     assert_eq!(list_requests(&f), ["", "docs", "docs/deep", "other"]);
+}
+/// `cloudWorkspaceChanges`: the change event that echoes one's own save is
+/// the same bytes: one read and one parent listing, no conflict, and the
+/// next save follows on from it.
+#[test]
+fn the_echo_of_an_own_save_reads_once_as_the_same_bytes() {
+    let f = Fixture::new();
+    seed_folders(&f);
+    let (ws, shared) = f.scoped();
+    let (watch, count) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    watch.next();
+    cached_folders(&f, &ws);
+    let before = ws.read(p("live.md")).unwrap();
+    let saved = ws.save(&before, "mine").unwrap();
+    assert!(!saved.updated);
+    f.state.requests.lock().unwrap().clear();
+    let notified = count.load(Ordering::SeqCst);
+    changed_paths(&f, &["live.md"]);
+    wait(|| count.load(Ordering::SeqCst) > notified);
+    let echo = ws.read(p("live.md")).unwrap();
+    ws.list(p("")).unwrap();
+    assert_eq!(echo.text, "mine");
+    assert_eq!(f.state.count("GET", "/file"), 1);
+    assert_eq!(list_requests(&f), [""]);
+    let next = ws.save(&echo, "mine again").unwrap();
+    assert!(!next.updated, "the echo is not a conflict");
 }
 #[test]
 fn a_move_invalidates_both_parents_and_a_delete_invalidates_the_subtree() {

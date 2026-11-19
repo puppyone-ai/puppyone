@@ -23834,6 +23834,1072 @@
         }
       ],
       "environment": "feed documents in memory and temporary archives"
+    },
+    {
+      "id": "cloud-opening-failure-classification",
+      "acceptance": "What \"Couldn't open Cloud Computer\" says is decided by what the person can do next: start deadlines and readiness timeouts wait and retry, a workspace still starting or a lost connection retry, unclassified server and gateway errors (and observer capacity) retry the opening, a replaced, paused, not-ready, fenced or re-authorized workspace is opened again once by itself, a lost disk retries, a workspace needing recovery or a project not ready offers nothing, a plan requirement opens the account, and access denials or an unconfigured provider say so. The server's code and request id appear beside the message (the HTTP status when it named no code); no server string outside the workspace namespace and no malformed request id is shown, and a failure without a server answer reports nothing. Every message the table names, and the diagnostic copy, exists in every product locale.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudOpeningFailureClassification.test.ts",
+          "sha256": "64beabdff5b177d848ab03e822d974e26c3f930b1756dc2459c62b0264dad166",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud Computer opening failures by the user's next step > server start deadline"
+            },
+            {
+              "index": 1,
+              "name": "Cloud Computer opening failures by the user's next step > client start deadline"
+            },
+            {
+              "index": 2,
+              "name": "Cloud Computer opening failures by the user's next step > readiness timeout"
+            },
+            {
+              "index": 3,
+              "name": "Cloud Computer opening failures by the user's next step > still starting"
+            },
+            {
+              "index": 4,
+              "name": "Cloud Computer opening failures by the user's next step > connection lost"
+            },
+            {
+              "index": 5,
+              "name": "Cloud Computer opening failures by the user's next step > unclassified server error"
+            },
+            {
+              "index": 6,
+              "name": "Cloud Computer opening failures by the user's next step > gateway error"
+            },
+            {
+              "index": 7,
+              "name": "Cloud Computer opening failures by the user's next step > observer capacity"
+            },
+            {
+              "index": 8,
+              "name": "Cloud Computer opening failures by the user's next step > generation replaced"
+            },
+            {
+              "index": 9,
+              "name": "Cloud Computer opening failures by the user's next step > paused during handoff"
+            },
+            {
+              "index": 10,
+              "name": "Cloud Computer opening failures by the user's next step > not ready"
+            },
+            {
+              "index": 11,
+              "name": "Cloud Computer opening failures by the user's next step > operation fenced"
+            },
+            {
+              "index": 12,
+              "name": "Cloud Computer opening failures by the user's next step > authorization revision moved"
+            },
+            {
+              "index": 13,
+              "name": "Cloud Computer opening failures by the user's next step > disk lost"
+            },
+            {
+              "index": 14,
+              "name": "Cloud Computer opening failures by the user's next step > needs recovery"
+            },
+            {
+              "index": 15,
+              "name": "Cloud Computer opening failures by the user's next step > plan required"
+            },
+            {
+              "index": 16,
+              "name": "Cloud Computer opening failures by the user's next step > access denied"
+            },
+            {
+              "index": 17,
+              "name": "Cloud Computer opening failures by the user's next step > project not ready"
+            },
+            {
+              "index": 18,
+              "name": "Cloud Computer opening failures by the user's next step > provider not configured"
+            },
+            {
+              "index": 19,
+              "name": "Cloud Computer opening failures by the user's next step > carries the server's code and request id beside the message"
+            },
+            {
+              "index": 20,
+              "name": "Cloud Computer opening failures by the user's next step > shows the HTTP status when the server named no code"
+            },
+            {
+              "index": 21,
+              "name": "Cloud Computer opening failures by the user's next step > never shows a server string outside the workspace namespace or a malformed request id"
+            },
+            {
+              "index": 22,
+              "name": "Cloud Computer opening failures by the user's next step > has nothing to report for a failure without a server answer"
+            },
+            {
+              "index": 23,
+              "name": "Cloud Computer opening failures by the user's next step > every message in the table exists in en"
+            },
+            {
+              "index": 24,
+              "name": "Cloud Computer opening failures by the user's next step > every message in the table exists in es"
+            },
+            {
+              "index": 25,
+              "name": "Cloud Computer opening failures by the user's next step > every message in the table exists in pt-BR"
+            },
+            {
+              "index": 26,
+              "name": "Cloud Computer opening failures by the user's next step > every message in the table exists in fr"
+            },
+            {
+              "index": 27,
+              "name": "Cloud Computer opening failures by the user's next step > every message in the table exists in de"
+            },
+            {
+              "index": 28,
+              "name": "Cloud Computer opening failures by the user's next step > every message in the table exists in ja"
+            },
+            {
+              "index": 29,
+              "name": "Cloud Computer opening failures by the user's next step > every message in the table exists in ko"
+            },
+            {
+              "index": 30,
+              "name": "Cloud Computer opening failures by the user's next step > every message in the table exists in zh-Hans"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::opening::tests::workspace_opening_failures_say_what_to_do_next_and_carry_their_diagnostics"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::failure::tests::workspace_failures_say_what_to_do_next"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::cloud_opening_failure_copy_exists_in_every_product_locale"
+        }
+      ],
+      "environment": "broker errors in memory; the shipped product catalogs"
+    },
+    {
+      "id": "cloud-publish-failure-copy",
+      "acceptance": "The window names exactly the failures first publication can return (the product's 27 codes, in order). Every named failure has its own words; only UNKNOWN reads as the general publish-failed message; and each message exists in every product locale.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/cloudPublishFailureCopy.test.ts",
+          "sha256": "5fdec2843aecfd1a86a1da796bc7660bad0902c477f1093bd42015f89768e657",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud first-push failure copy > the Renderer names exactly the failures Main can return"
+            },
+            {
+              "index": 1,
+              "name": "Cloud first-push failure copy > SESSION_REQUIRED has its own message"
+            },
+            {
+              "index": 2,
+              "name": "Cloud first-push failure copy > IDENTITY_MISMATCH has its own message"
+            },
+            {
+              "index": 3,
+              "name": "Cloud first-push failure copy > ORGANIZATION_REQUIRED has its own message"
+            },
+            {
+              "index": 4,
+              "name": "Cloud first-push failure copy > REPOSITORY_REQUIRED has its own message"
+            },
+            {
+              "index": 5,
+              "name": "Cloud first-push failure copy > COMMIT_REQUIRED has its own message"
+            },
+            {
+              "index": 6,
+              "name": "Cloud first-push failure copy > BRANCH_REQUIRED has its own message"
+            },
+            {
+              "index": 7,
+              "name": "Cloud first-push failure copy > SOURCE_MISSING has its own message"
+            },
+            {
+              "index": 8,
+              "name": "Cloud first-push failure copy > MERGE_TIP_UNSUPPORTED has its own message"
+            },
+            {
+              "index": 9,
+              "name": "Cloud first-push failure copy > LFS_UNSUPPORTED has its own message"
+            },
+            {
+              "index": 10,
+              "name": "Cloud first-push failure copy > REMOTE_CONFLICT has its own message"
+            },
+            {
+              "index": 11,
+              "name": "Cloud first-push failure copy > REMOTE_REF_CONFLICT has its own message"
+            },
+            {
+              "index": 12,
+              "name": "Cloud first-push failure copy > PROJECT_CREATE_FAILED has its own message"
+            },
+            {
+              "index": 13,
+              "name": "Cloud first-push failure copy > PROJECT_UNAVAILABLE has its own message"
+            },
+            {
+              "index": 14,
+              "name": "Cloud first-push failure copy > CREDENTIAL_FAILED has its own message"
+            },
+            {
+              "index": 15,
+              "name": "Cloud first-push failure copy > SERVICE_UPGRADE_REQUIRED has its own message"
+            },
+            {
+              "index": 16,
+              "name": "Cloud first-push failure copy > REMOTE_CONFIG_FAILED has its own message"
+            },
+            {
+              "index": 17,
+              "name": "Cloud first-push failure copy > PUSH_FAILED has its own message"
+            },
+            {
+              "index": 18,
+              "name": "Cloud first-push failure copy > PUSH_LIMIT_EXCEEDED has its own message"
+            },
+            {
+              "index": 19,
+              "name": "Cloud first-push failure copy > PUSH_UNCERTAIN has its own message"
+            },
+            {
+              "index": 20,
+              "name": "Cloud first-push failure copy > LOCAL_FINALIZE_FAILED has its own message"
+            },
+            {
+              "index": 21,
+              "name": "Cloud first-push failure copy > CLEANUP_FAILED has its own message"
+            },
+            {
+              "index": 22,
+              "name": "Cloud first-push failure copy > CLEANUP_NOT_ALLOWED has its own message"
+            },
+            {
+              "index": 23,
+              "name": "Cloud first-push failure copy > COMPENSATION_FAILED has its own message"
+            },
+            {
+              "index": 24,
+              "name": "Cloud first-push failure copy > JOURNAL_CORRUPT has its own message"
+            },
+            {
+              "index": 25,
+              "name": "Cloud first-push failure copy > JOURNAL_IO_FAILED has its own message"
+            },
+            {
+              "index": 26,
+              "name": "Cloud first-push failure copy > PERMISSION_DENIED has its own message"
+            },
+            {
+              "index": 27,
+              "name": "Cloud first-push failure copy > an unclassified failure reads as the general message"
+            },
+            {
+              "index": 28,
+              "name": "Cloud first-push failure copy > every first-push failure message exists in en"
+            },
+            {
+              "index": 29,
+              "name": "Cloud first-push failure copy > every first-push failure message exists in es"
+            },
+            {
+              "index": 30,
+              "name": "Cloud first-push failure copy > every first-push failure message exists in pt-BR"
+            },
+            {
+              "index": 31,
+              "name": "Cloud first-push failure copy > every first-push failure message exists in fr"
+            },
+            {
+              "index": 32,
+              "name": "Cloud first-push failure copy > every first-push failure message exists in de"
+            },
+            {
+              "index": 33,
+              "name": "Cloud first-push failure copy > every first-push failure message exists in ja"
+            },
+            {
+              "index": 34,
+              "name": "Cloud first-push failure copy > every first-push failure message exists in ko"
+            },
+            {
+              "index": 35,
+              "name": "Cloud first-push failure copy > every first-push failure message exists in zh-Hans"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::cloud_publish::tests::every_first_push_failure_has_its_own_message_in_every_locale"
+        }
+      ],
+      "environment": "the publication error table and the shipped product catalogs"
+    },
+    {
+      "id": "cloud-connection-failure-evidence",
+      "acceptance": "A Cloud failure's reason comes from structured evidence alone, the same for the connection notice and the opening: transport and timeout codes, the project authorization stages, an outdated database schema and a lost workbench connection each have their reason; a bare 5xx is the service being unavailable, 504/408 a timeout, 429 a busy service and 426 an app update. An explicit 401, 403 or 404 wins over any dependency hint and is never offered as a retry. Exception text and unknown codes are never evidence (an unknown code leaves only the HTTP status), configuration and protocol failures offer no retry, and without a specific cause a failed workspace operation stays a failed opening.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudFailurePresentation.test.ts",
+          "sha256": "f28b618e85fcd468fede4803ca8b15ce82fc7b07588ba78c41350deb6f49da22",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud opening reasons > uses structured evidence {\"code\":\"CLOUD_TRANSPORT_UNAVAILABLE\"}"
+            },
+            {
+              "index": 1,
+              "name": "Cloud opening reasons > uses structured evidence {\"code\":\"CLOUD_REQUEST_TIMEOUT\"}"
+            },
+            {
+              "index": 2,
+              "name": "Cloud opening reasons > uses structured evidence {\"status\":503,\"code\":\"project_authorization_unreachable\"}"
+            },
+            {
+              "index": 3,
+              "name": "Cloud opening reasons > uses structured evidence {\"status\":503,\"code\":\"project_authorization_timeout\"}"
+            },
+            {
+              "index": 4,
+              "name": "Cloud opening reasons > uses structured evidence {\"status\":503,\"code\":\"project_authorization_unavailable\"}"
+            },
+            {
+              "index": 5,
+              "name": "Cloud opening reasons > uses structured evidence {\"status\":503,\"code\":\"database_schema_outdated\"}"
+            },
+            {
+              "index": 6,
+              "name": "Cloud opening reasons > uses structured evidence {\"status\":503,\"code\":\"workbench_connection_unavailable\"}"
+            },
+            {
+              "index": 7,
+              "name": "Cloud opening reasons > uses structured evidence {\"status\":503}"
+            },
+            {
+              "index": 8,
+              "name": "Cloud opening reasons > uses structured evidence {\"status\":502}"
+            },
+            {
+              "index": 9,
+              "name": "Cloud opening reasons > uses structured evidence {\"status\":504}"
+            },
+            {
+              "index": 10,
+              "name": "Cloud opening reasons > uses structured evidence {\"status\":429}"
+            },
+            {
+              "index": 11,
+              "name": "Cloud opening reasons > uses structured evidence {\"status\":426}"
+            },
+            {
+              "index": 12,
+              "name": "Cloud opening reasons > keeps HTTP 401 access outcomes ahead of dependency hints"
+            },
+            {
+              "index": 13,
+              "name": "Cloud opening reasons > keeps HTTP 403 access outcomes ahead of dependency hints"
+            },
+            {
+              "index": 14,
+              "name": "Cloud opening reasons > keeps HTTP 404 access outcomes ahead of dependency hints"
+            },
+            {
+              "index": 15,
+              "name": "Cloud opening reasons > never guesses proxy failure or migration from exception text"
+            },
+            {
+              "index": 16,
+              "name": "Cloud opening reasons > keeps existing workspace configuration and protocol failures nonretryable"
+            },
+            {
+              "index": 17,
+              "name": "Cloud opening reasons > retains the failed workspace operation when the server gives no specific cause"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::failure::tests::connection_reasons_come_from_structured_evidence_only"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::failure::tests::connection_failures_describe_the_boundary_not_a_cause"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::failure::tests::access_decisions_win_and_stages_stay_independent"
+        }
+      ],
+      "environment": "failure descriptions in memory"
+    },
+    {
+      "id": "cloud-locator-identity-and-discovery",
+      "acceptance": "Only this Cloud's own locators identify a Cloud Project. The legacy official http://api.puppyone.ai locator is an identity hint, never a Git transport; another host or port, credentials, a query or fragment, another environment, or a development mapping that is not exactly the HTTPS hosted origin is refused, and the development mapping never binds a different hosted API. Project and Scope locators are classified without becoming authority; matching fetch and push locators collapse to one identity and conflicting ones resolve to none; a legacy access-key remote is never a Project identity and is shown masked (pwg_…7890); encoded ids, embedded credentials, query secrets, SSH and file URLs are refused.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudRepositoryContextResolver.test.ts",
+          "sha256": "20c42c769864be194f095a17f89ec07e484fe190d63037990060647f171b6d55",
+          "cases": [
+            {
+              "index": 2,
+              "name": "legacy Cloud locator identity > accepts the official HTTP identity without trusting HTTP Git transport"
+            },
+            {
+              "index": 3,
+              "name": "legacy Cloud locator identity > rejects unrelated or credential-bearing locators: http://other.puppyone.ai/git/project-1.git"
+            },
+            {
+              "index": 4,
+              "name": "legacy Cloud locator identity > rejects unrelated or credential-bearing locators: http://api.puppyone.ai:9000/git/project-1.git"
+            },
+            {
+              "index": 5,
+              "name": "legacy Cloud locator identity > rejects unrelated or credential-bearing locators: http://user:secret@api.puppyone.ai/git/project-1.git"
+            },
+            {
+              "index": 6,
+              "name": "legacy Cloud locator identity > rejects unrelated or credential-bearing locators: http://api.puppyone.ai/git/project-1.git?token=secret"
+            },
+            {
+              "index": 7,
+              "name": "legacy Cloud locator identity > rejects unrelated or credential-bearing locators: http://api.puppyone.ai/git/project-1.git#secret"
+            },
+            {
+              "index": 8,
+              "name": "legacy Cloud locator identity > keeps development and production environments distinct"
+            },
+            {
+              "index": 9,
+              "name": "legacy Cloud locator identity > recognizes the legacy identity for an explicitly configured hosted Git origin via http://localhost:9090/api/v1"
+            },
+            {
+              "index": 10,
+              "name": "legacy Cloud locator identity > recognizes the legacy identity for an explicitly configured hosted Git origin via http://127.0.0.1:9090/api/v1"
+            },
+            {
+              "index": 11,
+              "name": "legacy Cloud locator identity > does not infer a hosted Git identity from a different configured origin: https://other.puppyone.ai"
+            },
+            {
+              "index": 12,
+              "name": "legacy Cloud locator identity > does not infer a hosted Git identity from a different configured origin: http://api.puppyone.ai"
+            },
+            {
+              "index": 13,
+              "name": "legacy Cloud locator identity > does not infer a hosted Git identity from a different configured origin: https://api.puppyone.ai:9000"
+            },
+            {
+              "index": 14,
+              "name": "legacy Cloud locator identity > does not let the development Git override bind a different hosted API"
+            },
+            {
+              "index": 23,
+              "name": "canonical Git locator discovery > classifies exact Project and Scope locators without treating them as authority"
+            },
+            {
+              "index": 24,
+              "name": "canonical Git locator discovery > deduplicates matching fetch/push locators and fails closed on conflicts"
+            },
+            {
+              "index": 25,
+              "name": "canonical Git locator discovery > describes conflicts without exposing a legacy credential"
+            },
+            {
+              "index": 26,
+              "name": "canonical Git locator discovery > never uses a legacy access-key remote as Cloud Project identity"
+            },
+            {
+              "index": 27,
+              "name": "canonical Git locator discovery > rejects encoded IDs, embedded credentials, query secrets, SSH, and file URLs"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::legacy_locators_are_identity_hints_for_their_own_environment_only"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::only_the_configured_origin_or_explicit_hosted_mapping_is_trusted"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::remotes_parse_projects_scopes_and_ignore_access_points"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::exactly_one_canonical_identity_or_none"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::repository_settings::tests::remote_labels_and_masking"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::repository_settings::tests::puppyone_remotes_follow_the_product_parser"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::repository_settings::tests::the_puppyone_remote_is_one_target_or_none"
+        }
+      ],
+      "environment": "remote URLs and configurations in memory"
+    },
+    {
+      "id": "cloud-resource-locators",
+      "acceptance": "A Cloud file or folder opens on the website at /<project>/<path> (a folder with a trailing slash) without provisioning a share; every path segment, including spaces, #, ?, %, + and non-ASCII names, survives exactly with nothing in a query or fragment; a path that cannot be a safe locator (parent segments, leading, trailing or doubled slashes, backslashes, NUL or newlines), a missing Project id and a non-web or credential-bearing origin are refused.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/workspaceResourceUrl.test.ts",
+          "sha256": "2dcac9535dbb44de5e80d3865e38b07e9754f6b643e674972f99753952c070b3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud resource locators > locates the root and nested folders without provisioning a share"
+            },
+            {
+              "index": 1,
+              "name": "Cloud resource locators > preserves path segments for docs/笔记 #1?.md"
+            },
+            {
+              "index": 2,
+              "name": "Cloud resource locators > preserves path segments for 100%/literal%2F.md"
+            },
+            {
+              "index": 3,
+              "name": "Cloud resource locators > preserves path segments for emoji/🐶.txt"
+            },
+            {
+              "index": 4,
+              "name": "Cloud resource locators > preserves path segments for a+b/space here.md"
+            },
+            {
+              "index": 5,
+              "name": "Cloud resource locators > rejects a path that cannot be a safe website locator: \"../secret\""
+            },
+            {
+              "index": 6,
+              "name": "Cloud resource locators > rejects a path that cannot be a safe website locator: \"/notes\""
+            },
+            {
+              "index": 7,
+              "name": "Cloud resource locators > rejects a path that cannot be a safe website locator: \"notes/\""
+            },
+            {
+              "index": 8,
+              "name": "Cloud resource locators > rejects a path that cannot be a safe website locator: \"a//b\""
+            },
+            {
+              "index": 9,
+              "name": "Cloud resource locators > rejects a path that cannot be a safe website locator: \"a/../b\""
+            },
+            {
+              "index": 10,
+              "name": "Cloud resource locators > rejects a path that cannot be a safe website locator: \"a\\\\b\""
+            },
+            {
+              "index": 11,
+              "name": "Cloud resource locators > rejects a path that cannot be a safe website locator: \"a\\u0000b\""
+            },
+            {
+              "index": 12,
+              "name": "Cloud resource locators > rejects a path that cannot be a safe website locator: \"a\\nb\""
+            },
+            {
+              "index": 13,
+              "name": "Cloud resource locators > rejects missing project identity and non-web origins"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::resource_locators_keep_every_segment_and_refuse_unsafe_paths"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::locator::tests::resource_links_encode_segments_and_mark_folders"
+        }
+      ],
+      "environment": "URLs in memory"
+    },
+    {
+      "id": "cloud-sandbox-features-and-screen",
+      "acceptance": "The Cloud computer's Feature registry reads the server's answer before Profiles and treats malformed rows as no Features; an enabled screen Feature takes its slot while Features the app does not know are ignored and a disabled screen contributes nothing. The screen streams with the transport the server names; a computer without a desktop offers to install one, or says it comes with the next computer; the owner's own toggle reads as off, any other refusal as unavailable, and a layout preview as a preview.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/sandbox/cloudSandboxFeatures.test.ts",
+          "sha256": "f3ccc71de45e099bb8fda9262677f7f4a1db5f48c6c0296a8bc3570746596636",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud sandbox Feature registry > reads servers before Profiles and malformed rows as no Features"
+            },
+            {
+              "index": 1,
+              "name": "Cloud sandbox Feature registry > places an enabled Feature in its slots and ignores Features it does not know"
+            },
+            {
+              "index": 2,
+              "name": "Cloud screen availability > streams with the transport the server names"
+            },
+            {
+              "index": 3,
+              "name": "Cloud screen availability > offers to install a desktop, or says it is coming with the next computer"
+            },
+            {
+              "index": 4,
+              "name": "Cloud screen availability > distinguishes the owner's toggle from other refusals and from layout previews"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::sandbox::tests::read_sandbox_tolerates_missing_and_malformed_fields"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::sandbox::tests::availability_covers_preview_install_stream_off_and_unavailable"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::sandbox::tests::disabled_screens_contribute_nothing_and_refusals_are_told_apart"
+        }
+      ],
+      "environment": "sandbox documents in memory"
+    },
+    {
+      "id": "cloud-agent-run-projection",
+      "acceptance": "A hosted Agent Run projects into the shared Agent display with each tool's own outcome: a permission-denied tool reads as blocked with its message, a failed tool as failed, a declined tool as cancelled with a note that the Agent can continue, and a successful one as completed; tool errors never decide the Run, which stays running (and is the running turn) or reads as completed when it succeeded.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/agent/cloudAgentProjection.test.ts",
+          "sha256": "d400f4086583c9d4778ed56690cde024b06a0a15de7697b7439c67ccc782ca64",
+          "cases": [
+            {
+              "index": 0,
+              "name": "keeps tool errors separate from the running Run"
+            },
+            {
+              "index": 1,
+              "name": "keeps tool errors separate from the succeeded Run"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::agent::projection::tests::tool_errors_stay_on_their_tools_while_the_run_runs_or_succeeds"
+        }
+      ],
+      "environment": "hosted Run documents in memory"
+    },
+    {
+      "id": "local-folder-cloud-notice",
+      "acceptance": "A local folder's Cloud association is described, never a gate: linked (with its trimmed name, or none), sign in, another environment (with its origin, or none), missing, no access, ambiguous, or unreachable with the Cloud's cause; a local-only or still-resolving folder shows nothing. Asking for a linked folder's Cloud project opens it as its own project, an unlinked folder starts its first publication, a signed-out person is asked to sign in, and a first publication that is still running or saved is continued instead of opening the project it is creating. The dismissal key changes with the folder and with what the association means.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/localFolderCloudNoticeState.test.ts",
+          "sha256": "96b306e711aad3bd41e9194aebe3d8eb63e4d99c49af6eb4e993a782f5376262",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local folder Cloud notice > describes every association state and never treats it as a gate"
+            },
+            {
+              "index": 1,
+              "name": "local folder Cloud notice > opens a linked folder's Cloud project as another project and never switches the folder"
+            },
+            {
+              "index": 3,
+              "name": "local folder Cloud notice > continues a running or saved first publish instead of opening its new Cloud project"
+            },
+            {
+              "index": 4,
+              "name": "local folder Cloud notice > keeps an unnamed project and an origin-less environment presentable"
+            },
+            {
+              "index": 5,
+              "name": "local folder Cloud notice > changes its dismissal key when the folder or what the association means changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudRepositoryContextModel.test.ts",
+          "sha256": "08ca9e3d4af11b5efa32cc2cc4847a6cff753c37cc33118589410cedc58ee8c4",
+          "cases": [
+            {
+              "index": 1,
+              "name": "current repository Cloud context > is local-only without a canonical PuppyOne Git remote"
+            },
+            {
+              "index": 2,
+              "name": "current repository Cloud context > promotes only an exact repository-target match"
+            },
+            {
+              "index": 3,
+              "name": "current repository Cloud context > keeps authorization and retryable failures distinct"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::project_place::tests::every_association_has_its_notice_and_a_pending_publication_continues"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::project_place::tests::notices_follow_the_association"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_linked_folder_opens_its_cloud_project_in_the_same_window"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::repository::tests::remotes_decide_before_any_request"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::repository::tests::refusals_are_told_apart_and_mapped_to_location_states"
+        }
+      ],
+      "environment": "association states in memory; test windows with fake Cloud services"
+    },
+    {
+      "id": "cloud-workspace-caches-and-write-order",
+      "acceptance": "Cloud files keep path-scoped caches while watched: saving keeps every listing, creating re-lists only the parent, an event naming a file drops its read and its parent's listing, an event naming a folder drops everything beneath it, an event that cannot name its scope or a reconnect drops every cache, a rename or move re-lists both parents and a delete the whole subtree, a failed request drops what it touched, and the echo of one's own save is read once as the same bytes without a conflict. Once the watch closes no listing stays authoritative. Writes are ordered by path: a new file is created while another file saves, writes to one file stay in order, a rename waits for its file's save and a folder delete for its children's, and a save whose outcome is unknown is never retried or reported as unwritten.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudWorkspaceChanges.test.ts",
+          "sha256": "64d661d559cfad11aa53eca551cd8a2b39e65a07660cca49fc1f905e5be60771",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud editing: path-scoped caches and change events > saves an existing file without re-reading any listing"
+            },
+            {
+              "index": 1,
+              "name": "Cloud editing: path-scoped caches and change events > creates a file by re-listing only its parent folder"
+            },
+            {
+              "index": 2,
+              "name": "Cloud editing: path-scoped caches and change events > drops only a changed file's read and its parent listing when an event names it"
+            },
+            {
+              "index": 3,
+              "name": "Cloud editing: path-scoped caches and change events > drops everything cached beneath a folder an event names"
+            },
+            {
+              "index": 4,
+              "name": "Cloud editing: path-scoped caches and change events > drops every cache when an event cannot name its scope or the stream reconnects"
+            },
+            {
+              "index": 5,
+              "name": "Cloud editing: path-scoped caches and change events > re-lists both parents of a rename or move, and the whole subtree of a delete"
+            },
+            {
+              "index": 6,
+              "name": "Cloud editing: path-scoped caches and change events > drops caches after a failed request, since bytes may be stale"
+            },
+            {
+              "index": 7,
+              "name": "Cloud editing: path-scoped caches and change events > treats the echo of an own save as the same bytes, re-reading once without a conflict"
+            },
+            {
+              "index": 8,
+              "name": "Cloud editing: path-scoped caches and change events > stops delivering changes and keeps no live listing after the watch closes"
+            },
+            {
+              "index": 9,
+              "name": "Cloud editing: write ordering > lets a new file be created while another file is still saving"
+            },
+            {
+              "index": 10,
+              "name": "Cloud editing: write ordering > keeps writes to the same file in order"
+            },
+            {
+              "index": 11,
+              "name": "Cloud editing: write ordering > makes a rename wait for the file's save and a folder delete wait for its child's save"
+            },
+            {
+              "index": 12,
+              "name": "Cloud editing: write ordering > does not retry a save whose outcome is unknown and keeps the draft's version"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::saving_keeps_live_listings_and_creating_invalidates_only_its_parent"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::scoped_events_drop_the_named_subtree_and_unknown_events_drop_every_listing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::client::tests::change_scope_drops_the_parent_and_subtree_but_preserves_other_listings"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_move_invalidates_both_parents_and_a_delete_invalidates_the_subtree"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::failed_requests_and_stopped_watches_cannot_leave_authoritative_listings"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::client::tests::errors_are_not_cached_and_authority_is_checked_even_on_cache_hits"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::the_echo_of_an_own_save_reads_once_as_the_same_bytes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::creating_an_unrelated_folder_and_file_finishes_while_a_slow_save_is_in_flight"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::mutations::tests::a_slow_save_does_not_block_creating_an_unrelated_file"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::mutations::tests::a_rename_waits_for_its_save_and_a_folder_delete_waits_for_its_child"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::mutations::tests::file_folder_and_move_destination_scopes_overlap_only_at_path_boundaries"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::uncertain_write_is_never_replayed_or_reported_as_not_written"
+        }
+      ],
+      "environment": "a local Cloud HTTP and event-stream fixture"
+    },
+    {
+      "id": "cloud-workspace-opening-and-handoff",
+      "acceptance": "An explicit opening of a Cloud workspace hands its verified root over once. A running workspace is checked and its files read with one status and one listing request; a prepared opening is a one-use receipt the next opening does not reuse, and one that expired, whose generation moved, or whose sign-in ended is refused before its root is shown. Openings of the same target join one pending opening and share its progress; progress names the server's phase, starts with checking, moves to files for a running workspace, and starts over on retry. A sleeping workspace is woken with exactly one request and then long-polled (wait_seconds=20); a server that ignores the long poll is asked at most once a second while a ready answer is used at once. A generation replaced while opening is opened again once and then reported, the server deadline ends the wait, a persisted failure is reported with its reason instead of polling, cancellation dispatches nothing more, and access denials or a workspace needing recovery never wake it. A revoked workspace's prepared directory and previews are never shown.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/cloudWorkspaceHandoff.test.ts",
+          "sha256": "d26be71aeb9a481902c9d8c013f48f3452f502c8da4b0e9155798e5280e89fe5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "prepared workspace handoff > opens a running workspace and displays its root with one status and one list request"
+            },
+            {
+              "index": 1,
+              "name": "prepared workspace handoff > consumes the result once, then later openings revalidate through the API"
+            },
+            {
+              "index": 2,
+              "name": "prepared workspace handoff > rejects a expired handoff"
+            },
+            {
+              "index": 3,
+              "name": "prepared workspace handoff > rejects a invalidated handoff"
+            },
+            {
+              "index": 4,
+              "name": "prepared workspace handoff > rejects a request_failed handoff"
+            },
+            {
+              "index": 5,
+              "name": "prepared workspace handoff > does not reuse across a changed account"
+            },
+            {
+              "index": 6,
+              "name": "prepared workspace handoff > does not reuse across a changed session"
+            },
+            {
+              "index": 7,
+              "name": "prepared workspace handoff > does not reuse across a changed api"
+            },
+            {
+              "index": 8,
+              "name": "prepared workspace handoff > does not reuse across a changed project"
+            },
+            {
+              "index": 9,
+              "name": "prepared workspace handoff > does not reuse across a changed capabilities"
+            },
+            {
+              "index": 10,
+              "name": "prepared workspace handoff > does not reveal a prepared directory after UI authority is revoked"
+            },
+            {
+              "index": 11,
+              "name": "prepared workspace handoff > treats running as a hint and still surfaces actual file authorization failure"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudWorkspaceReadiness.test.ts",
+          "sha256": "8a2d64c24060dfbeeaa89e556ba163fbdee3a6f5e88f604026933550b7673fb0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace readiness > shares real opening progress across coalesced callers without extra requests"
+            },
+            {
+              "index": 1,
+              "name": "workspace readiness > shows file loading for a running workspace and resets progress on retry"
+            },
+            {
+              "index": 2,
+              "name": "workspace readiness > names the wait from the server phase while a workspace starts"
+            },
+            {
+              "index": 3,
+              "name": "workspace readiness > starts bounded waiting immediately and adds no delay after a long reply"
+            },
+            {
+              "index": 4,
+              "name": "workspace readiness > paces a fast legacy response without delaying ready results"
+            },
+            {
+              "index": 5,
+              "name": "workspace readiness > uses the root verified by the consuming connection for concurrent initial lists"
+            },
+            {
+              "index": 6,
+              "name": "workspace readiness > accepts an already completed status/root and consumes that root only once"
+            },
+            {
+              "index": 7,
+              "name": "workspace readiness > rejects a new generation returned while waiting for the old opening"
+            },
+            {
+              "index": 8,
+              "name": "workspace readiness > waits through pause and initialization without repeating the wake request"
+            },
+            {
+              "index": 9,
+              "name": "workspace readiness > does not allocate after navigation cancelled a slow status response"
+            },
+            {
+              "index": 10,
+              "name": "workspace readiness > reports the persisted failure instead of polling forever"
+            },
+            {
+              "index": 11,
+              "name": "workspace readiness > stops at the server deadline even if a worker is unavailable"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::explicit_opening_reuses_running_workbench_and_reads_files_before_handoff"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_prepared_opening_is_one_use_and_ends_with_its_generation_or_sign_in"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::readiness_receipts_expire_and_cancellation_prevents_any_api_dispatch"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::exact_authorized_root_and_running_generation_are_required_before_handoff"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::explicit_opening_wakes_once_and_only_observes_pending_operation"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::an_opening_follows_the_server_phase_and_keeps_its_reason"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_fast_legacy_answer_is_paced_and_a_ready_one_is_not_delayed"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::explicit_opening_generation_replacement_and_deadline_fail_before_files"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::explicit_opening_cancelled_at_files_cannot_deliver_a_provider"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::explicit_opening_recovery_and_access_denial_never_wake"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::lease_revocation_interrupts_reads_and_rejects_late_mutation_receipts"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::permission_loss_revokes_previously_acquired_preview_access"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::the_same_cloud_target_joins_its_pending_opening"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening"
+        }
+      ],
+      "environment": "a local Cloud HTTP fixture; test windows with fake Cloud services"
     }
   ],
   "openAcceptance": [
@@ -27909,6 +28975,16 @@
               "name": "File Mode boundary > opens files before the first window restores a project"
             }
           ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudRepositoryContextModel.test.ts",
+          "sha256": "08ca9e3d4af11b5efa32cc2cc4847a6cff753c37cc33118589410cedc58ee8c4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "current repository Cloud context > has one Cloud feature flag and no Cloud-only workspace mode"
+            }
+          ]
         }
       ]
     },
@@ -29395,7 +30471,7 @@
     {
       "id": "ts-unreferenced-modules",
       "kind": "out-of-scope",
-      "reason": "These test TypeScript modules that nothing in the TS v0.4.4 product imports: retained code that no entry point (the renderer, Electron main, preloads, utility processes or workers) reaches, checked with an import-graph walk from those entry points and a search for every exported name (only tests and lint baselines name them). They cover the project backup provider list, the remote update notice, the file-open request coordinator and its content cache, a standalone Terminal session host and the old Terminal workbench header. A person cannot exercise them, so there is no product behaviour to port.",
+      "reason": "These test TypeScript modules that nothing in the TS v0.4.4 product imports: retained code that no entry point (the renderer, Electron main, preloads, utility processes or workers) reaches, checked with an import-graph walk from those entry points and a search for every exported name (only tests and lint baselines name them). They cover the project backup provider list, the remote update notice, the file-open request coordinator and its content cache, a standalone Terminal session host, the old Terminal workbench header, and the Cloud remote-name and reviewed Git-state guards of workspaceGitRemote.ts (exported functions nothing calls). A person cannot exercise them, so there is no product behaviour to port.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
       "typescript": [
         {
@@ -29635,6 +30711,70 @@
             {
               "index": 0,
               "name": "Unified Workbench create control > creates a blank launcher Item directly without opening a choice menu"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/cloud/repositories/cloudRepositoryContextResolver.test.ts",
+          "sha256": "20c42c769864be194f095a17f89ec07e484fe190d63037990060647f171b6d55",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Initialize remote collision policy > refuses to repoint an existing canonical remote"
+            },
+            {
+              "index": 1,
+              "name": "Initialize remote collision policy > ignores unrelated remotes"
+            },
+            {
+              "index": 15,
+              "name": "Initialize Git state race guard > accepts the exact attached branch and HEAD reviewed by the caller"
+            },
+            {
+              "index": 16,
+              "name": "Initialize Git state race guard > rejects when the repository disappeared"
+            },
+            {
+              "index": 17,
+              "name": "Initialize Git state race guard > rejects when the HEAD disappeared"
+            },
+            {
+              "index": 18,
+              "name": "Initialize Git state race guard > rejects when the branch disappeared"
+            },
+            {
+              "index": 19,
+              "name": "Initialize Git state race guard > rejects when the repository reported HEAD"
+            },
+            {
+              "index": 20,
+              "name": "Initialize Git state race guard > rejects when the repository became detached"
+            },
+            {
+              "index": 21,
+              "name": "Initialize Git state race guard > rejects when the HEAD changed"
+            },
+            {
+              "index": 22,
+              "name": "Initialize Git state race guard > rejects when the branch changed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scoped-checkout-cloud-notice",
+      "kind": "gap",
+      "reason": "TS resolves a Scope checkout's Cloud context and shows it as linked to its Project, not openable, so asking for it explains rather than opening the whole Project. The native app decides a Scope locator as unresolvable before any request (workspace::cloud::repository::precheck), so the notice reads as unreachable. Neither broadens a scoped checkout into its whole Project.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/README.md",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/localFolderCloudNoticeState.test.ts",
+          "sha256": "96b306e711aad3bd41e9194aebe3d8eb63e4d99c49af6eb4e993a782f5376262",
+          "cases": [
+            {
+              "index": 2,
+              "name": "local folder Cloud notice > never broadens a scoped checkout into its whole Cloud project"
             }
           ]
         }
