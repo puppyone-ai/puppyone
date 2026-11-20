@@ -205,8 +205,10 @@ pub fn inline_ranges(
     out
 }
 
-/// Wiki links, `~~strike~~`, `==highlight==`, `%%comment%%`, and feature
-/// `recognize_inline` hooks over each eligible line or table cell.
+/// Wiki links, standard images the CommonMark parser leaves as text (a
+/// destination with spaces), `~~strike~~`, `==highlight==`, `%%comment%%`,
+/// and feature `recognize_inline` hooks over each eligible line or table
+/// cell.
 pub fn add_inline_elements(
     doc: &Buffer,
     ranges: &[Span],
@@ -253,6 +255,32 @@ pub fn add_inline_elements(
             );
             e.href = Some(token.target);
             elements.push(e);
+        }
+        if text.contains("![") {
+            for token in links::find_images(text) {
+                let (from, to) = (
+                    range.start + token.range.start,
+                    range.start + token.range.end,
+                );
+                let parsed = elements.iter().any(|e| {
+                    (e.kind == Kind::Image && e.range.start == from)
+                        || (e.kind == Kind::InlineCode && e.range.start < to && from < e.range.end)
+                });
+                if parsed {
+                    continue;
+                }
+                let alt = range.start + token.alt.start..range.start + token.alt.end;
+                let markers = vec![
+                    from..from + 2,
+                    alt.end..alt.end + 1,
+                    alt.end + 1..alt.end + 2,
+                    to - 1..to,
+                ];
+                let mut e = Element::new(Kind::Image, from..to, markers, Some(alt));
+                e.href = Some(token.href);
+                e.text = token.title;
+                elements.push(e);
+            }
         }
         for (open, close) in super::inline_syntax::highlights(text) {
             let (from, to) = (range.start + open, range.start + close + 2);

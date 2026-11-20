@@ -168,3 +168,48 @@ fn markers_delete_as_units() {
     assert_eq!(run("**bold**|", EditIntent::Backspace), "**bold|");
     assert_eq!(run("|**bold**", EditIntent::Delete), "|bold**");
 }
+
+/// `treats an inner selection of formatted text as the wrapping format`;
+/// `covers a format when the selection is inside the token, not only on its
+/// markers`: Bold over the inner text, the whole token or part of its text
+/// removes the wrapping markers; a selection reaching past it does not.
+#[test]
+fn a_selection_inside_formatted_text_is_that_format() {
+    for selected in ["A **|bold|** word", "A |**bold**| word"] {
+        assert_eq!(run_fmt(selected, FormatCommand::Bold), "A |bold| word");
+    }
+    assert_eq!(
+        run_fmt("A **|bol|d** word", FormatCommand::Bold),
+        "A |bol|d word"
+    );
+    assert_ne!(
+        run_fmt("|A **bold** word|", FormatCommand::Bold),
+        "|A bold word|"
+    );
+}
+
+/// `keeps a visible-content selection on the inner text rather than the
+/// wrapping markers`; `normalizes hidden block marker cursor positions to the
+/// visible start`; `uses the full nested blockquote prefix for visible start
+/// while deleting one level`.
+#[test]
+fn a_caret_stays_off_hidden_block_markers() {
+    let normalized = |text: &str, from: usize, to: usize| {
+        let doc = crate::editor::text::buffer::Buffer::new(text);
+        let syntax = Syntax::parse(&doc);
+        PreviewState::default()
+            .normalize(&doc, &syntax, Selection::range(from, to))
+            .map(|s| s.head)
+    };
+    assert_eq!(normalized("A **bold** word", 4, 8), None);
+    assert_eq!(
+        [0, 1, 2].map(|caret| normalized("# Heading", caret, caret)),
+        [Some(2), Some(2), None]
+    );
+    assert_eq!(run("# |Heading", EditIntent::Backspace), "|Heading");
+    assert_eq!(
+        [0, 2].map(|caret| normalized(">> quote", caret, caret)),
+        [Some(3), Some(3)]
+    );
+    assert_eq!(run(">> |quote", EditIntent::Backspace), "|> quote");
+}
