@@ -9,6 +9,7 @@ pub mod flags;
 pub mod hosts;
 pub mod local_agents;
 pub mod model_connections;
+pub mod plugins;
 pub mod project_import;
 pub mod session_transport;
 pub mod settings;

@@ -162,6 +162,13 @@ pub enum ClientMessage {
     Action {
         action: String,
     },
+    /// User picked a handler from the pane's "Open with…" menu (§4.3).
+    OpenWith {
+        id: String,
+        format_id: String,
+        handler: crate::plugin_contract::HandlerId,
+        always: bool,
+    },
     Loaded {
         id: String,
     },

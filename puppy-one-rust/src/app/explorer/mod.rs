@@ -88,6 +88,7 @@ struct PaintedPreferences {
     cloud_workspace: bool,
     agent_file_activity_indicators: bool,
     explorer_pins: std::collections::BTreeMap<String, ExplorerPins>,
+    file_type_defaults: std::collections::BTreeMap<String, crate::plugin_contract::HandlerId>,
 }
 impl PaintedPreferences {
     fn of(store: &PreferencesStore) -> Self {
@@ -103,6 +104,7 @@ impl PaintedPreferences {
             cloud_workspace: p.experimental.cloud_workspace || p.experimental.computer_mode,
             agent_file_activity_indicators: p.agent_file_activity_indicators,
             explorer_pins: p.explorer_pins.clone(),
+            file_type_defaults: p.file_type_defaults.clone(),
         }
     }
 }
@@ -112,6 +114,14 @@ impl PaintedPreferences {
 pub(in crate::app) enum ExplorerEvent {
     /// Open a workspace file in the editor.
     Open(PathBuf),
+    /// Open a workspace file using a chosen handler from "Open with…", or set
+    /// that handler as the default for its file type (`always = true`).
+    OpenWith {
+        path: PathBuf,
+        format_id: String,
+        handler: crate::plugin_contract::HandlerId,
+        always: bool,
+    },
     /// The create form for `entry` in `parent`.
     Create { entry: Entry, parent: PathBuf },
     /// The rename (or change file type) dialog for `path`.

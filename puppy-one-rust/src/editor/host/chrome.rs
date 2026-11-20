@@ -5,26 +5,53 @@ use super::{DocumentEditor, panic_payload_summary};
 use crate::{
     documents::ClientMessage,
     editor::{
+        handlers::localized_handler_label,
+        opening::{OpenPreferences, OpeningContext},
         registry::{PaneEntries, PaneItemId, PaneSegmentId},
         workbench::{
             find::{FindBar, FindEvent},
-            pane::{Action, Contribution},
+            pane::{Action, Contribution, OpenWithChoice},
         },
     },
+    plugin_contract::{CandidateStatus, OpenReason},
 };
 use gpui::{prelude::*, *};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 impl DocumentEditor {
     /// `EditorPaneMenuContribution`: what the open viewer contributes (its
-    /// segments, items and find adapter) plus the external opener.
+    /// segments, items and find adapter) plus the external opener and
+    /// Layer ②-driven "Open with…" choices.
     pub(super) fn contribution(&self, cx: &App) -> Contribution {
         let (Some(session), Some(surface)) = (&self.session, &self.surface) else {
             return Contribution::default();
         };
+        let empty_prefs = OpenPreferences::default();
+        let label_ctx = OpeningContext::with_defaults(
+            &empty_prefs,
+            &self.installed_plugins,
+            &self.plugin_catalog,
+        );
+        let mut open_with = Vec::with_capacity(session.plan.alternatives.len() + 1);
+        open_with.push(OpenWithChoice {
+            handler: session.handler.clone(),
+            label: localized_handler_label(&session.handler, &label_ctx).into(),
+            active: true,
+            installable: matches!(session.plan.reason, OpenReason::Suggested)
+                && session.handler.plugin_parts().is_some(),
+        });
+        for alt in &session.plan.alternatives {
+            open_with.push(OpenWithChoice {
+                handler: alt.handler.clone(),
+                label: localized_handler_label(&alt.handler, &label_ctx).into(),
+                active: false,
+                installable: matches!(alt.status, CandidateStatus::Installable { .. }),
+            });
+        }
         if session.faulted {
             return Contribution {
                 open_external: true,
+                open_with,
                 ..Contribution::default()
             };
         }
@@ -40,6 +67,7 @@ impl DocumentEditor {
             items: entries.items,
             find: entries.find,
             open_external: true,
+            open_with,
         }
     }
 
@@ -48,6 +76,7 @@ impl DocumentEditor {
         Contribution {
             find: false,
             open_external: false,
+            open_with: vec![],
             ..self.contribution(cx)
         }
     }
@@ -192,6 +221,16 @@ impl DocumentEditor {
                         catch_unwind(AssertUnwindSafe(|| surface.pane_item(item, window, cx)))
                 {
                     panicked = Some(("pane_item", panic_payload_summary(payload)));
+                }
+            }
+            Action::OpenWith { handler, always } => {
+                if let Some(session) = &self.session {
+                    cx.emit(ClientMessage::OpenWith {
+                        id: session.id.clone(),
+                        format_id: session.plan.format_id.clone(),
+                        handler,
+                        always,
+                    });
                 }
             }
         }

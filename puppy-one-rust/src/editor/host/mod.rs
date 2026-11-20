@@ -11,10 +11,11 @@
 use crate::{
     documents::{ClientMessage, HostMessage, reconcile},
     editor::{
+        handlers::{HandlerFactory, HandlerOpenRequest},
+        opening::{self, OpenPreferences, OpenRequest, OpeningContext},
         registry::{
-            self, DocumentAssets, DocumentContext, EditorDocument, HostCommand, Presentation,
-            PresetViewer, SourceKind, SurfaceEvent, SurfaceFactory, SurfaceInput, SurfaceRequest,
-            ViewerSurface,
+            self, DocumentAssets, DocumentContext, EditorDocument, HostCommand, PresetViewer,
+            SourceKind, SurfaceEvent, SurfaceFactory, SurfaceInput, SurfaceRequest, ViewerSurface,
             packs::{ExtensionHost, Route, route},
         },
         text::buffer::Buffer,
@@ -25,6 +26,8 @@ use crate::{
         },
         workbench::view_state::SurfaceViewState,
     },
+    formats::{self, FileFormat},
+    plugin_contract::{Catalog, HandlerId, OpenPlan, PluginManifest},
     theme,
     typography::Scale,
     ui::{
@@ -164,6 +167,13 @@ struct Session {
     frozen: bool,
     /// The resolved viewer: another viewer for the same id means a new surface.
     viewer: &'static PresetViewer,
+    /// Active Layer ②/③ handler identity (`builtin:*`, `plugin:*`, `app:*`).
+    handler: HandlerId,
+    /// Last computed [`OpenPlan`], consumed by the pane's "Open with…" menu.
+    plan: OpenPlan,
+    /// One-time explanation banner shown at the top of the pane when a stored
+    /// preference fell through or the primary handler degraded to its fallback.
+    preference_notice: Option<String>,
     /// The Host's edit gate (`PresetViewer::editable`).
     editable: bool,
     /// `DP-32`: lossy encoding read-only gate.
@@ -218,6 +228,16 @@ pub struct DocumentEditor {
     external_history: Option<ExternalHistoryStep>,
     suppress_surface_change: bool,
     html_events: Vec<HtmlToolEvent>,
+    open_preferences: OpenPreferences,
+    installed_plugins: Vec<PluginManifest>,
+    plugin_catalog: Catalog,
+    handler_factory: HandlerFactory,
+    /// Optional stable resource key (`resource_key`) for `fileOverrides` lookup.
+    resource_key: Option<String>,
+    /// Optional explicit handler pinned to this host (e.g. restored from workbench metadata).
+    preferred_handler: Option<HandlerId>,
+    /// Last dismissed one-time preference-fallthrough notice text.
+    dismissed_preference_notice: Option<String>,
     #[cfg(test)]
     custom_factory: Option<SurfaceFactory>,
 }
@@ -271,9 +291,58 @@ impl DocumentEditor {
             external_history: None,
             suppress_surface_change: false,
             html_events: Vec::new(),
+            open_preferences: OpenPreferences::default(),
+            installed_plugins: Vec::new(),
+            plugin_catalog: Catalog::empty(),
+            handler_factory: HandlerFactory::new(),
+            resource_key: None,
+            preferred_handler: None,
+            dismissed_preference_notice: None,
             #[cfg(test)]
             custom_factory: None,
         }
+    }
+
+    /// Updates opening preferences (`fileTypeDefaults` + local `fileOverrides`).
+    pub fn set_open_preferences(&mut self, preferences: OpenPreferences) {
+        self.open_preferences = preferences;
+    }
+
+    /// Sets the stable workspace resource key used to look up `fileOverrides`.
+    pub fn set_resource_key(&mut self, key: Option<String>) {
+        self.resource_key = key;
+    }
+
+    /// Sets an explicit handler override for this host (e.g. from workbench restore).
+    pub fn set_preferred_handler(&mut self, handler: Option<HandlerId>) {
+        self.preferred_handler = handler;
+    }
+
+    /// Active handler identity of the open document, if any.
+    pub fn active_handler(&self) -> Option<&HandlerId> {
+        self.session.as_ref().map(|s| &s.handler)
+    }
+
+    /// Last computed [`OpenPlan`] for the open document, if any.
+    pub fn open_plan(&self) -> Option<&OpenPlan> {
+        self.session.as_ref().map(|s| &s.plan)
+    }
+
+    /// Active one-time preference-fallthrough notice, if any and not dismissed.
+    pub fn preference_notice(&self) -> Option<&str> {
+        let notice = self.session.as_ref()?.preference_notice.as_deref()?;
+        (self.dismissed_preference_notice.as_deref() != Some(notice)).then_some(notice)
+    }
+
+    #[cfg(test)]
+    pub fn set_handler_factory(&mut self, factory: HandlerFactory) {
+        self.handler_factory = factory;
+    }
+
+    #[cfg(test)]
+    pub fn set_plugins_and_catalog(&mut self, installed: Vec<PluginManifest>, catalog: Catalog) {
+        self.installed_plugins = installed;
+        self.plugin_catalog = catalog;
     }
 
     /// Install the host port for external Viewer Packs.
@@ -444,18 +513,47 @@ impl DocumentEditor {
         }
     }
 
-    fn resolve_for_host(
+    fn plan_for_host(
         &self,
         id: &str,
         name: &str,
-    ) -> (EditorDocument, registry::Resolved, DocumentContext) {
+    ) -> (
+        EditorDocument,
+        OpenPlan,
+        &'static FileFormat,
+        Option<String>,
+        DocumentContext,
+    ) {
         let context = self.context_for(id, name);
         let document = EditorDocument::with_source(name, context.source_kind);
-        let resolved = match context.sniffed_format {
-            Some(fmt) => registry::resolve_with_format(&document, fmt),
-            None => registry::resolve(&document),
-        };
-        (document, resolved, context)
+        let format = context.sniffed_format.unwrap_or_else(|| {
+            let format_path = if document.path.is_empty() {
+                document.name.as_str()
+            } else {
+                document.path.as_str()
+            };
+            formats::resolve(Some(format_path), document.mime.as_deref())
+        });
+        let resolved_extension =
+            formats::resolved_extension(Some(&document.name), document.mime.as_deref(), format);
+        let resource_id = self.resource_key.as_deref().or(Some(id));
+        let opening_ctx = OpeningContext::with_defaults(
+            &self.open_preferences,
+            &self.installed_plugins,
+            &self.plugin_catalog,
+        );
+        let plan = opening::open_plan(
+            &OpenRequest {
+                document: &document,
+                resource_id,
+                format: Some(format),
+                head: None,
+                sniffed: context.sniffed_format.is_some(),
+                explicit_handler: self.preferred_handler.as_ref(),
+            },
+            &opening_ctx,
+        );
+        (document, plan, format, resolved_extension, context)
     }
 
     fn local_file_path(&self, id: &str, name: &str) -> Option<PathBuf> {
@@ -580,13 +678,13 @@ impl DocumentEditor {
         }) else {
             return;
         };
-        let (_, resolved, context) = self.resolve_for_host(&id, &raw_path);
+        let (_, _, _, resolved_extension, context) = self.plan_for_host(&id, &raw_path);
         let request = SurfaceRequest {
             id: &id,
             name: &raw_path,
             input: SurfaceInput::Text(&text),
             format: crate::formats::resolve(Some("fallback.txt"), None),
-            resolved_extension: resolved.resolved_extension.as_deref(),
+            resolved_extension: resolved_extension.as_deref(),
             dark: self.dark,
             scale: self.scale,
             workspace: self.workspace.clone(),
@@ -602,7 +700,10 @@ impl DocumentEditor {
         self.displayed = None;
         if let Some(session) = &mut self.session {
             session.faulted = false;
-            session.viewer = registry::resolve(&EditorDocument::local("fallback.txt")).viewer;
+            session.viewer = registry::registry()
+                .by_id("text")
+                .expect("text viewer is registered");
+            session.handler = HandlerId::builtin("text");
             session.editable = session.read_only_large.is_none();
         }
         self.bind_surface(surface, &id, cx);
@@ -686,8 +787,8 @@ impl DocumentEditor {
         self.surface = Some(surface);
     }
 
-    /// Open the resolved viewer's surface for a document and follow its
-    /// changes (`RG-10`, `RG-11`, `RG-23`).
+    /// Open the planned handler's surface via Layer ③ (`HandlerFactory`) and
+    /// follow its changes (`RG-10`, `RG-11`, `RG-23`).
     fn open_surface(
         &mut self,
         id: &str,
@@ -695,19 +796,31 @@ impl DocumentEditor {
         input: SurfaceInput,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> (&'static PresetViewer, bool, Option<String>) {
-        let (document, resolved, context) = self.resolve_for_host(id, name);
-        let viewer = resolved.viewer;
-        let editable = match input {
-            SurfaceInput::Text(text) => viewer.editable(&resolved.view_match(&document), text),
-            _ => false,
-        };
+    ) -> (
+        HandlerId,
+        &'static PresetViewer,
+        bool,
+        OpenPlan,
+        Option<String>,
+        Option<String>,
+    ) {
+        let (document, plan, format, resolved_extension, context) = self.plan_for_host(id, name);
+        let fallback_viewer = plan
+            .handler
+            .builtin_id()
+            .and_then(|vid| registry::registry().by_id(vid))
+            .unwrap_or_else(|| {
+                registry::registry()
+                    .by_id(&registry::manifest().fallback_viewer_id)
+                    .expect("fallback viewer registered")
+            });
+        let local_path = self.local_file_path(id, name);
         let request = SurfaceRequest {
             id,
             name,
             input,
-            format: resolved.format,
-            resolved_extension: resolved.resolved_extension.as_deref(),
+            format,
+            resolved_extension: resolved_extension.as_deref(),
             dark: self.dark,
             scale: self.scale,
             workspace: self.workspace.clone(),
@@ -724,23 +837,98 @@ impl DocumentEditor {
         #[cfg(not(test))]
         let custom: Option<SurfaceFactory> = None;
 
+        let weak = cx.weak_entity();
+        let fallback_handler = plan.fallback.clone();
+        let fallback_format_id = plan.format_id.clone();
+        let fallback_doc_id = id.to_owned();
+        let on_fallback = Rc::new(move |_: &mut Window, cx: &mut App| {
+            let _ = weak.update(cx, |_, cx| {
+                cx.emit(ClientMessage::OpenWith {
+                    id: fallback_doc_id.clone(),
+                    format_id: fallback_format_id.clone(),
+                    handler: fallback_handler.clone(),
+                    always: false,
+                });
+            });
+        });
+
+        let placeholder_id = HandlerId::builtin(&registry::manifest().fallback_viewer_id);
         let opened = catch_unwind(AssertUnwindSafe(|| {
             if let Some(factory) = custom {
-                return factory(&request, window, cx);
+                let surface = factory(&request, window, cx);
+                let editable = match input {
+                    SurfaceInput::Text(text) => fallback_viewer.editable(
+                        &registry::ViewerMatch {
+                            document: &document,
+                            format,
+                        },
+                        text,
+                    ),
+                    _ => false,
+                };
+                return Ok(crate::editor::handlers::OpenedHandler {
+                    handler: plan.handler.clone(),
+                    viewer: fallback_viewer,
+                    editable,
+                    surface,
+                    notice: None,
+                    used_fallback: false,
+                });
             }
-            match self.extension_surface(&document, &request, window, cx) {
-                Some(surface) => surface,
-                None => match viewer.presentation {
-                    Presentation::Native(open) => open(&request, window, cx),
+            if plan.handler == placeholder_id
+                && let Some(surface) = self.extension_surface(&document, &request, window, cx)
+            {
+                return Ok(crate::editor::handlers::OpenedHandler {
+                    handler: plan.handler.clone(),
+                    viewer: fallback_viewer,
+                    editable: false,
+                    surface,
+                    notice: None,
+                    used_fallback: false,
+                });
+            }
+            self.handler_factory.open(
+                &HandlerOpenRequest {
+                    plan: &plan,
+                    document: &document,
+                    surface: &request,
+                    local_path,
+                    on_fallback: Some(on_fallback),
+                    installed: &self.installed_plugins,
+                    catalog: &self.plugin_catalog,
                 },
-            }
+                window,
+                cx,
+            )
         }));
         match opened {
-            Ok(surface) => {
-                self.bind_surface(surface, id, cx);
-                (viewer, editable, None)
+            Ok(Ok(outcome)) => {
+                self.bind_surface(outcome.surface, id, cx);
+                (
+                    outcome.handler,
+                    outcome.viewer,
+                    outcome.editable,
+                    plan,
+                    outcome.notice,
+                    None,
+                )
             }
-            Err(payload) => (viewer, editable, Some(panic_payload_summary(payload))),
+            Ok(Err(err)) => (
+                plan.handler.clone(),
+                fallback_viewer,
+                false,
+                plan,
+                None,
+                Some(err),
+            ),
+            Err(payload) => (
+                plan.handler.clone(),
+                fallback_viewer,
+                false,
+                plan,
+                None,
+                Some(panic_payload_summary(payload)),
+            ),
         }
     }
 
@@ -864,14 +1052,17 @@ impl DocumentEditor {
                 {
                     self.active_context = None;
                 }
-                let (_, resolved, _) = self.resolve_for_host(id, name);
-                let viewer_id = resolved.viewer.id;
+                let (_, plan, _, _, _) = self.plan_for_host(id, name);
+                let viewer_id = plan
+                    .handler
+                    .builtin_id()
+                    .unwrap_or(registry::manifest().fallback_viewer_id.as_str());
                 let normalized = registry::normalize::normalize(viewer_id, text);
                 let shown = normalized.as_deref().unwrap_or(text);
                 let same = self
                     .session
                     .as_ref()
-                    .is_some_and(|s| &s.id == id && s.viewer.id == viewer_id && !s.faulted)
+                    .is_some_and(|s| &s.id == id && s.handler == plan.handler && !s.faulted)
                     && self.surface.is_some();
                 let prev_policy = self
                     .session
@@ -887,7 +1078,7 @@ impl DocumentEditor {
                     .unwrap_or((false, false, None));
 
                 let factory_panic;
-                let (viewer, editable) = if same {
+                let (handler, viewer, editable, opened_plan, notice) = if same {
                     let previous_raw = self.text(cx);
                     let previous_shown = self
                         .surface
@@ -942,14 +1133,20 @@ impl DocumentEditor {
                     }
                     factory_panic = update_panic;
                     let session = self.session.as_ref().unwrap();
-                    (session.viewer, session.editable)
+                    (
+                        session.handler.clone(),
+                        session.viewer,
+                        session.editable,
+                        plan,
+                        session.preference_notice.clone(),
+                    )
                 } else {
                     self.external_history = None;
                     self.displayed = normalized.clone().map(|n| (n, text.clone()));
-                    let (v, ed, p) =
+                    let (h, v, ed, opened_plan, notice, p) =
                         self.open_surface(id, name, SurfaceInput::Text(shown), window, cx);
                     factory_panic = p;
-                    (v, ed)
+                    (h, v, ed, opened_plan, notice)
                 };
                 self.session = Some(Session {
                     id: id.clone(),
@@ -960,6 +1157,9 @@ impl DocumentEditor {
                     revision: *revision,
                     frozen: false,
                     viewer,
+                    handler,
+                    plan: opened_plan,
+                    preference_notice: notice,
                     editable,
                     lossy_readonly: prev_policy.0,
                     requires_line_ending_normalization: prev_policy.1,
@@ -981,7 +1181,7 @@ impl DocumentEditor {
                 }
                 self.displayed = None;
                 self.external_history = None;
-                let (viewer, editable, panicked) =
+                let (handler, viewer, editable, opened_plan, notice, panicked) =
                     self.open_surface(id, name, SurfaceInput::Resource(path), window, cx);
                 self.session = Some(Session {
                     id: id.clone(),
@@ -992,6 +1192,9 @@ impl DocumentEditor {
                     revision: 0,
                     frozen: false,
                     viewer,
+                    handler,
+                    plan: opened_plan,
+                    preference_notice: notice,
                     editable,
                     lossy_readonly: false,
                     requires_line_ending_normalization: false,
@@ -1031,7 +1234,16 @@ impl DocumentEditor {
                 }
                 self.displayed = None;
                 self.external_history = None;
-                let (_, resolved, _) = self.resolve_for_host(id, name);
+                let (_, plan, _, _, _) = self.plan_for_host(id, name);
+                let viewer = plan
+                    .handler
+                    .builtin_id()
+                    .and_then(|vid| registry::registry().by_id(vid))
+                    .unwrap_or_else(|| {
+                        registry::registry()
+                            .by_id(&registry::manifest().fallback_viewer_id)
+                            .expect("fallback viewer registered")
+                    });
                 let local_path = self.local_file_path(id, name);
                 let surface = placeholder::open_oversized(
                     OversizedOptions {
@@ -1044,6 +1256,7 @@ impl DocumentEditor {
                     cx,
                 );
                 self.bind_surface(surface, id, cx);
+                let handler = plan.handler.clone();
                 self.session = Some(Session {
                     id: id.clone(),
                     raw_path: name.clone(),
@@ -1052,7 +1265,10 @@ impl DocumentEditor {
                     last_known_buffer: None,
                     revision: 0,
                     frozen: false,
-                    viewer: resolved.viewer,
+                    viewer,
+                    handler,
+                    plan,
+                    preference_notice: None,
                     editable: false,
                     lossy_readonly: false,
                     requires_line_ending_normalization: false,
@@ -1101,10 +1317,13 @@ impl DocumentEditor {
                 }
             }
             HostMessage::Rebind { id, name, resource } => {
-                let (_, resolved, _) = self.resolve_for_host(id, name);
-                let next = resolved.viewer;
+                let (_, plan, _, _, _) = self.plan_for_host(id, name);
+                let next_handler = plan.handler.clone();
+                let next_viewer_id = next_handler
+                    .builtin_id()
+                    .unwrap_or(registry::manifest().fallback_viewer_id.as_str());
                 let switch = self.session.as_ref().is_some_and(|session| {
-                    &session.id == id && !session.faulted && session.viewer.id != next.id
+                    &session.id == id && !session.faulted && session.handler != next_handler
                 });
                 if switch {
                     let input = match resource {
@@ -1112,9 +1331,11 @@ impl DocumentEditor {
                         None => self.text(cx).map(|text| (SurfaceInput::None, Some(text))),
                     };
                     if let Some((input, text)) = input {
-                        let (viewer, editable, panicked) = match &text {
+                        let (handler, viewer, editable, opened_plan, notice, panicked) = match &text
+                        {
                             Some(text) => {
-                                let normalized = registry::normalize::normalize(next.id, text);
+                                let normalized =
+                                    registry::normalize::normalize(next_viewer_id, text);
                                 let shown = normalized.as_deref().unwrap_or(text);
                                 self.displayed = normalized.clone().map(|n| (n, text.clone()));
                                 self.open_surface(id, name, SurfaceInput::Text(shown), window, cx)
@@ -1128,6 +1349,9 @@ impl DocumentEditor {
                             session.raw_path = name.clone();
                             session.name = label(name);
                             session.viewer = viewer;
+                            session.handler = handler;
+                            session.plan = opened_plan;
+                            session.preference_notice = notice;
                             session.editable = editable && session.read_only_large.is_none();
                         }
                         if let Some(msg) = panicked {
@@ -1139,6 +1363,7 @@ impl DocumentEditor {
                 {
                     session.raw_path = name.clone();
                     session.name = label(name);
+                    session.plan = plan;
                     let mut panicked = None;
                     if let Some(surface) = &self.surface
                         && let Err(payload) =
@@ -1541,6 +1766,48 @@ impl DocumentEditor {
                 .into_any_element(),
         )
     }
+
+    /// Renders a dismissible one-time notice at the top of the pane when a
+    /// stored opening preference pointed at an unavailable handler (§4.3).
+    fn preference_notice_banner(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let message = self.preference_notice()?.to_owned();
+        let dismissed_text = message.clone();
+        let palette = cx.palette();
+        Some(
+            div()
+                .id("document-preference-notice-banner")
+                .flex_none()
+                .w_full()
+                .px(px(12.))
+                .py(px(6.))
+                .border_b_1()
+                .border_color(palette.divider)
+                .bg(palette.panel)
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(12.))
+                .child(
+                    div()
+                        .min_w_0()
+                        .flex_1()
+                        .text_size(px(theme::ty().ui.meta))
+                        .line_height(px(18.))
+                        .text_color(palette.muted)
+                        .child(message),
+                )
+                .child(
+                    Button::new("dismiss-preference-notice")
+                        .variant(ButtonVariant::Secondary)
+                        .label(crate::localization::t("native.editor.dismissNotice"))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.dismissed_preference_notice = Some(dismissed_text.clone());
+                            cx.notify();
+                        })),
+                )
+                .into_any_element(),
+        )
+    }
 }
 
 /// The pane's label: the file name of a workspace-relative path.
@@ -1614,6 +1881,7 @@ impl Render for DocumentEditor {
             .filter(|_| !self.file_mode)
             .map_or((None, None), |(h, m)| (Some(h), m));
         let banner = self.readonly_banner(cx);
+        let pref_banner = self.preference_notice_banner(cx);
         let surface_el = self.isolated_surface_element(cx);
         let body = div()
             .relative()
@@ -1658,6 +1926,7 @@ impl Render for DocumentEditor {
                 }
             }))
             .child(measure)
+            .children(pref_banner)
             .children(banner)
             .child(body)
     }

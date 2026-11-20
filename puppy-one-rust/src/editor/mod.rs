@@ -4,6 +4,7 @@ pub mod code;
 pub mod csv;
 pub mod document_session;
 pub mod frame;
+pub mod handlers;
 pub mod host;
 pub mod markdown;
 pub mod navigation;

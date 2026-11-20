@@ -37,6 +37,8 @@ struct Slot {
     restoring: bool,
     rehydrating: Option<PathBuf>,
     drop_target: Option<drops::Target>,
+    /// Last active or restored handler for this slot (persisted in workbench metadata).
+    handler: Option<crate::plugin_contract::HandlerId>,
 }
 struct Host {
     empty: Documents,
@@ -44,6 +46,9 @@ struct Host {
     slots: BTreeMap<SlotId, Slot>,
     hibernated: BTreeMap<String, super::retention::HibernatedSlot>,
     view_states: super::view_state::ViewStateStore,
+    /// Project-local per-file overrides (`resourceId -> HandlerId`), persisted
+    /// only in local editor state and never synced to Cloud (§4.3, §8.1).
+    file_overrides: crate::editor::opening::FileOverrides,
     rows: Vec<Node>,
     interacted: bool,
     restore: Option<serde_json::Value>,
@@ -129,6 +134,8 @@ pub struct Runtime {
     /// Mapping of recently hibernated `SlotId -> (workspace_key, resource_key)` so `EditorArea::sync`
     /// can capture one final `SurfaceViewState` right before dropping `DocumentEditor` (`WB-01`, `WB-10`).
     evicted_slot_keys: BTreeMap<SlotId, (String, String)>,
+    /// Global per-format defaults mirrored from user preferences (`fileTypeDefaults`).
+    file_type_defaults: crate::editor::opening::FileTypeDefaults,
 }
 impl Deref for Runtime {
     type Target = Documents;
@@ -222,6 +229,216 @@ impl Runtime {
         self.hosts
             .values()
             .find_map(|h| h.slots.get(&id).map(|s| &s.files))
+    }
+    /// Updates global per-type default handlers (`fileTypeDefaults`) across all
+    /// live Working Copies.
+    pub fn set_file_type_defaults(&mut self, defaults: crate::editor::opening::FileTypeDefaults) {
+        if self.file_type_defaults == defaults {
+            return;
+        }
+        self.file_type_defaults = defaults.clone();
+        self.scratch.open_preferences.file_type_defaults = defaults.clone();
+        for host in self.hosts.values_mut() {
+            let prefs = crate::editor::opening::OpenPreferences::new(
+                defaults.clone(),
+                host.file_overrides.clone(),
+            );
+            host.empty.open_preferences = prefs.clone();
+            for slot in host.slots.values_mut() {
+                slot.files.open_preferences = prefs.clone();
+            }
+        }
+    }
+    /// Combined opening preferences (`fileTypeDefaults` + active project's local
+    /// `fileOverrides`).
+    pub fn active_open_preferences(&self) -> crate::editor::opening::OpenPreferences {
+        let overrides = self
+            .active
+            .as_ref()
+            .and_then(|id| self.hosts.get(id))
+            .map(|h| h.file_overrides.clone())
+            .unwrap_or_default();
+        crate::editor::opening::OpenPreferences::new(self.file_type_defaults.clone(), overrides)
+    }
+    /// Project-local per-file overrides of the active workspace, if any.
+    pub fn file_overrides(&self) -> Option<&crate::editor::opening::FileOverrides> {
+        self.active
+            .as_ref()
+            .and_then(|id| self.hosts.get(id))
+            .map(|h| &h.file_overrides)
+    }
+    /// Records the active handler mounted by `DocumentEditor` for `slot` so
+    /// workbench metadata persists `"handler"`.
+    pub fn set_slot_handler(&mut self, slot: SlotId, handler: crate::plugin_contract::HandlerId) {
+        if slot == 0 {
+            self.scratch.preferred_handler = Some(handler);
+            return;
+        }
+        for host in self.hosts.values_mut() {
+            if let Some(entry) = host.slots.get_mut(&slot) {
+                if entry.handler.as_ref() != Some(&handler) {
+                    entry.handler = Some(handler);
+                }
+                return;
+            }
+        }
+    }
+    /// Restored or active handler recorded for `slot`.
+    pub fn slot_handler(&self, slot: SlotId) -> Option<&crate::plugin_contract::HandlerId> {
+        if slot == 0 {
+            return self.scratch.preferred_handler.as_ref();
+        }
+        self.hosts
+            .values()
+            .find_map(|h| h.slots.get(&slot).and_then(|s| s.handler.as_ref()))
+    }
+    /// Stable resource key (`resource_key`) of `slot`, used for `fileOverrides`.
+    pub fn slot_resource_key(&self, slot: SlotId) -> Option<&str> {
+        if slot == 0 {
+            return None;
+        }
+        self.hosts
+            .values()
+            .find_map(|h| h.slots.get(&slot).map(|s| s.key.as_str()))
+    }
+    /// Sets a local per-file override (`fileOverrides[resourceId]`) and opens or
+    /// reloads the file through the document barrier with that handler.
+    pub fn open_with_handler(
+        &mut self,
+        path: PathBuf,
+        handler: crate::plugin_contract::HandlerId,
+        wake: &Wake,
+    ) {
+        if self.quitting {
+            return;
+        }
+        let Some(active_ws) = self.active.clone() else {
+            self.scratch.preferred_handler = Some(handler);
+            if self.scratch.opened().is_some_and(|(_, p)| p == path) {
+                self.scratch.begin(Intent::Reload, wake);
+            } else {
+                self.scratch.begin(Intent::OpenFile(path), wake);
+            }
+            self.generation += 1;
+            wake.notify();
+            return;
+        };
+        let Some(ws) = self
+            .hosts
+            .get(&active_ws)
+            .and_then(|h| h.empty.workspace.clone())
+        else {
+            return;
+        };
+        let Ok(rid) = ws.resource_id(&path) else {
+            return;
+        };
+        if rid.path.is_root() {
+            return;
+        }
+        let key = resource_key(&rid);
+        let prefs = {
+            let host = self.hosts.get_mut(&active_ws).unwrap();
+            host.file_overrides.insert(key.clone(), handler.clone());
+            let prefs = crate::editor::opening::OpenPreferences::new(
+                self.file_type_defaults.clone(),
+                host.file_overrides.clone(),
+            );
+            for slot in host.slots.values_mut() {
+                slot.files.open_preferences = prefs.clone();
+            }
+            if let Some(hib) = host.hibernated.get_mut(&key) {
+                hib.handler = Some(handler.clone());
+            }
+            prefs
+        };
+        if let Some(slot_id) = self.slot_for_key(&key) {
+            self.activate(&key);
+            if let Some(host) = self.hosts.get_mut(&active_ws)
+                && let Some(slot) = host.slots.get_mut(&slot_id)
+            {
+                slot.handler = Some(handler.clone());
+                slot.files.open_preferences = prefs;
+                slot.files.preferred_handler = Some(handler);
+                slot.files.begin(Intent::Reload, wake);
+            }
+            self.generation += 1;
+            wake.notify();
+            return;
+        }
+        self.begin(Intent::OpenFile(path), wake);
+        if let Some(host) = self.hosts.get_mut(&active_ws)
+            && let Some(slot) = host.slots.values_mut().find(|s| s.key == key)
+        {
+            slot.handler = Some(handler.clone());
+            slot.files.preferred_handler = Some(handler);
+        }
+        self.generation += 1;
+        wake.notify();
+    }
+    /// Applies a new per-type default (`fileTypeDefaults[formatId]`), clears any
+    /// per-file override on `path` (if provided), and reloads matching open slots.
+    pub fn apply_type_default(
+        &mut self,
+        format_id: String,
+        handler: crate::plugin_contract::HandlerId,
+        target_path: Option<PathBuf>,
+        wake: &Wake,
+    ) {
+        let mut defaults = self.file_type_defaults.clone();
+        defaults.insert(format_id, handler.clone());
+        self.set_file_type_defaults(defaults);
+        if let Some(path) = target_path {
+            if let Some(active_ws) = self.active.clone()
+                && let Some(ws) = self
+                    .hosts
+                    .get(&active_ws)
+                    .and_then(|h| h.empty.workspace.clone())
+                && let Ok(rid) = ws.resource_id(&path)
+                && !rid.path.is_root()
+            {
+                let key = resource_key(&rid);
+                let prefs = {
+                    let host = self.hosts.get_mut(&active_ws).unwrap();
+                    host.file_overrides.remove(&key);
+                    let prefs = crate::editor::opening::OpenPreferences::new(
+                        self.file_type_defaults.clone(),
+                        host.file_overrides.clone(),
+                    );
+                    for slot in host.slots.values_mut() {
+                        slot.files.open_preferences = prefs.clone();
+                    }
+                    if let Some(hib) = host.hibernated.get_mut(&key) {
+                        hib.handler = None;
+                    }
+                    prefs
+                };
+                if let Some(slot_id) = self.slot_for_key(&key) {
+                    self.activate(&key);
+                    if let Some(host) = self.hosts.get_mut(&active_ws)
+                        && let Some(slot) = host.slots.get_mut(&slot_id)
+                    {
+                        slot.handler = None;
+                        slot.files.open_preferences = prefs;
+                        slot.files.preferred_handler = None;
+                        slot.files.begin(Intent::Reload, wake);
+                    }
+                    self.generation += 1;
+                    wake.notify();
+                    return;
+                }
+                self.begin(Intent::OpenFile(path), wake);
+                return;
+            }
+            self.scratch.preferred_handler = None;
+            if self.scratch.opened().is_some_and(|(_, p)| p == path) {
+                self.scratch.begin(Intent::Reload, wake);
+            } else {
+                self.scratch.begin(Intent::OpenFile(path), wake);
+            }
+        }
+        self.generation += 1;
+        wake.notify();
     }
     /// The Save failed chip of one pane's document.
     pub fn retry_slot_save(&mut self, id: SlotId, wake: &Wake) {
@@ -574,9 +791,21 @@ impl Runtime {
                     Documents::in_workspace_with_journal(ws, self.draft_journal.clone());
                 files.task_scope = self.scratch.task_scope.clone();
                 files.file_window = self.file_window;
+                let mut hibernated_handler = None;
                 if let Some(hibernated) = hibernated {
                     files.inherit_document_models(hibernated.models);
+                    hibernated_handler = hibernated.handler;
                 }
+                files.open_preferences = crate::editor::opening::OpenPreferences::new(
+                    self.file_type_defaults.clone(),
+                    host.file_overrides.clone(),
+                );
+                let override_handler = host
+                    .file_overrides
+                    .get(&key)
+                    .cloned()
+                    .or(hibernated_handler);
+                files.preferred_handler = override_handler.clone();
                 files.begin(Intent::OpenFile(path), wake);
                 host.slots.insert(
                     self.serial,
@@ -590,6 +819,7 @@ impl Runtime {
                         restoring: false,
                         rehydrating: None,
                         drop_target: None,
+                        handler: override_handler,
                     },
                 );
             }
@@ -873,6 +1103,7 @@ impl Runtime {
                             slots: BTreeMap::new(),
                             hibernated: BTreeMap::new(),
                             view_states: super::view_state::ViewStateStore::new(),
+                            file_overrides: BTreeMap::new(),
                             rows,
                             interacted: false,
                             restore: None,
@@ -959,6 +1190,7 @@ impl Runtime {
                                     path,
                                     failed_at_navigation: Some(self.navigation),
                                     models: slot.files.take_document_models(),
+                                    handler: slot.handler.clone(),
                                 },
                             );
                         }
@@ -1298,6 +1530,7 @@ impl Runtime {
                     path: rel,
                     failed_at_navigation: None,
                     models,
+                    handler: slot.handler,
                 },
             );
             self.generation += 1;
@@ -1350,6 +1583,11 @@ impl Runtime {
             files.task_scope = self.scratch.task_scope.clone();
             files.file_window = self.file_window;
             files.inherit_document_models(entry.models);
+            files.open_preferences = crate::editor::opening::OpenPreferences::new(
+                self.file_type_defaults.clone(),
+                host.file_overrides.clone(),
+            );
+            files.preferred_handler = entry.handler.clone();
             files.begin(Intent::OpenFile(entry.path.clone()), wake);
             host.slots.insert(
                 self.serial,
@@ -1363,6 +1601,7 @@ impl Runtime {
                     restoring: false,
                     rehydrating: Some(entry.path),
                     drop_target: None,
+                    handler: entry.handler,
                 },
             );
             self.generation += 1;

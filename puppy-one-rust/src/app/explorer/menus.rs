@@ -482,6 +482,111 @@ impl Explorer {
             ));
             rows.push(None);
         }
+        if single && !folder {
+            let rel_str = primary.to_string_lossy().replace('\\', "/");
+            let doc = crate::editor::registry::EditorDocument::for_workspace(
+                &rel_str,
+                workspace.map(std::sync::Arc::as_ref),
+            );
+            let open_prefs = crate::editor::opening::OpenPreferences::new(
+                self.preferences.read(cx).state.file_type_defaults.clone(),
+                Default::default(),
+            );
+            let catalog = crate::plugin_contract::Catalog::empty();
+            let opening_ctx =
+                crate::editor::opening::OpeningContext::with_defaults(&open_prefs, &[], &catalog);
+            let plan = crate::editor::opening::open_plan(
+                &crate::editor::opening::OpenRequest::for_document(&doc),
+                &opening_ctx,
+            );
+            let handler_label = |handler: &crate::plugin_contract::HandlerId| -> String {
+                if handler.is_system_default_app() {
+                    tr("editor.openDefaultApp").into()
+                } else {
+                    crate::editor::opening::handler_display_label(handler, &opening_ctx)
+                }
+            };
+            let mut choices: Vec<(crate::plugin_contract::HandlerId, String, bool)> =
+                Vec::with_capacity(plan.alternatives.len() + 1);
+            choices.push((plan.handler.clone(), handler_label(&plan.handler), true));
+            for alt in &plan.alternatives {
+                choices.push((alt.handler.clone(), handler_label(&alt.handler), false));
+            }
+            if !choices.is_empty() {
+                let target_path = primary.clone();
+                let format_id = plan.format_id.clone();
+                let host_sub = self.weak.clone();
+                rows.push(Some(
+                    MenuItem::new(tr("native.editor.openWith"))
+                        .icon("layers")
+                        .trailing(Icon::new("chevron-right").small().stroke(2.).opacity(0.86))
+                        .submenu(move |_, _| {
+                            let mut sub = Menu::new("explorer-open-with-submenu")
+                                .variant(MenuVariant::SidebarAction);
+                            for (handler, label, active) in &choices {
+                                let host = host_sub.clone();
+                                let path = target_path.clone();
+                                let format_id = format_id.clone();
+                                let handler = handler.clone();
+                                sub = sub.item(
+                                    MenuItem::new(label.clone()).checked(*active).on_click(
+                                        move |_, cx| {
+                                            let _ = host.update(cx, |s, cx| {
+                                                s.menu = None;
+                                                cx.emit(ExplorerEvent::OpenWith {
+                                                    path: path.clone(),
+                                                    format_id: format_id.clone(),
+                                                    handler: handler.clone(),
+                                                    always: false,
+                                                });
+                                                cx.notify();
+                                            });
+                                        },
+                                    ),
+                                );
+                            }
+                            let always_choices = choices.clone();
+                            let host_always = host_sub.clone();
+                            let path_always = target_path.clone();
+                            let format_always = format_id.clone();
+                            sub.separator().item(
+                                MenuItem::new(tr("native.editor.alwaysOpenTypeWith"))
+                                    .trailing(
+                                        Icon::new("chevron-right").small().stroke(2.).opacity(0.86),
+                                    )
+                                    .submenu(move |_, _| {
+                                        let mut always_menu =
+                                            Menu::new("explorer-always-open-with-submenu")
+                                                .variant(MenuVariant::SidebarAction);
+                                        for (handler, label, _) in &always_choices {
+                                            let host = host_always.clone();
+                                            let path = path_always.clone();
+                                            let format_id = format_always.clone();
+                                            let handler = handler.clone();
+                                            always_menu = always_menu.item(
+                                                MenuItem::new(label.clone()).on_click(
+                                                    move |_, cx| {
+                                                        let _ = host.update(cx, |s, cx| {
+                                                            s.menu = None;
+                                                            cx.emit(ExplorerEvent::OpenWith {
+                                                                path: path.clone(),
+                                                                format_id: format_id.clone(),
+                                                                handler: handler.clone(),
+                                                                always: true,
+                                                            });
+                                                            cx.notify();
+                                                        });
+                                                    },
+                                                ),
+                                            );
+                                        }
+                                        always_menu
+                                    }),
+                            )
+                        }),
+                ));
+            }
+        }
         if single
             && !folder
             && let Some(path) = absolute.clone()

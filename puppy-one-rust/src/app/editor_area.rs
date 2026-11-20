@@ -44,6 +44,13 @@ pub(super) struct EditorGate {
 pub(super) enum EditorEvent {
     /// A pane menu command (open in the default app, close the file, …).
     Command(Command),
+    /// User picked a handler from a pane's "Open with…" submenu.
+    OpenWith {
+        slot: u64,
+        format_id: String,
+        handler: crate::plugin_contract::HandlerId,
+        always: bool,
+    },
     /// The runtime was asked for something: the window pumps it now.
     Pump,
 }
@@ -116,6 +123,23 @@ impl EditorArea {
         // The front host before the workbench has panes: pane menu commands
         // are the window's, everything else the runtime's.
         cx.subscribe_in(&front, window, |s, _, event: &ClientMessage, window, cx| {
+            if let ClientMessage::OpenWith {
+                format_id,
+                handler,
+                always,
+                ..
+            } = event
+            {
+                if s.docs.read(cx).state().is_none() {
+                    cx.emit(EditorEvent::OpenWith {
+                        slot: 0,
+                        format_id: format_id.clone(),
+                        handler: handler.clone(),
+                        always: *always,
+                    });
+                }
+                return;
+            }
             if let ClientMessage::Action { action } = event {
                 if s.docs.read(cx).state().is_none()
                     && let Some(command) = Command::from_protocol(action)
@@ -316,6 +340,10 @@ impl EditorArea {
     /// new slot) and their answers back, drops the hosts of closed slots,
     /// and holds the editors behind the gate.
     pub fn sync(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let type_defaults = self.preferences.read(cx).state.file_type_defaults.clone();
+        self.docs.update(cx, |d, _| {
+            d.set_file_type_defaults(type_defaults);
+        });
         let sampled: Vec<(
             u64,
             bool,
@@ -372,16 +400,28 @@ impl EditorArea {
                             | HostMessage::Oversized { .. }
                     );
                 let references = self.references(slot, cx);
-                let workspace = self
-                    .docs
-                    .read(cx)
-                    .slot(slot)
-                    .and_then(|s| s.workspace.clone());
-                let replies = self.hosts[&slot].update(cx, |s, cx| {
+                let (workspace, open_prefs, resource_key, preferred_handler) = {
+                    let docs = self.docs.read(cx);
+                    (
+                        docs.slot(slot).and_then(|s| s.workspace.clone()),
+                        docs.active_open_preferences(),
+                        docs.slot_resource_key(slot).map(str::to_owned),
+                        docs.slot_handler(slot).cloned(),
+                    )
+                };
+                let (replies, active_handler) = self.hosts[&slot].update(cx, |s, cx| {
                     s.set_reference_context(references, cx);
                     s.set_workspace(workspace);
-                    s.receive(&message, window, cx)
+                    s.set_open_preferences(open_prefs);
+                    s.set_resource_key(resource_key);
+                    s.set_preferred_handler(preferred_handler);
+                    let replies = s.receive(&message, window, cx);
+                    (replies, s.active_handler().cloned())
                 });
+                if let Some(handler) = active_handler {
+                    self.docs
+                        .update(cx, |d, _| d.set_slot_handler(slot, handler));
+                }
                 if opened_fresh
                     && let Some(saved_vs) = self
                         .docs
@@ -463,6 +503,25 @@ impl EditorArea {
             &editor,
             window,
             move |s, _, event: &ClientMessage, window, cx| {
+                if let ClientMessage::OpenWith {
+                    format_id,
+                    handler,
+                    always,
+                    ..
+                } = event
+                {
+                    if s.docs.read(cx).visible_slots().contains(&slot) && !s.gate.modal {
+                        s.focus_slot(slot, cx);
+                        cx.emit(EditorEvent::OpenWith {
+                            slot,
+                            format_id: format_id.clone(),
+                            handler: handler.clone(),
+                            always: *always,
+                        });
+                    }
+                    cx.notify();
+                    return;
+                }
                 if let ClientMessage::Action { action } = event {
                     if s.docs.read(cx).visible_slots().contains(&slot) && !s.gate.modal {
                         s.focus_slot(slot, cx);

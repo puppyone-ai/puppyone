@@ -17,6 +17,7 @@ pub enum Page {
     Appearance,
     Typography,
     CreateNew,
+    FileTypes,
     OtherAppImports,
     Privacy,
     /// Computer access (`other-computers`), behind `HOST_DEVICES_AVAILABLE`.
@@ -78,6 +79,7 @@ impl Page {
             Self::Appearance => "settings.appearance.title",
             Self::Typography => "settings.typography.title",
             Self::CreateNew => "settings.createNew.title",
+            Self::FileTypes => "native.settings.fileTypes.title",
             Self::OtherAppImports => "settings.experimental.otherAppImports.title",
             Self::Privacy => "settings.privacy.title",
             Self::OtherComputers => "hosts.settings.title",
@@ -158,6 +160,7 @@ pub fn groups(visibility: Visibility) -> Vec<Group> {
         item(Appearance, "settings.sidebar.appearance", "monitor"),
         item(Typography, "settings.sidebar.typography", "type"),
         item(CreateNew, "settings.sidebar.createNew", "list-plus"),
+        item(FileTypes, "native.settings.sidebar.fileTypes", "layers"),
     ];
     if visibility.other_app_imports {
         computer.push(item(
@@ -382,6 +385,7 @@ mod tests {
                 Page::Appearance,
                 Page::Typography,
                 Page::CreateNew,
+                Page::FileTypes,
                 Page::OtherAppImports,
                 Page::LocalAgents,
                 Page::ModelConnections,
@@ -391,5 +395,6 @@ mod tests {
             ]
         );
         assert!(groups(all)[0].switcher);
+        assert_eq!(Page::FileTypes.title(), "native.settings.fileTypes.title");
     }
 }
