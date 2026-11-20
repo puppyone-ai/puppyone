@@ -205,6 +205,44 @@ mod tests {
         resolve(&EditorDocument::local(path)).viewer.id
     }
 
+    /// `databasePreviewContract.test.ts`: SQLite names, in any case, route
+    /// to the lazy database preview that reads a resource session in a
+    /// native worker, never a full-file buffer; a `.db` file keeps the
+    /// generic binary MIME and generic binary data never routes to it.
+    #[test]
+    fn sqlite_names_route_to_the_lazy_native_database_session() {
+        use manifest::{Capability, ComputeIsolation, Runtime, Source, SurfaceIsolation};
+        for name in ["sample.DB", "sample.db3", "sample.sqlite", "sample.sqlite3"] {
+            let viewer = resolve(&EditorDocument::local(name)).viewer;
+            let d = viewer.definition;
+            assert_eq!(viewer.id, "database-preview", "{name}");
+            assert_eq!(source_requirement(name), Source::ResourceSession);
+            assert_eq!(
+                (
+                    d.capability,
+                    d.surface_isolation,
+                    d.compute_isolation,
+                    d.runtime
+                ),
+                (
+                    Capability::Preview,
+                    SurfaceIsolation::Inline,
+                    ComputeIsolation::NativeProcess,
+                    Runtime::Lazy
+                ),
+                "{name}"
+            );
+        }
+        assert_eq!(
+            formats::preferred_mime("sample.db"),
+            Some("application/octet-stream")
+        );
+        assert_ne!(
+            formats::resolve(Some("unknown"), Some("application/octet-stream")).default_viewer,
+            "database-preview"
+        );
+    }
+
     #[test]
     fn source_budgets_follow_the_product_manifest() {
         assert_eq!(source_budget("a.md"), 16 * 1024 * 1024);

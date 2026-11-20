@@ -1340,6 +1340,67 @@ mod tests {
         (status, response)
     }
 
+    /// `appPreviewService.test.mjs`: one App's Start, Stop and window
+    /// release are serialized (a Stop or a release waits for an in-flight
+    /// lifecycle step of the same App), while another App starts at once.
+    #[test]
+    fn one_apps_lifecycle_steps_queue_and_other_apps_stay_independent() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        std::fs::create_dir_all(root.join("site")).unwrap();
+        std::fs::write(root.join("site/index.html"), "<h1>Hello</h1>").unwrap();
+        for name in ["one", "two"] {
+            std::fs::write(
+                root.join(format!("{name}.puppyoneapp")),
+                r#"{"type":"puppyone.app","version":1,"launch":{"kind":"static-file","path":"site/index.html"}}"#,
+            )
+            .unwrap();
+        }
+        let data = tempfile::tempdir().unwrap();
+        let runtime = Arc::new(Runtime::new(data.path().to_path_buf()));
+        let never: Confirm = Box::new(|_| panic!("a static file needs no confirmation"));
+        assert_eq!(
+            runtime
+                .start(1, &root, "one.puppyoneapp", &never)
+                .unwrap()
+                .status,
+            "running"
+        );
+        let wait = std::time::Duration::from_millis(150);
+        for step in ["stop", "release"] {
+            if step == "release" {
+                runtime.start(1, &root, "one.puppyoneapp", &never).unwrap();
+            }
+            let lifecycle = runtime.lifecycle(&session_key(&root, "one.puppyoneapp"));
+            let in_flight = lifecycle.lock().unwrap();
+            let (tx, rx) = std::sync::mpsc::channel();
+            let (shared, app_root) = (runtime.clone(), root.clone());
+            std::thread::spawn(move || {
+                if step == "stop" {
+                    shared.stop(1, &app_root, "one.puppyoneapp").unwrap();
+                } else {
+                    shared.release_owner(1);
+                }
+                tx.send(()).unwrap();
+            });
+            assert!(
+                rx.recv_timeout(wait).is_err(),
+                "{step} ran during the step in flight"
+            );
+            let other: Confirm = Box::new(|_| panic!("a static file needs no confirmation"));
+            assert_eq!(
+                runtime
+                    .start(2, &root, "two.puppyoneapp", &other)
+                    .unwrap()
+                    .status,
+                "running"
+            );
+            drop(in_flight);
+            rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        }
+        runtime.close_all();
+    }
+
     #[test]
     fn static_files_and_local_servers_run_once_trusted() {
         let dir = tempfile::tempdir().unwrap();

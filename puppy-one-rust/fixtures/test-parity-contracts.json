@@ -18596,7 +18596,7 @@
     },
     {
       "id": "app-preview-runtime",
-      "acceptance": "App Preview starts what the manifest declares and nothing else: an unconfigured app fails without a prompt; a static HTML file and an existing URL run without a command or a prompt; an unchanged running app is joined, a changed manifest replaces only its own process (the old one reports it stopped for restart), and separate manifests run side by side with stop affecting only one. Trust is per manifest and package script: a changed script behind an unchanged manifest asks again. The process inherits only the development-tool environment allowlist.",
+      "acceptance": "App Preview starts what the manifest declares and nothing else: an unconfigured app fails without a prompt; a static HTML file and an existing URL run without a command or a prompt; an unchanged running app is joined, a changed manifest replaces only its own process (the old one reports it stopped for restart), and separate manifests run side by side with stop affecting only one. Trust is per manifest and package script: a changed script behind an unchanged manifest asks again. The process inherits only the development-tool environment allowlist. One App's start, stop and window release are serialized, while different Apps run independently.",
       "typescript": [
         {
           "path": "tests/integration/editor/formats/app-preview/appPreviewRuntime.test.mjs",
@@ -18631,6 +18631,28 @@
               "name": "App Preview process runtime > inherits only the explicit development-tool environment allowlist"
             }
           ]
+        },
+        {
+          "path": "tests/unit/editor/formats/app-preview/appPreviewService.test.mjs",
+          "sha256": "11d0373df9f471023e117b7a464d97d8db37ba3a7d807efc8f7d28cbcad16ed5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "App Preview runtime coordinator > serializes Stop behind an in-flight Start for the same App"
+            },
+            {
+              "index": 1,
+              "name": "App Preview runtime coordinator > waits for pending owner mutations before closing the window runtime"
+            },
+            {
+              "index": 2,
+              "name": "App Preview runtime coordinator > keeps different Apps independent"
+            },
+            {
+              "index": 3,
+              "name": "App Preview runtime coordinator > waits only for the removed root before closing its Preview sessions"
+            }
+          ]
         }
       ],
       "rust": [
@@ -18653,6 +18675,10 @@
         {
           "package": "po-platform",
           "test": "platform::app_preview::runtime::tests::a_preview_inherits_only_the_development_tool_environment"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_preview::runtime::tests::one_apps_lifecycle_steps_queue_and_other_apps_stay_independent"
         }
       ],
       "environment": "local temporary workspaces; real python3 http.server child processes and the in-process static server on loopback"
@@ -40380,6 +40406,188 @@
           "test": "editor::csv::preferences::tests::the_store_round_trips_and_drops_malformed_entries"
         }
       ]
+    },
+    {
+      "id": "document-reference-navigation",
+      "acceptance": "Only complete, intentional references are recognised (a URL, a Markdown or wiki link, an explicit workspace path; a bare file name or a sentence with a URL is text); unsafe protocols, credentials and control characters are denied before the host sees them; a resolved, an ambiguous (offering its candidates) or a not-yet-loaded workspace reference with candidates and an external link can open while a missing or denied one cannot.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/navigation/documentNavigation.test.ts",
+          "sha256": "58573e0410bd3a137ec5feb9fb8f893d4d45f0c62668e240450e3c99a7469d69",
+          "cases": [
+            {
+              "index": 0,
+              "name": "document navigation boundary > recognizes only complete, intentional cell references"
+            },
+            {
+              "index": 1,
+              "name": "document navigation boundary > denies unsafe external targets before they reach the host"
+            },
+            {
+              "index": 2,
+              "name": "document navigation boundary > routes admitted external and workspace targets through host capabilities"
+            },
+            {
+              "index": 4,
+              "name": "document navigation boundary > lets a capable host resolve files outside the loaded Explorer metadata"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::navigation::tests::the_product_reference_cases_route_like_the_product"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::navigation::tests::whole_values_are_recognised_like_the_product"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::navigation::tests::workspace_references_take_the_host_resolution"
+        }
+      ]
+    },
+    {
+      "id": "code-indent-guides",
+      "acceptance": "One guide per complete indentation level at the configured unit and tab width, none for partial whitespace, stopping at the first non-whitespace character (capped at sixteen).",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/code/codeIndentGuides.test.ts",
+          "sha256": "837ab1cd4b9fcd2c0a07bc6e568c306ec4a81c5aa4b2f22af4638993340d34dc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "code indentation guides > renders one guide for each complete indentation level"
+            },
+            {
+              "index": 1,
+              "name": "code indentation guides > does not imply a complete indentation level for partial whitespace"
+            },
+            {
+              "index": 2,
+              "name": "code indentation guides > uses the configured tab width for tab-indented code"
+            },
+            {
+              "index": 3,
+              "name": "code indentation guides > stops at the first non-whitespace character"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::code::decorate::tests::indent_guides_match_ts_contract_and_cap_at_sixteen_columns"
+        }
+      ]
+    },
+    {
+      "id": "html-image-import",
+      "acceptance": "An image pasted into an HTML page is written beside the document as a new `image-<uuid>` file whose bytes match its PNG, JPEG, GIF or WebP name; SVG, mislabelled, empty and over-20 MiB files and names with a path are refused without writing, nothing is replaced, and a failed write is reported.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/html/htmlImageImport.test.ts",
+          "sha256": "12a2911f1819da0096e7d2470f4ded4ec77d3556a82bec399ba27943d25be571",
+          "cases": [
+            {
+              "index": 0,
+              "name": "document image import capability > writes a unique image in the document directory before returning its portable path"
+            },
+            {
+              "index": 1,
+              "name": "document image import capability > rejects a spoofed MIME, SVG, traversal and over-budget import without writing"
+            },
+            {
+              "index": 2,
+              "name": "document image import capability > propagates a failed write and rejects a result outside the admitted directory"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::webview::tests::imported_images_are_new_files_whose_bytes_match_their_name"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::webview::tests::image_imports_refuse_unsafe_files_and_report_failed_writes"
+        }
+      ]
+    },
+    {
+      "id": "database-candidate-routing",
+      "acceptance": "SQLite names in any case route to the lazy database preview that reads a resource session in a native worker, never a full-file buffer; a `.db` file keeps the generic binary MIME and generic binary data never routes to the database preview.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/databasePreviewContract.test.ts",
+          "sha256": "7ad772c8b5ecb6871c2f1b8c0af9447faa76cd87e5c59713fca3844fd56fb509",
+          "cases": [
+            {
+              "index": 0,
+              "name": "database candidate routing and cancellation > routes sample.DB to a lazy native session, never a full-file buffer"
+            },
+            {
+              "index": 1,
+              "name": "database candidate routing and cancellation > routes sample.db3 to a lazy native session, never a full-file buffer"
+            },
+            {
+              "index": 2,
+              "name": "database candidate routing and cancellation > routes sample.sqlite to a lazy native session, never a full-file buffer"
+            },
+            {
+              "index": 3,
+              "name": "database candidate routing and cancellation > routes sample.sqlite3 to a lazy native session, never a full-file buffer"
+            },
+            {
+              "index": 6,
+              "name": "database candidate routing and cancellation > does not manufacture SQLite identity from .db or register all binary MIME as database"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::sqlite_names_route_to_the_lazy_native_database_session"
+        },
+        {
+          "package": "po-contracts",
+          "test": "formats::tests::semantic_identity_preserves_binary_admission_and_office_families"
+        }
+      ]
+    },
+    {
+      "id": "app-preview-setup-preflight",
+      "acceptance": "Saving an App's setup first checks that what it launches exists: a missing package script is refused before anything is written, an advanced package-manager command is not mistaken for a script, and a setup whose script exists is saved against the content the page read.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/app-preview/localFiles.appPreviewSetup.test.ts",
+          "sha256": "e96b26f478d481ee362b8c0c732b517790807014d0f85d8a8a26bd30c2149949",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local App Preview setup port > preflights a package script and conditionally persists the confirmed setup"
+            },
+            {
+              "index": 1,
+              "name": "local App Preview setup port > does not persist when preflight cannot find the selected package script"
+            },
+            {
+              "index": 2,
+              "name": "local App Preview setup port > does not misclassify an advanced package-manager command as a package script"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::app_preview::tests::configure_saves_only_a_setup_whose_package_script_exists"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -40455,13 +40663,27 @@
               "name": "real isolated database engines > duckdb: projects wide tables in bounded column windows"
             }
           ]
+        },
+        {
+          "path": "tests/unit/editor/formats/databasePreviewContract.test.ts",
+          "sha256": "7ad772c8b5ecb6871c2f1b8c0af9447faa76cd87e5c59713fca3844fd56fb509",
+          "cases": [
+            {
+              "index": 4,
+              "name": "database candidate routing and cancellation > routes sample.duckdb to a lazy native session, never a full-file buffer"
+            },
+            {
+              "index": 5,
+              "name": "database candidate routing and cancellation > routes sample.ddb to a lazy native session, never a full-file buffer"
+            }
+          ]
         }
       ]
     },
     {
       "id": "database-preview-host-supervision",
       "kind": "gap",
-      "reason": "TS runs each database engine in a supervised UtilityProcess: quota is released only after the host exit is confirmed, probe and query timeouts and memory are enforced independently of an unresponsive host, and file locks are released after a host crash. Rust runs SQLite on a worker thread with cooperative deadlines and a process-wide SQLite heap limit; there is no separate process to supervise, force-stop or confirm.",
+      "reason": "TS runs each database engine in a supervised UtilityProcess: quota is released only after the host exit is confirmed, probe and query timeouts and memory are enforced independently of an unresponsive host, and file locks are released after a host crash. Rust runs SQLite on a worker thread with cooperative deadlines and a process-wide SQLite heap limit; there is no separate process to supervise, force-stop or confirm. Cancelling while an open is pending therefore does not wait for a host exit, and there is no close handle kept for retry after an unconfirmed exit.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/database.md",
       "typescript": [
         {
@@ -40479,6 +40701,20 @@
             {
               "index": 15,
               "name": "real isolated database engines > releases actual file locks after native host crash"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/databasePreviewContract.test.ts",
+          "sha256": "7ad772c8b5ecb6871c2f1b8c0af9447faa76cd87e5c59713fca3844fd56fb509",
+          "cases": [
+            {
+              "index": 7,
+              "name": "database candidate routing and cancellation > sends cancellation while open is pending, and awaits native exit before resolving"
+            },
+            {
+              "index": 8,
+              "name": "database candidate routing and cancellation > keeps a retriable close handle even if startup and the first close cannot confirm exit"
             }
           ]
         }
@@ -51201,6 +51437,76 @@
             {
               "index": 6,
               "name": "bounded tabular projection > represents offscreen geometry as gaps and keeps a pinned interaction item"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "host-navigation-capabilities",
+      "kind": "out-of-scope",
+      "reason": "TS hosts declare their navigation capabilities, so a host without external opening reports external links unavailable, and a host may cancel a workspace open or return no outcome that the port must preserve. Every native editor host opens external links through the app and requests workspace opens as fire-and-forget events, so there is no missing capability or returned outcome.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/README.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/navigation/documentNavigation.test.ts",
+          "sha256": "58573e0410bd3a137ec5feb9fb8f893d4d45f0c62668e240450e3c99a7469d69",
+          "cases": [
+            {
+              "index": 3,
+              "name": "document navigation boundary > reports external links unavailable when the Host omits that capability"
+            },
+            {
+              "index": 5,
+              "name": "document navigation boundary > preserves hosts that cancel navigation or do not return an outcome"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "codemirror-measurement-bridge",
+      "kind": "out-of-scope",
+      "reason": "These guard TS's adapter onto CodeMirror's private measurement queue (a queued measure must run synchronously through public APIs, and an engine upgrade that stops flushing must fail loudly). The native code editor lays text out itself and has no third-party measurement queue.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/code/README.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/codemirror/layoutEngine.test.ts",
+          "sha256": "4ed455da1f90100b1dfe25e9bbdb6cae1189a8c49c55ef4fb2920e5b6433234c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CodeMirror application compatibility contract > proves the queued measurement ran synchronously through public APIs"
+            },
+            {
+              "index": 1,
+              "name": "CodeMirror application compatibility contract > fails explicitly if an engine upgrade stops flushing coordinate queries"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-embedded-frame-relay",
+      "kind": "out-of-scope",
+      "reason": "TS relays a framed page's scroll and pointer into the host document as DOM custom events in the host's coordinates. Native web views report their own scroll and pointer to the GPUI view that owns them, with no DOM between.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/html/README.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/host/embeddedFrameRelay.test.ts",
+          "sha256": "859f1a54d22d31d2ac1123c7b4e5463052942ed7d337b9762463962e0a8bb0ed",
+          "cases": [
+            {
+              "index": 0,
+              "name": "embedded frame relay > tells the host how far the frame's page is scrolled"
+            },
+            {
+              "index": 1,
+              "name": "embedded frame relay > puts the pointer in the host's coordinates, and says when it leaves"
+            },
+            {
+              "index": 2,
+              "name": "embedded frame relay > does nothing without a frame"
             }
           ]
         }
