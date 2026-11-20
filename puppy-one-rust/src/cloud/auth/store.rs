@@ -1,4 +1,5 @@
 use super::model::*;
+#[cfg(any(target_os = "macos", test))]
 use zeroize::Zeroize;
 
 pub(super) trait Store: Send + Sync {
@@ -32,6 +33,7 @@ pub(super) fn profile_account(profile: Option<&std::ffi::OsStr>) -> String {
     }
 }
 /// The generic-password items of one keychain service, by account.
+#[cfg(any(target_os = "macos", test))]
 pub(super) trait Items {
     fn get(&self, account: &str) -> Result<Option<Vec<u8>>>;
     fn set(&self, account: &str, bytes: &[u8]) -> Result<()>;
@@ -40,6 +42,7 @@ pub(super) trait Items {
 /// `readCredential`: the saved sign-in, or `None`. An unreadable record is
 /// set aside as `<account>.corrupt.<time>` (`quarantineCorruptFile`) and
 /// the account reads as signed out — never as a silent, valid logout.
+#[cfg(any(target_os = "macos", test))]
 pub(super) fn load(items: &dyn Items, account: &str) -> Result<Option<Credential>> {
     let Some(mut bytes) = items.get(account)? else {
         return Ok(None);
@@ -64,6 +67,7 @@ pub(super) fn load(items: &dyn Items, account: &str) -> Result<Option<Credential
 }
 /// `writeCredential`: only the refresh credential and who it belongs to;
 /// an access token is never part of the record.
+#[cfg(any(target_os = "macos", test))]
 pub(super) fn save(items: &dyn Items, account: &str, credential: &Credential) -> Result<()> {
     let mut bytes = serde_json::to_vec(credential).map_err(|_| Error::SecureStorage)?;
     let result = items.set(account, &bytes);

@@ -1,9 +1,6 @@
-use super::{
-    callback,
-    http::{Http, Remote},
-    model::*,
-    store::Store,
-};
+#[cfg(target_os = "macos")]
+use super::http::Http;
+use super::{callback, http::Remote, model::*, store::Store};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
