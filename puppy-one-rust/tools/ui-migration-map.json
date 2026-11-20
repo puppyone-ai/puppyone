@@ -486,7 +486,7 @@
         "src/features/settings/main/plan/format.rs",
         "src/workspace/cloud/pricing.rs"
       ],
-      "remaining": "Plan follows the 2026-11-19 redesign rather than v0.4.4, drawn in the Settings row grammar (2026-11-21): the plan with its price and renewal, then two rows of 40-cell meters (agent hours with running agents half-lit, storage), the add-ons and the other plans as rows that each say what they add, a change confirmed in a group of rows under what it changes. Account is Personal's rows: who is signed in, the service, and the AI balance with its top-ups; its plan row moved to Plan beside it. Native over scripted billing; not pixel-compared with v0.4.4 by design (AC-2).",
+      "remaining": "Plan follows the 2026-11-19 redesign rather than v0.4.4, drawn in the Settings row grammar (2026-11-21): the plan with its price and renewal, then two rows of 40-cell meters (agent hours with running agents half-lit, storage), the add-ons as rows, the paid plans someone on Free can choose as two tiles side by side (as Appearance offers themes) and any other plan as a row, each saying what it adds, a change confirmed in a group of rows under what it changes. Account is Personal's rows: who is signed in, the service, and the AI balance with its top-ups; its plan row moved to Plan beside it. Native over scripted billing; not pixel-compared with v0.4.4 by design (AC-2).",
       "evidence": [
         "test:offers_three_plans_with_one_price_each_and_the_same_allowances",
         "test:bills_a_team_per_person_and_names_a_legacy_plan_by_its_new_name",

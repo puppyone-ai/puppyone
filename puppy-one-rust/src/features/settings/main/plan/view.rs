@@ -837,9 +837,46 @@ impl SettingsWorkspaceSurface {
         let paying = controller.polling.is_some();
         let busy = controller.acting || self.plan_page.snapshot.loading;
         let held = held_monthly(view, holding);
+        // The paid plans someone on Free can move to stand side by side as
+        // tiles, the way Appearance offers its themes; anything else is a
+        // row.
+        let tiled: Vec<PlanId> = if holding.subscribed {
+            vec![]
+        } else {
+            plans
+                .iter()
+                .filter(|p| p.id != PlanId::Free)
+                .map(|p| p.id)
+                .collect()
+        };
+        let tiled = if tiled.len() == 2 { tiled } else { vec![] };
+        let mut tiles: Vec<AnyElement> = vec![];
+        let mut chosen_tile = None;
         let mut rows: Vec<AnyElement> = vec![];
         for plan in plans {
             let open = controller.target == Some(Target::Plan(plan.id));
+            let offer = match reader {
+                Reader::SignedOut => Offer::SignIn,
+                Reader::Unread | Reader::Member => Offer::Nothing,
+                Reader::Owner if open || paying => Offer::Nothing,
+                // Leaving a paid plan is a cancellation, which lives with
+                // invoices at the payment provider.
+                Reader::Owner if plan.id == PlanId::Free => Offer::MoveToFree,
+                Reader::Owner if !(sellable && plan.purchasable && plan.catalog_plan.is_some()) => {
+                    Offer::ComingSoon
+                }
+                Reader::Owner => Offer::Choose {
+                    upgrade: current.is_none_or(|c| rank(plan.id) > rank(c)),
+                },
+            };
+            if tiled.contains(&plan.id) {
+                let first = tiles.is_empty();
+                tiles.push(self.plan_tile(plan, offer, open, first, busy, t, cx));
+                if open {
+                    chosen_tile = Some(plan);
+                }
+                continue;
+            }
             let price = if plan.per_person {
                 tf(
                     "native.plan.perPersonMonthly",
@@ -851,24 +888,10 @@ impl SettingsWorkspaceSurface {
             } else {
                 f::currency_amount(plan.price_cents, &plan.currency)
             };
-            let action: Option<AnyElement> = match reader {
-                Reader::SignedOut => Some(
-                    Button::new(SharedString::from(format!(
-                        "plan-sign-in-{}",
-                        plan.id.key()
-                    )))
-                    .label(tr("settings.plan.signInToChoose"))
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        // Buying needs an account; Account owns sign-in.
-                        s.select_page(crate::features::settings::Page::Account, cx)
-                    }))
-                    .into_any_element(),
-                ),
-                Reader::Unread | Reader::Member => None,
-                Reader::Owner if open || paying => None,
-                // Leaving a paid plan is a cancellation, which lives with
-                // invoices at the payment provider.
-                Reader::Owner if plan.id == PlanId::Free => Some(
+            let action: Option<AnyElement> = match offer {
+                Offer::SignIn => Some(self.sign_in_to_choose(plan.id, cx).into_any_element()),
+                Offer::Nothing => None,
+                Offer::MoveToFree => Some(
                     Button::new("plan-move-to-free")
                         .variant(ButtonVariant::Ghost)
                         .label(tr("settings.plan.moveToFree"))
@@ -877,17 +900,14 @@ impl SettingsWorkspaceSurface {
                         .on_click(cx.listener(|s, _, _, cx| s.open_portal(cx)))
                         .into_any_element(),
                 ),
-                Reader::Owner if !(sellable && plan.purchasable && plan.catalog_plan.is_some()) => {
-                    Some(
-                        div()
-                            .text_color(t.subtle)
-                            .child(tr("settings.plan.comingSoon"))
-                            .into_any_element(),
-                    )
-                }
-                Reader::Owner => {
+                Offer::ComingSoon => Some(
+                    div()
+                        .text_color(t.subtle)
+                        .child(tr("settings.plan.comingSoon"))
+                        .into_any_element(),
+                ),
+                Offer::Choose { upgrade } => {
                     let id = plan.id;
-                    let upgrade = current.is_none_or(|c| rank(id) > rank(c));
                     Some(
                         Button::new(SharedString::from(format!("plan-choose-{}", id.key())))
                             .label(tr(if upgrade {
@@ -925,9 +945,176 @@ impl SettingsWorkspaceSurface {
                 row
             });
         }
+        // A chosen tile is confirmed under the tiles, as a row's change is
+        // under its row.
+        let chosen = chosen_tile.map(|plan| {
+            let stepper = plan.per_person.then(|| {
+                self.people_stepper(plan.minimum_seats.max(1), cx)
+                    .into_any_element()
+            });
+            div()
+                .mt(px(8.))
+                .child(self.confirmation(None, stepper, holding, plan.id, held, t, cx))
+        });
         SettingsSubsection::new()
             .title(tr(title))
+            .when(!tiles.is_empty(), |d| {
+                d.child(
+                    h_flex()
+                        .items_stretch()
+                        .gap(px(12.))
+                        .px(px(10.))
+                        .pt(px(4.))
+                        .children(tiles),
+                )
+            })
+            .children(chosen)
             .children(rows)
+            .into_any_element()
+    }
+
+    /// `Sign in to choose`: buying needs an account, and Account owns
+    /// sign-in.
+    fn sign_in_to_choose(&self, id: PlanId, cx: &mut Context<Self>) -> Button {
+        Button::new(SharedString::from(format!("plan-sign-in-{}", id.key())))
+            .label(tr("settings.plan.signInToChoose"))
+            .on_click(cx.listener(|s, _, _, cx| {
+                s.select_page(crate::features::settings::Page::Account, cx)
+            }))
+    }
+
+    /// One paid plan as a tile, drawn as Appearance draws a theme choice
+    /// (radius 8, the subtle border on the raised panel, and when chosen
+    /// the accent border with its 26% ring): its name and price, what it
+    /// gives, and the way to it at the foot. The first tile's way is the
+    /// accented one.
+    #[allow(clippy::too_many_arguments)]
+    fn plan_tile(
+        &self,
+        plan: &PlanOffer,
+        offer: Offer,
+        open: bool,
+        first: bool,
+        busy: bool,
+        t: Theme,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let ui = theme::ty().ui;
+        let foot: AnyElement = match offer {
+            Offer::SignIn => self
+                .sign_in_to_choose(plan.id, cx)
+                .w_full()
+                .into_any_element(),
+            Offer::ComingSoon => div()
+                .h(px(theme::control_compact()))
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_color(t.subtle)
+                .child(tr("settings.plan.comingSoon"))
+                .into_any_element(),
+            Offer::Choose { upgrade } => {
+                let id = plan.id;
+                Button::new(SharedString::from(format!("plan-choose-{}", id.key())))
+                    .when(first, |b| b.variant(ButtonVariant::OutlinePrimary))
+                    .label(if upgrade {
+                        tf("native.plan.upgradeTo", &[("plan", plan_name(id).into())])
+                    } else {
+                        tr("settings.plan.switch").to_owned()
+                    })
+                    .disabled(busy)
+                    .on_click(cx.listener(move |s, _, _, cx| s.choose_plan(id, cx)))
+                    .w_full()
+                    .into_any_element()
+            }
+            // Chosen, paid for, or not the reader's to buy: the foot keeps
+            // its height so the tiles stay level.
+            Offer::Nothing | Offer::MoveToFree => {
+                div().h(px(theme::control_compact())).into_any_element()
+            }
+        };
+        let hover_border = theme::mix(t.accent, t.border, 0.42);
+        let hover_bg = theme::mix(t.selected, t.panel, 0.72);
+        v_flex()
+            .id(SharedString::from(format!("plan-row-{}", plan.id.key())))
+            .role(Role::Group)
+            .aria_label(plan_name(plan.id))
+            .relative()
+            .flex_1()
+            .min_w_0()
+            .gap(px(14.))
+            .p(px(16.))
+            .border_1()
+            .rounded(px(8.))
+            .map(|d| {
+                if open {
+                    d.border_color(hover_border).bg(hover_bg).child(
+                        div()
+                            .absolute()
+                            .top(px(-2.))
+                            .left(px(-2.))
+                            .right(px(-2.))
+                            .bottom(px(-2.))
+                            .rounded(px(9.))
+                            .border_1()
+                            .border_color(theme::alpha(t.accent, 0.26)),
+                    )
+                } else {
+                    d.border_color(t.border_subtle)
+                        .bg(theme::alpha(t.panel_raised, 0.82))
+                }
+            })
+            .child(
+                v_flex()
+                    .child(
+                        div()
+                            .text_color(t.text)
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(plan_name(plan.id)),
+                    )
+                    .child(
+                        h_flex()
+                            .items_end()
+                            .gap(px(6.))
+                            .child(
+                                div()
+                                    .text_size(px(ui.page_title))
+                                    .line_height(px(ui.page_title * 1.4))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(t.text)
+                                    .child(f::currency_amount(plan.price_cents, &plan.currency)),
+                            )
+                            .child(div().pb(px(4.)).text_color(t.subtle).child(tr(
+                                if plan.per_person {
+                                    "native.plan.perPersonUnit"
+                                } else {
+                                    "native.plan.perMonthUnit"
+                                },
+                            ))),
+                    ),
+            )
+            .child(
+                v_flex()
+                    .gap(px(6.))
+                    .children(gain_list(plan).into_iter().map(|gain| {
+                        h_flex()
+                            .items_start()
+                            .gap(px(8.))
+                            .text_color(t.muted)
+                            .child(
+                                div().pt(px(2.)).child(
+                                    Icon::new("check")
+                                        .with_size(px(14.))
+                                        .stroke(2.)
+                                        .color(t.subtle),
+                                ),
+                            )
+                            .child(div().min_w_0().child(gain))
+                    })),
+            )
+            .child(div().flex_1())
+            .child(foot)
+            .test_support()
             .into_any_element()
     }
 
@@ -1114,6 +1301,58 @@ fn matches_target(quote: &Quote, plan: PlanId, seats: u64) -> bool {
 
 /// What a plan adds, in one line: Free and Team by their allowance,
 /// Enterprise as Team plus what differs from it.
+/// What a listed plan offers its reader.
+#[derive(Clone, Copy)]
+enum Offer {
+    SignIn,
+    Nothing,
+    MoveToFree,
+    ComingSoon,
+    Choose { upgrade: bool },
+}
+
+/// What a paid plan gives, one line each, for its tile: Team by its
+/// allowance, Enterprise by what it adds to Team.
+fn gain_list(plan: &PlanOffer) -> Vec<String> {
+    let storage = plan
+        .storage_bytes
+        .map_or_else(|| tr("settings.plan.spec.unlimited").to_owned(), f::storage);
+    let storage = tf(
+        "native.plan.gain.storagePerPerson",
+        &[("storage", storage.into())],
+    );
+    match plan.id {
+        PlanId::Free => vec![gains(plan)],
+        PlanId::Team => vec![
+            tf(
+                "settings.plan.hoursPerPerson",
+                &[("hours", f::hours(plan.agent_hours).into())],
+            ),
+            storage,
+            tf(
+                "native.plan.gain.projectsEach",
+                &[(
+                    "projects",
+                    Arg::Number(plan.projects.map_or(0, |n| n as i64)),
+                )],
+            ),
+            tr("native.plan.gain.membersAndRoles").to_owned(),
+        ],
+        PlanId::Enterprise => vec![
+            tf(
+                "native.plan.gain.everythingIn",
+                &[("plan", plan_name(PlanId::Team).into())],
+            ),
+            storage,
+            tf(
+                "native.plan.gain.history",
+                &[("history", f::history(plan.history_days).into())],
+            ),
+            tr("native.plan.gain.activityLog").to_owned(),
+        ],
+    }
+}
+
 fn gains(plan: &PlanOffer) -> String {
     let storage = plan
         .storage_bytes

@@ -313,19 +313,27 @@ fn signed_out_plan_renders_comparable_prices_and_routes_every_offer_to_account()
     .unwrap();
     for plan in ["free", "team", "enterprise"] {
         let mut f = Fixture::mount(Content::Page, None, false, false, false);
-        // Every plan with one price, saying what it gives; Enterprise only
-        // what it adds to Team.
+        // Every plan with one price, saying what it gives; the two paid
+        // plans side by side as tiles, Enterprise only by what it adds to
+        // Team, and Free as a row.
         for expected in [
             "All plans",
             "Free",
             "Team",
             "Enterprise",
             "$0",
-            "$20 per person a month",
-            "$40 per person a month",
+            "$20",
+            "$40",
+            "per person / month",
             "5 h a month, 1 GB, 1 project online",
-            "40 h and 10 GB per person, 20 projects each, members and roles",
-            "Everything in Team, plus 20 GB per person, 1 year of history and an activity log",
+            "40 agent hours per person a month",
+            "10 GB of storage per person",
+            "20 projects each",
+            "Members and roles",
+            "Everything in Team",
+            "20 GB of storage per person",
+            "1 year of history",
+            "Activity log",
         ] {
             f.contains(expected);
         }
@@ -364,7 +372,8 @@ fn signed_in_and_restoring_pages_keep_loading_without_offering_sign_in_or_free()
 fn failed_signed_in_read_offers_retry_and_prices_without_inventing_current_plan() {
     let mut f = Fixture::mount(Content::Page, None, true, true, false);
     assert!(f.cx.debug_bounds("plan-loading").is_none());
-    f.contains("$20 per person a month");
+    f.contains("$20");
+    f.contains("per person / month");
     assert_eq!(f.rows(), ["Free", "Team", "Enterprise"]);
     f.excludes("Sign in to choose");
     assert_eq!(f.buttons(), ["Retry"]);
