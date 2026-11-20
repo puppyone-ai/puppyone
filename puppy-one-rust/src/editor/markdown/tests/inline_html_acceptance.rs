@@ -408,3 +408,86 @@ fn late_inline_html_viewport_repaints_changed_color_and_shifted_ranges(cx: &mut 
         });
     }
 }
+
+/// `render-plan.test.ts`: `compiles styled span list items into inlineMark
+/// plans`, `keeps incomplete inline HTML as visibleSource without deletion
+/// units`, `indexes plans by document and syntax tree identity`;
+/// `markdownInlineHtml.test.ts`: `reduces unsafe attributes while
+/// preserving honest safe structure`, `rejects unsafe style url() values`.
+/// A safe element is a revealable mark whose two tags delete as units; only
+/// its safe colours style it (event handlers, `display` and `url()` values
+/// are dropped, never hiding the text). The product's reduction diagnostics
+/// are inspection data, not shown.
+#[test]
+fn inline_html_compiles_safe_marks_and_drops_unsafe_attributes() {
+    use crate::editor::markdown::core::{
+        plans::{self, Presentation},
+        state::FeatureStateStore,
+    };
+    let compiled = |source: &str| {
+        let doc = Buffer::new(source);
+        let syntax = Syntax::parse_with(&doc, FEATURES);
+        let plans = plans::compile(&doc, &syntax, &FeatureStateStore::default(), FEATURES);
+        (syntax, plans)
+    };
+    let source = "- <span style=\"color: #B45309;\">screenshot</span>";
+    let (syntax, plans) = compiled(source);
+    let (index, html) = syntax
+        .elements
+        .iter()
+        .enumerate()
+        .find(|(_, e)| e.kind == Kind::InlineHtml)
+        .unwrap();
+    let tag = html.html.as_deref().unwrap();
+    assert_eq!(
+        (tag.name.as_str(), tag.color.as_deref()),
+        ("span", Some("#B45309"))
+    );
+    let plan = plans.iter().find(|p| p.element == Some(index)).unwrap();
+    assert!(matches!(plan.presentation, Presentation::InlineMark { .. }));
+    assert_eq!(plan.delete_units.len(), 2);
+    assert_eq!(
+        syntax
+            .reveal_element(source.find("screen").unwrap())
+            .map(|e| e.kind),
+        Some(Kind::InlineHtml)
+    );
+
+    let (syntax, plans) = compiled("Text <span>unfinished");
+    assert!(syntax.elements.iter().all(|e| e.kind != Kind::InlineHtml));
+    assert!(plans.iter().all(|p| p.delete_units.is_empty()));
+
+    let (_, plans) = compiled("<kbd>Cmd</kbd> + <span style=\"color: red\">R</span>");
+    assert_eq!(
+        plans
+            .iter()
+            .filter(|p| matches!(p.presentation, Presentation::InlineMark { .. }))
+            .count(),
+        2
+    );
+
+    for (source, color) in [
+        (
+            "<span style=\"display: none; color: red\">text</span>",
+            Some("red"),
+        ),
+        (
+            "<span onclick=\"alert(1)\" style=\"color: blue\">text</span>",
+            Some("blue"),
+        ),
+        (
+            "<span style=\"color: url(https://example.com/x)\">text</span>",
+            None,
+        ),
+    ] {
+        let syntax = parse(source);
+        let html = syntax
+            .elements
+            .iter()
+            .find(|e| e.kind == Kind::InlineHtml)
+            .unwrap();
+        let tag = html.html.as_deref().unwrap();
+        assert_eq!(tag.color.as_deref(), color, "{source}");
+        assert_eq!(&source[html.content.clone().unwrap()], "text");
+    }
+}

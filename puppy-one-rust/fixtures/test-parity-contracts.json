@@ -17623,7 +17623,7 @@
     },
     {
       "id": "native-markdown-inline-html-semantic-containers-and-projection",
-      "acceptance": "Production parsing owns inline HTML pairing within actual paragraph, heading and table-cell boundaries. Complete authored markers, Unicode byte ranges, nested Markdown and independent siblings survive; mismatched or incomplete ancestry never becomes a reveal target. Bounded queries inspect only the requested paragraph among 10,000 lines. Native painted text retains safe colors, strong/emphasis roles and marker atomicity across reveal, viewport scrolling and edits. Native parsing is eager rather than CodeMirror deferred-tree parsing; cache freshness and visible output are the acceptance here. Attribute-reduction diagnostics, font-weight CSS, br widgets and full HTML runs remain separately unreviewed.",
+      "acceptance": "Production parsing owns inline HTML pairing within actual paragraph, heading and table-cell boundaries. Complete authored markers, Unicode byte ranges, nested Markdown and independent siblings survive; mismatched or incomplete ancestry never becomes a reveal target. Bounded queries inspect only the requested paragraph among 10,000 lines. Native painted text retains safe colors, strong/emphasis roles and marker atomicity across reveal, viewport scrolling and edits. Native parsing is eager rather than CodeMirror deferred-tree parsing; cache freshness and visible output are the acceptance here. Attribute reduction, font-weight, br and full HTML runs are recorded separately.",
       "typescript": [
         {
           "path": "tests/unit/editor/formats/markdown/html/markdownInlineHtml.test.ts",
@@ -39125,6 +39125,128 @@
           "test": "editor::markdown::core::links::tests::standard_images_keep_spaced_destinations_and_their_titles"
         }
       ]
+    },
+    {
+      "id": "markdown-render-plans",
+      "acceptance": "A safe inline HTML element (a styled span in a list item, kbd and span runs) compiles to a revealable inline mark whose two tags delete as units and whose safe colour styles it; incomplete inline HTML stays visible source with no deletion units; a fence compiles to a code block plan with its language and code, a table to a table plan with rows and alignments, ending before prose that follows it (whose own marks stay); a legacy `83:99:package.json` fence is highlighted as JSON (the quoted file and lines, an accessible description in the product, have no GPUI counterpart).",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/render-plan.test.ts",
+          "sha256": "f4b93565d9a17d7b2c3c164f28365ba91a4536b4f9202b3a626d23359f3a5249",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown render-plan compiler > compiles styled span list items into inlineMark plans"
+            },
+            {
+              "index": 2,
+              "name": "Markdown render-plan compiler > keeps incomplete inline HTML as visibleSource without deletion units"
+            },
+            {
+              "index": 3,
+              "name": "Markdown render-plan compiler > indexes plans by document and syntax tree identity"
+            },
+            {
+              "index": 4,
+              "name": "Markdown render-plan compiler > compiles fence and table blocks into blockAtom plans with payload"
+            },
+            {
+              "index": 5,
+              "name": "Markdown render-plan compiler > propagates the refined table boundary through the canonical plan index"
+            },
+            {
+              "index": 6,
+              "name": "Markdown render-plan compiler > carries legacy code-source references into the block plan"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::inline_html_compiles_safe_marks_and_drops_unsafe_attributes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::composition_acceptance::fences_and_tables_compile_their_payload_and_tables_end_before_prose"
+        }
+      ]
+    },
+    {
+      "id": "markdown-inline-html-safe-reduction",
+      "acceptance": "Inline HTML keeps only safe colours: event handlers, `display` and `url()` style values are dropped while the element and its text stay visible, and a blocked `<script>` is never an element (its source stays visible). The product's reduction diagnostics are inspection data, not shown.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/html/markdownInlineHtml.test.ts",
+          "sha256": "167b22ba4e55afd07a148211a4d96f0db0209f18f6a8db566ef4d8e56faf901c",
+          "cases": [
+            {
+              "index": 14,
+              "name": "Markdown inline HTML policy > reduces unsafe attributes while preserving honest safe structure"
+            },
+            {
+              "index": 15,
+              "name": "Markdown inline HTML policy > rejects blocked executable tags"
+            },
+            {
+              "index": 16,
+              "name": "Markdown inline HTML policy > rejects unsafe style url() values"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::inline_html_compiles_safe_marks_and_drops_unsafe_attributes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::unsupported_inline_html_is_visible_and_block_ownership_comes_from_the_parser"
+        }
+      ]
+    },
+    {
+      "id": "markdown-code-fence-info",
+      "acceptance": "A fence's info names the language: the first token, else the language of the file it quotes in legacy `start:end:path` or structured `file=\"…\" lines=\"…\"` metadata (quoted paths with spaces or backticks, line ranges like `L7..L9`); a language-only fence quotes nothing and an invalid legacy range is just a language; common extensions and Dockerfile map to their languages (the product's `path · L206–212` label is an accessible description with no GPUI counterpart).",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/markdownCodeBlockMetadata.test.ts",
+          "sha256": "4be883cc7edcf461e1621b926b3792fd62399412e247d8e309bdb932f6721cea",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown code-fence metadata > recognizes legacy line-range filenames and infers the language"
+            },
+            {
+              "index": 1,
+              "name": "Markdown code-fence metadata > parses structured source metadata with quoted paths"
+            },
+            {
+              "index": 2,
+              "name": "Markdown code-fence metadata > infers a language when structured metadata omits it"
+            },
+            {
+              "index": 3,
+              "name": "Markdown code-fence metadata > keeps ordinary language-only fences free of source metadata"
+            },
+            {
+              "index": 6,
+              "name": "Markdown code-fence metadata > formats source labels compactly and maps common extensions"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::shared::fence::tests::fence_info_names_the_quoted_file_and_infers_its_language"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::composition_acceptance::fences_and_tables_compile_their_payload_and_tables_end_before_prose"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -49060,6 +49182,68 @@
             {
               "index": 6,
               "name": "Markdown presentation preferences > migrates a consistent legacy heading scale and normalizes mixed legacy scales"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-inline-html-breaks-and-styles",
+      "kind": "gap",
+      "reason": "Natively inline HTML styles only text and background colour: `font-weight` in an inline style is not applied, and block HTML gets no wider style capability (`display`) either. A bare `<br>` inside a paragraph stays visible source instead of a line break that reveals its tag on demand.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/syntax/inline-html.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/html/markdownInlineHtml.test.ts",
+          "sha256": "167b22ba4e55afd07a148211a4d96f0db0209f18f6a8db566ef4d8e56faf901c",
+          "cases": [
+            {
+              "index": 11,
+              "name": "Markdown inline HTML policy > compiles the presentation-only style subset"
+            },
+            {
+              "index": 12,
+              "name": "Markdown inline HTML policy > compiles a bare br into a typed line-break plan"
+            },
+            {
+              "index": 13,
+              "name": "Markdown inline HTML policy > uses a narrower style capability in inline surfaces than sandboxed blocks"
+            },
+            {
+              "index": 18,
+              "name": "Markdown inline HTML live decorations > renders br as an atomic typed widget and reveals its source on demand"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/render-plan.test.ts",
+          "sha256": "f4b93565d9a17d7b2c3c164f28365ba91a4536b4f9202b3a626d23359f3a5249",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown render-plan compiler > compiles bare br into an expandable inlineAtom with lineBreaks metadata"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-code-fence-serialization",
+      "kind": "out-of-scope",
+      "reason": "The native code block shows the fence's own source lines and is edited as text, so the editor never re-writes a fence: there is no serializer putting a standard language first with `file=`/`lines=` metadata or choosing a tilde fence for a path with a backtick.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/code-block.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/markdownCodeBlockMetadata.test.ts",
+          "sha256": "4be883cc7edcf461e1621b926b3792fd62399412e247d8e309bdb932f6721cea",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Markdown code-fence metadata > serializes source metadata with a standard language as the first token"
+            },
+            {
+              "index": 5,
+              "name": "Markdown code-fence metadata > round-trips paths that require a tilde fence"
             }
           ]
         }

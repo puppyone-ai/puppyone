@@ -164,3 +164,71 @@ fn an_image_owning_its_line_is_block_media(cx: &mut TestAppContext) {
         assert_eq!(inline, ["icon"]);
     });
 }
+
+/// `render-plan.test.ts`: `compiles fence and table blocks into blockAtom
+/// plans with payload`, `propagates the refined table boundary through the
+/// canonical plan index`, `carries legacy code-source references into the
+/// block plan`; `markdownCodeBlockMetadata.test.ts`: `recognizes legacy
+/// line-range filenames and infers the language`. A legacy fence's code is
+/// highlighted in its file's language (the quoted file and lines, an
+/// accessible description in the product, have no GPUI counterpart).
+#[test]
+fn fences_and_tables_compile_their_payload_and_tables_end_before_prose() {
+    use crate::editor::markdown::{
+        core::{plans::Plan, syntax::Kind},
+        features::{code_block::CodeBlock, table::model::Table},
+    };
+    let compiled = |source: &str| {
+        let doc = Buffer::new(source);
+        let syntax = Syntax::parse_with(&doc, FEATURES);
+        let plans = plans::compile(&doc, &syntax, &FeatureStateStore::default(), FEATURES);
+        (syntax, plans)
+    };
+    let code = |plans: &[Plan], source: &str| {
+        plans
+            .iter()
+            .find_map(|p| p.embed()?.model::<CodeBlock>().cloned())
+            .map(|c| (c.language, source[c.code].to_owned()))
+    };
+
+    let source = "```ts\nconst x = 1;\n```\n\n| A | B |\n| --- | --- |\n| 1 | 2 |";
+    let (_, plans) = compiled(source);
+    assert_eq!(
+        code(&plans, source),
+        Some(("ts".into(), "const x = 1;".into()))
+    );
+    let table = plans
+        .iter()
+        .find_map(|p| p.embed()?.model::<Table>())
+        .unwrap();
+    assert!(table.rows.len() >= 2 && table.alignments.len() >= 2);
+
+    let prose = "**First, this remains a paragraph.**";
+    let source = format!("| A | B |\n| --- | --- |\n| 1 | 2 |\n{prose}");
+    let prose_from = source.find(prose).unwrap();
+    let (syntax, plans) = compiled(&source);
+    let (plan, table) = plans
+        .iter()
+        .find_map(|p| Some((p, p.embed()?.model::<Table>()?)))
+        .unwrap();
+    assert_eq!(plan.source, 0..prose_from - 1);
+    assert_eq!(table.rows.len(), 2);
+    assert!(
+        syntax
+            .elements_in(prose_from..source.len())
+            .any(|e| e.kind == Kind::Strong)
+    );
+    assert!(
+        plans
+            .iter()
+            .filter(|p| p.source.end > prose_from)
+            .all(|p| p.embed().is_none())
+    );
+
+    let source = "```83:99:package.json\n{\"private\": true}\n```";
+    let (_, plans) = compiled(source);
+    assert_eq!(
+        code(&plans, source),
+        Some(("json".into(), "{\"private\": true}".into()))
+    );
+}

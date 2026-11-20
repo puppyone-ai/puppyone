@@ -108,7 +108,7 @@ pub fn fences_in_lines(doc: &Buffer, line_window: Range<usize>) -> Vec<Fence> {
             continue;
         }
         let info = rest[run..].to_owned();
-        let language = info.split_whitespace().next().unwrap_or("").to_owned();
+        let language = crate::editor::markdown::shared::fence::parse_fence_info(&info).language;
         let mut end = line + 1;
         let mut closed = false;
         while end < end_limit {
