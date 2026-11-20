@@ -58,6 +58,23 @@ pub struct BlockGeometry {
     pub source: Range<usize>,
 }
 
+/// The text at the top of the viewport, held still across a relayout
+/// (scroll anchoring, as CodeMirror's `scrollAnchor` and CSS scroll
+/// anchoring): when the column width changes, the rows of the blocks above
+/// and of the anchor's own paragraph change, and the scroll follows the
+/// anchor's row instead of keeping a pixel offset.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollAnchor {
+    /// The first offset of the row at the viewport top.
+    pub offset: usize,
+    pub upstream: bool,
+    /// That row's top minus the viewport top (negative when the row is
+    /// partly scrolled past).
+    pub row: f32,
+    /// That row's top minus its block's top.
+    pub within: f32,
+}
+
 /// Where a caret is drawn (window coordinates of the layout frame).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Caret {
@@ -337,6 +354,35 @@ impl DocLayout {
             }
         }
         out
+    }
+
+    /// The anchor at the viewport top once the view scrolls to
+    /// `scroll_now`, if this layout laid that point out.
+    pub fn anchor(&self, scroll_now: f32) -> Option<ScrollAnchor> {
+        let (first, last) = (self.blocks.first()?, self.blocks.last()?);
+        let top = self.to_layout(self.bounds.origin, scroll_now).y;
+        if top < first.bounds.top() || top >= last.bounds.bottom() {
+            return None;
+        }
+        let (offset, upstream) = self.offset_at(point(first.bounds.left(), top));
+        let row = self.caret(offset, upstream).row_top;
+        let block = self.block_of(offset)?;
+        Some(ScrollAnchor {
+            offset,
+            upstream,
+            row: f32::from(row - top),
+            within: f32::from(row - block.bounds.top()),
+        })
+    }
+
+    /// The scroll that puts `anchor`'s row back where it was in the
+    /// viewport, if this layout laid it out.
+    pub fn anchored_scroll(&self, anchor: &ScrollAnchor) -> Option<f32> {
+        if !self.covers(anchor.offset) {
+            return None;
+        }
+        let row = self.caret(anchor.offset, anchor.upstream).row_top;
+        Some(f32::from(row - self.bounds.top() + self.scroll) - anchor.row)
     }
 
     pub fn max_scroll(&self) -> f32 {

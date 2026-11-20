@@ -1502,3 +1502,56 @@ fn read_only_allows_view_commands_and_blocks_document_edits(cx: &mut TestAppCont
         assert_ne!(v.text(), text);
     });
 }
+
+/// A Markdown document (headings, long paragraphs, lists, code, tables)
+/// resized narrower and wider again: the text at the viewport top stays
+/// where it is, with no drift accumulating across resizes.
+#[gpui::test]
+fn resizing_keeps_the_markdown_at_the_viewport_top(cx: &mut TestAppContext) {
+    use gpui::{point, px, size};
+    let prose = "Every paragraph here wraps across several rows, so a narrower column adds rows to the blocks above the viewport as well as to the one at its top. ".repeat(4);
+    let text = (0..60)
+        .map(|i| {
+            format!(
+                "## Section {i}\n\n{prose}\n\n- first item {prose}\n- second item\n\n```rust\nfn section_{i}() {{}}\n```\n\n| a | b |\n| - | - |\n| {i} | cell |\n"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let (view, cx) = setup(cx, &text);
+    cx.simulate_resize(size(px(1000.), px(700.)));
+    for _ in 0..6 {
+        let _ = blocks(&view, cx);
+        cx.run_until_parked();
+    }
+    view.update(cx, |v, cx| v.set_scroll_top(30_000., cx));
+    let settle = |cx: &mut VisualTestContext| {
+        for _ in 0..6 {
+            let _ = blocks(&view, cx);
+            cx.run_until_parked();
+        }
+    };
+    settle(cx);
+    let row_of = |cx: &mut VisualTestContext, offset: usize| {
+        view.read_with(cx, |v, _| {
+            let l = v.layout().unwrap();
+            f32::from(l.caret(offset, false).row_top - l.bounds.top())
+        })
+    };
+    let offset = view.read_with(cx, |v, _| {
+        let l = v.layout().unwrap();
+        let left = l.blocks[0].bounds.left();
+        l.offset_at(point(left, l.bounds.top() + px(2.))).0
+    });
+    let row = row_of(cx, offset);
+    for width in [760., 560., 440., 880., 1000.].repeat(3) {
+        cx.simulate_resize(size(px(width), px(700.)));
+        settle(cx);
+        let now = row_of(cx, offset);
+        assert!(
+            (now - row).abs() <= 0.5,
+            "at {width}px the top text moved {}",
+            now - row
+        );
+    }
+}
