@@ -363,6 +363,139 @@ mod tests {
         assert_eq!(viewer("blob.qqqq"), "document-placeholder");
     }
 
+    /// `publishes one immutable, versioned registry covering every source
+    /// shape`; `declares the layout and first-frame contract for every
+    /// preset Viewer`.
+    #[test]
+    fn the_registry_covers_every_source_shape_and_each_surface_contract() {
+        use manifest::{
+            ComputeIsolation, ContentSandbox, MemoryClass, ReadinessSignal, Runtime, Source as S,
+            SurfaceIsolation, SurfacePreparation as P, SurfaceTrait,
+        };
+        let registry = registry();
+        let shapes: HashSet<_> = registry
+            .contributions
+            .iter()
+            .map(|v| format!("{:?}", v.definition.source))
+            .collect();
+        let expected: HashSet<_> = [
+            S::Content,
+            S::Resource,
+            S::ContentAndResource,
+            S::ResourceSession,
+        ]
+        .iter()
+        .map(|s| format!("{s:?}"))
+        .collect();
+        assert_eq!(shapes, expected);
+        let fallback = registry.fallback();
+        assert_eq!(fallback.definition.source, S::None);
+        assert_eq!(fallback.id, manifest::manifest().fallback_viewer_id);
+        let ids: HashSet<&str> = registry
+            .contributions
+            .iter()
+            .map(|v| v.id)
+            .chain([fallback.id])
+            .collect();
+        let declared: HashSet<&str> = manifest::manifest()
+            .viewers
+            .iter()
+            .map(|v| v.id.as_str())
+            .collect();
+        assert_eq!(ids, declared);
+        let pdf = manifest::manifest().definition("pdf-preview").unwrap();
+        assert_eq!(pdf.runtime, Runtime::Eager);
+        assert_eq!(pdf.surface_isolation, SurfaceIsolation::Inline);
+        assert_eq!(pdf.compute_isolation, ComputeIsolation::BrowserEngine);
+        assert_eq!(pdf.content_sandbox, ContentSandbox::None);
+        assert_eq!(pdf.resource_policy.memory_class, MemoryClass::Large);
+        assert_eq!(pdf.resource_policy.max_source_bytes, 536_870_912);
+        assert_eq!(
+            (
+                pdf.resource_policy.max_canvas_pixels,
+                pdf.resource_policy.max_active_canvases,
+                pdf.resource_policy.max_workers
+            ),
+            (0, 0, 0)
+        );
+        assert_eq!(
+            (
+                pdf.recovery_policy.max_automatic_retries,
+                pdf.recovery_policy.supports_safe_mode
+            ),
+            (0, false)
+        );
+        assert_eq!(pdf.surface_preparation, P::RequiresVisible);
+        assert_eq!(pdf.readiness_signal, ReadinessSignal::FramePaint);
+        for (path, preparation) in [
+            ("page.html", P::HiddenSafe),
+            ("movie.mp4", P::RequiresVisible),
+            ("photo.png", P::HiddenSafe),
+        ] {
+            let id = viewer(path);
+            assert_eq!(
+                manifest::manifest()
+                    .definition(id)
+                    .unwrap()
+                    .surface_preparation,
+                preparation,
+                "{path}"
+            );
+        }
+        for v in &manifest::manifest().viewers {
+            assert_eq!(
+                v.source == S::None,
+                v.resource_policy.max_source_bytes == 0,
+                "{}",
+                v.id
+            );
+            assert_eq!(
+                v.compute_isolation == ComputeIsolation::Worker,
+                v.resource_policy.max_workers > 0,
+                "{}",
+                v.id
+            );
+            assert_eq!(
+                v.content_sandbox == ContentSandbox::SandboxedFrame,
+                v.surface_traits.contains(&SurfaceTrait::Sandboxed),
+                "{}",
+                v.id
+            );
+        }
+    }
+
+    /// `viewerRegistryContract.test.ts`: `routes … through the
+    /// deterministic preset order` — the viewer, what the host hands it and
+    /// its capability.
+    #[test]
+    fn documents_route_to_their_viewer_source_and_capability() {
+        use manifest::{Capability as C, Source as S};
+        for (path, id, source, capability) in [
+            ("Board.excalidraw", "excalidraw", S::Content, C::Edit),
+            ("Board.excalidraw.json", "excalidraw", S::Content, C::Edit),
+            ("Knowledge.contextmap", "context-map", S::Content, C::Edit),
+            ("notes.md", "markdown", S::Content, C::Edit),
+            ("settings.json", "json", S::Content, C::Edit),
+            ("table.csv", "csv-table", S::Content, C::Edit),
+            ("page.html", "html-artifact", S::ContentAndResource, C::Edit),
+            ("photo.png", "image-preview", S::Resource, C::Preview),
+            ("report.pdf", "pdf-preview", S::Resource, C::Preview),
+            ("report.docx", "office-preview", S::Resource, C::Preview),
+            ("sound.mp3", "audio-preview", S::Resource, C::Preview),
+            ("movie.mp4", "video-preview", S::Resource, C::Preview),
+            ("source.ts", "text", S::Content, C::Edit),
+            ("scene.glb", "document-placeholder", S::None, C::Placeholder),
+        ] {
+            assert_eq!(viewer(path), id, "{path}");
+            let definition = manifest::manifest().definition(id).unwrap();
+            assert_eq!(
+                (definition.source, definition.capability),
+                (source, capability),
+                "{path}"
+            );
+        }
+    }
+
     #[test]
     fn the_source_requirement_decides_what_the_host_reads() {
         assert!(source_requirement("a.md").reads_content());

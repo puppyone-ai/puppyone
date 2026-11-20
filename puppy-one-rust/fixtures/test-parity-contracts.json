@@ -38545,6 +38545,208 @@
           "test": "render_service::tests::what_is_drawn_names_the_cache_entry"
         }
       ]
+    },
+    {
+      "id": "viewer-registry-contract",
+      "acceptance": "One registry built from the canonical manifest covers the content, resource, content-and-resource and resource-session shapes with a source-less fallback, implements exactly the declared viewers and declares each surface's preparation, isolation, budgets and readiness; documents route deterministically to their viewer, source and capability (whiteboards, Context Map, Markdown, JSON, CSV, HTML, images, PDF, Office, audio, video, code and the placeholder); unknown fields, undeclared viewers, duplicate ids, a wrong fallback and broken semantic combinations (an editable viewer without its veto, a read-only one with one, an inline surface for an isolated viewer) are refused; every format viewer maps through the same manifest (natively there is no lazy module boundary to check).",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/viewerRegistryContract.test.ts",
+          "sha256": "30c65ec1929906928e45e58ffffe5f1ac2f4d28c58b75628857eb3f2193b5fd9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "preset viewer contribution contract > publishes one immutable, versioned registry covering every source shape"
+            },
+            {
+              "index": 1,
+              "name": "preset viewer contribution contract > declares the layout and first-frame contract for every preset Viewer"
+            },
+            {
+              "index": 2,
+              "name": "preset viewer contribution contract > routes { path: 'Board.excalidraw', name: 'Board.excalidraw', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 3,
+              "name": "preset viewer contribution contract > routes { path: 'Board.excalidraw.json', name: 'Board.excalidraw.json', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 4,
+              "name": "preset viewer contribution contract > routes { path: 'Knowledge.contextmap', name: 'Knowledge.contextmap', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 5,
+              "name": "preset viewer contribution contract > routes { path: 'notes.md', name: 'notes.md', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 6,
+              "name": "preset viewer contribution contract > routes { path: 'settings.json', name: 'settings.json', type: 'text', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 7,
+              "name": "preset viewer contribution contract > routes { path: 'table.csv', name: 'table.csv', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 8,
+              "name": "preset viewer contribution contract > routes { path: 'page.html', name: 'page.html', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 9,
+              "name": "preset viewer contribution contract > routes { path: 'photo.png', name: 'photo.png', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 10,
+              "name": "preset viewer contribution contract > routes { path: 'report.pdf', name: 'report.pdf', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 11,
+              "name": "preset viewer contribution contract > routes { path: 'report.docx', name: 'report.docx', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 12,
+              "name": "preset viewer contribution contract > routes { path: 'sound.mp3', name: 'sound.mp3', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 13,
+              "name": "preset viewer contribution contract > routes { path: 'movie.mp4', name: 'movie.mp4', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 14,
+              "name": "preset viewer contribution contract > routes { path: 'source.ts', name: 'source.ts', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 15,
+              "name": "preset viewer contribution contract > routes { path: 'scene.glb', name: 'scene.glb', type: 'file', mimeType: null } through the deterministic preset order"
+            },
+            {
+              "index": 16,
+              "name": "preset viewer contribution contract > binds implementation to canonical metadata without repeating authority fields"
+            },
+            {
+              "index": 17,
+              "name": "preset viewer contribution contract > rejects unknown fields, undeclared viewers, and metadata overrides"
+            },
+            {
+              "index": 18,
+              "name": "preset viewer contribution contract > enforces semantic combinations and executable lazy boundaries"
+            },
+            {
+              "index": 19,
+              "name": "preset viewer contribution contract > maps every canonical format viewer through the same manifest"
+            },
+            {
+              "index": 20,
+              "name": "preset viewer contribution contract > rejects duplicate ids and a dishonest fallback"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::the_registry_covers_every_source_shape_and_each_surface_contract"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::documents_route_to_their_viewer_source_and_capability"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::documents_resolve_to_the_product_viewers"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::registries_breaking_the_contract_are_refused"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::manifest::tests::manifests_breaking_the_contract_are_refused"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::manifest::tests::the_shipped_manifest_parses_and_maps_format_viewer_ids"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::only_editable_viewers_on_editable_formats_edit"
+        }
+      ]
+    },
+    {
+      "id": "diagram-render-page-boundary",
+      "acceptance": "The diagram render page loads only its bundled script, style and font; its policy allows no other script, no network and only data images, so file, http and https resources are never loaded.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/mermaid/renderer-host.test.mjs",
+          "sha256": "c23c1da48fe0802d2e6d3a5fdd0ff50d61d596e144ba1c0606db053c1e09e400",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Mermaid host request boundary > loads src/platform/mermaid/host.html from the renderer build"
+            },
+            {
+              "index": 1,
+              "name": "Mermaid host request boundary > loads assets/mermaid.js from the renderer build"
+            },
+            {
+              "index": 2,
+              "name": "Mermaid host request boundary > loads assets/mermaid.css from the renderer build"
+            },
+            {
+              "index": 3,
+              "name": "Mermaid host request boundary > loads fonts/open-sans.woff2 from the renderer build"
+            },
+            {
+              "index": 4,
+              "name": "Mermaid host request boundary > blocks file:///etc/passwd as script"
+            },
+            {
+              "index": 5,
+              "name": "Mermaid host request boundary > blocks file:///Applications/PuppyOne.app/Contents/Resources/app.asar/electron/main.mjs as script"
+            },
+            {
+              "index": 6,
+              "name": "Mermaid host request boundary > blocks https://example.com/mermaid.js as script"
+            },
+            {
+              "index": 7,
+              "name": "Mermaid host request boundary > blocks file:///Applications/PuppyOne.app/Contents/Resources/app.asar/dist/assets/diagram.png as image"
+            },
+            {
+              "index": 8,
+              "name": "Mermaid host request boundary > blocks file:///Applications/PuppyOne.app/Contents/Resources/app.asar/dist/api as xhr"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "render_service::tests::the_page_loads_only_its_bundled_assets_and_fetches_nothing"
+        }
+      ]
+    },
+    {
+      "id": "diagram-render-queue",
+      "acceptance": "A cancelled or superseded queued drawing is skipped when the queue advances, and an unavailable result is never cached so a retry can draw.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/mermaid/render-service.test.mjs",
+          "sha256": "024cdf93286cd133f8f16f93470a093a4c371b3a9bde9313c9185a930d956fbf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native Mermaid finite render queue > skips a cancelled queued request and reuses a warm host"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "render_service::tests::unavailable_is_never_permanently_cached_and_superseded_jobs_skip"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -48158,6 +48360,54 @@
             {
               "index": 1,
               "name": "IPC error messages shown to users > leaves ordinary messages untouched"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-mermaid-renderer-process",
+      "kind": "out-of-scope",
+      "reason": "TS draws diagrams in a separate hidden renderer process owned by Electron main: it waits for confirmed process exit before the next job, restarts a new process after a timeout, keeps a slot when exit is unconfirmed, tears an idle host down, bounds requests per IPC sender, validates IPC input and needs an explicit asset root. Natively each window draws in its own hidden WebView with a deduplicated queue, per-slot cancellation, a 15 s timeout and an unavailable cooldown, its assets compiled in (render_service tests).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/mermaid.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/mermaid/render-service.test.mjs",
+          "sha256": "024cdf93286cd133f8f16f93470a093a4c371b3a9bde9313c9185a930d956fbf",
+          "cases": [
+            {
+              "index": 1,
+              "name": "native Mermaid finite render queue > does not start the next job until cancellation confirms host exit"
+            },
+            {
+              "index": 2,
+              "name": "native Mermaid finite render queue > enforces timeout, then recovers using a new process"
+            },
+            {
+              "index": 3,
+              "name": "native Mermaid finite render queue > bounds requests and isolates cancellation by sender"
+            },
+            {
+              "index": 4,
+              "name": "native Mermaid finite render queue > does not allocate a host for invalid IPC input"
+            },
+            {
+              "index": 5,
+              "name": "native Mermaid finite render queue > retains a slot and permits retry when exit is unconfirmed"
+            },
+            {
+              "index": 6,
+              "name": "native Mermaid finite render queue > waits for idle host teardown before admitting another request"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/mermaid/renderer-host.test.mjs",
+          "sha256": "c23c1da48fe0802d2e6d3a5fdd0ff50d61d596e144ba1c0606db053c1e09e400",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Mermaid host request boundary > does not start without an explicit asset root"
             }
           ]
         }

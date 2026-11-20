@@ -844,6 +844,38 @@ mod tests {
     }
 
     #[test]
+    fn the_page_loads_only_its_bundled_assets_and_fetches_nothing() {
+        // `Mermaid host request boundary`: the page's only script, style
+        // and font are the bundled ones it is served with.
+        let page = page();
+        let sources: Vec<&str> = page
+            .split(['"', '\''])
+            .filter(|s| s.contains("__assets__") || s.contains("://"))
+            .collect();
+        assert_eq!(
+            sources,
+            [
+                "__assets__/render-service.css",
+                "__assets__/render-service.js"
+            ]
+        );
+        let directive = |name: &str| {
+            POLICY
+                .split(';')
+                .map(str::trim)
+                .find(|d| d.starts_with(name))
+                .unwrap()
+        };
+        assert_eq!(directive("default-src"), "default-src 'none'");
+        assert_eq!(directive("script-src"), "script-src puppyone-preview:");
+        assert_eq!(directive("connect-src"), "connect-src 'none'");
+        assert_eq!(directive("img-src"), "img-src data:");
+        for blocked in ["file:", "https:", "http:"] {
+            assert!(!POLICY.contains(blocked), "{blocked}");
+        }
+    }
+
+    #[test]
     fn unavailable_is_never_permanently_cached_and_superseded_jobs_skip() {
         let mut service = Service::default();
         service.cache.insert(
