@@ -164,6 +164,15 @@ pub fn quote_timing(quote: Option<&Quote>, holding: &PlanHolding) -> QuoteTiming
             opens_browser: false,
         };
     }
+    // Only a new subscription is paid in the browser; a change to one held
+    // applies to it, charged to the card it already uses.
+    if quote.is_some_and(|q| q.application_mode != "checkout") {
+        return QuoteTiming {
+            confirm: "settings.plan.confirm",
+            note: t("native.plan.chargedNow").to_owned(),
+            opens_browser: false,
+        };
+    }
     QuoteTiming {
         confirm: "settings.plan.confirmAndPay",
         note: t("settings.plan.quoteNote").to_owned(),
@@ -248,8 +257,11 @@ mod tests {
         }
     }
     fn quote(plan: &str, seats: u64, effective: Option<&str>) -> Quote {
+        quote_as(plan, seats, effective, "plan_change")
+    }
+    fn quote_as(plan: &str, seats: u64, effective: Option<&str>, mode: &str) -> Quote {
         serde_json::from_value(serde_json::json!({"quote_id": "q", "org_id": "o",
-            "target_plan_id": plan, "target_seats": seats, "application_mode": "plan_change",
+            "target_plan_id": plan, "target_seats": seats, "application_mode": mode,
             "effective": effective, "expires_at": "2026-12-01T00:00:00Z"}))
         .unwrap()
     }
@@ -271,7 +283,8 @@ mod tests {
     }
 
     /// "tells a downgrade apart from a payment before it is confirmed",
-    /// "says what changes at renewal and offers to keep the current plan".
+    /// "says what changes at renewal and offers to keep the current plan";
+    /// only a new subscription is paid in the browser.
     #[test]
     fn a_quote_says_whether_it_pays_now_waits_or_keeps() {
         crate::localization::set_current("en");
@@ -282,7 +295,19 @@ mod tests {
         assert!(later.note.starts_with("Takes effect on Dec 8"));
         assert!(later.note.contains("nothing is refunded"));
         let now = quote_timing(Some(&quote("team_v2", 4, Some("now"))), &held);
-        assert!(now.opens_browser && now.confirm == "settings.plan.confirmAndPay");
+        assert!(!now.opens_browser && now.confirm == "settings.plan.confirm");
+        assert!(now.note.starts_with("Starts now."));
+        let people = quote_timing(
+            Some(&quote_as("team_v2", 5, Some("now"), "seat_change")),
+            &held,
+        );
+        assert!(!people.opens_browser && people.confirm == "settings.plan.confirm");
+        let free = holding("free", 1, None);
+        let new = quote_timing(
+            Some(&quote_as("team_v2", 3, Some("now"), "checkout")),
+            &free,
+        );
+        assert!(new.opens_browser && new.confirm == "settings.plan.confirmAndPay");
         let scheduled = holding(
             "team",
             3,

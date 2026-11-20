@@ -10,9 +10,11 @@
 use super::super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Target;
 use super::format::{self as f, Fill};
-use crate::localization::{Arg, format_number, t as tr, tf};
+use crate::localization::{Arg, t as tr, tf};
 use crate::theme::{self, Theme};
-use crate::ui::components::{Button, ButtonVariant, Icon, IconButton, SettingsSection, Spinner};
+use crate::ui::components::{
+    Button, ButtonVariant, CardFooter, Icon, SettingsSection, Spinner, Stepper,
+};
 use crate::ui::loading::{self, model::Shape};
 use crate::workspace::cloud::billing::Quote;
 use crate::workspace::cloud::pricing::{
@@ -80,6 +82,44 @@ fn card_row(t: Theme) -> Div {
         .py(px(14.))
         .border_t_1()
         .border_color(t.divider)
+}
+/// One line of a change: what it is on the left, its control or value on
+/// the right, at a control's height so the lines keep one rhythm.
+fn field(label: impl Into<SharedString>, value: impl IntoElement, t: Theme) -> Div {
+    h_flex()
+        .justify_between()
+        .gap(px(16.))
+        .min_h(px(theme::control_compact()))
+        .child(div().text_color(t.muted).child(label.into()))
+        .child(value)
+}
+/// What the plan held costs a month; nothing on Free.
+fn held_monthly(view: &CatalogView, holding: &PlanHolding) -> Option<i64> {
+    if !holding.subscribed {
+        return None;
+    }
+    holding.monthly_cents.or_else(|| {
+        let offer = view.plan(holding.plan()?)?;
+        Some(
+            offer.price_cents
+                * if offer.per_person {
+                    holding.seats as i64
+                } else {
+                    1
+                },
+        )
+    })
+}
+/// A monthly amount, or a change of one: `$60 → $100 / month`.
+fn monthly_change(from: Option<i64>, to: i64, currency: &str) -> String {
+    let monthly = tf(
+        "settings.plan.monthlyFor",
+        &[("amount", f::money(Some(to), currency).into())],
+    );
+    match from.filter(|from| *from != to) {
+        Some(from) => format!("{} → {monthly}", f::money(Some(from), currency)),
+        None => monthly,
+    }
 }
 fn plan_name(id: PlanId) -> String {
     tr(&format!("settings.plan.name.{}", id.key())).to_owned()
@@ -409,44 +449,22 @@ impl SettingsWorkspaceSurface {
                         )
                         .into_any_element()
                 });
-            notices.push(self.scheduled_notice(&holding, current.id, keep, t, cx));
+            notices.push(self.scheduled_notice(&holding, keep, t));
         }
-        if controller.target == Some(Target::People) {
-            let stepper = self.stepper(
-                "plan-seats".into(),
-                tr("settings.plan.peopleLabel").into(),
-                controller.seats,
-                1,
-                500,
-                controller.polling.is_some(),
-                Some(tf(
-                    "settings.plan.peopleUnit",
-                    &[("count", Arg::Number(controller.seats as i64))],
-                )),
-                |s, value, cx| s.set_plan_seats(value, cx),
-                t,
-                cx,
-            );
-            notices.push(self.confirmation(
-                Some(stepper.into_any_element()),
-                &holding,
-                current.id,
-                t,
-                cx,
-            ));
-        } else if controller.polling.is_some()
-            && !matches!(controller.target, Some(Target::Plan(_) | Target::Keep))
-        {
-            // A change resumed from an earlier visit, or one just confirmed.
-            notices.push(
-                h_flex()
-                    .gap(px(10.))
-                    .text_color(t.muted)
-                    .child(Spinner::new("plan-confirming", t.divider, t.text))
-                    .child(tr("native.plan.confirming"))
-                    .into_any_element(),
-            );
-        }
+        // A change of the plan held is confirmed at the foot of its card:
+        // the people, keeping it, or one resumed from an earlier visit.
+        let held = held_monthly(&view, &holding);
+        let change = match controller.target {
+            Some(Target::People) => {
+                let stepper = self.people_stepper(1, cx).into_any_element();
+                Some(self.confirmation(Some(stepper), &holding, current.id, held, t, cx))
+            }
+            Some(Target::Keep) => Some(self.confirmation(None, &holding, current.id, held, t, cx)),
+            None if controller.polling.is_some() => {
+                Some(self.confirmation(None, &holding, current.id, held, t, cx))
+            }
+            _ => None,
+        };
         if snapshot.can_manage_billing == Some(false) {
             notices.push(
                 div()
@@ -463,6 +481,7 @@ impl SettingsWorkspaceSurface {
             &view.add_ons,
             actions,
             notices,
+            change,
             if holding.subscribed {
                 "native.plan.freeUpOrAdd"
             } else if sellable {
@@ -518,6 +537,7 @@ impl SettingsWorkspaceSurface {
         add_ons: &[AddOnOffer],
         actions: Vec<AnyElement>,
         notices: Vec<AnyElement>,
+        change: Option<AnyElement>,
         storage_hint: &'static str,
         t: Theme,
     ) -> AnyElement {
@@ -661,7 +681,7 @@ impl SettingsWorkspaceSurface {
             t,
         );
 
-        card(t)
+        let summary = v_flex()
             .p(px(20.))
             .child(
                 h_flex()
@@ -700,19 +720,17 @@ impl SettingsWorkspaceSurface {
                     .border_t_1()
                     .border_color(t.divider)
                     .child(notice)
-            }))
-            .into_any_element()
+            }));
+        card(t).child(summary).children(change).into_any_element()
     }
 
-    /// The change scheduled for renewal, beside what keeps the plan held,
-    /// and that keeping's confirmation once it is asked for.
+    /// The change scheduled for renewal, beside what keeps the plan held;
+    /// keeping it is confirmed at the foot of the card.
     fn scheduled_notice(
         &self,
         holding: &PlanHolding,
-        current: PlanId,
         keep: Option<AnyElement>,
         t: Theme,
-        cx: &mut Context<Self>,
     ) -> AnyElement {
         v_flex()
             .child(
@@ -733,69 +751,61 @@ impl SettingsWorkspaceSurface {
                     )
                     .children(keep),
             )
-            .when(
-                self.plan_page.controller.target == Some(Target::Keep),
-                |d| {
-                    d.child(
-                        div()
-                            .mt(px(14.))
-                            .child(self.confirmation(None, holding, current, t, cx)),
-                    )
-                },
-            )
             .into_any_element()
     }
 
-    /// The quote for the change under way, said once, and the two choices:
-    /// confirm it as the server priced it, or leave everything as it is.
-    /// While a confirmed change is paid or settled, it waits instead.
+    /// The change under way, at the foot of the card or row it changes:
+    /// its people when it has them and the monthly total the server quoted
+    /// (`$60 → $100 / month` when it replaces a price), then a footer with
+    /// when it applies and the two choices, confirm it as quoted or leave
+    /// everything as it is. While a confirmed change is paid or settled, it
+    /// waits there instead.
     fn confirmation(
         &self,
         stepper: Option<AnyElement>,
         holding: &PlanHolding,
         plan: PlanId,
+        held: Option<i64>,
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let controller = &self.plan_page.controller;
+        let foot = || v_flex().w_full().border_t_1().border_color(t.divider);
         if controller.polling.is_some() {
             let paying = controller.checkout_url.is_some();
-            return v_flex()
+            let status = h_flex()
                 .id("plan-waiting")
                 .debug_selector(|| "plan-waiting".into())
                 .role(Role::Status)
+                .gap(px(10.))
+                .px(px(20.))
+                .py(px(14.))
+                .child(Spinner::new("plan-waiting-spinner", t.divider, t.text))
                 .child(
-                    h_flex()
-                        .gap(px(10.))
-                        .child(Spinner::new("plan-waiting-spinner", t.divider, t.text))
-                        .child(
-                            div()
-                                .text_color(t.text)
-                                .font_weight(FontWeight::MEDIUM)
-                                .child(tr(if paying {
-                                    "native.plan.waitingPayment"
-                                } else {
-                                    "native.plan.confirming"
-                                })),
-                        ),
+                    div()
+                        .text_color(t.text)
+                        .font_weight(FontWeight::MEDIUM)
+                        .child(tr(if paying {
+                            "native.plan.waitingPayment"
+                        } else {
+                            "native.plan.confirming"
+                        })),
                 )
+                .test_support();
+            return foot()
+                .child(status)
                 .when(paying, |d| {
                     d.child(
-                        div()
-                            .mt(px(10.))
-                            .text_color(t.muted)
-                            .child(tr("native.plan.waitingNote")),
-                    )
-                    .child(
-                        h_flex().mt(px(14.)).justify_end().child(
-                            Button::new("plan-reopen-checkout")
-                                .label(tr("native.plan.reopenPayment"))
-                                .trailing(Icon::new("external-link").small())
-                                .on_click(cx.listener(|s, _, _, cx| s.reopen_checkout(cx))),
-                        ),
+                        CardFooter::new()
+                            .note(tr("native.plan.waitingNote"))
+                            .action(
+                                Button::new("plan-reopen-checkout")
+                                    .label(tr("native.plan.reopenPayment"))
+                                    .trailing(Icon::new("external-link").small())
+                                    .on_click(cx.listener(|s, _, _, cx| s.reopen_checkout(cx))),
+                            ),
                     )
                 })
-                .test_support()
                 .into_any_element();
         }
         let seats = controller.seats;
@@ -804,70 +814,50 @@ impl SettingsWorkspaceSurface {
             .as_ref()
             .filter(|q| matches_target(q, plan, seats));
         let timing = f::quote_timing(quote, holding);
-        let price = match quote {
-            Some(quote) => tf(
-                "settings.plan.monthlyFor",
-                &[(
-                    "amount",
-                    f::money(Some(quote.target_amount_cents), &quote.currency).into(),
-                )],
-            ),
-            None if controller.acting => tr("native.plan.quoting").to_owned(),
-            None => "—".to_owned(),
+        let total = match quote {
+            Some(quote) => div()
+                .text_color(t.text)
+                .font_weight(FontWeight::MEDIUM)
+                .child(monthly_change(
+                    held,
+                    quote.target_amount_cents,
+                    &quote.currency,
+                )),
+            None => div().text_color(t.subtle).child(if controller.acting {
+                tr("native.plan.quoting").to_owned()
+            } else {
+                "—".to_owned()
+            }),
+        }
+        .id("plan-quote-price")
+        .debug_selector(|| "plan-quote-price".into());
+        let note = match controller.error {
+            Some(error) => div().text_color(t.danger).child(tr(error)),
+            None => div().children(quote.is_some().then(|| timing.note.clone())),
         };
-        v_flex()
+        foot()
             .id("plan-confirmation")
             .debug_selector(|| "plan-confirmation".into())
-            .gap(px(12.))
-            .children(stepper.map(|stepper| {
-                h_flex()
-                    .justify_between()
-                    .gap(px(12.))
-                    .child(
-                        div()
-                            .text_color(t.muted)
-                            .child(tr("settings.plan.peopleLabel")),
+            .child(
+                v_flex()
+                    .px(px(20.))
+                    .py(px(12.))
+                    .gap(px(6.))
+                    .children(
+                        stepper.map(|stepper| field(tr("settings.plan.peopleLabel"), stepper, t)),
                     )
-                    .child(stepper)
-            }))
-            .child(
-                h_flex()
-                    .justify_between()
-                    .gap(px(12.))
-                    .child(div().text_color(t.muted).child(tf(
-                        "settings.plan.quotePlan",
-                        &[
-                            ("plan", plan_name(plan).into()),
-                            ("count", Arg::Number(seats as i64)),
-                        ],
-                    )))
-                    .child(
-                        mono(price)
-                            .id("plan-quote-price")
-                            .debug_selector(|| "plan-quote-price".into())
-                            .text_color(t.text),
-                    ),
-            )
-            .when(quote.is_some(), |d| {
-                d.child(div().text_color(t.muted).child(timing.note.clone()))
-            })
-            .children(
-                controller
-                    .error
-                    .map(|e| error_note(tr(e), t).into_any_element()),
+                    .child(field(tr("native.plan.monthlyTotal"), total, t)),
             )
             .child(
-                h_flex()
-                    .mt(px(4.))
-                    .justify_end()
-                    .gap(px(8.))
-                    .child(
+                CardFooter::new()
+                    .note(note)
+                    .action(
                         Button::new("plan-cancel-change")
                             .label(tr("settings.plan.cancel"))
                             .disabled(controller.acting)
                             .on_click(cx.listener(|s, _, _, cx| s.close_change(cx))),
                     )
-                    .child(
+                    .action(
                         Button::new("plan-confirm-quote")
                             .variant(ButtonVariant::Solid)
                             .label(tr(timing.confirm))
@@ -911,6 +901,7 @@ impl SettingsWorkspaceSurface {
         // While a change is paid or settled nothing else is offered.
         let paying = controller.polling.is_some();
         let busy = controller.acting || self.plan_page.snapshot.loading;
+        let held = held_monthly(view, holding);
         let mut list = card(t);
         for (index, plan) in plans.into_iter().enumerate() {
             let open = controller.target == Some(Target::Plan(plan.id));
@@ -1003,37 +994,18 @@ impl SettingsWorkspaceSurface {
                         .child(action)
                 }))
                 .test_support();
-            let stepper = plan.per_person.then(|| {
-                self.stepper(
-                    "plan-seats".into(),
-                    tr("settings.plan.peopleLabel").into(),
-                    controller.seats,
-                    plan.minimum_seats.max(1),
-                    500,
-                    controller.polling.is_some(),
-                    Some(tf(
-                        "settings.plan.peopleUnit",
-                        &[("count", Arg::Number(controller.seats as i64))],
-                    )),
-                    |s, value, cx| s.set_plan_seats(value, cx),
-                    t,
-                    cx,
-                )
-                .into_any_element()
+            let change = open.then(|| {
+                let stepper = plan.per_person.then(|| {
+                    self.people_stepper(plan.minimum_seats.max(1), cx)
+                        .into_any_element()
+                });
+                self.confirmation(stepper, holding, plan.id, held, t, cx)
             });
             list = list.child(
                 v_flex()
                     .when(index > 0, |d| d.border_t_1().border_color(t.divider))
-                    .when(open, |d| d.bg(theme::fade(t.text, 0.04)))
                     .child(row)
-                    .when(open, |d| {
-                        d.child(
-                            div()
-                                .px(px(20.))
-                                .pb(px(18.))
-                                .child(self.confirmation(stepper, holding, plan.id, t, cx)),
-                        )
-                    }),
+                    .children(change),
             );
         }
         v_flex()
@@ -1096,71 +1068,79 @@ impl SettingsWorkspaceSurface {
                             ],
                         ))),
                 )
-                .child(self.stepper(
-                    SharedString::from(format!("plan-add-on-{}", offer.id)),
-                    tr(&format!("settings.plan.addOn.{kind}")).into(),
-                    shown,
-                    0,
-                    offer.max_quantity.max(0) as u64,
-                    state.pending
-                        || !sellable
-                        || draft.as_ref().is_some_and(|(d, _)| d != &offer.id),
-                    None,
-                    move |s, quantity, cx| s.draft_add_on(id.clone(), quantity, held, cx),
-                    t,
-                    cx,
-                ));
+                .child({
+                    let entity = cx.entity();
+                    let (fewer, more) = stepper_labels(tr(&format!("settings.plan.addOn.{kind}")));
+                    Stepper::new(format!("plan-add-on-{}", offer.id), shown)
+                        .range(0, offer.max_quantity.max(0) as u64)
+                        .labels(fewer, more)
+                        .disabled(
+                            state.pending
+                                || !sellable
+                                || draft.as_ref().is_some_and(|(d, _)| d != &offer.id),
+                        )
+                        .on_change(move |quantity, _, cx| {
+                            let id = id.clone();
+                            entity.update(cx, |s, cx| s.draft_add_on(id, quantity, held, cx))
+                        })
+                });
+            // A new quantity is priced at the foot of its row, as a plan's
+            // change is: the pack's monthly total, then when it applies.
             let change = draft
                 .as_ref()
                 .filter(|(id, _)| id == &offer.id)
                 .map(|(_, quantity)| {
-                    let difference = quantity.abs_diff(held) as i64 * offer.price_cents;
-                    h_flex()
-                        .gap(px(12.))
-                        .px(px(20.))
-                        .pb(px(16.))
+                    let price = |count: u64| count as i64 * offer.price_cents;
+                    let when = if held == 0 {
+                        "settings.plan.quoteNote"
+                    } else if *quantity > held {
+                        "native.plan.chargedNow"
+                    } else {
+                        "native.plan.addOnNext"
+                    };
+                    v_flex()
+                        .border_t_1()
+                        .border_color(t.divider)
                         .child(
-                            div().flex_1().min_w_0().text_color(t.muted).child(tf(
-                                if *quantity > held {
-                                    "settings.plan.addOnMoreNow"
-                                } else {
-                                    "settings.plan.addOnFewerNext"
-                                },
-                                &[
-                                    ("amount", f::money(Some(difference), &offer.currency).into()),
-                                    (
-                                        "total",
-                                        f::money(
-                                            Some(*quantity as i64 * offer.price_cents),
-                                            &offer.currency,
-                                        )
-                                        .into(),
-                                    ),
-                                ],
+                            v_flex().px(px(20.)).py(px(12.)).child(field(
+                                tr("native.plan.monthlyTotal"),
+                                div()
+                                    .text_color(t.text)
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .child(monthly_change(
+                                        (held > 0).then(|| price(held)),
+                                        price(*quantity),
+                                        &offer.currency,
+                                    )),
+                                t,
                             )),
                         )
                         .child(
-                            Button::new("plan-add-on-cancel")
-                                .label(tr("settings.plan.cancel"))
-                                .disabled(state.pending)
-                                .on_click(cx.listener(|s, _, _, cx| {
-                                    s.plan_page.controller.add_on.draft = None;
-                                    cx.notify();
-                                })),
-                        )
-                        .child(
-                            Button::new("plan-add-on-confirm")
-                                .variant(ButtonVariant::Solid)
-                                .label(tr(if held == 0 {
-                                    "settings.plan.confirmAndPay"
-                                } else {
-                                    "settings.plan.confirm"
-                                }))
-                                .when(held == 0, |b| {
-                                    b.trailing(Icon::new("external-link").small())
-                                })
-                                .disabled(state.pending)
-                                .on_click(cx.listener(|s, _, _, cx| s.confirm_add_on(cx))),
+                            CardFooter::new()
+                                .note(tr(when))
+                                .action(
+                                    Button::new("plan-add-on-cancel")
+                                        .label(tr("settings.plan.cancel"))
+                                        .disabled(state.pending)
+                                        .on_click(cx.listener(|s, _, _, cx| {
+                                            s.plan_page.controller.add_on.draft = None;
+                                            cx.notify();
+                                        })),
+                                )
+                                .action(
+                                    Button::new("plan-add-on-confirm")
+                                        .variant(ButtonVariant::Solid)
+                                        .label(tr(if held == 0 {
+                                            "settings.plan.confirmAndPay"
+                                        } else {
+                                            "settings.plan.confirm"
+                                        }))
+                                        .when(held == 0, |b| {
+                                            b.trailing(Icon::new("external-link").small())
+                                        })
+                                        .disabled(state.pending)
+                                        .on_click(cx.listener(|s, _, _, cx| s.confirm_add_on(cx))),
+                                ),
                         )
                 });
             list = list.child(
@@ -1185,71 +1165,26 @@ impl SettingsWorkspaceSurface {
         )
     }
 
-    /// `QuantityStepper`: fewer, the value (or its unit), more.
-    #[allow(clippy::too_many_arguments)]
-    fn stepper(
-        &self,
-        id: SharedString,
-        label: SharedString,
-        value: u64,
-        minimum: u64,
-        maximum: u64,
-        disabled: bool,
-        unit: Option<String>,
-        on_change: impl Fn(&mut Self, u64, &mut Context<Self>) + Clone + 'static,
-        t: Theme,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let less = on_change.clone();
-        h_flex()
-            .id(id.clone())
-            .flex_none()
-            .gap(px(2.))
-            .min_h(px(theme::control_compact() + 6.))
-            .border_1()
-            .border_color(t.divider)
-            .rounded(px(6.))
-            .bg(t.control)
-            .child(
-                IconButton::new(
-                    SharedString::from(format!("{id}-less")),
-                    Icon::new("minus").small(),
-                )
-                .label(tf(
-                    "settings.plan.decrease",
-                    &[("label", label.to_string().into())],
-                ))
-                .no_tooltip()
-                .disabled(disabled || value <= minimum)
-                .on_click(
-                    cx.listener(move |s, _, _, cx| {
-                        less(s, value.saturating_sub(1).max(minimum), cx)
-                    }),
-                ),
-            )
-            .child(
-                div()
-                    .min_w(px(64.))
-                    .text_center()
-                    .whitespace_nowrap()
-                    .child(unit.unwrap_or_else(|| format_number(value as i64))),
-            )
-            .child(
-                IconButton::new(
-                    SharedString::from(format!("{id}-more")),
-                    Icon::new("plus").small(),
-                )
-                .label(tf(
-                    "settings.plan.increase",
-                    &[("label", label.to_string().into())],
-                ))
-                .no_tooltip()
-                .disabled(disabled || value >= maximum)
-                .on_click(
-                    cx.listener(move |s, _, _, cx| on_change(s, (value + 1).min(maximum), cx)),
-                ),
-            )
+    /// The people a change is for, from the plan's fewest to 500.
+    fn people_stepper(&self, minimum: u64, cx: &mut Context<Self>) -> Stepper {
+        let controller = &self.plan_page.controller;
+        let entity = cx.entity();
+        let (fewer, more) = stepper_labels(tr("settings.plan.peopleLabel"));
+        Stepper::new("plan-seats", controller.seats)
+            .range(minimum, 500)
+            .labels(fewer, more)
+            .disabled(controller.polling.is_some())
+            .on_change(move |seats, _, cx| entity.update(cx, |s, cx| s.set_plan_seats(seats, cx)))
     }
+}
+
+/// A stepper's accessible names: "Fewer: People", "More: People".
+fn stepper_labels(label: &str) -> (String, String) {
+    let label = || [("label", label.to_owned().into())];
+    (
+        tf("settings.plan.decrease", &label()),
+        tf("settings.plan.increase", &label()),
+    )
 }
 
 fn rank(id: PlanId) -> usize {

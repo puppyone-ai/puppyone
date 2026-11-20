@@ -671,8 +671,13 @@ fn choosing_a_plan_quotes_it_in_its_row_requotes_new_people_and_confirms_once() 
     h.f.cx.update(|w, cx| w.click("plan-choose-enterprise", cx));
     h.wait(|s| !s.plan_page.controller.acting && s.plan_page.controller.quote.is_some());
     h.f.draw();
-    h.f.contains("$80 / month");
-    h.f.contains("Enterprise, 2 people");
+    // The total replaces the price held; a change of a held plan applies
+    // in place, so it is confirmed without the browser.
+    h.f.contains("Monthly total");
+    h.f.contains("$40 → $80 / month");
+    let buttons = h.f.buttons();
+    assert!(buttons.contains(&"Confirm".to_owned()), "{buttons:?}");
+    assert!(!buttons.contains(&"Confirm and pay".to_owned()));
     let asked = h.requests("plan/quote");
     assert_eq!(asked.len(), 1);
     assert_eq!(
@@ -690,8 +695,7 @@ fn choosing_a_plan_quotes_it_in_its_row_requotes_new_people_and_confirms_once() 
                 .is_some_and(|q| q.target_seats == 3)
     });
     h.f.draw();
-    h.f.contains("$120 / month");
-    h.f.contains("Enterprise, 3 people");
+    h.f.contains("$40 → $120 / month");
     assert_eq!(h.requests("plan/quote").len(), 2);
 
     let mut applied = quote("q3", 3);

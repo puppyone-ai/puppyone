@@ -50,7 +50,7 @@ impl Render for PageHarness {
                                 .label("Keep current plan")
                                 .on_click(move |_, _, _| calls.set(calls.get() + 1))
                                 .into_any_element();
-                            vec![s.scheduled_notice(holding, plan.id, Some(keep), t, cx)]
+                            vec![s.scheduled_notice(holding, Some(keep), t)]
                         } else {
                             vec![]
                         };
@@ -61,6 +61,7 @@ impl Render for PageHarness {
                             &catalog.add_ons,
                             vec![],
                             notices,
+                            None,
                             "native.plan.freeUp",
                             t,
                         )

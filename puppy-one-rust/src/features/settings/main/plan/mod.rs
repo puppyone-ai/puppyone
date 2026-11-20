@@ -191,7 +191,7 @@ impl SettingsWorkspaceSurface {
             "add_ons": [add_on("agent_hours_100", "Extra agent hours", 6000, 0),
                 add_on("storage_10gb", "Extra storage", 0, 10 * GB)]});
         let (summary, usage) = match state {
-            "team" => (
+            "team" | "people" | "add-on" => (
                 json!({"org_id": "o1", "plan_id": "team_v2", "status": "active", "seat_quantity": 3,
                     "portal_available": true, "seat_changes_available": true,
                     "current_period_end": "2026-12-08T00:00:00Z", "cancel_at_period_end": false,
@@ -240,6 +240,20 @@ impl SettingsWorkspaceSurface {
             ..Default::default()
         };
         self.seed_seats();
+        if state == "people" {
+            let controller = &mut self.plan_page.controller;
+            controller.target = Some(Target::People);
+            controller.seats = 5;
+            controller.quote = serde_json::from_value(json!({"quote_id": "lab", "org_id": "o1",
+                "target_plan_id": "team_v2", "target_seats": 5, "currency": "USD",
+                "delta_amount_cents": 4000, "target_amount_cents": 10000,
+                "application_mode": "seat_change", "effective": "now",
+                "expires_at": "2099-01-01T00:00:00Z"}))
+            .ok();
+        }
+        if state == "add-on" {
+            self.plan_page.controller.add_on.draft = Some(("agent_hours_100".into(), 3));
+        }
         if matches!(state, "choose" | "waiting") {
             let controller = &mut self.plan_page.controller;
             controller.target = Some(Target::Plan(PlanId::Team));

@@ -219,34 +219,65 @@ impl RenderOnce for SettingsCard {
                 )
             });
         let card = card.when(footed, |d| {
-            d.child(
-                div()
-                    .flex()
-                    .items_center()
-                    .w_full()
-                    .min_w_0()
-                    .gap(px(12.))
-                    .px(px(20.))
-                    .py(px(12.))
-                    .border_t_1()
-                    .border_color(t.divider)
-                    .bg(theme::fade(t.text, 0.025))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .text_size(px(ui.meta))
-                            .line_height(px(ui.meta * 1.5))
-                            .text_color(t.subtle)
-                            .children(self.note),
-                    )
-                    .children(self.actions),
-            )
+            d.child(CardFooter {
+                note: self.note,
+                actions: self.actions,
+            })
         });
         match self.id {
             Some(id) => card.id(id).into_any_element(),
             None => card.into_any_element(),
         }
+    }
+}
+
+/// A card's footer: under a hairline, on a faint band, the rule that
+/// governs its change in the meta size at the start and the change's actions
+/// at the end. `SettingsCard` draws one; a list that confirms a change in
+/// place (Plan) ends its row with one.
+#[derive(IntoElement, Default)]
+pub struct CardFooter {
+    note: Option<AnyElement>,
+    actions: Vec<AnyElement>,
+}
+impl CardFooter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn note(mut self, note: impl IntoElement) -> Self {
+        self.note = Some(note.into_any_element());
+        self
+    }
+    pub fn action(mut self, action: impl IntoElement) -> Self {
+        self.actions.push(action.into_any_element());
+        self
+    }
+}
+impl RenderOnce for CardFooter {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let t = cx.palette();
+        let meta = theme::ty().ui.meta;
+        div()
+            .flex()
+            .items_center()
+            .w_full()
+            .min_w_0()
+            .gap(px(12.))
+            .px(px(20.))
+            .py(px(12.))
+            .border_t_1()
+            .border_color(t.divider)
+            .bg(theme::fade(t.text, 0.025))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .text_size(px(meta))
+                    .line_height(px(meta * 1.5))
+                    .text_color(t.subtle)
+                    .children(self.note),
+            )
+            .children(self.actions)
     }
 }
 
