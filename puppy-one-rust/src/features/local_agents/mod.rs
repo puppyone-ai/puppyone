@@ -5,7 +5,9 @@
 //! ([`settings`]), and the chat runtimes of the detected Agents.
 mod chat_recipes;
 mod discovery;
-pub(crate) use discovery::{Installations, store as installation_store};
+pub(crate) use discovery::{
+    Installations, RepairResult, repair_codex, store as installation_store,
+};
 mod settings;
 mod setup;
 

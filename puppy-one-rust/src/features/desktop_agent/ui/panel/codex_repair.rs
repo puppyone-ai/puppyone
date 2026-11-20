@@ -3,8 +3,9 @@ use super::super::{
     elements::{ButtonTone, agent_button},
 };
 use super::AgentChatTabPanel;
-use crate::agent::host::{RepairResult, repair_codex};
-use crate::features::local_agents::{ActivationDialog, activation_store, installation_store};
+use crate::features::local_agents::{
+    ActivationDialog, RepairResult, activation_store, installation_store, repair_codex,
+};
 use crate::localization::t;
 use crate::platform::local_agent_setup::Surface;
 use gpui::{prelude::*, *};
@@ -111,7 +112,7 @@ impl AgentChatTabPanel {
         let guided = self.repair == State::Guided;
         self.repair = State::Searching;
         let workspace = self.controller.workspace_root().into();
-        let work = cx.background_spawn(async move { repair_codex(selected, workspace) });
+        let work = repair_codex(selected, workspace, cx);
         cx.spawn(async move |this, cx| {
             let result = work.await;
             let _ = this.update(cx, |s, cx| {
