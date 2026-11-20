@@ -22,7 +22,7 @@ use std::rc::Rc;
 
 /// A grip's hit target: columns straddle the table's top edge at the
 /// column centre, rows its leading edge at the row centre.
-pub(super) fn grip_bounds(g: &Geometry, axis: Axis, index: usize) -> Bounds<f32> {
+pub(crate) fn grip_bounds(g: &Geometry, axis: Axis, index: usize) -> Bounds<f32> {
     let (w, h) = shared_controls::grip_size(axis);
     let (x, y) = match axis {
         Axis::Column => {
@@ -215,8 +215,8 @@ fn build_pointer_capture_canvas(
         move |bounds, _, cx| origin_ui.update(cx, |u, _| u.origin = Some(bounds.origin)),
         move |_, _, window, _| {
             if resizing.is_some() {
-                let (moving, release, escape) = (resize.clone(), resize.clone(), resize.clone());
-                let (up_widths, escape_widths) = (widths.clone(), widths.clone());
+                let (moving, release) = (resize.clone(), resize.clone());
+                let up_widths = widths.clone();
                 window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
                     if phase == DispatchPhase::Capture {
                         moving.update(cx, |u, cx| u.resize_to(f32::from(e.position.x), cx));
@@ -228,37 +228,27 @@ fn build_pointer_capture_canvas(
                         release.update(cx, |u, cx| u.end_resize(false, &up_widths, cx));
                     }
                 });
-                window.on_key_event(move |e: &KeyDownEvent, phase, _, cx| {
-                    if phase == DispatchPhase::Capture && e.keystroke.key == "escape" {
-                        cx.stop_propagation();
-                        escape.update(cx, |u, cx| u.end_resize(true, &escape_widths, cx));
+            }
+            if let Some((axis, source)) = held {
+                let (moving, release) = (capture.clone(), capture.clone());
+                window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
+                    if phase == DispatchPhase::Capture {
+                        moving.update(cx, |u, cx| u.drag_to(e.position, cx));
+                    }
+                });
+                window.on_mouse_event(move |e: &MouseUpEvent, phase, window, cx| {
+                    if phase == DispatchPhase::Capture && e.button == MouseButton::Left {
+                        release.update(cx, |u, cx| {
+                            let grip = u
+                                .frame
+                                .as_ref()
+                                .map(|f| grip_bounds(&f.geometry, axis, source))
+                                .unwrap_or_default();
+                            u.end_drag(false, grip, window, cx)
+                        });
                     }
                 });
             }
-            let Some((axis, source)) = held else { return };
-            let (moving, release, escape) = (capture.clone(), capture.clone(), capture.clone());
-            window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
-                if phase == DispatchPhase::Capture {
-                    moving.update(cx, |u, cx| u.drag_to(e.position, cx));
-                }
-            });
-            window.on_mouse_event(move |e: &MouseUpEvent, phase, window, cx| {
-                if phase == DispatchPhase::Capture && e.button == MouseButton::Left {
-                    release.update(cx, |u, cx| {
-                        let grip = u
-                            .frame
-                            .as_ref()
-                            .map(|f| grip_bounds(&f.geometry, axis, source))
-                            .unwrap_or_default();
-                        u.end_drag(false, grip, window, cx)
-                    });
-                }
-            });
-            window.on_key_event(move |e: &KeyDownEvent, phase, window, cx| {
-                if phase == DispatchPhase::Capture && e.keystroke.key == "escape" {
-                    escape.update(cx, |u, cx| u.end_drag(true, Bounds::default(), window, cx));
-                }
-            });
         },
     )
     .absolute()
@@ -281,7 +271,7 @@ impl TableWidget {
         cx: &mut WidgetCx,
     ) -> AnyElement {
         let style = self.style.editable.clone();
-        let table_start = self.table.range.start;
+        let table_start = cx.source.start;
         let frame = Frame {
             geometry: geometry.clone(),
             table: table_start,

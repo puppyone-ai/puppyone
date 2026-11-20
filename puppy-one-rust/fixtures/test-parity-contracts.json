@@ -41154,6 +41154,282 @@
           "test": "editor::markdown::tests::embed_runtime_acceptance::mermaid_widget_stays_anchored_and_edits_mapped_source_after_prefix_edit"
         }
       ]
+    },
+    {
+      "id": "markdown-block-move",
+      "acceptance": "Root blocks and sibling list items move up/down without normalizing source or trailing newlines, preserving distinct interior separators and backward selection direction; list items move with nested children only among siblings and ordered lists renumber atomically across undo/redo; fenced blocks move byte-for-byte with caret tracking; keyboard moves record one history event and scroll into view while pointer drops do not scroll; adjacent/no-op moves and read-only state are rejected; disabling the experiment removes the drag overlay and restores default selection keys; line-based targeting resolves every column to the same block without widening list items, lifts lone list items to their container, excludes blank lines between blocks or loose list items while keeping blank lines inside code fences with their fence, and keeps YAML frontmatter (and a lone block after it) out of every move.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/commands/markdownBlockMove.test.ts",
+          "sha256": "bffd6f47d0688bd108bf37ff4cc2252f26800fdbc8ed6c53f0e3a053b6778b04",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown block movement > moves a root block downward without normalizing source or trailing newline"
+            },
+            {
+              "index": 1,
+              "name": "Markdown block movement > moves a root block upward and preserves selection direction"
+            },
+            {
+              "index": 2,
+              "name": "Markdown block movement > keeps distinct separators on both sides of an interior drop boundary"
+            },
+            {
+              "index": 3,
+              "name": "Markdown block movement > moves a list item with nested children only among sibling items"
+            },
+            {
+              "index": 4,
+              "name": "Markdown block movement > rejects adjacent/no-op moves and read-only state"
+            },
+            {
+              "index": 5,
+              "name": "Markdown block movement > records one history event for keyboard movement"
+            },
+            {
+              "index": 6,
+              "name": "Markdown block movement > moves a fenced block byte-for-byte and relocates its live embedded session"
+            },
+            {
+              "index": 7,
+              "name": "Markdown block movement > renumbers ordered siblings atomically and reverses draft mapping on undo/redo"
+            },
+            {
+              "index": 8,
+              "name": "Markdown block movement > fully removes the overlay and keymap extension when reconfigured off"
+            },
+            {
+              "index": 10,
+              "name": "Markdown block movement > reveals a keyboard move but leaves a drop where the pointer put it"
+            },
+            {
+              "index": 11,
+              "name": "Markdown block movement > moves the block holding a caret at the very end of its line"
+            },
+            {
+              "index": 12,
+              "name": "Markdown block targeting > answers by line, so every column of a row names the same block"
+            },
+            {
+              "index": 13,
+              "name": "Markdown block targeting > never widens a list item to its whole list at the end of a row"
+            },
+            {
+              "index": 14,
+              "name": "Markdown block targeting > gives a lone list item to its container instead of no block"
+            },
+            {
+              "index": 15,
+              "name": "Markdown block targeting > assigns a blank line between blocks to neither of them"
+            },
+            {
+              "index": 16,
+              "name": "Markdown block targeting > keeps a blank line inside a code fence with its fence"
+            },
+            {
+              "index": 17,
+              "name": "Markdown block targeting > keeps YAML frontmatter out of every move"
+            },
+            {
+              "index": 18,
+              "name": "Markdown block targeting > offers no handle for the only block after frontmatter"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::block_move_acceptance::root_blocks_move_preserving_separators_trailing_newline_and_selection_direction"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::block_move_acceptance::block_targeting_handles_columns_list_items_blank_lines_and_frontmatter"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::block_move_acceptance::keyboard_moves_history_fences_renumbering_readonly_scroll_and_toggle_off"
+        }
+      ]
+    },
+    {
+      "id": "markdown-table-interactions",
+      "acceptance": "Markdown table menu moves and handle drags keep the moved row/column structurally selected without stealing outside focus and clear the outline on Escape or cell click; the table context menu provides roving keyboard navigation, typeahead, Escape focus restoration, and closes on focus exit; alignment menus reflect ---/:---/:---:/---: in exactly three choices without editing on open and apply left/center/right; row and column grips open scoped horizontal toolbars (6 row items / 8 column+alignment items without CSV-only width actions) and highlight the source column from press until menu close; active handle drags cancel on Escape and window blur without editing or opening a menu; adding rows/columns moves the caret into the new cell, stays anchored after prefix edits, and keeps adjacent or newly typed prose outside the table widget; semantic column tracks stay stable across cell editing, fit wide tables to the reading column with auto-fit, and let short tables hug their content.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/tables/context-menu.test.ts",
+          "sha256": "bc0096c59e2e0ba84123ac2e2dfb39359d045d80abeb2fdce507b43c2bdc14a0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table EditorView interactions > keeps the whole row selected after menu movement from row 1 and column 0"
+            },
+            {
+              "index": 1,
+              "name": "Markdown table EditorView interactions > keeps the whole row selected after menu movement from row 2 and column 0"
+            },
+            {
+              "index": 2,
+              "name": "Markdown table EditorView interactions > keeps the whole column selected after menu movement from row 0 and column 0"
+            },
+            {
+              "index": 3,
+              "name": "Markdown table EditorView interactions > keeps the whole column selected after menu movement from row 0 and column 1"
+            },
+            {
+              "index": 4,
+              "name": "Markdown table EditorView interactions > keeps a later outside focus while the moved selection reattaches"
+            },
+            {
+              "index": 5,
+              "name": "Markdown table EditorView interactions > moves a column through the cell context menu"
+            },
+            {
+              "index": 9,
+              "name": "Markdown table EditorView interactions > provides roving menu focus, typeahead, and Escape focus restoration"
+            },
+            {
+              "index": 10,
+              "name": "Markdown table EditorView interactions > reflects --- in exactly three alignment choices without editing on open"
+            },
+            {
+              "index": 11,
+              "name": "Markdown table EditorView interactions > reflects :--- in exactly three alignment choices without editing on open"
+            },
+            {
+              "index": 12,
+              "name": "Markdown table EditorView interactions > reflects :---: in exactly three alignment choices without editing on open"
+            },
+            {
+              "index": 13,
+              "name": "Markdown table EditorView interactions > reflects ---: in exactly three alignment choices without editing on open"
+            },
+            {
+              "index": 14,
+              "name": "Markdown table EditorView interactions > applies Align left through the remaining alignment buttons"
+            },
+            {
+              "index": 15,
+              "name": "Markdown table EditorView interactions > applies Align center through the remaining alignment buttons"
+            },
+            {
+              "index": 16,
+              "name": "Markdown table EditorView interactions > applies Align right through the remaining alignment buttons"
+            },
+            {
+              "index": 17,
+              "name": "Markdown table EditorView interactions > closes on focus exit without leaving an unfocused cell edit session"
+            },
+            {
+              "index": 18,
+              "name": "Markdown table EditorView interactions > opens a row handle's horizontal toolbar below the visible grip"
+            },
+            {
+              "index": 19,
+              "name": "Markdown table EditorView interactions > highlights a handle's source column from pointer-down until its menu closes"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/drag.test.ts",
+          "sha256": "3f395f21498dcc987e1cc3ab1a556ed8648f367eba2080b4a498921a5373e7de",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown table EditorView interactions > clears pressed and drag highlighting on Escape without opening a menu or editing source"
+            },
+            {
+              "index": 3,
+              "name": "Markdown table EditorView interactions > clears pressed and drag highlighting on blur without opening a menu or editing source"
+            },
+            {
+              "index": 4,
+              "name": "Markdown table EditorView interactions > keeps the moved column structurally selected without focusing its first cell"
+            },
+            {
+              "index": 5,
+              "name": "Markdown table EditorView interactions > keeps the moved body row structurally selected without focusing its first cell"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/structural-edits.test.ts",
+          "sha256": "8883af7d323e6897cf9df0df91d6821f6deb0babad4a366b0fd33a80d65d2d73",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table EditorView interactions > adds rows and columns and restores logical focus after the view update"
+            },
+            {
+              "index": 1,
+              "name": "Markdown table EditorView interactions > targets the current table range after an earlier edit outside its projection patch"
+            },
+            {
+              "index": 2,
+              "name": "Markdown table EditorView interactions > commits a cell to the current table range after an earlier mapped edit"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/adjacent-prose.test.ts",
+          "sha256": "027900a9f09fe3217e26366c6fe0b15e4255c0854449ed45ef4c023734c34fb2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table EditorView interactions > renders adjacent prose as editor text instead of synthetic table rows"
+            },
+            {
+              "index": 1,
+              "name": "Markdown table EditorView interactions > keeps prose typed directly after a table in the normal editor surface"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/column-widths.test.ts",
+          "sha256": "dd86e859fbbd45c9f0527aef5109782315a3e3a5b53ab4b7b504904b30179de0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table EditorView interactions > defines stable semantic column tracks before a rich cell enters edit mode"
+            },
+            {
+              "index": 1,
+              "name": "Markdown table EditorView interactions > fits automatic tracks to the reading column by content and auto-fits within it"
+            },
+            {
+              "index": 2,
+              "name": "Markdown table EditorView interactions > lets a short table hug its content instead of stretching"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_moves_keep_structural_selection_preserve_outside_focus_and_clear_on_escape"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_keyboard_navigation_typeahead_escape_and_focus_blur"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_reflects_and_applies_exactly_three_column_alignments"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::grip_menus_highlight_source_and_drag_cancel_or_commit_with_selection"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::structural_edits_anchor_after_prefix_edits_and_keep_adjacent_prose_outside"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::semantic_column_tracks_stay_stable_fit_reading_column_and_hug_short_tables"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -49379,6 +49655,30 @@
               "name": "vertical editor splitter lifecycle > does not release another owner's native layout or pointer lease on cancellation"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/drag.test.ts",
+          "sha256": "3f395f21498dcc987e1cc3ab1a556ed8648f367eba2080b4a498921a5373e7de",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table EditorView interactions > clears pressed and drag highlighting on pointercancel without opening a menu or editing source"
+            },
+            {
+              "index": 2,
+              "name": "Markdown table EditorView interactions > clears pressed and drag highlighting on lostpointercapture without opening a menu or editing source"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/markdownTableDragLifecycle.test.ts",
+          "sha256": "17b4d87dd8edc09071d5a20e9f814b6f6bd714502f310d1612e2e6fffa23f23d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table drag lifecycle > removes document and owner listeners when a widget is disposed mid-drag"
+            }
+          ]
         }
       ]
     },
@@ -51135,6 +51435,16 @@
               "name": "Markdown embedded runtime > restores and explicitly rebases a table-cell draft after its range moves"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/commands/markdownBlockMove.test.ts",
+          "sha256": "bffd6f47d0688bd108bf37ff4cc2252f26800fdbc8ed6c53f0e3a053b6778b04",
+          "cases": [
+            {
+              "index": 20,
+              "name": "embedded draft relocation > relocates contained drafts, maps disjoint drafts, and conflicts partial overlap"
+            }
+          ]
         }
       ]
     },
@@ -51327,6 +51637,60 @@
             {
               "index": 3,
               "name": "Markdown empty HTML anchors > reveals an anchor for editing and folds it again without changing source"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlAnchors.test.ts",
+          "sha256": "d5aefafdb11d1126ea4cdb4d588787bb3e57d639e07d2243ce6cfdc3e0f6cc28",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown HTML anchor targets > hides a valid empty anchor in preview without changing its source: <a id=\"section\"></a>"
+            },
+            {
+              "index": 1,
+              "name": "Markdown HTML anchor targets > hides a valid empty anchor in preview without changing its source: <a id=section></a>"
+            },
+            {
+              "index": 2,
+              "name": "Markdown HTML anchor targets > preserves anchor source in source mode and reveals it for editing"
+            },
+            {
+              "index": 3,
+              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section><a>"
+            },
+            {
+              "index": 4,
+              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section>"
+            },
+            {
+              "index": 5,
+              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section href=\"javascript:alert(1)\"></a>"
+            },
+            {
+              "index": 6,
+              "name": "Markdown HTML anchor targets > navigates to an explicit target without changing the caret or document"
+            },
+            {
+              "index": 7,
+              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: `<a id=\"section\"></a>`"
+            },
+            {
+              "index": 8,
+              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: ```html\n<a id=\"section\"></a>\n```"
+            },
+            {
+              "index": 9,
+              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: \\<a id=\"section\"></a>"
+            },
+            {
+              "index": 10,
+              "name": "Markdown HTML anchor targets > keeps targets local to each document and updates positions and IDs after edits"
+            },
+            {
+              "index": 11,
+              "name": "Markdown HTML anchor targets > resolves the first exact explicit ID before a generated heading slug"
             }
           ]
         }
@@ -51573,6 +51937,16 @@
               "name": "background syntax projection ranges > does not rebuild a shared tree or identical immutable children"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/commands/markdownBlockMove.test.ts",
+          "sha256": "bffd6f47d0688bd108bf37ff4cc2252f26800fdbc8ed6c53f0e3a053b6778b04",
+          "cases": [
+            {
+              "index": 19,
+              "name": "Markdown block targeting > keeps a block's identity while the parser extends the document"
+            }
+          ]
         }
       ]
     },
@@ -51629,6 +52003,36 @@
               "name": "Markdown inline viewport anchor math > maps the table offset proportionally onto a differently sized scrollbar range"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/viewport.test.ts",
+          "sha256": "bf59902d51de48d598afa6c07359b72cd1fb3c82b6e8443a3f2a52e9ccdc73b5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table EditorView interactions > keeps the inline viewport session across a structural Widget replacement"
+            },
+            {
+              "index": 1,
+              "name": "Markdown table EditorView interactions > syncs a reading-rail scrollbar with the wider table viewport"
+            },
+            {
+              "index": 2,
+              "name": "Markdown table EditorView interactions > maps viewport lineage through an unrelated edit before the table"
+            },
+            {
+              "index": 3,
+              "name": "Markdown table EditorView interactions > keeps viewport lineage when a cell commit replaces the table Widget"
+            },
+            {
+              "index": 4,
+              "name": "Markdown table EditorView interactions > does not leak viewport state into an unrelated replacement table"
+            },
+            {
+              "index": 5,
+              "name": "Markdown table EditorView interactions > reveals the focused column without scrolling the outer editor horizontally"
+            }
+          ]
         }
       ]
     },
@@ -51679,6 +52083,16 @@
             {
               "index": 4,
               "name": "Markdown table column layout persistence > restores only the matching document revision and column count"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/column-widths.test.ts",
+          "sha256": "dd86e859fbbd45c9f0527aef5109782315a3e3a5b53ab4b7b504904b30179de0",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown table EditorView interactions > keeps a user-resized track stable across content commits and reopening"
             }
           ]
         }
@@ -52733,6 +53147,112 @@
             {
               "index": 15,
               "name": "Markdown embedded runtime > does not retry a parse-budget fallback on every subsequent edit"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "codemirror-block-drag-extension",
+      "kind": "out-of-scope",
+      "reason": "TS caches one referentially identical CodeMirror Extension instance from markdownBlockDragExtension() so compartment reconfigurations do not tear down and rebuild the ViewPlugin. The native editor registers BlockDragAddon once on the EditorView and gates behavior via the block_move experiment flag, so there is no CodeMirror compartment identity invariant.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/README.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/commands/markdownBlockMove.test.ts",
+          "sha256": "bffd6f47d0688bd108bf37ff4cc2252f26800fdbc8ed6c53f0e3a053b6778b04",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Markdown block movement > keeps one stable extension so reconfiguring cannot rebuild the plugin"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-table-menu-portal",
+      "kind": "out-of-scope",
+      "reason": "TS portals the Markdown table menu into document.body or a [data-po-overlay-root] container, copies editor CSS custom properties onto the portal node, and reads offsetWidth/offsetHeight to clamp against the viewport without entry-animation distortion. GPUI renders TableMenu directly in the deferred anchored() overlay layer with Theme::new(dark) and snap_to_window_with_margin(px(8.)).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/table.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/tables/context-menu.test.ts",
+          "sha256": "bc0096c59e2e0ba84123ac2e2dfb39359d045d80abeb2fdce507b43c2bdc14a0",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Markdown table EditorView interactions > carries the resolved editor theme into the document-level table menu"
+            },
+            {
+              "index": 7,
+              "name": "Markdown table EditorView interactions > clamps viewport edges using the final layout size rather than the entry-animation rect"
+            },
+            {
+              "index": 8,
+              "name": "Markdown table EditorView interactions > prefers the host's theme-aware overlay root"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-editor-layout-coordinator",
+      "kind": "out-of-scope",
+      "reason": "TS coordinates browser DOM ResizeObserver callbacks and batched prepare/read/write/commit cycles across HTMLDocuments to prevent forced reflow and layout feedback loops. GPUI performs layout natively in one retained window frame pass with no DOM ResizeObserver or read-write-commit coordinator.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/README.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/runtime/editorLayout.test.ts",
+          "sha256": "7a14b0025e33b0e2be12d09f342856c11f5c74db7f87f3c81da4b2c9c850dd8d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "document layout ownership > keeps each window's queue and participants independent"
+            },
+            {
+              "index": 1,
+              "name": "document layout ownership > reads all surviving affected panes before any writes or engine commits"
+            },
+            {
+              "index": 2,
+              "name": "document layout ownership > coalesces nested host mutations into one outer commit"
+            },
+            {
+              "index": 3,
+              "name": "document layout ownership > settles partial mutations while preserving the host exception"
+            },
+            {
+              "index": 4,
+              "name": "document layout ownership > never calls a disposed or replaced participant, including queued invalidations"
+            },
+            {
+              "index": 5,
+              "name": "document layout ownership > merges invalidation reasons and lets unchanged participants skip measurement"
+            },
+            {
+              "index": 6,
+              "name": "document layout ownership > quarantines a throwing prepare without blocking host or siblings"
+            },
+            {
+              "index": 7,
+              "name": "document layout ownership > quarantines a throwing read without blocking host or siblings"
+            },
+            {
+              "index": 8,
+              "name": "document layout ownership > quarantines a throwing write without blocking host or siblings"
+            },
+            {
+              "index": 9,
+              "name": "document layout ownership > quarantines a throwing commit without blocking host or siblings"
+            },
+            {
+              "index": 10,
+              "name": "document layout ownership > isolates an error reporter and bounds feedback without starving siblings"
+            },
+            {
+              "index": 11,
+              "name": "document layout ownership > shares observation and makes old unsubscribe/late delivery harmless"
             }
           ]
         }

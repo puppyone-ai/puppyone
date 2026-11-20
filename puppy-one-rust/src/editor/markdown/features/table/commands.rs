@@ -26,7 +26,7 @@ pub struct Structure {
 }
 
 pub fn structure(table: usize, operation: Operation, row: usize, column: usize) -> Command {
-    Command::new(
+    let command = Command::new(
         ID,
         Structure {
             table,
@@ -34,7 +34,12 @@ pub fn structure(table: usize, operation: Operation, row: usize, column: usize) 
             row,
             column,
         },
-    )
+    );
+    if operation.move_axis().is_some() {
+        command.preserving_focus()
+    } else {
+        command
+    }
 }
 
 pub fn transaction(command: &Command, cx: &CommandCx) -> Option<Transaction> {

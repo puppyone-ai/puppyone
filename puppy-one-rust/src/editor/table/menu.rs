@@ -63,6 +63,8 @@ pub struct TableMenu {
     sections: Vec<Vec<Item>>,
     dark: bool,
     focus: FocusHandle,
+    blur_subscription: Option<Subscription>,
+    key_subscription: Option<Subscription>,
     /// The item keyboard focus is on (flattened index).
     selected: Option<usize>,
     /// `:focus-visible`: only after keyboard navigation.
@@ -86,12 +88,34 @@ impl TableMenu {
             sections,
             dark,
             focus: cx.focus_handle(),
+            blur_subscription: None,
+            key_subscription: None,
             selected: None,
             keyboard: false,
         };
         // The first enabled item takes focus on open.
         this.selected = this.enabled().first().copied();
         this
+    }
+
+    #[cfg(test)]
+    pub(crate) fn sections_for_tests(&self) -> &[Vec<Item>] {
+        &self.sections
+    }
+
+    #[cfg(test)]
+    pub(crate) fn selected_item_for_tests(&self) -> Option<&Item> {
+        let idx = self.selected?;
+        self.items().nth(idx)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn run_id_for_tests(&mut self, id: &str, cx: &mut Context<Self>) -> bool {
+        let Some(index) = self.items().position(|i| i.id == id && !i.disabled) else {
+            return false;
+        };
+        self.run(index, cx);
+        true
     }
 
     fn items(&self) -> impl Iterator<Item = &Item> {
@@ -170,7 +194,35 @@ impl TableMenu {
 }
 
 impl Render for TableMenu {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.blur_subscription.is_none() {
+            self.blur_subscription = Some(cx.on_blur(&self.focus, window, |_, _, cx| {
+                cx.emit(MenuEvent::Dismiss {
+                    restore_focus: false,
+                });
+            }));
+        }
+        if self.key_subscription.is_none() {
+            let weak = cx.weak_entity();
+            let own_window = window.window_handle();
+            self.key_subscription = Some(cx.intercept_keystrokes(move |event, window, cx| {
+                if window.window_handle() != own_window {
+                    return;
+                }
+                let _ = weak.update(cx, |this, cx| {
+                    if this.focus.is_focused(window) {
+                        this.key(
+                            &KeyDownEvent {
+                                keystroke: event.keystroke.clone(),
+                                is_held: false,
+                                prefer_character_input: false,
+                            },
+                            cx,
+                        );
+                    }
+                });
+            }));
+        }
         let t = Theme::new(self.dark);
         let selected = self.selected.filter(|_| self.keyboard);
         let mut index = 0;
@@ -179,7 +231,6 @@ impl Render for TableMenu {
             .track_focus(&self.focus)
             // Presses inside never reach the table beneath.
             .absorb_mouse_down()
-            .on_key_down(cx.listener(|this, e: &KeyDownEvent, _, cx| this.key(e, cx)))
             .on_mouse_down_out(cx.listener(|_, _, _, cx| {
                 cx.emit(MenuEvent::Dismiss {
                     restore_focus: false,

@@ -15,6 +15,7 @@ use crate::{
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
 mod block_acceptance;
+mod block_move_acceptance;
 mod code_isolation_acceptance;
 mod composition_acceptance;
 mod document_scope_acceptance;
@@ -29,6 +30,7 @@ mod math_acceptance;
 mod mdx_acceptance;
 mod projection_acceptance;
 mod table_inline_acceptance;
+mod table_interaction_acceptance;
 mod table_media_acceptance;
 
 #[test]

@@ -109,9 +109,45 @@ pub struct TableUi {
     pub widths: Option<Vec<f32>>,
     /// The resized column's track while the rail is held.
     pub live: Option<f32>,
+    pub(super) _subscriptions: Vec<Subscription>,
 }
 
 impl TableUi {
+    /// Cancel any active drag or resize gesture (e.g., on window blur)
+    /// without opening a menu or modifying the document.
+    pub fn cancel_active_gesture(&mut self, cx: &mut Context<Self>) {
+        let mut changed = false;
+        if self.gestures.drag.take().is_some() {
+            changed = true;
+        }
+        if self.gestures.resizing.take().is_some() {
+            self.live = None;
+            changed = true;
+        }
+        if changed {
+            cx.notify();
+        }
+    }
+
+    /// Handle window-level Escape: cancel an active drag/resize or clear a
+    /// structural selection wherever focus is (leaving an open menu to handle
+    /// its own Escape and focus restoration).
+    pub fn handle_escape(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.gestures.resizing.take().is_some() {
+            self.live = None;
+            cx.notify();
+            return true;
+        }
+        if self.gestures.drag.take().is_some() {
+            cx.notify();
+            return true;
+        }
+        if self.gestures.structural.take().is_some() {
+            cx.notify();
+            return true;
+        }
+        false
+    }
     fn local(&self, position: Point<Pixels>) -> Option<(f32, f32)> {
         let o = self.origin?;
         Some((f32::from(position.x - o.x), f32::from(position.y - o.y)))
