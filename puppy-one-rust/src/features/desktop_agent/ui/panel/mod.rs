@@ -468,6 +468,10 @@ impl AgentChatTabPanel {
         value: String,
         cx: &mut Context<Self>,
     ) {
+        if id == AgentSessionControlId::Source {
+            self.select_compute_source(value, cx);
+            return;
+        }
         if id == AgentSessionControlId::Model
             && self
                 .controller

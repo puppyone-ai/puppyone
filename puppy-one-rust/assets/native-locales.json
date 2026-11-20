@@ -207,7 +207,10 @@
       "native.modelConnections.error.reauth": "This sign-in expired or was revoked. Sign in again.",
       "native.modelConnections.error.noModel": "The service lists no model the Agent can use. Load a model with tool support, then try again.",
       "native.modelConnections.error.startFailed": "The service did not start. Open it yourself, then refresh.",
-      "native.modelConnections.error.unreachable": "The service is not reachable. Check that it is running."
+      "native.modelConnections.error.unreachable": "The service is not reachable. Check that it is running.",
+      "native.agent.compute.source.oauth": "Your plan",
+      "native.agent.compute.setUp": "Set up in Settings",
+      "native.agent.compute.manage": "Manage model connections…"
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -415,7 +418,10 @@
       "native.modelConnections.error.reauth": "该登录已过期或被撤销，请重新登录。",
       "native.modelConnections.error.noModel": "该服务没有可供 Agent 使用的模型。请加载一个支持工具调用的模型后重试。",
       "native.modelConnections.error.startFailed": "服务没有启动。请手动打开它，然后刷新。",
-      "native.modelConnections.error.unreachable": "无法连接到该服务，请确认它正在运行。"
+      "native.modelConnections.error.unreachable": "无法连接到该服务，请确认它正在运行。",
+      "native.agent.compute.source.oauth": "订阅账户",
+      "native.agent.compute.setUp": "在设置中配置",
+      "native.agent.compute.manage": "管理模型连接…"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -623,7 +629,10 @@
       "native.modelConnections.error.reauth": "このサインインは期限切れか取り消されました。もう一度サインインしてください。",
       "native.modelConnections.error.noModel": "このサービスには Agent が使えるモデルがありません。ツールに対応したモデルを読み込んでから、もう一度お試しください。",
       "native.modelConnections.error.startFailed": "サービスが起動しませんでした。手動で開いてから更新してください。",
-      "native.modelConnections.error.unreachable": "サービスに接続できません。実行中か確認してください。"
+      "native.modelConnections.error.unreachable": "サービスに接続できません。実行中か確認してください。",
+      "native.agent.compute.source.oauth": "お持ちのプラン",
+      "native.agent.compute.setUp": "設定で構成",
+      "native.agent.compute.manage": "モデル接続を管理…"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -831,7 +840,10 @@
       "native.modelConnections.error.reauth": "이 로그인이 만료되었거나 취소되었습니다. 다시 로그인하세요.",
       "native.modelConnections.error.noModel": "이 서비스에는 Agent가 사용할 수 있는 모델이 없습니다. 도구를 지원하는 모델을 로드한 후 다시 시도하세요.",
       "native.modelConnections.error.startFailed": "서비스가 시작되지 않았습니다. 직접 연 다음 새로고침하세요.",
-      "native.modelConnections.error.unreachable": "서비스에 연결할 수 없습니다. 실행 중인지 확인하세요."
+      "native.modelConnections.error.unreachable": "서비스에 연결할 수 없습니다. 실행 중인지 확인하세요.",
+      "native.agent.compute.source.oauth": "내 요금제",
+      "native.agent.compute.setUp": "설정에서 구성",
+      "native.agent.compute.manage": "모델 연결 관리…"
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -1039,7 +1051,10 @@
       "native.modelConnections.error.reauth": "Este inicio de sesión caducó o se revocó. Vuelve a iniciar sesión.",
       "native.modelConnections.error.noModel": "El servicio no ofrece ningún modelo que el Agent pueda usar. Carga un modelo con soporte de herramientas e inténtalo de nuevo.",
       "native.modelConnections.error.startFailed": "El servicio no se inició. Ábrelo tú mismo y luego actualiza.",
-      "native.modelConnections.error.unreachable": "No se puede acceder al servicio. Comprueba que se esté ejecutando."
+      "native.modelConnections.error.unreachable": "No se puede acceder al servicio. Comprueba que se esté ejecutando.",
+      "native.agent.compute.source.oauth": "Tu plan",
+      "native.agent.compute.setUp": "Configurar en Ajustes",
+      "native.agent.compute.manage": "Gestionar conexiones de modelos…"
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -1247,7 +1262,10 @@
       "native.modelConnections.error.reauth": "Este login expirou ou foi revogado. Entre novamente.",
       "native.modelConnections.error.noModel": "O serviço não lista nenhum modelo que o Agent possa usar. Carregue um modelo com suporte a ferramentas e tente novamente.",
       "native.modelConnections.error.startFailed": "O serviço não foi iniciado. Abra-o você mesmo e atualize.",
-      "native.modelConnections.error.unreachable": "Não foi possível acessar o serviço. Verifique se ele está em execução."
+      "native.modelConnections.error.unreachable": "Não foi possível acessar o serviço. Verifique se ele está em execução.",
+      "native.agent.compute.source.oauth": "Seu plano",
+      "native.agent.compute.setUp": "Configurar nos Ajustes",
+      "native.agent.compute.manage": "Gerenciar conexões de modelos…"
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -1455,7 +1473,10 @@
       "native.modelConnections.error.reauth": "Cette connexion a expiré ou a été révoquée. Reconnectez-vous.",
       "native.modelConnections.error.noModel": "Le service ne propose aucun modèle utilisable par l’Agent. Chargez un modèle compatible avec les outils, puis réessayez.",
       "native.modelConnections.error.startFailed": "Le service n’a pas démarré. Ouvrez-le vous-même, puis actualisez.",
-      "native.modelConnections.error.unreachable": "Le service est injoignable. Vérifiez qu’il est lancé."
+      "native.modelConnections.error.unreachable": "Le service est injoignable. Vérifiez qu’il est lancé.",
+      "native.agent.compute.source.oauth": "Votre abonnement",
+      "native.agent.compute.setUp": "Configurer dans les Réglages",
+      "native.agent.compute.manage": "Gérer les connexions de modèles…"
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1663,7 +1684,10 @@
       "native.modelConnections.error.reauth": "Diese Anmeldung ist abgelaufen oder wurde widerrufen. Melden Sie sich erneut an.",
       "native.modelConnections.error.noModel": "Der Dienst bietet kein Modell, das der Agent nutzen kann. Laden Sie ein Modell mit Tool-Unterstützung und versuchen Sie es erneut.",
       "native.modelConnections.error.startFailed": "Der Dienst wurde nicht gestartet. Öffnen Sie ihn selbst und aktualisieren Sie dann.",
-      "native.modelConnections.error.unreachable": "Der Dienst ist nicht erreichbar. Prüfen Sie, ob er läuft."
+      "native.modelConnections.error.unreachable": "Der Dienst ist nicht erreichbar. Prüfen Sie, ob er läuft.",
+      "native.agent.compute.source.oauth": "Ihr Abo",
+      "native.agent.compute.setUp": "In den Einstellungen einrichten",
+      "native.agent.compute.manage": "Modellverbindungen verwalten…"
     }
   }
 }

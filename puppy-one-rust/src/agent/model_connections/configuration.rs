@@ -34,7 +34,8 @@ pub enum Driver {
     Chatgpt,
 }
 impl Driver {
-    /// The services offered in the local form's service picker.
+    /// Every local service, in the local form's order (the form offers all
+    /// but `OpenaiCompatible`, which `Bring your API` adds).
     pub const ALL: [Driver; 9] = [
         Driver::Ollama,
         Driver::LmStudio,

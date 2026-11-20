@@ -223,6 +223,8 @@ impl AgentChatTabPanel {
                     ..preferred
                 }
             }
+            // Handled before routing (`select_compute_source`).
+            AgentSessionControlId::Source => return,
             AgentSessionControlId::Mode => {
                 self.controller.select_mode(Some(&value));
                 AgentRoutePreference {

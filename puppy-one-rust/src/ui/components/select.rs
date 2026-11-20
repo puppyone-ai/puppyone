@@ -13,6 +13,8 @@ use gpui_kit::{
 use std::rc::Rc;
 
 type SelectHandler = Rc<dyn Fn(&mut Window, &mut App)>;
+/// A leading graphic (a brand mark), built each time it is drawn.
+type Leading = Rc<dyn Fn() -> AnyElement>;
 
 /// One option of a [`Select`].
 pub struct SelectOption {
@@ -20,6 +22,7 @@ pub struct SelectOption {
     selected: bool,
     disabled: bool,
     on_select: Option<SelectHandler>,
+    leading: Option<Leading>,
 }
 impl SelectOption {
     pub fn new(label: impl Into<SharedString>) -> Self {
@@ -28,7 +31,13 @@ impl SelectOption {
             selected: false,
             disabled: false,
             on_select: None,
+            leading: None,
         }
+    }
+    /// A graphic before the label (`MenuItem::icon_element`).
+    pub fn leading(mut self, leading: impl Fn() -> AnyElement + 'static) -> Self {
+        self.leading = Some(Rc::new(leading));
+        self
     }
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
@@ -113,8 +122,12 @@ impl RenderOnce for Select {
                 menu.min_w(px(width.min(180.)))
                     .items(options(cx).into_iter().map(|option| {
                         let handler = option.on_select.clone();
-                        MenuItem::new(option.label)
-                            .checked(option.selected)
+                        let item = MenuItem::new(option.label);
+                        let item = match &option.leading {
+                            Some(leading) => item.icon_element(leading()),
+                            None => item,
+                        };
+                        item.checked(option.selected)
                             .disabled(option.disabled)
                             .on_click(move |window, cx| {
                                 if let Some(handler) = &handler {

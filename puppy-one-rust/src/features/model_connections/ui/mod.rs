@@ -208,8 +208,11 @@ impl ModelConnections {
     /// The page came into view: look for local services and read PuppyOne
     /// compute's state again (loopback only; nothing is saved or run).
     pub fn shown(&mut self, cx: &mut Context<Self>) {
-        // Reopening the page starts from the sources; a form keeps its input.
-        if !self.busy && matches!(self.page, PageState::Detail(_) | PageState::ChooseProvider) {
+        // Arriving at the page (from the sidebar or from Chat's source
+        // switcher) starts from the sources; an unsaved form is left, and
+        // its key field is cleared on the way.
+        if !self.busy && self.page != PageState::List {
+            self.key.update(cx, |i, cx| i.clear(cx));
             self.navigate(PageState::List, cx);
         }
         self.discover(cx);
@@ -530,7 +533,11 @@ impl Render for ModelConnections {
                 ),
             );
         }
-        if let Some(error) = self.error.as_ref().filter(|_| self.error_at == ErrorAt::Page) {
+        if let Some(error) = self
+            .error
+            .as_ref()
+            .filter(|_| self.error_at == ErrorAt::Page)
+        {
             view = view.child(
                 div()
                     .id("model-connections-error")

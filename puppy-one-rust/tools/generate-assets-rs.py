@@ -8,7 +8,7 @@ agents = sorted(p.name for p in (root / 'assets/agents').iterdir() if p.suffix i
 brand = sorted(p.name for p in (root / 'assets/brand').glob('*.svg'))
 home = sorted(p.name for p in (root / 'assets/home').glob('*.svg'))
 integrations = sorted(p.name for p in (root / 'assets/integrations').iterdir() if p.suffix in ('.svg', '.png', '.webp'))
-providers = sorted(p.name for p in (root / 'assets/providers').glob('*.svg'))
+providers = sorted(p.name for p in (root / 'assets/providers').iterdir() if p.suffix in ('.svg', '.png'))
 library = sorted(p.relative_to(root / 'assets') for p in (root / 'assets/library').rglob('*') if p.is_file())
 entries = '\n'.join([f'    "icons" / "{i}.svg",' for i in icons] + [f'    "agents" / "{a}",' for a in agents]
                     + [f'    "brand" / "{b}",' for b in brand]

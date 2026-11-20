@@ -251,7 +251,10 @@ impl ModelConnections {
             div()
                 .w_full()
                 .h(px(theme::control_compact()))
-                .px(px(5.))
+                // The value starts where a `Select`'s does (12px in, after
+                // the input's own 4px inset).
+                .pl(px(8.))
+                .pr(px(5.))
                 .flex()
                 .items_center()
                 .border_1()
@@ -278,12 +281,28 @@ impl ModelConnections {
         let mut basic: Vec<AnyElement> = vec![];
         if form.source == SourceKind::Local {
             let (current, host) = (form.driver, host.clone());
-            let select = Select::new("model-connection-driver", current.defaults().0, move |_| {
+            // Local services only: an API is added from `Bring your API`.
+            let name = |driver: Driver| {
+                registry::local_for(driver)
+                    .map(|p| p.name)
+                    .unwrap_or(driver.defaults().0)
+            };
+            let mark_color: Hsla = t.text.into();
+            let select = Select::new("model-connection-driver", name(current), move |_| {
                 Driver::ALL
                     .into_iter()
+                    .filter(|driver| *driver != Driver::OpenaiCompatible || *driver == current)
                     .map(|driver| {
                         let host = host.clone();
-                        SelectOption::new(driver.defaults().0)
+                        SelectOption::new(name(driver))
+                            .leading(move || {
+                                super::mark(
+                                    registry::local_for(driver),
+                                    SourceKind::Local,
+                                    16.,
+                                    mark_color,
+                                )
+                            })
                             .selected(driver == current)
                             .on_select(move |_, cx| {
                                 let _ = host.update(cx, |s, cx| s.select_driver(driver, cx));

@@ -198,15 +198,32 @@ fn errors_stay_next_to_the_failed_action(cx: &mut TestAppContext) {
         assert!(s.inline_error(ErrorAt::Accounts, cx.palette()).is_none());
         s.navigate(PageState::ChooseProvider, cx);
         assert!(s.error.is_none());
-        // Reopening the page returns to the list; a form keeps its input.
+        // Reopening the page returns to the list, from a form too.
         // (Pending receivers keep `shown` from probing the network.)
         s.discover_rx = Some(std::sync::mpsc::sync_channel(1).1);
         s.managed_rx = Some(std::sync::mpsc::sync_channel(1).1);
         s.shown(cx);
         assert!(s.page == PageState::List);
         s.navigate(PageState::Add(SourceKind::Api, None, Some("openai")), cx);
+        s.key.update(cx, |i, cx| i.set_text("typed-key", cx));
         s.shown(cx);
-        assert!(matches!(s.page, PageState::Add(..)));
+        assert!(s.page == PageState::List);
+        assert_eq!(s.key.read(cx).text(), "");
     });
     cx.run_until_parked();
+}
+
+/// The local form offers local services only, each with its mark; an API is
+/// added from `Bring your API`.
+#[test]
+fn local_services_all_have_marks_and_exclude_the_generic_api() {
+    let offered: Vec<Driver> = Driver::ALL
+        .into_iter()
+        .filter(|d| *d != Driver::OpenaiCompatible)
+        .collect();
+    assert!(!offered.contains(&Driver::OpenaiCompatible));
+    for driver in offered {
+        let provider = registry::local_for(driver).expect("registered local service");
+        assert!(provider.mark.is_some(), "{} has no mark", provider.name);
+    }
 }

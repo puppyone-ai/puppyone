@@ -331,7 +331,7 @@ pub const LOCAL_PROVIDERS: &[Provider] = &[
     local(
         "mlx",
         "MLX",
-        None,
+        Some("mlx.png"),
         false,
         Driver::Mlx,
         "http://127.0.0.1:8080/v1",
@@ -339,8 +339,8 @@ pub const LOCAL_PROVIDERS: &[Provider] = &[
     local(
         "llama-cpp",
         "llama.cpp",
-        None,
-        false,
+        Some("llamacpp.svg"),
+        true,
         Driver::LlamaCpp,
         "http://127.0.0.1:8080/v1",
     ),
@@ -355,7 +355,7 @@ pub const LOCAL_PROVIDERS: &[Provider] = &[
     local(
         "jan",
         "Jan",
-        None,
+        Some("jan.png"),
         false,
         Driver::Jan,
         "http://127.0.0.1:1337/v1",
@@ -363,7 +363,7 @@ pub const LOCAL_PROVIDERS: &[Provider] = &[
     local(
         "local-ai",
         "LocalAI",
-        None,
+        Some("localai.png"),
         false,
         Driver::LocalAi,
         "http://127.0.0.1:8080/v1",
@@ -371,7 +371,7 @@ pub const LOCAL_PROVIDERS: &[Provider] = &[
     local(
         "unsloth",
         "Unsloth",
-        None,
+        Some("unsloth.png"),
         false,
         Driver::Unsloth,
         "http://127.0.0.1:8000/v1",
