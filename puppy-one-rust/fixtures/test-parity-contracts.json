@@ -48884,10 +48884,1200 @@
           "test": "app::tests::window_chrome::the_folder_header_offers_changes_and_the_agent_only_while_its_tool_is_on"
         }
       ]
+    },
+    {
+      "id": "model-connections-provider-drivers-and-discovery",
+      "acceptance": "Provider drivers distinguish Ollama downloaded/loaded/effective/max context windows, filter LM Studio language models with reported capabilities, fall back cleanly when /models is absent to serve an explicit manual model, refuse redirected or key-echoing catalog endpoints, and fill unreported context windows within maximum bounds.",
+      "typescript": [
+        {
+          "path": "tests/unit/model-connections/drivers/providerDrivers.test.mjs",
+          "sha256": "7e3ebeca30459dbe7ce8d6ec152dac7d0b9d87afe92af70d1f167438abadefec",
+          "cases": [
+            {
+              "index": 0,
+              "name": "provider metadata compatibility > separates downloaded, loaded, effective context and theoretical maximum for Ollama"
+            },
+            {
+              "index": 1,
+              "name": "provider metadata compatibility > filters embedding models and preserves LM Studio instance context"
+            },
+            {
+              "index": 2,
+              "name": "provider metadata compatibility > falls back from unsupported native LM Studio endpoints but not authentication failures"
+            },
+            {
+              "index": 3,
+              "name": "provider metadata compatibility > supports an explicit model ID when /models is absent, without inventing capabilities"
+            },
+            {
+              "index": 4,
+              "name": "provider metadata compatibility > truncates oversized model catalogs explicitly"
+            },
+            {
+              "index": 5,
+              "name": "provider metadata compatibility > discovers only known loopback metadata and shares an in-flight probe"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::infrastructure::catalog_tests::ollama_catalog_marks_loaded_models_and_their_context"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::infrastructure::catalog_tests::lm_studio_catalog_keeps_language_models_with_reported_capabilities"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::infrastructure::catalog_tests::openai_catalog_lists_valid_ids_only"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::infrastructure::catalog_tests::generic_services_are_read_over_http"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::infrastructure::catalog_tests::a_catalog_echoing_the_key_or_redirecting_is_refused"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::infrastructure::catalog_tests::a_manual_model_is_served_when_the_service_lists_none"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::infrastructure::catalog_tests::the_context_budget_fills_unreported_windows_within_the_maximum"
+        }
+      ]
+    },
+    {
+      "id": "model-connections-lifecycle-security-and-settings-ui",
+      "acceptance": "Model connection configuration migrates legacy categories and routes, canonicalizes loopback and reverse-proxy URLs without duplicate /v1, rejects unsafe/credential-bearing/query/fragment endpoints, keeps API keys write-only out of snapshots, verifies tool-calling models before enabling, revokes leases on endpoint/credential change or deletion without affecting other connections, handles concurrent edits/deletes safely, binds one connection per session, and starts/edits/removes connections cleanly in Settings UI.",
+      "typescript": [
+        {
+          "path": "tests/unit/model-connections/lifecycle/connectionService.test.mjs",
+          "sha256": "76e393ee1e0dd03da2235fb9edf91cb815e1682f8762b49e5c20d6869ae1120b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "model connection contracts > migrates legacy categories and preserves explicit intent independently of transport"
+            },
+            {
+              "index": 1,
+              "name": "model connection contracts > canonicalizes loopback and reverse-proxy prefixes without duplicate v1"
+            },
+            {
+              "index": 2,
+              "name": "model connection contracts > rejects unsafe endpoint http://example.com"
+            },
+            {
+              "index": 3,
+              "name": "model connection contracts > rejects unsafe endpoint https://user:password@example.com"
+            },
+            {
+              "index": 4,
+              "name": "model connection contracts > rejects unsafe endpoint file:///tmp/model"
+            },
+            {
+              "index": 5,
+              "name": "model connection contracts > rejects unsafe endpoint https://example.com?key=secret"
+            },
+            {
+              "index": 6,
+              "name": "model connection contracts > rejects unsafe endpoint https://example.com#key"
+            },
+            {
+              "index": 7,
+              "name": "model connection contracts > does not accept credential commands, arbitrary drivers or invalid contexts as configuration"
+            },
+            {
+              "index": 8,
+              "name": "model connection lifecycle > loads a pre-category configuration without changing its route or security generation"
+            },
+            {
+              "index": 9,
+              "name": "model connection lifecycle > persists source intent without changing endpoint authority or revoking a live session"
+            },
+            {
+              "index": 10,
+              "name": "model connection lifecycle > requires the persisted history security revision before issuing a resume credential"
+            },
+            {
+              "index": 11,
+              "name": "model connection lifecycle > keeps name/default edits separate from credential rotation and invalidates only old security leases"
+            },
+            {
+              "index": 12,
+              "name": "model connection lifecycle > prevents concurrent compatibility tests for the same connection"
+            },
+            {
+              "index": 13,
+              "name": "model connection lifecycle > keeps credentials out of snapshots and ordinary configuration"
+            },
+            {
+              "index": 14,
+              "name": "model connection lifecycle > requires verification for unknown tools and records only synthetic compatibility evidence"
+            },
+            {
+              "index": 15,
+              "name": "model connection lifecycle > does not overwrite edits from another window"
+            },
+            {
+              "index": 16,
+              "name": "model connection lifecycle > requires Key confirmation when the endpoint changes"
+            },
+            {
+              "index": 17,
+              "name": "model connection lifecycle > compensates a failed configuration commit after securing the Key"
+            },
+            {
+              "index": 18,
+              "name": "model connection lifecycle > revokes an active lease on delete without discarding another connection"
+            },
+            {
+              "index": 19,
+              "name": "model connection lifecycle > retains stale models on failed refresh, and never authorizes from stale evidence"
+            },
+            {
+              "index": 20,
+              "name": "model connection lifecycle > coalesces refresh and discards a deleted connection's late result"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/model-connections/lifecycle/rendererStore.test.ts",
+          "sha256": "3258c759e9e55fe76d8fef2cea3382b2d4174bc7d9a539fdcd0ff3ef591e8514",
+          "cases": [
+            {
+              "index": 0,
+              "name": "renderer model connection replica > shares subscriptions and rejects late older snapshots"
+            },
+            {
+              "index": 1,
+              "name": "renderer model connection replica > never stores the write-only Key or a remote error body, including while save is pending"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/model-connections/security/hostAuthority.test.mjs",
+          "sha256": "38b1fe9de7d3243e851ac6be202bbca23c1c315fac854941ae75719655539817",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Main authorizes model credentials by utility instance and route > never broadcasts credentials in initialization and rejects another connection"
+            },
+            {
+              "index": 1,
+              "name": "Main authorizes model credentials by utility instance and route > denies non-built-in runtimes access to model credentials"
+            },
+            {
+              "index": 2,
+              "name": "Main authorizes model credentials by utility instance and route > uses persisted history authority instead of a renderer-supplied replacement model"
+            },
+            {
+              "index": 3,
+              "name": "Main authorizes model credentials by utility instance and route > reserves history before an asynchronous catalog read"
+            },
+            {
+              "index": 4,
+              "name": "Main authorizes model credentials by utility instance and route > releases the history reservation when the host budget rejects startup"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/model-connections/settings/modelConnectionsSettings.test.tsx",
+          "sha256": "f46ab8cda0bf5f72b58c3f17c69262acd1594ecc0c12c7173fb0fe247c80bec5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "allows logged-out discovery without saving or running a model, then reuses the manual form"
+            },
+            {
+              "index": 1,
+              "name": "uses a password field for Key input and clears it when the editor closes"
+            },
+            {
+              "index": 2,
+              "name": "starts an API connection with URL and write-only Key, without local discovery"
+            },
+            {
+              "index": 3,
+              "name": "keeps discovery failure quiet and leaves both local actions usable"
+            },
+            {
+              "index": 4,
+              "name": "opens one connection at a time, preserves the saved Key on edit, and confirms removal"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::configuration::tests::concurrent_edit_and_delete_do_not_resurrect_or_retire_active_credentials"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::configuration::tests::base_urls_are_canonical_and_unsafe_endpoints_are_rejected"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::configuration::tests::saving_checks_the_configuration_and_keeps_keys_write_only"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::configuration::tests::a_connection_serves_its_named_models_when_the_agent_may_use_them"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::configuration::tests::connections_saved_before_drivers_keep_their_model_route_and_key"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::native_kernel::tests::the_catalog_groups_compute_models_and_a_changed_connection_revokes_its_lease"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tests::lists_only_current_text_and_tool_models_from_model_connections"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::tests::binds_one_connection_per_session_and_rejects_a_different_connection_or_image_model"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::verify_tests::a_model_passes_after_calling_the_check_tool_and_replying"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::verify_tests::a_model_that_answers_without_the_tool_fails_verification"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::ui::tests::a_new_connection_starts_from_its_category_and_service"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::ui::tests::an_edit_keeps_the_saved_key_until_its_endpoint_changes"
+        }
+      ]
+    },
+    {
+      "id": "model-connections-managed-compute-wallet",
+      "acceptance": "Managed Agent compute reads wallet balance and model directory when signed in, gates managed acquisition on sign-in and positive balance, never leaks credentials to the UI, and clears account state immediately on sign-out or account replacement.",
+      "typescript": [
+        {
+          "path": "tests/unit/model-connections/security/managedConnection.test.mjs",
+          "sha256": "a7b4d109c61f90b276533aa9244e75a1aa91fceaecdd01d0008ac437ba45a4e4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Main-owned managed Agent connection > returns loading to UI inspection without waiting for the wallet, then publishes the ready catalog"
+            },
+            {
+              "index": 1,
+              "name": "Main-owned managed Agent connection > keeps acquisition behind the refreshed balance even after nonblocking UI inspection"
+            },
+            {
+              "index": 2,
+              "name": "Main-owned managed Agent connection > exposes signed-out UI without waiting for the public directory"
+            },
+            {
+              "index": 3,
+              "name": "Main-owned managed Agent connection > exposes a read-only model and balance but no lease or credentials"
+            },
+            {
+              "index": 4,
+              "name": "Main-owned managed Agent connection > requires sign-in and balance for managed acquisition"
+            },
+            {
+              "index": 13,
+              "name": "Main-owned managed Agent connection > revokes the local capability immediately on signOut"
+            },
+            {
+              "index": 14,
+              "name": "Main-owned managed Agent connection > revokes the local capability immediately on replaceUser"
+            },
+            {
+              "index": 18,
+              "name": "Main-owned managed Agent connection > clears account data immediately on logout and ignores a late balance response"
+            },
+            {
+              "index": 19,
+              "name": "Main-owned managed Agent connection > clears the previous account's billing error as soon as it signs out"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::managed_compute::tests::the_wallet_reads_like_the_product"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::account::tests::public_account_projection_observes_restore_and_logout_without_a_native_vault"
+        }
+      ]
+    },
+    {
+      "id": "ui-primitives-loading-mark-and-dialogs",
+      "acceptance": "Loading marks compute the product rounded relay and gather keyframes across xs/sm/md sizes and reduced motion, remain neutral unless toned, and dialogs trap Tab order, close on Escape unless action-required, keep focus when a focused control disappears, and stack properly over the window.",
+      "typescript": [
+        {
+          "path": "tests/component/ui-primitives/controls/loadingIndicator.test.tsx",
+          "sha256": "498597fe0eda8b584dd7bb244058bd07736f526b012dca5caedf34db8da6d8ba",
+          "cases": [
+            {
+              "index": 0,
+              "name": "LoadingMark > relays a capsule along three dots inside a strip in the rounded style"
+            },
+            {
+              "index": 1,
+              "name": "LoadingMark > gathers three dots in a region in the rounded style"
+            },
+            {
+              "index": 5,
+              "name": "LoadingMark > sizes rounded xs units at 3px with a 2px gap"
+            },
+            {
+              "index": 6,
+              "name": "LoadingMark > sizes rounded sm units at 4px with a 3px gap"
+            },
+            {
+              "index": 7,
+              "name": "LoadingMark > sizes rounded md units at 5px with a 4px gap"
+            },
+            {
+              "index": 11,
+              "name": "LoadingMark > inks the mark in its tone"
+            },
+            {
+              "index": 14,
+              "name": "loading surfaces share the one mark > sizes the xs gather from a 12px box"
+            },
+            {
+              "index": 15,
+              "name": "loading surfaces share the one mark > sizes the sm gather from a 16px box"
+            },
+            {
+              "index": 16,
+              "name": "loading surfaces share the one mark > sizes the md gather from a 24px box"
+            },
+            {
+              "index": 17,
+              "name": "loading surfaces share the one mark > gathers on a loading page and relays beside loading text"
+            },
+            {
+              "index": 18,
+              "name": "loading surfaces share the one mark > draws page, inline and Git loading with the rounded mark"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/ui-primitives/dialogs/desktopDialog.test.tsx",
+          "sha256": "f57b28d4d997b9e95dcd207d3ee1cc4874c09664ce0c4e6ac0bd3a322af8ee77",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopDialog > moves focus inside, traps Tab, closes on Escape, and restores focus"
+            },
+            {
+              "index": 1,
+              "name": "DesktopDialog > keeps focus in the dialog when the focused control is disabled"
+            },
+            {
+              "index": 2,
+              "name": "DesktopDialog > makes the page inert while open, and gives it back before restoring focus"
+            },
+            {
+              "index": 3,
+              "name": "DesktopDialog > wakes the page only when the last stacked dialog has closed"
+            },
+            {
+              "index": 5,
+              "name": "DesktopDialog > holds hover from closing until the pointer is used again"
+            },
+            {
+              "index": 6,
+              "name": "DesktopDialog > requires an in-dialog action when the dismissal policy is action-required"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/ui-primitives/feedback/floatingNotice.test.tsx",
+          "sha256": "eee1aee856f4a8cff7860c05a4ff04bf9bd8bc6ea04c27cf162ae1ab4775921d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "FloatingNotice > offers a labelled close control that dismisses the notice"
+            },
+            {
+              "index": 1,
+              "name": "FloatingNotice > dismisses with Escape while focus is inside the notice"
+            },
+            {
+              "index": 2,
+              "name": "FloatingNotice > announces only the message and derives urgency from tone"
+            },
+            {
+              "index": 3,
+              "name": "FloatingNotice > renders actions before the dismiss control"
+            },
+            {
+              "index": 4,
+              "name": "FloatingNotice > gives inline commands the shared notice action control"
+            },
+            {
+              "index": 5,
+              "name": "FloatingNotice > occludes native surfaces only when asked"
+            },
+            {
+              "index": 6,
+              "name": "FloatingNoticePortal > joins the surface stack instead of creating an overlapping one"
+            },
+            {
+              "index": 7,
+              "name": "FloatingNoticePortal > falls back to its own stack without a surface stack"
+            },
+            {
+              "index": 8,
+              "name": "useDismissibleNotice > hides an externally owned notice until a new notice arrives"
+            },
+            {
+              "index": 9,
+              "name": "useDismissibleNotice > presents the same notice again after it clears and recurs"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/ui-primitives/feedback/loadingPlaceholder.test.tsx",
+          "sha256": "d7fc95d424e441f75819a2b5a98c5fa75027885af4cbc9c6c749fbddc723acac",
+          "cases": [
+            {
+              "index": 0,
+              "name": "loading placeholder layer > adds nothing in the rounded style, which is also the default"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/ui-primitives/sidebar/sidebarPrimitives.test.tsx",
+          "sha256": "fe21654e39138588f310dd39b03429bc3a80f7a1cc39c0515e014c7f90fd4206",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Sidebar primitives > owns the frame, viewport, stable content plane, and edge handle as one structure"
+            },
+            {
+              "index": 1,
+              "name": "Sidebar primitives > keeps content fixed and visible until the shared frame-width transition settles"
+            },
+            {
+              "index": 2,
+              "name": "Sidebar primitives > provides one semantic row and icon-action contract"
+            },
+            {
+              "index": 3,
+              "name": "Sidebar primitives > normalizes keyboard resize intents and exposes separator bounds"
+            },
+            {
+              "index": 4,
+              "name": "Sidebar primitives > keeps the collapsed pane edge as a resize-only separator"
+            },
+            {
+              "index": 5,
+              "name": "Sidebar primitives > caps mounted rows for scalable lists while keeping native list semantics"
+            },
+            {
+              "index": 6,
+              "name": "Sidebar primitives > supports variable row geometry without changing list semantics"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "ui::loading::model::tests::rounded_keyframes_and_reduced_motion_keep_the_product_figures"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::a_loader_is_neutral_unless_given_a_tone"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::notice::tests::tones_carry_the_product_glyphs"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::native_cover::tests::a_floating_surface_reports_its_border_box_and_an_inline_card_does_not"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::dialog_layer::escape_answers_the_topmost_dialog"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::dialog_layer::feedback_leaves_only_by_its_close_button_and_forgets_the_draft"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::dialog_layer::kit_dialog_tab_order_keeps_focus_inside_feedback"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::dialog_layer::a_dialog_keeps_focus_when_its_focused_control_goes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::dialog_layer::a_dialog_takes_the_wheel_from_the_document_beneath_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_layout::a_closing_explorer_moves_without_rendering_its_rows_again"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_layout::the_closed_right_edge_opens_from_the_keyboard"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::large_tree_uses_gpui_virtual_rows"
+        }
+      ]
+    },
+    {
+      "id": "localization-catalogs-formatting-and-settings",
+      "acceptance": "Localization resolves all eight product locales (including regional BCP-47 tags and not conflating Traditional and Simplified Chinese), formats ICU plurals, numbers, dates, lists, and relative times per locale, falls back to English without exposing raw keys, preserves localized clipboard notices and generated file names, and switches languages immediately without document work.",
+      "typescript": [
+        {
+          "path": "tests/unit/localization/catalogs/dataWorkspaceLocalization.test.ts",
+          "sha256": "ee3aab6de44798e7d61a5bf4a8751b88a63823429e8473362df6ab9dfc0ccf36",
+          "cases": [
+            {
+              "index": 0,
+              "name": "data workspace localization boundaries > formats the same semantic clipboard notice in the active locale"
+            },
+            {
+              "index": 1,
+              "name": "data workspace localization boundaries > keeps operation failures semantic until they reach the presentation layer"
+            },
+            {
+              "index": 2,
+              "name": "data workspace localization boundaries > localizes generated names and templates without translating stable file syntax"
+            },
+            {
+              "index": 3,
+              "name": "data workspace localization boundaries > localizes known and previously unseen file type labels"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/localization/catalogs/localization.core.test.ts",
+          "sha256": "250ccca9e46b3e00794d6125ae35cffc58f0a4de98cac3ea74bdd3a85e214a4f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop locale resolution > keeps the generated locale contract aligned with the manifest"
+            },
+            {
+              "index": 1,
+              "name": "desktop locale resolution > matches [\"en-GB\"] to en"
+            },
+            {
+              "index": 2,
+              "name": "desktop locale resolution > matches [\"es-MX\"] to es"
+            },
+            {
+              "index": 3,
+              "name": "desktop locale resolution > matches [\"pt-PT\"] to pt-BR"
+            },
+            {
+              "index": 4,
+              "name": "desktop locale resolution > matches [\"fr-CA\"] to fr"
+            },
+            {
+              "index": 5,
+              "name": "desktop locale resolution > matches [\"de-AT\"] to de"
+            },
+            {
+              "index": 6,
+              "name": "desktop locale resolution > matches [\"ja-JP\"] to ja"
+            },
+            {
+              "index": 7,
+              "name": "desktop locale resolution > matches [\"ko-KR\"] to ko"
+            },
+            {
+              "index": 8,
+              "name": "desktop locale resolution > matches [\"zh-CN\"] to zh-Hans"
+            },
+            {
+              "index": 9,
+              "name": "desktop locale resolution > matches [\"zh-Hans-HK\"] to zh-Hans"
+            },
+            {
+              "index": 10,
+              "name": "desktop locale resolution > does not silently map Traditional Chinese to Simplified Chinese"
+            },
+            {
+              "index": 11,
+              "name": "desktop locale resolution > normalizes malformed values and derives direction from the manifest"
+            },
+            {
+              "index": 12,
+              "name": "localized message and value formatting > uses the selected locale's CLDR plural categories"
+            },
+            {
+              "index": 13,
+              "name": "localized message and value formatting > falls back to English without exposing a message ID"
+            },
+            {
+              "index": 14,
+              "name": "localized message and value formatting > formats and sorts with the selected locale explicitly"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/localization/catalogs/languageSettingsView.test.tsx",
+          "sha256": "f396a13c19b15cefdc61c1ff1c310aedad095bed800223cc02f2cb40669b4b26",
+          "cases": [
+            {
+              "index": 0,
+              "name": "LanguageSettingRow > labels Follow System with the resolved system language instead of the current app language"
+            },
+            {
+              "index": 1,
+              "name": "LanguageSettingRow > renders the app-language control and applies selection immediately without an action button"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/localization/catalogs/localization.react.test.tsx",
+          "sha256": "9a54d95030dc941a76fc494348a2a1e8e8621b33a748defff8edf0217ea8d367",
+          "cases": [
+            {
+              "index": 0,
+              "name": "LocalizationProvider document contract > updates document locale attributes without remounting the application"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "localization::tests::numbers_and_money_read_as_intl_writes_them"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::days_and_dates_follow_intl"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::lists_join_as_intl_list_format_does"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::relative_past_follows_intl_relative_time_format"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::core_settings_copy_is_complete_in_every_product_locale"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::the_system_language_is_followed_only_while_the_preference_is_system"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::languages_come_from_product_and_invalid_updates_keep_previous_state"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::icu_subset_matches_product_catalog_usage"
+        },
+        {
+          "package": "po-platform",
+          "test": "localization::tests::every_literal_message_key_resolves"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::explorer::clipboard_notice::tests::notices_say_what_the_product_says_and_last_as_long"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::locale_changes_catalog_without_document_work"
+        }
+      ]
+    },
+    {
+      "id": "telemetry-contract-service-transport-and-ui",
+      "acceptance": "Desktop telemetry validates allowlisted daily-active and first-run payloads (including legacy queued schema), omits workspace/account/timestamp fields, enforces the 100-day retention window and 7-day calendar store, stays dormant until first-launch disclosure is shown, clears queued events and identity on opt-out, posts versioned batches only to pinned HTTPS endpoints, and wires Settings and Homepage disclosure controls cleanly.",
+      "typescript": [
+        {
+          "path": "tests/unit/telemetry/transport/electron.desktop-telemetry-contract.test.mjs",
+          "sha256": "162791d6ad93c03af4c8e1dbf75211f471ac8f046f0c89a7d31e73af48364afa",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop telemetry public contract > projects a fixed daily-active payload without workspace or account fields"
+            },
+            {
+              "index": 1,
+              "name": "Desktop telemetry public contract > rejects payloads with unregistered fields"
+            },
+            {
+              "index": 2,
+              "name": "Desktop telemetry public contract > omits the retention ID from daily activity outside the cohort window"
+            },
+            {
+              "index": 3,
+              "name": "Desktop telemetry public contract > rejects timestamps and invalid calendar days"
+            },
+            {
+              "index": 4,
+              "name": "Desktop telemetry public contract > publishes the complete event disclosure from the shared contract"
+            },
+            {
+              "index": 5,
+              "name": "Desktop telemetry public contract > allows exactly one first-run event shape with the onboarding contract"
+            },
+            {
+              "index": 6,
+              "name": "Desktop telemetry public contract > continues to validate the exact legacy schema for queued and deployed clients"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/telemetry/transport/electron.desktop-telemetry-service.test.mjs",
+          "sha256": "0ae5cf4b2866bdb72c3f136a106f7810cbb07a0f8c39ea3af5d1a68f63934212",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop telemetry service > keeps default-on Stable analytics dormant until the notice is shown"
+            },
+            {
+              "index": 1,
+              "name": "Desktop telemetry service > sends at most one allowlisted activity event per UTC day"
+            },
+            {
+              "index": 2,
+              "name": "Desktop telemetry service > queues one first-run cohort signal alongside the first daily activity for a fresh install"
+            },
+            {
+              "index": 3,
+              "name": "Desktop telemetry service > clears queued events and the local identity immediately when switched off"
+            },
+            {
+              "index": 4,
+              "name": "Desktop telemetry service > treats an explicit Basic selection as acknowledgment of the current notice"
+            },
+            {
+              "index": 5,
+              "name": "Desktop telemetry service > stops sending the retention ID after the bounded 100-day measurement window"
+            },
+            {
+              "index": 6,
+              "name": "Desktop telemetry service > keeps the default-on preference without sending from unpackaged or non-Stable builds"
+            },
+            {
+              "index": 7,
+              "name": "Desktop telemetry service > retains a retryable batch without logging event payloads"
+            },
+            {
+              "index": 8,
+              "name": "Desktop telemetry service > retains only seven calendar activity days without storing time-of-day"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/telemetry/transport/electron.desktop-telemetry-transport.test.mjs",
+          "sha256": "6338da61607a04e7b7ec1de0567aa842cf254c5f9c36d735ccc9f2fd33f6af7d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop telemetry HTTP transport > posts only the versioned event batch to a pinned HTTPS endpoint"
+            },
+            {
+              "index": 1,
+              "name": "Desktop telemetry HTTP transport > refuses insecure or credential-bearing ingestion endpoints"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/telemetry/consent/desktopTelemetryNotice.test.tsx",
+          "sha256": "594412f61b2b64888aa5224d3ca760ad37929af4d5fc1531c100600d04076f92",
+          "cases": [
+            {
+              "index": 0,
+              "name": "OnboardingTelemetryDisclosure > is limited to eligible first-launch basic analytics"
+            },
+            {
+              "index": 1,
+              "name": "OnboardingTelemetryDisclosure > waits for the reveal, then persists the notice once and stays visible for this launch"
+            },
+            {
+              "index": 2,
+              "name": "OnboardingTelemetryDisclosure > does not return on a later launch after this notice version was seen"
+            },
+            {
+              "index": 3,
+              "name": "OnboardingTelemetryDisclosure > opens the public disclosure outside the app"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/telemetry/consent/productAnalyticsSettings.test.tsx",
+          "sha256": "70d2131479ed449048227d084180d3ddce54e358c2ff39beb5385c5f022129ed",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Product analytics setting > uses the standard one-line Settings row and defaults on"
+            },
+            {
+              "index": 1,
+              "name": "Product analytics setting > lets development builds save the preference without making them eligible to upload"
+            },
+            {
+              "index": 2,
+              "name": "Product analytics setting > presents an outdated privacy notice as off until the user explicitly enables it"
+            },
+            {
+              "index": 3,
+              "name": "Product analytics setting > surfaces a quiet inline error without changing the saved choice"
+            },
+            {
+              "index": 4,
+              "name": "Product analytics setting > uses the standard Settings page structure and opens the public disclosure"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::contract::tests::a_daily_active_payload_is_fixed_and_carries_no_workspace_or_account_fields"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::contract::tests::unregistered_fields_timestamps_and_impossible_days_are_rejected"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::contract::tests::daily_activity_outside_the_cohort_window_omits_the_retention_id"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::contract::tests::exactly_one_first_run_shape_is_allowed"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::contract::tests::the_exact_legacy_schema_still_validates_for_queued_events"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::service::tests::default_on_stable_analytics_stay_dormant_until_the_notice_is_shown"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::service::tests::at_most_one_allowlisted_activity_event_is_sent_per_utc_day"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::service::tests::a_fresh_install_queues_one_first_run_signal_with_its_first_daily_activity"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::service::tests::switching_off_clears_the_queue_and_the_local_identity_immediately"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::service::tests::choosing_basic_acknowledges_the_current_notice"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::service::tests::the_retention_id_stops_after_the_bounded_100_day_window"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::service::tests::unpackaged_and_non_stable_builds_keep_the_default_without_sending"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::service::tests::a_retryable_failure_keeps_the_batch_and_backs_off_without_logging_payloads"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::service::tests::only_seven_calendar_days_are_retained_and_no_time_of_day_is_stored"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::telemetry::transport::tests::only_a_versioned_batch_goes_to_a_pinned_https_endpoint"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::telemetry::tests::the_switch_and_the_disclosure_read_the_product_state"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::telemetry::tests::a_level_change_and_the_disclosure_go_through_the_service"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure"
+        }
+      ]
+    },
+    {
+      "id": "release-build-identity-and-file-type-registration",
+      "acceptance": "Build identity reports canonical localized product names, channel coordinates, and bundle packaging state across dev/internal/stable channels, and file-mode registration declares Markdown, CSV, and HTML extensions alongside the CLI open contract.",
+      "typescript": [
+        {
+          "path": "tests/unit/release/file-mode/fileTypeRegistration.test.mjs",
+          "sha256": "fd2964e494f0816ac36e8369438e6ba70e9245938ab1840ea27db2bdd7ddfa76",
+          "cases": [
+            {
+              "index": 0,
+              "name": "system file type registration > declares Markdown, CSV and HTML on macOS"
+            },
+            {
+              "index": 1,
+              "name": "system file type registration > declares what puppyone open may ask of this build"
+            },
+            {
+              "index": 2,
+              "name": "system file type registration > never claims the user's default app on macOS"
+            },
+            {
+              "index": 3,
+              "name": "system file type registration > does not mix content types and extensions in one macOS declaration"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/release/build-identity/desktopBuildIdentityUi.test.tsx",
+          "sha256": "dfcce1ca1bd9b6feed8609e0662472a588915bb8cbb72872f5802df83495ab81",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop Build Identity UI > uses the canonical localized product names for all three channels"
+            },
+            {
+              "index": 1,
+              "name": "Desktop Build Identity UI > shows the exact Internal build in Settings"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::build_identity::tests::only_an_application_bundle_counts_as_packaged"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::build_identity::tests::channels_and_node_names_follow_the_product"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::build_identity::tests::diagnostics_name_every_coordinate"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::cli_control::tests::the_protocol_is_the_pinned_contract"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::file_mode::tests::a_file_window_opens_the_products_extensions"
+        }
+      ]
+    },
+    {
+      "id": "updates-service-preferences-settings-and-titlebar",
+      "acceptance": "Desktop updater enforces strict version/channel monotonicity, validates automatic-download preference persistence and preserves last confirmed state on write failure, reuses verified prepared updates across restart and ordinary quit, keeps titlebar quiet while checking or downloading, surfaces one restart or manual download button only when actionable, and distinguishes verified current, available, downloaded, and development builds in Settings.",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 19,
+              "name": "Desktop updater P0 monotonicity guard > rejects malformed automatic-download preference requests"
+            },
+            {
+              "index": 25,
+              "name": "Desktop updater restart safety > reuses a downloaded update and confirms PuppyOne-owned sessions without checking again"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/updates/notifications/desktopUpdateSettingsRow.test.tsx",
+          "sha256": "5c2b53d26b2c3db92d2bef6449635e0e8eb5d829152cb8e3d8752a459dd826c2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopUpdateSettingsRow > distinguishes a verified current release from an available update"
+            },
+            {
+              "index": 1,
+              "name": "DesktopUpdateSettingsRow > offers restart only after the update is downloaded"
+            },
+            {
+              "index": 2,
+              "name": "DesktopUpdateSettingsRow > identifies a development build without claiming that it is current"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/updates/notifications/desktopUpdateTitlebarButton.test.tsx",
+          "sha256": "340b47b94139aace1c0236f9b9e88860a184db0ba592f6b8a039e735a8858e1a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopUpdateTitlebarButton > does not interrupt the titlebar while the update is available"
+            },
+            {
+              "index": 1,
+              "name": "DesktopUpdateTitlebarButton > does not interrupt the titlebar while the update is downloading"
+            },
+            {
+              "index": 2,
+              "name": "DesktopUpdateTitlebarButton > offers one restart action after the update is downloaded"
+            },
+            {
+              "index": 3,
+              "name": "DesktopUpdateTitlebarButton > offers a download action when automatic downloads are disabled"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/updates/preferences/automaticUpdateDownloadSettingRow.test.tsx",
+          "sha256": "f88b9670ec72253c31d54d72f798cd64b84a65153862c47aa0872312d069d346",
+          "cases": [
+            {
+              "index": 0,
+              "name": "AutomaticUpdateDownloadSettingRow > shows the default-on preference and sends the user's opt-out"
+            },
+            {
+              "index": 1,
+              "name": "AutomaticUpdateDownloadSettingRow > disables the control while saving and exposes persistence errors"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/updates/preferences/desktopUpdatesController.test.tsx",
+          "sha256": "5cfb63ac730f3f5f6dfeebea406f4ebb4029fa30b2c46ea947440e35b610f403",
+          "cases": [
+            {
+              "index": 0,
+              "name": "useDesktopUpdates automatic-download preference > loads the main-process state and delegates update actions"
+            },
+            {
+              "index": 1,
+              "name": "useDesktopUpdates automatic-download preference > exposes saving state and commits the main-process response"
+            },
+            {
+              "index": 2,
+              "name": "useDesktopUpdates automatic-download preference > keeps the last confirmed state and exposes a persistence failure"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::updates::preferences::tests::versioned_preferences_accept_only_an_explicit_boolean_opt_out"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::state::tests::only_a_newer_same_channel_version_is_ever_offered"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::state::tests::the_titlebar_shows_only_what_it_can_act_on"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::state::tests::titlebar_hides_nonactionable_states_even_when_a_candidate_is_present"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::tests::the_download_preference_defaults_on_and_persists"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::updates::policy::tests::only_a_strictly_newer_candidate_is_accepted"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::a_newer_version_is_offered_downloaded_and_checked"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::a_failed_preference_write_preserves_service_state_and_can_be_retried"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::disabled_service_commands_do_not_write_check_download_or_quit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::menu::actionable_and_cancelled_restart_states_keep_menu_checks_quiet"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::menu::current_version_prompts_once_without_starting_an_update"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::updates::tests::menu::absent_disabled_and_failed_services_report_an_honest_acknowledgement"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::header::update_tests::actionable_update_buttons_expose_the_version_and_activate_from_pointer_and_keyboard"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::header::update_tests::absent_capability_and_nonactionable_update_states_render_no_titlebar_command"
+        }
+      ]
     }
   ],
   "openAcceptance": [
-    "Full assertion-level review of the remaining TS inventory",
     "Automated real OS/WebView smoke, beyond the manually exercised native Markdown/source window",
     "Real Cloud and cross-device deployment acceptance"
   ],
@@ -48933,6 +50123,34 @@
             {
               "index": 2,
               "name": "preset viewer host composition > invokes the external extension port only when the host explicitly provides it"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/extensions/plugins/pluginsFeature.test.ts",
+          "sha256": "357e1165c97a2ed7bef328bd98136329dd67a2f34a84952e5d41f7078cb5d7d2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Viewer Plugins experiment > is opt-in on the single local-workspace shell"
+            },
+            {
+              "index": 1,
+              "name": "Viewer Plugins experiment > keeps every official catalog card backed by an active preset Viewer contract"
+            },
+            {
+              "index": 2,
+              "name": "Viewer Plugins experiment > starts with local state and keeps acquisition secondary"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/extensions/plugins/pluginsDialog.test.tsx",
+          "sha256": "1c721c81a55a89e079beb8f31231d3e4d29043b84cfb43000860352d531f7faf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "PluginsDialog > hosts Plugins in a dismissible two-column application dialog"
             }
           ]
         }
@@ -49155,6 +50373,108 @@
             {
               "index": 6,
               "name": "external Viewer Pack product capability > skips signer enforcement by default and fails closed for an enabled release"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/extensions/viewer-packs/catalog-and-router.test.mjs",
+          "sha256": "e5558fc67fafc20d6ba93f622d0924cc68f26a6eab5cd02e37130873f08ff9f3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "viewer pack catalog > is disabled by default and never networks"
+            },
+            {
+              "index": 1,
+              "name": "viewer pack router > keeps core edit ownership for markdown"
+            },
+            {
+              "index": 2,
+              "name": "viewer pack router > derives the authoritative core gate from the shared file-format registry"
+            },
+            {
+              "index": 3,
+              "name": "viewer pack router > keeps renderer and main capability policy on one canonical manifest"
+            },
+            {
+              "index": 4,
+              "name": "viewer pack router > routes local placeholder .glb to the installed pack"
+            },
+            {
+              "index": 5,
+              "name": "viewer pack router > fail-closes cloud sources before activation"
+            },
+            {
+              "index": 6,
+              "name": "viewer pack router > returns chooser when multiple packs match"
+            },
+            {
+              "index": 7,
+              "name": "viewer pack router > returns no-match against an empty snapshot"
+            },
+            {
+              "index": 8,
+              "name": "viewer pack router > matches compound extensions deterministically"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/extensions/viewer-packs/manifest-schema.test.mjs",
+          "sha256": "4c0d65bd7908a9c2c3c716a27283ff9e61f0e8cc9bdf65640bef328f35f39ca2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "viewer pack manifest schema > accepts a valid first-party glb manifest"
+            },
+            {
+              "index": 1,
+              "name": "viewer pack manifest schema > rejects network permissions in v1"
+            },
+            {
+              "index": 2,
+              "name": "viewer pack manifest schema > rejects unknown permission keys"
+            },
+            {
+              "index": 3,
+              "name": "viewer pack manifest schema > rejects reserved core viewer ids"
+            },
+            {
+              "index": 4,
+              "name": "viewer pack manifest schema > rejects traversal in viewer.entry"
+            },
+            {
+              "index": 5,
+              "name": "viewer pack manifest schema > rejects startup activation events"
+            },
+            {
+              "index": 6,
+              "name": "viewer pack manifest schema > rejects unknown fields and a viewer id that does not match the package"
+            },
+            {
+              "index": 7,
+              "name": "viewer pack manifest schema > rejects permissions that v1 does not implement"
+            },
+            {
+              "index": 8,
+              "name": "viewer pack manifest schema > enforces the declared PuppyOne engine range"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/extensions/viewer-packs/security-boundaries.test.mjs",
+          "sha256": "6e7202ed71001f2d2bc707b781b2df1fa3efec86040bc45ac291bc4983768fec",
+          "cases": [
+            {
+              "index": 0,
+              "name": "viewer pack security boundaries > never accepts an environment-provided test signer in a packaged build"
+            },
+            {
+              "index": 1,
+              "name": "viewer pack security boundaries > injects a restrictive CSP and denies file/network requests in production"
+            },
+            {
+              "index": 2,
+              "name": "viewer pack security boundaries > binds the asset protocol to the current plugin and attaches CSP"
             }
           ]
         }
@@ -49553,6 +50873,54 @@
             {
               "index": 5,
               "name": "native app icon ownership > does not call Dock APIs on other platforms"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/file-mode/fileTypeRegistration.test.mjs",
+          "sha256": "fd2964e494f0816ac36e8369438e6ba70e9245938ab1840ea27db2bdd7ddfa76",
+          "cases": [
+            {
+              "index": 4,
+              "name": "system file type registration > does not use electron-builder fileAssociations, which replace Windows defaults"
+            },
+            {
+              "index": 5,
+              "name": "system file type registration > adds Windows Open with entries without touching default handlers"
+            },
+            {
+              "index": 6,
+              "name": "system file type registration > offers the same types on Linux and keeps the return link"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 31,
+              "name": "Desktop updater platform routing > routes 'stable' on 'win32'/'x64' to its own feed"
+            },
+            {
+              "index": 32,
+              "name": "Desktop updater platform routing > routes 'internal' on 'win32'/'x64' to its own feed"
+            },
+            {
+              "index": 33,
+              "name": "Desktop updater platform routing > routes 'stable' on 'win32'/'arm64' to its own feed"
+            },
+            {
+              "index": 34,
+              "name": "Desktop updater platform routing > routes 'internal' on 'win32'/'arm64' to its own feed"
+            },
+            {
+              "index": 39,
+              "name": "Desktop updater platform routing > keeps packaged Development updates disabled on 'win32'/'x64'"
+            },
+            {
+              "index": 40,
+              "name": "Desktop updater platform routing > keeps packaged Development updates disabled on 'win32'/'arm64'"
             }
           ]
         }
@@ -50767,6 +52135,36 @@
             {
               "index": 10,
               "name": "test directory boundaries > rejects unsupported benchmark extensions and misspelled domains"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/release/file-mode/devOpenWith.test.mjs",
+          "sha256": "455fe109b0f4541a442eb9e40286be871ac10c491cd262dbfbdf4b3fb4d9e18a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "dev Open With app > offers exactly the packaged build's file types instead of every file"
+            },
+            {
+              "index": 1,
+              "name": "dev Open With app > quotes paths for AppleScript"
+            },
+            {
+              "index": 2,
+              "name": "dev Open With app > reaches the dev channel's socket, which belongs to no checkout"
+            },
+            {
+              "index": 3,
+              "name": "dev Open With app > asks the running dev instance to open each file, awkward paths intact"
+            },
+            {
+              "index": 4,
+              "name": "dev Open With app > says so when npm run dev is not running"
+            },
+            {
+              "index": 5,
+              "name": "dev Open With app > passes on why the dev instance refused a file"
             }
           ]
         }
@@ -52863,6 +54261,28 @@
             {
               "index": 1,
               "name": "desktop credential store > reads a legacy full-session envelope without returning its access token"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/model-connections/security/credentialStore.test.mjs",
+          "sha256": "8ebeda950222c981b3e74d7fe6cb34f0ea75ae449d181a157a833f8bc0424b99",
+          "cases": [
+            {
+              "index": 0,
+              "name": "fails closed when OS protection is unavailable"
+            },
+            {
+              "index": 1,
+              "name": "fails closed when OS protection is basic_text"
+            },
+            {
+              "index": 2,
+              "name": "persists only encrypted material, round-trips through the OS port and reconciles orphans"
+            },
+            {
+              "index": 3,
+              "name": "public IPC never serializes provider exceptions or unknown request fields"
             }
           ]
         }
@@ -59237,6 +60657,88 @@
               "name": "offers the server-configured trial only after the first send attempt"
             }
           ]
+        },
+        {
+          "path": "tests/unit/model-connections/security/managedConnection.test.mjs",
+          "sha256": "a7b4d109c61f90b276533aa9244e75a1aa91fceaecdd01d0008ac437ba45a4e4",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Main-owned managed Agent connection > maps browser handoff failures to a safe sign-in error"
+            },
+            {
+              "index": 6,
+              "name": "Main-owned managed Agent connection > reports loading through sign-in and retries, and failure only after a request fails"
+            },
+            {
+              "index": 7,
+              "name": "Main-owned managed Agent connection > leaves loading when the public request fails synchronously"
+            },
+            {
+              "index": 8,
+              "name": "Main-owned managed Agent connection > reads directory and wallet concurrently, then reuses the directory for balance refreshes"
+            },
+            {
+              "index": 9,
+              "name": "Main-owned managed Agent connection > ends a stuck request at the deadline, allows retry, and ignores its late response"
+            },
+            {
+              "index": 10,
+              "name": "Main-owned managed Agent connection > reloads the public directory after its short cache expires"
+            },
+            {
+              "index": 11,
+              "name": "Main-owned managed Agent connection > rejects an empty model directory instead of leaving a funded account connecting forever"
+            },
+            {
+              "index": 12,
+              "name": "Main-owned managed Agent connection > accepts only the private capability, fixed path, no browser Origin and configured model"
+            },
+            {
+              "index": 15,
+              "name": "Main-owned managed Agent connection > keeps the server's protocol error and reference through the Main proxy"
+            },
+            {
+              "index": 16,
+              "name": "Main-owned managed Agent connection > returns a readable local protocol error for invalid input (0)"
+            },
+            {
+              "index": 17,
+              "name": "Main-owned managed Agent connection > returns a readable local protocol error for invalid input (1)"
+            },
+            {
+              "index": 20,
+              "name": "Main-owned managed Agent connection > opens a server-created sandbox checkout without exposing credentials to the renderer"
+            },
+            {
+              "index": 21,
+              "name": "one-time trial activation > refreshes the new account immediately when sign-in finishes during a catalog request"
+            },
+            {
+              "index": 22,
+              "name": "one-time trial activation > claims only after sign-in and uses the claim response without reading the same balance twice"
+            },
+            {
+              "index": 23,
+              "name": "one-time trial activation > does not claim again for an account whose server wallet already has a trial grant"
+            },
+            {
+              "index": 24,
+              "name": "server-owned usage receipts > keeps a usable wallet ready while its previous usage receipt is still loading"
+            },
+            {
+              "index": 25,
+              "name": "server-owned usage receipts > reads the settled charge after streaming and clears it on signOut"
+            },
+            {
+              "index": 26,
+              "name": "server-owned usage receipts > reads the settled charge after streaming and clears it on replaceUser"
+            },
+            {
+              "index": 27,
+              "name": "server-owned usage receipts > does not turn missing usage or a mismatched receipt into a charge"
+            }
+          ]
         }
       ]
     },
@@ -62797,6 +64299,16 @@
               "name": "editor mode toggle > ignores stale Viewer cleanup after a newer contribution takes ownership"
             }
           ]
+        },
+        {
+          "path": "tests/component/ui-primitives/dialogs/desktopDialog.test.tsx",
+          "sha256": "f57b28d4d997b9e95dcd207d3ee1cc4874c09664ce0c4e6ac0bd3a322af8ee77",
+          "cases": [
+            {
+              "index": 4,
+              "name": "DesktopDialog > leaves an element inert by its own markup as it found it"
+            }
+          ]
         }
       ]
     },
@@ -63543,6 +65055,16 @@
               "name": "renderer public asset URLs > keeps the catalog unique and backed by files in public"
             }
           ]
+        },
+        {
+          "path": "tests/component/release/build-identity/desktopBuildIdentityUi.test.tsx",
+          "sha256": "dfcce1ca1bd9b6feed8609e0662472a588915bb8cbb72872f5802df83495ab81",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Desktop Build Identity UI > renders nothing when running without the Electron bridge"
+            }
+          ]
         }
       ]
     },
@@ -64039,6 +65561,92 @@
               "name": "loading placeholder style preference > falls back to the default for unknown values and to the current value when absent"
             }
           ]
+        },
+        {
+          "path": "tests/component/ui-primitives/controls/loadingIndicator.test.tsx",
+          "sha256": "498597fe0eda8b584dd7bb244058bd07736f526b012dca5caedf34db8da6d8ba",
+          "cases": [
+            {
+              "index": 2,
+              "name": "LoadingMark > draws three pixel blocks on the placeholder dither layer in the dither loading style"
+            },
+            {
+              "index": 3,
+              "name": "LoadingMark > switches material as soon as the Appearance loading style changes"
+            },
+            {
+              "index": 4,
+              "name": "LoadingMark > lets a preview pin its own style regardless of the Appearance style"
+            },
+            {
+              "index": 8,
+              "name": "LoadingMark > sizes dither xs units at 4px with a 2px gap"
+            },
+            {
+              "index": 9,
+              "name": "LoadingMark > sizes dither sm units at 5px with a 2px gap"
+            },
+            {
+              "index": 10,
+              "name": "LoadingMark > sizes dither md units at 6px with a 3px gap"
+            },
+            {
+              "index": 13,
+              "name": "LoadingMark > scales the placeholder light down to a narrow, fast band for the mark"
+            },
+            {
+              "index": 19,
+              "name": "loading surfaces share the one mark > draws page, inline and Git loading with the dither mark"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/ui-primitives/feedback/loadingPlaceholder.test.tsx",
+          "sha256": "d7fc95d424e441f75819a2b5a98c5fa75027885af4cbc9c6c749fbddc723acac",
+          "cases": [
+            {
+              "index": 1,
+              "name": "loading placeholder layer > mounts the ordered-dither canvas as the surface's last child in the dither style"
+            },
+            {
+              "index": 2,
+              "name": "loading placeholder layer > keeps the rounded shapes until a frame is painted, so canvas-less hosts still show placeholders"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/ui-primitives/feedback/orderedDitherField.test.ts",
+          "sha256": "9affd9ee0c7068bc90966f474b2b15be12a4be396a20ef14c65f61d9a0f62da1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "ordered dither lattice > uses each 8x8 Bayer threshold exactly once"
+            },
+            {
+              "index": 1,
+              "name": "ordered dither lattice > carves rounded corners as whole cells and keeps square shapes whole"
+            },
+            {
+              "index": 2,
+              "name": "ordered dither lattice > clips shapes to the lattice"
+            },
+            {
+              "index": 3,
+              "name": "ordered dither frame > renders the rest state at the light's base density"
+            },
+            {
+              "index": 4,
+              "name": "ordered dither frame > only adds cells where the light passes, so the dots never move"
+            },
+            {
+              "index": 5,
+              "name": "ordered dither frame > keeps the spill outside shapes fainter than the shapes, and off when halo is 0"
+            },
+            {
+              "index": 6,
+              "name": "ordered dither frame > moves the light across the surface and rests between passes"
+            }
+          ]
         }
       ]
     },
@@ -64277,6 +65885,108 @@
             {
               "index": 1,
               "name": "Experimental settings > keeps file navigation last in Header settings and preserves its pane/Header choice"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "loading-mark-accessible-announcements",
+      "kind": "gap",
+      "reason": "Native GPUI loading marks draw their rounded animation but do not yet emit AccessKit status/label announcements or deduplicate announcements with their host container.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/ui/loading.md",
+      "typescript": [
+        {
+          "path": "tests/component/ui-primitives/controls/loadingIndicator.test.tsx",
+          "sha256": "498597fe0eda8b584dd7bb244058bd07736f526b012dca5caedf34db8da6d8ba",
+          "cases": [
+            {
+              "index": 12,
+              "name": "LoadingMark > announces loading unless the host already does"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/ui-primitives/loading/loadingNames.test.tsx",
+          "sha256": "142977057385ead5d5c701e3384fff522dacfab2af55ab77ebf0d4c28f13bfcc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "what a loading mark is called > is announced once, by what its caller says"
+            },
+            {
+              "index": 1,
+              "name": "what a loading mark is called > prefers the name it is given over its words"
+            },
+            {
+              "index": 2,
+              "name": "what a loading mark is called > falls back to the mark's localized name when an inline mark has no words"
+            },
+            {
+              "index": 3,
+              "name": "what a loading mark is called > falls back to the mark's localized name when a page mark has no words"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pseudo-locales-dev-only",
+      "kind": "out-of-scope",
+      "reason": "Pseudo-locales (expanded ASCII/RTL test transforms) are non-shipping TS localization dev helpers; Rust ships the eight production locales directly.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform/localization.md",
+      "typescript": [
+        {
+          "path": "tests/unit/localization/catalogs/localization.core.test.ts",
+          "sha256": "250ccca9e46b3e00794d6125ae35cffc58f0a4de98cac3ea74bdd3a85e214a4f",
+          "cases": [
+            {
+              "index": 15,
+              "name": "non-shipping pseudo locales > expands only catalog literals while preserving ICU values and protected brands"
+            },
+            {
+              "index": 16,
+              "name": "non-shipping pseudo locales > creates RTL-script product copy without rewriting inserted user data"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "squirrel-mac-and-dev-update-preview-plumbing",
+      "kind": "out-of-scope",
+      "reason": "Squirrel.Mac quit-install fallback is Electron autoUpdater-specific (Rust uses its own verified prepared-app swap without Squirrel.Mac), and TS URL-driven update visual preview fixtures are replaced in Rust by PUPPYONE_CAPTURE_SCENARIO dev-capture scripts.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform/updates.md",
+      "typescript": [
+        {
+          "path": "tests/unit/updates/installation/electron.update-service.test.mjs",
+          "sha256": "9820beca415c130ea48f6e4c63246e51fbae044ff286777b211345c8866c6b9b",
+          "cases": [
+            {
+              "index": 29,
+              "name": "Desktop updater prepared restart (macOS) > leaves the install to Squirrel.Mac when the update cannot be prepared"
+            },
+            {
+              "index": 30,
+              "name": "Desktop updater prepared restart (macOS) > keeps Squirrel.Mac installing on quit where no prepared update is available"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/updates/notifications/desktopUpdatePreview.test.ts",
+          "sha256": "4350ce14cb51af9125aade5e3a0c469229ba15451945e093b1a41b1a1319669e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop update visual preview > cannot create a preview state outside development"
+            },
+            {
+              "index": 1,
+              "name": "desktop update visual preview > creates an isolated downloaded fixture in development"
+            },
+            {
+              "index": 2,
+              "name": "desktop update visual preview > prefers an explicit environment request over the URL helper"
             }
           ]
         }
