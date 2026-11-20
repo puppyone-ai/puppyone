@@ -408,6 +408,26 @@ fn an_html_block_renders_until_its_source_is_shown(cx: &mut TestAppContext) {
     assert_eq!(blocks(&view, cx), vec![0..1, 1..2, 2..3, 3..4, 4..5]);
 }
 
+/// `runtime-foundations.test.ts`: `defaults external web embeds to
+/// click-to-load and blocks non-https`. A lone https iframe waits for a
+/// click before anything loads; a `file:` iframe is never an embed.
+#[gpui::test]
+fn a_web_embed_waits_for_a_click_and_only_https_embeds(cx: &mut TestAppContext) {
+    let text = "<iframe src=\"https://example.com/embed\"></iframe>\n\nafter";
+    let (_view, cx) = setup(cx, text);
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    assert!(cx.debug_bounds("md-web-embed:click-to-load").is_some());
+    assert!(cx.debug_bounds("md-web-embed:loading").is_none());
+    let text = "<iframe src=\"file:///tmp/x.html\"></iframe>\n\nafter";
+    let (_view, cx) = setup(cx, text);
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    assert!(cx.debug_bounds("md-web-embed:click-to-load").is_none());
+}
+
 #[gpui::test]
 fn blocks_move_by_keyboard_and_by_handle_with_the_experiment(cx: &mut TestAppContext) {
     use super::core::commands::block_move;

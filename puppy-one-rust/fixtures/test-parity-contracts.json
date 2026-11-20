@@ -5797,7 +5797,7 @@
     },
     {
       "id": "editor-preset-manifest-characterization",
-      "acceptance": "All 112 shared TS manifest fixtures preserve acceptance, ordered validation diagnostics, canonical field values, and alias identity. Rust shared immutable references replace JS frozen objects; rejection text follows the main-process diagnostic variant. Whole-number JSON notation and safe-integer budget bounds are additionally checked in Rust.",
+      "acceptance": "All 112 shared TS manifest fixtures preserve acceptance, ordered validation diagnostics, canonical field values, and alias identity. Rust shared immutable references replace JS frozen objects; rejection text follows the main-process diagnostic variant. Whole-number JSON notation and safe-integer budget bounds are additionally checked in Rust. The canonical manifest comes back unchanged, and refusals name the definition's index, its unknown fields in order, its first semantic violation and the main contract's formatViewerIds and surfaceTraits diagnostics (the renderer's wording belongs to TS's second process).",
       "typescript": [
         {
           "path": "tests/unit/editor/runtime/presetManifestCharacterization.test.mjs",
@@ -6252,6 +6252,40 @@
               "name": "preset manifest characterization > Main and the renderer read native maxActiveCanvases alike"
             }
           ]
+        },
+        {
+          "path": "tests/unit/editor/runtime/sharedPresetManifest.test.mjs",
+          "sha256": "d9696602a02a892f7588372e48b6f8f9edb10b9768e25a84a7384d9b39a969dc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "shared preset manifest parser > returns unchanged canonical metadata through either diagnostics contract"
+            },
+            {
+              "index": 2,
+              "name": "shared preset manifest parser > preserves distinct formatViewerIds diagnostics for null"
+            },
+            {
+              "index": 3,
+              "name": "shared preset manifest parser > preserves distinct formatViewerIds diagnostics for [\"alias\",\"alias\"]"
+            },
+            {
+              "index": 4,
+              "name": "shared preset manifest parser > preserves distinct surfaceTraits diagnostics for null"
+            },
+            {
+              "index": 5,
+              "name": "shared preset manifest parser > preserves distinct surfaceTraits diagnostics for [\"scrollable\",\"scrollable\"]"
+            },
+            {
+              "index": 6,
+              "name": "shared preset manifest parser > preserves index labels and unknown-field insertion order"
+            },
+            {
+              "index": 7,
+              "name": "shared preset manifest parser > preserves the first semantic violation"
+            }
+          ]
         }
       ],
       "rust": [
@@ -6262,6 +6296,10 @@
         {
           "package": "po-editor",
           "test": "editor::registry::manifest::tests::javascript_safe_integer_budgets_and_whole_number_json_notation_are_preserved"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::manifest::tests::diagnostics_name_the_definition_and_its_first_violation"
         }
       ],
       "environment": "local"
@@ -39507,6 +39545,16 @@
               "name": "Markdown link pointer gesture > activates only a stationary click that starts and ends without a range selection"
             }
           ]
+        },
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/runtime-foundations.test.ts",
+          "sha256": "68ec68d25d34d3334bcf4be31eb9f9e14ceea429fce2d4752e971acda1c1d73a",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Markdown embed runtime foundations > routes link intents through the link broker"
+            }
+          ]
         }
       ],
       "rust": [
@@ -39561,6 +39609,32 @@
         {
           "package": "po-editor",
           "test": "editor::markdown::tests::format_shortcuts_follow_the_product_contract"
+        }
+      ]
+    },
+    {
+      "id": "markdown-web-embed-click-to-load",
+      "acceptance": "A lone https iframe in Markdown waits for a click before anything loads (its button shows click-to-load, not loading); a `file:` iframe is never an embed.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/runtime-foundations.test.ts",
+          "sha256": "68ec68d25d34d3334bcf4be31eb9f9e14ceea429fce2d4752e971acda1c1d73a",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown embed runtime foundations > defaults external web embeds to click-to-load and blocks non-https"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::a_web_embed_waits_for_a_click_and_only_https_embeds"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::html::embed::tests::only_a_lone_https_iframe_is_an_embed"
         }
       ]
     }
@@ -49272,7 +49346,7 @@
     {
       "id": "markdown-asset-broker-architecture",
       "kind": "out-of-scope",
-      "reason": "TS resolves Markdown assets through an AssetBroker that hands features capability URLs (including provider-resolved loopback URLs) under host leases it revokes, validates sinks and purposes, and runs trusted local HTML in revocable execution sessions. The native editor reads asset bytes itself through the workspace or provider after the same policy (no URLs, leases or capability purposes), and never executes HTML in Markdown (executable HTML is removed from the native flow), so its features are given no HTML trust mode.",
+      "reason": "TS resolves Markdown assets through an AssetBroker that hands features capability URLs (including provider-resolved loopback URLs) under host leases it revokes, validates sinks and purposes, and runs trusted local HTML in revocable execution sessions. The native editor reads asset bytes itself through the workspace or provider after the same policy (no URLs, leases or capability purposes), and never executes HTML in Markdown (executable HTML is removed from the native flow), so its features are given no HTML trust mode. The rest of that embed runtime is likewise TS's own: embedded edit sessions that commit a draft against a base revision (native widget commands re-derive their edit from the current source, so no draft can go stale), widget sessions disposed by DOM node, web embeds bound to a capability principal and revision with single-flight native view creation (a native embed is keyed by its view, block and URL, and a loading one takes no second click), principal-scoped render deduplication (the native render service shares one job per drawing), and explicit grants for local active HTML.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/assets.md",
       "typescript": [
         {
@@ -49324,6 +49398,44 @@
             {
               "index": 12,
               "name": "static Markdown Feature Composition > passes the real trust mode through the generic inline Feature context"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/runtime-foundations.test.ts",
+          "sha256": "68ec68d25d34d3334bcf4be31eb9f9e14ceea429fce2d4752e971acda1c1d73a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown embed runtime foundations > rejects embedded commits from a stale base revision"
+            },
+            {
+              "index": 1,
+              "name": "Markdown embed runtime foundations > disposes widget sessions by exact DOM node and disposeAll"
+            },
+            {
+              "index": 2,
+              "name": "Markdown embed runtime foundations > keeps embedded edit sessions range-mapped and revision-aware"
+            },
+            {
+              "index": 4,
+              "name": "Markdown embed runtime foundations > binds native web embeds to an exact capability revision and revokes stale sessions"
+            },
+            {
+              "index": 5,
+              "name": "Markdown embed runtime foundations > single-flights repeated activation of one native web embed"
+            },
+            {
+              "index": 6,
+              "name": "Markdown embed runtime foundations > deduplicates async render work by principal-scoped key"
+            },
+            {
+              "index": 7,
+              "name": "Markdown embed runtime foundations > destroys execution sessions bound to a superseded revision"
+            },
+            {
+              "index": 8,
+              "name": "Markdown embed runtime foundations > requires an explicit grant for local active HTML (independent of revision)"
             }
           ]
         }
@@ -49890,6 +50002,46 @@
             {
               "index": 7,
               "name": "Markdown format window shortcuts > updates the focused editor from trusted IPC"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "js-viewer-module-loading",
+      "kind": "out-of-scope",
+      "reason": "TS ships viewers as lazily imported JavaScript chunks and its manifest as a module both processes load: a prefetch shares one module load, a failed chunk is evicted so a later mount retries, an isolated viewer is never evaluated in the shell renderer, the parsed manifest is frozen against later mutation of its input, and the packaged main process loads it from a standalone file layout. Native viewers are compiled into the app and the manifest is embedded at build time and parsed into owned values.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/registry/viewer-manifest.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/sharedPresetManifest.test.mjs",
+          "sha256": "d9696602a02a892f7588372e48b6f8f9edb10b9768e25a84a7384d9b39a969dc",
+          "cases": [
+            {
+              "index": 1,
+              "name": "shared preset manifest parser > copies and freezes definitions, arrays, and policies without freezing the input"
+            },
+            {
+              "index": 8,
+              "name": "shared preset manifest parser > loads the same main-process output from a standalone packaged file layout"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/runtime/presetViewerPreload.test.ts",
+          "sha256": "dd511bf4dc7ffa9f3e08a8c545f8def1ce1bb416829df0bd7c2a8e6b4b223ba5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "preset viewer preload cache > deduplicates prefetch and React.lazy module acquisition"
+            },
+            {
+              "index": 1,
+              "name": "preset viewer preload cache > evicts a failed prefetch so a later mount can retry"
+            },
+            {
+              "index": 2,
+              "name": "preset viewer preload cache > never evaluates an isolated Viewer implementation in the shell renderer"
             }
           ]
         }

@@ -353,6 +353,12 @@ pub fn render_web_embed(
                 .child(
                     div()
                         .id(ElementId::NamedInteger("md-web-embed".into(), block as u64))
+                        .debug_selector(move || {
+                            format!(
+                                "md-web-embed:{}",
+                                if loading { "loading" } else { "click-to-load" }
+                            )
+                        })
                         .flex()
                         .items_center()
                         .h(px(BUTTON_HEIGHT))
