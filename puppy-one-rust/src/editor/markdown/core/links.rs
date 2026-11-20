@@ -356,4 +356,26 @@ mod tests {
         );
         assert_eq!(t[0].range, 0..65);
     }
+
+    /// `markdownTokenComplexity.test.ts`: `skips an already-inspected
+    /// malformed link line instead of rescanning each opener`; `keeps image
+    /// and wiki scans bounded across malformed physical lines`.
+    #[test]
+    fn a_malformed_line_neither_stalls_nor_hides_the_next_lines_token() {
+        let start = std::time::Instant::now();
+        let links = find_links(&format!("{}\n[valid](note.md)", "[".repeat(100_000)));
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].href, "note.md");
+        let images = find_images(&format!("{}\n![valid](image.png)", "![".repeat(50_000)));
+        assert_eq!(
+            images.iter().map(|i| i.href.as_str()).collect::<Vec<_>>(),
+            ["image.png"]
+        );
+        let wiki = find_wiki_links(&format!("{}\n[[Valid note]]", "[[".repeat(50_000)));
+        assert_eq!(
+            wiki.iter().map(|w| w.target.as_str()).collect::<Vec<_>>(),
+            ["Valid note"]
+        );
+        assert!(start.elapsed() < std::time::Duration::from_secs(2));
+    }
 }

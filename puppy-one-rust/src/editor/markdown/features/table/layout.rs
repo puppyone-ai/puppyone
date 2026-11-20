@@ -443,4 +443,75 @@ mod tests {
         assert_eq!(without_tags("<img alt=x width='999'>"), "n".repeat(60));
         assert_eq!(without_tags("<imgx>"), "");
     }
+
+    /// `markdownTableColumnLayout.test.ts` at its metrics (602px available,
+    /// 10px em, 20px cell inset): content hugs when it fits, a short label
+    /// column stays whole, long columns share the rest by how much each would
+    /// still grow, columns keep their readable minimum when even those do not
+    /// fit, and one long word claims at most 30% of a crowded row.
+    #[test]
+    fn tracks_hug_then_share_the_reading_column_like_the_product() {
+        let e = |min: f64, max: f64| Extent { min, max };
+        let lay = |contents: &[Extent]| layout(contents, 602., 10., 20.);
+        assert_eq!(lay(&[e(2., 4.), e(3., 10.)]), [63., 126.]);
+        assert_eq!(lay(&[e(1., 8.), e(6., 66.)]), [105., 495.]);
+        let shared = lay(&[e(6., 30.), e(6., 66.)]);
+        assert_eq!(shared, [207., 393.]);
+        assert_eq!(shared.iter().sum::<f64>(), 600.);
+        assert_eq!(lay(&[e(5., 20.); 12]), [73.; 12]);
+        let crowded = lay(&[e(200., 200.), e(15., 30.), e(15., 30.), e(15., 30.)]);
+        assert_eq!(crowded, [180., 179., 179., 179.]);
+    }
+
+    /// `measures what a reader sees, not Markdown syntax`; `sizes columns
+    /// from their widest cell, headers slightly bolder`; `keeps an authored
+    /// line break`.
+    #[test]
+    fn cells_measure_what_a_reader_sees() {
+        use super::super::model::{Alignment, Cell, Row};
+        let plain = measure("Context Base");
+        for source in [
+            "**Context Base**",
+            "[Context Base](https://example.com/a/very/long/target)",
+        ] {
+            let m = measure(source);
+            assert_eq!((m.min, m.max), (plain.min, plain.max), "{source}");
+        }
+        let wide = measure("上下文");
+        assert_eq!((wide.min, wide.max), (1., 3.));
+        assert!((measure("`/en/context-base`").min - 0.6 * "context-".len() as f64).abs() < 1e-9);
+        assert!(measure("one<br>two words").max > measure("one").max);
+        assert!(measure("long words here<br>x").max < measure("long words here x").max);
+
+        let cell = |text: &str| Cell {
+            range: 0..0,
+            text: text.into(),
+            editable: true,
+        };
+        let table = Table {
+            range: 0..0,
+            lines: 0..0,
+            alignments: vec![Alignment::None; 2],
+            rows: vec![
+                Row {
+                    header: true,
+                    line: 0,
+                    cells: vec![cell("字段"), cell("值")],
+                },
+                Row {
+                    header: false,
+                    line: 1,
+                    cells: vec![cell("Title"), cell("puppyone")],
+                },
+            ],
+            refinement_valid: true,
+        };
+        let [field, value] = contents(&table)[..] else {
+            panic!("two columns");
+        };
+        assert!(field.max >= 2.);
+        assert!(value.max > field.max);
+        // The header's extents count slightly bolder.
+        assert!(field.max > measure("字段").max);
+    }
 }
