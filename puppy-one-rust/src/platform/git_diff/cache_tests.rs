@@ -98,11 +98,11 @@ fn admitted_cache_hits_still_reject_changed_paths() {
     let bytes = docx_redline::test_docx("<w:p><w:r><w:t>body</w:t></w:r></w:p>");
     std::fs::write(root.path().join("report.docx"), &bytes).unwrap();
     let admit = || {
-        Admitted::Working(
+        Admitted::Working(Box::new(
             working::Revision::open(root.path(), "report.docx", &cancel)
                 .unwrap()
                 .unwrap(),
-        )
+        ))
     };
     reader
         .model(

@@ -45015,6 +45015,969 @@
           "target": "puppy-one-rust"
         }
       ]
+    },
+    {
+      "id": "platform-feedback-submission-and-validation",
+      "acceptance": "Feedback submission trims messages, omits workspace and account data, rejects empty/oversized messages and invalid emails or endpoints before making network requests, validates screenshot magic bytes and size, posts one multipart form to the configured endpoint, and reports server rejection as failure.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/feedback/electron.feedback-ipc.test.mjs",
+          "sha256": "cdc4981ed062b52ac36658923d07ff27d1c15f3a7e8299c9975c5e9905c3d829",
+          "cases": [
+            {
+              "index": 0,
+              "name": "feedback IPC > validates and forwards a trimmed message without workspace or account data"
+            },
+            {
+              "index": 1,
+              "name": "feedback IPC > rejects empty and oversized feedback before making a network request"
+            },
+            {
+              "index": 2,
+              "name": "feedback IPC > forwards a validated image attachment with required written feedback"
+            },
+            {
+              "index": 3,
+              "name": "feedback IPC > rejects a screenshot whose bytes do not match its declared image type"
+            },
+            {
+              "index": 4,
+              "name": "feedback IPC > reports a rejected server response as a failed submission"
+            },
+            {
+              "index": 5,
+              "name": "feedback IPC > uses the dedicated public Formspree feedback form by default"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::feedback::tests::a_trimmed_message_goes_out_without_workspace_or_account_data"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::feedback::tests::empty_oversized_and_unreachable_feedback_fail_before_the_network"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::feedback::tests::an_attachment_must_match_its_type_and_size"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::feedback::tests::feedback_posts_one_multipart_form_and_only_a_success_status_counts"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::feedback::tests::emails_follow_the_product_pattern"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::feedback::tests::screenshots_are_sniffed_and_large_ones_are_compressed"
+        }
+      ]
+    },
+    {
+      "id": "platform-cli-control-protocol-and-socket",
+      "acceptance": "The CLI control server speaks the pinned JSON-lines protocol over a 0600 per-user Unix socket (falling back to per-user /tmp for long user-data paths), answers hello and half-closed requests, validates protocol versions and open path arguments before opening anything, rejects unsupported versions with supported range, and refuses unsafe socket directories.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/launch/electron.cli-control.test.mjs",
+          "sha256": "b7e99d9c67ead4450017a8ddbd57c40ef320ef4b9659796050cd5ae5cbc56ec4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "command-line requests > says hello with what this app opens"
+            },
+            {
+              "index": 1,
+              "name": "command-line requests > opens each path in order and reports each result"
+            },
+            {
+              "index": 2,
+              "name": "command-line requests > brings windows forward unless asked not to"
+            },
+            {
+              "index": 3,
+              "name": "command-line requests > opens nothing before windows may open"
+            },
+            {
+              "index": 4,
+              "name": "command-line requests > refuses not an object"
+            },
+            {
+              "index": 5,
+              "name": "command-line requests > refuses no protocol"
+            },
+            {
+              "index": 6,
+              "name": "command-line requests > refuses an unknown type"
+            },
+            {
+              "index": 7,
+              "name": "command-line requests > refuses no paths"
+            },
+            {
+              "index": 8,
+              "name": "command-line requests > refuses a relative path"
+            },
+            {
+              "index": 9,
+              "name": "command-line requests > refuses a NUL byte"
+            },
+            {
+              "index": 10,
+              "name": "command-line requests > refuses too many paths"
+            },
+            {
+              "index": 11,
+              "name": "command-line requests > refuses a non-boolean activate"
+            },
+            {
+              "index": 12,
+              "name": "command-line requests > tells a client outside the supported range which versions work"
+            },
+            {
+              "index": 13,
+              "name": "command-line endpoint > lives in the channel's user data"
+            },
+            {
+              "index": 14,
+              "name": "command-line endpoint > falls back to a per-user /tmp directory when the path is too long for a socket"
+            },
+            {
+              "index": 16,
+              "name": "command-line control server > answers one JSON line with one JSON line, reachable only by this user"
+            },
+            {
+              "index": 17,
+              "name": "command-line control server > hands invalid JSON to the request handler as nothing"
+            },
+            {
+              "index": 18,
+              "name": "command-line control server > still answers a client that stopped sending once its request was out"
+            },
+            {
+              "index": 19,
+              "name": "command-line control server > drops a client that stops sending before a whole request"
+            },
+            {
+              "index": 20,
+              "name": "command-line control server > drops a client that sends too much or never finishes"
+            },
+            {
+              "index": 21,
+              "name": "command-line control server > replaces a stale socket left by a crashed run"
+            },
+            {
+              "index": 22,
+              "name": "command-line control server > refuses to listen in a directory another user owns"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::cli_control::tests::the_protocol_is_the_pinned_contract"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::cli_control::tests::requests_are_checked_before_anything_opens"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::cli_control::tests::the_endpoint_falls_back_under_tmp_for_a_long_home"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::cli_control::tests::a_half_closed_request_is_answered"
+        }
+      ]
+    },
+    {
+      "id": "platform-launch-args-and-single-instance",
+      "acceptance": "Desktop launch argument parsing resolves folders, files, and file:// URIs while ignoring unknown flags, missing paths, and non-file URLs; single-instance lock forwards a second launch's arguments and cwd to the primary instance and replaces stale sockets; system open routes open files in file windows and folders in project windows while reporting unsupported types.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/launch/electron.desktop-launch-intent.test.mjs",
+          "sha256": "9fcaae9c72fc03d25277c3a552dee9cb18b2eeec17755d1e1eba49026b0a1d78",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Desktop launch intent > ignores malformed, flag, file, and missing arguments without throwing"
+            },
+            {
+              "index": 3,
+              "name": "Desktop launch intent > finds a file named on the command line"
+            },
+            {
+              "index": 4,
+              "name": "Desktop launch intent > reads the file:// URIs Linux file managers pass"
+            },
+            {
+              "index": 5,
+              "name": "Desktop launch intent > does not treat other URLs as paths"
+            },
+            {
+              "index": 6,
+              "name": "Desktop launch intent > opens a file sent by a second instance"
+            },
+            {
+              "index": 7,
+              "name": "Desktop launch intent > shows the app when a requested file cannot be shown"
+            },
+            {
+              "index": 8,
+              "name": "Desktop launch intent > shows the app when a requested file fails to open"
+            },
+            {
+              "index": 11,
+              "name": "Desktop launch intent > reveals the primary window when the second launch has no workspace"
+            },
+            {
+              "index": 12,
+              "name": "Desktop launch intent > falls back to the primary window when opening a requested workspace fails"
+            },
+            {
+              "index": 13,
+              "name": "Desktop launch intent > contains both fallback and logging failures instead of rejecting"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/launch/electron.system-open-route.test.mjs",
+          "sha256": "81b64ae28ec569ee8ad4d240d1d433cd009fcbd3933d030f6120ff8f2cc9c915",
+          "cases": [
+            {
+              "index": 0,
+              "name": "system open route > opens a file in its own window, through its real path"
+            },
+            {
+              "index": 1,
+              "name": "system open route > opens a folder as a project"
+            },
+            {
+              "index": 2,
+              "name": "system open route > focuses a file or folder that is already open instead of opening it again"
+            },
+            {
+              "index": 3,
+              "name": "system open route > names why a path cannot open"
+            },
+            {
+              "index": 4,
+              "name": "system open route > refuses a file that is too large only when the caller asks"
+            },
+            {
+              "index": 5,
+              "name": "project window for a folder > prefers the window showing only that folder, then the latest focus"
+            },
+            {
+              "index": 6,
+              "name": "project window for a folder > ignores file windows, closed windows and other folders"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::single_instance::tests::a_later_launch_hands_its_arguments_to_the_first"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::single_instance::tests::a_socket_left_behind_is_replaced"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::windows::tests::the_last_folder_or_file_on_the_command_line_is_the_target"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::windows::tests::only_this_channels_open_link_is_a_return_link"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::file_mode::tests::a_file_window_opens_the_products_extensions"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::windows_share_preferences_and_a_project_opens_where_it_was_chosen"
+        }
+      ]
+    },
+    {
+      "id": "platform-file-clipboard-and-transfer",
+      "acceptance": "Explorer file clipboard collapses nested selections to roots, preserves case-distinct paths, stays scoped to its owning workspace without hydrated subtrees, rejects moving or copying folders into themselves or descendants, treats same-parent moves as no-ops, preserves keep-both collision names on copy/duplicate, and normalizes POSIX paths cleanly.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/clipboard/fileClipboard.test.ts",
+          "sha256": "e25bffa8261089c2daf4591c11e7f957480b02c5283ea4c7c3884c77f4fb62da",
+          "cases": [
+            {
+              "index": 0,
+              "name": "file clipboard selection model > keeps only selected roots when a parent and descendants are selected"
+            },
+            {
+              "index": 1,
+              "name": "file clipboard selection model > deduplicates exact paths while preserving case-distinct filesystem entries"
+            },
+            {
+              "index": 2,
+              "name": "file clipboard selection model > stores detached top-level snapshots without hydrated children"
+            },
+            {
+              "index": 3,
+              "name": "file clipboard selection model > does not create a clipboard for an empty workspace key or selection"
+            },
+            {
+              "index": 4,
+              "name": "paste target validation > rejects copying or cutting a folder into itself or a descendant"
+            },
+            {
+              "index": 5,
+              "name": "paste target validation > treats cutting back into the original parent as a no-op, including root"
+            },
+            {
+              "index": 6,
+              "name": "paste target validation > allows a multi-item cut when at least one selected item will move"
+            },
+            {
+              "index": 7,
+              "name": "paste target validation > rejects stale, empty, and cross-workspace clipboard targets"
+            },
+            {
+              "index": 8,
+              "name": "clipboard path helpers > normalizes separators and joins paths at the workspace root"
+            },
+            {
+              "index": 9,
+              "name": "clipboard path helpers > returns parents and names for root and nested entries"
+            },
+            {
+              "index": 10,
+              "name": "clipboard path helpers > preserves path case and handles root ancestry"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/drag-drop/fileTransfer.test.ts",
+          "sha256": "43686259bd03098fb7e86e7b0845070d4bda18ab868148c24aecb912ed0906d0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "file clipboard batch execution > uses DataPort-returned keep-both paths for copies"
+            },
+            {
+              "index": 1,
+              "name": "file clipboard batch execution > reports partial cut success and treats entries already in the target as complete"
+            },
+            {
+              "index": 2,
+              "name": "file clipboard batch execution > duplicates only top-level selected roots and requests a forced copy name"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "model::tests::visibility_display_names_and_selection_follow_the_product"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::nested_nodes_are_found_by_their_path"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::paths::tests::resolves_and_relates_like_node_posix"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::rename_move_copy_import_and_delete_stay_inside_the_grant"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::copy_keeps_exact_names_compound_extensions_and_every_recursive_source_byte"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::simultaneous_copies_keep_every_complete_result_and_never_remove_another_winner"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::simultaneous_renames_and_moves_publish_one_winner_without_losing_sources"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::explorer::session::tests::the_file_clipboard_says_what_it_holds_does_and_did"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::explorer::session::tests::copied_items_of_a_local_folder_also_go_to_the_system_file_clipboard"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::explorer_virtual_window_navigation_empty_root_and_move_import_routing"
+        }
+      ]
+    },
+    {
+      "id": "platform-local-agent-catalog-and-setup-advisor",
+      "acceptance": "Local Agent capability catalog and setup advisor enforce platform-qualified reviewed recipes and digests, reject Chat-only routes on Terminal, recommend only companion-backed missing CLIs, apply global/hidden/dismissed/snooze suppression policies without blocking manual guides, fence stale scan generations and released views, and reuse companion evidence across views without rescanning.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-installation/local-agent-catalog.test.mjs",
+          "sha256": "6a2b5f9a6ea5830490163e24e872c958e31857d1e83011c5f35ffd0df3c37240",
+          "cases": [
+            {
+              "index": 0,
+              "name": "trusted Local Agent capability catalog > is the complete immutable source for installation, setup and consumer identities"
+            },
+            {
+              "index": 17,
+              "name": "trusted Local Agent capability catalog > does not evaluate install recipes or candidate paths while registering or inspecting setup"
+            },
+            {
+              "index": 50,
+              "name": "trusted Local Agent capability catalog > setup admission uses the injected catalog, not a hidden default product table"
+            },
+            {
+              "index": 75,
+              "name": "trusted Local Agent capability catalog > fails closed on a malformed recipe {\"setupId\":\"cursor\"}"
+            },
+            {
+              "index": 76,
+              "name": "trusted Local Agent capability catalog > fails closed on a malformed recipe {\"binary\":\"../bin/agent\"}"
+            },
+            {
+              "index": 77,
+              "name": "trusted Local Agent capability catalog > fails closed on a malformed recipe {\"binary\":\"/bin/agent\"}"
+            },
+            {
+              "index": 78,
+              "name": "trusted Local Agent capability catalog > fails closed on a malformed recipe {\"entry\":\"bin/agent\"}"
+            },
+            {
+              "index": 79,
+              "name": "trusted Local Agent capability catalog > fails closed on a malformed recipe {\"version\":\"..\"}"
+            },
+            {
+              "index": 80,
+              "name": "trusted Local Agent capability catalog > fails closed on a malformed recipe {\"command\":\"curl\"}"
+            },
+            {
+              "index": 81,
+              "name": "trusted Local Agent capability catalog > fails closed on a malformed recipe {\"artifact\":{\"url\":\"https://example.com/file\",\"algorithm\":\"sha1\",\"digest\":\"bad\"}}"
+            },
+            {
+              "index": 82,
+              "name": "trusted Local Agent capability catalog > fails closed on a malformed recipe {\"artifact\":{\"url\":\"https://example.com/file\",\"algorithm\":\"sha256\",\"digest\":\"bad\"}}"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/local-agent-installation/local-agent-setup.test.mjs",
+          "sha256": "6dcf097739b5c1648cd3832a00efb452fa34bd710dde63a266f4bd5126d44a3a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "setup advisor and trusted guide broker > keeps trusted target recipes aligned and rejects Chat-only routes on Terminal even when requested"
+            },
+            {
+              "index": 1,
+              "name": "setup advisor and trusted guide broker > recommends companion-backed missing CLIs only; catalog is independent from readiness"
+            },
+            {
+              "index": 8,
+              "name": "setup advisor and trusted guide broker > respects global, hidden, permanent and session snooze policy without blocking manual guides"
+            },
+            {
+              "index": 9,
+              "name": "setup advisor and trusted guide broker > rejects arbitrary actions, URLs, setup IDs, platforms and client ownership"
+            },
+            {
+              "index": 10,
+              "name": "setup advisor and trusted guide broker > fences recommendation generations, found installations, replaced and released receipts"
+            },
+            {
+              "index": 11,
+              "name": "setup advisor and trusted guide broker > opens manual guides after 30 seconds and a day without rescanning"
+            },
+            {
+              "index": 12,
+              "name": "setup advisor and trusted guide broker > opens recommendation guides after 30 seconds and a day without rescanning"
+            },
+            {
+              "index": 13,
+              "name": "setup advisor and trusted guide broker > allows an explicit manual guide independently of scanning or a changed observation"
+            },
+            {
+              "index": 14,
+              "name": "setup advisor and trusted guide broker > does not reopen a released view after slow evidence and suppresses duplicate guide clicks"
+            },
+            {
+              "index": 15,
+              "name": "setup advisor and trusted guide broker > rejects a recommendation from an older companion scan while preserving explicit manual help"
+            },
+            {
+              "index": 16,
+              "name": "setup advisor and trusted guide broker > does not delay CLI progress or completion for slow companion discovery"
+            },
+            {
+              "index": 17,
+              "name": "setup advisor and trusted guide broker > reuses failed terminal snapshots instead of creating an inspection-refresh feedback loop"
+            },
+            {
+              "index": 18,
+              "name": "setup advisor and trusted guide broker > does not refresh expired installation evidence just because setup is reopened"
+            },
+            {
+              "index": 19,
+              "name": "setup advisor and trusted guide broker > normalizes persisted preferences without preserving unknown IDs or installation evidence"
+            },
+            {
+              "index": 24,
+              "name": "companion presence lifecycle > reuses the same Main evidence after views close, time passes, and another window opens"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::tests::routes_follow_the_catalog_and_recipes_are_platform_qualified"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::tests::only_a_missing_cli_beside_its_app_is_recommended"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::tests::actual_typescript_setup_advice_preserves_every_evidence_state_and_suppression_policy"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::tests::actual_typescript_platform_matrix_preserves_guided_and_automatic_capabilities"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::activation::tests::declared_recipes_and_surface_capabilities_drive_an_injected_catalog"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::only_reviewed_https_hosts_and_safe_processes_are_used"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::the_product_installer_refuses_unreviewed_sources_without_a_request"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::installer::tests::unsafe_archives_are_rejected_before_anything_is_written"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::session::tests::a_new_generation_immediately_retires_old_recommendations_and_coalesces_only_the_latest_scan"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::session::tests::unknown_is_cached_without_time_or_view_expiration_until_explicit_discovery"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::session::tests::release_preserves_completed_evidence_and_rejects_late_cancelled_results_and_queued_work"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::local_agent_setup::companion::session::tests::disposal_cancels_active_and_queued_work_and_permanently_revokes_cached_revisions"
+        }
+      ]
+    },
+    {
+      "id": "platform-security-capabilities-and-safe-external-open",
+      "acceptance": "Workspace capabilities scope reads and HTML/Markdown assets to their admitted root or directory, revoke cleanly on owner removal without cross-owner leakage, serve immutable admitted snapshot ranges without rereading changed disk bytes, identify potentially executable files and launchers, refuse symlink opens, and validate safe credential-free external URLs.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/security/electron.local-file-capabilities.test.mjs",
+          "sha256": "91563d2efabad22d5efc49dff9a4b5d7ed07d7dbcb4c2481e8c4535ab652047c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local file capability store > scopes opaque capabilities to one sender, root, and exact file path"
+            },
+            {
+              "index": 1,
+              "name": "local file capability store > revokes only capabilities owned by one removed Workspace Folder"
+            },
+            {
+              "index": 2,
+              "name": "local file capability store > refuses admission without revoking a capability still held by a consumer"
+            },
+            {
+              "index": 3,
+              "name": "local file capability store > can scope an HTML capability to its directory so relative assets keep working"
+            },
+            {
+              "index": 4,
+              "name": "local file capability store > issues unique, purpose-bound Markdown leases and hard-revokes by owner"
+            },
+            {
+              "index": 8,
+              "name": "puppyone-local protocol capability enforcement > serves the immutable input version, including ranges, without rereading changed disk content"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/security/electron.navigation-security.test.mjs",
+          "sha256": "b36b3e24c88b79acae3106b0acf1ae00265376f60dfcbe1c46639e4aeafda183",
+          "cases": [
+            {
+              "index": 6,
+              "name": "desktop window navigation security > treats platform launchers and executable file modes as dangerous"
+            },
+            {
+              "index": 7,
+              "name": "desktop window navigation security > allows only credential-free web URLs and non-empty mail recipients"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::desktop::tests::scripts_and_executable_files_ask_and_links_are_never_opened"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::pdf::tests::external_urls_and_tile_rects_are_strictly_validated_and_bounded"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::identity_is_stable_but_open_grants_are_not_interchangeable"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::revocation_fences_reads_writes_and_existing_preview_leases"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::file_window::tests::scoped_media_keeps_its_admitted_directory_and_refuses_retargeted_symlinks"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::file_window::tests::media_port_enforces_its_byte_budget_and_fences_revocation_before_and_after_dispatch"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::preview::tests::cached_snapshot_reader_preserves_its_input_version_and_checks_lease_on_seek"
+        }
+      ]
+    },
+    {
+      "id": "platform-native-menus-and-window-minimum",
+      "acceptance": "Native macOS application menus install the product File, Edit, View, Theme, Window, and Help menus with New Window, Manage Executions, and Close Window; window minimum widths follow open panes without lowering the product floor.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/menus/electron.native-menu-service.test.mjs",
+          "sha256": "0ce9b63e5e9edfaa6827e9a8d6ec51da269cff4be0d1a253fa85d80d1db28d8e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DesktopNativeMenuService > installs a native macOS File menu and shares New Window with the Dock"
+            },
+            {
+              "index": 3,
+              "name": "DesktopNativeMenuService > builds one coordinated theme-pack group without Customize"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/native-surfaces/electron.window-layout-ipc.test.mjs",
+          "sha256": "73fba1c95a767518d6af995028cac4330885b7e54ed3e7ca3e3bc8ee7a4b9602",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native window layout IPC > raises the native minimum and expands an already narrower window"
+            },
+            {
+              "index": 1,
+              "name": "native window layout IPC > never lowers the product-level 720px floor"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::app_menu_about_and_check_for_updates_follow_the_product_menu"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::panes::layout::tests::the_window_minimum_follows_the_open_panes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_layout::opening_a_pane_in_a_narrow_window_widens_it_to_the_pane_minima"
+        }
+      ]
+    },
+    {
+      "id": "platform-product-icons-and-cloud-mark",
+      "acceptance": "The product icon registry exhaustively maps all seven product meanings (home, folder, local, cloud, cloud-upload, cloud-off, disclosure) to imported product SVG geometry, preserves Home optical stroke weighting and CloudOff cutout geometry, draws the folder glyph in the file tree, and keeps disclosure orientation and file-icon palette bindings intact.",
+      "typescript": [
+        {
+          "path": "tests/component/platform/icons/cloudIcon.test.tsx",
+          "sha256": "3c1fbf5d15166bf49665e143a60b726bbd05dad0a8f03fb4dabb80d66be08b1c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "product Cloud mark > draws PuppyOne's own stroked cloud on the shared 24px icon grid"
+            },
+            {
+              "index": 1,
+              "name": "product Cloud mark > is symmetric: a dome on two equal shoulders over a flat base"
+            },
+            {
+              "index": 2,
+              "name": "product Cloud mark > shares the folder and laptop line weight, defaulting to 2 like them"
+            },
+            {
+              "index": 3,
+              "name": "product Cloud mark > keeps the existing 9px layout slot"
+            },
+            {
+              "index": 4,
+              "name": "product Cloud mark > keeps the existing 14px layout slot"
+            },
+            {
+              "index": 5,
+              "name": "product Cloud mark > keeps the existing 16px layout slot"
+            },
+            {
+              "index": 6,
+              "name": "product Cloud mark > keeps the existing 24px layout slot"
+            },
+            {
+              "index": 7,
+              "name": "product Cloud mark > occludes what a linked badge overlaps inside its own silhouette"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/icons/productIcons.test.tsx",
+          "sha256": "628e934a259ee7f030e353732f9c47757892bc8a239dca2b6361a343f22fc7ec",
+          "cases": [
+            {
+              "index": 0,
+              "name": "product icons > states every product meaning with exactly one drawing"
+            },
+            {
+              "index": 1,
+              "name": "product icons > draws a folder as the hollow closed folder"
+            },
+            {
+              "index": 2,
+              "name": "product icons > draws this computer as the hollow laptop"
+            },
+            {
+              "index": 3,
+              "name": "product icons > draws home as one open-door outline whose door posts run into the ground"
+            },
+            {
+              "index": 4,
+              "name": "product icons > weights the house optically to match the laptop at the same stroke width"
+            },
+            {
+              "index": 5,
+              "name": "product icons > gives the file-tree folder the product folder shape"
+            },
+            {
+              "index": 6,
+              "name": "product icons > builds every Cloud variant on the one product cloud outline"
+            },
+            {
+              "index": 7,
+              "name": "product icons > draws the same 7px disclosure chevron with a 1.25px line in a 10px box"
+            },
+            {
+              "index": 8,
+              "name": "product icons > draws the same 7px disclosure chevron with a 1.25px line in a 12px box"
+            },
+            {
+              "index": 9,
+              "name": "product icons > draws the same 7px disclosure chevron with a 1.25px line in a 13px box"
+            },
+            {
+              "index": 10,
+              "name": "product icons > draws the same 7px disclosure chevron with a 1.25px line in a 14px box"
+            },
+            {
+              "index": 11,
+              "name": "product icons > points a controlled disclosure down when expanded and leaves native details to CSS"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "asset_catalog::tests::product_registry_is_exhaustive_and_preserves_geometry"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::every_kind_has_late_bound_ink_and_valid_geometry_at_each_size"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::icon::tests::file_icon_resources_bind_palette_foreground_and_device_resolution"
+        }
+      ]
+    },
+    {
+      "id": "platform-titlebar-project-menu-and-editor-drop",
+      "acceptance": "Header project and place menus present one trigger without Git branch or local/Cloud location toggles, list local and Cloud projects under their places without redundant headings when local-only, list a local folder and its Cloud copy as two separate entries, route Home/create/switching, dismiss outside and on Escape restoring focus, and route Explorer drops onto editor pane splits.",
+      "typescript": [
+        {
+          "path": "tests/component/platform/menus/titlebarMenuInteractions.test.tsx",
+          "sha256": "f60352e54f196e9155974e96f9084594f5b9e0c781a2bc02c71d1babe410b2d9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "combined Home and project menu > states the Project with one menu trigger and no silent identity variant"
+            },
+            {
+              "index": 1,
+              "name": "combined Home and project menu > lists registered projects, marks the current one and routes Home, create and another project separately"
+            },
+            {
+              "index": 2,
+              "name": "combined Home and project menu > lets a click on the displayed project replace a pending switch"
+            },
+            {
+              "index": 3,
+              "name": "combined Home and project menu > copies each local project's path without navigating or closing the menu"
+            },
+            {
+              "index": 4,
+              "name": "combined Home and project menu > lists projects under the place that holds them, so opening one in another Space is how the window gets there"
+            },
+            {
+              "index": 5,
+              "name": "combined Home and project menu > needs no heading when every project is on this computer"
+            },
+            {
+              "index": 7,
+              "name": "combined Home and project menu > restores focus on Escape and dismisses outside the menu, including Header blank space"
+            },
+            {
+              "index": 9,
+              "name": "combined Home and project menu > offers project navigation with Cloud and composition disabled, without Git branch controls"
+            },
+            {
+              "index": 10,
+              "name": "one place's folders in the project menu > lists only this computer's folders, without headings, inside a local folder"
+            },
+            {
+              "index": 11,
+              "name": "one place's folders in the project menu > lists only the Space's folders inside a Space"
+            },
+            {
+              "index": 12,
+              "name": "a local folder and its Cloud project in the project menu (ADR-001) > lists them as two projects and opens the Cloud one as its own project"
+            },
+            {
+              "index": 13,
+              "name": "a local folder and its Cloud project in the project menu (ADR-001) > has no Header control that switches one project between this computer and the Cloud"
+            },
+            {
+              "index": 14,
+              "name": "a local folder and its Cloud project in the project menu (ADR-001) > marks the open Cloud project, not the folder, while the Cloud project is shown"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/drag-drop/editorNativeResourceDrop.test.tsx",
+          "sha256": "7a252dbb56bbc8a986cb230be385469735f485d4204cc1a880390bf19fe74843",
+          "cases": [
+            {
+              "index": 11,
+              "name": "opens an empty pane, splits distinct same-named resources, then focuses an already visible document"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::project_popup_toggle_outside_and_escape_restore_focus"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::a_place_opens_the_homepage_on_it_and_escape_closes_the_menu"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::the_place_menu_offers_home_the_places_and_the_account_or_sign_in"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::project_menu_home_shows_the_homepage_and_hides_the_editor"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::an_explorer_file_drops_at_the_nearest_pane_edge"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::three_panes_keep_their_own_editors_across_focus_and_moves"
+        }
+      ]
+    },
+    {
+      "id": "platform-floating-surface-native-cover",
+      "acceptance": "Floating GPUI overlays register their border-box coverage with the window native-cover host so embedded web content hides beneath floating menus and dialogs while inline cards do not occlude it.",
+      "typescript": [
+        {
+          "path": "tests/component/platform/native-surfaces/nativeSurfaceOverlayLease.test.tsx",
+          "sha256": "59cabb5200b21cad81a174d9111ef03d704bc748dd77b3c6913155f263b0f791",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native surface overlay lease > keeps native content hidden until the final menu or dialog closes"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "ui::native_cover::tests::a_floating_surface_reports_its_border_box_and_an_inline_card_does_not"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -45632,6 +46595,34 @@
             {
               "index": 2,
               "name": "Electron application quit intent > retains the native non-macOS last-window quit behavior"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/launch/electron.cli-control.test.mjs",
+          "sha256": "b7e99d9c67ead4450017a8ddbd57c40ef320ef4b9659796050cd5ae5cbc56ec4",
+          "cases": [
+            {
+              "index": 15,
+              "name": "command-line endpoint > is not offered on Windows yet"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/processes/electron.windows-registered-applications.test.mjs",
+          "sha256": "f812dd33a2e42286014b4d043deea01771b0774a713f562250cac6c22cf71f1b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Windows registered application discovery > parses localized registry output by type and expands Windows environment variables"
+            },
+            {
+              "index": 1,
+              "name": "Windows registered application discovery > deduplicates user and machine registrations and rejects a mismatched executable name"
+            },
+            {
+              "index": 2,
+              "name": "Windows registered application discovery > does no registry IO outside Windows"
             }
           ]
         }
@@ -47046,6 +48037,74 @@
               "name": "Cloud publish progress IPC > does not expose authorization exceptions across the IPC boundary"
             }
           ]
+        },
+        {
+          "path": "tests/unit/platform/ipc/electron.file-mode.test.mjs",
+          "sha256": "558ca9cc7e0d45dd2b7b79e13aac0ee77c49014d392170cb960a2eb30abf6e64",
+          "cases": [
+            {
+              "index": 16,
+              "name": "File Mode IPC gate > refuses workspace:git-status"
+            },
+            {
+              "index": 17,
+              "name": "File Mode IPC gate > refuses workspace:reveal-entry-in-finder"
+            },
+            {
+              "index": 19,
+              "name": "File Mode IPC gate > refuses terminal:create"
+            },
+            {
+              "index": 20,
+              "name": "File Mode IPC gate > refuses agent:session-create"
+            },
+            {
+              "index": 21,
+              "name": "File Mode IPC gate > refuses cloud-workspace:watch"
+            },
+            {
+              "index": 22,
+              "name": "File Mode IPC gate > refuses markdown-web-embed:create"
+            },
+            {
+              "index": 23,
+              "name": "File Mode IPC gate > refuses file-mode:open-folder"
+            },
+            {
+              "index": 24,
+              "name": "File Mode IPC gate > refuses made-up:channel"
+            },
+            {
+              "index": 25,
+              "name": "File Mode IPC gate > keeps the channels the window itself needs"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/ipc/electron.trusted-ipc.test.mjs",
+          "sha256": "18b902a46e4430ab379749e48345a29f83ac2429854841e16a77ebdf5cc8bcba",
+          "cases": [
+            {
+              "index": 0,
+              "name": "trusted Electron IPC facade > refuses a channel the window may not use before its handler runs"
+            },
+            {
+              "index": 1,
+              "name": "trusted Electron IPC facade > drops a refused one-way event without running its listener"
+            },
+            {
+              "index": 2,
+              "name": "trusted Electron IPC facade > accepts only the exact packaged document or exact development origin"
+            },
+            {
+              "index": 3,
+              "name": "trusted Electron IPC facade > requires senderFrame to be the sender mainFrame"
+            },
+            {
+              "index": 4,
+              "name": "trusted Electron IPC facade > guards both invoke handlers and one-way listeners"
+            }
+          ]
         }
       ]
     },
@@ -47268,6 +48327,16 @@
             {
               "index": 2,
               "name": "Workbench Workspace content watch > reconciles attached and detached Folders without accepting stale callbacks"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/menus/titlebarMenuInteractions.test.tsx",
+          "sha256": "f60352e54f196e9155974e96f9084594f5b9e0c781a2bc02c71d1babe410b2d9",
+          "cases": [
+            {
+              "index": 8,
+              "name": "combined Home and project menu > keeps composition actions distinct from switching projects"
             }
           ]
         }
@@ -52430,6 +53499,16 @@
               "name": "device identity > refuses Linux plaintext fallback even when the storage API reports availability"
             }
           ]
+        },
+        {
+          "path": "tests/unit/platform/capabilities/electron.platform-host.test.mjs",
+          "sha256": "dc1e34cad8860571f919d37fa2b382b5699df26c4ff0351b1d80f7a350e20e70",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Desktop platform host > fails closed when Linux safe storage falls back to basic text"
+            }
+          ]
         }
       ]
     },
@@ -53802,6 +54881,20 @@
               "name": "pane move preview > requests a compositor snapshot for the pane content bounds"
             }
           ]
+        },
+        {
+          "path": "tests/unit/platform/ipc/electron.pane-preview-ipc.test.mjs",
+          "sha256": "561d7ded68055374a5c77d58630fac9205265fa2a61d8ee8a1d4dc170abbcde7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pane preview IPC > captures a bounded sender rectangle and returns a small bitmap"
+            },
+            {
+              "index": 1,
+              "name": "pane preview IPC > rejects invalid or unavailable capture surfaces"
+            }
+          ]
         }
       ]
     },
@@ -54808,6 +55901,196 @@
             {
               "index": 18,
               "name": "ExplorerTree interactive semantics > clears external-file drop feedback for global drag cancellation signals"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/drag-drop/electron.resource-drag-session.test.mjs",
+          "sha256": "f5af1bb9ad512adb2ee851f3ce0d2ca8c5b2ca2d3ee2d6e0928d5798883d21e4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "joins agent-reference to the native end, reauthorizes both windows and consumes it once"
+            },
+            {
+              "index": 1,
+              "name": "joins terminal-path to the native end, reauthorizes both windows and consumes it once"
+            },
+            {
+              "index": 2,
+              "name": "joins editor-open to the native end, reauthorizes both windows and consumes it once"
+            },
+            {
+              "index": 3,
+              "name": "rejects an Editor payload that is not one file: {\"resources\":[\"puppyone-local://workspace/a/docs\"]}"
+            },
+            {
+              "index": 4,
+              "name": "rejects an Editor payload that is not one file: {\"resources\":[\"puppyone-local://workspace/a/docs/file.md\",\"puppyone-local://workspace/a/other.md\"]}"
+            },
+            {
+              "index": 5,
+              "name": "rejects an Editor receipt after cancel"
+            },
+            {
+              "index": 6,
+              "name": "rejects an Editor receipt after target-window"
+            },
+            {
+              "index": 7,
+              "name": "rejects an Editor receipt after source-detached"
+            },
+            {
+              "index": 8,
+              "name": "rejects an Editor receipt after target-detached"
+            },
+            {
+              "index": 9,
+              "name": "accepts an IPC drop arriving just after native completion, but only in the actual target window"
+            },
+            {
+              "index": 10,
+              "name": "clears cancelled sessions and does not misclassify the next external file drag"
+            },
+            {
+              "index": 11,
+              "name": "rejects detached roots, forged files and replay attempts"
+            },
+            {
+              "index": 12,
+              "name": "validates internal move destinations without treating rejected moves as external imports"
+            },
+            {
+              "index": 13,
+              "name": "invalidates on source navigation and does not let an old async start replace a new drag"
+            },
+            {
+              "index": 14,
+              "name": "bounds the native completion receipt and cleans failed starts"
+            },
+            {
+              "index": 15,
+              "name": "does not start without a live source gesture and passes its captured identity through async work"
+            },
+            {
+              "index": 16,
+              "name": "keeps an external-only Project drag out of internal preview and claim flows"
+            },
+            {
+              "index": 17,
+              "name": "does not turn an in-root alias into a destructive move of its referent"
+            },
+            {
+              "index": 18,
+              "name": "rechecks the admitted path after asynchronous preparation"
+            },
+            {
+              "index": 19,
+              "name": "classifies external Finder files and folders without granting or importing them"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/drag-drop/resourceDragExport.test.ts",
+          "sha256": "8f1297fd77b362c51fa3f5d8a46018de577517d77038b7d9003101814a50c2ca",
+          "cases": [
+            {
+              "index": 0,
+              "name": "resource drag representations > keeps qualified internal identities separate from readable paths and prefers them on drop"
+            },
+            {
+              "index": 1,
+              "name": "resource drag representations > accepts legacy relative payloads without converting them to a guessed root"
+            },
+            {
+              "index": 2,
+              "name": "resource drag representations > serializes local file URLs for POSIX, drive and network roots without corrupting spaces or hashes"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/drag-drop/resourceDragPreviewStore.test.ts",
+          "sha256": "72ce922c2ac776981ff36ea7b39a8eadc28f295a0f0b5d0943e47e5ff88c654e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "shares one native subscription and ignores late previews and another session's cleanup"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/drag-drop/editorNativeResourceDrop.test.tsx",
+          "sha256": "7a252dbb56bbc8a986cb230be385469735f485d4204cc1a880390bf19fe74843",
+          "cases": [
+            {
+              "index": 0,
+              "name": "connects the ordinary native source to Editor using Files and the canonical root-qualified identity"
+            },
+            {
+              "index": 1,
+              "name": "claims without relying on a preview that window drop capture has already cleared"
+            },
+            {
+              "index": 2,
+              "name": "discards a late receipt after workspace retirement"
+            },
+            {
+              "index": 3,
+              "name": "discards a late receipt after pane retirement"
+            },
+            {
+              "index": 4,
+              "name": "discards a late receipt after unmount retirement"
+            },
+            {
+              "index": 5,
+              "name": "reports a rejected native claim without falling back to the preview or raw path"
+            },
+            {
+              "index": 6,
+              "name": "does not turn an external or unsupported payload into an Editor document: null"
+            },
+            {
+              "index": 7,
+              "name": "does not turn an external or unsupported payload into an Editor document: {\"entries\":[{\"path\":\"puppyone-local://workspace/root-b/docs/same.md\",\"name\":\"same.md\",\"entryType\":\"directory\"}]}"
+            },
+            {
+              "index": 8,
+              "name": "does not turn an external or unsupported payload into an Editor document: {\"entries\":[{\"path\":\"puppyone-local://workspace/root-b/docs/same.md\",\"name\":\"same.md\",\"entryType\":\"file\"},{\"path\":\"puppyone-local://workspace/root-b/docs/same.md\",\"name\":\"same.md\",\"entryType\":\"file\"}]}"
+            },
+            {
+              "index": 9,
+              "name": "does not turn an external or unsupported payload into an Editor document: {\"entries\":[{\"path\":\"/repo-b/same.md\",\"name\":\"same.md\",\"entryType\":\"file\"}]}"
+            },
+            {
+              "index": 10,
+              "name": "does not offer a split preview for a directory or multiple entries and releases native routing on cancellation"
+            },
+            {
+              "index": 12,
+              "name": "requires a native receipt even when Files also advertises forged HTML identity"
+            },
+            {
+              "index": 13,
+              "name": "restores native content after drop ends the file-drop overlay"
+            },
+            {
+              "index": 14,
+              "name": "restores native content after cancel ends the file-drop overlay"
+            },
+            {
+              "index": 15,
+              "name": "restores native content after unmount ends the file-drop overlay"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/drag-drop/resourceDragGesture.test.tsx",
+          "sha256": "c18ffc29086f10ed628348cb2cc67259de27e965bedb1fa7f77985cba3340b3b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "starts one native session for an ordinary drag and reports failed admission"
             }
           ]
         }
@@ -56426,6 +57709,28 @@
               "name": "HTML interaction and editing > waits for the actual projected page rather than the initial blank iframe load"
             }
           ]
+        },
+        {
+          "path": "tests/unit/platform/security/electron.local-file-capabilities.test.mjs",
+          "sha256": "91563d2efabad22d5efc49dff9a4b5d7ed07d7dbcb4c2481e8c4535ab652047c",
+          "cases": [
+            {
+              "index": 5,
+              "name": "puppyone-local protocol capability enforcement > serves only the exact capability path and never emits wildcard CORS"
+            },
+            {
+              "index": 6,
+              "name": "puppyone-local protocol capability enforcement > enforces an opaque sandbox on disposable projections and revokes their authority"
+            },
+            {
+              "index": 11,
+              "name": "puppyone-local protocol capability enforcement > round-trips the token through the canonical URL parser"
+            },
+            {
+              "index": 12,
+              "name": "puppyone-local protocol capability enforcement > rejects lookalike schemes and non-canonical URL adornments"
+            }
+          ]
         }
       ]
     },
@@ -57732,6 +59037,36 @@
               "name": "DOM-owned PDF transport and attachment lifecycle > fails closed for MIME or budget violations {\"content-type\":\"application/pdf\"}"
             }
           ]
+        },
+        {
+          "path": "tests/unit/platform/security/embedded-pdf-security.test.mjs",
+          "sha256": "6e431ed46a77bd115805e008631d229ea3e2aca36d35471bd00409667fc0774d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DOM PDF security in the shared App session > denies request and check permissions explicitly, including unnamed frames"
+            },
+            {
+              "index": 1,
+              "name": "DOM PDF security in the shared App session > preserves only the trusted App main frame's clipboard write permission"
+            },
+            {
+              "index": 2,
+              "name": "DOM PDF security in the shared App session > denies PDF subframe network without preventing AppPreview's network"
+            },
+            {
+              "index": 3,
+              "name": "DOM PDF security in the shared App session > blocks network even with a detached frame when the PDF extension is the referrer"
+            },
+            {
+              "index": 4,
+              "name": "DOM PDF security in the shared App session > admits only GET/HEAD for an exact retained Cloud PDF URL"
+            },
+            {
+              "index": 5,
+              "name": "DOM PDF security in the shared App session > prevents PDF navigating to arbitrary HTML while preserving other iframe navigation"
+            }
+          ]
         }
       ]
     },
@@ -57874,6 +59209,16 @@
             {
               "index": 27,
               "name": "Homepage project layouts > says so in the menu when the path cannot be copied"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/menus/titlebarMenuInteractions.test.tsx",
+          "sha256": "f60352e54f196e9155974e96f9084594f5b9e0c781a2bc02c71d1babe410b2d9",
+          "cases": [
+            {
+              "index": 6,
+              "name": "combined Home and project menu > keeps a failed copy retryable without switching the selected project"
             }
           ]
         }
@@ -58276,6 +59621,638 @@
             {
               "index": 10,
               "name": "project folder home > replays the empty-state reveal from the development preview shortcut"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-chromium-platform-plumbing",
+      "kind": "out-of-scope",
+      "reason": "These assert Electron/Chromium host internals that do not exist in the native macOS GPUI app: Chromium command-line text-rasterization switches, React hash-routed smoke entrypoints, preload capability snapshots over IPC, Electron dev-entrypoint and Chromium-mutated single-instance argv handling, Electron AppKit Menu.buildFromTemplate SF Symbol nativeImage plumbing, and Electron BrowserWindow/WebContentsView navigation security.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform/architecture.md",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/appearance/electron.text-rasterization-policy.test.mjs",
+          "sha256": "3ec6d58909f67d243e51e9ed6f0552f295fadec7bca179c7afbf55724ca733dc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop text rasterization policy > is installed by the main process before Electron becomes ready"
+            },
+            {
+              "index": 1,
+              "name": "desktop text rasterization policy > selects one grayscale rendering path on Windows"
+            },
+            {
+              "index": 2,
+              "name": "desktop text rasterization policy > does not duplicate an explicit Windows switch"
+            },
+            {
+              "index": 3,
+              "name": "desktop text rasterization policy > preserves the darwin platform default"
+            },
+            {
+              "index": 4,
+              "name": "desktop text rasterization policy > preserves the linux platform default"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/bootstrap/renderApplication.test.tsx",
+          "sha256": "7238ade602897837995ab3a4a37532833c0dff656d89fc77443045b89c98078d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "renderer entry-point route characterization > renders #auxiliary-appearance-smoke with the shared providers"
+            },
+            {
+              "index": 1,
+              "name": "renderer entry-point route characterization > renders #terminal-launcher-visual-smoke with the shared providers"
+            },
+            {
+              "index": 2,
+              "name": "renderer entry-point route characterization > renders #terminal-split-visual-smoke with the shared providers"
+            },
+            {
+              "index": 3,
+              "name": "renderer entry-point route characterization > renders #agent-visual-smoke with the shared providers"
+            },
+            {
+              "index": 4,
+              "name": "renderer entry-point route characterization > renders #agent-render-stability-smoke with the shared providers"
+            },
+            {
+              "index": 5,
+              "name": "renderer entry-point route characterization > renders #agent-tool-stability-smoke with the shared providers"
+            },
+            {
+              "index": 6,
+              "name": "renderer entry-point route characterization > renders #renderer-performance-smoke with the shared providers"
+            },
+            {
+              "index": 7,
+              "name": "renderer entry-point route characterization > renders #csv-editor-performance-smoke with the shared providers"
+            },
+            {
+              "index": 8,
+              "name": "renderer entry-point route characterization > renders #markdown-line-geometry-smoke with the shared providers"
+            },
+            {
+              "index": 9,
+              "name": "renderer entry-point route characterization > renders #markdown-theme-inheritance-smoke with the shared providers"
+            },
+            {
+              "index": 10,
+              "name": "renderer entry-point route characterization > renders #appearance-visual-smoke with the shared providers"
+            },
+            {
+              "index": 11,
+              "name": "renderer entry-point route characterization > renders #account-cloud-workbench-smoke with the shared providers"
+            },
+            {
+              "index": 12,
+              "name": "renderer entry-point route characterization > renders #native-cloud-workbench-smoke with the shared providers"
+            },
+            {
+              "index": 13,
+              "name": "renderer entry-point route characterization > renders #workspace-menu-visual-smoke with the shared providers"
+            },
+            {
+              "index": 14,
+              "name": "renderer entry-point route characterization > renders #header-coachmark-visual-smoke with the shared providers"
+            },
+            {
+              "index": 15,
+              "name": "renderer entry-point route characterization > renders the application for "
+            },
+            {
+              "index": 16,
+              "name": "renderer entry-point route characterization > renders the application for #unknown"
+            },
+            {
+              "index": 17,
+              "name": "renderer entry-point route characterization > renders the application for #agent-visual-smoke-extra"
+            },
+            {
+              "index": 18,
+              "name": "renderer entry-point route characterization > renders the application for #toString"
+            },
+            {
+              "index": 19,
+              "name": "renderer entry-point route characterization > clears stale platform metadata when capabilities are unavailable"
+            },
+            {
+              "index": 20,
+              "name": "renderer entry-point route characterization > reports bootstrap rejection without rendering"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/capabilities/electron.platform-host.test.mjs",
+          "sha256": "dc1e34cad8860571f919d37fa2b382b5699df26c4ff0351b1d80f7a350e20e70",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop platform host > composes macOS capabilities and native window behavior"
+            },
+            {
+              "index": 2,
+              "name": "Desktop platform host > publishes one immutable capability snapshot through trusted IPC"
+            },
+            {
+              "index": 3,
+              "name": "Desktop shell policy > uses platform-appropriate fallbacks without treating Linux as macOS"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/launch/electron.desktop-launch-intent.test.mjs",
+          "sha256": "9fcaae9c72fc03d25277c3a552dee9cb18b2eeec17755d1e1eba49026b0a1d78",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Desktop launch intent > does not mistake Electron's development app entry for a workspace"
+            },
+            {
+              "index": 1,
+              "name": "Desktop launch intent > resolves an explicit development CLI workspace before acquiring the instance lock"
+            },
+            {
+              "index": 9,
+              "name": "Desktop launch intent > accepts only a versioned absolute-path payload"
+            },
+            {
+              "index": 10,
+              "name": "Desktop launch intent > uses the structured lock payload instead of Chromium-mutated argv"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/menus/electron.macos-menu-symbols.test.mjs",
+          "sha256": "8e750d5ca1b8b6e9eeeda2d9d2951cd61aa26d7a464c05c941c6814a503d52a4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "macOS menu symbols > draws SF Symbols from macOS 26 at menu glyph size, crisp at 1x and 2x, as template images"
+            },
+            {
+              "index": 1,
+              "name": "macOS menu symbols > returns no image for symbols the system does not know"
+            },
+            {
+              "index": 2,
+              "name": "macOS menu symbols > keeps menus bare before macOS 26, where standard commands carry no symbols"
+            },
+            {
+              "index": 3,
+              "name": "macOS menu symbols > is a macOS platform capability"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/menus/electron.native-menu-service.test.mjs",
+          "sha256": "0ce9b63e5e9edfaa6827e9a8d6ec51da269cff4be0d1a253fa85d80d1db28d8e",
+          "cases": [
+            {
+              "index": 1,
+              "name": "DesktopNativeMenuService > gives every custom command an SF Symbol and leaves standard roles to AppKit"
+            },
+            {
+              "index": 2,
+              "name": "DesktopNativeMenuService > keeps commands bare when the platform draws no menu symbols"
+            },
+            {
+              "index": 4,
+              "name": "DesktopNativeMenuService > does not replace native menus outside macOS"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/security/electron.navigation-security.test.mjs",
+          "sha256": "b36b3e24c88b79acae3106b0acf1ae00265376f60dfcbe1c46639e4aeafda183",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop window navigation security > allows only the packaged application document to navigate in place"
+            },
+            {
+              "index": 1,
+              "name": "desktop window navigation security > allows same-origin development navigation and externalizes safe web URLs"
+            },
+            {
+              "index": 2,
+              "name": "desktop window navigation security > prevents unsafe in-place and popup navigation while using the system browser for safe targets"
+            },
+            {
+              "index": 3,
+              "name": "desktop window navigation security > keeps every external-navigation caller behind one protocol authority"
+            },
+            {
+              "index": 4,
+              "name": "desktop window navigation security > allows only retained provider URLs in the native PDF frame and blocks them after release"
+            },
+            {
+              "index": 5,
+              "name": "desktop window navigation security > prevents an embedded frame from ever becoming same-origin with the shell"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/capabilities/desktopPlatformCapabilities.test.tsx",
+          "sha256": "376f7d31caeebd201f12824b5c841d1ebce8181f82f8888e21b889e62f6b56b9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "starts every reopened control with the resolved host identity on its first visible commit"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-webcontentsview-native-surface-plumbing",
+      "kind": "out-of-scope",
+      "reason": "In Electron, native WebContentsViews sit outside the DOM and require main-process IPC coordinators for traffic-light placement, window actions, occlusion leases, pointer-passthrough rectangles, resize cursor restoration, and DOM ResizeObserver geometry leases. The native GPUI app renders its shell, panes, and overlays directly in one native GPUI window.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform/native-surfaces.md",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/native-surfaces/electron.window-layout-ipc.test.mjs",
+          "sha256": "73fba1c95a767518d6af995028cac4330885b7e54ed3e7ca3e3bc8ee7a4b9602",
+          "cases": [
+            {
+              "index": 2,
+              "name": "native window layout IPC > ignores a renderer whose BrowserWindow has already been destroyed"
+            },
+            {
+              "index": 3,
+              "name": "native window layout IPC > reports the native full-screen state for adaptive window chrome"
+            },
+            {
+              "index": 4,
+              "name": "native window layout IPC > switches native buttons from the manifest-owned titlebar composition"
+            },
+            {
+              "index": 5,
+              "name": "native window layout IPC > falls back to the default native traffic-light position for unknown profiles"
+            },
+            {
+              "index": 6,
+              "name": "native window layout IPC > keeps native traffic lights hidden when macOS recreates window chrome"
+            },
+            {
+              "index": 7,
+              "name": "native window layout IPC > keeps native traffic lights fixed when the leading rail changes"
+            },
+            {
+              "index": 8,
+              "name": "native window layout IPC > keeps the platform-native controls outside macOS"
+            },
+            {
+              "index": 9,
+              "name": "native window layout IPC > repositions default traffic lights on focus without rebuilding their safe area"
+            },
+            {
+              "index": 10,
+              "name": "native window layout IPC > executes only allowlisted renderer window actions"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/native-surfaces/nativeSurfaceOcclusionCoordinator.test.mjs",
+          "sha256": "bbb38475cccf65ffbb970313220586677cd652f9cf81a8844bbc3e711cf67dd0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native surface occlusion coordinator > coordinates every surface for one owner without affecting other windows"
+            },
+            {
+              "index": 1,
+              "name": "native surface occlusion coordinator > immediately hides surfaces registered while an overlay is already open"
+            },
+            {
+              "index": 2,
+              "name": "native surface occlusion coordinator > isolates callback failures and restores occlusion on disposal"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/native-surfaces/nativeSurfaceOcclusionIpc.test.mjs",
+          "sha256": "58359e998b74fe2b4a9c4f09afc9cb42a7d7dab383a2b40224a68c44323bf51e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native surface occlusion IPC > derives the owner from Electron's sender and ignores malformed state"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/native-surfaces/nativeSurfacePaneChrome.test.ts",
+          "sha256": "6cece456a10d5617b4e7da53a47d5a972153245e2c6c7c7f1949b9734a26248e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Shell pane-edge paint footprints > reserves the full active stroke on a native body, independently of hover"
+            },
+            {
+              "index": 1,
+              "name": "Shell pane-edge paint footprints > trims the opposite edge for RTL and adjacent native panes"
+            },
+            {
+              "index": 2,
+              "name": "Shell pane-edge paint footprints > keeps unrelated native surfaces and interior overlays out of this contract"
+            },
+            {
+              "index": 3,
+              "name": "Shell pane-edge paint footprints > samples current chrome even when the slot subscriber runs first in a frame"
+            },
+            {
+              "index": 4,
+              "name": "Shell pane-edge paint footprints > releases reservations and handles a slot narrower than its paint footprint"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/native-surfaces/nativeSurfacePointerPassthroughCoordinator.test.mjs",
+          "sha256": "eb5764f8c111c2252bac3b33abb5bdc819d1a5af01c90977a792171774d43b1b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native surface pointer passthrough coordinator > routes an initial primary press only inside a registered renderer region"
+            },
+            {
+              "index": 1,
+              "name": "native surface pointer passthrough coordinator > forwards active child-view move/up input into owner coordinates without hiding the view"
+            },
+            {
+              "index": 2,
+              "name": "native surface pointer passthrough coordinator > removes child-view listeners on registration release and disposal"
+            },
+            {
+              "index": 3,
+              "name": "native surface pointer passthrough coordinator > preserves a native pressed button on forwarded moves even without modifiers"
+            },
+            {
+              "index": 4,
+              "name": "native pane-edge discovery > reports passive hover without stealing input or focus, then clears it on leave and DOM entry"
+            },
+            {
+              "index": 5,
+              "name": "native resize termination at the owning window > releases native forwarding and cursor when pointerup reaches the owner instead of the child"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/native-surfaces/nativeSurfacePointerPassthroughIpc.test.mjs",
+          "sha256": "3847e97a69866f5dba7ddeae411d4481433679611a410cd4385cd8bd28f17aad",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native surface pointer passthrough IPC > derives the owner from Electron's sender and ignores malformed state"
+            },
+            {
+              "index": 1,
+              "name": "native surface pointer passthrough IPC > accepts only bounded owner-scoped integer routing rectangles"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/native-surfaces/nativeSurfaceResizeCursor.test.mjs",
+          "sha256": "c1527aff3b72710abcd4e6628359fa75386e032b4877715b5beba828b990fa08",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native resize cursor lifetime > restores the content cursor and removes an insertion that completes after leave"
+            },
+            {
+              "index": 1,
+              "name": "native resize cursor lifetime > deduplicates moves, rejects unsupported values and restores on disposal"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/native-surfaces/nativeSurfaceGeometry.test.ts",
+          "sha256": "ad5637b3dfea1422e5d2d45870d72dfeb86b43b5b5fe38733438011d3854226f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native surface geometry authority > publishes layout lease transitions and releases idempotently"
+            },
+            {
+              "index": 1,
+              "name": "native surface geometry authority > clips measured bounds to the owner viewport and rejects offscreen visibility"
+            },
+            {
+              "index": 2,
+              "name": "native surface geometry authority > keeps visible geometry live across position-only changes and settles without an idle loop"
+            },
+            {
+              "index": 3,
+              "name": "native surface geometry authority > clips native content inside nested borders and rounds inward at fractional edges"
+            },
+            {
+              "index": 4,
+              "name": "native surface geometry authority > shares one layout frame without hiding native content during motion"
+            },
+            {
+              "index": 5,
+              "name": "native surface geometry authority > holds a sidebar transition lease until the final reconciliation frame"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/native-surfaces/nativeSurfaceOverlayLease.test.tsx",
+          "sha256": "59cabb5200b21cad81a174d9111ef03d704bc748dd77b3c6913155f263b0f791",
+          "cases": [
+            {
+              "index": 1,
+              "name": "native surface overlay lease > does not flash native content during React StrictMode effect replay"
+            },
+            {
+              "index": 2,
+              "name": "native surface overlay lease > observes explicitly marked cross-package and imperative overlays"
+            },
+            {
+              "index": 3,
+              "name": "native surface overlay lease > marks the overlay root with the effective application theme"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/native-surfaces/nativeSurfacePointerPassthroughLease.test.ts",
+          "sha256": "eda61a5d5ef47ce582095224ee866d1e4e6e8877139490b46e29d335dd36690f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native surface pointer passthrough leases > publishes owner viewport rectangles independently from active gestures"
+            },
+            {
+              "index": 1,
+              "name": "native surface pointer passthrough leases > publishes only aggregate boundary transitions for overlapping owners"
+            },
+            {
+              "index": 2,
+              "name": "native surface pointer passthrough leases > does not let a stale release terminate a newer session"
+            },
+            {
+              "index": 3,
+              "name": "native surface pointer passthrough leases > releases a component-owned activity lease at lifecycle boundaries"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rust-typed-local-agent-catalog",
+      "kind": "out-of-scope",
+      "reason": "TS validates untyped runtime JS catalog objects for schema fields, duplicates, and platform lists. Rust models the trusted Local Agent catalog as compile-time typed Rust structs and enums (Route, Strategy, Algorithm, Recipe), preventing malformed catalog declarations at compile time.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform/local-agent-setup.md",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/local-agent-installation/local-agent-catalog.test.mjs",
+          "sha256": "6a2b5f9a6ea5830490163e24e872c958e31857d1e83011c5f35ffd0df3c37240",
+          "cases": [
+            {
+              "index": 51,
+              "name": "trusted Local Agent capability catalog > rejects extra field"
+            },
+            {
+              "index": 52,
+              "name": "trusted Local Agent capability catalog > rejects no consumer"
+            },
+            {
+              "index": 53,
+              "name": "trusted Local Agent capability catalog > rejects bad consumer"
+            },
+            {
+              "index": 54,
+              "name": "trusted Local Agent capability catalog > rejects unknown provision"
+            },
+            {
+              "index": 55,
+              "name": "trusted Local Agent capability catalog > rejects guided command"
+            },
+            {
+              "index": 56,
+              "name": "trusted Local Agent capability catalog > rejects missing recipe"
+            },
+            {
+              "index": 57,
+              "name": "trusted Local Agent capability catalog > rejects invalid companion"
+            },
+            {
+              "index": 58,
+              "name": "trusted Local Agent capability catalog > rejects undeclared companion field"
+            },
+            {
+              "index": 59,
+              "name": "trusted Local Agent capability catalog > rejects unregistered installation"
+            },
+            {
+              "index": 60,
+              "name": "trusted Local Agent capability catalog > rejects invalid installation"
+            },
+            {
+              "index": 61,
+              "name": "trusted Local Agent capability catalog > rejects invalid setup policy {\"guideUrl\":\"http://example.com\"}"
+            },
+            {
+              "index": 62,
+              "name": "trusted Local Agent capability catalog > rejects invalid setup policy {\"guideUrl\":\"https://user:secret@example.com\"}"
+            },
+            {
+              "index": 63,
+              "name": "trusted Local Agent capability catalog > rejects invalid setup policy {\"guideUrl\":\"file:///etc/passwd\"}"
+            },
+            {
+              "index": 64,
+              "name": "trusted Local Agent capability catalog > rejects invalid setup policy {\"guideUrl\":\"https://example.com:444\"}"
+            },
+            {
+              "index": 65,
+              "name": "trusted Local Agent capability catalog > rejects invalid setup policy {\"platforms\":[]}"
+            },
+            {
+              "index": 66,
+              "name": "trusted Local Agent capability catalog > rejects invalid setup policy {\"platforms\":[\"darwin\",\"darwin\"]}"
+            },
+            {
+              "index": 67,
+              "name": "trusted Local Agent capability catalog > rejects invalid setup policy {\"platforms\":[\"freebsd\"]}"
+            },
+            {
+              "index": 68,
+              "name": "trusted Local Agent capability catalog > rejects invalid setup policy {\"publisher\":\"\"}"
+            },
+            {
+              "index": 69,
+              "name": "trusted Local Agent capability catalog > rejects invalid setup policy {\"strategy\":\"unknown\"}"
+            },
+            {
+              "index": 70,
+              "name": "trusted Local Agent capability catalog > rejects invalid setup policy {\"strategy\":\"app-bundled-runtime\"}"
+            },
+            {
+              "index": 71,
+              "name": "trusted Local Agent capability catalog > rejects duplicate installation identities"
+            },
+            {
+              "index": 72,
+              "name": "trusted Local Agent capability catalog > rejects duplicate runtime identities"
+            },
+            {
+              "index": 73,
+              "name": "trusted Local Agent capability catalog > rejects duplicate terminal identities"
+            },
+            {
+              "index": 74,
+              "name": "trusted Local Agent capability catalog > rejects duplicate companion identities"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gpui-svg-icon-rendering",
+      "kind": "out-of-scope",
+      "reason": "GPUI renders each SVG icon as a cached asset bitmap rather than injecting inline <svg> DOM nodes into one shared HTML document, so DOM-only attributes (aria-hidden, focusable) and per-instance inline SVG <mask id> deduplication do not apply.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/ui/icons.md",
+      "typescript": [
+        {
+          "path": "tests/component/platform/icons/cloudIcon.test.tsx",
+          "sha256": "3c1fbf5d15166bf49665e143a60b726bbd05dad0a8f03fb4dabb80d66be08b1c",
+          "cases": [
+            {
+              "index": 8,
+              "name": "product Cloud mark > defaults to a decorative, unfocusable mark without duplicating its parent's label"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/platform/icons/productIcons.test.tsx",
+          "sha256": "628e934a259ee7f030e353732f9c47757892bc8a239dca2b6361a343f22fc7ec",
+          "cases": [
+            {
+              "index": 12,
+              "name": "product icons > cuts the unreachable Cloud's slash with a mask that stays unique per instance"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "system-open-restoring-project-window",
+      "kind": "gap",
+      "reason": "open_from_cli matches an already-open project window by its resolved workspace_root(cx), so a window that is still restoring that folder before workspace_root resolves opens a second window instead of focusing the restoring window.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform/launch.md",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/launch/electron.system-open-route.test.mjs",
+          "sha256": "81b64ae28ec569ee8ad4d240d1d433cd009fcbd3933d030f6120ff8f2cc9c915",
+          "cases": [
+            {
+              "index": 7,
+              "name": "project window for a folder > matches a window that is still restoring its folder"
             }
           ]
         }
