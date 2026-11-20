@@ -483,6 +483,20 @@ impl Default for Tree {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// `createEditorNodeIndex`: a nested Explorer node and its folder are
+    /// found by their paths, a missing path is not.
+    #[test]
+    fn nested_nodes_are_found_by_their_path() {
+        let mut t = Tree::fixture();
+        let nested = "document/puppyone-desktop/architecture/02-native-shell.md";
+        assert_eq!(
+            t.find_mut(Path::new(nested)).map(|n| n.name.clone()),
+            Some("02-native-shell.md".into())
+        );
+        assert!(t.find_mut(Path::new("document")).is_some());
+        assert!(t.is_folder(Path::new("document")));
+        assert!(t.find_mut(Path::new("missing.md")).is_none());
+    }
     #[test]
     fn collapsed_children_are_not_in_projection() {
         let mut t = Tree::fixture();

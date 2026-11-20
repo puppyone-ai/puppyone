@@ -25,6 +25,10 @@
             {
               "index": 3,
               "name": "idle auto-save scheduler > flushes only a pending save, immediately"
+            },
+            {
+              "index": 4,
+              "name": "idle auto-save scheduler > cancels and disposes without saving later"
             }
           ]
         },
@@ -184,11 +188,29 @@
     },
     {
       "id": "document-revalidation",
-      "acceptance": "Same bytes do not reset the shown editor; changed bytes replace it without a loading barrier; stale reads cannot restore old content.",
+      "acceptance": "Only the first read opens a document: same bytes do not reset the shown editor, show nothing new or write anything; changed bytes replace it in place without a loading barrier; a change to another path is never read; stale reads cannot restore old content.",
       "typescript": [
         {
           "path": "tests/unit/editor/resources/documentInputRevalidation.test.ts",
-          "sha256": "ef48e776ae25b951cd87b6a3cfc61fb0f4f37482a97343c45b50e93d5b78e698"
+          "sha256": "ef48e776ae25b951cd87b6a3cfc61fb0f4f37482a97343c45b50e93d5b78e698",
+          "cases": [
+            {
+              "index": 0,
+              "name": "document input revalidation > presents loading only for the first read"
+            },
+            {
+              "index": 1,
+              "name": "document input revalidation > re-reads identical bytes silently: no loading flash, no new content object, no notification"
+            },
+            {
+              "index": 2,
+              "name": "document input revalidation > publishes changed bytes with a new generation and never shows loading over shown content"
+            },
+            {
+              "index": 3,
+              "name": "document input revalidation > ignores changes to other paths without reading"
+            }
+          ]
         }
       ],
       "rust": [
@@ -207,13 +229,25 @@
         {
           "package": "po-editor",
           "test": "documents::tests::a_hidden_document_releases_its_subscription_and_revalidates_when_shown"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::an_identical_reread_shows_nothing_new_and_a_change_lands_in_place"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::one_watcher_batch_updates_each_pane_from_its_own_document"
         }
       ],
       "environment": "local"
     },
     {
       "id": "source-companion",
-      "acceptance": "Markdown page and companion source start from identical non-empty text. Source input updates a read-only page once; host input locks gate both views and shared undo. Fifty interleaved middle insertions around Unicode preserve identical text without echoes. Both views share undo/redo and adopt storage changes. Hiding/reopening the source retains identity, follows page edits and does not report changes for toggles. Disposing the pair removes both subscriptions, makes old history callbacks inert and releases the page even when a source entity remains. Actual source keyboard input, autosave and shared undo/redo preserve CRLF bytes on disk; native buffers use LF and the storage provider re-encodes CRLF. TS follower case 6 (HTML without an editable primary view) and HTML source-panel component cases 0-2 remain uncredited here.",
+      "acceptance": "Markdown page and companion source start from identical non-empty text. Source input updates a read-only page once; host input locks gate both views and shared undo. Fifty interleaved middle insertions around Unicode preserve identical text without echoes. Both views share undo/redo and adopt storage changes. Hiding/reopening the source retains identity, follows page edits and does not report changes for toggles. Disposing the pair removes both subscriptions, makes old history callbacks inert and releases the page even when a source entity remains. Actual source keyboard input, autosave and shared undo/redo preserve CRLF bytes on disk; native buffers use LF and the storage provider re-encodes CRLF. An HTML file edited in its source view beside the page preview saves those edits; HTML source-panel component cases 0-2 remain uncredited here.",
       "typescript": [
         {
           "path": "tests/unit/editor/document-session/codeMirrorFollower.test.ts",
@@ -242,6 +276,10 @@
             {
               "index": 5,
               "name": "CodeMirror follower view > refuses typing while the document takes no edits, and keeps its copy unchanged"
+            },
+            {
+              "index": 6,
+              "name": "CodeMirror follower view > works with no editable view mounted, as beside a page preview"
             },
             {
               "index": 7,
@@ -311,6 +349,11 @@
           "package": "po-app",
           "test": "app::tests::source_companion::source_panel_keyboard_edits_and_shared_undo_preserve_crlf_on_disk",
           "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::editing::a_local_html_source_edit_persists_to_the_file"
         }
       ],
       "environment": "Native GPUI components and file-window integration with owned temporary CRLF files. No live Cloud or real WebKit HTML claim."
@@ -16118,7 +16161,7 @@
     },
     {
       "id": "retained-document-retirement",
-      "acceptance": "Stable storage identity plus resource path retains a Working Copy across a recreated adapter; a completed close/reopen creates a new editing instance. Real temporary roots with spaces and Unicode keep equal paths and writes isolated, closing one leaves the other alive. A window quit waits for every retained document and omits already-closed slots. Explicit abandonment first preserves any unflushable recovery journal, then permanently fences pending snapshots, late input, retries and writes queued behind a resource observation; an already-entered provider call may finish but cannot trigger a follow-up save. Native GPUI tests enter real text and hold or fail actual storage: a normal close waits for acknowledgement; the rendered dialog close button, Keep Window Open and Escape all preserve the draft and cancel global app quit, and later editing and closing saves successfully. Only the explicit Close Anyway button discards without retry. Dialog dismissal is an explicit command independent of footer button order. Same-Workbench multi-folder routing, manual save-mode settings, StrictMode probes and aggregate reporting of all simultaneous failures are not credited by these tests.",
+      "acceptance": "Stable storage identity plus resource path retains a Working Copy across a recreated adapter; a completed close/reopen creates a new editing instance. Real temporary roots with spaces and Unicode keep equal paths and writes isolated, closing one leaves the other alive. A window quit waits for every retained document and omits already-closed slots. Explicit abandonment first preserves any unflushable recovery journal, then permanently fences pending snapshots, late input, retries and writes queued behind a resource observation; an already-entered provider call may finish but cannot trigger a follow-up save. Native GPUI tests enter real text and hold or fail actual storage: a normal close waits for acknowledgement; the rendered dialog close button, Keep Window Open and Escape all preserve the draft and cancel global app quit, and later editing and closing saves successfully. Only the explicit Close Anyway button discards without retry. Dialog dismissal is an explicit command independent of footer button order. Same-Workbench multi-folder routing, manual save-mode settings, StrictMode probes and aggregate reporting of all simultaneous failures are not credited by these tests. Closing drains every open document before releasing the window, and a failed save or a failed later close participant keeps (thaws) the window with its documents instead of shutting down.",
       "typescript": [
         {
           "path": "tests/unit/editor/document-session/activeDocumentSessions.test.ts",
@@ -16135,6 +16178,14 @@
             {
               "index": 3,
               "name": "active Document Session registry > drains every registered session and forgets unmounted sessions"
+            },
+            {
+              "index": 4,
+              "name": "active Document Session registry > waits for all sessions and reports every failed drain"
+            },
+            {
+              "index": 6,
+              "name": "active Document Session registry > keeps an unmounted dirty session registered until its destroy write is durable"
             }
           ]
         },
@@ -16149,6 +16200,14 @@
             {
               "index": 1,
               "name": "document Working Copy registry > keeps equal resource paths isolated across storage identities"
+            },
+            {
+              "index": 2,
+              "name": "document Working Copy registry > keeps equal provider paths isolated across Workspace Folders in one Workbench"
+            },
+            {
+              "index": 3,
+              "name": "document Working Copy registry > closes one Workspace Folder without releasing a sibling Folder's Working Copy"
             }
           ]
         },
@@ -16157,12 +16216,32 @@
           "sha256": "4775f53aeef397bba85707aa2819c032f2185a370262f11a5764870ff09e39e2",
           "cases": [
             {
+              "index": 0,
+              "name": "Electron application quit intent > resumes a macOS quit after the asynchronous last-window drain"
+            },
+            {
+              "index": 1,
+              "name": "Electron application quit intent > cancels quit intent when a failed document window stays open"
+            },
+            {
               "index": 3,
               "name": "Electron document close coordination > keeps the window alive until the renderer drains all Document Sessions"
             },
             {
               "index": 4,
               "name": "Electron document close coordination > keeps the window open when persistence fails and the user declines data loss"
+            },
+            {
+              "index": 5,
+              "name": "Electron document close coordination > when a window asks what to do with unsaved edits > starts the flush immediately when there is nothing to ask"
+            },
+            {
+              "index": 16,
+              "name": "Electron document close coordination > waits for native resources after saving documents and restores editing on close failure"
+            },
+            {
+              "index": 17,
+              "name": "Electron document close coordination > does not begin resource shutdown when saving is cancelled"
             }
           ]
         }
@@ -16223,6 +16302,18 @@
           "package": "po-app",
           "target": "puppy-one-rust",
           "test": "app::tests::dialog_layer::a_refused_close_asks_to_keep_the_window_or_close_anyway"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::close_snapshots_late_edit_and_waits_for_disk_without_prompt"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::another_close_participant_failure_thaws_the_same_session_and_resumes_its_watch"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::genuine_write_failure_blocks_close_and_retains_current_document"
         }
       ],
       "environment": "Controlled provider and owned temporary files; native GPUI rendering, real click/keyboard events, bounded worker pool, no live Cloud or real OS window smoke claim."
@@ -39743,48 +39834,6 @@
       ]
     },
     {
-      "id": "editor-input-revalidation",
-      "acceptance": "Only the first read opens a document: re-reading identical bytes shows nothing new and writes nothing, changed bytes land in the open document in place, and a change to another path is never read.",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/resources/documentInputRevalidation.test.ts",
-          "sha256": "ef48e776ae25b951cd87b6a3cfc61fb0f4f37482a97343c45b50e93d5b78e698",
-          "cases": [
-            {
-              "index": 0,
-              "name": "document input revalidation > presents loading only for the first read"
-            },
-            {
-              "index": 1,
-              "name": "document input revalidation > re-reads identical bytes silently: no loading flash, no new content object, no notification"
-            },
-            {
-              "index": 2,
-              "name": "document input revalidation > publishes changed bytes with a new generation and never shows loading over shown content"
-            },
-            {
-              "index": 3,
-              "name": "document input revalidation > ignores changes to other paths without reading"
-            }
-          ]
-        }
-      ],
-      "rust": [
-        {
-          "package": "po-editor",
-          "test": "editor::host::tests::external_consistency::an_identical_reread_shows_nothing_new_and_a_change_lands_in_place"
-        },
-        {
-          "package": "po-editor",
-          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes"
-        },
-        {
-          "package": "po-editor",
-          "test": "editor::host::tests::external_consistency::one_watcher_batch_updates_each_pane_from_its_own_document"
-        }
-      ]
-    },
-    {
       "id": "editor-source-admission",
       "acceptance": "Source admission counts UTF-8 bytes (a multi-byte character counts all its bytes) and refuses past the budget without opening a truncated editable fallback; budgets are whole numbers validated when the manifest is read; limits are shown as whole MB when exact.",
       "typescript": [
@@ -39819,6 +39868,214 @@
         {
           "package": "po-editor",
           "test": "editor::registry::tests::source_budgets_follow_the_product_manifest"
+        }
+      ]
+    },
+    {
+      "id": "document-storage-read-ordering",
+      "acceptance": "A read overtaken by a save receipt or a newer accepted read is revalidated with a fresh read instead of restoring old content, and a failed obsolete read neither clears the current text nor schedules an extra read; a delayed read after a save does not conflict with the next edit; a genuine return to earlier disk bytes is adopted as an external update; reads of other documents and storages stay independent; reads of a closed or replaced document are neither retried nor published.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/documentStorageReads.test.ts",
+          "sha256": "5cabf371da8280acd548fd9950a8c2007ba9e6f88d220fff2f1392f4c8fecf51",
+          "cases": [
+            {
+              "index": 0,
+              "name": "document storage observation ordering > retries a text/resource version mismatch using a newly read disk version"
+            },
+            {
+              "index": 1,
+              "name": "document storage observation ordering > revalidates a delayed read of one after a save without conflicting with the next edit"
+            },
+            {
+              "index": 2,
+              "name": "document storage observation ordering > revalidates a delayed read of two after a save without conflicting with the next edit"
+            },
+            {
+              "index": 3,
+              "name": "document storage observation ordering > adopts a real external revert over local typing instead of suppressing known content"
+            },
+            {
+              "index": 4,
+              "name": "document storage observation ordering > revalidates obsolete read errors after a successful save"
+            },
+            {
+              "index": 5,
+              "name": "document storage observation ordering > keeps unrelated resources and storage identities independent"
+            },
+            {
+              "index": 6,
+              "name": "document storage observation ordering > does not retry or publish a cancelled pane read"
+            },
+            {
+              "index": 7,
+              "name": "document storage observation ordering > revalidates a read overtaken by a newer accepted read"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "documents::tests::superseded_observation_revalidates_without_needing_another_notification"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::read_started_before_save_receipt_cannot_restore_old_content"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::real_return_to_historical_disk_bytes_is_an_external_update"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::retired_text_reads_cannot_clear_the_current_observation_or_schedule_an_extra_read"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::a_background_reread_that_fails_in_transit_keeps_the_text_and_reads_again_quietly"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::lifecycle::equal_paths_in_distinct_storages_keep_independent_writes_and_close_lifetimes"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::background_read_retry_timers_and_budgets_retire_with_their_owner"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::an_obsolete_read_never_replaces_the_text_of_a_newer_event"
+        }
+      ]
+    },
+    {
+      "id": "explorer-node-lookup",
+      "acceptance": "A nested Explorer node and its folder are found by their paths; a missing path is not.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/editorNodeIndex.test.ts",
+          "sha256": "e898864de6ae06844cbe83f595cf2e54cdf2201bca0b9cccfac3556f8ece4b66",
+          "cases": [
+            {
+              "index": 0,
+              "name": "createEditorNodeIndex > indexes nested Explorer nodes by canonical path"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "model::tests::nested_nodes_are_found_by_their_path"
+        }
+      ]
+    },
+    {
+      "id": "editor-change-routing",
+      "acceptance": "A change reaches only the documents it names in its own storage (equal paths in another storage are untouched); a change without paths refreshes that storage's open documents; an outside-root, unknown or overflowing watcher change degrades to a revalidation of the root.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/editorPaneSourceInvalidation.test.ts",
+          "sha256": "15defadbccbb787309d164f35ad5dbdb4a3768e707ddf5385e10198148b1f91e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor pane resource invalidation > matches Workbench Resource URIs without throwing in render-time predicates"
+            },
+            {
+              "index": 1,
+              "name": "editor pane resource invalidation > does not alias equal provider paths across Workspace Folders"
+            },
+            {
+              "index": 2,
+              "name": "editor pane resource invalidation > scopes unknown-path bulk invalidation to the originating Folder"
+            },
+            {
+              "index": 5,
+              "name": "editor pane resource invalidation > degrades malformed watcher paths to a safe scoped refresh at ingestion"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::one_watcher_batch_updates_each_pane_from_its_own_document"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::lifecycle::equal_paths_in_distinct_storages_keep_independent_writes_and_close_lifetimes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::a_pathless_change_notification_refreshes_the_open_document"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local::adapter::tests::overflow_unknown_and_outside_root_changes_force_revalidation"
+        }
+      ]
+    },
+    {
+      "id": "document-session-view-lifetimes",
+      "acceptance": "A view never goes away with typing that is not yet stored: a dirty editor stays live (never hibernated) and closing or switching documents snapshots the newest text and drains it before the view is released; an external update adopted while a view is away (also after edits were undone) is what the next view shows, and an older in-flight write is retired before newer input is written over the adopted text.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/documentEditingSession.test.ts",
+          "sha256": "d4ad98d2d334a8c539b0670dee150cd91952b78365ad38c0ada3711ab948de22",
+          "cases": [
+            {
+              "index": 14,
+              "name": "DocumentEditingSession > accepts an external update after detached edits were undone without restoring the obsolete snapshot"
+            },
+            {
+              "index": 19,
+              "name": "DocumentEditingSession > promotes a pending edit to the navigation drain reason"
+            },
+            {
+              "index": 20,
+              "name": "DocumentEditingSession > captures the exact final snapshot before an editor model is destroyed"
+            },
+            {
+              "index": 21,
+              "name": "DocumentEditingSession > writes pending typing as soon as its view goes away, before a hidden external update"
+            },
+            {
+              "index": 29,
+              "name": "DocumentEditingSession > initializes a remounted model from adopted disk content while retiring an obsolete save"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::wb30_live_slot_lru_cap_hibernates_clean_slots_preserves_dirty_and_restores_view_state"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::close_snapshots_late_edit_and_waits_for_disk_without_prompt"
+        },
+        {
+          "package": "po-editor",
+          "test": "documents::tests::switch_file_automatically_drains_then_ignores_previous_document_events"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::destroyed_views_reopen_the_latest_external_text_without_saving"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::history_recorded_before_an_unseen_external_update_is_discarded"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::new_edits_after_external_adoption_wait_for_retired_call"
         }
       ]
     }
@@ -40370,6 +40627,16 @@
             {
               "index": 6,
               "name": "Markdown format window shortcuts > prevents default and forwards only from a focused Markdown editor on linux"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/document-session/electron.document-session-close.test.mjs",
+          "sha256": "4775f53aeef397bba85707aa2819c032f2185a370262f11a5764870ff09e39e2",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Electron application quit intent > retains the native non-macOS last-window quit behavior"
             }
           ]
         }
@@ -42148,7 +42415,7 @@
     {
       "id": "git-auto-commit-experiment",
       "kind": "out-of-scope",
-      "reason": "Git Auto Commit is an experiment that TS v0.4.4 forces off (enableGitAutoCommit) and shows only when the platform exposes it; the native frontend does not expose it (recorded in Source Control, Differences from TS).",
+      "reason": "Git Auto Commit is an experiment that TS v0.4.4 forces off (enableGitAutoCommit) and shows only when the platform exposes it; the native frontend does not expose it (recorded in Source Control, Differences from TS). Its non-destructive durability drains (cancelled with workspace ownership, blocked when the renderer is gone, bounded by a timeout) go with it.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/source-control/README.md",
       "typescript": [
         {
@@ -42358,6 +42625,28 @@
             {
               "index": 32,
               "name": "workspace Git Auto Commit transaction > recovers a commit that landed before the committed journal write"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/document-session/electron.document-session-close.test.mjs",
+          "sha256": "4775f53aeef397bba85707aa2819c032f2185a370262f11a5764870ff09e39e2",
+          "cases": [
+            {
+              "index": 12,
+              "name": "Electron document close coordination > supports a non-destructive durability drain for Git Auto Commit"
+            },
+            {
+              "index": 13,
+              "name": "Electron document close coordination > cancels an autonomous drain when its workspace ownership is released"
+            },
+            {
+              "index": 14,
+              "name": "Electron document close coordination > blocks an autonomous drain when the renderer is unavailable or crashes"
+            },
+            {
+              "index": 15,
+              "name": "Electron document close coordination > times out an autonomous drain without presenting a destructive close dialog"
             }
           ]
         }
@@ -50352,6 +50641,20 @@
               "name": "DocumentIdentity > preserves canonical Workspace Resource URIs"
             }
           ]
+        },
+        {
+          "path": "tests/unit/editor/runtime/editorPaneSourceInvalidation.test.ts",
+          "sha256": "15defadbccbb787309d164f35ad5dbdb4a3768e707ddf5385e10198148b1f91e",
+          "cases": [
+            {
+              "index": 3,
+              "name": "editor pane resource invalidation > retains standalone provider-relative matching outside a Workbench"
+            },
+            {
+              "index": 4,
+              "name": "editor pane resource invalidation > fails closed instead of crashing on malformed events"
+            }
+          ]
         }
       ]
     },
@@ -50380,6 +50683,180 @@
             {
               "index": 3,
               "name": "provider-neutral immutable preview documents > bounds retained leases and releases capacity on owner close"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "editor-worker-allocation-leases",
+      "kind": "out-of-scope",
+      "reason": "TS allocates parse workers per owner through a scheduler: one allocation per owner at a time, cancelled queued work never allocated, asynchronous allocations accounted until their exit is confirmed, failed exits retried on retirement, oversized input refused before allocating and queue waits bounded. Native document work runs on one bounded thread pool with per-request generations (documents::tests::dp41_dp42_bounded_executor_thread_ceiling_and_exact_deadline_scheduling) and oversized sources are refused before reading, so there are no worker allocations to account for or exit.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/README.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/editorTaskScheduler.test.ts",
+          "sha256": "03964925418555197e603619686eaba8f6efcd8493fdbfd7d83af7076476a66a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor task lifecycle > admits independent owners and waits for the previous task of the same owner"
+            },
+            {
+              "index": 1,
+              "name": "editor task lifecycle > never allocates cancelled queued work"
+            },
+            {
+              "index": 2,
+              "name": "editor task lifecycle > keeps an asynchronously created allocation accounted until its actual exit"
+            },
+            {
+              "index": 3,
+              "name": "editor task lifecycle > keeps failed exits visible and allows a retirement retry"
+            },
+            {
+              "index": 4,
+              "name": "editor task lifecycle > rejects oversized input before allocating and bounds waiting time"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "manual-save-mode-unused",
+      "kind": "out-of-scope",
+      "reason": "TS sessions also run in a manual save mode that the desktop never uses (every desktop host passes saveMode=\"auto\"; manual is the shared library default and performance harnesses'), and they publish whether a window holds unsaved edits through an exported subscription nothing in the product reads. The native desktop autosaves every document and has neither.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/autosave.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/documentEditingSession.test.ts",
+          "sha256": "d4ad98d2d334a8c539b0670dee150cd91952b78365ad38c0ada3711ab948de22",
+          "cases": [
+            {
+              "index": 7,
+              "name": "DocumentEditingSession > never writes in manual mode, however long typing pauses"
+            },
+            {
+              "index": 13,
+              "name": "DocumentEditingSession > accepts external content after an unsaved edit was undone (manual)"
+            },
+            {
+              "index": 36,
+              "name": "DocumentEditingSession > does not let a remounted editor mark detached unsaved content clean"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/document-session/windowAutoSave.test.ts",
+          "sha256": "1817f44452f2f0f6328eef391555c7ba8e2478843a9e22fbd687f66646e3cf0f",
+          "cases": [
+            {
+              "index": 2,
+              "name": "auto-save when the person leaves the window > leaves manual-save documents alone and never writes a retired session twice"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/document-session/activeDocumentSessions.test.ts",
+          "sha256": "6766e0bff8ded52f83e7645f4a4a710e31a046e510b0bf0dae35603c6417ee55",
+          "cases": [
+            {
+              "index": 0,
+              "name": "unsaved documents in a window > reports when a window starts and stops holding unsaved edits"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "react-strictmode-probe",
+      "kind": "out-of-scope",
+      "reason": "React StrictMode mounts, unmounts and remounts effects in development, so TS must not retire a document session during that cleanup/setup probe. GPUI views have no such probe.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/closing-and-draining.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/activeDocumentSessions.test.ts",
+          "sha256": "6766e0bff8ded52f83e7645f4a4a710e31a046e510b0bf0dae35603c6417ee55",
+          "cases": [
+            {
+              "index": 5,
+              "name": "active Document Session registry > does not retire a session during React StrictMode's cleanup/setup probe"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-close-coordination-ipc",
+      "kind": "out-of-scope",
+      "reason": "TS coordinates a window close across the Electron main process and its renderer: it ignores a flush acknowledgement forged by another renderer and must not touch a destroyed BrowserWindow that closes before it is ready. The product never configures its close-choice question (resolveCloseChoice defaults to save), so the ask / don't-save / cancel / ask-again / asking-failed paths are unreachable. The native close drains documents in process and asks only when a document could not be saved.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/closing-and-draining.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/electron.document-session-close.test.mjs",
+          "sha256": "4775f53aeef397bba85707aa2819c032f2185a370262f11a5764870ff09e39e2",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Electron document close coordination > when a window asks what to do with unsaved edits > does not start the save deadline until the person has answered"
+            },
+            {
+              "index": 7,
+              "name": "Electron document close coordination > when a window asks what to do with unsaved edits > asks the renderer to drop edits when the person chooses not to save"
+            },
+            {
+              "index": 8,
+              "name": "Electron document close coordination > when a window asks what to do with unsaved edits > keeps the window and stops a quit when the person cancels"
+            },
+            {
+              "index": 9,
+              "name": "Electron document close coordination > when a window asks what to do with unsaved edits > can be asked again after a cancel"
+            },
+            {
+              "index": 10,
+              "name": "Electron document close coordination > when a window asks what to do with unsaved edits > keeps the window when asking fails"
+            },
+            {
+              "index": 11,
+              "name": "Electron document close coordination > ignores a forged acknowledgement from a different renderer"
+            },
+            {
+              "index": 18,
+              "name": "Electron document close coordination > drains resources before closing an unready window without touching destroyed properties"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-document-persistence-ipc",
+      "kind": "out-of-scope",
+      "reason": "TS's renderer persists a document through an IPC adapter that must forward the session's base version to the authorized conditional write and carry the structured conflict, not-found, permission-denied and io outcomes back across the process boundary. Native sessions call the workspace provider in process with typed results (editor::document_session tests cover conditional writes and each outcome).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/host-protocol.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/document-session/localDocumentPersistence.test.ts",
+          "sha256": "1103d5b8993d0245a115d30ae91be9c0d6f094bee7f3d8684179c898898859d0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local document persistence adapter > forwards the session base version to authorized conditional-write IPC"
+            },
+            {
+              "index": 1,
+              "name": "local document persistence adapter > preserves the structured 'conflict' outcome across the renderer adapter"
+            },
+            {
+              "index": 2,
+              "name": "local document persistence adapter > preserves the structured 'not-found' outcome across the renderer adapter"
+            },
+            {
+              "index": 3,
+              "name": "local document persistence adapter > preserves the structured 'permission-denied' outcome across the renderer adapter"
+            },
+            {
+              "index": 4,
+              "name": "local document persistence adapter > preserves the structured 'io' outcome across the renderer adapter"
             }
           ]
         }
