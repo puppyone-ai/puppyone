@@ -40,6 +40,16 @@ asset_model = (root / 'src/asset_catalog.rs').read_text().split('#[cfg(test)]')[
 if re.search(r'\bgpui\s*::|crate::(?:assets|features|app)|\bstd::(?:fs|process|thread)', asset_model):
     errors.append('src/asset_catalog.rs: catalog data depends on composition/rendering')
 
+# Plugin contract stays pure data and validation: no presentation, OS I/O, or
+# upward crate references.
+if (root / 'src/plugin_contract').is_dir():
+    for path in (root / 'src/plugin_contract').rglob('*.rs'):
+        if path.name == 'tests.rs':
+            continue
+        contract_src = path.read_text().split('#[cfg(test)]')[0]
+        if re.search(r'\b(?:gpui|gpui_kit|wry|cap_std|reqwest|tokio)\s*::|\bstd\s*::\s*(?:fs|process|net|thread)\b|crate::(?:app|features|editor|platform|ui|workspace)\b', contract_src):
+            errors.append(f'{path.relative_to(root)}: plugin contract depends on presentation, I/O, or a higher layer')
+
 # Product meanings have one typed registry entry. Views must not select an
 # old concrete drawing (the asset adapter retains aliases for compatibility).
 product_drawing = re.compile(r'(?:Icon::new|\.icon|\.path)\(\s*"(?:icons/)?(?:house(?:-compact)?|folder(?:-closed|-open)?|laptop|cloud(?:-off|-upload)?|tree-disclosure(?:-open)?|disclosure)(?:\.svg)?"')

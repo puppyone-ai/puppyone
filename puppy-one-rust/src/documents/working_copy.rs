@@ -149,6 +149,12 @@ pub struct WorkingCopy {
     pub oversized: Option<OversizedFile>,
     /// Sniffed format when extension/MIME resolved to `unknown` (`RG-01`).
     pub sniffed_format: Option<&'static crate::formats::FileFormat>,
+    /// Opening preferences (`fileTypeDefaults` + local `fileOverrides`) used to
+    /// decide whether the resolved handler reads UTF-8 text or a raw resource.
+    pub open_preferences: crate::editor::opening::OpenPreferences,
+    /// Optional explicit handler pinned to this Working Copy (e.g. from a
+    /// workbench restore record or "Open with…").
+    pub preferred_handler: Option<crate::plugin_contract::HandlerId>,
     pub dirty: bool,
     pub revision: u64,
     pub phase: Phase,
@@ -220,6 +226,8 @@ impl Default for WorkingCopy {
             read_only_large: None,
             oversized: None,
             sniffed_format: None,
+            open_preferences: Default::default(),
+            preferred_handler: None,
             dirty: false,
             revision: 0,
             phase: Phase::Idle,
@@ -1372,7 +1380,7 @@ impl WorkingCopy {
                     self.autosave_request = None;
                 }
             }
-            ClientMessage::Action { .. } => {}
+            ClientMessage::Action { .. } | ClientMessage::OpenWith { .. } => {}
         }
     }
 
@@ -1548,6 +1556,8 @@ impl WorkingCopy {
                     .max(crate::editor::registry::READ_ONLY_TEXT_MAX_BYTES)
                     .max(1);
                 let journal = self.drafts.journal.clone();
+                let open_preferences = self.open_preferences.clone();
+                let preferred_handler = self.preferred_handler.clone();
                 let owner = self.task_owner(path.to_string_lossy(), self.read_generation);
                 io::submit_admitted(
                     owner,
@@ -1616,6 +1626,49 @@ impl WorkingCopy {
                             res
                         } else {
                             crate::editor::registry::resolve_with_format(&doc_meta, by_name)
+                        };
+
+                        // Apply Layer ② `open_plan` so handler overrides (e.g. opening `.svg` as
+                        // `builtin:text` or `.md` as `app:default`) select the matching source
+                        // contract and budget. With empty preferences this equals `resolved`.
+                        let resource_id_key = ws
+                            .resource_id(&path)
+                            .ok()
+                            .map(|rid| crate::editor::workbench::catalog::resource_key(&rid));
+                        let empty_catalog = crate::plugin_contract::Catalog::empty();
+                        let opening_ctx = crate::editor::opening::OpeningContext::with_defaults(
+                            &open_preferences,
+                            &[],
+                            &empty_catalog,
+                        );
+                        let plan = crate::editor::opening::open_plan(
+                            &crate::editor::opening::OpenRequest {
+                                document: &doc_meta,
+                                resource_id: resource_id_key.as_deref(),
+                                format: Some(resolved.format),
+                                head: None,
+                                sniffed: sniffed.is_some(),
+                                explicit_handler: preferred_handler.as_ref(),
+                            },
+                            &opening_ctx,
+                        );
+                        let effective_viewer = match &plan.handler {
+                            crate::plugin_contract::HandlerId::Builtin(id) => {
+                                crate::editor::registry::registry()
+                                    .by_id(id)
+                                    .unwrap_or(resolved.viewer)
+                            }
+                            crate::plugin_contract::HandlerId::App(_)
+                            | crate::plugin_contract::HandlerId::Plugin { .. } => {
+                                crate::editor::registry::registry()
+                                    .by_id(&crate::editor::registry::manifest().fallback_viewer_id)
+                                    .unwrap_or(resolved.viewer)
+                            }
+                        };
+                        let resolved = crate::editor::registry::Resolved {
+                            viewer: effective_viewer,
+                            format: resolved.format,
+                            resolved_extension: resolved.resolved_extension,
                         };
 
                         let can_reveal =

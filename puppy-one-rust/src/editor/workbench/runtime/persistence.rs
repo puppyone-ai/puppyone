@@ -42,6 +42,15 @@ impl Runtime {
                         host.view_states =
                             super::super::view_state::ViewStateStore::from_persisted(entries);
                     }
+                    // Local-only project file overrides (`resourceId -> HandlerId`).
+                    // Older records without `fileOverrides` decode cleanly as empty.
+                    host.file_overrides =
+                        crate::editor::opening::parse_handler_map_json(&value["fileOverrides"]);
+                    let open_prefs = crate::editor::opening::OpenPreferences::new(
+                        self.file_type_defaults.clone(),
+                        host.file_overrides.clone(),
+                    );
+                    host.empty.open_preferences = open_prefs.clone();
                     let Some(editors) = value["group"]["editors"]
                         .as_array()
                         .filter(|v| v.len() <= 128)
@@ -66,12 +75,19 @@ impl Runtime {
                         {
                             continue;
                         }
+                        // Older records without `"handler"` restore with `None`.
+                        let restored_handler = editor
+                            .get("handler")
+                            .and_then(Value::as_str)
+                            .and_then(|raw| raw.parse::<crate::plugin_contract::HandlerId>().ok());
                         self.serial += 1;
                         let mut files = Documents::in_workspace_with_journal(
                             ws.clone(),
                             self.draft_journal.clone(),
                         );
                         files.task_scope = self.scratch.task_scope.clone();
+                        files.open_preferences = open_prefs.clone();
+                        files.preferred_handler = restored_handler.clone();
                         files.begin(Intent::OpenFile(path), wake);
                         host.slots.insert(
                             self.serial,
@@ -85,6 +101,7 @@ impl Runtime {
                                 reported_error: None,
                                 restoring: true,
                                 rehydrating: None,
+                                handler: restored_handler,
                             },
                         );
                     }
@@ -177,21 +194,28 @@ impl Runtime {
                 .editors
                 .iter()
                 .filter_map(|input| {
-                    let path = if let Some(slot) = host
+                    let (path, handler) = if let Some(slot) = host
                         .slots
                         .values()
                         .find(|s| s.admitted && s.key == input.id)
                     {
-                        slot.files.opened()?.1.to_str()?.to_owned()
+                        (
+                            slot.files.opened()?.1.to_str()?.to_owned(),
+                            slot.handler.clone(),
+                        )
                     } else {
                         let hib = host.hibernated.get(&input.id)?;
-                        hib.path.to_str()?.to_owned()
+                        (hib.path.to_str()?.to_owned(), hib.handler.clone())
                     };
-                    Some(json!({"id":input.id,"resource":path,"label":input.label}))
+                    let mut entry = json!({"id":input.id,"resource":path,"label":input.label});
+                    if let Some(handler) = handler {
+                        entry["handler"] = json!(handler.to_string());
+                    }
+                    Some(entry)
                 })
                 .collect();
             let view_states = host.view_states.to_persisted();
-            let value = json!({
+            let mut value = json!({
                 "version": 1,
                 "group": {
                     "editors": editors,
@@ -201,6 +225,10 @@ impl Runtime {
                 "layout": host.state.layout,
                 "viewStates": view_states
             });
+            if !host.file_overrides.is_empty() {
+                value["fileOverrides"] =
+                    crate::editor::opening::serialize_handler_map_json(&host.file_overrides);
+            }
             if host.metadata_value.as_ref() != Some(&value) {
                 host.metadata_value = Some(value.clone());
                 host.metadata_due = Some(now + Duration::from_millis(200));

@@ -362,6 +362,11 @@ impl Runtime {
                         .expect("admitted path"),
                 );
                 host.view_states.rename(&slot.key, key.clone());
+                crate::editor::opening::rebase_override_map(
+                    &mut host.file_overrides,
+                    &slot.key,
+                    key.clone(),
+                );
                 host.state.rebind(
                     &slot.key,
                     Input {
@@ -377,17 +382,22 @@ impl Runtime {
             } else {
                 slot.files.remove_after_operation(wake);
                 host.view_states.remove(&slot.key);
+                host.file_overrides.remove(&slot.key);
                 host.state.close(&slot.key);
                 host.slots.remove(&id);
             }
         }
         // Reconcile any hibernated clean tabs affected by the mutation (`WB-01`).
-        let hib_keys: Vec<(String, std::path::PathBuf)> = host
+        let hib_keys: Vec<(
+            String,
+            std::path::PathBuf,
+            Option<crate::plugin_contract::HandlerId>,
+        )> = host
             .hibernated
             .iter()
-            .map(|(k, v)| (k.clone(), v.path.clone()))
+            .map(|(k, v)| (k.clone(), v.path.clone(), v.handler.clone()))
             .collect();
-        for (old_key, old_path) in hib_keys {
+        for (old_key, old_path, old_handler) in hib_keys {
             if completed
                 .outcome
                 .removed
@@ -396,6 +406,7 @@ impl Runtime {
             {
                 host.hibernated.remove(&old_key);
                 host.view_states.remove(&old_key);
+                host.file_overrides.remove(&old_key);
                 host.state.close(&old_key);
                 continue;
             }
@@ -424,9 +435,15 @@ impl Runtime {
                             path: new_path.clone(),
                             failed_at_navigation: None,
                             models,
+                            handler: old_handler,
                         },
                     );
                     host.view_states.rename(&old_key, new_key.clone());
+                    crate::editor::opening::rebase_override_map(
+                        &mut host.file_overrides,
+                        &old_key,
+                        new_key.clone(),
+                    );
                     host.state.rebind(
                         &old_key,
                         Input {

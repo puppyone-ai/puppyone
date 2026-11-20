@@ -13,6 +13,8 @@ pub mod formats;
 pub mod geometry;
 #[path = "../../src/model.rs"]
 pub mod model;
+#[path = "../../src/plugin_contract/mod.rs"]
+pub mod plugin_contract;
 #[path = "../../src/text.rs"]
 pub mod text;
 #[path = "../../src/wake.rs"]

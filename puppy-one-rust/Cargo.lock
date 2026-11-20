@@ -6696,6 +6696,7 @@ dependencies = [
  "chrono",
  "icu_collator",
  "regex",
+ "semver",
  "serde",
  "serde_json",
  "tempfile",

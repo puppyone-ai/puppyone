@@ -14,7 +14,7 @@ mod test_support;
 // The layers below the window, under the names the sources use.
 use gpui::*;
 use po_agent::agent;
-use po_contracts::{clock, file_kind, formats, geometry, model, text, wake};
+use po_contracts::{clock, file_kind, formats, geometry, model, plugin_contract, text, wake};
 use po_editor::{documents, editor, render_service, web_host};
 use po_platform::{localization, platform};
 use po_ui::{assets, theme, typography, ui};

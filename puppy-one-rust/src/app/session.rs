@@ -135,6 +135,18 @@ impl DocumentSession {
         self.files
             .recover_cloud(broker, binding, project, &self.wake);
     }
+    pub fn open_with_handler(&mut self, path: PathBuf, handler: crate::plugin_contract::HandlerId) {
+        self.files.open_with_handler(path, handler, &self.wake);
+    }
+    pub fn apply_type_default(
+        &mut self,
+        format_id: String,
+        handler: crate::plugin_contract::HandlerId,
+        target_path: Option<PathBuf>,
+    ) {
+        self.files
+            .apply_type_default(format_id, handler, target_path, &self.wake);
+    }
 }
 
 pub(super) struct WindowSession {

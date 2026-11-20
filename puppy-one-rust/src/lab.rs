@@ -65,6 +65,7 @@ fn settings_page(section: &str) -> Option<Page> {
         "appearance" => Page::Appearance,
         "typography" => Page::Typography,
         "new-menu" => Page::CreateNew,
+        "file-types" => Page::FileTypes,
         "other-app-imports" => Page::OtherAppImports,
         "privacy" => Page::Privacy,
         "other-computers" => Page::OtherComputers,

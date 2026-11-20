@@ -1713,3 +1713,113 @@ fn rg23_panicking_viewer_surface_degrades_only_its_pane_and_preserves_unsaved_wo
         assert_eq!(p.text(cx).as_deref(), Some("unsaved precious draft\n"));
     });
 }
+
+#[gpui::test]
+fn host_respects_file_override_type_default_open_with_menu_and_preference_notice(
+    cx: &mut TestAppContext,
+) {
+    use crate::{editor::opening::OpenPreferences, plugin_contract::HandlerId};
+
+    let (view, messages, cx) = setup(cx, "notes.md", "# Title\n");
+    view.read_with(cx, |v, cx| {
+        assert_eq!(v.viewer_id(), Some("markdown"));
+        assert_eq!(v.active_handler(), Some(&HandlerId::builtin("markdown")));
+        assert!(v.preference_notice().is_none());
+        let open_with = v.contribution(cx).open_with;
+        assert!(
+            open_with
+                .iter()
+                .any(|c| c.handler == HandlerId::builtin("markdown") && c.active)
+        );
+        assert!(
+            open_with
+                .iter()
+                .any(|c| c.handler == HandlerId::builtin("text") && !c.active)
+        );
+        assert!(
+            open_with
+                .iter()
+                .any(|c| c.handler == HandlerId::system_default_app() && !c.active)
+        );
+    });
+
+    // 1. Per-type default switches `.md` from `builtin:markdown` to `builtin:text`.
+    let mut type_prefs = OpenPreferences::default();
+    type_prefs.set_type_default("markdown", HandlerId::builtin("text"));
+    let open = HostMessage::Open {
+        id: "doc-1".into(),
+        name: "notes.md".into(),
+        text: "# Title\n".into(),
+        revision: 0,
+        external: false,
+    };
+    view.update_in(cx, |v, w, cx| {
+        v.set_open_preferences(type_prefs);
+        v.receive(&open, w, cx);
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.viewer_id(), Some("text"));
+        assert_eq!(v.active_handler(), Some(&HandlerId::builtin("text")));
+        assert!(v.preference_notice().is_none());
+    });
+
+    // 2. Per-file override wins over the per-type default.
+    let mut override_prefs = OpenPreferences::default();
+    override_prefs.set_type_default("markdown", HandlerId::builtin("text"));
+    override_prefs.set_file_override("file:///ws/notes.md", HandlerId::builtin("markdown"));
+    view.update_in(cx, |v, w, cx| {
+        v.set_resource_key(Some("file:///ws/notes.md".into()));
+        v.set_open_preferences(override_prefs);
+        v.receive(&open, w, cx);
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.viewer_id(), Some("markdown"));
+        assert_eq!(v.active_handler(), Some(&HandlerId::builtin("markdown")));
+        assert!(v.preference_notice().is_none());
+    });
+
+    // 3. Unavailable plugin override falls through to type default and sets one-time notice.
+    let mut missing_prefs = OpenPreferences::default();
+    missing_prefs.set_type_default("markdown", HandlerId::builtin("text"));
+    missing_prefs.set_file_override(
+        "file:///ws/notes.md",
+        HandlerId::plugin("puppyone.removed", "md-viewer"),
+    );
+    view.update_in(cx, |v, w, cx| {
+        v.set_open_preferences(missing_prefs);
+        v.receive(&open, w, cx);
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.active_handler(), Some(&HandlerId::builtin("text")));
+        let notice = v
+            .preference_notice()
+            .expect("fallthrough should expose one-time preference notice");
+        assert!(notice.contains("puppyone.removed"));
+    });
+
+    // 4. Choosing "Always open this type with…" in pane menu emits `ClientMessage::OpenWith`.
+    messages.borrow_mut().clear();
+    view.update_in(cx, |v, w, cx| {
+        v.run_pane_action(
+            Action::OpenWith {
+                handler: HandlerId::builtin("markdown"),
+                always: true,
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    assert!(messages.borrow().iter().any(|msg| matches!(
+        msg,
+        ClientMessage::OpenWith {
+            id,
+            format_id,
+            handler,
+            always: true,
+        } if id == "doc-1" && format_id == "markdown" && *handler == HandlerId::builtin("markdown")
+    )));
+}
