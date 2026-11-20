@@ -40886,6 +40886,172 @@
           "test": "editor::markdown::tests::html_policy_acceptance::html_plan_rejections_keep_exact_source_ranges_and_stable_diagnostic_codes"
         }
       ]
+    },
+    {
+      "id": "markdown-mdx-tabs-component",
+      "acceptance": "In the Open Knowledge MDX dialect a capitalised component opened at a line start runs to its root close across blank lines and around fenced code (component text inside a fence never closes it), and owns every line it covers: HTML never claims a `<Tabs>` or `<Tab>` line inside it, so the product's own indented, blank-line-separated Tabs is one plan and one widget, and Markdown after the close is independent. `<Tabs>` holding only paired `<Tab label=\"…\">` children (one quoted literal label, no expressions, spreads or repeats) renders as tabs; an unknown component, root props, expression, spread, extra, duplicate or unquoted props, a self-closing or non-Tab child, direct text, an empty Tabs, more than 64 tabs, a mismatched close, text after the close or an unclosed component stays source over every line, with its stable `mdx-component.*` code. Lowercase tags stay HTML, adjacent components stay separate, Puppy GFM has no component and no HTML widget for it, and the real-world regression document mounts exactly a table and a Tabs. A tab shows by pointer without changing the source, labels are their literal text, and after an edit above the block its source toggle reveals the component where it is now.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownMdxComponent.test.ts",
+          "sha256": "fa84a6ab1df972d4fe06abe3d3b270e6921c9dbfbb59449d65a6c403836636d8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "declarative OpenKnowledge MDX components > parses Tabs across CommonMark blank-line boundaries without evaluating code"
+            },
+            {
+              "index": 1,
+              "name": "declarative OpenKnowledge MDX components > keeps unknown component as visible source"
+            },
+            {
+              "index": 2,
+              "name": "declarative OpenKnowledge MDX components > keeps root props as visible source"
+            },
+            {
+              "index": 3,
+              "name": "declarative OpenKnowledge MDX components > keeps expression prop as visible source"
+            },
+            {
+              "index": 4,
+              "name": "declarative OpenKnowledge MDX components > keeps spread prop as visible source"
+            },
+            {
+              "index": 5,
+              "name": "declarative OpenKnowledge MDX components > keeps extra prop as visible source"
+            },
+            {
+              "index": 6,
+              "name": "declarative OpenKnowledge MDX components > keeps duplicate prop as visible source"
+            },
+            {
+              "index": 7,
+              "name": "declarative OpenKnowledge MDX components > keeps unquoted prop as visible source"
+            },
+            {
+              "index": 8,
+              "name": "declarative OpenKnowledge MDX components > keeps self-closing child as visible source"
+            },
+            {
+              "index": 9,
+              "name": "declarative OpenKnowledge MDX components > keeps non-Tab direct child as visible source"
+            },
+            {
+              "index": 10,
+              "name": "declarative OpenKnowledge MDX components > keeps plain direct text as visible source"
+            },
+            {
+              "index": 11,
+              "name": "declarative OpenKnowledge MDX components > keeps empty Tabs as visible source"
+            },
+            {
+              "index": 12,
+              "name": "declarative OpenKnowledge MDX components > keeps mismatched close as visible source"
+            },
+            {
+              "index": 13,
+              "name": "declarative OpenKnowledge MDX components > keeps content after close as visible source"
+            },
+            {
+              "index": 14,
+              "name": "declarative OpenKnowledge MDX components > keeps unclosed component as visible source"
+            },
+            {
+              "index": 15,
+              "name": "declarative OpenKnowledge MDX components > bounds the declarative registry before creating a large tab widget"
+            },
+            {
+              "index": 16,
+              "name": "declarative OpenKnowledge MDX components > owns one syntax node, one semantic element, and one plan"
+            },
+            {
+              "index": 17,
+              "name": "declarative OpenKnowledge MDX components > ends the component node at the root close and leaves following Markdown independent"
+            },
+            {
+              "index": 18,
+              "name": "declarative OpenKnowledge MDX components > does not let component-like text in a fenced Tab body close the parser block"
+            },
+            {
+              "index": 19,
+              "name": "declarative OpenKnowledge MDX components > keeps lowercase HTML on the HTML grammar path"
+            },
+            {
+              "index": 20,
+              "name": "declarative OpenKnowledge MDX components > keeps adjacent component blocks independent"
+            },
+            {
+              "index": 21,
+              "name": "declarative OpenKnowledge MDX components > renders accessible tabs and switches panels without changing source"
+            },
+            {
+              "index": 23,
+              "name": "declarative OpenKnowledge MDX components > renders authored labels as text rather than executable markup"
+            },
+            {
+              "index": 24,
+              "name": "declarative OpenKnowledge MDX components > reveals the mapped canonical source after edits before the widget"
+            },
+            {
+              "index": 25,
+              "name": "declarative OpenKnowledge MDX components > does not turn component-like text into a widget in ordinary Puppy GFM"
+            },
+            {
+              "index": 26,
+              "name": "declarative OpenKnowledge MDX components > projects the exact real-world regression shape as a table and a Tabs block"
+            },
+            {
+              "index": 27,
+              "name": "declarative OpenKnowledge MDX components > mounts the exact regression shape without legacy HTML warning widgets"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::mdx::tests::product_tabs_parse_across_blank_lines"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::mdx::tests::invalid_component_shapes_stay_visible_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::mdx::tests::one_component_is_one_plan_ending_at_its_root_close"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::mdx::tests::component_text_in_a_fenced_tab_body_does_not_close_it"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::mdx::tests::lowercase_html_is_not_a_component_and_adjacent_components_stay_apart"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::mdx::tests::labels_are_the_authored_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::mdx::tests::puppy_gfm_has_no_component_and_the_regression_is_a_table_and_tabs"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::mdx_acceptance::a_tab_shows_by_pointer_without_changing_the_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::mdx_acceptance::a_markup_label_shows_as_its_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::mdx_acceptance::the_source_toggle_reveals_the_component_where_it_is_after_an_edit_above"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::mdx_acceptance::the_regression_document_mounts_a_table_and_tabs"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -52357,6 +52523,24 @@
             {
               "index": 30,
               "name": "HTML navigation capability > does not show a late opening error in a replacement document"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mdx-tabs-keyboard",
+      "kind": "gap",
+      "reason": "TS mounts each tab as a focusable button with a roving tabindex and switches tabs with ArrowLeft/ArrowRight/Home/End while a tab has focus. The native Tabs widget's labels are pointer targets only: block widgets have no focus of their own, so the tab bar cannot be reached or switched from the keyboard.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/mdx.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownMdxComponent.test.ts",
+          "sha256": "fa84a6ab1df972d4fe06abe3d3b270e6921c9dbfbb59449d65a6c403836636d8",
+          "cases": [
+            {
+              "index": 22,
+              "name": "declarative OpenKnowledge MDX components > supports roving tabindex and the standard tab-list keyboard contract"
             }
           ]
         }

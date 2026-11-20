@@ -3,7 +3,7 @@
 //! block and incrementally spliced across [`SyntaxSplice`] windows so typing in
 //! paragraph 500 only recompiles plans in paragraph 500's block window.
 use super::{
-    feature::{self, CompileCx, Features},
+    feature::{self, CompileCx, Features, MarkdownFeature},
     state::FeatureStateStore,
     syntax::{Element, Kind, Span, Syntax, SyntaxSplice},
 };
@@ -304,6 +304,7 @@ pub fn compile_blocks_in_window(
         folds,
     };
     let mut out = Vec::new();
+    let mut owned = Vec::new();
     for f in features {
         let mut stage = Vec::new();
         if feature::catch_feature_panic(f.id(), "compile_blocks", || {
@@ -311,8 +312,9 @@ pub fn compile_blocks_in_window(
         })
         .is_some()
         {
-            for p in stage {
-                let clamped = p.clamp_to_doc(doc);
+            let mut stage: Vec<_> = stage.into_iter().map(|p| p.clamp_to_doc(doc)).collect();
+            claim_lines(*f, &mut stage, &mut owned);
+            for clamped in stage {
                 if clamped.source.end > byte_window.start && clamped.source.start < byte_window.end
                     || (byte_window.start == 0 && clamped.source.start == 0)
                 {
@@ -346,6 +348,7 @@ pub fn compile(
         .enumerate()
         .map(|(i, e)| compile_one_element(i, e, &cx, features))
         .collect();
+    let mut owned = Vec::new();
     for f in features {
         let mut stage = Vec::new();
         if feature::catch_feature_panic(f.id(), "compile_blocks", || {
@@ -353,7 +356,9 @@ pub fn compile(
         })
         .is_some()
         {
-            plans.extend(stage.into_iter().map(|p| p.clamp_to_doc(doc)));
+            let mut stage: Vec<_> = stage.into_iter().map(|p| p.clamp_to_doc(doc)).collect();
+            claim_lines(*f, &mut stage, &mut owned);
+            plans.extend(stage);
         }
     }
     plans.sort_by(|a, b| {
@@ -371,10 +376,30 @@ pub fn compile(
 /// preserves that order. Inline plans remain independent.
 fn retain_first_block_owner(plans: &mut Vec<Plan>) {
     let mut claimed = std::collections::HashSet::new();
-    plans.retain(|plan| {
-        let block = plan.embed().is_some() || (plan.element.is_none() && plan.is_visible_source());
-        !block || claimed.insert((plan.source.start, plan.source.end))
+    plans.retain(|plan| !owns_block(plan) || claimed.insert((plan.source.start, plan.source.end)));
+}
+
+fn owns_block(plan: &Plan) -> bool {
+    plan.embed().is_some() || (plan.element.is_none() && plan.is_visible_source())
+}
+
+/// A [`MarkdownFeature::owns_block_lines`] feature's block plans claim
+/// their lines from the features composed after it.
+fn claim_lines(f: &dyn MarkdownFeature, stage: &mut Vec<Plan>, owned: &mut Vec<Range<usize>>) {
+    stage.retain(|p| {
+        !owns_block(p)
+            || !owned
+                .iter()
+                .any(|o| o.start <= p.source.start && p.source.end <= o.end)
     });
+    if f.owns_block_lines() {
+        owned.extend(
+            stage
+                .iter()
+                .filter(|p| owns_block(p))
+                .map(|p| p.source.clone()),
+        );
+    }
 }
 
 fn shift_signed(v: usize, delta: isize) -> usize {

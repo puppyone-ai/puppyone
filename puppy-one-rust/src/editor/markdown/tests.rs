@@ -25,6 +25,7 @@ mod inline_acceptance;
 mod inline_html_acceptance;
 mod linked_image_acceptance;
 mod math_acceptance;
+mod mdx_acceptance;
 mod projection_acceptance;
 mod table_inline_acceptance;
 mod table_media_acceptance;

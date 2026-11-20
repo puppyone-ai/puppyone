@@ -93,11 +93,18 @@ impl BlockWidget for TabsWidget {
         for (index, item) in self.block.tabs.iter().enumerate() {
             let shown = index == self.active;
             let send = send.clone();
+            let name = item.label.clone();
             let mut label = div()
                 .id(ElementId::NamedInteger(
                     "md-mdx-tab".into(),
                     ((at as u64) << 8) | index as u64,
                 ))
+                .debug_selector(move || {
+                    format!(
+                        "md-mdx-tab:{name}:{}",
+                        if shown { "shown" } else { "hidden" }
+                    )
+                })
                 .relative()
                 .flex_none()
                 .px(px(1.))
@@ -137,6 +144,7 @@ impl BlockWidget for TabsWidget {
         let focused = state.focus_within() || state.selected;
         let toggle = div()
             .id(ElementId::NamedInteger("md-mdx-source".into(), at as u64))
+            .debug_selector(|| "md-mdx-source".into())
             .flex_none()
             .px(px(2.))
             .pb(px(TOGGLE_BOTTOM))

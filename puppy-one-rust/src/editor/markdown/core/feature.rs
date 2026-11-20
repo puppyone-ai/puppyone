@@ -123,6 +123,14 @@ pub trait MarkdownFeature: Sync {
     ) {
     }
 
+    /// Whether its block plans own every line they cover, as the product's
+    /// block parser consumes a component's lines before HTML sees them: a
+    /// block plan a feature composed after it compiles wholly inside one is
+    /// dropped.
+    fn owns_block_lines(&self) -> bool {
+        false
+    }
+
     /// Semantic element kinds this feature compiles (`semanticKinds`).
     fn semantic_kinds(&self) -> &'static [Kind] {
         &[]
