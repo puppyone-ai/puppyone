@@ -43002,6 +43002,2019 @@
           "test": "editor::host::tests::external_consistency::history_recorded_before_an_unseen_external_update_is_discarded"
         }
       ]
+    },
+    {
+      "id": "explorer-copy-path-and-copy-link",
+      "acceptance": "Explorer row menus copy absolute paths for local entries, copy hosted share links for Cloud entries, preserve the explorer file clipboard across Copy Path/Link, and target single/multi-selection rows accurately.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/copyNodePath.test.tsx",
+          "sha256": "ba44987ad11dd031e8eaac5bde64bf8cd60093f729388fd35b023b6b40a371cb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Explorer Copy Path > retains the clicked row as launcher when nested selection collapses to its folder"
+            },
+            {
+              "index": 1,
+              "name": "Explorer Copy Path > offers Copy Link only when the owning Cloud workspace provides it"
+            },
+            {
+              "index": 2,
+              "name": "Explorer Copy Path > puts Copy Path first for 'folder' and writes the readable path without file mutations"
+            },
+            {
+              "index": 3,
+              "name": "Explorer Copy Path > puts Copy Path first for 'markdown' and writes the readable path without file mutations"
+            },
+            {
+              "index": 4,
+              "name": "Explorer Copy Path > puts Copy Path first for 'image' and writes the readable path without file mutations"
+            },
+            {
+              "index": 5,
+              "name": "Explorer Copy Path > copies the menu target's path during multi-selection and preserves the file clipboard"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/createEntryMenu.test.tsx",
+          "sha256": "ada7026ca1542d79d89d7934cb8242193f5239aebf877b01b20d738023307848",
+          "cases": [
+            {
+              "index": 8,
+              "name": "create entry menu > keeps paste available in the folder action menu"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::tests::explorer_pane::explorer_copy_path_and_copy_link_preserve_clipboard_and_targets",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "explorer-create-entry-menu-layout-and-selection",
+      "acceptance": "Explorer create-entry menus follow the configured main-menu and Custom files submenu order, render a divider only when file entries follow Folder, omit hidden defaults, light their owning trigger, and emit creation events from both main and submenu items.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/createEntryMenu.test.tsx",
+          "sha256": "ada7026ca1542d79d89d7934cb8242193f5239aebf877b01b20d738023307848",
+          "cases": [
+            {
+              "index": 0,
+              "name": "create entry menu > projects open menu state onto the exact Explorer row trigger"
+            },
+            {
+              "index": 1,
+              "name": "create entry menu > marks the Sidebar launcher menu as a full-width floating surface that can open upward"
+            },
+            {
+              "index": 2,
+              "name": "create entry menu > renders the draggable submenu node at its configured main-menu position"
+            },
+            {
+              "index": 3,
+              "name": "create entry menu > keeps configured custom types in the submenu without adding hidden defaults"
+            },
+            {
+              "index": 6,
+              "name": "create entry menu > does not render a divider when Folder is the only configured item"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::tests::explorer_pane::explorer_create_menu_follows_configured_order_submenu_and_divider_rules",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::explorer_pane::explorer_row_menus_light_their_trigger_and_dismiss",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::create_new::create_entry_menu_registry::tests::move_preserves_exactly_one_owner_and_fixed_entries",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "explorer-flattened-model-and-empty-folders",
+      "acceptance": "Explorer flattens expanded subtrees into one deterministic row projection, omits collapsed descendants, waits for first expansion without fake empty rows, and preserves product glyph geometry.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/explorerPerformance.test.tsx",
+          "sha256": "7416b5634741cf27b36d69b74dd62c5bd0846f7beb9459daf95e90874f1caeb5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Explorer bounded rendering > builds a stable flattened navigation model independent of selection"
+            },
+            {
+              "index": 1,
+              "name": "Explorer bounded rendering > keeps expanded empty folders structural while retaining explicit loading rows"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/explorerTreeSemantics.test.tsx",
+          "sha256": "a1e0c10aa13236594fe31f9b96f478c1466567e080cd45f1569ceddf017d6ca0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "ExplorerTree interactive semantics > projects database identity into the shared glyph and skin hook for generic file nodes"
+            },
+            {
+              "index": 4,
+              "name": "ExplorerTree interactive semantics > keeps an empty folder expanded without inserting a child placeholder row"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::rendered_glyphs_preserve_product_shapes_and_database_slot_geometry"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::nested_nodes_are_found_by_their_path"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::collapsed_children_are_not_in_projection"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::first_expansion_waits_for_loaded_children_and_empty_has_no_fake_row"
+        }
+      ]
+    },
+    {
+      "id": "explorer-virtualization-motion-and-interaction",
+      "acceptance": "Explorer virtualizes large trees with GPUI uniform_list, animates folder expansion/collapse unless reduced motion is enabled, keeps selection across row menu handoff, routes keyboard navigation/clipboard shortcuts, and handles empty roots, moves, external imports, and inline error retry.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/explorerPerformance.test.tsx",
+          "sha256": "7416b5634741cf27b36d69b74dd62c5bd0846f7beb9459daf95e90874f1caeb5",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Explorer bounded rendering > mounts at most the hard row limit for 1,000 visible nodes"
+            },
+            {
+              "index": 3,
+              "name": "Explorer bounded rendering > keeps virtual row geometry synchronized with the resolved application scale"
+            },
+            {
+              "index": 4,
+              "name": "Explorer bounded rendering > builds bounded FLIP enter, move and exit instructions without measuring a subtree"
+            },
+            {
+              "index": 5,
+              "name": "Explorer bounded rendering > animates virtualized folder expansion and collapse using transform/opacity only"
+            },
+            {
+              "index": 6,
+              "name": "Explorer bounded rendering > windows to an offscreen active row without mounting the intervening 1,000 rows"
+            },
+            {
+              "index": 8,
+              "name": "Explorer bounded rendering > refreshes open menu triggers without changing selection or re-rendering unrelated rows"
+            },
+            {
+              "index": 9,
+              "name": "Explorer bounded rendering > keeps keyboard navigation and additive/range selection on the full model"
+            },
+            {
+              "index": 10,
+              "name": "Explorer bounded rendering > preserves folder drag/drop behavior with virtualized rows"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/explorerTreeSemantics.test.tsx",
+          "sha256": "a1e0c10aa13236594fe31f9b96f478c1466567e080cd45f1569ceddf017d6ca0",
+          "cases": [
+            {
+              "index": 1,
+              "name": "ExplorerTree interactive semantics > renders an empty root as zero rows so the list-end action starts the content"
+            },
+            {
+              "index": 2,
+              "name": "ExplorerTree interactive semantics > renders list-start notices before the virtual file rows and list-end actions"
+            },
+            {
+              "index": 7,
+              "name": "ExplorerTree interactive semantics > keeps row actions outside button ancestry and preserves keyboard activation"
+            },
+            {
+              "index": 11,
+              "name": "ExplorerTree interactive semantics > moves a nested file back to its parent folder through the batch callback"
+            },
+            {
+              "index": 14,
+              "name": "ExplorerTree interactive semantics > keeps root import feedback through nested drag transitions and imports once on drop"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/sidebarMenuHandoff.test.tsx",
+          "sha256": "53d135c6686671774d57bd7dc78c7dfff69486655d04a8a6e3e5162b656c4ea7",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Sidebar menu handoff > hands off between node actions and creation without committing an empty menu state"
+            },
+            {
+              "index": 2,
+              "name": "Sidebar menu handoff > resets an open creation submenu before rendering a different launch target"
+            },
+            {
+              "index": 3,
+              "name": "Sidebar menu handoff > dismisses for unmarked or disabled launchers, but allows pointer and scroll events inside the menu"
+            },
+            {
+              "index": 5,
+              "name": "Sidebar menu handoff > lets the Sidebar New launcher toggle its menu closed instead of reopening after pointer dismissal"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "model::tests::visibility_display_names_and_selection_follow_the_product"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::explorer_pane::large_tree_uses_gpui_virtual_rows",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::explorer_pane::opening_a_folder_animates_its_rows_unless_motion_is_reduced",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::explorer_pane::explorer_row_menus_light_their_trigger_and_dismiss",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::explorer_pane::explorer_keys_move_the_selection_and_fill_the_clipboard",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::explorer_pane::explorer_menu_handoff_switches_targets_and_resets_submenu_without_clearing_selection",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::explorer_pane::explorer_virtual_window_navigation_empty_root_and_move_import_routing",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::tests::pinned_files_sit_above_the_tree_and_follow_their_files",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::motion::tests::opening_a_folder_reveals_its_rows_in_order_and_pushes_the_rest_down",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::motion::tests::closing_a_folder_clips_its_rows_away_last_first",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::motion::tests::hydration_and_a_different_project_do_not_animate",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::motion::tests::a_new_revision_starts_a_plan_that_ends_after_its_duration",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::failed_import_or_move_shows_above_the_tree_and_retry_rereads_the_root",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "file-mode-header-controls-and-isolation",
+      "acceptance": "File Mode windows bind to one document, toggle Markdown source and CSV header settings, offer folder access for HTML pages, enforce single-file media/read boundaries, refuse project-wide commands and neighbour navigation, and surface unavailable/oversized errors without opening documents.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/file-mode/fileModeApp.test.tsx",
+          "sha256": "f05c0289e66afc517f2d235db12eaa0ab3569026223c02a2207ffd3abd171152",
+          "cases": [
+            {
+              "index": 0,
+              "name": "FileModeApp > shows the bound file under the product Header and saves edits as they are made"
+            },
+            {
+              "index": 3,
+              "name": "FileModeApp > keeps the Header to the file's name when the editor has no settings"
+            },
+            {
+              "index": 4,
+              "name": "FileModeApp > shows the editor's current view in the Header, one press from the others"
+            },
+            {
+              "index": 6,
+              "name": "FileModeApp > shows the document's own switches as pressed Header commands, apart from its settings"
+            },
+            {
+              "index": 7,
+              "name": "FileModeApp > keeps a view switch and settings side by side in the Header"
+            },
+            {
+              "index": 8,
+              "name": "FileModeApp > sends links to the browser without offering neighbouring files"
+            },
+            {
+              "index": 9,
+              "name": "FileModeApp > does not offer to import images next to the file"
+            },
+            {
+              "index": 16,
+              "name": "FileModeApp > explains itself when the window has no file"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window::a_file_window_shows_one_file_and_saves_it_as_it_is_edited",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window::file_window_markdown_source_panel_toggles_and_syncs",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window::file_window_html_page_asks_for_folder_access",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window_header::file_header_buttons_toggle_the_bound_markdown_editor",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window_header::file_header_csv_settings_drive_the_live_document",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::file_window::tests::bound_provider_checks_the_path_before_every_read_write_preview_and_watch"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window_access::bound_file_access_refuses_folder_operations_and_root_watches",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window_access::bound_file_markdown_assets_allow_only_media_and_the_bound_document",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window_parity::file_window_ignores_project_commands_and_neighbour_navigation",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::file_window_parity::unavailable_and_oversized_file_windows_show_errors_without_opening_documents",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "workspace-explorer-move-and-errors",
+      "acceptance": "Explorer drag/drop move and external import route targets accurately, display failed move/import errors inline above the tree, and let Retry reread the workspace root.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/files/dataWorkspaceMove.test.tsx",
+          "sha256": "057b289773307aec2803fce15cf7686a6d42dffc4258f5560ac0df83e3020c05",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DataWorkspace explorer moves > moves a nested file to its parent folder through the workspace port"
+            },
+            {
+              "index": 1,
+              "name": "DataWorkspace explorer moves > shows move failures while the explorer still contains files"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::tests::explorer_pane::explorer_virtual_window_navigation_empty_root_and_move_import_routing",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::failed_import_or_move_shows_above_the_tree_and_retry_rereads_the_root",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "workspace-lifecycle-single-project-and-recents",
+      "acceptance": "Single-project windows remember and restore recents, show the Homepage while loading dates, create new projects with their guide, surface directory-watch errors, and replace superseded openings cleanly.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/files/workspaceLifecycleExperiment.test.tsx",
+          "sha256": "ed2f2fc3c7a104b70cb541e4564efe91996295d210beb02fa94f42a09d4237f0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "recent project readiness > settles only after recents have been hydrated with their modification dates"
+            },
+            {
+              "index": 1,
+              "name": "recent project readiness > settles when hydration fails, so the Homepage is not left waiting for it"
+            },
+            {
+              "index": 2,
+              "name": "recent project readiness > settles when recents cannot be read at all"
+            },
+            {
+              "index": 3,
+              "name": "multi-project Workspace experiment > names the project coming back only for as long as it is on its way"
+            },
+            {
+              "index": 4,
+              "name": "multi-project Workspace experiment > starts a wait with no project when the window cannot say what is coming back"
+            },
+            {
+              "index": 5,
+              "name": "multi-project Workspace experiment > opens folders in the current window even when a project is already displayed"
+            },
+            {
+              "index": 6,
+              "name": "multi-project Workspace experiment > does not restore a late local open after navigation has cleared the workspace"
+            },
+            {
+              "index": 7,
+              "name": "multi-project Workspace experiment > emits the same entry intent for created and opened projects"
+            },
+            {
+              "index": 14,
+              "name": "multi-project Workspace experiment > renames the Project presentation without changing its Folder identity"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/files/workspaceSurfaceNotices.test.tsx",
+          "sha256": "fa8a40170340ba69127a89a15a0e50d4089627f81839dc057aec04ea1fda50a4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace surface notices > presents a reconnectable failure as one top-end notice with Retry and a close control"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/watch/workbenchWorkspaceContentWatch.test.tsx",
+          "sha256": "2a8a712c3600d9f644e055ec845171f8d495398af4e103699323a6ce6eba450e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Workbench Workspace content watch > releases a retired root and creates a fresh subscription when reopened"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::going_home_holds_only_the_list_until_its_dates_or_the_budget",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::the_first_homepage_waits_for_the_session_and_the_whole_list",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::a_new_project_opens_on_its_getting_started_guide",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::the_rail_offers_rename_and_unlink_for_a_remembered_project",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::project_lifecycle::an_opening_stays_open_until_its_result_is_applied",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::project_lifecycle::a_cloud_project_is_entered_at_once_and_escape_abandons_it",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::project_lifecycle::a_newer_choice_replaces_a_project_still_opening",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::a_refused_directory_subscription_is_reported",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::external_changes_reread_loaded_folders_through_the_directory_subscription",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::project_return_restores_explorer_state_and_revalidates_loaded_folders",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "workspace-project-switching-revalidation-and-errors",
+      "acceptance": "Switching back to a project restores explorer state and revalidates loaded folders, keeps folder-scoped read errors on their row until Retry succeeds, preserves unchanged subtrees, and lets newer listings supersede stale ones.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/dataWorkspaceProjectSwitching.test.tsx",
+          "sha256": "3cea5b4939197c3cae20cc040cfeb9b93415717ec27a0ba4a2ef4fa50ebb0e2b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DataWorkspace Project switching > shows a cached Cloud root immediately and replaces it after background revalidation"
+            },
+            {
+              "index": 1,
+              "name": "DataWorkspace Project switching > loads restored Cloud siblings in parallel and skips collapsed branches on refresh ()"
+            },
+            {
+              "index": 2,
+              "name": "DataWorkspace Project switching > loads restored Cloud siblings in parallel and skips collapsed branches on refresh (puppyone-cloud://api.example/https/api/v1/owner/project/root/)"
+            },
+            {
+              "index": 4,
+              "name": "DataWorkspace Project switching > does not join or display a pre-mutation directory read after refresh"
+            },
+            {
+              "index": 5,
+              "name": "DataWorkspace Project switching > retries a failed Cloud root without remounting the workspace"
+            },
+            {
+              "index": 6,
+              "name": "DataWorkspace Project switching > retries a failed Cloud branch in place while preserving expansion and showing loading immediately"
+            },
+            {
+              "index": 8,
+              "name": "DataWorkspace Project switching > keys UI sessions by stable Project identity rather than runtime composition identity"
+            },
+            {
+              "index": 9,
+              "name": "DataWorkspace Project switching > keeps a failed optimistic folder expanded without retry loops and retries when reopened"
+            },
+            {
+              "index": 10,
+              "name": "DataWorkspace Project switching > preserves descendants when a later parent listing omits nested children"
+            },
+            {
+              "index": 15,
+              "name": "DataWorkspace Project switching > renders a cached Project tree immediately while revalidating without visible Loading copy"
+            },
+            {
+              "index": 17,
+              "name": "DataWorkspace Project switching > does not spin on an expanded folder whose refresh failed"
+            },
+            {
+              "index": 18,
+              "name": "DataWorkspace Project switching > revalidates cached expanded folders once and only after their root"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "model::tests::failed_folder_read_stays_on_its_row_until_a_retry_succeeds"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::empty_refresh_loads_a_folder_and_success_clears_only_its_error"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::refreshing_folders_keeps_loaded_subtrees_and_drops_removed_entries"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::unchanged_relisting_preserves_projection_and_folder_replacement_drops_descendants"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::project_return_restores_explorer_state_and_revalidates_loaded_folders",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::failed_import_or_move_shows_above_the_tree_and_retry_rereads_the_root",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::scoped_refresh::named_and_unknown_changes_refresh_only_their_scope_and_preserve_unchanged_projection",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::scoped_refresh::a_scoped_refresh_keeps_another_folders_pending_result_without_reading_it_twice",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::scoped_refresh::newer_listing_wins_when_an_old_result_is_waiting_for_foreground_delivery",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "workspace-missing-folder-and-relocation",
+      "acceptance": "Missing, moved, or renamed project folders report their exact availability status and recovery actions, relocate on confirmation from the Homepage or open window, and follow the moved folder.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/missingProjectFolder.test.tsx",
+          "sha256": "d02fb670e7296205eaa060cb3db7cf9d8ba511a83a2d5b4e8dd7b56288b184e5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "a window folder that cannot be opened now > says where it was and what may have happened, with finding it or removing it"
+            },
+            {
+              "index": 1,
+              "name": "a window folder that cannot be opened now > offers the folder found renamed where it was, in one step"
+            },
+            {
+              "index": 2,
+              "name": "a window folder that cannot be opened now > never offers removal for a folder whose disk is merely away"
+            },
+            {
+              "index": 3,
+              "name": "knowing which of a window's folders cannot be opened now > keeps only folders that need saying, and asks again when the window comes back to the front"
+            },
+            {
+              "index": 5,
+              "name": "finding where a project's folder went > uses the very same folder at once"
+            },
+            {
+              "index": 6,
+              "name": "finding where a project's folder went > asks before using a folder that does not look like the same one"
+            },
+            {
+              "index": 8,
+              "name": "a project on the Homepage whose folder cannot be opened now > says so under its name and asks instead of opening it"
+            },
+            {
+              "index": 9,
+              "name": "opening such a project from the Homepage > asks to find a folder that is gone, or to take it off the list"
+            },
+            {
+              "index": 10,
+              "name": "opening such a project from the Homepage > leads with the folder found renamed in place"
+            },
+            {
+              "index": 11,
+              "name": "opening such a project from the Homepage > only says so when its disk is away: nothing to find, and closing is the main way out"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::home::folder_status::tests::a_status_says_what_happened_and_what_helps",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::folder_availability::a_renamed_folder_is_found_again_from_the_homepage",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::folder_availability::a_window_whose_folder_moved_says_so_and_follows_it",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "workspace-project-opening-and-diagnostics",
+      "acceptance": "Project opening covers the shell while entering a target, lets Escape abandon an opening or a newer choice supersede it, and surfaces structured failure codes and request diagnostics in recovery dialogs.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/projectNavigationFailure.test.tsx",
+          "sha256": "f36824a0f10369eb012aec34338a34a7bc8a18c23ca89c0a0ff3e74ae96c2e62",
+          "cases": [
+            {
+              "index": 0,
+              "name": "A failed opening the user can report > shows the code and request id beside the message, and copies them"
+            },
+            {
+              "index": 1,
+              "name": "A failed opening the user can report > shows no diagnostic row when there is nothing to report"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/projects/projectOpeningSurface.test.tsx",
+          "sha256": "a3f370e8ba7f20372fc54d59e9d70dbbaefa2d1e59fc2eb223e104ba71f7fbb8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud project opening > states the stage in one line, however long the open takes"
+            },
+            {
+              "index": 1,
+              "name": "Cloud project opening > opens inside the project's window with the file tree waiting, and cancels"
+            },
+            {
+              "index": 2,
+              "name": "Cloud project opening > hangs what it says below the mark, so words never move the mark"
+            },
+            {
+              "index": 3,
+              "name": "Local project opening > waits in the same window as a Cloud project, with one mark and nothing to read or cancel"
+            },
+            {
+              "index": 4,
+              "name": "Local project opening > ignores Escape, because a local open cannot be abandoned"
+            },
+            {
+              "index": 5,
+              "name": "Local project opening > names the project in the Header's usual place, not as a control"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::opening::tests::workspace_opening_failures_say_what_to_do_next_and_carry_their_diagnostics"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::cloud_opening::a_failed_opening_names_its_code_and_request_for_a_report",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::cloud_opening::open_post_and_root_files_failures_surface_diagnostics_in_recovery_dialog",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::project_lifecycle::a_cloud_project_is_entered_at_once_and_escape_abandons_it",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::project_lifecycle::an_opening_stays_open_until_its_result_is_applied",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::project_lifecycle::a_newer_choice_replaces_a_project_still_opening",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "homepage-empty-onboarding-and-templates",
+      "acceptance": "Empty Homepage onboarding creates new projects with their getting-started guide, offers copied template store links once on first launch, copies template links, routes the New project launcher, and guards default project destinations.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/emptyWorkspaceOnboarding.test.tsx",
+          "sha256": "f8b438f6dd337b917705f4cf7ac308957aeb576e16d787c7a777cbcafc02ba6e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace entry bootstrap > opens a template's preferred document once and targets its folder in a multi-root workspace"
+            },
+            {
+              "index": 2,
+              "name": "workspace entry bootstrap > preserves an existing editor session on restored entry"
+            },
+            {
+              "index": 3,
+              "name": "workspace entry bootstrap > preserves an existing editor session on switched entry"
+            },
+            {
+              "index": 6,
+              "name": "marketplace template links > opens a store link as its card with Cloud off, and reads no account"
+            },
+            {
+              "index": 7,
+              "name": "marketplace template links > gets a copy in one action, under the template's own name"
+            },
+            {
+              "index": 8,
+              "name": "marketplace template links > leaves an open Project where it is"
+            },
+            {
+              "index": 9,
+              "name": "marketplace template links > lets the name and place be changed, without asking first"
+            },
+            {
+              "index": 10,
+              "name": "marketplace template links > asks for an account only for a template that needs one"
+            },
+            {
+              "index": 11,
+              "name": "marketplace template links > explains a link that cannot be read and offers to try again"
+            },
+            {
+              "index": 12,
+              "name": "marketplace template links > says so when a template link cannot be read, keeps it for a retry, and does not nag after Close"
+            },
+            {
+              "index": 13,
+              "name": "marketplace template links > keeps a template's card up when the link cannot be acknowledged"
+            },
+            {
+              "index": 14,
+              "name": "marketplace template links > opens a pasted template link, and leaves every other paste alone"
+            },
+            {
+              "index": 15,
+              "name": "marketplace template links > offers a copied store link once on a first launch, and says where it came from"
+            },
+            {
+              "index": 16,
+              "name": "marketplace template links > leaves the clipboard alone once someone has a project"
+            },
+            {
+              "index": 17,
+              "name": "marketplace template links > says nothing about copying for a link the store sent"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageNewProject.test.tsx",
+          "sha256": "796c8249417e8b169e15af7adfa861552af6226101d4ba85efbf969b0f42f8be",
+          "cases": [
+            {
+              "index": 0,
+              "name": "New project from the Homepage > uses one explicit CTA in the empty state"
+            },
+            {
+              "index": 1,
+              "name": "New project from the Homepage > never reads the clipboard from the create dialog, which offers no paste of its own"
+            },
+            {
+              "index": 2,
+              "name": "New project from the Homepage > prefills the name and built-in projects folder for one-action creation"
+            },
+            {
+              "index": 3,
+              "name": "New project from the Homepage > lets Change replace the default location with an explicitly browsed one"
+            },
+            {
+              "index": 4,
+              "name": "New project from the Homepage > falls back to Browse when no default location is available"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::a_new_project_opens_on_its_getting_started_guide",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::a_link_copied_from_the_store_is_offered_once_on_a_first_launch",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::a_template_link_gets_a_copy",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::create_new_opens_the_project_entry_launcher_and_hands_off",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::create_project::tests::a_new_project_starts_with_its_guide",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::create_project::location_tests::project_destination_fixtures_are_unique_owned_and_removed_on_drop",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::create_project::location_tests::unavailable_default_destinations_do_not_fall_back_to_the_real_home",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::explorer::session::tests::project_return_restores_explorer_state_and_revalidates_loaded_folders",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "homepage-agent-start-and-discovery",
+      "acceptance": "Homepage agent start suggests clean project names, seeds blank projects with chat, orders local agents from the recipe catalog, hides bundled runtimes, and tracks the latest valid agent activity timestamp.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageAgentProjectStart.test.tsx",
+          "sha256": "7af9d14ba91356b614a19b620abefee8425483ad88a361002649fc25bcfe9c0d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "AgentProjectStartDialog and pendingAgentStart > suggests clean folder names from the first clause of the prompt"
+            },
+            {
+              "index": 1,
+              "name": "AgentProjectStartDialog and pendingAgentStart > opens from a local Agent button, builds a blank numbered project request, and records pendingAgentStart on open"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageAgentStrip.test.tsx",
+          "sha256": "ea4dc4445ac76cc8161e7e9d492dc0eeda0c43b01d187195ca595cf37a6b3d43",
+          "cases": [
+            {
+              "index": 0,
+              "name": "HomepageAgentStrip > lists only found, unhidden, chat-capable local Agents, marks Hook enrollment, and opens Settings from Connect"
+            },
+            {
+              "index": 2,
+              "name": "HomepageAgentStrip > hides the Cloud Agent group when the personal space has no Cloud projects"
+            },
+            {
+              "index": 3,
+              "name": "HomepageAgentStrip > loads personal-space Cloud Agents on mount and window focus only, deduplicates by name+avatar, skips 403, and places faces on Cloud tiles only"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::home::agent_start::tests::suggest_project_name_extracts_first_clean_clause_or_falls_back",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::discovery::tests::local_agents_follow_recipe_order_hide_bundled_and_mark_connected",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::discovery::tests::newer_iso_timestamp_keeps_latest_valid_activity",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::projects_home_toolbar_and_agent_start_create_blank_project_with_seeded_chat",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::home_groups::the_personal_spaces_agents_stand_with_its_heading",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "homepage-cloud-projects-and-catalog",
+      "acceptance": "Homepage lists local and Cloud projects in one flat activity-ordered catalog, keeps a linked local folder and its Cloud copy as separate entries, caches lists per account across reloads, forgets them on sign-out, enforces permitted Cloud actions, and opens/renames/deletes Cloud projects.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageCloudProjects.test.tsx",
+          "sha256": "f82d66e90d3fffe7bfb0eaab7416feea36aa36abec317d1730b2d00407b8a9c1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "inline Homepage Cloud projects > lists a linked folder and its Cloud project as two entries that each open their own project (ADR-001)"
+            },
+            {
+              "index": 2,
+              "name": "inline Homepage Cloud projects > never remembers where a project was last opened"
+            },
+            {
+              "index": 3,
+              "name": "inline Homepage Cloud projects > automatically loads after login, links by trusted ID, and has no browse button, picker or create form"
+            },
+            {
+              "index": 5,
+              "name": "inline Homepage Cloud projects > opens a linked folder locally, while its Cloud project mark opens that other project by its exact ID"
+            },
+            {
+              "index": 6,
+              "name": "inline Homepage Cloud projects > opens Cloud-only rows directly without a local folder or intermediate dialog"
+            },
+            {
+              "index": 7,
+              "name": "inline Homepage Cloud projects > keeps local rows usable during loading and after a listing failure; retry stays inline"
+            },
+            {
+              "index": 8,
+              "name": "inline Homepage Cloud projects > keeps an open failure visible even when a pending catalog refresh finishes, then retries"
+            },
+            {
+              "index": 9,
+              "name": "inline Homepage Cloud projects > cancels a pending Cloud open without committing late results"
+            },
+            {
+              "index": 10,
+              "name": "inline Homepage Cloud projects > publishes the project and its progress while the workspace prepares, and drops both on cancel"
+            },
+            {
+              "index": 11,
+              "name": "inline Homepage Cloud projects > blocks a repeated local open and restores interaction after failure"
+            },
+            {
+              "index": 12,
+              "name": "inline Homepage Cloud projects > exposes retry after a Cloud open fails"
+            },
+            {
+              "index": 13,
+              "name": "inline Homepage Cloud projects > discards old-account listing responses and revokes the catalog immediately on sign-out"
+            },
+            {
+              "index": 14,
+              "name": "inline Homepage Cloud projects > loads only on the visible enabled Homepage, and revalidates on return or a new session generation"
+            },
+            {
+              "index": 15,
+              "name": "inline Homepage Cloud projects > shows an inline empty state when neither location has a project"
+            },
+            {
+              "index": 16,
+              "name": "inline Homepage Cloud projects > enriches ordering with actual content history instead of treating project metadata as a content clock"
+            },
+            {
+              "index": 17,
+              "name": "inline Homepage Cloud projects > bounds activity reads and stops queued work when Homepage is hidden"
+            },
+            {
+              "index": 18,
+              "name": "inline Homepage Cloud projects > never applies old-account activity to the next account's matching Project IDs"
+            },
+            {
+              "index": 19,
+              "name": "inline Homepage Cloud projects > takes a renamed or deleted project from the server, quietly, and a read in flight cannot undo it"
+            },
+            {
+              "index": 20,
+              "name": "inline Homepage Cloud projects > offers no Cloud changes without a session, and a refused one leaves the catalog alone"
+            },
+            {
+              "index": 21,
+              "name": "inline Homepage Cloud projects > does not truncate Cloud projects at the old local-recents limit"
+            },
+            {
+              "index": 22,
+              "name": "Homepage identity and modification order > does not link by name, config ID, stale metadata, a foreign origin or Scope ({\"puppyoneGitRemote\":null})"
+            },
+            {
+              "index": 23,
+              "name": "Homepage identity and modification order > does not link by name, config ID, stale metadata, a foreign origin or Scope ({\"puppyoneGitRemote\":{\"origin\":\"https://untrusted.example\",\"projectId\":\"a\"}})"
+            },
+            {
+              "index": 24,
+              "name": "Homepage identity and modification order > does not link by name, config ID, stale metadata, a foreign origin or Scope ({\"puppyoneGitRemote\":{\"origin\":\"http://cloud-fixture.puppyone.ai\",\"projectId\":\"a\"}})"
+            },
+            {
+              "index": 25,
+              "name": "Homepage identity and modification order > does not link by name, config ID, stale metadata, a foreign origin or Scope ({\"puppyoneGitRemote\":{\"origin\":\"https://cloud-fixture.puppyone.ai\",\"projectId\":\"another\"}})"
+            },
+            {
+              "index": 26,
+              "name": "Homepage identity and modification order > does not link by name, config ID, stale metadata, a foreign origin or Scope ({\"puppyoneGitRemote\":{\"origin\":\"https://cloud-fixture.puppyone.ai\",\"projectId\":\"a\",\"scopeId\":\"docs\"}})"
+            },
+            {
+              "index": 27,
+              "name": "Homepage identity and modification order > does not link by name, config ID, stale metadata, a foreign origin or Scope ({\"hydrationState\":\"metadata\"})"
+            },
+            {
+              "index": 28,
+              "name": "Homepage identity and modification order > does not link by name, config ID, stale metadata, a foreign origin or Scope ({\"hydrationState\":\"error\"})"
+            },
+            {
+              "index": 29,
+              "name": "Homepage identity and modification order > gives a Cloud entry only the actions the account's grant holds"
+            },
+            {
+              "index": 30,
+              "name": "Homepage identity and modification order > does not treat a local locator as proof of account access"
+            },
+            {
+              "index": 31,
+              "name": "Homepage identity and modification order > never merges a folder into its Cloud project; every checkout keeps its own entry and link"
+            },
+            {
+              "index": 32,
+              "name": "Homepage identity and modification order > sorts the entire list by modification, without location rank or opening-time fallback"
+            },
+            {
+              "index": 33,
+              "name": "Homepage identity and modification order > dates each entry by its own updates, with unknown/invalid dates last"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::catalog::tests::one_flat_list_ordered_by_actual_modification"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::catalog::tests::a_folder_and_its_cloud_project_are_two_entries"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::catalog::tests::a_cloud_entry_offers_only_what_the_account_may_do"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::catalog::tests::activity_reads_are_bounded"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::catalog::tests::unknown_times_sort_last_and_ties_use_name_then_identity"
+        },
+        {
+          "package": "po-app",
+          "test": "features::cloud::catalog::tests::a_fresh_list_is_real_once_its_dates_arrive_and_is_kept_for_its_account",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::cloud::catalog::tests::a_kept_list_stands_in_only_for_its_own_account_online",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::cloud::catalog::tests::known_dates_and_rows_survive_failures_and_a_new_session",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::cloud::catalog::tests::signing_out_forgets_the_list_and_restoring_does_not",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::a_cloud_entry_renames_and_deletes_its_project",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::project_lifecycle::a_cloud_project_is_entered_at_once_and_escape_abandons_it",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::project_lifecycle::an_opening_stays_open_until_its_result_is_applied",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::cloud_opening::a_failed_opening_names_its_code_and_request_for_a_report",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "homepage-spaces-computers-and-sharing",
+      "acceptance": "Homepage groups projects by this computer, spaces, and other computers, shows space plan/ownership badges, publishes folders dropped onto writable spaces, supports computer mode and host-sharing approval, and routes audience choices for new projects.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageCloudSpaces.test.tsx",
+          "sha256": "db4b4144993fdc1370ae33d141c0cc602653c90e9a389c23a8ee84981d6f47cc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "unified space destinations > shows every Space together including empty read-only groups, without switching"
+            },
+            {
+              "index": 1,
+              "name": "unified space destinations > opens one Space's members and plan from that Space's own heading"
+            },
+            {
+              "index": 2,
+              "name": "unified space destinations > keeps empty Spaces visible even when the account has no projects"
+            },
+            {
+              "index": 3,
+              "name": "unified space destinations > names the selected space and the plan its projects use"
+            },
+            {
+              "index": 4,
+              "name": "unified space destinations > heads each Space with the Header's square, names the account's own Personal and says which team Spaces it owns"
+            },
+            {
+              "index": 5,
+              "name": "unified space destinations > uses the same presentation for a former personal space"
+            },
+            {
+              "index": 6,
+              "name": "unified space destinations > binds a trusted local drag to the exact selected destination"
+            },
+            {
+              "index": 7,
+              "name": "unified space destinations > rejects a readonly destination"
+            },
+            {
+              "index": 8,
+              "name": "unified space destinations > does not rebind a folder that already has a Cloud copy"
+            },
+            {
+              "index": 9,
+              "name": "unified space destinations > does not accept an external path as an internal project drag"
+            },
+            {
+              "index": 10,
+              "name": "unified space destinations > offers the selected space through keyboard actions too"
+            },
+            {
+              "index": 11,
+              "name": "unified space destinations > keeps unresolved ownership reachable without guessing a destination"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageComputers.test.tsx",
+          "sha256": "8b239b00867ee1f618afc6b0ab225c1db1d71fcf0abd5207c00d479c6a94b7ea",
+          "cases": [
+            {
+              "index": 0,
+              "name": "the owner's other computers on the Homepage > shows three audiences, with shared local and remote folders together rather than device headings"
+            },
+            {
+              "index": 1,
+              "name": "the owner's other computers on the Homepage > lists a computer's open folders by name, and opens one there"
+            },
+            {
+              "index": 2,
+              "name": "the owner's other computers on the Homepage > keeps an offline computer's folders in view without letting them open"
+            },
+            {
+              "index": 3,
+              "name": "the owner's other computers on the Homepage > tells this computer's list which of its folders are open to the others"
+            },
+            {
+              "index": 4,
+              "name": "the owner's other computers on the Homepage > retains recorded sharing through a failed catalog read instead of claiming local-only"
+            },
+            {
+              "index": 5,
+              "name": "the owner's other computers on the Homepage > keeps known sharing and avoids duplicate remote cards when this computer's status is unavailable"
+            },
+            {
+              "index": 6,
+              "name": "the owner's other computers on the Homepage > moves the card only after an explicit stop-sharing confirmation and updates again on sharing"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageFolderShareIntent.test.tsx",
+          "sha256": "8030128ee4f6d856ac15ee2fc1c506b9b10d2d18136b620c44893246a41de048",
+          "cases": [
+            {
+              "index": 2,
+              "name": "cancels pending sharing on an authority change: {\"account\":{\"user_id\":\"other\",\"session_generation\":\"one\"}}"
+            },
+            {
+              "index": 3,
+              "name": "cancels pending sharing on an authority change: {\"account\":{\"user_id\":\"owner\",\"session_generation\":\"two\"}}"
+            },
+            {
+              "index": 4,
+              "name": "cancels pending sharing on an authority change: {\"apiBase\":\"https://other-fixture.puppyone.ai/api/v1\"}"
+            },
+            {
+              "index": 5,
+              "name": "cancels pending sharing on an authority change: {\"account\":null}"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageFolderSharing.test.tsx",
+          "sha256": "b54d6f2c767f2fb1101a3a5a2fcfaa6f29d077ed6eed24e2c323b1a4995a6012",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local folder drag into My space > opens the exact source, asks first, then returns Home with one shared card and no Cloud publication"
+            },
+            {
+              "index": 1,
+              "name": "local folder drag into My space > returns an unshared folder unchanged when the dialog is cancelled"
+            },
+            {
+              "index": 2,
+              "name": "local folder drag into My space > does not move the card when native approval is declined"
+            },
+            {
+              "index": 3,
+              "name": "local folder drag into My space > keeps failures in the confirmation instead of pretending the folder is shared"
+            },
+            {
+              "index": 4,
+              "name": "local folder drag into My space > rejects forged external paths and already-shared sources"
+            },
+            {
+              "index": 5,
+              "name": "local folder drag into My space > can share a linked local folder without rebinding or publishing its Cloud project"
+            },
+            {
+              "index": 6,
+              "name": "local folder drag into My space > keeps an empty personal area there to drop into, without needing a hosted personal destination"
+            },
+            {
+              "index": 7,
+              "name": "local folder drag into My space > offers the same sharing from the project's own menu, for the keyboard"
+            },
+            {
+              "index": 8,
+              "name": "local folder drag into My space > stops sharing from the project's own menu after Main asks, and only then moves it back to this computer"
+            },
+            {
+              "index": 9,
+              "name": "local folder drag into My space > keeps a folder shared when stopping is declined, and says so only when it failed"
+            },
+            {
+              "index": 10,
+              "name": "local folder drag into My space > keeps a folder shared when stopping is refused, and says so only when it failed"
+            },
+            {
+              "index": 11,
+              "name": "local folder drag into My space > discards the drag when the account generation changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageHostGroups.test.tsx",
+          "sha256": "cee596675e0574b917c871abaa8c3a87312a756cf19a541b2300ef6654d173ec",
+          "cases": [
+            {
+              "index": 0,
+              "name": "homepage audience grouping > keeps unresolved shared ownership reachable without misclassifying local folders"
+            },
+            {
+              "index": 1,
+              "name": "homepage audience grouping > scrolls the page as one, so no group can cut off its own last row"
+            },
+            {
+              "index": 2,
+              "name": "homepage audience grouping > states the local-only audience even when it is the only group"
+            },
+            {
+              "index": 3,
+              "name": "homepage audience grouping > hands audience composition to the owner of the device catalog"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/newProjectAudience.test.tsx",
+          "sha256": "ad47e5b734ab7b585b0c6cf4dda8e85e7c71f6cc556843e30fcf09aa80c7318f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "New project: who can open it > asks nothing when this computer is the only place the project can go"
+            },
+            {
+              "index": 1,
+              "name": "New project: who can open it > offers every writable space regardless of its old kind"
+            },
+            {
+              "index": 2,
+              "name": "New project: who can open it > keeps a team's project in the Cloud, made in the chosen team, without touching this computer"
+            },
+            {
+              "index": 3,
+              "name": "New project: who can open it > retries the same team project under the same operation, and a changed name is a new one"
+            },
+            {
+              "index": 4,
+              "name": "New project: who can open it > makes an all-my-devices project here, then opens it to the other computers"
+            },
+            {
+              "index": 5,
+              "name": "New project: who can open it > shares nothing from this window when the project opened in another one"
+            },
+            {
+              "index": 6,
+              "name": "New project: who can open it > shares nothing for a project kept only on this computer"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::home::groups::tests::every_space_shows_after_this_computer_even_empty_or_read_only",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::groups::tests::a_space_heading_names_its_plan_and_says_which_shared_spaces_this_account_owns",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::groups::tests::a_dragged_folder_publishes_to_the_writable_space_it_is_dropped_on",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::groups::tests::unresolved_cloud_projects_keep_their_own_group",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::groups::tests::shared_folders_stay_here_and_other_computers_follow",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::groups::tests::computer_mode_leads_with_the_spaces_and_keeps_plain_folders_last",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::create_project::tests::the_audience_decides_where_a_new_project_is_kept",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::audience::tests::a_folder_reaches_beyond_this_computer_only_through_devices_or_a_copy",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::audience::tests::the_other_computers_are_named_as_a_person_says_them",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::home_groups::the_homepage_groups_projects_by_the_place_that_holds_them",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::home_groups::a_folder_dropped_on_a_team_opens_its_publication_to_that_team",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::home_groups::a_team_project_is_made_once_in_its_space_and_opens",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::home_groups::a_cloud_project_saves_its_desktop_before_it_first_opens",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::home_groups::members_and_plan_open_settings_on_that_space",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::computer_mode::computer_mode_shows_this_computers_computers_and_keeps_plain_folders_last",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::other_computers::another_computers_folder_opens_here_and_runs_there",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::other_computers::a_folder_here_opens_to_my_other_computers_after_i_allow_it",
+          "target": "puppy-one-rust"
+        }
+      ]
+    },
+    {
+      "id": "homepage-view-layouts-actions-and-intro",
+      "acceptance": "Homepage orders and formats project rows/cards, defers late-arriving dates until next visit, supports keyboard list/grid navigation, plays the aperture intro and analytics disclosure, renders local/Cloud file previews, drags projects out as paths, and anchors project action menus.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageHandedDownState.test.tsx",
+          "sha256": "ec5ff329c81e14d890924cf13b956874f5a744d719c310801b2ced7f13f1c3c4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "what the Homepage is handed > shows a failure handed down, and a later one in its place"
+            },
+            {
+              "index": 1,
+              "name": "what the Homepage is handed > does not bring back a failure the page's own action has cleared"
+            },
+            {
+              "index": 2,
+              "name": "what the Homepage is handed > holds the page inert for the intro of a page that became empty, and ends it if the page fills"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageProjectActions.test.tsx",
+          "sha256": "cd7dff602b49ff3dfe24c0d4deb5ec349dff92b7ed89ff6662f789406045e734",
+          "cases": [
+            {
+              "index": 0,
+              "name": "a project's actions on the Homepage > leaves the waiting to the project's window and blocks duplicate opens"
+            },
+            {
+              "index": 1,
+              "name": "a project's actions on the Homepage > shows folder-opening progress only inside the folder action"
+            },
+            {
+              "index": 2,
+              "name": "a project's actions on the Homepage > unlinks one project from its menu, after confirming, without opening it"
+            },
+            {
+              "index": 3,
+              "name": "a project's actions on the Homepage > keeps a project registered when unlink confirmation is cancelled"
+            },
+            {
+              "index": 4,
+              "name": "a project's actions on the Homepage > copies the absolute project path and exposes it as text when dragging a row"
+            },
+            {
+              "index": 5,
+              "name": "a project's actions on the Homepage > highlights the primary folder action for drag feedback"
+            },
+            {
+              "index": 6,
+              "name": "a project's actions on the Homepage > hands one folder File to the native workspace boundary"
+            },
+            {
+              "index": 7,
+              "name": "a project's actions on the Homepage > rejects a regular file without starting a workspace open"
+            },
+            {
+              "index": 8,
+              "name": "a project's actions on the Homepage > rejects multiple folders without starting a workspace open"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageProjectListKeyboard.test.tsx",
+          "sha256": "a97b6a0cc9bffff35c85ef3517413cac72a873106adaaa368f8869085617ed9f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "the Homepage's project list > is a list of its projects"
+            },
+            {
+              "index": 3,
+              "name": "the Homepage's project list > walks a grid by cell and by row, stopping at its edges"
+            },
+            {
+              "index": 4,
+              "name": "the Homepage's project list > drops to the last project from a column the shorter last row does not reach"
+            },
+            {
+              "index": 5,
+              "name": "the Homepage's project list > walks a list one row at a time and leaves left and right alone"
+            },
+            {
+              "index": 6,
+              "name": "the Homepage's project list > flips left and right in a right-to-left layout"
+            },
+            {
+              "index": 7,
+              "name": "the Homepage's project list > leaves the keys of a project's own controls alone"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageProjectView.test.tsx",
+          "sha256": "297741f901eba298a00a7aa1102e910118bf9d63ca52ec4634399a5228f476de",
+          "cases": [
+            {
+              "index": 0,
+              "name": "the Homepage's project view > keeps a row in place when a newer date arrives while it is on screen"
+            },
+            {
+              "index": 1,
+              "name": "the Homepage's project view > takes a first date for a row that had none"
+            },
+            {
+              "index": 2,
+              "name": "the Homepage's project view > starts over when the list is held, so a return shows the newest order"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/onboardingFolderHome.test.tsx",
+          "sha256": "32dafb61ac77460be34f0c53ea56d30ede4f975834b47b6f8193c6aca4cd35de",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project folder home > uses the App-owned entry flow without subscribing a second template consumer"
+            },
+            {
+              "index": 1,
+              "name": "project folder home > localizes the first-run value promise in every renderer locale"
+            },
+            {
+              "index": 2,
+              "name": "project folder home > pictures every kind of file among the Agents on first run only"
+            },
+            {
+              "index": 3,
+              "name": "project folder home > plays the three moments in their order, by its dots or when a moment is over"
+            },
+            {
+              "index": 4,
+              "name": "project folder home > leaves the moments out once there are projects"
+            },
+            {
+              "index": 6,
+              "name": "project folder home > plays the reveal whenever project home mounts empty"
+            },
+            {
+              "index": 7,
+              "name": "project folder home > places the versioned telemetry disclosure below the first-launch CTA only once"
+            },
+            {
+              "index": 8,
+              "name": "project folder home > ignores the legacy first-launch marker while project home is empty"
+            },
+            {
+              "index": 9,
+              "name": "project folder home > skips the empty-state reveal when recent projects already exist"
+            },
+            {
+              "index": 11,
+              "name": "project folder home > shows registered projects before neutral entry actions"
+            },
+            {
+              "index": 12,
+              "name": "project folder home > tells first run's story without a mark in either theme"
+            },
+            {
+              "index": 13,
+              "name": "project folder home > names the product in the Header in words alone"
+            },
+            {
+              "index": 14,
+              "name": "project folder home > exposes one vertical projects-state contract"
+            },
+            {
+              "index": 15,
+              "name": "project folder home > keeps one folder action after the project panel"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/onboardingProjectLayouts.test.tsx",
+          "sha256": "cc3408a3a0aabdd3d0f183185c62a6ac319218be85e0fef414be844c1ba06fe9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Homepage project order > puts the latest change first, unknown times last, and keeps the catalog's order for equals"
+            },
+            {
+              "index": 1,
+              "name": "Homepage project order > orders names the way a person reads them, without touching the catalog's list"
+            },
+            {
+              "index": 2,
+              "name": "Homepage project layouts > opens on the Grid for everyone who never chose a layout"
+            },
+            {
+              "index": 3,
+              "name": "Homepage project layouts > switches on the Homepage itself"
+            },
+            {
+              "index": 4,
+              "name": "Homepage project layouts > shows the layout as one quiet icon, with the other layouts behind it"
+            },
+            {
+              "index": 5,
+              "name": "Homepage project layouts > heads the page with the three place actions and the Agents, while Projects and view controls lead the list"
+            },
+            {
+              "index": 6,
+              "name": "Homepage project layouts > names the product in the Header on first run too, while the page tells its story"
+            },
+            {
+              "index": 7,
+              "name": "Homepage project layouts > shows New project, Open a folder and Import directly at the top left"
+            },
+            {
+              "index": 8,
+              "name": "Homepage project layouts > opens each toolbar menu from its own control, one at a time"
+            },
+            {
+              "index": 9,
+              "name": "Homepage project layouts > draws the toolbar as two icons, with their state left to the tooltip"
+            },
+            {
+              "index": 10,
+              "name": "Homepage project layouts > closes the order on its one choice"
+            },
+            {
+              "index": 11,
+              "name": "Homepage project layouts > remembers the order across launches"
+            },
+            {
+              "index": 12,
+              "name": "Homepage project layouts > falls back to the latest modification for a stored order it does not know"
+            },
+            {
+              "index": 14,
+              "name": "Homepage project layouts > triggers Open a folder and Import directly from the top-left buttons without a menu"
+            },
+            {
+              "index": 15,
+              "name": "Homepage project layouts > names the switch and each layout for assistive technology"
+            },
+            {
+              "index": 16,
+              "name": "Homepage project layouts > offers the Grid, the default, first"
+            },
+            {
+              "index": 17,
+              "name": "Homepage project layouts > remembers the choice across launches"
+            },
+            {
+              "index": 18,
+              "name": "Homepage project layouts > falls back to the Grid for a stored value it does not know"
+            },
+            {
+              "index": 19,
+              "name": "Homepage project layouts > has nothing to arrange before there are projects"
+            },
+            {
+              "index": 20,
+              "name": "Homepage project layouts > leaves the layout alone while a project is opening"
+            },
+            {
+              "index": 21,
+              "name": "Homepage project layouts > opens local and Cloud projects from the list layout"
+            },
+            {
+              "index": 22,
+              "name": "Homepage project layouts > opens local and Cloud projects from the grid layout"
+            },
+            {
+              "index": 23,
+              "name": "Homepage project layouts > gives a folder and its linked Cloud project their own actions in the list layout"
+            },
+            {
+              "index": 24,
+              "name": "Homepage project layouts > gives a folder and its linked Cloud project their own actions in the grid layout"
+            },
+            {
+              "index": 25,
+              "name": "Homepage project layouts > places the menu by its measured height, once the overlay has mounted it"
+            },
+            {
+              "index": 26,
+              "name": "Homepage project layouts > leads a local menu with Copy path, without repeating the project's name"
+            },
+            {
+              "index": 28,
+              "name": "Homepage project layouts > renames a local project from the Homepage by its path"
+            },
+            {
+              "index": 29,
+              "name": "Homepage project layouts > deletes a Cloud project only after a confirmation that opens on Cancel"
+            },
+            {
+              "index": 30,
+              "name": "Homepage project layouts > keeps the delete dialog up with the reason when the server refuses"
+            },
+            {
+              "index": 31,
+              "name": "Homepage project layouts > offers a Cloud project only what the account may do ({\"rename\":true,\"delete\":false})"
+            },
+            {
+              "index": 32,
+              "name": "Homepage project layouts > offers a Cloud project only what the account may do ({\"rename\":false,\"delete\":true})"
+            },
+            {
+              "index": 33,
+              "name": "Homepage project layouts > shows no actions on a Cloud project the account cannot change ({\"rename\":false,\"delete\":false})"
+            },
+            {
+              "index": 34,
+              "name": "Homepage project layouts > shows no actions on a Cloud project the account cannot change (undefined)"
+            },
+            {
+              "index": 35,
+              "name": "Homepage project layouts > drags a local project out of the list layout"
+            },
+            {
+              "index": 36,
+              "name": "Homepage project layouts > drags a local project out of the grid layout"
+            },
+            {
+              "index": 37,
+              "name": "Homepage project layouts > flows the Grid in the list's own order, with nothing placed by hand"
+            },
+            {
+              "index": 38,
+              "name": "Homepage project layouts > labels each project for what opening it does in the list layout"
+            },
+            {
+              "index": 39,
+              "name": "Homepage project layouts > labels each project for what opening it does in the grid layout"
+            },
+            {
+              "index": 40,
+              "name": "Homepage project layouts > draws every project as the same unmarked folder, with where it lives as a mark after its name"
+            },
+            {
+              "index": 41,
+              "name": "Homepage project layouts > draws the list's folders in the Grid's fill, Cloud projects too"
+            },
+            {
+              "index": 42,
+              "name": "Homepage project layouts > draws a calm empty folder when no previews exist, and sandwiches up to three asset sheets between back and front when previews exist"
+            },
+            {
+              "index": 43,
+              "name": "Homepage project layouts > names a project under its folder, and leaves the tooltip for what is not shown"
+            },
+            {
+              "index": 44,
+              "name": "Homepage project layouts > adds the name to the tooltip only when the line under the folder has cut it"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "app::home::projects::tests::the_view_orders_like_the_product",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::projects::tests::dates_learned_after_a_project_shows_wait_for_the_next_visit",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::projects::tests::keys_walk_rows_and_cells_like_the_product",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::display::tests::project_names_and_folders_display_like_the_product",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::intro::tests::the_aperture_breathes_then_opens_past_the_corners",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::value::tests::every_moment_has_its_hold_and_the_picture_steps_down_with_the_window",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::folder::tests::folder_tones_follow_the_product_formulas",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::folder::tests::three_sheet_fan_places_center_sheet_on_top",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::previews::tests::cloud_previews_rank_html_md_csv_other_and_skip_dotfiles_and_folders",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::home::previews::tests::local_previews_read_only_visible_top_level_files",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::project_actions::tests::the_menu_hangs_beside_its_trigger_else_under_it",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::project_actions::tests::a_cloud_entry_offers_only_its_permitted_changes",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "features::settings::preferences_store::tests::preferences_roundtrip_preserves_menu_placement_and_defaults_new_fields",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::the_rail_offers_rename_and_unlink_for_a_remembered_project",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::a_cloud_entry_renames_and_deletes_its_project",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::a_homepage_project_drags_out_as_its_path",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::a_folder_dropped_on_the_homepage_opens_here",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::going_home_holds_only_the_list_until_its_dates_or_the_budget",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::projects_home_toolbar_and_agent_start_create_blank_project_with_seeded_chat",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::homepage::the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries",
+          "target": "puppy-one-rust"
+        },
+        {
+          "package": "po-app",
+          "test": "app::tests::project_lifecycle::a_newer_choice_replaces_a_project_still_opening",
+          "target": "puppy-one-rust"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -45195,6 +47208,68 @@
               "name": "EditorGroupModel > keeps routed host paths while identity and restore remain Folder-aware"
             }
           ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/multiRootExplorer.test.tsx",
+          "sha256": "ac1ff7475e3d22e2949a0a846032dca4dee2085b9beadf60437b2260eb7d12f1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "multi-root Explorer > shows every attached Project as one expandable root in a shared Sidebar"
+            },
+            {
+              "index": 1,
+              "name": "multi-root Explorer > keeps a single Project flat without workspace group decoration"
+            },
+            {
+              "index": 2,
+              "name": "multi-root Explorer > opens same-named documents through distinct Resource URIs"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/files/workspaceLifecycleExperiment.test.tsx",
+          "sha256": "ed2f2fc3c7a104b70cb541e4564efe91996295d210beb02fa94f42a09d4237f0",
+          "cases": [
+            {
+              "index": 8,
+              "name": "multi-project Workspace experiment > blocks both Project attachment paths while the experiment is off"
+            },
+            {
+              "index": 9,
+              "name": "multi-project Workspace experiment > allows both Project attachment paths after the experiment is enabled"
+            },
+            {
+              "index": 10,
+              "name": "multi-project Workspace experiment > runs the P0 save kernel identically with the multi-project experiment 'off'"
+            },
+            {
+              "index": 11,
+              "name": "multi-project Workspace experiment > runs the P0 save kernel identically with the multi-project experiment 'on'"
+            },
+            {
+              "index": 12,
+              "name": "multi-project Workspace experiment > preserves the active Workbench composition while the experiment toggles at runtime"
+            },
+            {
+              "index": 13,
+              "name": "multi-project Workspace experiment > preserves Workbench identity when the primary Folder is detached"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/watch/workbenchWorkspaceContentWatch.test.tsx",
+          "sha256": "2a8a712c3600d9f644e055ec845171f8d495398af4e103699323a6ce6eba450e",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Workbench Workspace content watch > owns every Folder watch outside Git and preserves the originating Folder identity"
+            },
+            {
+              "index": 2,
+              "name": "Workbench Workspace content watch > reconciles attached and detached Folders without accepting stale callbacks"
+            }
+          ]
         }
       ]
     },
@@ -45727,6 +47802,16 @@
               "name": "project entry service > gives a retry the name its first attempt chose"
             }
           ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/emptyWorkspaceOnboarding.test.tsx",
+          "sha256": "f8b438f6dd337b917705f4cf7ac308957aeb576e16d787c7a777cbcafc02ba6e",
+          "cases": [
+            {
+              "index": 5,
+              "name": "project template selection > retains the exact operation when creation committed but opening failed"
+            }
+          ]
         }
       ]
     },
@@ -45779,6 +47864,16 @@
             {
               "index": 24,
               "name": "project entry service > cancels a remote file stream before publication and cleans up its staging directory"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageImport.test.tsx",
+          "sha256": "6cb534890273fc07778dc64261486bff9b302d70c46bfb5dd86c2c5dca0ff001",
+          "cases": [
+            {
+              "index": 12,
+              "name": "importing from the Homepage > uses the generic connection and resource picker for a registered SaaS source"
             }
           ]
         }
@@ -49849,6 +51944,26 @@
               "name": "DesktopEditorSplitView: editor runtimes across panes > routes semantic Markdown revisions only to runtimes that consume them"
             }
           ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/explorerPerformance.test.tsx",
+          "sha256": "7416b5634741cf27b36d69b74dd62c5bd0846f7beb9459daf95e90874f1caeb5",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Explorer bounded rendering > re-renders only the old and new mounted rows for an ordinary selection"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageCloudProjects.test.tsx",
+          "sha256": "f82d66e90d3fffe7bfb0eaab7416feea36aa36abec317d1730b2d00407b8a9c1",
+          "cases": [
+            {
+              "index": 1,
+              "name": "inline Homepage Cloud projects > keeps one list across renders that change none of its sources"
+            }
+          ]
         }
       ]
     },
@@ -50249,6 +52364,16 @@
             {
               "index": 0,
               "name": "keeps the account out of the Header's trailing end and omits global Space switching"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/homepageCloudProjects.test.tsx",
+          "sha256": "f82d66e90d3fffe7bfb0eaab7416feea36aa36abec317d1730b2d00407b8a9c1",
+          "cases": [
+            {
+              "index": 4,
+              "name": "inline Homepage Cloud projects > leaves the account to the Header's place menu, signed in or out"
             }
           ]
         }
@@ -51707,6 +53832,16 @@
               "name": "DesktopEditorSplitView: what a pane shows > shows an unavailable state instead of blanking a pane restored as a directory"
             }
           ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/emptyWorkspaceOnboarding.test.tsx",
+          "sha256": "f8b438f6dd337b917705f4cf7ac308957aeb576e16d787c7a777cbcafc02ba6e",
+          "cases": [
+            {
+              "index": 1,
+              "name": "workspace entry bootstrap > opens README for an existing folder when there is no restored editor session"
+            }
+          ]
         }
       ]
     },
@@ -52635,6 +54770,44 @@
             {
               "index": 8,
               "name": "Desktop Agent reference ingestion > preserves another attached root's URI through native authorization"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/explorerTreeSemantics.test.tsx",
+          "sha256": "a1e0c10aa13236594fe31f9b96f478c1466567e080cd45f1569ceddf017d6ca0",
+          "cases": [
+            {
+              "index": 8,
+              "name": "ExplorerTree interactive semantics > does not leave an internal move active or add a row tooltip when a host takes over native export"
+            },
+            {
+              "index": 9,
+              "name": "ExplorerTree interactive semantics > keeps outbound reference drag available when in-tree move is read-only"
+            },
+            {
+              "index": 10,
+              "name": "ExplorerTree interactive semantics > keeps the internal move session across same-frame native events and window blur"
+            },
+            {
+              "index": 12,
+              "name": "ExplorerTree interactive semantics > routes a claimed native file through move and keeps external files on the import path"
+            },
+            {
+              "index": 13,
+              "name": "ExplorerTree interactive semantics > recovers an internal move from the typed native drag payload"
+            },
+            {
+              "index": 16,
+              "name": "ExplorerTree interactive semantics > does not advertise file import for text drags"
+            },
+            {
+              "index": 17,
+              "name": "ExplorerTree interactive semantics > clears external-file drop feedback when the drag leaves the tree"
+            },
+            {
+              "index": 18,
+              "name": "ExplorerTree interactive semantics > clears external-file drop feedback for global drag cancellation signals"
             }
           ]
         }
@@ -54381,6 +56554,16 @@
               "name": "DocumentSessionBoundary > remains writable after React StrictMode's cleanup/setup probe"
             }
           ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/emptyWorkspaceOnboarding.test.tsx",
+          "sha256": "f8b438f6dd337b917705f4cf7ac308957aeb576e16d787c7a777cbcafc02ba6e",
+          "cases": [
+            {
+              "index": 4,
+              "name": "project template selection > keeps one default-location request under StrictMode and always creates the guide"
+            }
+          ]
         }
       ]
     },
@@ -55517,6 +57700,16 @@
               "name": "Slides create action > creates the chosen kind at once under the next free Untitled name, with no naming step"
             }
           ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/createEntryMenu.test.tsx",
+          "sha256": "ada7026ca1542d79d89d7934cb8242193f5239aebf877b01b20d738023307848",
+          "cases": [
+            {
+              "index": 7,
+              "name": "create entry menu > rests every kind while one is being created, and reports a failure inside the menu"
+            }
+          ]
         }
       ]
     },
@@ -55641,6 +57834,448 @@
             {
               "index": 3,
               "name": "editor mode toggle > ignores stale Viewer cleanup after a newer contribution takes ownership"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "explorer-synchronous-clipboard-and-scoped-paths",
+      "kind": "out-of-scope",
+      "reason": "GPUI clipboard writes are synchronous and infallible without an async navigator.clipboard Promise that can reject or resolve late across newer menus, and capability-scoped Rust Workspace trees only address entries inside their owning root (falling back to workspace-relative paths when non-local rather than throwing out-of-workspace errors).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/copyNodePath.test.tsx",
+          "sha256": "ba44987ad11dd031e8eaac5bde64bf8cd60093f729388fd35b023b6b40a371cb",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Explorer Copy Path > keeps the menu retryable after a clipboard rejection"
+            },
+            {
+              "index": 7,
+              "name": "Explorer Copy Path > does not export a URI or a guessed path when its owning root is unavailable"
+            },
+            {
+              "index": 8,
+              "name": "Explorer Copy Path > fences a late clipboard resolve from a newer menu"
+            },
+            {
+              "index": 9,
+              "name": "Explorer Copy Path > fences a late clipboard reject from a newer menu"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/onboardingProjectLayouts.test.tsx",
+          "sha256": "cc3408a3a0aabdd3d0f183185c62a6ac319218be85e0fef414be844c1ba06fe9",
+          "cases": [
+            {
+              "index": 27,
+              "name": "Homepage project layouts > says so in the menu when the path cannot be copied"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gpui-popover-submenu-placement",
+      "kind": "out-of-scope",
+      "reason": "GPUI Kit Positioner and PopoverMenu handle viewport clamping and trigger dismissal natively without DOM data-submenu-side flipping attributes or React pointerdown-before-click handoff deferral hooks.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/ui/menus.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/createEntryMenu.test.tsx",
+          "sha256": "ada7026ca1542d79d89d7934cb8242193f5239aebf877b01b20d738023307848",
+          "cases": [
+            {
+              "index": 4,
+              "name": "create entry menu > opens the Custom files submenu away from the nearest viewport edge"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/sidebarMenuHandoff.test.tsx",
+          "sha256": "53d135c6686671774d57bd7dc78c7dfff69486655d04a8a6e3e5162b656c4ea7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Sidebar menu handoff > keeps the menu and launcher state until another enabled trigger completes its click"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "explorer-gpui-tree-presentation",
+      "kind": "out-of-scope",
+      "reason": "Rust Explorer intentionally renders its list-end launcher as the trailing uniform_list row with bottom fade (no CSS sticky sentinel or CSS scroll-padding-block insets), shows localized root loading text, and uses admission-first folder expansion rather than DOM nested-folder skeleton placeholder rows.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/explorerTreeSemantics.test.tsx",
+          "sha256": "a1e0c10aa13236594fe31f9b96f478c1466567e080cd45f1569ceddf017d6ca0",
+          "cases": [
+            {
+              "index": 3,
+              "name": "ExplorerTree interactive semantics > marks a sticky list end so it can pin to the viewport bottom, and keeps flow as the default"
+            },
+            {
+              "index": 5,
+              "name": "ExplorerTree interactive semantics > retains accessible root loading feedback without visible Loading copy"
+            },
+            {
+              "index": 6,
+              "name": "ExplorerTree interactive semantics > uses file-row skeletons instead of dot loaders for nested folder hydration"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/explorerVirtualWindowScrollPadding.test.tsx",
+          "sha256": "613001c7765f4f3b259aee4087b58f9e91b33772e93570972fae7634aca62708",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Explorer keyboard reveal > keeps the revealed row clear of a pinned bottom band via scroll-padding"
+            },
+            {
+              "index": 1,
+              "name": "Explorer keyboard reveal > treats auto scroll-padding as no inset"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/projects/dataWorkspaceProjectSwitching.test.tsx",
+          "sha256": "3cea5b4939197c3cae20cc040cfeb9b93415717ec27a0ba4a2ef4fa50ebb0e2b",
+          "cases": [
+            {
+              "index": 7,
+              "name": "DataWorkspace Project switching > expands optimistically, deduplicates slow reads and preserves collapse intent when they finish"
+            },
+            {
+              "index": 11,
+              "name": "DataWorkspace Project switching > deduplicates root hydration shared by the explorer and restored active path"
+            },
+            {
+              "index": 12,
+              "name": "DataWorkspace Project switching > reveals an uncached Project tree only after its expanded folders finish hydrating"
+            },
+            {
+              "index": 13,
+              "name": "DataWorkspace Project switching > uses a structured skeleton while local Project files hydrate"
+            },
+            {
+              "index": 14,
+              "name": "DataWorkspace Project switching > uses the same atomic reveal when a Git branch replaces the workspace snapshot"
+            },
+            {
+              "index": 16,
+              "name": "DataWorkspace Project switching > waits for cached root revalidation before restoring an active file absent from stale data"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "menu-keyboard-focus-and-submenu-navigation",
+      "kind": "gap",
+      "reason": "ProjectActions, Homepage toolbar menus, and Explorer create/node menus do not yet wire full keyboard focus restoration to the triggering button, Tab-to-close, ArrowLeft submenu return, or submenu-first Escape dismissal (Menu::keyboard_navigation currently handles flat Arrow/Home/End/Enter/Space menus without submenus or Tab dismissal).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/ui/menus.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/createEntryMenu.test.tsx",
+          "sha256": "ada7026ca1542d79d89d7934cb8242193f5239aebf877b01b20d738023307848",
+          "cases": [
+            {
+              "index": 5,
+              "name": "create entry menu > opens Custom files from focus and returns to its trigger with ArrowLeft"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/projectRowActionsFocus.test.tsx",
+          "sha256": "519fc4f046401d1028b6488d55e63f5e1ea2474d9ef325bbe6f93c21cce9af06",
+          "cases": [
+            {
+              "index": 0,
+              "name": "a project's actions > returns focus to its button when Escape closes the menu"
+            },
+            {
+              "index": 1,
+              "name": "a project's actions > leaves focus to a press elsewhere"
+            },
+            {
+              "index": 2,
+              "name": "a project's actions > returns focus to its button when a dialog from the menu closes"
+            },
+            {
+              "index": 3,
+              "name": "a project's actions > walks the menu with the arrows, wrapping at both ends, and reaches its ends with Home and End"
+            },
+            {
+              "index": 4,
+              "name": "a project's actions > closes the menu on Tab and hands focus back to its button"
+            },
+            {
+              "index": 5,
+              "name": "a Homepage menu > answers the same keys"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/sidebarMenuHandoff.test.tsx",
+          "sha256": "53d135c6686671774d57bd7dc78c7dfff69486655d04a8a6e3e5162b656c4ea7",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Sidebar menu handoff > uses Escape to close the creation submenu before dismissing its parent"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/onboardingProjectLayouts.test.tsx",
+          "sha256": "cc3408a3a0aabdd3d0f183185c62a6ac319218be85e0fef414be844c1ba06fe9",
+          "cases": [
+            {
+              "index": 13,
+              "name": "Homepage project layouts > marks the current choice and starts the keyboard on it"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "explorer-readonly-external-drop-feedback",
+      "kind": "gap",
+      "reason": "Explorer unconditionally attaches drag_over::<ExternalPaths> highlighting without gating external-file drop advertisement on workspace create capability for read-only workspaces.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/explorerTreeSemantics.test.tsx",
+          "sha256": "a1e0c10aa13236594fe31f9b96f478c1466567e080cd45f1569ceddf017d6ca0",
+          "cases": [
+            {
+              "index": 15,
+              "name": "ExplorerTree interactive semantics > does not advertise file import for read-only drags"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-window-shell-attributes",
+      "kind": "out-of-scope",
+      "reason": "GPUI renders every Shell window (project or file mode) directly under ActiveAppearance and native platform TitleBar metrics without DOM data-po-appearance-root, .dark, data-window-platform, or data-window-chrome-mode attributes.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/file-mode.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/file-mode/fileModeApp.test.tsx",
+          "sha256": "f05c0289e66afc517f2d235db12eaa0ab3569026223c02a2207ffd3abd171152",
+          "cases": [
+            {
+              "index": 1,
+              "name": "FileModeApp > puts the window under the same theme boundary as a project window"
+            },
+            {
+              "index": 2,
+              "name": "FileModeApp > tells the Header which window controls it has to clear"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/onboardingFolderHome.test.tsx",
+          "sha256": "32dafb61ac77460be34f0c53ea56d30ede4f975834b47b6f8193c6aca4cd35de",
+          "cases": [
+            {
+              "index": 5,
+              "name": "project folder home > applies the effective Sub Theme on the real onboarding appearance root"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "workspace-non-retryable-surface-notice",
+      "kind": "out-of-scope",
+      "reason": "In Rust, ProjectLifecycle::notices is dedicated to reconnectable directory-watch failures (always offering Retry and dismiss), while non-reconnectable workspace open failures present ProjectFailure or CloudRecovery modal dialogs instead of an unactionable floating banner.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/lifecycle.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/files/workspaceSurfaceNotices.test.tsx",
+          "sha256": "fa8a40170340ba69127a89a15a0e50d4089627f81839dc057aec04ea1fda50a4",
+          "cases": [
+            {
+              "index": 1,
+              "name": "workspace surface notices > offers no Retry when the source cannot reconnect"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cloud-explorer-permission-denied-clears-cached-rows",
+      "kind": "gap",
+      "reason": "ExplorerSession::refresh_folders emits WatchFailed/Error on root refresh failure but does not yet distinguish 403/PermissionDenied to immediately clear stale cached Cloud rows on permission revocation.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/dataWorkspaceProjectSwitching.test.tsx",
+          "sha256": "3cea5b4939197c3cae20cc040cfeb9b93415717ec27a0ba4a2ef4fa50ebb0e2b",
+          "cases": [
+            {
+              "index": 3,
+              "name": "DataWorkspace Project switching > keeps cached rows on network failure but clears them when permission is denied"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "window-folder-probe-generation-fence",
+      "kind": "gap",
+      "reason": "Homepage::check_window_folder checks only that the open root path still matches when an async probe resolves; it does not yet fence two overlapping probes for the same root with a monotonic generation counter.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/missingProjectFolder.test.tsx",
+          "sha256": "d02fb670e7296205eaa060cb3db7cf9d8ba511a83a2d5b4e8dd7b56288b184e5",
+          "cases": [
+            {
+              "index": 4,
+              "name": "knowing which of a window's folders cannot be opened now > never lets an older answer that arrives late replace a newer one"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "host-sharing-relocation-deferred",
+      "kind": "out-of-scope",
+      "reason": "Other-computers sharing is behind a closed release gate in v0.4.4, and Rust folder relocation intentionally clears stale host-share state without prompting to re-share the relocated folder (see folder_status.rs).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/missingProjectFolder.test.tsx",
+          "sha256": "d02fb670e7296205eaa060cb3db7cf9d8ba511a83a2d5b4e8dd7b56288b184e5",
+          "cases": [
+            {
+              "index": 7,
+              "name": "finding where a project's folder went > offers a shared project to the other computers again, through the ordinary Turn on"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "project-opening-focus-restoration",
+      "kind": "gap",
+      "reason": "ProjectPreparation covers the window while a project opens and restores the prior screen on cancel/failure, but does not yet capture and return keyboard focus to the exact Homepage entry button that initiated the open.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/lifecycle.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/projectOpeningSurface.test.tsx",
+          "sha256": "a3f370e8ba7f20372fc54d59e9d70dbbaefa2d1e59fc2eb223e104ba71f7fbb8",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Local project opening > returns focus to the entry that opened the project when the open ends without one"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "homepage-agents-in-new-project-menu",
+      "kind": "out-of-scope",
+      "reason": "In v0.4.4 Rust intentionally places local Agents inside the New project dropdown menu rather than rendering a standalone logo-only HomepageAgentStrip toolbar bar.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageAgentStrip.test.tsx",
+          "sha256": "ea4dc4445ac76cc8161e7e9d492dc0eeda0c43b01d187195ca595cf37a6b3d43",
+          "cases": [
+            {
+              "index": 1,
+              "name": "HomepageAgentStrip > keeps five installed local Agents as logo-only marks with hover tooltips and zero inline text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "host-sharing-direct-on-homepage",
+      "kind": "out-of-scope",
+      "reason": "Rust opens the HostSharing confirmation dialog directly on the Homepage via request_device_sharing without first navigating into the target project and returning Home on cancel.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageFolderShareIntent.test.tsx",
+          "sha256": "8030128ee4f6d856ac15ee2fc1c506b9b10d2d18136b620c44893246a41de048",
+          "cases": [
+            {
+              "index": 0,
+              "name": "waits for the exact source to finish opening, then cancels back to Home"
+            },
+            {
+              "index": 1,
+              "name": "drops failed and superseded navigation rather than opening a delayed dialog on a later visit"
+            },
+            {
+              "index": 6,
+              "name": "ignores late completion after leaving and revisiting the same source"
+            },
+            {
+              "index": 7,
+              "name": "closes a ready confirmation on navigation without returning an unrelated project Home"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "homepage-roving-tab-and-delete-focus",
+      "kind": "gap",
+      "reason": "Homepage project rows track keyboard arrow/home/end stops, but roving Tab single-stop semantics and restoring focus to the list stop after removing a project via ProjectActions dialog are not yet wired (ProjectActions restores window_focus).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageProjectListKeyboard.test.tsx",
+          "sha256": "a97b6a0cc9bffff35c85ef3517413cac72a873106adaaa368f8869085617ed9f",
+          "cases": [
+            {
+              "index": 1,
+              "name": "the Homepage's project list > is one stop for Tab: the first project and that row's actions"
+            },
+            {
+              "index": 2,
+              "name": "the Homepage's project list > moves the stop with focus, so Tab comes back to the project left"
+            },
+            {
+              "index": 8,
+              "name": "the Homepage's project list > falls back to the first project when the stop's project goes"
+            },
+            {
+              "index": 9,
+              "name": "the Homepage's project list > gives focus to the list's stop when a project is removed from its own dialog"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "homepage-dev-intro-shortcut",
+      "kind": "out-of-scope",
+      "reason": "Replaying the empty-state reveal via a renderer dev-only shortcut is replaced in Rust by PUPPYONE_CAPTURE_SCENARIO dev-capture scripts.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/onboardingFolderHome.test.tsx",
+          "sha256": "32dafb61ac77460be34f0c53ea56d30ede4f975834b47b6f8193c6aca4cd35de",
+          "cases": [
+            {
+              "index": 10,
+              "name": "project folder home > replays the empty-state reveal from the development preview shortcut"
             }
           ]
         }

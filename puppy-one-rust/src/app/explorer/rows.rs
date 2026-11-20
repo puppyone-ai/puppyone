@@ -17,9 +17,9 @@ impl Explorer {
     /// OS files dropped on `target`: imported, unless they are this
     /// project's own entries coming back from a drag that left the window
     /// (`resource-drag-session-service`'s internal drop), which move.
-    pub(super) fn drop_external(
+    pub(in crate::app) fn drop_external(
         &mut self,
-        paths: &ExternalPaths,
+        paths: &[PathBuf],
         target: &Path,
         cx: &mut Context<Self>,
     ) {
@@ -29,7 +29,7 @@ impl Explorer {
             .workspace()
             .and_then(|w| w.local_root());
         let own = crate::platform::drag_out::own_files()
-            .filter(|own| own.as_slice() == paths.paths())
+            .filter(|own| own.as_slice() == paths)
             .zip(root)
             .and_then(|(own, root)| {
                 own.iter()
@@ -38,7 +38,7 @@ impl Explorer {
             });
         self.session.update(cx, |session, cx| match own {
             Some(entries) => session.move_into(&entries, target, cx),
-            None => session.run_op(FileOp::Import(paths.paths().to_vec(), target.into()), cx),
+            None => session.run_op(FileOp::Import(paths.to_vec(), target.into()), cx),
         })
     }
     /// Entries dragged past the window's edge (`useResourceDragExport`):
@@ -421,7 +421,7 @@ impl Explorer {
             })
         }))
         .on_drop(cx.listener(move |s, paths: &ExternalPaths, _, cx| {
-            s.drop_external(paths, &import_target, cx)
+            s.drop_external(paths.paths(), &import_target, cx)
         }))
         .into_any_element()
     }
