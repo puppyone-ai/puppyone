@@ -1840,7 +1840,13 @@ impl Render for CsvEditor {
                     let on_blur = cx.on_blur(&this.focus, window, |this, _, cx| {
                         this.flush_cell(cx);
                     });
-                    this.focus_subscriptions = vec![on_focus, on_blur];
+                    let on_activation = cx.observe_window_activation(window, |this, window, cx| {
+                        if !window.is_window_active() {
+                            this.cancel_transient_gestures();
+                            cx.notify();
+                        }
+                    });
+                    this.focus_subscriptions = vec![on_focus, on_blur, on_activation];
                 }
             });
         }

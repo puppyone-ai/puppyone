@@ -145,12 +145,21 @@ pub fn merge(
 
 struct Store {
     entries: Vec<(String, Entry)>,
-    writer: mpsc::Sender<Value>,
+    writer: Option<mpsc::Sender<Value>>,
 }
 
 fn store() -> &'static Mutex<Store> {
     static STORE: OnceLock<Mutex<Store>> = OnceLock::new();
     STORE.get_or_init(|| {
+        // Tests stay purely in-memory so they never read or mutate the user's
+        // on-disk preference store while still exercising per-document
+        // persistence across view remounts.
+        if cfg!(test) {
+            return Mutex::new(Store {
+                entries: Vec::new(),
+                writer: None,
+            });
+        }
         let path = path();
         let entries = std::fs::read(&path)
             .ok()
@@ -167,7 +176,10 @@ fn store() -> &'static Mutex<Store> {
                 let _ = write(&path, &value);
             }
         });
-        Mutex::new(Store { entries, writer })
+        Mutex::new(Store {
+            entries,
+            writer: Some(writer),
+        })
     })
 }
 
@@ -199,18 +211,16 @@ pub fn read(id: &str) -> Entry {
 }
 
 pub fn update(id: &str, patch: impl FnOnce(&mut Entry)) {
-    // The CSV editor has no document id in tests; never touch the real store.
-    if cfg!(test) {
-        return;
-    }
     let Some(key) = normalize(id) else { return };
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0., |d| d.as_millis() as f64);
     let mut store = store().lock().unwrap_or_else(|e| e.into_inner());
     merge(&mut store.entries, key, patch, now);
-    let value = serialize(&store.entries);
-    let _ = store.writer.send(value);
+    if let Some(writer) = &store.writer {
+        let value = serialize(&store.entries);
+        let _ = writer.send(value);
+    }
 }
 
 #[cfg(test)]

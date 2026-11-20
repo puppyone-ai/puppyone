@@ -288,7 +288,7 @@ impl CsvEditor {
         );
     }
 
-    fn picker_size(&self) -> (usize, usize) {
+    pub(super) fn picker_size(&self) -> (usize, usize) {
         let (rows, columns) = self.available();
         (rows.min(PICKER_ROWS), columns.min(PICKER_COLUMNS))
     }

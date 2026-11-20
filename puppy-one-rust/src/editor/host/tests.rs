@@ -160,6 +160,56 @@ fn csv_contributes_view_items_and_find(cx: &mut TestAppContext) {
     assert!(view.update(cx, |v, cx| v.find_bar(cx)).is_none());
 }
 
+#[gpui::test]
+fn csv_pane_menu_stays_scoped_to_clicked_pane_across_two_csv_panes(cx: &mut TestAppContext) {
+    use gpui::AppContext as _;
+    let (left, left_messages, visual) =
+        setup_with(cx, "csv-pane-left", None, "left.csv", "Name,Score\nAda,1\n");
+    let right = visual.update(|_, cx| cx.new(DocumentEditor::new));
+    let right_messages = Rc::new(RefCell::new(Vec::new()));
+    let right_sink = right_messages.clone();
+    visual.update(|_, cx| {
+        cx.subscribe(&right, move |_, m: &ClientMessage, _| {
+            right_sink.borrow_mut().push(m.clone())
+        })
+        .detach();
+    });
+    let open_right = HostMessage::Open {
+        id: "csv-pane-right".into(),
+        name: "right.csv".into(),
+        text: "Name,Score\nAda,1\n".into(),
+        revision: 0,
+        external: false,
+    };
+    right.update_in(visual, |v, w, cx| v.receive(&open_right, w, cx));
+    visual.run_until_parked();
+
+    left.update_in(visual, |v, w, cx| {
+        assert_eq!(v.contribution(cx).items[0].kind, ItemKind::Toggle(true));
+        v.toggle_pane_menu(w, cx);
+        v.run_pane_action(Action::Item("csv-header-row"), w, cx);
+        assert_eq!(v.contribution(cx).items[0].kind, ItemKind::Toggle(false));
+        v.run_pane_action(Action::OpenExternal, w, cx);
+        assert!(!v.chrome.open);
+    });
+
+    // Right pane keeps its own header state and never receives the left pane's external open.
+    right.read_with(visual, |v, cx| {
+        assert_eq!(v.contribution(cx).items[0].kind, ItemKind::Toggle(true));
+        assert_eq!(
+            v.session.as_ref().map(|s| s.name.as_str()),
+            Some("right.csv")
+        );
+    });
+    assert!(
+        left_messages
+            .borrow()
+            .iter()
+            .any(|m| matches!(m, ClientMessage::Action { action } if action == "open-external"))
+    );
+    assert!(right_messages.borrow().is_empty());
+}
+
 /// `Editor pane actions menu`: a resource-only pane offers just Open in
 /// default app and Close, with no segments, find or items; Close is the
 /// shell's command and closes the menu. An image keeps that pair first

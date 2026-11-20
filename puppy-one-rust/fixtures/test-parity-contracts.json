@@ -41430,6 +41430,312 @@
           "test": "editor::markdown::tests::table_interaction_acceptance::semantic_column_tracks_stay_stable_fit_reading_column_and_hug_short_tables"
         }
       ]
+    },
+    {
+      "id": "csv-table-handles-menus-and-resizing",
+      "acceptance": "Resizing a CSV column persists view-only widths across remount without mutating content; Escape and window blur cancel active row/column drags and column resizes without editing or opening a menu; clicking row/column hover grips opens axis-scoped menus, cell context menus expose row+column+layout actions while header cells stay column-scoped, grips dock inside stuck headers and frozen record gutters, and row/column moves via menu or drag leave the moved track structurally selected without focusing a cell until Escape or cell click clears it.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/csv/csvTableHandles.test.tsx",
+          "sha256": "3da0bd93f7c847fc0940be72a7b921f6ee58c9a120c05820c5e2f8e56868c9a4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV table: handles, menus and resizing > resizes a column as persistent view state without changing CSV content"
+            },
+            {
+              "index": 2,
+              "name": "CSV table: handles, menus and resizing > clears pressed and drag highlighting on Escape without changing CSV or opening a menu"
+            },
+            {
+              "index": 4,
+              "name": "CSV table: handles, menus and resizing > clears pressed and drag highlighting on blur without changing CSV or opening a menu"
+            },
+            {
+              "index": 7,
+              "name": "CSV table: handles, menus and resizing > opens a row-scoped menu from the same hover handle used for dragging"
+            },
+            {
+              "index": 8,
+              "name": "CSV table: handles, menus and resizing > docks the row handle inside the frozen gutter before the viewport clips it"
+            },
+            {
+              "index": 9,
+              "name": "CSV table: handles, menus and resizing > docks the column handle inside a sticky header before the viewport clips it"
+            },
+            {
+              "index": 10,
+              "name": "CSV table: handles, menus and resizing > opens the complete row and column operation set from a cell context menu"
+            },
+            {
+              "index": 11,
+              "name": "CSV table: handles, menus and resizing > keeps header cells column-scoped instead of showing disabled row actions"
+            },
+            {
+              "index": 12,
+              "name": "CSV table: handles, menus and resizing > keeps the whole row selected after menu movement from row 1 and column 0"
+            },
+            {
+              "index": 13,
+              "name": "CSV table: handles, menus and resizing > keeps the whole row selected after menu movement from row 2 and column 0"
+            },
+            {
+              "index": 14,
+              "name": "CSV table: handles, menus and resizing > keeps the whole column selected after menu movement from row 0 and column 0"
+            },
+            {
+              "index": 15,
+              "name": "CSV table: handles, menus and resizing > keeps the whole column selected after menu movement from row 0 and column 1"
+            },
+            {
+              "index": 16,
+              "name": "CSV table: handles, menus and resizing > keeps dropped rows and columns structurally selected without focusing their first cell"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::csv_column_width_persists_across_remount_without_changing_content"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::csv_drag_and_resize_cancel_on_escape_and_window_blur"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::a_grip_click_opens_its_axis_menu_and_escape_cancels_a_drag"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::grips_dock_inside_the_stuck_header_and_gutter"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::the_context_menu_targets_cells_columns_and_rows"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::csv_menu_moves_keep_structural_selection_and_clear_on_escape_or_cell_click"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::grips_drag_rows_and_columns_and_leave_a_structural_selection"
+        }
+      ]
+    },
+    {
+      "id": "csv-table-interactions-and-settings",
+      "acceptance": "Corner expansion grows rows, columns, or both axes immediately with one undoable edit; header-row and row-number settings toggle view state and persist across remount without mutating CSV content while keeping the row grip reachable from the table edge when row numbers are hidden; ambiguous all-text CSV defaults to data rows while the 3x3 template starts with a header and two editable rows; horizontal scrolling marks the viewport for the frozen record gutter.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/csv/csvTableInteractions.test.tsx",
+          "sha256": "ddab838e769b310143dbf66a52270d0cda804e500a860aee0b1fcd6692abcae9",
+          "cases": [
+            {
+              "index": 1,
+              "name": "CSV table: the frame, rows and columns > renders corner expansion of rows immediately in StrictMode"
+            },
+            {
+              "index": 2,
+              "name": "CSV table: the frame, rows and columns > renders corner expansion of columns immediately in StrictMode"
+            },
+            {
+              "index": 3,
+              "name": "CSV table: the frame, rows and columns > renders corner expansion of both axes immediately in StrictMode"
+            },
+            {
+              "index": 4,
+              "name": "CSV table: the frame, rows and columns > keeps data-row numbers inside the frame while settings control header semantics"
+            },
+            {
+              "index": 5,
+              "name": "CSV table: the frame, rows and columns > toggles and persists the view-only row-number gutter without changing CSV content"
+            },
+            {
+              "index": 6,
+              "name": "CSV table: the frame, rows and columns > keeps the row handle reachable from the table edge when row numbers are hidden"
+            },
+            {
+              "index": 7,
+              "name": "CSV table: the frame, rows and columns > defaults ambiguous all-text CSV content to data rows instead of silently promoting a header"
+            },
+            {
+              "index": 8,
+              "name": "CSV table: the frame, rows and columns > renders a new three-by-three CSV template with a header and two editable rows"
+            },
+            {
+              "index": 9,
+              "name": "CSV table: the frame, rows and columns > marks horizontal scrolling so the frozen record gutter can own the viewport edge"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::csv_corner_expansion_grows_rows_columns_and_both_with_single_undo"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::csv_header_and_row_number_settings_persist_and_keep_edge_row_handle"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::csv_ambiguous_all_text_defaults_to_data_and_3x3_template_has_header"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::sticky_bands_take_the_pointer_first"
+        }
+      ]
+    },
+    {
+      "id": "csv-horizontal-edge-and-corner-expansion",
+      "acceptance": "Horizontal edge expansion grows and scrolls with a stationary edge pointer, stops when returning to the middle, caps at MAX_COLUMNS (256), commits in one undo step, cancels on Escape/blur/external replacement restoring scroll without edits; corner picker expands in one snapshot, <8px pointer jitter opens the picker instead of dragging, inward dragging returns to 0x0 non-destructively, downward preview keeps gutter and column tracks and clamps to viewport height, and picker columns cap cleanly near 256 columns.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/csv/csvEdgeExpansion.test.tsx",
+          "sha256": "c70ffa6e56b65384fdc2822edea23d371a5b57e31d0b217981e74f3da318c032",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV horizontal edge expansion > keeps growing and scrolling with a stationary pointer beyond a full viewport, then commits once"
+            },
+            {
+              "index": 1,
+              "name": "CSV horizontal edge expansion > cancels edge expansion on Escape and restores scroll without editing"
+            },
+            {
+              "index": 2,
+              "name": "CSV horizontal edge expansion > cancels edge expansion on blur and restores scroll without editing"
+            },
+            {
+              "index": 5,
+              "name": "CSV horizontal edge expansion > stops automatic growth when the pointer returns to the middle"
+            },
+            {
+              "index": 6,
+              "name": "CSV horizontal edge expansion > bounds preview DOM and stops at the column safety limit"
+            },
+            {
+              "index": 9,
+              "name": "CSV horizontal edge expansion > cancels a live preview when an external replacement changes the table shape"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/csvTableExpansion.test.tsx",
+          "sha256": "663081371c6769a012202603e95e9e476ca02acee890e75ab444e27afce6a163",
+          "cases": [
+            {
+              "index": 1,
+              "name": "CSV table: expanding from the corner > expands to a selected row and column shape from the corner picker in one snapshot"
+            },
+            {
+              "index": 2,
+              "name": "CSV table: expanding from the corner > keeps small pointer jitter as a click instead of starting expansion"
+            },
+            {
+              "index": 3,
+              "name": "CSV table: expanding from the corner > previews outward corner dragging and treats inward dragging as a non-destructive cancel"
+            },
+            {
+              "index": 4,
+              "name": "CSV table: expanding from the corner > clears an expansion preview when pointer capture is lost or the window blurs"
+            },
+            {
+              "index": 5,
+              "name": "CSV table: expanding from the corner > aligns a downward preview to the record gutter and content-sized columns"
+            },
+            {
+              "index": 6,
+              "name": "CSV table: expanding from the corner > uses the full editor height and clamps a pointer dragged beyond it"
+            },
+            {
+              "index": 7,
+              "name": "CSV table: expanding from the corner > keeps picker row semantics when fewer than six columns remain available"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::csv_horizontal_edge_expansion_scrolls_stops_caps_and_cancels"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::transient_gestures_cancel_header_clears_row0_selection_and_scroll_clamps"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::csv_corner_picker_jitter_inward_cancel_viewport_clamp_and_column_cap"
+        }
+      ]
+    },
+    {
+      "id": "csv-document-links-and-pane-menu",
+      "acceptance": "CSV reference cells render external labels that open directly while keeping editable raw source and leave missing workspace links visible but non-navigable; CSV pane menus contribute header, row-number, fit, reset, find, open-external, and close actions scoped strictly to the clicked CSV pane across split panes; row drag drop boundaries split at cell midpoints.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/csv/csvDocumentLinks.test.tsx",
+          "sha256": "d9d722fa1f6d259979c2069daeacffbdc840f36852c856e521e10fd83f37db67",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV document links > opens external labels directly while preserving editable source"
+            },
+            {
+              "index": 2,
+              "name": "CSV document links > keeps missing workspace links visible but non-navigable"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/csvTitlebarSettings.test.tsx",
+          "sha256": "6d099b78e890cd46e1bba56bc60a6d817bcb637e06f282eca099f8744601827b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV pane-menu settings > keeps file, view, and pane actions scoped to the CSV pane"
+            },
+            {
+              "index": 1,
+              "name": "CSV pane-menu settings > binds actions to the clicked CSV pane instead of the globally active file"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/editableTableDrag.test.ts",
+          "sha256": "1e1757e7c4ec6a5af2c1cd13befcaa348796fc89ebb36e6844c9d0d6ee520a40",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editable table drag boundaries > uses cell midpoints for row boundaries"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::tests::reference_cells_show_labels_and_open_from_their_label"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::csv_contributes_view_items_and_find"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::csv_pane_menu_stays_scoped_to_clicked_pane_across_two_csv_panes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::table::interaction::tests::drops_land_before_the_first_segment_past_the_pointer_midpoint"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -49567,6 +49873,26 @@
               "name": "auxiliary sidebar logical resize geometry > maps physical arrow keys to the mirrored separator movement"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/csvTableExpansion.test.tsx",
+          "sha256": "663081371c6769a012202603e95e9e476ca02acee890e75ab444e27afce6a163",
+          "cases": [
+            {
+              "index": 8,
+              "name": "CSV table: expanding from the corner > reports the same logical expansion for an outward RTL drag"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/editableTableDrag.test.ts",
+          "sha256": "1e1757e7c4ec6a5af2c1cd13befcaa348796fc89ebb36e6844c9d0d6ee520a40",
+          "cases": [
+            {
+              "index": 1,
+              "name": "editable table drag boundaries > mirrors column boundary detection for RTL"
+            }
+          ]
         }
       ]
     },
@@ -49677,6 +50003,68 @@
             {
               "index": 0,
               "name": "Markdown table drag lifecycle > removes document and owner listeners when a widget is disposed mid-drag"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/csvTableHandles.test.tsx",
+          "sha256": "3da0bd93f7c847fc0940be72a7b921f6ee58c9a120c05820c5e2f8e56868c9a4",
+          "cases": [
+            {
+              "index": 1,
+              "name": "CSV table: handles, menus and resizing > clears pressed and drag highlighting on pointercancel without changing CSV or opening a menu"
+            },
+            {
+              "index": 3,
+              "name": "CSV table: handles, menus and resizing > clears pressed and drag highlighting on lostpointercapture without changing CSV or opening a menu"
+            },
+            {
+              "index": 5,
+              "name": "CSV table: handles, menus and resizing > cleans up a pressed column handle when its provider unmounts"
+            },
+            {
+              "index": 6,
+              "name": "CSV table: handles, menus and resizing > cleans up a pressed row handle when its provider unmounts"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/csvEdgeExpansion.test.tsx",
+          "sha256": "c70ffa6e56b65384fdc2822edea23d371a5b57e31d0b217981e74f3da318c032",
+          "cases": [
+            {
+              "index": 3,
+              "name": "CSV horizontal edge expansion > cancels edge expansion on pointercancel and restores scroll without editing"
+            },
+            {
+              "index": 4,
+              "name": "CSV horizontal edge expansion > cancels edge expansion on lostpointercapture and restores scroll without editing"
+            },
+            {
+              "index": 7,
+              "name": "CSV horizontal edge expansion > commits a release outside the handle when pointer capture is unavailable"
+            },
+            {
+              "index": 8,
+              "name": "CSV horizontal edge expansion > stops its animation when the view unmounts"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/tables/editableTableSelection.test.ts",
+          "sha256": "b637d8f0dbebeef649620c603566c873af2957b0407ec063735910b68464f7c7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editable table structural-selection lifecycle > tracks semantic targets through DOM replacement, disappearance and remount"
+            },
+            {
+              "index": 1,
+              "name": "editable table structural-selection lifecycle > keeps independent tables isolated and clearing selection releases the target"
+            },
+            {
+              "index": 2,
+              "name": "editable table structural-selection lifecycle > disconnects on disposal and cannot resurrect an overlay"
             }
           ]
         }
@@ -50145,6 +50533,26 @@
             {
               "index": 1,
               "name": "Tooltip > disables nested hints without removing accessible names or explicit content"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/csvTableInteractions.test.tsx",
+          "sha256": "ddab838e769b310143dbf66a52270d0cda804e500a860aee0b1fcd6692abcae9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV table: the frame, rows and columns > keeps handle hints absent and menu hints hover-only while preserving initial focus and keyboard navigation"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/csvTableExpansion.test.tsx",
+          "sha256": "663081371c6769a012202603e95e9e476ca02acee890e75ab444e27afce6a163",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV table: expanding from the corner > does not automatically hint the focused expansion-picker cell"
             }
           ]
         }
@@ -52559,6 +52967,36 @@
               "name": "bounded tabular projection > represents offscreen geometry as gaps and keeps a pinned interaction item"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/csvTablePerformance.test.tsx",
+          "sha256": "a65bcf54f8b8c6064a15e11548be3dd51cdfc6cb6702e2757e34fa5dcd3ab429",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV bounded renderer performance > projects expansion-preview rows into the same column tracks as a wide CSV"
+            },
+            {
+              "index": 1,
+              "name": "CSV bounded renderer performance > keeps a 500 by 20 table below the mounted row and cell budgets"
+            },
+            {
+              "index": 2,
+              "name": "CSV bounded renderer performance > advances the logical row window while keeping DOM bounded"
+            },
+            {
+              "index": 3,
+              "name": "CSV bounded renderer performance > leads a fast vertical scroll and contracts to the resting buffer"
+            },
+            {
+              "index": 4,
+              "name": "CSV bounded renderer performance > expands horizontal scroll coverage temporarily and preserves visible cells when it contracts"
+            },
+            {
+              "index": 5,
+              "name": "CSV bounded renderer performance > adapts to a 100-column table without crossing the mounted-cell budget"
+            }
+          ]
         }
       ]
     },
@@ -52579,6 +53017,16 @@
             {
               "index": 5,
               "name": "document navigation boundary > preserves hosts that cancel navigation or do not return an outcome"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/csv/csvDocumentLinks.test.tsx",
+          "sha256": "d9d722fa1f6d259979c2069daeacffbdc840f36852c856e521e10fd83f37db67",
+          "cases": [
+            {
+              "index": 1,
+              "name": "CSV document links > leaves an external value editable when the host cannot open it"
             }
           ]
         }
