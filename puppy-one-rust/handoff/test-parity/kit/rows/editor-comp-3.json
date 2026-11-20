@@ -1,9 +1,0 @@
-[
- {
-  "id": "html-preview-link-routing",
-  "kind": "gap",
-  "reason": "A native HTML preview keeps link clicks inside its own page. The product instead resolves each activated link against the page's base (relative, root, scheme-relative, percent-decoded and mailto forms; frame-local, malformed and traversal inputs refused), hands safe external links to the system browser and workspace links to the editor through the host's routes, never gives unsafe protocols, files, data URLs or credentials to the OS, reports missing files, opening failures and offline folder pages, ignores other frames, stale sessions and messages without user activation, and authorizes only its own fixed UI script through the author's CSP. None of that routing exists natively.",
-  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/html/interact.md",
-  "typescript": [{"path": "tests/component/editor/formats/html/htmlLinkNavigation.test.tsx", "cases": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30]}]
- }
-]
