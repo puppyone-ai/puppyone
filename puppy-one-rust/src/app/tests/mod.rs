@@ -161,6 +161,16 @@ fn cloud_project_responder() -> crate::cloud::auth::Responder {
         })
     })
 }
+/// The Cloud API's answer for a file holding `bytes`.
+fn cloud_file(bytes: &[u8]) -> serde_json::Value {
+    use base64::Engine;
+    use sha2::Digest;
+    serde_json::json!({
+        "name": "cloud.md", "kind": "file", "size": bytes.len(),
+        "content_base64": base64::engine::general_purpose::STANDARD.encode(bytes),
+        "revision": format!("{:x}", sha2::Sha256::digest(bytes)),
+    })
+}
 struct Linked {
     root: std::path::PathBuf,
     _temp: tempfile::TempDir,

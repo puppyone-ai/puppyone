@@ -248,6 +248,16 @@ pub(super) const OBSERVATION_RETRIES: [Duration; 3] = [
     Duration::from_secs(3),
     Duration::from_secs(10),
 ];
+/// After those, a re-read that keeps failing in transit tries again this often,
+/// quietly, for as long as the document is open.
+pub(super) const OBSERVATION_QUIET_RETRY: Duration = Duration::from_secs(30);
+/// A change subscription that ended for a passing reason subscribes again
+/// after these delays, then every 30 seconds.
+pub(super) const WATCH_RETRIES: [Duration; 3] = [
+    Duration::from_secs(1),
+    Duration::from_secs(5),
+    Duration::from_secs(30),
+];
 
 /// Selects localized UI copy for a failed save by typed [`workspace::ErrorKind`] (`DP-43`).
 pub fn localized_save_error(kind: Option<workspace::ErrorKind>, detail: &str) -> String {

@@ -64,6 +64,9 @@ pub(super) struct FakeRemote {
     pub responder: Mutex<Option<Responder>>,
     pub screen_responder: Mutex<Option<ScreenResponder>>,
     pub keep_workspace_events: bool,
+    /// Set: the open Workspace change stream ends as a replaced Workspace's
+    /// does (`workbench_generation_changed`), once.
+    pub replace_workspace: Arc<AtomicBool>,
 }
 impl Default for FakeRemote {
     fn default() -> Self {
@@ -89,6 +92,7 @@ impl Default for FakeRemote {
             responder: Mutex::default(),
             screen_responder: Mutex::default(),
             keep_workspace_events: false,
+            replace_workspace: Arc::default(),
         }
     }
 }
@@ -223,6 +227,12 @@ impl Remote for FakeRemote {
         // stream would retire the real Cloud provider before a file can open.
         loop {
             fence.check()?;
+            if self.replace_workspace.swap(false, Ordering::SeqCst) {
+                return Err(Error::Service(
+                    409,
+                    super::transport::ServiceCode::GenerationChanged,
+                ));
+            }
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
     }
@@ -336,6 +346,26 @@ pub fn responding_account_fixture(
     let pair = Broker::new(env(), Arc::new(remote), Arc::new(MemoryStore::default()));
     login(&pair.0, "alice").unwrap();
     pair
+}
+/// A signed-in account whose API answers come from `responder` and whose
+/// Workspace change stream stays open, so an opened Project keeps its lease
+/// until the returned switch replaces the Workspace.
+pub fn responding_live_account_fixture(
+    responder: Responder,
+) -> (
+    Arc<Broker>,
+    async_channel::Receiver<super::service::BrowserEvent>,
+    Arc<AtomicBool>,
+) {
+    let remote = FakeRemote {
+        keep_workspace_events: true,
+        ..Default::default()
+    };
+    let replace = remote.replace_workspace.clone();
+    *remote.responder.lock().unwrap() = Some(responder);
+    let (broker, browser) = Broker::new(env(), Arc::new(remote), Arc::new(MemoryStore::default()));
+    login(&broker, "alice").unwrap();
+    (broker, browser, replace)
 }
 /// A signed-in account whose API and screen-stream answers come from test responders.
 pub fn responding_screen_account_fixture(
