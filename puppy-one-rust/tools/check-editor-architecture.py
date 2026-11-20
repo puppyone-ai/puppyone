@@ -360,6 +360,8 @@ def scan_repository(root: Path) -> list[Violation]:
 
         in_text = rel.startswith("src/editor/text/")
         in_view = rel.startswith("src/editor/view/")
+        in_opening = rel.startswith("src/editor/opening/")
+        in_platform_plugins = rel.startswith("src/platform/plugins/")
         in_markdown = rel.startswith("src/editor/markdown/")
         in_md_core = rel.startswith("src/editor/markdown/core/")
         in_md_decorations = rel.startswith("src/editor/markdown/core/decorations/")
@@ -388,10 +390,44 @@ def scan_repository(root: Path) -> list[Violation]:
             key = f"pure-gpui {rel} -> gpui"
             record("R10", key, f"[R10] {rel}: pure text/markdown-core module references `gpui`")
 
+        # R11: `src/editor/opening/` (Layer ②) must stay pure: no `gpui`, no OS I/O,
+        # and no imports of `editor::handlers` or `editor::plugin_runtime`.
+        if in_opening:
+            if uses_gpui:
+                key = f"opening-purity {rel} -> gpui"
+                record("R11", key, f"[R11] {rel}: pure `editor::opening` module references `gpui`")
+            for io_mod in ("fs", "process", "net", "thread"):
+                if re.search(rf"\bstd\s*::\s*{io_mod}\b", cleaned):
+                    key = f"opening-purity {rel} -> std::{io_mod}"
+                    record(
+                        "R11",
+                        key,
+                        f"[R11] {rel}: pure `editor::opening` module performs I/O via `std::{io_mod}`",
+                    )
+
         for segs in refs:
+            # R12: `src/platform/plugins/` (Layer ⑤) must never depend on any editor module.
+            if in_platform_plugins and len(segs) >= 2 and segs[0] == "crate" and segs[1] == "editor":
+                target = "/".join(segs[1:3])
+                key = f"platform-plugins-import {rel} -> {target}"
+                record(
+                    "R12",
+                    key,
+                    f"[R12] {rel}: `platform::plugins` imports `{target}`",
+                )
+
             if len(segs) < 3 or segs[0] != "crate" or segs[1] != "editor":
                 continue
             area = segs[2]
+
+            # R11: `src/editor/opening/` -> no `editor::{handlers, plugin_runtime}`
+            if in_opening and area in ("handlers", "plugin_runtime"):
+                key = f"opening-import {rel} -> editor/{area}"
+                record(
+                    "R11",
+                    key,
+                    f"[R11] {rel}: `editor::opening` imports upward `editor::{area}`",
+                )
 
             # R1: `src/editor/text/` -> no `editor::{view, markdown, csv, code}`
             if in_text and area in ("view", "markdown", "csv", "code"):
@@ -622,6 +658,23 @@ def run_self_tests() -> None:
             },
             {"R10"},
         ),
+        (
+            "R11",
+            {
+                "src/editor/opening/good.rs": "use crate::editor::registry;\n",
+                "src/editor/opening/bad_handlers.rs": "use crate::editor::handlers::HandlerFactory;\n",
+                "src/editor/opening/bad_runtime.rs": "use super::super::plugin_runtime::WebRuntime;\n",
+                "src/editor/opening/bad_io.rs": "fn f() { let _ = std::fs::read(\"x\"); }\n",
+            },
+            {"R11"},
+        ),
+        (
+            "R12",
+            {
+                "src/platform/plugins/store.rs": "use crate::editor::opening::open_plan;\n",
+            },
+            {"R12"},
+        ),
     ]
 
     for label, files, expected_rules in cases:
@@ -657,7 +710,7 @@ def run_self_tests() -> None:
     )
     assert not added and stale == ["feature-import b.rs -> features/image"]
 
-    print(f"Editor architecture self-tests passed ({len(cases)} scenarios covering R1-R10 + shrink-only baseline).")
+    print(f"Editor architecture self-tests passed ({len(cases)} scenarios covering R1-R12 + shrink-only baseline).")
 
 
 def diff_baseline(
@@ -725,7 +778,7 @@ def main() -> None:
         sys.exit("\n".join(errors))
 
     print(
-        f"Editor architecture verified: R1-R10 checked, {len(current_set)} baseline exemption(s)"
+        f"Editor architecture verified: R1-R12 checked, {len(current_set)} baseline exemption(s)"
     )
 
 
