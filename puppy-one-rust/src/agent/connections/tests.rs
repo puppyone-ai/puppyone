@@ -380,6 +380,38 @@ fn still_kills_an_unresponsive_cursor_status_process_and_blocks_selection() {
 }
 
 #[test]
+fn codex_probe_waits_for_a_stubborn_child_before_leaving_the_runtime() {
+    use crate::agent::transports::rpc_connection::jsonl_rpc_connection_factory;
+    use crate::agent::transports::test_support::fake_spawner;
+
+    run_local(async {
+        let (spawner, child) = fake_spawner(false);
+        let factory: ConnectionFactory = Rc::new(move |mut options| {
+            options.spawner = Some(spawner.clone());
+            jsonl_rpc_connection_factory()(options)
+        });
+        let cwd = std::env::current_dir().unwrap();
+        let probe = tokio::task::spawn_local(inspect_codex_protocol(InspectRequest {
+            candidate: fixed_candidate(cwd.join("codex").to_str().unwrap(), "codex"),
+            app_version: "0.1".into(),
+            workspace_root: Some(cwd.display().to_string()),
+            env: EnvMap::new(),
+            signal: None,
+            connection_factory: Some(factory),
+        }));
+        wait_until(|| !child.writes.borrow().is_empty()).await;
+        child
+            .stdout("{\"id\":1,\"error\":{\"code\":-1,\"message\":\"unavailable\"}}\n")
+            .await;
+        wait_until(|| child.kills.borrow().contains(&true)).await;
+        assert_eq!(child.kills.borrow().as_slice(), &[false, true]);
+        assert!(!probe.is_finished());
+        child.exit(None, Some("SIGKILL"));
+        assert!(probe.await.unwrap().is_err());
+    });
+}
+
+#[test]
 fn disposes_an_in_flight_codex_protocol_probe_when_application_inventory_is_cancelled() {
     run_local(async {
         let controller = Canceller::new();
