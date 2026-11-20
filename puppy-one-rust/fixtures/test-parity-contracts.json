@@ -41736,6 +41736,404 @@
           "test": "editor::table::interaction::tests::drops_land_before_the_first_segment_past_the_pointer_midpoint"
         }
       ]
+    },
+    {
+      "id": "markdown-pointer-selection-lifecycle",
+      "acceptance": "Pointer drags in following paragraphs retain revealed inline/block source until collapsed to an outside single caret, while outside single clicks fold revealed source and keyboard ranges leaving it retain it; backward pointer drags suppress inline reveal until collapsed to a caret; focus blur, Escape keydown, and mousemove with released button cancel active pointer selection; committed edits end pointer selection immediately; sibling editors keep independent pointer-selection projections.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownPointerSelection.test.ts",
+          "sha256": "34ad202800e6eb75f016bebdd5d4d56a97b2ae0cba447985f6c2e7778a318a1d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown pointer selection lifecycle > retains expanded inline source while dragging in the following paragraph"
+            },
+            {
+              "index": 1,
+              "name": "Markdown pointer selection lifecycle > folds expanded inline source after an outside single click completes"
+            },
+            {
+              "index": 2,
+              "name": "Markdown pointer selection lifecycle > retains expanded inline source for a keyboard range leaving it"
+            },
+            {
+              "index": 3,
+              "name": "Markdown pointer selection lifecycle > retains expanded block source while dragging in the following paragraph"
+            },
+            {
+              "index": 4,
+              "name": "Markdown pointer selection lifecycle > folds expanded block source after an outside single click completes"
+            },
+            {
+              "index": 5,
+              "name": "Markdown pointer selection lifecycle > retains expanded block source for a keyboard range leaving it"
+            },
+            {
+              "index": 6,
+              "name": "Markdown pointer selection lifecycle > keeps backward selection geometry through an outside release, then permits caret editing"
+            },
+            {
+              "index": 9,
+              "name": "Markdown pointer selection lifecycle > releases a gesture after window-blur"
+            },
+            {
+              "index": 10,
+              "name": "Markdown pointer selection lifecycle > releases a gesture after keydown"
+            },
+            {
+              "index": 12,
+              "name": "Markdown pointer selection lifecycle > releases a gesture after released-button"
+            },
+            {
+              "index": 14,
+              "name": "Markdown pointer selection lifecycle > keeps another editor's projection independent of the current gesture"
+            },
+            {
+              "index": 15,
+              "name": "Markdown pointer selection lifecycle > does not defer the projection of a committed edit"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_lifecycle_retains_folds_and_edits_revealed_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_backward_drag_release_cancellation_and_isolation"
+        }
+      ]
+    },
+    {
+      "id": "markdown-convergence-and-oversized-limits",
+      "acceptance": "Image syntax compiles full alt/href/title payloads; task checkboxes compile as inline atoms and horizontal rules as block atoms and render from compiled plans; oversized Mermaid source (>MAX_SOURCE_BYTES) is rejected before renderer host allocation; safe HTML blocks strip/ignore event attributes while preserving content and incomplete/blocked/unsafe HTML stays literal source; pathological Markdown tables exceeding ROW_LIMIT, COLUMN_LIMIT, or ROW_BYTE_LIMIT are bounded before reaching a table widget.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
+          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown semantic-plan convergence > compiles one complete image semantic payload into the image plan"
+            },
+            {
+              "index": 1,
+              "name": "Markdown semantic-plan convergence > represents task checkboxes as inline atoms and horizontal rules as block atoms"
+            },
+            {
+              "index": 2,
+              "name": "Markdown semantic-plan convergence > renders horizontal rules and task checkboxes from their compiled plans"
+            },
+            {
+              "index": 7,
+              "name": "Markdown HTML profile convergence > rejects oversized Mermaid source before loading the renderer"
+            },
+            {
+              "index": 8,
+              "name": "Markdown HTML profile convergence > reduces event capability while preserving profile-approved attributes"
+            },
+            {
+              "index": 13,
+              "name": "Markdown isolated preview adapter convergence > keeps incomplete, blocked, and unsafe HTML visible as source"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownOversizedBlocks.test.ts",
+          "sha256": "84f3e23ab234cd49262765a65edd01b613354fa936411f74272c6e9485ec70f2",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Markdown nested block virtualizer > bounds the semantic row model before a pathological table reaches a widget"
+            },
+            {
+              "index": 7,
+              "name": "Markdown nested block virtualizer > caps ultra-wide rows before collecting discarded cell arrays"
+            },
+            {
+              "index": 8,
+              "name": "Markdown nested block virtualizer > drops the semantic row model when one row or the total source budget is exceeded"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::markdown_convergence_plans_html_and_oversized_limits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_policy_acceptance::html_plan_rejections_keep_exact_source_ranges_and_stable_diagnostic_codes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_policy_acceptance::forbidden_html_roots_remain_literal_source_in_editable_and_read_only_surfaces"
+        }
+      ]
+    },
+    {
+      "id": "markdown-link-activation-policy",
+      "acceptance": "Markdown link navigation semantics project from one shared executable policy (headings, workspace files, external URLs, unresolved targets); standalone pointer release cannot bypass press validation; drag gestures stay in editing mode; moving the caret inside a link switches it to source editing and moving out restores navigation; Enter inserts a newline while editing.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownLinkActivation.test.ts",
+          "sha256": "a968e52cd4ef0b05307543491508a51b954cfff25eec60eb871e883842a804dc",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Markdown live-preview link activation > projects navigation semantics from the same executable policy used by events"
+            },
+            {
+              "index": 7,
+              "name": "Markdown live-preview link activation > does not let a standalone pointer click bypass gesture validation"
+            },
+            {
+              "index": 8,
+              "name": "Markdown live-preview link activation > keeps drag and range-selection gestures in editing mode"
+            },
+            {
+              "index": 9,
+              "name": "Markdown live-preview link activation > switches a link from navigation to text editing while its source range owns the caret"
+            },
+            {
+              "index": 10,
+              "name": "Markdown live-preview link activation > keeps Enter as editing unless the rendered link itself owns keyboard focus"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::link_activation_policy_caret_edit_mode_and_enter_editing"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_media_acceptance::native_link_clicks_honor_policy_and_drag_cancellation_in_tables_and_prose"
+        }
+      ]
+    },
+    {
+      "id": "markdown-inline-commands-and-keymap",
+      "acceptance": "Inline format toggles wrap and unwrap bold, italic, strikethrough, and underline tokens from full selections, inner selections, or interior carets, preserve inner selection after wrapping, insert empty bold markers at an empty caret, and keep trailing CJK punctuators outside ** unless at the document boundary; editing keybindings bind bold, italic, underline, strike, and heading shortcuts, own unavailable list Tab/Shift-Tab without falling through to generic Tab, and keep generic Tab indentation outside lists.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/commands/markdownInlineCommands.test.ts",
+          "sha256": "0e7b5cfe1c2200fb3c1dc8678625a27ef71cb81563dbe7ec1f9f84ff7df0a910",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown inline toggle commands > unwraps bold when selecting the full wrapped token"
+            },
+            {
+              "index": 1,
+              "name": "Markdown inline toggle commands > unwraps italic when selecting the full wrapped token"
+            },
+            {
+              "index": 2,
+              "name": "Markdown inline toggle commands > unwraps strikethrough when selecting the full wrapped token"
+            },
+            {
+              "index": 3,
+              "name": "Markdown inline toggle commands > unwraps underline tag when selecting the full wrapped token"
+            },
+            {
+              "index": 4,
+              "name": "Markdown inline toggle commands > unwraps bold when the caret is inside the formatted word"
+            },
+            {
+              "index": 5,
+              "name": "Markdown inline toggle commands > unwraps bold when the inner visible text is selected"
+            },
+            {
+              "index": 6,
+              "name": "Markdown inline toggle commands > keeps the visible text selected after wrapping, then unwraps without selecting markers"
+            },
+            {
+              "index": 7,
+              "name": "Markdown inline toggle commands > inserts empty bold markers and places the caret between them"
+            },
+            {
+              "index": 8,
+              "name": "Markdown inline toggle commands > keeps Markdown ** for long CJK text by leaving a trailing punctuator outside the markers"
+            },
+            {
+              "index": 9,
+              "name": "Markdown inline toggle commands > still wraps with ** when a CJK paragraph ends at the document boundary"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/commands/markdownEditingKeymap.test.ts",
+          "sha256": "a7e9c941746e4d96742ccac9003695b8c23ad833d4b15f9469dd26c903ae2227",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown editing shortcuts > includes heading, bold, italic, strikethrough, and underline keybindings"
+            },
+            {
+              "index": 1,
+              "name": "Markdown editing shortcuts > toggles underline with Mod-u"
+            },
+            {
+              "index": 2,
+              "name": "Markdown editing shortcuts > owns an unavailable list indent before the generic Tab fallback: '- parent\\n    - [ ] first child'"
+            },
+            {
+              "index": 3,
+              "name": "Markdown editing shortcuts > owns an unavailable list indent before the generic Tab fallback: '- root'"
+            },
+            {
+              "index": 4,
+              "name": "Markdown editing shortcuts > keeps generic Tab indentation available outside lists"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::inline_toggle_commands_wrap_unwrap_and_handle_cjk_punctuation"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::markdown_editing_keymap_binds_shortcuts_and_list_tab_ownership"
+        }
+      ]
+    },
+    {
+      "id": "markdown-task-checkbox-interaction",
+      "acceptance": "Task checkbox hotspots ignore pointer-down alone and toggle atomically on complete click without moving the caret, support repeated toggling, resolve tasks accurately after prefix edits shift line numbers, and preserve read-only documents.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/commands/markdownTaskCheckboxInteraction.test.ts",
+          "sha256": "dda16edfc69a093b6e43e36acb55a44d6ac622954b8f63e9627c49eade310a81",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown task checkbox interaction > owns one pointer activation and applies one atomic token change"
+            },
+            {
+              "index": 1,
+              "name": "Markdown task checkbox interaction > supports repeated native activation without trusting stale widget state"
+            },
+            {
+              "index": 2,
+              "name": "Markdown task checkbox interaction > resolves a task from the current document after edits before its line"
+            },
+            {
+              "index": 3,
+              "name": "Markdown task checkbox interaction > changes only on native activation, never on pointer-down alone"
+            },
+            {
+              "index": 4,
+              "name": "Markdown task checkbox interaction > preserves read-only documents"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::task_checkbox_hotspot_toggles_atomically_across_prefix_edits_and_readonly"
+        }
+      ]
+    },
+    {
+      "id": "markdown-block-drag-geometry",
+      "acceptance": "Block-drag drop boundary lookup splits each block at its midpoint, clamps outside the group, and uses O(log N) binary search; edge auto-scroll velocity rests outside edge zones, ramps linearly inside edge zones, and caps past viewport edges.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/interaction/markdownBlockDragGeometry.test.ts",
+          "sha256": "2058e0ed4b119fb8c32ff73d767c98b0c59124c79272d83de3bb0a15521616f7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pickDropBoundary > splits each block at its midpoint"
+            },
+            {
+              "index": 1,
+              "name": "pickDropBoundary > clamps outside the group"
+            },
+            {
+              "index": 2,
+              "name": "pickDropBoundary > reads only logarithmically many blocks"
+            },
+            {
+              "index": 3,
+              "name": "getEdgeScrollVelocity > rests outside the edge zones"
+            },
+            {
+              "index": 4,
+              "name": "getEdgeScrollVelocity > ramps with depth and caps past the edge"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::addons::block_drag::tests::block_drag_geometry_splits_midpoints_clamps_binary_searches_and_edge_scrolls"
+        }
+      ]
+    },
+    {
+      "id": "markdown-math-interaction",
+      "acceptance": "Display and inline math formulas compile exact source ranges and register native widgets; invalid LaTeX stays visible without mutating source; double-clicking display math (including indented blocks) focuses the editor at formula content start and reveals the editable source leaf; read-only inline and block formulas resist Backspace/Delete while editable formulas delete as one undoable edit.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownMathInteraction.test.ts",
+          "sha256": "0bc5d87792949e9d3bb71c4a6334fc5256bfdf6fd826e0cb25f27e08b649fd33",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown math live preview > renders display and inline formulas through KaTeX"
+            },
+            {
+              "index": 1,
+              "name": "Markdown math live preview > keeps invalid LaTeX visible instead of dropping the source"
+            },
+            {
+              "index": 2,
+              "name": "Markdown math live preview > reveals the canonical display source on double click"
+            },
+            {
+              "index": 3,
+              "name": "Markdown math live preview > places the caret at math content start for indented display blocks"
+            },
+            {
+              "index": 4,
+              "name": "Markdown math live preview > protects read-only inline formulas from deletion"
+            },
+            {
+              "index": 5,
+              "name": "Markdown math live preview > protects read-only block formulas from deletion"
+            },
+            {
+              "index": 6,
+              "name": "Markdown math live preview > deletes an editable inline formula as one undoable edit"
+            },
+            {
+              "index": 7,
+              "name": "Markdown math live preview > deletes an editable block formula as one undoable edit"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::math_acceptance::display_and_inline_math_preserve_exact_source_ranges_and_register_native_widgets"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::math_interaction_keeps_failed_latex_visible_and_edits_or_deletes_formulas"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -50067,6 +50465,32 @@
               "name": "editable table structural-selection lifecycle > disconnects on disposal and cannot resurrect an overlay"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownPointerSelection.test.ts",
+          "sha256": "34ad202800e6eb75f016bebdd5d4d56a97b2ae0cba447985f6c2e7778a318a1d",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Markdown pointer selection lifecycle > waits for a consumed mouseup before revealing source"
+            },
+            {
+              "index": 8,
+              "name": "Markdown pointer selection lifecycle > releases a gesture after pointercancel"
+            },
+            {
+              "index": 11,
+              "name": "Markdown pointer selection lifecycle > releases a gesture after dragstart"
+            },
+            {
+              "index": 13,
+              "name": "Markdown pointer selection lifecycle > does not let a queued release terminate the next gesture"
+            },
+            {
+              "index": 16,
+              "name": "Markdown pointer selection lifecycle > removes document listeners and cancels deferred dispatch on destruction"
+            }
+          ]
         }
       ]
     },
@@ -51853,6 +52277,30 @@
               "name": "embedded draft relocation > relocates contained drafts, maps disjoint drafts, and conflicts partial overlap"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
+          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown HTML profile convergence > does not upgrade base sanitizer profiles merely because a media tag appears"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownOversizedBlocks.test.ts",
+          "sha256": "84f3e23ab234cd49262765a65edd01b613354fa936411f74272c6e9485ec70f2",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Markdown compound HTML media > keeps unresolved media inert so each asset can hydrate independently"
+            },
+            {
+              "index": 10,
+              "name": "Markdown compound HTML media > rejects an over-broad srcset before starting broker work"
+            }
+          ]
         }
       ]
     },
@@ -52101,6 +52549,32 @@
               "name": "Markdown HTML anchor targets > resolves the first exact explicit ID before a generated heading slug"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownLinkActivation.test.ts",
+          "sha256": "a968e52cd4ef0b05307543491508a51b954cfff25eec60eb871e883842a804dc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown live-preview link activation > resolves an empty explicit HTML anchor without a mounted target DOM element"
+            },
+            {
+              "index": 1,
+              "name": "Markdown live-preview link activation > updates remote link affordances when a target is removed and restored"
+            },
+            {
+              "index": 3,
+              "name": "Markdown live-preview link activation > routes [Jump](#target) through the same explicit target resolver"
+            },
+            {
+              "index": 4,
+              "name": "Markdown live-preview link activation > routes [[#target]] through the same explicit target resolver"
+            },
+            {
+              "index": 5,
+              "name": "Markdown live-preview link activation > routes <a href=\"#target\">Jump</a> through the same explicit target resolver"
+            }
+          ]
         }
       ]
     },
@@ -52315,6 +52789,32 @@
               "name": "Markdown HTML cross-surface conformance > uses the shared policy in the fragment surface: unknown inline"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
+          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
+          "cases": [
+            {
+              "index": 10,
+              "name": "Markdown isolated preview adapter convergence > delegates raw HTML anchors to the host LinkBroker wrapper"
+            },
+            {
+              "index": 11,
+              "name": "Markdown isolated preview adapter convergence > binds nested Markdown links exactly once inside sanitized HTML"
+            },
+            {
+              "index": 12,
+              "name": "Markdown isolated preview adapter convergence > keeps raw HTML anchors inert when no LinkBroker wrapper is supplied"
+            },
+            {
+              "index": 14,
+              "name": "Markdown isolated preview adapter convergence > does not mount Markdown or raw-HTML images without an AssetBroker wrapper"
+            },
+            {
+              "index": 15,
+              "name": "Markdown isolated preview adapter convergence > resolves every raw HTML image source before enabling safe-media DOM"
+            }
+          ]
         }
       ]
     },
@@ -52353,6 +52853,16 @@
             {
               "index": 19,
               "name": "Markdown block targeting > keeps a block's identity while the parser extends the document"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownLinkActivation.test.ts",
+          "sha256": "a968e52cd4ef0b05307543491508a51b954cfff25eec60eb871e883842a804dc",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Markdown live-preview link activation > updates a visible link when parsing reaches a target outside the viewport"
             }
           ]
         }
@@ -52997,6 +53507,36 @@
               "name": "CSV bounded renderer performance > adapts to a 100-column table without crossing the mounted-cell budget"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownOversizedBlocks.test.ts",
+          "sha256": "84f3e23ab234cd49262765a65edd01b613354fa936411f74272c6e9485ec70f2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown render-budget policy > accounts for the possible syntax-token DOM cost of code blocks"
+            },
+            {
+              "index": 1,
+              "name": "Markdown render-budget policy > uses stable, versioned transitions at the table and HTML thresholds"
+            },
+            {
+              "index": 2,
+              "name": "Markdown render-budget policy > keeps expensive code and diagrams out of unconditional rich mount"
+            },
+            {
+              "index": 3,
+              "name": "Markdown nested block virtualizer > indexes variable item sizes, overscan, and pinned rows without linear lookup"
+            },
+            {
+              "index": 4,
+              "name": "Markdown nested block virtualizer > mounts a bounded table row window and can reveal an offscreen logical row"
+            },
+            {
+              "index": 5,
+              "name": "Markdown nested block virtualizer > routes an oversized Markdown table through the windowed widget adapter"
+            }
+          ]
         }
       ]
     },
@@ -53333,6 +53873,16 @@
               "name": "Markdown HTML reduction > omits an invalid value for a source condition"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
+          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Markdown HTML profile convergence > does not let CSS variables or unbounded geometry bypass presentation policy"
+            }
+          ]
         }
       ]
     },
@@ -53377,6 +53927,24 @@
             {
               "index": 83,
               "name": "Markdown inline SVG and audio > removes a linked style attribute"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
+          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Markdown HTML profile convergence > turns Mermaid anchor navigation into brokered intents while preserving local paint references"
+            },
+            {
+              "index": 5,
+              "name": "Markdown HTML profile convergence > mounts dense Mermaid diagrams at a readable intrinsic scale"
+            },
+            {
+              "index": 6,
+              "name": "Markdown HTML profile convergence > keeps unmeasurable Mermaid fragments on the safe fit-width fallback"
             }
           ]
         }
@@ -53701,6 +54269,82 @@
             {
               "index": 11,
               "name": "document layout ownership > shares observation and makes old unsubscribe/late delivery harmless"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-soft-budget-deferred-preview",
+      "kind": "gap",
+      "reason": "TS defers soft-over-budget HTML subtrees (48 KiB-256 KiB) and large Mermaid diagrams (>32 KiB) behind a paused click-to-preview placeholder card, and drops code fences over 512 lines out of the code widget. Natively HtmlBlockWidget renders directly and Mermaid rejects over MAX_SOURCE_BYTES (256 KiB) without an intermediate click-to-activate deferred preview card, while code fences over 512 lines stay rendered in the code block widget with plain unhighlighted text.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/README.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownOversizedBlocks.test.ts",
+          "sha256": "84f3e23ab234cd49262765a65edd01b613354fa936411f74272c6e9485ec70f2",
+          "cases": [
+            {
+              "index": 11,
+              "name": "Markdown compound HTML media > defers a soft-over-budget HTML subtree until explicit activation"
+            },
+            {
+              "index": 12,
+              "name": "Markdown compound HTML media > defers a large Mermaid computation and keeps a long code fence as source"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-heading-outline-rail",
+      "kind": "gap",
+      "reason": "TS mounts a compact ChatGPT-style ATX heading outline rail with hover/keyboard popover disclosure and jump-to-heading navigation for long Markdown live-preview documents. The native Rust Markdown editor does not yet implement a heading outline addon or navigation rail.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/README.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownHeadingOutline.test.ts",
+          "sha256": "b426a28c07f7b79c5a71f6e8961c7e569ec3e2ab9b00ef86b4246f7fed5a0a50",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown heading outline > collects ATX headings with visible titles"
+            },
+            {
+              "index": 1,
+              "name": "Markdown heading outline > collects headings across a long document without treating fenced code as headings"
+            },
+            {
+              "index": 2,
+              "name": "Markdown heading outline > mounts a compact ChatGPT-style navigation rail for long live preview documents"
+            },
+            {
+              "index": 3,
+              "name": "Markdown heading outline > moves keyboard focus between heading dashes without opening a panel"
+            },
+            {
+              "index": 4,
+              "name": "Markdown heading outline > reveals a compact heading list when a directory dash is hovered"
+            },
+            {
+              "index": 5,
+              "name": "Markdown heading outline > keeps the heading list open while the pointer crosses into it, then closes after leaving"
+            },
+            {
+              "index": 6,
+              "name": "Markdown heading outline > mirrors the hover disclosure for keyboard focus and closes it with Escape"
+            },
+            {
+              "index": 7,
+              "name": "Markdown heading outline > jumps from a heading-list item and returns focus to the editor"
+            },
+            {
+              "index": 8,
+              "name": "Markdown heading outline > preserves a focused heading-list item while scroll state is measured"
+            },
+            {
+              "index": 9,
+              "name": "Markdown heading outline > preserves a focused directory dash while scroll state is measured"
             }
           ]
         }

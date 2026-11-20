@@ -892,8 +892,10 @@ impl RenderCx<'_> {
             .w(px(rect.width))
             .h(px(rect.height))
             .cursor(CursorStyle::Arrow)
-            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+            .on_mouse_down(MouseButton::Left, |_, _, cx| {
                 cx.stop_propagation();
+            })
+            .on_click(move |_, window, cx| {
                 let _ = view.update(cx, |v, cx| v.run_command(&command, window, cx));
             })
             .into_any_element()

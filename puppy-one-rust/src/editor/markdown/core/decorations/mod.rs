@@ -128,9 +128,8 @@ impl LazyBlockWidget {
         let best = refreshed
             .iter()
             .filter(|p| {
-                p.element.is_none()
-                    && ((p.source.start == source.start && p.embed().is_some())
-                        || p.is_visible_source())
+                (p.source.start == source.start && p.embed().is_some())
+                    || (p.element.is_none() && p.is_visible_source())
             })
             .fold(None::<&Plan>, |best, p| match best {
                 Some(best) if best.source.end >= p.source.end => Some(best),
@@ -364,9 +363,8 @@ fn decorate_window(
         let block = b.by_line[local]
             .iter()
             .filter(|p| {
-                p.element.is_none()
-                    && ((p.source.start == range.start && p.embed().is_some())
-                        || p.is_visible_source())
+                (p.source.start == range.start && p.embed().is_some())
+                    || (p.element.is_none() && p.is_visible_source())
             })
             .fold(None::<&&Plan>, |best, p| match best {
                 Some(best) if best.source.end >= p.source.end => Some(best),

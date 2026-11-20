@@ -342,6 +342,11 @@ impl EditorView {
         self.extensions.extension::<T>()
     }
 
+    #[cfg(test)]
+    pub fn extension_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.extensions.extension_mut::<T>()
+    }
+
     pub fn add_extension(&mut self, extension: Box<dyn EditorExtension>, cx: &mut Context<Self>) {
         self.extensions.add_extension(extension, cx);
         self.caches.doc_deco_key = None;
@@ -420,8 +425,13 @@ impl EditorView {
         if self.blur.is_none() {
             self.blur = Some(cx.on_blur(&self.focus, window, |this, _, cx| {
                 this.pointer.link_press = None;
-                this.commit_composition(cx);
                 let mut notify = false;
+                if this.pointer.drag.take().is_some() {
+                    this.focused_before = false;
+                    this.extensions.selection_changed(&this.state, false, false);
+                    notify = true;
+                }
+                this.commit_composition(cx);
                 for plugin in &mut this.extensions.plugins {
                     notify |= plugin.on_blur(&this.state);
                 }
@@ -584,6 +594,8 @@ impl EditorView {
         let doc_modified = applied.is_some();
         match applied {
             Some(applied) => {
+                // Committed edits never defer preview projection behind an in-flight pointer gesture.
+                self.pointer.drag = None;
                 if !is_compose && !self.history.composing() {
                     self.committed_rev = self.state.revision;
                 }

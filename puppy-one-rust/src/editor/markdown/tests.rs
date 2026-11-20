@@ -18,6 +18,7 @@ mod block_acceptance;
 mod block_move_acceptance;
 mod code_isolation_acceptance;
 mod composition_acceptance;
+mod core_interaction_acceptance;
 mod document_scope_acceptance;
 mod editor_view_acceptance;
 mod embed_runtime_acceptance;
