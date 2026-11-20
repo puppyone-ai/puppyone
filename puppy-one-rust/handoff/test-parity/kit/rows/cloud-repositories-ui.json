@@ -1,0 +1,109 @@
+[
+ {"id": "cloud-hosted-project-opening",
+  "acceptance": "An authorized hosted Project opens in the same window with no local workspace or Git, the Header naming it while it opens; a refusal keeps the selected Project and is classified by what the person can do (sign in, plan, access, missing project, workspace unavailable or not configured); a workspace replaced while opening is opened again once by itself, and one that moves again is reported; a missing Project is told apart from an unavailable runtime; a retained or cleanup-pending runtime is never woken; a refused local association leaves the account catalog usable; a failed opening keeps what is open with its recovery and Retry repeats that opening; the same target joins its pending opening and turning Cloud off cancels it; a response for another Project or target is refused; signing out revokes the hosted selection and returns home; going back to the folder makes it its own project again; a reopened lease rebinds a document's baseline and saves.",
+  "typescript": [
+   {"path": "tests/component/cloud/repositories/accountCloudWorkspace.test.tsx", "cases": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 22, 23, 24, 25, 26]},
+   {"path": "tests/component/cloud/repositories/appProjectLocation.test.tsx", "cases": [0, 1, 2, 3, 4]},
+   {"path": "tests/component/cloud/repositories/nativeCloudWorkbench.test.tsx", "cases": [1, 4, 5]},
+   {"path": "tests/component/cloud/repositories/cloudOpenWaitsForSession.test.tsx", "cases": [3]}
+  ],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::a_linked_folder_opens_its_cloud_project_in_the_same_window"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::injected_opening_failures_reach_the_recovery_with_the_product_code"},
+   {"package": "po-workspace", "test": "workspace::cloud::opening::tests::workspace_opening_failures_say_what_to_do_next_and_carry_their_diagnostics"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::a_workspace_replaced_while_opening_is_opened_again_once"},
+   {"package": "po-workspace", "test": "workspace::cloud::tests::explicit_opening_recovery_and_access_denial_never_wake"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::a_refused_association_leaves_the_account_catalog_usable"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::the_same_cloud_target_joins_its_pending_opening"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::turning_cloud_off_cancels_an_opening_in_flight"},
+   {"package": "po-workspace", "test": "workspace::cloud::tests::exact_authorized_root_and_running_generation_are_required_before_handoff"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::signing_out_revokes_the_hosted_selection_and_returns_home"},
+   {"package": "po-workspace", "test": "workspace::cloud::tests::a_reopened_lease_rebinds_a_document_baseline_and_saves"},
+   {"package": "po-workspace", "test": "workspace::cloud::tests::reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease"}
+  ]},
+ {"id": "cloud-repository-context",
+  "acceptance": "A checkout's Cloud context is decided by its remotes first: no canonical PuppyOne remote is local-only, signed out asks to sign in without a request, another host or conflicting locators are decided locally, retired access-key remotes are ignored, legacy official HTTP and explicitly mapped hosted-Git locators resolve only in their own environment; only then is the exact Project authorized. 401, 403, 404 and 503 map to their recovery states, a changed session stays resolving, and the server's reason is kept without SDK detail. Only transport failures, timeouts and 408/500/502/503/504 recover, with two jittered retries and then one throttled probe per return of the window or network; 401, 403, 404, 426, 429, 501, a changed session, a cancellation and unclassified failures are never retried; probes never overlap and a success ends recovery. A new checkout, account, session or API resolves afresh and drops late results.",
+  "typescript": [
+   {"path": "tests/component/cloud/repositories/contextualCloudResolution.test.tsx", "cases": [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]},
+   {"path": "tests/component/cloud/repositories/repositoryContextRecovery.test.ts", "cases": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]}
+  ],
+  "rust": [
+   {"package": "po-workspace", "test": "workspace::cloud::repository::tests::remotes_decide_before_any_request"},
+   {"package": "po-workspace", "test": "workspace::cloud::repository::tests::refusals_are_told_apart_and_mapped_to_location_states"},
+   {"package": "po-workspace", "test": "workspace::cloud::locator::tests::legacy_locators_are_identity_hints_for_their_own_environment_only"},
+   {"package": "po-workspace", "test": "workspace::cloud::locator::tests::only_the_configured_origin_or_explicit_hosted_mapping_is_trusted"},
+   {"package": "po-workspace", "test": "workspace::cloud::locator::tests::remotes_parse_projects_scopes_and_ignore_access_points"},
+   {"package": "po-workspace", "test": "workspace::cloud::failure::tests::connection_reasons_come_from_structured_evidence_only"},
+   {"package": "po-workspace", "test": "workspace::cloud::recovery::tests::only_transport_and_transient_server_failures_recover"},
+   {"package": "po-workspace", "test": "workspace::cloud::recovery::tests::two_jittered_retries_then_throttled_probes"},
+   {"package": "po-workspace", "test": "workspace::cloud::recovery::tests::denials_never_schedule_retries_or_probes"}
+  ]},
+ {"id": "scoped-checkout-cloud-notice", "extend": true, "kind": "gap",
+  "typescript": [{"path": "tests/component/cloud/repositories/contextualCloudResolution.test.tsx", "cases": [5]}]},
+ {"id": "cloud-context-retries-while-hidden", "kind": "gap",
+  "reason": "TS defers a repository-context retry while the window is hidden until it is visible again, and removes its focus, visibility and online listeners when the context is disposed. The native retries (at most two, jittered) run on their timers whether or not the window is visible; a returning window still asks for the one throttled probe.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/context-recovery.md",
+  "typescript": [{"path": "tests/component/cloud/repositories/repositoryContextRecovery.test.ts", "cases": [14]}]},
+ {"id": "cloud-folder-notices",
+  "acceptance": "A linked folder's notice says the folder and its Cloud project are two projects and opens the Cloud one separately (continuing a pending first publication instead), never from a scoped checkout; every other association offers the one action that helps — sign in, end the link (only where this app can end it), retry with the readable server cause — and an ambiguous link is only explained; a notice can be dismissed and shows again for a new folder or meaning. Ending a link is offered for the folder's puppyone connection, says the Cloud project and files stay, warns about commits Cloud has not received, removes exactly the reviewed connection, and keeps the link and says so when the connection changed after it was reviewed.",
+  "typescript": [
+   {"path": "tests/component/cloud/repositories/localFolderCloudNotice.test.tsx", "cases": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]},
+   {"path": "tests/component/cloud/repositories/cloudFailurePresentation.test.tsx", "cases": [0, 1, 2]},
+   {"path": "tests/component/cloud/repositories/cloudLinkDisconnectDialog.test.tsx", "cases": [0, 1, 2, 3, 4, 5]}
+  ],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::project_place::tests::each_notice_offers_only_the_action_that_helps"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::project_place::tests::every_association_has_its_notice_and_a_pending_publication_continues"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::project_place::tests::notices_follow_the_association"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::a_vanished_cloud_projects_link_is_ended_from_its_notice"},
+   {"package": "po-workspace", "test": "cloud::publication::tests::a_reviewed_detach_keeps_history_content_and_unrelated_remotes"},
+   {"package": "po-workspace", "test": "cloud::publication::tests::detaching_a_missing_project_removes_only_the_reviewed_remote"}
+  ]},
+ {"id": "cloud-open-during-session-restore", "kind": "gap",
+  "reason": "TS opening a Cloud project from the cached Home list while the session is still being restored waits for it (and opens nothing if the person left meanwhile), failing as signed out only once the session is known to be gone. The native open_cloud answers at once from the account it has: while the session is restoring it reports that sign-in is required.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/opening.md",
+  "typescript": [{"path": "tests/component/cloud/repositories/cloudOpenWaitsForSession.test.tsx", "cases": [0, 1, 2]}]},
+ {"id": "cloud-spaces-and-places",
+  "acceptance": "The account's own Space is resolved (provisioned once if missing, through the older personal route on older servers, never retried after any other failure) and sorted first; a multi-person Space can be the default; an undescribed Space makes the answer unusable rather than guessed. The Homepage groups from the Spaces the account last saw while it answers, keeps them when a later read fails, never shows one account's Spaces for another's, and leaves on sign-out. The place that holds an open Cloud project is named from the account's Spaces (the last launch's answer at first), and Settings manage the named Space, else the open project's, else the account's own, stating each Space the same way everywhere with one tone per id.",
+  "typescript": [
+   {"path": "tests/component/cloud/repositories/cloudSpacesDiscovery.test.tsx", "cases": [0, 1, 2, 3, 4, 5, 6, 7]},
+   {"path": "tests/component/cloud/repositories/cloudOrganizationName.test.tsx", "cases": [0, 1, 2]},
+   {"path": "tests/component/cloud/repositories/settingsSpace.test.ts", "cases": [0, 1, 2, 3, 4, 5]}
+  ],
+  "rust": [
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::a_missing_own_space_is_provisioned_once_and_comes_first"},
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::an_older_deployment_provisions_the_personal_space_as_the_default"},
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::a_listed_own_space_needs_no_provisioning"},
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::provisioning_is_not_retried_after_any_other_failure"},
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::a_shared_space_can_be_the_default"},
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::an_undescribed_space_makes_the_answer_unusable"},
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::spaces_sort_own_first_then_by_name_as_the_product_compares"},
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::settings_manage_the_named_space_else_the_open_projects_else_the_own"},
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::a_space_reads_as_the_product_presents_it"},
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::a_space_keeps_one_tone_wherever_it_appears"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::spaces::tests::cached_legacy_spaces_read_as_spaces_for_their_account_only"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::homepage::the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::home_groups::the_homepage_groups_projects_by_the_place_that_holds_them"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::project_place::tests::the_place_names_a_space_or_this_computer_and_states_a_link"}
+  ]},
+ {"id": "cloud-space-drop-destination",
+  "acceptance": "A folder dropped on a team's group opens its publication to that Space, discloses what is sent and confirms before anything is created; cancelling has no side effect; a destination the account can no longer create in is never swapped for the default Space; a list read for an earlier account is dropped.",
+  "typescript": [
+   {"path": "tests/component/cloud/repositories/cloudSpaceDestinationConfirmation.test.tsx", "cases": [0, 1, 2, 3]},
+   {"path": "tests/component/cloud/repositories/cloudSpacePublishIntent.test.tsx", "cases": [0, 1, 2]}
+  ],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::home_groups::a_folder_dropped_on_a_team_opens_its_publication_to_that_team"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::publish::tests::a_publication_asks_which_organization_unless_there_is_only_one"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::publish::tests::a_list_read_for_an_earlier_scope_is_dropped"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_publish_dialog::the_first_page_states_the_value_and_the_confirmation_a_separate_project"}
+  ]},
+ {"id": "home-creates-in-spaces", "kind": "out-of-scope",
+  "reason": "TS v0.4.4's Homepage lists Cloud projects but never reads organizations, creates or publishes projects. The native Homepage groups projects by the Space that holds them and can make a project in a Space or publish a dropped folder to it (Projects Home, Space groups), a deliberate native design.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/spaces.md",
+  "typescript": [
+   {"path": "tests/component/cloud/repositories/accountCloudWorkspace.test.tsx", "cases": [27]}
+  ]}
+]

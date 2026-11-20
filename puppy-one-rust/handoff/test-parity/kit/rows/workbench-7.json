@@ -1,0 +1,40 @@
+[
+ {"id": "agent-chat-close-lifecycle",
+  "acceptance": "Closing a chat is accepted at once in every stage of its turn or of a display repair (streaming, provider retry, silent, reconnecting, degraded, paused, exhausted, an acknowledgement pending, an approval waiting, the runtime exited, completed): the repair stops, a receipt or retry that lands later attaches nothing, and no turn, approval answer or second close is sent. A prepared empty chat closes without an error; a close before the first display snapshot detaches the late subscription; a close during preparation lets no late startup dispatch; queued input is sealed and late receipts or completions change nothing; a sibling chat is unaffected and a close that was not confirmed keeps the tab for a retry.",
+  "typescript": [{"path": "tests/component/workbench/item-hosts/agentChatLifecycle.test.tsx", "cases": [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17, 18]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::session_feed::closing_a_chat_in_any_stage_is_accepted_at_once_and_late_work_stays_inert"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::session_feed::termination_of_a_healthy_display_is_not_a_recovery_incident"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::controller::closes_a_tab_owned_native_session_without_affecting_another_controller"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::session_feed::stops_first_attach_recovery_after_disposal"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::session_feed::recovers_a_timed_out_first_attach_and_detaches_its_late_receipt"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::submission_lifecycle::does_not_dispatch_after_preparation_completes_for_an_invalidated_conversation"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::controller::closes_a_restored_native_session_when_workbench_preparation_rolls_back"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::controller::ignores_receipts_and_new_submissions_after_disposal"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::controller_registry::coalesces_close_requests_and_keeps_failed_closes_available_for_retry"}
+  ]},
+ {"id": "agent-chat-turn-repair-and-retry",
+  "acceptance": "A chat repairs a lost final frame from the watermark and continues once with its draft kept, and a provider retry that succeeds shows the recovered answer without a stale failure; cancelling the close confirmation of a running chat keeps it and its execution.",
+  "typescript": [{"path": "tests/component/workbench/item-hosts/agentChatLifecycle.test.tsx", "cases": [1, 13, 14]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::session_feed::repairs_a_lost_last_terminal_frame_using_the_watermark"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::submission_lifecycle::continues_a_degraded_turn_without_consuming_the_draft_or_references"},
+   {"package": "po-agent", "test": "agent::runtimes::display_acceptance_tests::recovered_pi_request_completes_without_a_stale_failure_card"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::session_feed::keeps_a_model_retry_while_a_tool_progresses_and_clears_it_on_completion"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::tests::closes_commit_first_wait_for_their_release_and_stay_apart"}
+  ]},
+ {"id": "react-error-boundaries",
+  "kind": "out-of-scope",
+  "reason": "React error boundaries contain a render exception or a failed DOM measurement to one Workbench view, status renderer or launcher and offer to reload it. Native views are Rust code that reports failures as values shown in the item, and layout never fails to measure; only editor viewer surfaces, which may run pack code, are isolated against panics (rg23_panicking_viewer_surface_degrades_only_its_pane_and_preserves_unsaved_working_copy).",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+  "typescript": [{"path": "tests/component/workbench/item-hosts/workbenchRenderIsolation.test.tsx", "cases": [0, 1, 2, 3, 4, 5, 6, 7, 8]}]},
+ {"id": "agent-titlebar-entry",
+  "acceptance": "The right sidebar starts on Chat unless History or Changes was stored (a retired value is Chat), only a valid runtime id is restored as the selected Agent, and the Header's Agent entry is one toggle without a menu or a second Chat toggle beside it.",
+  "typescript": [{"path": "tests/component/workbench/item-hosts/desktop-agent.titlebar-gate.test.ts", "cases": [0, 1, 2, 3]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::settings::electron_preferences::tests::the_right_sidebar_starts_on_chat_unless_a_git_surface_was_stored"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::settings::agent_routing_preferences::tests::only_a_valid_runtime_id_is_restored_as_the_selection"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::sidebar_surfaces::the_right_sidebar_keeps_and_restores_its_surface"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::sidebar_surfaces::the_header_agent_entry_is_one_toggle_without_a_menu"}
+  ]}
+]

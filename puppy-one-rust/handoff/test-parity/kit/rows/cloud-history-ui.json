@@ -1,0 +1,36 @@
+[
+ {"id": "cloud-history-sidebar",
+  "acceptance": "Cloud History lives in the window's own right sidebar beside Changes (no separate Cloud shell) and closes outside a hosted Project. It reads only when shown, 80 summaries per page through the signed cursor, keeps every loaded commit (never truncated), shows loading in the full sidebar, and selects the head; a rapid double click appends a cursor page once and a moved snapshot or drifting continuation restarts from the first page rather than merging. Opening a commit reads its paths once and returning reuses the list; another view paints the cached snapshot at once and revalidates it; a failed first page offers Try again; a hosted run's publication reads the first page again. Requests are shared across views, cancelled only when the last view leaves, settled only by the current flight, and isolated by account, session generation, API and Project. Loading more is the only list action besides selection.",
+  "typescript": [
+   {"path": "tests/component/cloud/history/cloudHistoryData.test.tsx", "cases": [0, 1, 2, 3]},
+   {"path": "tests/component/cloud/history/cloudProjectHistory.test.tsx", "cases": [0, 1, 2, 5, 7]},
+   {"path": "tests/component/cloud/history/cloudWorkspaceHistorySidebar.test.tsx", "cases": [0, 1, 2]},
+   {"path": "tests/component/cloud/history/historyRepository.test.ts", "cases": [0, 1, 2, 3]}
+  ],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::source_control::cloud_history::tests::the_sidebar_pages_reads_detail_on_demand_and_shares_snapshots"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::source_control::cloud_history::tests::the_list_and_detail_render_in_a_window"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::source_control::cloud_history::tests::flights_are_shared_released_and_settled_once"},
+   {"package": "po-workspace", "test": "workspace::cloud::history::tests::pages_merge_within_one_snapshot_and_restart_otherwise"},
+   {"package": "po-workspace", "test": "workspace::cloud::history::tests::requests_read_eighty_summaries_per_page_and_detail_separately"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::sidebar_surfaces::the_header_entries_switch_and_close_the_right_sidebar"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::sidebar_surfaces::cloud_history_closes_outside_a_hosted_project"}
+  ]},
+ {"id": "cloud-history-graph-model",
+  "acceptance": "The History graph model lays out lanes from the commits' ancestry: a linear history stays on one lane, a merge opens a lane that closes at the common parent with each side keeping its colour, duplicate or foreign parents draw nothing extra, and refs become markers beside the graph with heads outside the loaded history on rows of their own.",
+  "typescript": [{"path": "tests/component/cloud/history/cloudProjectHistory.test.tsx", "cases": [4, 6]}],
+  "rust": [
+   {"package": "po-workspace", "test": "workspace::cloud::graph::tests::a_linear_history_stays_on_one_lane"},
+   {"package": "po-workspace", "test": "workspace::cloud::graph::tests::a_merge_opens_a_lane_and_closes_it_at_the_common_parent"},
+   {"package": "po-workspace", "test": "workspace::cloud::graph::tests::duplicate_or_foreign_parents_draw_nothing_extra"},
+   {"package": "po-workspace", "test": "workspace::cloud::graph::tests::refs_become_markers_beside_the_graph_and_outside_heads_get_their_own_rows"}
+  ]},
+ {"id": "cloud-history-graph-not-drawn", "kind": "gap",
+  "reason": "TS draws the Cloud History sidebar as a lane graph (an SVG beside the rows, inline ref labels, ref-only rows that are not buttons) next to the commit detail in the local History hierarchy. The native sidebar computes the same lane model (workspace::cloud::graph) but draws Cloud commits through the local History's day timeline, so no lanes, ref markers or ref-only rows are shown.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/history.md",
+  "typescript": [{"path": "tests/component/cloud/history/cloudProjectHistory.test.tsx", "cases": [3, 8]}]},
+ {"id": "react-hook-render-mechanics", "kind": "out-of-scope",
+  "reason": "These check React rendering mechanics: that a hook does not reload when a parent passes a new callback identity, memoized values keep their identity, or an effect does not re-run on an unrelated prop. GPUI views own their state and are not re-rendered from props, so there is no hook dependency to keep stable; the behaviour the hook serves is covered by the feature's own rows.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
+  "typescript": [{"path": "tests/component/cloud/history/cloudHistoryData.test.tsx", "cases": [4]}]}
+]

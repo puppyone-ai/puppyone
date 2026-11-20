@@ -1,0 +1,71 @@
+[
+ {"id": "agent-sidebar-display-invariants",
+  "acceptance": "The Agent display keeps what the native side confirmed: a start whose receipt is lost returns the native outcome without resending; an ambiguous command is kept until its native turn confirms it; an admitted input shows once, in its delivery state, and joins its native identity without a second bubble; same-text inputs keep their own failed or unknown states; a lost acknowledgement keeps the native completion; long answers stay whole (a shorter explicit final text corrects them), a known incomplete prefix never replaces streamed text and the 128 KiB display limit is reported; no adapter clips a final answer; ACP tool updates merge by presence; restored turns keep their native duration and replayed history claims none; long inputs stay out of control frames; completion before the start receipt does not reactivate the turn.",
+  "typescript": [{"path": "tests/unit/workbench/item-hosts/electron.agent-sidebar-contracts.test.mjs", "cases": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]}],
+  "rust": [
+   {"package": "po-agent", "test": "agent::application::tests::concurrency::a_lost_start_receipt_returns_the_native_confirmed_outcome"},
+   {"package": "po-agent", "test": "agent::domain::sidebar_contract_tests::an_ambiguous_command_is_kept_and_confirmed_by_its_native_turn"},
+   {"package": "po-agent", "test": "agent::domain::sidebar_contract_tests::an_admitted_input_shows_once_and_joins_its_native_identity"},
+   {"package": "po-agent", "test": "agent::domain::sidebar_contract_tests::same_text_inputs_keep_their_own_delivery_states"},
+   {"package": "po-agent", "test": "agent::domain::sidebar_contract_tests::a_lost_start_acknowledgement_keeps_the_native_completion"},
+   {"package": "po-agent", "test": "agent::domain::sidebar_contract_tests::a_long_answer_is_kept_whole_and_a_shorter_final_text_corrects_it"},
+   {"package": "po-agent", "test": "agent::domain::sidebar_contract_tests::a_known_incomplete_prefix_never_replaces_the_text_and_the_limit_is_reported"},
+   {"package": "po-agent", "test": "agent::domain::sidebar_contract_tests::an_incomplete_final_prefix_after_a_tool_is_not_repeated"},
+   {"package": "po-agent", "test": "agent::domain::sidebar_contract_tests::a_restored_turn_keeps_its_native_duration_not_the_replay_clock"},
+   {"package": "po-agent", "test": "agent::domain::sidebar_contract_tests::long_accepted_inputs_stay_out_of_the_control_frame"},
+   {"package": "po-agent", "test": "agent::runtimes::display_acceptance_tests::no_adapter_clips_a_long_final_answer"},
+   {"package": "po-agent", "test": "agent::runtimes::display_acceptance_tests::acp_tool_updates_merge_by_presence"},
+   {"package": "po-agent", "test": "agent::runtimes::display_acceptance_tests::replayed_history_claims_no_worked_duration"},
+   {"package": "po-agent", "test": "agent::application::tests::control::captures_a_snapshot_before_releasing_a_contiguous_feed"},
+   {"package": "po-agent", "test": "agent::application::tests::concurrency::terminal_event_before_start_receipt_settles_once_without_a_phantom_active_turn"},
+   {"package": "po-agent", "test": "agent::application::tests::service::does_not_resurrect_a_turn_that_completed_before_turn_start_returned"}
+  ]},
+ {"id": "agent-session-ownership-in-process",
+  "acceptance": "An unavailable resumed conversation falls back to a clean session; commands from before a recovery or another generation are rejected and a retired session id rebinds to its new actor; sessions are bound to one owner and refuse other windows' mutations; resume and fork keep one runtime authority and native identity.",
+  "typescript": [{"path": "tests/unit/workbench/item-hosts/agent-process-service.test.mjs", "cases": [7, 8, 10, 13]}],
+  "rust": [
+   {"package": "po-agent", "test": "agent::application::tests::service::discards_stale_native_session_metadata_and_falls_back_to_a_clean_session"},
+   {"package": "po-agent", "test": "agent::application::tests::control::accepts_a_command_idempotently_and_rejects_stale_session_generations"},
+   {"package": "po-agent", "test": "agent::application::tests::control::rebinds_the_feed_when_a_retired_session_id_receives_a_new_session_actor"},
+   {"package": "po-agent", "test": "agent::application::tests::service::binds_sessions_to_one_sender_and_rejects_cross_window_mutations"},
+   {"package": "po-agent", "test": "agent::application::tests::resolution::resume_and_fork_use_the_same_runtime_authority_and_native_identity"}
+  ]},
+ {"id": "agent-chat-workbench-preparation",
+  "acceptance": "A chat tab binds its runtime at once without the topology waiting for discovery; a restored chat commits only once its native history opens (a failed read offers Retry, confirmed missing history does not), and a reservation that is not committed is detached before its native rollback is awaited.",
+  "typescript": [
+   {"path": "tests/unit/workbench/item-hosts/desktop-agent.workbench-preparation.test.ts", "cases": [0, 1, 2]},
+   {"path": "tests/unit/workbench/item-hosts/agentExecutionClient.test.ts", "cases": [2, 3]}
+  ],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::controller::binds_a_creation_recipe_before_discovery_without_restoring_history"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::controller::begins_direct_recipe_discovery_without_blocking_admission"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::tests::native_history_read_failure_renders_retry_but_confirmed_missing_history_does_not"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::controller::preserves_an_exact_history_open_error"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::controller_registry::detaches_an_abandoned_reservation_before_awaiting_rollback"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::controller::closes_a_restored_native_session_when_workbench_preparation_rolls_back"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::application::tests::submission_lifecycle::does_not_dispatch_after_preparation_completes_for_an_invalidated_conversation"}
+  ]},
+ {"id": "agent-chat-tab-presentation",
+  "acceptance": "A chat tab shows its title, runtime and status as the generic tab (running, starting, error or idle) and its accessible name; the native session is the tab's resource, never its identity.",
+  "typescript": [{"path": "tests/unit/workbench/item-hosts/desktop-agent.workbench.test.ts", "cases": [0, 1]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::workbench::item::tests::the_item_snapshot_maps_status_and_labels_like_the_product"}
+  ]},
+ {"id": "electron-item-utility-processes",
+  "kind": "out-of-scope",
+  "reason": "TS runs each Agent chat and terminal in its own Electron UtilityProcess supervised by Main: process admission budgets (CPU, memory, per-project leases), heartbeats and liveness probes, crash replacement after cleanup confirmation, model leases per host, an item lifecycle supervisor with termination receipts and generations, instance RPC with byte bounds, MessagePort session connections bound to frames, and a renderer execution client that adapts them. The native app runs Agent sessions on its in-process Agent host thread and terminals on PTY workers owned by the window, so none of these process boundaries, leases or receipts exist; the in-process equivalents (closing, stale generations, late startup after close) are covered by the agent service, controller and workbench tests.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/right-sidebar/workbench-topology.md",
+  "typescript": [
+   {"path": "tests/unit/workbench/item-hosts/agent-host-authority.test.mjs", "cases": [0]},
+   {"path": "tests/unit/workbench/item-hosts/agent-process-service.test.mjs", "cases": [0, 1, 2, 3, 4, 5, 6, 9, 11, 12, 14]},
+   {"path": "tests/unit/workbench/item-hosts/agentExecutionClient.test.ts", "cases": [0, 1, 4, 5, 6]},
+   {"path": "tests/unit/workbench/item-hosts/agentSessionClient.test.ts", "cases": [0, 1]},
+   {"path": "tests/unit/workbench/item-hosts/host-liveness.test.mjs", "cases": [0, 1, 2]},
+   {"path": "tests/unit/workbench/item-hosts/item-lifecycle-menu.test.mjs", "cases": [0, 1]},
+   {"path": "tests/unit/workbench/item-hosts/item-lifecycle-supervisor.test.mjs", "cases": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+   {"path": "tests/unit/workbench/item-hosts/resource-budget.test.mjs", "cases": [0, 1, 2, 3, 4]},
+   {"path": "tests/unit/workbench/item-hosts/rpc.test.mjs", "cases": [0, 1, 2]},
+   {"path": "tests/unit/workbench/item-hosts/session-connection-ipc.test.mjs", "cases": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]},
+   {"path": "tests/unit/workbench/item-hosts/utility-host-health.test.mjs", "cases": [0]}
+  ]}
+]

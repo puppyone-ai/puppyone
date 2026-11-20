@@ -1,0 +1,31 @@
+[
+ {"id": "cloud-endpoint-allowlist",
+  "acceptance": "Only the PuppyOne host family over HTTPS, or localhost development, is ever a Cloud endpoint: empty, blank, non-HTTP and unparsable values, an insecure production endpoint (never upgraded), other hosts, link-local metadata and private addresses, and a lookalike parent domain are refused. A trailing slash names the same endpoint and another host does not. There is no implicit endpoint: without an explicit packaged or development configuration Cloud is not configured.",
+  "typescript": [{"path": "tests/unit/cloud/environment/cloudEndpoint.test.mjs", "cases": [0, 3, 4, 5, 9]}],
+  "rust": [
+   {"package": "po-workspace", "test": "cloud::auth::model::configuration_tests::endpoints_are_validated_never_upgraded_and_compare_after_normalizing"},
+   {"package": "po-workspace", "test": "cloud::auth::model::configuration_tests::endpoints_follow_the_desktop_allowlist"},
+   {"package": "po-workspace", "test": "cloud::auth::model::source_tests::a_packaged_app_reads_only_its_file_and_a_development_build_only_vite_names"}
+  ]},
+ {"id": "cloud-endpoint-validated-not-repaired", "kind": "out-of-scope",
+  "reason": "TS normalizes whatever endpoint it is given: it strips a query and fragment, accepts a bare production origin as the API base and prefixes a relative API path with '/'. The native app validates its one configured Environment instead of repairing it: the API base must end in /api/v1, a query, fragment or credentials refuse the configuration, and Environment::api_url refuses any path that is not absolute (all callers use fixed absolute paths). Insecure endpoints are refused, never upgraded, in both.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/endpoints.md",
+  "typescript": [{"path": "tests/unit/cloud/environment/cloudEndpoint.test.mjs", "cases": [1, 2, 8]}]},
+ {"id": "cloud-endpoint-from-repository-remote", "kind": "out-of-scope",
+  "reason": "TS derives an API base from a repository's PuppyOne remote (cloudApiBaseUrlFromRemote) and, unless the configured API is loopback, sends that repository's requests there. The native app never takes an endpoint from a remote: a remote can only name a Project on the configured origin (or the explicit loopback hosted-Git mapping), so a repository cannot redirect requests or credentials to another Cloud.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/endpoints.md",
+  "typescript": [{"path": "tests/unit/cloud/environment/cloudEndpoint.test.mjs", "cases": [6, 7]}]},
+ {"id": "cloud-api-error-transport",
+  "acceptance": "A repository-context resolution that cannot reach Cloud, times out or is cancelled is reported as such after one send, never retried. Through the real HTTP adapter a refusal keeps the server's allowlisted code, its retry decision and a plain request id; an id that is not a plain token and an unlisted code are dropped; a 409's safe data.code (initialization_not_abandonable) is kept rather than classified with every 409; an unreachable Cloud is unavailable; and a reply whose body stalls after its headers times out like one that never answers.",
+  "typescript": [{"path": "tests/unit/cloud/environment/electron.cloud-api-client.test.mjs", "cases": [3, 4, 5, 6, 7, 8, 11]}],
+  "rust": [
+   {"package": "po-workspace", "test": "cloud::auth::tests::transport_failures_of_a_context_resolution_are_classified_after_one_send"},
+   {"package": "po-workspace", "test": "cloud::auth::http_tests::api_refusals_keep_their_safe_code_retry_decision_and_plain_request_id"},
+   {"package": "po-workspace", "test": "cloud::auth::http_tests::a_body_that_stalls_after_its_headers_times_out"},
+   {"package": "po-workspace", "test": "workspace::cloud::failure::tests::connection_reasons_come_from_structured_evidence_only"}
+  ]},
+ {"id": "electron-main-network-composition", "kind": "out-of-scope",
+  "reason": "These check how Electron's Main process composes its network stack: Chromium's net.fetch instead of Node's fetch (with credentials 'omit' and bypassCustomProtocolHandlers), a transport that must be injected, a DataPort's session guard not mistaken for a fetch transport, an opt-in bytes response no TS caller asks for, and an HTTP status written into the error message so it survives IPC serialization. The native app has one in-process reqwest client (no cookie store; redirects refused, see transport_rejects_redirects_and_privileged_or_oversized_configurations), JSON replies only, and typed errors that keep their status without crossing an IPC boundary; server prose is never shown.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/README.md",
+  "typescript": [{"path": "tests/unit/cloud/environment/electron.cloud-api-client.test.mjs", "cases": [0, 1, 2, 9, 10]}]}
+]

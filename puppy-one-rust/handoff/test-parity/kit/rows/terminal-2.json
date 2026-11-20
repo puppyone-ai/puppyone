@@ -1,0 +1,81 @@
+[
+ {"id": "terminal-selection-and-color-refresh",
+  "acceptance": "A terminal selects with the product's pair: the text selection, and the same at 55% while inactive, unless the theme names an inactive text selection or a terminal pair of its own. Only the focused terminal of the focused window uses the active pair; a blurred window or another focus dims it and redraws the terminal. New terminal colors repaint a session without measuring its grid again or resizing its PTY.",
+  "typescript": [{"path": "tests/component/terminal/screen/terminalAppearance.test.ts", "cases": [0, 1]}],
+  "rust": [
+   {"package": "po-ui", "test": "theme::tests::a_terminal_selects_with_the_product_pair_unless_the_theme_names_its_own"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::terminal::view::tests::a_selection_dims_when_its_terminal_or_window_loses_focus"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::terminal::view::startup_tests::a_color_only_theme_change_keeps_the_grid_and_the_pty_size"}
+  ]},
+ {"id": "terminal-appearance-from-theme",
+  "kind": "out-of-scope",
+  "reason": "TS reads a terminal's colors and font from the computed CSS of its owning DOM surface, so it must capture that surface before a runtime detaches, never read another window's appearance root, and parse Chromium's CSS color serializations with safe defaults. The native terminal reads typed colors from the App's theme (parsed once from the theme pack) and its font from the App's typography; there is no DOM surface, detached host or CSS serialization to read.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/rendering.md",
+  "typescript": [{"path": "tests/component/terminal/screen/terminalAppearance.test.ts", "cases": [2, 3, 4, 5, 6]}]},
+ {"id": "terminal-session-survives-its-view",
+  "acceptance": "A terminal's session belongs to its project's Workbench, not to the view showing it: hiding the Workbench, moving or splitting its tab, overflowing the rail and switching projects keep the same session and screen with the root it started in, and only closing the tab ends it; a closed project allocates no new terminal. The session tracks whether it is focused as focus moves.",
+  "typescript": [
+   {"path": "tests/component/terminal/sessions/desktop-terminal.lifecycle.test.tsx", "cases": [0]},
+   {"path": "tests/component/terminal/sessions/terminalRuntimePool.test.ts", "cases": [0, 2]}
+  ],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::tests::split_move_and_overflow_keep_the_same_content_instance"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::tests::a_hidden_workbench_withdraws_presentation_and_keeps_its_items"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::tests::project_switch_retains_tabs_without_starting_a_process"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::admission::tests::a_stale_permit_cannot_release_the_same_tab_number_in_a_reopened_project"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::terminal::view::tests::a_selection_dims_when_its_terminal_or_window_loses_focus"}
+  ]},
+ {"id": "terminal-drop-from-another-workspace",
+  "acceptance": "Entries dropped on a terminal, even one that is shown but not focused, resolve through the workspace they were dragged from, reach the session as quoted shell words, and focus the terminal.",
+  "typescript": [{"path": "tests/component/terminal/sessions/desktop-terminal.lifecycle.test.tsx", "cases": [1]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::terminal::view::tests::a_drop_into_an_unfocused_terminal_types_its_own_paths_and_focuses_it"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::terminal::view::tests::dragged_entries_resolve_through_their_own_workspace"}
+  ]},
+ {"id": "terminal-close-in-process",
+  "kind": "out-of-scope",
+  "reason": "TS keeps a terminal's runtime until the main process confirms the native close, so a refused close can be retried. A native terminal closes in process: its tab is removed once the user confirms and dropping the session signals and reaps its process group, so there is no cross-process close to fail and retry.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/workbench-contribution.md",
+  "typescript": [{"path": "tests/component/terminal/sessions/terminalRuntimePool.test.ts", "cases": [1]}]},
+ {"id": "local-agent-discovery-store",
+  "acceptance": "Every window shares one installation discovery: what a scan finds shows before it ends, and a window opened during the scan joins it; a refresh keeps every row and drops old warnings until it knows, then removes only what is definitely gone and keeps an Agent that could not be inspected, with its failure; an Agent found through an incomplete environment is offered with that failure noted. A result, even an empty or failed one, stands for every later consumer, which never scans again on its own (reopening, remounting, focusing); only an explicit refresh scans again, as one refresh. A refresh that cannot run keeps the last successful list and says it failed. Discovery never reads or changes Agent activity Hook enrollment.",
+  "typescript": [{"path": "tests/component/terminal/startup/desktop-terminal.agent-locator.test.tsx", "cases": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::local_agents::discovery::tests::found_agents_show_while_the_scan_runs_and_a_refresh_keeps_them_until_it_knows"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::local_agents::discovery::tests::only_an_explicit_refresh_scans_again"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::local_agents::discovery::tests::disconnected_host_events_settle_scanning_as_failed"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::local_agents::settings::discovery_tests::native_settings_share_initial_work_and_reopened_windows_reuse_cache_while_refreshes_coalesce"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::right_sidebar::launcher::tests::discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away"},
+   {"package": "po-agent", "test": "agent::installation::installation_service::tests::failed_refresh_retains_evidence_until_definitive_absence_and_rejects_inconsistent_snapshots"},
+   {"package": "po-agent", "test": "agent::installation::installation_service::tests::explicit_refresh_during_initial_scan_guarantees_exactly_one_followup_scan"},
+   {"package": "po-agent", "test": "agent::installation::installation_service::tests::session_cache_has_no_ttl_for_empty_or_failed_scans_and_new_sessions_scan_again"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "boundaries::the_architecture_boundaries_hold"}
+  ]},
+ {"id": "workbench-launcher-rows",
+  "acceptance": "One launcher group lists the detected local Agents in catalog (label) order, then setup for Agents not found, then the Built-in Agent, then the Terminal, whether or not discovery failed; an Agent that was not detected has no row. Each row draws the brand its runtime names in the one catalog Settings also uses (Codex keeps its name and draws the ChatGPT mark). Discovery says nothing for its first 200ms, then 'Checking local agents…' (or 'Refreshing agents…' for an explicit refresh) between the found Agents and the Built-in Agent; found Agents show at once; a failure or an empty result says nothing; every row stays usable and Scan again works whenever no scan is running. A refused start shows its error above the rows, which stay. A hosted Project's launcher offers its Agent only, with no shell and no local discovery. History opens in the launcher tab only when asked, and Back returns to the launcher.",
+  "typescript": [{"path": "tests/component/terminal/startup/desktop-terminal.launcher.test.tsx", "cases": [2, 3, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::right_sidebar::launcher::tests::detected_agents_then_setup_then_the_built_in_and_the_terminal"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::right_sidebar::launcher::tests::discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::right_sidebar::launcher::tests::every_agent_row_draws_its_brand_from_the_one_catalog"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::right_sidebar::launcher::tests::a_hosted_launcher_offers_its_agent_without_a_shell_or_local_discovery"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::right_sidebar::launcher::tests::the_history_browser_opens_only_when_asked_and_back_returns_to_the_launcher"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::local_agents::chat_recipes::tests::recipes_are_alphabetical_and_name_their_local_agent"},
+   {"package": "po-agent", "test": "agent::connections::legacy_local_agent_inventory::tests::catalog_is_alphabetical_and_built_in_comes_last"}
+  ]},
+ {"id": "launcher-chat-frame-only",
+  "kind": "out-of-scope",
+  "reason": "TS has a terminal-mode launcher whose Agent rows run each detected CLI (labelled by its CLI product name, e.g. 'Cursor Agent'). The native launcher is always the Chat frame: an Agent row starts a chat, the Agent's CLI runs in a terminal from the row's context menu, and the Terminal row sits in the same group.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/workbench-contribution.md",
+  "typescript": [{"path": "tests/component/terminal/startup/desktop-terminal.launcher.test.tsx", "cases": [4]}]},
+ {"id": "launcher-discovery-motion",
+  "kind": "out-of-scope",
+  "reason": "TS animates newly discovered rows and restarts the 200ms feedback delay when a hidden launcher is presented. The native launcher has no entry motion, and its delay counts from when the scan began, so a launcher shown late in a long scan shows the feedback at once.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/workbench-contribution.md",
+  "typescript": [{"path": "tests/component/terminal/startup/desktop-terminal.launcher.test.tsx", "cases": [14]}]},
+ {"id": "launcher-keyboard-focus-and-announcements",
+  "kind": "gap",
+  "reason": "TS returns keyboard focus to the launcher (its first Agent, else its heading) when Agent setup closes, keeps a focused row focused while discovery adds rows, marks the Agent list busy and announces 'Agent scan complete' to assistive technology. Native launcher rows are not keyboard-focusable, closing setup leaves focus nowhere, and there is no live announcement; the visual feedback is covered by the launcher rows tests.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/workbench-contribution.md",
+  "typescript": [{"path": "tests/component/terminal/startup/desktop-terminal.launcher.test.tsx", "cases": [0, 1, 7]}]}
+]

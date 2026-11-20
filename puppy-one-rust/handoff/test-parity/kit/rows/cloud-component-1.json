@@ -1,0 +1,55 @@
+[
+ {"id": "cloud-agent-workbench",
+  "acceptance": "The hosted Agent's chats are tabs of the native workbench opened from the launcher; opening one sends nothing, each keeps its own composer and draft, and moving a chat into a split keeps the same content instance without reading runs again. A second conversation may run while another is active, and closing a tab never stops its run. History is read once per Agent for concurrent refreshes, never preloads transcripts, refuses a conversation another tab shows, and opening one restores only its runs. A tab holding an unconfirmed submission cannot be closed until it is confirmed, while other tabs stay usable; after a restart a pending submission is confirmed by its original receipt and never submitted twice.",
+  "typescript": [{"path": "tests/component/cloud/agent/cloudAgentWorkbench.test.tsx", "cases": [0, 1, 2, 3, 4, 5, 6, 7]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_share::the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::agent::controller::tests::an_empty_tab_sends_nothing"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::tests::split_move_and_overflow_keep_the_same_content_instance"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::agent::controller::tests::closing_a_tab_never_stops_its_run"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::agent::controller::tests::one_history_request_per_agent_and_an_open_conversation_is_not_opened_twice"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::agent::controller::tests::opening_a_conversation_reads_its_runs_and_sends_nothing"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::tests::a_hosted_chat_with_an_unconfirmed_submission_cannot_close"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::agent::controller::tests::a_pending_receipt_survives_a_restart_and_is_confirmed_on_load"}
+  ]},
+ {"id": "cloud-agent-view-identity",
+  "acceptance": "What a hosted chat holds (its draft and pending submission) belongs to its workspace identity — API, account, Project and root: another account, API or Project starts empty and the same identity finds it again. Showing a local project closes the hosted Agent's location and the hosted Project brings its own workbench back. A late receipt lands on the chat that sent it, never on the next Project's.",
+  "typescript": [{"path": "tests/component/cloud/agent/useCloudAgentWorkspace.test.tsx", "cases": [0, 1, 2, 5, 6]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::agent::controller::tests::a_chats_pending_message_belongs_to_its_workspace_identity"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::agent::controller::tests::a_late_receipt_lands_on_the_chat_that_sent_it"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_share::the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own"}
+  ]},
+ {"id": "hosted-agent-whole-project-only", "extend": true, "kind": "out-of-scope",
+  "typescript": [{"path": "tests/component/cloud/agent/useCloudAgentWorkspace.test.tsx", "cases": [3]}]},
+ {"id": "hosted-chat-survives-session-generation", "kind": "out-of-scope",
+  "reason": "TS keys a hosted chat's in-memory draft by the session generation too, so the same account signing in again sees an empty composer until it returns to the old generation. The native app keeps a hosted chat's draft and pending submission in its persisted identity (API, account, Project, root), so they survive the same account signing in again; this is what lets a pending receipt be confirmed after a re-sign-in, and another account never sees them.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/hosted-agent-runs.md",
+  "typescript": [{"path": "tests/component/cloud/agent/useCloudAgentWorkspace.test.tsx", "cases": [4]}]},
+ {"id": "cloud-sign-in-explainer",
+  "acceptance": "Header Sign in and the place menu's Sign in open the same explainer without starting browser sign-in until it is confirmed; its two Cloud moments auto-advance, loop, pause on hover and switch on a dot; Escape or Close dismisses it without starting sign-in; a browser sign-in failure is shown in the dialog with retry; completing sign-in closes it.",
+  "typescript": [{"path": "tests/component/cloud/auth/cloudSignInDialog.test.tsx", "cases": [0, 1, 2, 3]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::sign_in_dialog::header_sign_in_opens_explainer_switches_moments_and_completes_oauth"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::sign_in_dialog::place_menu_sign_in_opens_explainer_and_dismissals_never_start_oauth"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::sign_in_dialog::oauth_failure_surfaces_error_in_dialog_and_allows_retry"}
+  ]},
+ {"id": "cloud-publish-dialog",
+  "acceptance": "Publishing a folder is one task in the window's own dialog layer with no services navigation or provider switch; Escape (or Close) puts the dialog away without cancelling the publication, which completes in the background and the Header states the run; signed out, the same dialog asks to sign in and Escape closes it.",
+  "typescript": [{"path": "tests/component/cloud/dialog/cloudPublishDialog.test.tsx", "cases": [0, 1, 2]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it"}
+  ]},
+ {"id": "cloud-publish-organization-choice",
+  "acceptance": "A publication asks which organization unless there is only one, remembering no earlier choice (so nothing carries over to another Cloud host); a destination chosen before the page opened is kept only if the account may still create projects there and is never swapped for another; a list read for an earlier checkout or account is dropped.",
+  "typescript": [{"path": "tests/component/cloud/organization/cloudOrganizationData.test.tsx", "cases": [0, 1, 2, 4]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::publish::tests::a_publication_asks_which_organization_unless_there_is_only_one"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::cloud::publish::tests::a_list_read_for_an_earlier_scope_is_dropped"}
+  ]},
+ {"id": "cloud-identifiers-refused-not-encoded", "extend": true, "kind": "out-of-scope",
+  "typescript": [{"path": "tests/component/cloud/organization/cloudOrganizationData.test.tsx", "cases": [3]}]},
+ {"id": "cloud-hub-retired-pages", "extend": true, "kind": "out-of-scope",
+  "typescript": [{"path": "tests/component/cloud/organization/cloudAccessCatalog.test.tsx", "cases": [0, 1]}]}
+]

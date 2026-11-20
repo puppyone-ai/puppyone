@@ -1,0 +1,360 @@
+[
+ {
+  "id": "office-preview-product-modules",
+  "acceptance": "The Office preview runs the product's own Word, spreadsheet, presentation and text-fallback viewers, package preflight, decompression validation and DOCX sanitizer, shipped byte-identical to the reviewed sources this suite exercises (worker lifetimes, cell kinds and formulas, hidden sheets, rows and columns, merged cells, payload and cell caps, keyboard selection, ZIP central-directory and OOXML checks, sanitized DOCX DOM, slide and layout geometry, font compatibility); the native page boots that bundle, serves the file through the private protocol and reads only typed messages.",
+  "typescript": [
+   {
+    "path": "tests/unit/editor/formats/office/docxDomSanitizer.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/office/officePackageValidation.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/office/officeResourceLoader.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/office/officeTextFallback.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/office/presentationPreview.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/office/spreadsheetPreview.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/office/wordPreviewLayout.test.ts",
+    "cases": [
+     0,
+     1
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/office/zipCentralDirectoryPreflight.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10
+    ]
+   },
+   {
+    "path": "tests/component/editor/formats/office/officeFontCompatibility.test.ts",
+    "cases": [
+     0,
+     1
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "app::tests::bundled_modules::bundles_ship_the_reviewed_product_modules"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::viewers::office::tests::the_page_boots_the_product_bundle_and_reads_only_typed_messages"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::viewers::office::admission_tests::office_private_protocol_serves_exact_bytes_ranges_and_retires_all_resources_with_the_lease"
+   }
+  ]
+ },
+ {
+  "id": "context-map-product-modules",
+  "acceptance": "The Context Map runs the product's own document, filter, graph, layout, routing and wheel navigation modules, shipped byte-identical to the reviewed sources this suite exercises; the native page carries the document, lists the workspace and drives the pane menu.",
+  "typescript": [
+   {
+    "path": "tests/unit/editor/formats/context-map/contextMapDocument.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/context-map/contextMapFilters.test.ts",
+    "cases": [
+     0,
+     1
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/context-map/contextMapGraph.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/context-map/contextMapLayout.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/context-map/contextMapRouting.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/context-map/contextMapWheelNavigation.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "app::tests::bundled_modules::bundles_ship_the_reviewed_product_modules"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::viewers::structured::tests::the_page_carries_the_document_and_serves_the_agent_marks"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::viewers::structured::tests::the_context_map_lists_the_workspace_and_drives_the_pane_menu"
+   }
+  ]
+ },
+ {
+  "id": "app-preview-product-modules",
+  "acceptance": "The App Preview viewer runs the product's own setup, state, frame and session views and creation and manifest modules, shipped byte-identical to the reviewed sources this suite exercises; natively the manifest follows the product contract, the frame admits only the running app and the runtime trusts, runs and replaces apps as the product does.",
+  "typescript": [
+   {
+    "path": "tests/unit/editor/formats/app-preview/appPreviewCreation.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3
+    ]
+   },
+   {
+    "path": "tests/unit/editor/formats/app-preview/appPreviewManifest.test.mjs",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ]
+   },
+   {
+    "path": "tests/component/editor/formats/app-preview/appPreviewIframe.test.tsx",
+    "cases": [
+     0,
+     1
+    ]
+   },
+   {
+    "path": "tests/component/editor/formats/app-preview/appPreviewOnboarding.test.tsx",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ]
+   },
+   {
+    "path": "tests/component/editor/formats/app-preview/appPreviewRuntimeLifecycle.test.tsx",
+    "cases": [
+     0,
+     1,
+     2
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "app::tests::bundled_modules::bundles_ship_the_reviewed_product_modules"
+   },
+   {
+    "package": "po-platform",
+    "test": "platform::app_preview::manifest::tests::manifests_follow_the_product_contract"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::viewers::app_preview::tests::requests_are_typed_and_the_frame_admits_only_the_running_app"
+   },
+   {
+    "package": "po-platform",
+    "test": "platform::app_preview::runtime::tests::static_files_and_local_servers_run_once_trusted"
+   }
+  ]
+ },
+ {
+  "id": "render-service-performance-modules",
+  "acceptance": "The diagram render service measures its work with the product's own renderer performance tracker, shipped byte-identical to the reviewed sources this suite exercises.",
+  "typescript": [
+   {
+    "path": "tests/unit/editor/runtime/rendererPerformanceCompletion.test.ts",
+    "cases": [
+     0,
+     1,
+     2
+    ]
+   },
+   {
+    "path": "tests/unit/editor/runtime/rendererPerformanceTracker.test.ts",
+    "cases": [
+     0
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "app::tests::bundled_modules::bundles_ship_the_reviewed_product_modules"
+   },
+   {
+    "package": "po-editor",
+    "test": "render_service::tests::what_is_drawn_names_the_cache_entry"
+   }
+  ]
+ },
+ {
+  "id": "electron-ipc-error-wrapper",
+  "kind": "out-of-scope",
+  "reason": "TS strips Electron's `Error invoking remote method '<channel>': Error:` wrapper from IPC failures before showing them. The native app has no Electron IPC; its host errors reach the views as typed messages without that wrapper.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/README.md",
+  "typescript": [
+   {
+    "path": "tests/unit/editor/runtime/ipcErrorMessage.test.ts",
+    "cases": [
+     0,
+     1
+    ]
+   }
+  ]
+ }
+]

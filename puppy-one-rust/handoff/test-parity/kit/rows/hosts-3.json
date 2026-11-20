@@ -1,0 +1,38 @@
+[
+ {"id": "other-computers-settings",
+  "acceptance": "Settings › Computer access reads this computer as its host says: not sharing, with nothing to pause or start at login and a way to share from the Homepage; its shared folders by name and access, with Pause, and Resume while paused; never 'sharing' when its host cannot be reached. The owner's other computers are listed with their presence (online, or when last online), never this one among them, and 'No other computers.' only once that is known; while the list loads this computer still shows. A failed read says the computers could not be loaded with a Retry, never an empty list, keeps known computers through a later failure, and reads asked for while one is under way are that one read. A shared folder opens its own access controls. A computer, another or this one, is removed through one request after the system asks, and a refusal says the computer could not be removed. Starting at login says so when the setting cannot be changed. Signed out the page keeps its purpose and offers signing in.",
+  "typescript": [{"path": "tests/component/hosts/settings/otherComputersSettings.test.tsx", "cases": [0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::settings::main::other_computers_settings_view::tests::this_computer_and_the_others_read_as_the_host_and_the_catalog_say"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::settings::main::other_computers_settings_view::tests::signed_out_it_keeps_its_purpose_and_offers_sign_in"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::hosts::link::tests::starting_at_login_says_when_it_cannot_be_changed"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::hosts::tests::the_catalog_keeps_what_it_knew_and_removes_through_one_request"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::hosts::computer_access::tests::the_host_says_what_is_shared_and_the_catalog_says_what_opens_settings"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::hosts::computer_access::tests::sharing_status_and_presence_follow_the_page"},
+   {"package": "po-workspace", "test": "workspace::hosts::process::tests::the_login_entry_runs_this_program_as_the_host"}
+  ]},
+ {"id": "other-computers-settings-status-race",
+  "kind": "out-of-scope",
+  "reason": "TS reads the local sharing status and listens for status events separately, so a slow read must not overwrite a newer event, and a computer's menu restores the trigger's focus on Escape. The native page renders what the App's host link holds now (one state the host's events and reads both update in order) and its menu is the shared anchored menu, so there is no separate outstanding read to race and no page-specific focus handling.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/app-link-and-sharing-ui.md",
+  "typescript": [{"path": "tests/component/hosts/settings/otherComputersSettings.test.tsx", "cases": [6, 10]}]},
+ {"id": "remote-folder-window",
+  "acceptance": "A folder on another computer opens in the window as a project of that computer, not a Cloud project: the Header's place names the computer and speaks the access (Can edit or View only) beside it; only the commands that computer allows are offered (its terminal, its Git) and each runs there; Home leaves it like any project. Its first listing loads once, and what was admitted under an earlier session is refused once the session changes.",
+  "typescript": [
+   {"path": "tests/component/hosts/sharing/deviceFolderHeader.test.tsx", "cases": [0, 1, 2, 3]},
+   {"path": "tests/component/hosts/sharing/remoteFolderLifecycle.test.tsx", "cases": [0, 1]}
+  ],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::other_computers::another_computers_folder_opens_here_and_runs_there"},
+   {"package": "po-workspace", "test": "workspace::hosts::device::tests::a_folder_on_another_computer_reads_saves_and_watches_like_a_workspace"}
+  ]},
+ {"id": "folder-sharing-dialog",
+  "acceptance": "Opening a folder to the owner's other computers is asked first and shares view-only unless editing is chosen, closing once shared; declining the question changes nothing and leaves it open. A shared folder's dialog changes access at the folder's current revision, widening only after another yes, one kind of run at a time with the others kept; running needs editing and a sandbox. Stopping is asked once more and closes; a stop that fails says so where it was asked, to try again. The folder's 'All my devices' row turns sharing on through this dialog, names the other computers that can open it ('Studio Mac and 1 other'), and is unticked once stopping is done.",
+  "typescript": [{"path": "tests/component/hosts/sharing/sharingDialog.test.tsx", "cases": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::other_computers::a_folder_here_opens_to_my_other_computers_after_i_allow_it"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::audience::tests::the_other_computers_are_named_as_a_person_says_them"},
+   {"package": "po-workspace", "test": "workspace::hosts::registry::tests::a_shared_folder_keeps_its_id_and_its_consent_here"},
+   {"package": "po-workspace", "test": "workspace::hosts::exec::tests::the_folder_sandbox_writes_only_where_it_may_and_never_reads_credentials"}
+  ]}
+]

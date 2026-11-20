@@ -1,0 +1,77 @@
+[
+ {"id": "first-run-sign-in-memory",
+  "acceptance": "A build without an account never gates the launch. A sign-in that once succeeded completes the first run for good, so a later signed-out launch is not gated, and so does having had a project even after the history is cleared. While the browser hands off the screen says it waits and Sign in stays pressable to start again (a closed browser page never strands anyone); a failure is shown, the gate stays, and Continue locally completes the first run.",
+  "typescript": [{"path": "tests/component/cloud/repositories/firstRunSignIn.test.tsx", "cases": [1, 3, 4, 5]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::homepage::first_run_remembers_a_sign_in_or_a_project_for_good"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::homepage::first_run_waits_on_the_browser_and_continues_locally_after_an_error"}
+  ]},
+ {"id": "cloud-loading-neutral",
+  "acceptance": "Cloud's loading marks are drawn in the neutral muted ink, never the accent: neutral is every loader's tone unless its owner gives it another.",
+  "typescript": [{"path": "tests/component/cloud/repositories/cloudLoadingState.test.tsx", "cases": [0]}],
+  "rust": [{"package": "po-ui", "test": "ui::loading::tests::a_loader_is_neutral_unless_given_a_tone"}]},
+ {"id": "cloud-catalog-opens-nothing",
+  "acceptance": "Signed out nothing is read; after sign-in the account's projects are listed and none of them is opened by the listing itself.",
+  "typescript": [{"path": "tests/component/cloud/repositories/accountCloudWorkspace.test.tsx", "cases": [18]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::homepage::the_last_catalog_stands_in_until_the_fresh_one_and_leaves_on_sign_out"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::homepage::the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries"}
+  ]},
+ {"id": "cloud-project-latest-request-only",
+  "kind": "out-of-scope",
+  "reason": "TS's account workspace hook can be handed a navigation request the shared navigation has already superseded, and must then leave the shown Project, its opening state and its error alone. A native window has one project lifecycle in which the latest choice is the only request: the same target joins its pending opening and another replaces it (W-6), so no superseded request ever reaches the hosted workspace.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/opening.md",
+  "typescript": [{"path": "tests/component/cloud/repositories/accountCloudWorkspace.test.tsx", "cases": [21]}]},
+ {"id": "local-folder-cloud-preparation",
+  "acceptance": "A local folder's Cloud standing never takes over its file sidebar: signed out it offers sign-in and starts nothing; a temporarily unreachable Cloud offers Retry; and a Cloud project is made from the folder only by an explicit action, Confirm in the publication.",
+  "typescript": [{"path": "tests/component/cloud/repositories/cloudFileWorkspaceGate.test.tsx", "cases": [0, 1, 6]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::project_place::tests::each_notice_offers_only_the_action_that_helps"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::project_place::tests::notices_follow_the_association"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_publish_dialog::the_first_page_states_the_value_and_the_confirmation_a_separate_project"}
+  ]},
+ {"id": "local-folder-cloud-surface",
+  "kind": "out-of-scope",
+  "reason": "TS gives a local folder a second, Cloud surface (the file-provider gate) that switches between sign-in, the publish task, a 'matching project' spinner and recovery, and must keep showing the publish task's loading, progress or error after the folder's remote resolves. A native window has no Cloud surface for a local folder: the folder stays the workspace, its Cloud standing is the Header's place and the Explorer's notice, and the first publication lives in its own dialog and the Header, which keep its state whatever the association says; there is no surface whose content could switch away.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/two-projects-model.md",
+  "typescript": [{"path": "tests/component/cloud/repositories/cloudFileWorkspaceGate.test.tsx", "cases": [2, 3, 4, 5]}]},
+ {"id": "cloud-workbench-change-routing",
+  "acceptance": "A hosted workspace's change names the paths it touched and refreshes only their listings; an unnamed change (or a refresh that names nothing) refreshes every loaded listing. The workbench's own actions — creating a file, renaming (both paths) and deleting — invalidate only what they touched and keep every other cache. History reads its first page again once file activity has been quiet for two seconds, once for a whole burst.",
+  "typescript": [{"path": "tests/component/cloud/repositories/cloudWorkbenchChanges.test.tsx", "cases": [0, 1, 2, 3, 4, 5]}],
+  "rust": [
+   {"package": "po-workspace", "test": "workspace::cloud::tests::a_scoped_change_reaches_the_subscriber_with_its_paths"},
+   {"package": "po-workspace", "test": "workspace::cloud::tests::scoped_events_drop_the_named_subtree_and_unknown_events_drop_every_listing"},
+   {"package": "po-workspace", "test": "workspace::cloud::tests::saving_keeps_live_listings_and_creating_invalidates_only_its_parent"},
+   {"package": "po-workspace", "test": "workspace::cloud::tests::a_move_invalidates_both_parents_and_a_delete_invalidates_the_subtree"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::explorer::session::tests::scoped_refresh::named_and_unknown_changes_refresh_only_their_scope_and_preserve_unchanged_projection"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::source_control::cloud_history::tests::the_sidebar_pages_reads_detail_on_demand_and_shares_snapshots"}
+  ]},
+ {"id": "cloud-workbench-documents",
+  "acceptance": "A hosted run's publication rereads the open document (which shows what was published without writing), even from a provider that sends no change of its own. A file chosen while another is still on its way in wins: a switch still draining takes the newer target, one already reading opens it next, and quitting is never followed by an opening. Signing out ends the hosted Project with its editors; nothing of it is reused under another session.",
+  "typescript": [{"path": "tests/component/cloud/repositories/nativeCloudWorkbench.test.tsx", "cases": [0, 2, 6]}],
+  "rust": [
+   {"package": "po-editor", "test": "documents::tests::a_publication_rereads_the_open_document"},
+   {"package": "po-editor", "test": "documents::tests::a_newer_file_choice_replaces_one_still_on_its_way_in"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_opening::signing_out_revokes_the_hosted_selection_and_returns_home"}
+  ]},
+ {"id": "cloud-surface-beside-local",
+  "kind": "out-of-scope",
+  "reason": "TS keeps a local folder's surface mounted beside the Cloud project's in one shell, so switching between them keeps the local editor's live draft and shows the Cloud content without an arrival cover. A native window shows one project at a time: opening the hosted Project replaces the folder (its drafts kept by the draft journal) and there is no arrival cover either way, so there is no second surface to retain.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/two-projects-model.md",
+  "typescript": [{"path": "tests/component/cloud/repositories/nativeCloudWorkbench.test.tsx", "cases": [3]}]},
+ {"id": "window-navigation-places",
+  "acceptance": "Signed out, Sign in sits at the Header's end; signed in, a project window's Header ends with nothing of the account. The Homepage's brand opens the places (this computer, then the spaces) and the account rows, with no way to the page it is on; choosing a place shows it on the Homepage and closes the menu. Settings keeps Account and Plan as plain rows and heads the space group with the space it manages (its mark, name and plan): Members only once a space is chosen, Plan with Cloud on.",
+  "typescript": [{"path": "tests/component/cloud/repositories/spaceNavigation.test.tsx", "cases": [1, 2, 3, 4]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::window_chrome::the_homepage_brand_opens_the_places_and_the_account_but_not_home"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::sign_in_dialog::header_sign_in_opens_explainer_switches_moments_and_completes_oauth"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::settings::sidebar::settings_sidebar_model::tests::account_follows_the_build_and_the_space_group_follows_cloud"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::cloud_share::settings_manage_one_space_its_members_and_its_plan"},
+   {"package": "po-workspace", "test": "workspace::cloud::spaces::tests::a_space_reads_as_the_product_presents_it"}
+  ]},
+ {"id": "homepage-account-circle",
+  "kind": "out-of-scope",
+  "reason": "TS keeps the signed-in account out of every Header's trailing end. The native calm Projects Home (ab45eca1b) ends the Homepage's Header with the account's own circle, which opens who is signed in, Account, Settings and Sign out; a project window's Header still ends with nothing of the account, and there is no global Space switcher in either.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/chrome/title-bar.md",
+  "typescript": [{"path": "tests/component/cloud/repositories/spaceNavigation.test.tsx", "cases": [0]}]}
+]

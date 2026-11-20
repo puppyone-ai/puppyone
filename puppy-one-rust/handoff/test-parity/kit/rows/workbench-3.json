@@ -1,0 +1,288 @@
+[
+ {
+  "id": "workbench-close-coordination",
+  "acceptance": "A close commits before the tab leaves the topology, and the tab goes only once its item is released; a busy item waits for an explicit confirmation and a blocked one never commits, even when forced; repeated requests while a release is pending commit once; a release that fails keeps the tab, asking again only while the item is still busy, and a later request retries; pending closes of different items never affect each other.",
+  "typescript": [
+   {
+    "path": "tests/component/workbench/item-hosts/auxiliaryWorkbenchCloseCoordinator.test.tsx",
+    "cases": [
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::tests::closes_commit_first_wait_for_their_release_and_stay_apart"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::tests::a_hosted_chat_with_an_unconfirmed_submission_cannot_close"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::tests::a_terminal_asks_before_closing_only_while_it_starts_or_runs"
+   }
+  ]
+ },
+ {
+  "id": "workbench-close-handoff",
+  "kind": "out-of-scope",
+  "reason": "TS hands an item's execution to the main process's lifecycle supervisor on close and validates the returned receipt (execution kind, item, project, generation, root) before removing the view while cleanup runs. Native items release in process: a terminal's tab goes and its process group is signalled and reaped by its own worker, a chat releases its session, with no cross-process receipt to validate.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/right-sidebar/workbench-topology.md",
+  "typescript": [
+   {
+    "path": "tests/component/workbench/item-hosts/auxiliaryWorkbenchCloseCoordinator.test.tsx",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7
+    ]
+   }
+  ]
+ },
+ {
+  "id": "workbench-topology",
+  "acceptance": "Terminals and chats share one tab stack; an item chosen in a launcher replaces it in place without changing the selection, the topology or other groups; either kind splits into its own group and moves back as one tab, its emptied group folding away; a tab alone in its group cannot be split out of it; closing the last tab leaves a valid empty workbench. Taking a nested group's last tab folds its parent while unaffected splits keep their identity and ratio; placing a lone tab beside its sibling where it already is changes nothing; a resize changes only its own split.",
+  "typescript": [
+   {
+    "path": "tests/unit/workbench/layout/auxiliaryWorkbench.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   },
+   {
+    "path": "tests/unit/workbench/layout/workbenchSplitTreeModel.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::tests::mixed_kinds_share_a_bar_and_split_or_move_as_single_tabs"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::admission::tests::completion_replaces_only_its_launcher_without_stealing_a_new_selection"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::layout::tests::moves_fold_parents_keep_other_splits_and_a_no_op_keeps_the_ratio"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::layout::tests::a_group_its_last_tab_left_folds_away_and_one_left_by_a_close_stays"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::layout::tests::launchers_are_independent_and_last_close_is_empty"
+   }
+  ]
+ },
+ {
+  "id": "workbench-admission",
+  "acceptance": "Blank launcher tabs reserve nothing and count against no limit, and a closing project creates none. A creation reserves its launcher, prepares, then fills that same tab in place, keeping its visual key and the selection; a stale or non-launcher target is refused, and a recipe the inventory does not list is refused before anything runs. A failed preparation releases its reservation, leaves the launcher and reports the failure, retryable in the same tab when it may pass (a History target with a fresh reservation); a dismissed failure is not retried. History is admitted through the same boundary as a new chat.",
+  "typescript": [
+   {
+    "path": "tests/unit/workbench/item-hosts/projectWorkbenchAdmission.test.ts",
+    "cases": [
+     0,
+     2,
+     6,
+     7,
+     8,
+     10,
+     11,
+     12,
+     13
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::admission::tests::blank_tabs_do_not_consume_quota_and_the_ninth_chat_cannot_evict_an_item"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::admission::tests::a_stale_permit_cannot_release_the_same_tab_number_in_a_reopened_project"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::admission::tests::completion_replaces_only_its_launcher_without_stealing_a_new_selection"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::admission::tests::dropping_an_abandoned_preparation_releases_admission"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::admission::tests::a_wrong_contribution_kind_cannot_commit_under_another_permit"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::tests::native_history_read_failure_renders_retry_but_confirmed_missing_history_does_not"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "app::right_sidebar::launcher::tests::a_history_chat_that_cannot_resume_goes_back_to_the_launcher"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "app::right_sidebar::launcher::tests::history_restore_respects_the_chat_limit_before_preparing_a_native_session"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::terminal::workbench::launch_tests::a_native_terminal_rejects_an_unregistered_inventory_entry_before_executing_its_cached_path"
+   }
+  ]
+ },
+ {
+  "id": "workbench-fixed-contributions",
+  "kind": "out-of-scope",
+  "reason": "TS can reconfigure a project's contributions at run time, so a preparation whose contribution is disabled meanwhile is discarded and a failure of an unregistered contribution is not retried. Native contributions (terminal, Agent chat, the hosted Agent) are fixed by the location shown; there is no run-time registration to change under a preparation.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/right-sidebar/workbench-topology.md",
+  "typescript": [
+   {
+    "path": "tests/unit/workbench/item-hosts/projectWorkbenchAdmission.test.ts",
+    "cases": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "id": "workbench-project-ownership",
+  "acceptance": "Each project keeps its own workbench: a late preparation after the project closed is rolled back and never recreates a tab; a creation failure shows and retries only in the project it happened in, and another project's creations and dismissals leave it there; one kind failing to start never re-prepares or closes another kind's running item.",
+  "typescript": [
+   {
+    "path": "tests/unit/workbench/item-hosts/projectWorkbenchStore.test.ts",
+    "cases": [
+     1,
+     3,
+     4
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::tests::a_creation_failure_stays_with_its_project"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::admission::tests::a_stale_permit_cannot_release_the_same_tab_number_in_a_reopened_project"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::admission::tests::a_closed_launcher_discards_late_readiness_without_recreating_a_tab"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::workbench::admission::tests::preparing_locks_the_kind_and_launcher_but_not_other_kinds_or_blank_tabs"
+   }
+  ]
+ },
+ {
+  "id": "workbench-preparation-for-shown-project",
+  "kind": "out-of-scope",
+  "reason": "TS commits a preparation that finishes after another project is shown into the project it was chosen in. Native preparation (restoring a History chat) commits only while its project is shown; switching away discards it and the launcher stays, so a hidden project never changes under the person.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/right-sidebar/workbench-topology.md",
+  "typescript": [
+   {
+    "path": "tests/unit/workbench/item-hosts/projectWorkbenchStore.test.ts",
+    "cases": [
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "id": "workbench-project-session-stream",
+  "kind": "out-of-scope",
+  "reason": "TS rebuilds project workbench stores from the main process's project session stream, keeping a store through connection cleanup and rejecting an older snapshot. A native window owns its projects' workbenches directly; there is no session stream or snapshot revision.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/right-sidebar/workbench-topology.md",
+  "typescript": [
+   {
+    "path": "tests/unit/workbench/item-hosts/projectWorkbenchStore.test.ts",
+    "cases": [
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "id": "agent-chat-recipe-order",
+  "acceptance": "Local Agent chat recipes are listed by label, case-insensitively, each naming the local Agent it starts; the Built-in Agent comes last whatever its name and stays available when local Agents are hidden.",
+  "typescript": [
+   {
+    "path": "tests/unit/workbench/launcher/agentChatCreationRecipes.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::local_agents::chat_recipes::tests::recipes_are_alphabetical_and_name_their_local_agent"
+   },
+   {
+    "package": "po-app",
+    "target": "puppy-one-rust",
+    "test": "features::local_agents::chat_recipes::tests::hidden_local_agents_hide_their_chat_runtimes_but_never_the_built_in"
+   },
+   {
+    "package": "po-agent",
+    "test": "agent::connections::legacy_local_agent_inventory::tests::catalog_is_alphabetical_and_built_in_comes_last"
+   }
+  ]
+ }
+]

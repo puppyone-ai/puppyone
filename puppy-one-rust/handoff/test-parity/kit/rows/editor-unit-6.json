@@ -1,0 +1,14 @@
+[
+ {
+  "id": "markdown-block-rhythm",
+  "acceptance": "Paragraph edges span soft source lines and blank lines carry no rhythm; list nesting follows parsed ownership with continuation lines in the item's hanging column; an ordered list reserves one shared column for its widest marker and nested items carry every ancestor column (nested ordered lists start at 1, the only start CommonMark lets interrupt an item's text); one edited line's bounded window agrees with the whole document; after splitting/merging paragraphs, reparenting, widening or resizing ordered columns and inserting/removing the first item an incremental parse and its rhythm equal a fresh one.",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/rendering/markdownBlockRhythm.test.ts", "cases": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::markdown::core::presentation::tests::paragraph_edges_span_soft_lines_and_skip_blank_ones"},
+   {"package": "po-editor", "test": "editor::markdown::core::presentation::tests::nesting_follows_parsed_ownership"},
+   {"package": "po-editor", "test": "editor::markdown::core::presentation::tests::ordered_lists_share_their_widest_marker_column_with_descendants"},
+   {"package": "po-editor", "test": "editor::markdown::core::presentation::tests::an_edited_line_keeps_its_ordered_columns_in_its_own_window"},
+   {"package": "po-editor", "test": "editor::markdown::core::presentation::tests::edits_match_a_fresh_projection"}
+  ]
+ }
+]

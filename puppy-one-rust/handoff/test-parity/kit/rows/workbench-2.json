@@ -1,0 +1,35 @@
+[
+ {"id": "terminal-legacy-split-ui",
+  "kind": "out-of-scope", "extend": true,
+  "typescript": [{"path": "tests/unit/workbench/tabs/terminalSessionHeaderLayout.test.ts", "cases": [0, 1, 2, 3, 4, 5]}]},
+ {"id": "terminal-legacy-tab-group-reducer",
+  "kind": "out-of-scope", "extend": true,
+  "typescript": [{"path": "tests/unit/workbench/tabs/terminalSessionHeader.test.ts", "cases": [1]}]},
+ {"id": "terminal-tab-identity",
+  "acceptance": "A terminal tab is titled by its folder; its accessible label names the session's number in its project ('Terminal 2'), the CLI it runs ('Codex', or 'Shell'), its folder and its status; its overflow detail is the folder and status. Each project numbers its terminals on its own.",
+  "typescript": [{"path": "tests/unit/workbench/tabs/terminalSessionHeader.test.ts", "cases": [0]}],
+  "rust": [{"package": "po-app", "target": "puppy-one-rust", "test": "features::terminal::workbench::launch_tests::a_terminal_tab_names_its_session_cli_folder_and_status"}]},
+ {"id": "workbench-split-constraints",
+  "acceptance": "Minimum sizes add along a split's axis, with its 1px divider, and take the larger across it, recursively through nested splits; a split is admitted from the items' minimums (a terminal's is 188x196), not from how many panes there are; resize bounds come from each child's minimum, to a thousandth, and when both minimums cannot fit the share is fixed in proportion to them.",
+  "typescript": [{"path": "tests/unit/workbench/layout/terminalSplitConstraints.test.ts", "cases": [0, 1, 2]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::layout::tests::minimums_nest_admit_splits_and_bound_resizing"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::layout::tests::split_bounds_keep_both_sides_at_their_minimum"}
+  ]},
+ {"id": "terminal-session-transport",
+  "acceptance": "Closing a terminal while it is still being prepared releases it without starting the late command; input typed before its process starts waits for it and is read once, in order; showing the session elsewhere or hiding it never closes it; a session whose setup fails after its PTY started is released; a session's own failure shows on it and on no other.",
+  "typescript": [{"path": "tests/unit/workbench/item-hosts/terminalSessionBridge.test.ts", "cases": [0, 1, 3, 4, 7]}],
+  "rust": [
+   {"package": "po-platform", "test": "platform::terminal::tests::closing_a_terminal_during_preparation_releases_its_lease_without_starting_the_late_command"},
+   {"package": "po-platform", "test": "platform::terminal::tests::input_typed_before_the_process_starts_reaches_it_once"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::tests::a_hidden_workbench_withdraws_presentation_and_keeps_its_items"},
+   {"package": "po-platform", "test": "platform::terminal::shell::bootstrap_tests::a_failed_bootstrap_write_or_flush_waits_for_the_real_shell_and_releases_its_session"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::terminal::view::startup_tests::native_startup_timeout_begins_at_pty_start_and_exit_or_error_removes_the_cover"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::workbench::tests::a_terminal_asks_before_closing_only_while_it_starts_or_runs"}
+  ]},
+ {"id": "terminal-ipc-transport",
+  "kind": "out-of-scope",
+  "reason": "TS carries a terminal between the renderer and the main process over IPC: output frames are acknowledged once parsed and numbered (a skipped sequence fails visibly), creation subscribes to and unsubscribes from shared events, and a create receipt is kept for an explicit close when rollback fails. A native session lives in the App's process with its own channels, so there are no acknowledgements, sequence numbers, shared subscriptions or receipts.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/pty-host.md",
+  "typescript": [{"path": "tests/unit/workbench/item-hosts/terminalSessionBridge.test.ts", "cases": [2, 5, 6, 8]}]}
+]

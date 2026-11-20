@@ -1,0 +1,74 @@
+[
+ {
+  "id": "editor-scoped-resource-operations",
+  "acceptance": "A rename, move, copy or delete first saves the affected open documents and keeps their working copies: a close queued against a moving document cannot retire it and the moved document keeps its identity at the new address; copies take the saved source; a failed pre-operation save cancels the mutation and leaves every document as it was; an operation with an unknown outcome is never repeated, blocks only overlapping paths and is reconciled from the file system (a completed move is adopted); operations on overlapping resources wait while unrelated ones run.",
+  "typescript": [{"path": "tests/unit/editor/resources/documentResourceOperations.test.ts", "cases": [0,1,2,3,4,5,6,7]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::workbench::runtime::tests::resource_barrier_waits_for_composition_and_cannot_be_stolen_by_close"},
+   {"package": "po-editor", "test": "editor::workbench::runtime::tests::an_unreconciled_operation_refuses_overlapping_ones_only"},
+   {"package": "po-editor", "test": "editor::workbench::runtime::tests::copying_a_directory_flushes_hidden_working_copies_without_replacing_them"},
+   {"package": "po-editor", "test": "editor::workbench::runtime::tests::move_rebinds_its_original_project_even_if_another_project_is_active"},
+   {"package": "po-editor", "test": "editor::workbench::runtime::tests::failed_snapshot_cancels_the_mutation_and_thaws_every_affected_document"},
+   {"package": "po-editor", "test": "editor::workbench::runtime::tests::unknown_resource_result_blocks_its_paths_but_allows_unrelated_navigation"},
+   {"package": "po-editor", "test": "editor::workbench::resource_operations::tests::lost_rename_receipt_is_reconciled_without_replaying_the_mutation"},
+   {"package": "po-editor", "test": "editor::workbench::resource_operations::tests::mismatching_destination_keeps_the_receipt_for_later_reconciliation"},
+   {"package": "po-editor", "test": "editor::workbench::runtime::tests::file_operations_queue_by_resource_scope"}
+  ]
+ },
+ {
+  "id": "editor-url-resource-pool",
+  "kind": "out-of-scope",
+  "reason": "TS hands viewers blob or capability URLs from a reference-counted pool (shared acquisitions, replacement published before the old URL is revoked, failed revocations retried, sibling cancellation isolated, admission closed during window retirement), retires native host surfaces through leases, and re-prepares a document when a tracked resource or directory dependency changes. The native editor decodes resources into one bounded cache keyed by content stamp with generation-guarded settles, holds native surfaces by ownership, and re-resolves references when the workspace changes, so there are no URLs to revoke, leases to retire or dependency index to keep.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/resource-operations.md",
+  "typescript": [{"path": "tests/unit/editor/resources/editorResourceOwnership.test.ts", "cases": [0,1,2,3,4,5,6,7,8]}]
+ },
+ {
+  "id": "cloud-previews-without-signed-urls",
+  "kind": "out-of-scope",
+  "extend": true,
+  "typescript": [
+   {"path": "tests/unit/editor/resources/pdfResourcePreflight.test.ts", "cases": [0,1,2,3,4,5,6,7]},
+   {"path": "tests/unit/editor/resources/documentInputRetry.test.ts", "cases": [0,1]}
+  ]
+ },
+ {
+  "id": "editor-document-identity",
+  "acceptance": "Equal paths in different storages are different documents with independent writes and lifetimes.",
+  "typescript": [{"path": "tests/unit/editor/resources/documentIdentity.test.ts", "cases": [2]}],
+  "rust": [{"package": "po-editor", "test": "editor::workbench::runtime::tests::lifecycle::equal_paths_in_distinct_storages_keep_independent_writes_and_close_lifetimes"}]
+ },
+ {
+  "id": "ts-document-identity-strings",
+  "kind": "out-of-scope",
+  "reason": "TS keys a document by a string resource path, so it canonicalizes legacy provider paths (backslashes, `./`, doubled slashes) and keeps `puppyone-local://` Workspace Resource URIs whole. Native documents are keyed by their storage and a relative path inside an admitted root, so there is no string form to canonicalize.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/document-editing-session.md",
+  "typescript": [{"path": "tests/unit/editor/resources/documentIdentity.test.ts", "cases": [0,1]}]
+ },
+ {
+  "id": "editor-input-revalidation",
+  "acceptance": "Only the first read opens a document: re-reading identical bytes shows nothing new and writes nothing, changed bytes land in the open document in place, and a change to another path is never read.",
+  "typescript": [{"path": "tests/unit/editor/resources/documentInputRevalidation.test.ts", "cases": [0,1,2,3]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::host::tests::external_consistency::an_identical_reread_shows_nothing_new_and_a_change_lands_in_place"},
+   {"package": "po-editor", "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes"},
+   {"package": "po-editor", "test": "editor::host::tests::external_consistency::one_watcher_batch_updates_each_pane_from_its_own_document"}
+  ]
+ },
+ {
+  "id": "editor-source-admission",
+  "acceptance": "Source admission counts UTF-8 bytes (a multi-byte character counts all its bytes) and refuses past the budget without opening a truncated editable fallback; budgets are whole numbers validated when the manifest is read; limits are shown as whole MB when exact.",
+  "typescript": [{"path": "tests/unit/editor/resources/editorSourceAdmission.test.ts", "cases": [0,1,2]}],
+  "rust": [
+   {"package": "po-editor", "test": "documents::tests::source_admission_counts_utf8_bytes_and_never_opens_a_truncated_editable_fallback"},
+   {"package": "po-editor", "test": "editor::registry::manifest::tests::javascript_safe_integer_budgets_and_whole_number_json_notation_are_preserved"},
+   {"package": "po-editor", "test": "editor::registry::tests::source_budgets_follow_the_product_manifest"}
+  ]
+ },
+ {
+  "id": "electron-preview-document-urls",
+  "kind": "out-of-scope",
+  "reason": "TS serves immutable preview snapshots through a main-process URL service: unguessable URLs, GET and HEAD only, forged paths and fragments refused, a UTF-8 budget per snapshot, 128 retained leases per owner and revocation only by the owning sender. A native HTML preview's web view is handed its page by the viewer that owns it, under the same opaque sandbox (scripts and forms, no same origin or top navigation; html_preview::tests::page_scripts_run_inside_the_sandbox_boundaries), so there are no URLs to forge, revoke or bound.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/README.md",
+  "typescript": [{"path": "tests/unit/editor/resources/previewDocumentService.test.mjs", "cases": [0,1,2,3]}]
+ }
+]

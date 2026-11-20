@@ -1,0 +1,71 @@
+[
+ {"id": "pane-layout-policy",
+  "acceptance": "The Explorer's floor is 220px. Spare width goes to the main pane, and the right sidebar may grow to what the live workbench leaves after the Explorer (capped at its maximum), its gutter and the main pane's floor; passive narrowing takes the main pane to its floor first, then the right sidebar, then the Explorer; below every minimum the layout keeps its minimum width (only the right sidebar open: 640px) and the window minimum rises to match; a closed pane takes nothing at any width; saved widths return as soon as the window allows; every open pane stays within its range at every width. Stored widths default to the product's, are raised to each pane's minimum, and large ones are kept for the live layout to bound.",
+  "typescript": [
+   {"path": "tests/unit/workbench/layout/desktopPaneLayout.test.ts", "cases": [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]},
+   {"path": "tests/unit/workbench/layout/desktopPanePreferences.test.ts", "cases": [0, 1, 2]}
+  ],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::layout::tests::the_three_panes_share_the_width_as_the_product_policy_says"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::layout::tests::pane_widths_follow_the_product_policy"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::layout::tests::the_window_minimum_follows_the_open_panes"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::layout::tests::collapsed_panels_consume_no_space"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::settings::preference_types::tests::stored_pane_widths_are_whole_pixels_within_the_minimum"}
+  ]},
+ {"id": "pane-host-maximum",
+  "kind": "out-of-scope",
+  "reason": "TS lets the hosting component pass an explicit right-sidebar maximum below the live workbench limit. The native right sidebar has no such host: its maximum is always what the window leaves after the Explorer and the main pane's floor.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/panes/layout-policy.md",
+  "typescript": [{"path": "tests/unit/workbench/layout/desktopPaneLayout.test.ts", "cases": [4]}]},
+ {"id": "pane-collapse-gesture",
+  "acceptance": "A press on a collapsed edge expands nothing; dragging past half a pane's minimum previews it closed through release jitter and commits one collapse; disarming needs a retreat beyond the hysteresis; pulling a closed pane out previews locally and commits only after enough travel, then hands over to a direct resize; both sides follow the same rule.",
+  "typescript": [{"path": "tests/unit/workbench/layout/collapsiblePaneGesture.test.ts", "cases": [0, 1, 2, 3, 4, 6, 8, 9]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::gesture::tests::a_click_on_a_collapsed_edge_does_not_expand"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::gesture::tests::collapse_previews_through_release_jitter_and_commits_once"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::gesture::tests::disarming_needs_a_retreat_beyond_the_hysteresis"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::gesture::tests::expansion_previews_locally_and_commits_after_enough_travel"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::gesture::tests::edge_expansion_hands_off_to_direct_resize"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::gesture::tests::both_sides_share_the_collapse_rule"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::gesture::tests::the_explorer_collapses_past_half_its_minimum"}
+  ]},
+ {"id": "rtl-writing-direction",
+  "kind": "out-of-scope",
+  "reason": "TS mirrors pane edges, drag directions and arrow keys for right-to-left writing directions. The native shell lays out left to right only; its left-to-right pane geometry, gestures and keys are covered by the pane tests.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/panes/layout-policy.md",
+  "typescript": [
+   {"path": "tests/unit/workbench/layout/collapsiblePaneGesture.test.ts", "cases": [5, 7, 10, 11]},
+   {"path": "tests/unit/workbench/layout/auxiliarySidebarGeometry.test.ts", "cases": [0, 1]}
+  ]},
+ {"id": "pane-edge-interaction",
+  "acceptance": "Only the shown project's window hands out its minimum width, once per change. A dragged edge previews its width as the pointer moves and commits once on release; a release within range stores that width; Escape or leaving the window ends a drag without storing it, and a late release changes nothing; a command that opens or closes the pane ends a drag of its edge without committing it. Dragging past half a pane's minimum previews it closed and restores it within the same drag; releasing commits the collapse, reopening later at the minimum; a closed Explorer has no edge to grab (the Header opens it), while a closed right sidebar keeps a lane at the window edge it is pulled out from, snapping back below half its width. A closing pane's frame moves with its content kept at its open width, the right sidebar's anchored at its end.",
+  "typescript": [
+   {"path": "tests/component/workbench/layout/desktopPaneResizeInteractions.test.tsx", "cases": [0, 1, 2, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15]},
+   {"path": "tests/component/workbench/layout/rightSidebarResize.test.tsx", "cases": [0, 1, 2, 3, 4, 5, 6]}
+  ],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::tests::the_window_minimum_is_handed_out_once_per_change"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::tests::a_drag_commits_on_release_and_rolls_back_on_cancel"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::tests::a_moving_frame_keeps_its_content_at_the_open_width"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::tests::the_right_sidebar_content_is_anchored_at_its_end"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::pane_layout::leaving_the_window_ends_a_drag_unstored"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::pane_layout::a_command_wins_over_a_drag_and_a_closed_explorer_has_no_edge"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::pane_layout::dragging_the_explorer_edge_past_half_its_minimum_collapses_it"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::pane_layout::a_collapse_preview_retreats_and_escape_rolls_back"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::pane_layout::a_closed_right_sidebar_is_pulled_out_from_the_window_edge"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::pane_layout::opening_a_pane_in_a_narrow_window_widens_it_to_the_pane_minima"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::tests::pane_layout::closing_the_explorer_moves_its_frame_unless_motion_is_reduced"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::gesture::tests::collapse_previews_through_release_jitter_and_commits_once"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "app::panes::gesture::tests::both_sides_share_the_collapse_rule"}
+  ]},
+ {"id": "pane-dom-drag-lifecycle",
+  "kind": "out-of-scope",
+  "reason": "TS also ends a pane drag on DOM events with no native counterpart (pagehide, lost pointer capture, the component unmounting). A native drag follows the pointer anywhere in the window and ends on release, Escape or leaving the window, all covered by the pane edge tests.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/panes/layout-policy.md",
+  "typescript": [{"path": "tests/component/workbench/layout/desktopPaneResizeInteractions.test.tsx", "cases": [3, 4, 6]}]},
+ {"id": "project-rail-compact-only",
+  "kind": "out-of-scope",
+  "reason": "TS has an expandable Project sidebar that collapses into a compact rail and resizes like a pane. The native project rail is the experimental fixed 56px compact rail only; there is no expanded sidebar to resize, preview or collapse.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/chrome/project-menus-and-rail.md",
+  "typescript": [{"path": "tests/component/workbench/layout/projectSidebarResize.test.tsx", "cases": [0, 1, 2, 3, 4, 5]}]}
+]

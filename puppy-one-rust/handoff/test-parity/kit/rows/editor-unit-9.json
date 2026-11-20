@@ -1,0 +1,89 @@
+[
+ {
+  "id": "markdown-reading-weight-language",
+  "acceptance": "The reading weight follows the document's script before the interface locale: kana or hangul content reads as Japanese or Korean (normal weight) even under a Chinese interface, Han content takes the Han weight, and a document with no script signal follows the interface language.",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/parsing/markdownContentLanguage.test.ts", "cases": [1,3]}],
+  "rust": [{"package": "po-editor", "test": "editor::markdown::core::content_language::tests::reading_weight_follows_content_then_interface_and_stays_latched"}]
+ },
+ {
+  "id": "markdown-content-language-tag",
+  "kind": "gap",
+  "reason": "The native editor derives only the reading weight from a document's script. It does not name the content language (Simplified versus Traditional Chinese, Japanese, Korean) or honour a document's explicit language metadata, so CJK glyph variants follow the system font fallback rather than the document's language.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/state-and-content-language.md",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/parsing/markdownContentLanguage.test.ts", "cases": [0,2]}]
+ },
+ {
+  "id": "markdown-token-scan-bounds",
+  "acceptance": "Link, image and wiki-link scans step past a malformed line of 50,000–100,000 openers in bounded time and still find the valid token on the next line.",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/parsing/markdownTokenComplexity.test.ts", "cases": [0,1]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::markdown::core::links::tests::a_malformed_line_neither_stalls_nor_hides_the_next_lines_token"},
+   {"package": "po-editor", "test": "editor::markdown::tests::linked_image_acceptance::malformed_link_labels_remain_bounded_for_two_hundred_thousand_openers"}
+  ]
+ },
+ {
+  "id": "dom-inline-preview-fragments",
+  "kind": "out-of-scope",
+  "reason": "TS renders isolated inline previews (table cells, MDX tab titles, HTML runs) by building DOM fragments and degrades a source over 32 KiB to one plain text node to bound that DOM. The native editor shapes those cells through the same text pipeline as every document line, so there is no separate fragment renderer or fragment budget.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/plans-and-decorations.md",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/parsing/markdownTokenComplexity.test.ts", "cases": [2]}]
+ },
+ {
+  "id": "lezer-background-parse-projection",
+  "kind": "out-of-scope",
+  "reason": "TS projects Markdown from CodeMirror's background Lezer parse and diffs successive syntax trees (reused prefix blocks, root grammar changes, shared immutable children) to find the range a completed parse changed. The native editor parses eagerly and incrementally, splicing the edited block window into the previous result (checked equal to a full parse), so there is no background tree to diff.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/pipeline.md",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/rendering/syntaxProjectionRange.test.ts", "cases": [0,1,2,3]}]
+ },
+ {
+  "id": "markdown-incremental-projection",
+  "acceptance": "A one-character edit in a 10,000-line document is parsed as a splice of the edited line's top-level block window (never the document) with no full plan rebuild and the decorations kept; focusing the editor reveals the caret's element without rebuilding the document decorations; a table stays one widget through an edit in a row and when the empty line after it becomes prose.",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/rendering/markdownPerformanceProjection.test.ts", "cases": [0,2,3,4]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::markdown::tests::projection_acceptance::an_edit_in_ten_thousand_lines_is_a_splice_of_its_window"},
+   {"package": "po-editor", "test": "editor::markdown::tests::projection_acceptance::a_focus_change_rebuilds_no_document_decorations"},
+   {"package": "po-editor", "test": "editor::markdown::tests::projection_acceptance::a_table_stays_one_widget_through_local_edits"},
+   {"package": "po-editor", "test": "editor::markdown::tests::cursor_movement_rebuilds_zero_document_layer_blocks_and_zero_full_height_plans"}
+  ]
+ },
+ {
+  "id": "markdown-single-block-documents-reparse",
+  "kind": "gap",
+  "reason": "The native incremental parse re-parses whole top-level blocks and needs at least six of them, so a document that is one long list (10,000 tasks) or has fewer than six top-level blocks is parsed in full on every edit — about 43 ms for 10,000 tasks in a release build, in the background above 512 KiB — instead of patching the edited item.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/pipeline.md",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/rendering/markdownPerformanceProjection.test.ts", "cases": [1]}]
+ },
+ {
+  "id": "markdown-table-horizontal-scroll",
+  "kind": "gap",
+  "reason": "A Markdown table wider than the reading column (columns at their readable minimum that still do not fit, or explicit tracks wider than the column) has no scrollport of its own natively: the editor clips it at the pane edge. Its horizontal scroll offset, the anchor kept across a widget replacement, RTL scroll normalisation and the proportional scrollbar mapping therefore do not exist.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/table.md",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/rendering/markdownInlineViewportSession.test.ts", "cases": [0,1,2,3,4,5]}]
+ },
+ {
+  "id": "markdown-table-column-layout",
+  "acceptance": "Automatic tracks hug content that fits, keep a short label column whole while long columns share the rest by how much each would still grow, keep every column at its readable minimum when even those do not fit, and let one long word claim at most 30% of a crowded row; cells are measured as a reader sees them (no Markdown or tag syntax, wide characters at one em, monospace code, authored line breaks, images at their authored width), columns from their widest cell with headers slightly bolder; double-click auto-fit gives a column its natural width within the reading column.",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/tables/markdownTableColumnLayout.test.ts", "cases": [0,1,2,3,4,5,6,7,9,10,11]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::markdown::features::table::layout::tests::tracks_hug_then_share_the_reading_column_like_the_product"},
+   {"package": "po-editor", "test": "editor::markdown::features::table::layout::tests::cells_measure_what_a_reader_sees"},
+   {"package": "po-editor", "test": "editor::markdown::features::table::layout::tests::auto_fit_is_a_columns_natural_width_within_the_reading_column"},
+   {"package": "po-editor", "test": "editor::markdown::features::table::layout::tests::tags_are_not_measured_but_images_reserve_their_width"},
+   {"package": "po-editor", "test": "editor::markdown::features::table::layout::tests::tracks_match_the_product_at_every_reading_width"}
+  ]
+ },
+ {
+  "id": "markdown-table-fit-to-viewport",
+  "kind": "out-of-scope",
+  "reason": "fitMarkdownTableColumnWidths backs the Markdown table controller's fitToViewport, which no product surface calls; the native table offers no such command either.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/table.md",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/tables/markdownTableColumnLayout.test.ts", "cases": [8]}]
+ },
+ {
+  "id": "markdown-table-column-width-sessions",
+  "kind": "gap",
+  "reason": "Natively a table's resized widths live with its widget, plus a 64-table in-memory store keyed by the table's start offset: they survive edits that keep the column count, but a column move keeps widths by position instead of moving them with their columns, an inserted or deleted column returns every track to automatic layout, there is no reset to automatic, and widths are not persisted per document revision and column count across reopening.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/table.md",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/tables/markdownTableColumnLayoutSession.test.ts", "cases": [0,1,2,3,4]}]
+ }
+]

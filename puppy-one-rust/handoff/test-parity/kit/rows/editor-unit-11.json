@@ -1,0 +1,38 @@
+[
+ {
+  "id": "markdown-web-embed-click-to-load",
+  "acceptance": "A lone https iframe in Markdown waits for a click before anything loads (its button shows click-to-load, not loading); a `file:` iframe is never an embed.",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/embeds/runtime-foundations.test.ts", "cases": [3]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::markdown::tests::a_web_embed_waits_for_a_click_and_only_https_embeds"},
+   {"package": "po-editor", "test": "editor::markdown::features::html::embed::tests::only_a_lone_https_iframe_is_an_embed"}
+  ]
+ },
+ {
+  "id": "markdown-link-interaction",
+  "extend": true,
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/embeds/runtime-foundations.test.ts", "cases": [9]}]
+ },
+ {
+  "id": "markdown-asset-broker-architecture",
+  "kind": "out-of-scope",
+  "extend": true,
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/embeds/runtime-foundations.test.ts", "cases": [0,1,2,4,5,6,7,8]}]
+ },
+ {
+  "id": "editor-preset-manifest-characterization",
+  "extend": true,
+  "typescript": [{"path": "tests/unit/editor/runtime/sharedPresetManifest.test.mjs", "cases": [0,2,3,4,5,6,7]}],
+  "rust": [{"package": "po-editor", "test": "editor::registry::manifest::tests::diagnostics_name_the_definition_and_its_first_violation"}]
+ },
+ {
+  "id": "js-viewer-module-loading",
+  "kind": "out-of-scope",
+  "reason": "TS ships viewers as lazily imported JavaScript chunks and its manifest as a module both processes load: a prefetch shares one module load, a failed chunk is evicted so a later mount retries, an isolated viewer is never evaluated in the shell renderer, the parsed manifest is frozen against later mutation of its input, and the packaged main process loads it from a standalone file layout. Native viewers are compiled into the app and the manifest is embedded at build time and parsed into owned values.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/registry/viewer-manifest.md",
+  "typescript": [
+   {"path": "tests/unit/editor/runtime/sharedPresetManifest.test.mjs", "cases": [1,8]},
+   {"path": "tests/unit/editor/runtime/presetViewerPreload.test.ts", "cases": [0,1,2]}
+  ]
+ }
+]

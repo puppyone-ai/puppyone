@@ -1,0 +1,35 @@
+[
+ {
+  "id": "html-empty-page",
+  "acceptance": "Only a definitely empty page (whitespace, comments, the html/head/body shell, a title and metadata, including the New HTML template) shows the empty state; visible elements, scripts, styles, stylesheets and refreshes keep the page in the preview.",
+  "typescript": [{"path": "tests/unit/editor/formats/html/htmlDocumentEmpty.test.ts", "cases": [0,1,2,3,4,5,6,7,8,9,10,11,12]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::viewers::html::tests::an_empty_page_is_recognised_and_dynamic_content_is_kept"},
+   {"package": "po-editor", "test": "editor::viewers::html::tests::previews_carry_the_interaction_stylesheet_and_empty_pages_are_recognised"}
+  ]
+ },
+ {
+  "id": "html-preview-document-projection",
+  "acceptance": "The preview document puts the policy ahead of the page's own head, resolves the page's own relative base once (unsafe bases and refreshes leave) and never mistakes script text, comments or quoted angles for tags.",
+  "typescript": [{"path": "tests/unit/editor/formats/html/htmlVisualEditing.test.ts", "cases": [26]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::viewers::html_preview::tests::the_policy_leads_the_head_and_the_page_keeps_its_own_markup"},
+   {"package": "po-editor", "test": "editor::viewers::html_preview::tests::base_and_refresh_leave_and_only_safe_bases_resolve"},
+   {"package": "po-editor", "test": "editor::viewers::html_preview::tests::script_text_comments_and_quoted_angles_are_not_tags"}
+  ]
+ },
+ {
+  "id": "html-preview-is-the-live-page",
+  "kind": "out-of-scope",
+  "reason": "TS previews an HTML file as a script-less safe projection and runs its scripts only in interaction mode. The native Preview is the Interact page by design: it runs the page's scripts, always under the interactive sandbox and policy (opaque origin without same-origin or top navigation, connect-src https only, links kept in the page), which html_preview::tests::page_scripts_run_inside_the_sandbox_boundaries verifies.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/html/preview-policy.md",
+  "typescript": [{"path": "tests/unit/editor/formats/html/htmlVisualEditing.test.ts", "cases": [23]}]
+ },
+ {
+  "id": "bundled-html-visual-modules",
+  "kind": "out-of-scope",
+  "reason": "Native Edit mode runs the product's own HtmlVisualSurface modules (source index, edit compiler, visual session, editing projection, frame bridge, page viewport and image reference) bundled into assets/web/html-visual.js from the product sources by tools/import-html-visual.mjs, with a provenance receipt that the verify html-visual gate rebuilds and compares. These cases exercise that bundled TypeScript inside the page, not native code; the native side (Edit admission, UTF-16 change application to the authoritative text, typed page messages, the boot page) is covered by editor::viewers::html_visual tests.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/html/visual-edit.md",
+  "typescript": [{"path": "tests/unit/editor/formats/html/htmlVisualEditing.test.ts", "cases": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,24,25,27,28,29,30]}]
+ }
+]

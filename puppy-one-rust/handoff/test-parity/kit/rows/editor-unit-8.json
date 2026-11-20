@@ -1,0 +1,46 @@
+[
+ {
+  "id": "markdown-render-plans",
+  "acceptance": "A safe inline HTML element (a styled span in a list item, kbd and span runs) compiles to a revealable inline mark whose two tags delete as units and whose safe colour styles it; incomplete inline HTML stays visible source with no deletion units; a fence compiles to a code block plan with its language and code, a table to a table plan with rows and alignments, ending before prose that follows it (whose own marks stay); a legacy `83:99:package.json` fence is highlighted as JSON (the quoted file and lines, an accessible description in the product, have no GPUI counterpart).",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/parsing/render-plan.test.ts", "cases": [0,2,3,4,5,6]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::markdown::tests::inline_html_acceptance::inline_html_compiles_safe_marks_and_drops_unsafe_attributes"},
+   {"package": "po-editor", "test": "editor::markdown::tests::composition_acceptance::fences_and_tables_compile_their_payload_and_tables_end_before_prose"}
+  ]
+ },
+ {
+  "id": "markdown-inline-html-safe-reduction",
+  "acceptance": "Inline HTML keeps only safe colours: event handlers, `display` and `url()` style values are dropped while the element and its text stay visible, and a blocked `<script>` is never an element (its source stays visible). The product's reduction diagnostics are inspection data, not shown.",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/html/markdownInlineHtml.test.ts", "cases": [14,15,16]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::markdown::tests::inline_html_acceptance::inline_html_compiles_safe_marks_and_drops_unsafe_attributes"},
+   {"package": "po-editor", "test": "editor::markdown::tests::inline_html_acceptance::unsupported_inline_html_is_visible_and_block_ownership_comes_from_the_parser"}
+  ]
+ },
+ {
+  "id": "markdown-inline-html-breaks-and-styles",
+  "kind": "gap",
+  "reason": "Natively inline HTML styles only text and background colour: `font-weight` in an inline style is not applied, and block HTML gets no wider style capability (`display`) either. A bare `<br>` inside a paragraph stays visible source instead of a line break that reveals its tag on demand.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/syntax/inline-html.md",
+  "typescript": [
+   {"path": "tests/unit/editor/formats/markdown/html/markdownInlineHtml.test.ts", "cases": [11,12,13,18]},
+   {"path": "tests/unit/editor/formats/markdown/parsing/render-plan.test.ts", "cases": [1]}
+  ]
+ },
+ {
+  "id": "markdown-code-fence-info",
+  "acceptance": "A fence's info names the language: the first token, else the language of the file it quotes in legacy `start:end:path` or structured `file=\"…\" lines=\"…\"` metadata (quoted paths with spaces or backticks, line ranges like `L7..L9`); a language-only fence quotes nothing and an invalid legacy range is just a language; common extensions and Dockerfile map to their languages (the product's `path · L206–212` label is an accessible description with no GPUI counterpart).",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/parsing/markdownCodeBlockMetadata.test.ts", "cases": [0,1,2,3,6]}],
+  "rust": [
+   {"package": "po-editor", "test": "editor::markdown::shared::fence::tests::fence_info_names_the_quoted_file_and_infers_its_language"},
+   {"package": "po-editor", "test": "editor::markdown::tests::composition_acceptance::fences_and_tables_compile_their_payload_and_tables_end_before_prose"}
+  ]
+ },
+ {
+  "id": "markdown-code-fence-serialization",
+  "kind": "out-of-scope",
+  "reason": "The native code block shows the fence's own source lines and is edited as text, so the editor never re-writes a fence: there is no serializer putting a standard language first with `file=`/`lines=` metadata or choosing a tilde fence for a path with a backtick.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/code-block.md",
+  "typescript": [{"path": "tests/unit/editor/formats/markdown/parsing/markdownCodeBlockMetadata.test.ts", "cases": [4,5]}]
+ }
+]

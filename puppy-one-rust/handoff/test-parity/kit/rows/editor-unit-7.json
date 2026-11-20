@@ -1,0 +1,119 @@
+[
+ {
+  "id": "markdown-presentation-overrides",
+  "kind": "gap",
+  "reason": "The native Markdown editor always takes heading sizes and strong-text weight and colour from the active theme. It does not read the stored Markdown presentation overrides the product still parses and applies (the Appearance document's bySurface.markdown, the version 2 settings, the legacy emphasis colour and per-heading scales), so a profile that chose large headings or accent bold text shows the theme's instead. Neither product offers these overrides in Settings.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/appearance/appearance-authority.md",
+  "typescript": [
+   {
+    "path": "tests/unit/editor/formats/markdown/rendering/markdownPresentation.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ]
+   }
+  ]
+ },
+ {
+  "id": "markdown-element-model",
+  "acceptance": "Headings, tasks (two marker stages), standard and wiki links, escapes and autolinks carry the product's marker and content ranges; inline markers reveal only with the caret strictly inside and images never reveal; a line's elements come without unrelated lines; Bold over the inner text, the whole token or part of its text unwraps the format; a caret is kept off hidden block markers (a nested quote's whole prefix) while a selection of the inner text is left alone, and Backspace at the visible start deletes one marker level; link titles stay out of the href.",
+  "typescript": [
+   {
+    "path": "tests/unit/editor/formats/markdown/parsing/markdownElements.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-editor",
+    "test": "editor::markdown::core::syntax::tests::elements_follow_the_product_element_model"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::markdown::core::commands::tests::a_selection_inside_formatted_text_is_that_format"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::markdown::core::commands::tests::a_caret_stays_off_hidden_block_markers"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::markdown::core::links::tests::a_link_title_stays_out_of_the_href"
+   }
+  ]
+ },
+ {
+  "id": "markdown-feature-composition",
+  "acceptance": "Each dialect's static feature list names every feature and semantic kind once (the static lists are the duplicate guard) and only the OpenKnowledge dialect adds MDX components, before HTML; a code block, Mermaid, HTML, a table and a video each compile to one block plan of their feature whose widget factory builds a widget, while an unsupported `![[file.bin]]` stays visible source; a standard image whose destination has spaces and an Obsidian image are one image element each; an image alone on its line (surrounding spaces allowed) is one block embed labelled by its alt text and one beside text sits inline (the authored title, an accessible description in the product, has no GPUI counterpart).",
+  "typescript": [
+   {
+    "path": "tests/unit/editor/formats/markdown/rendering/markdownFeatureComposition.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     13
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-editor",
+    "test": "editor::markdown::tests::composition_acceptance::each_dialect_owns_its_features_and_semantic_kinds_once"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::markdown::tests::composition_acceptance::block_constructs_compile_to_their_features_widget"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::markdown::tests::composition_acceptance::an_image_owning_its_line_is_block_media"
+   },
+   {
+    "package": "po-editor",
+    "test": "editor::markdown::core::links::tests::standard_images_keep_spaced_destinations_and_their_titles"
+   }
+  ]
+ },
+ {
+  "id": "markdown-asset-broker-architecture",
+  "kind": "out-of-scope",
+  "extend": true,
+  "typescript": [
+   {
+    "path": "tests/unit/editor/formats/markdown/rendering/markdownFeatureComposition.test.ts",
+    "cases": [
+     12
+    ]
+   }
+  ]
+ }
+]

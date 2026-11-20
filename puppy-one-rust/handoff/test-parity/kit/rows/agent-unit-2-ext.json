@@ -1,0 +1,21 @@
+[
+ {
+  "id": "windows-and-cross-platform-release",
+  "kind": "out-of-scope",
+  "extend": true,
+  "typescript": [
+   {
+    "path": "tests/unit/agent/processes/electron.agent-process-tree.test.mjs",
+    "cases": [
+     1
+    ]
+   },
+   {
+    "path": "tests/unit/agent/references/electron.agent-event-workspace-paths.test.mjs",
+    "cases": [
+     2
+    ]
+   }
+  ]
+ }
+]

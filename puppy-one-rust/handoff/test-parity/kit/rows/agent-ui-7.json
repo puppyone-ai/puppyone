@@ -1,0 +1,48 @@
+[
+ {
+  "id": "agent-chat-drop-target",
+  "acceptance": "The whole chat takes a drop with no change before release and never sends: a dropped folder becomes its path in the draft and a dropped file is staged as an attachment through the one staging path (Finder drop, picker and paste).",
+  "typescript": [{"path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx", "cases": [0, 2, 9]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "features": ["dev-capture"], "test": "features::desktop_agent::ui::panel::tests::finder_drops_insert_folders_as_paths_and_stage_files"}
+  ]
+ },
+ {
+  "id": "agent-composer-visual-attachments",
+  "acceptance": "Raster images sit on the media shelf (resolving, ready or failed) with one accessible remove action and no retry; Markdown and SVG references are inline mentions; deleting a mention releases its reference.",
+  "typescript": [{"path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx", "cases": [12, 13, 14, 15, 17]}],
+  "rust": [
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::ui::composer::tests::images_sit_on_the_shelf_with_one_remove_and_files_become_mentions"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::ui::composer::tests::a_path_reference_becomes_a_mention_and_leaves_with_it"},
+   {"package": "po-app", "target": "puppy-one-rust", "test": "features::desktop_agent::domain::tests::reserves_visual_cards_for_raster_images"}
+  ]
+ },
+ {
+  "id": "reference-drop-feedback",
+  "kind": "gap",
+  "reason": "The chat gives no drop-time feedback: a workspace drag from another workspace is not marked invalid (it is accepted and left to the host, which refuses paths outside the chat's root), and no status announces how many references a drop added or which items of a batch were rejected.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
+  "typescript": [{"path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx", "cases": [4, 16]}]
+ },
+ {
+  "id": "inline-reference-states",
+  "kind": "gap",
+  "reason": "Inline mention chips have no resolving or failed state and no Retry: a resolving file shows one generic Resolving chip instead of its own @name, a failed non-image reference cannot be retried from the composer, and the draft manager's retry has no UI.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/composer.md",
+  "typescript": [{"path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx", "cases": [10, 11]}]
+ },
+ {
+  "id": "workspace-image-drop-preview",
+  "kind": "gap",
+  "reason": "A workspace image dropped on the chat is added without a visual preview (the panel passes no previews to add_workspace_paths), so its shelf card shows a placeholder icon instead of the authorized thumbnail.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
+  "typescript": [{"path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx", "cases": [7]}]
+ },
+ {
+  "id": "electron-reference-drop-plumbing",
+  "kind": "out-of-scope",
+  "reason": "TS claims and inspects native drops through its preload bridge, resolves Workbench resource URIs before authorization (including another attached root's URI), intercepts CodeMirror's native insert of URI text and discards a late asynchronous admission after unmount. Native workspace drags are typed GPUI drags carrying workspace-relative paths resolved against their own workspace, Finder drops arrive as paths in one synchronous event, there is no URI or CodeMirror layer, and authorization happens in the host (reference authorization tests).",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
+  "typescript": [{"path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx", "cases": [1, 3, 5, 6, 8]}]
+ }
+]

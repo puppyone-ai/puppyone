@@ -1,0 +1,594 @@
+[
+ {
+  "id": "agent-tool-evidence-bounds",
+  "acceptance": "Tool output keeps ordinary text exactly, bounds many-line and single pathological lines with head and tail evidence, mounts only bounded search rows while reporting the full count, and serializes wide or cyclic structured input within one budget.",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/activity/desktop-agent.tool-evidence.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::tool_presentation::preserves_ordinary_output_exactly",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::tool_presentation::bounds_adversarial_many_line_output_while_retaining_head_and_tail",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::tool_presentation::bounds_one_pathological_line",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::tool_presentation::collects_only_mountable_search_rows_while_reporting_the_full_count",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::tool_presentation::serializes_wide_structured_input_within_an_aggregate_budget",
+    "target": "puppy-one-rust"
+   }
+  ]
+ },
+ {
+  "id": "agent-shell-presentation",
+  "acceptance": "Simple read-only shell commands (rg, git grep, cat, find -name, through a login shell) present as Grep, Glob or Read via the shell; redirection, deletion, -exec, --pre and pipes stay Bash; a structured tool result renders without an adapter preview.",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/activity/desktop-agent.tool-presentation.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::tool_presentation::classifies_simple_read_only_commands",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::tool_presentation::keeps_ambiguous_or_mutating_shell_syntax_as_bash",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::tool_presentation::renders_a_structured_tool_result_without_an_adapter_preview",
+    "target": "puppy-one-rust"
+   }
+  ]
+ },
+ {
+  "id": "agent-prompt-mentions",
+  "acceptance": "Prompt mentions keep UTF-16 ranges stable and present a file as one segment, drop stale, overlapping and out-of-range decorations, sanitize control characters in names, use the workspace-relative identity, and reserve visual cards for raster images (SVG is a path mention).",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/composer/desktop-agent.prompt-mentions.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::domain::tests::keeps_utf16_ranges_stable_and_presents_a_file_as_one_segment",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::domain::tests::drops_stale_overlapping_and_out_of_range_decorations",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::domain::tests::sanitizes_control_characters_while_preserving_file_names",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::domain::tests::uses_the_portable_workspace_relative_identity",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::domain::tests::reserves_visual_cards_for_raster_images",
+    "target": "puppy-one-rust"
+   }
+  ]
+ },
+ {
+  "id": "agent-submission-lifecycle",
+  "acceptance": "Input admitted as queued, dispatching, accepted or outcome-unknown is never restored or redispatched after a lost receipt; a synchronous bridge failure releases ownership and restores input; a settled provider reconnects before the next turn; an old receipt cannot release a newer conversation's lock; an invalidated conversation never dispatches; a degraded turn continues without consuming the draft.",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/composer/desktop-agent.submission-lifecycle.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::submission_lifecycle::does_not_restore_or_redispatch_admitted_input_after_losing_the_receipt",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::submission_lifecycle::releases_ownership_and_restores_input_after_a_synchronous_bridge_failure",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::submission_lifecycle::reconnects_a_settled_provider_before_dispatching_the_next_turn",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::submission_lifecycle::does_not_let_an_old_receipt_release_a_newer_conversations_lock",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::submission_lifecycle::does_not_dispatch_after_preparation_completes_for_an_invalidated_conversation",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::submission_lifecycle::continues_a_degraded_turn_without_consuming_the_draft_or_references",
+    "target": "puppy-one-rust"
+   }
+  ]
+ },
+ {
+  "id": "agent-workspace-path-routing",
+  "acceptance": "Provider paths convert to workspace-relative paths only inside the assigned folder, keep provider-relative paths with harmless dot segments resolved, never route through the wrong folder, and compare Windows paths case-insensitively.",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/references/agentWorkspacePath.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::domain::tests::converts_absolute_paths_inside_the_assigned_workspace_folder",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::domain::tests::keeps_provider_relative_paths_and_resolves_dot_segments",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::domain::tests::does_not_route_an_absolute_path_through_the_wrong_workspace_folder",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::domain::tests::supports_windows_paths_case_insensitively",
+    "target": "puppy-one-rust"
+   }
+  ]
+ },
+ {
+  "id": "agent-reference-draft-lifecycle",
+  "acceptance": "Reference drafts keep structured failure reasons for attachments and workspace entries, bound legacy failures without inventing retry, never resurrect an image removed, reset or disposed during staging, publish each completed image beside its pending sibling, keep a retained token a cancelled duplicate resolves to, keep valid entries when another source fails, and discard late resolutions after reset.",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/references/desktop-agent.resource-reference-drafts.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::reference_drafts::preserves_the_structured_failure_reason",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::reference_drafts::keeps_legacy_failures_bounded_without_inventing_retry_policy",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::reference_drafts::does_not_resurrect_an_image_removed_reset_or_disposed_during_staging",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::reference_drafts::publishes_each_completed_image_without_removing_its_pending_sibling",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::reference_drafts::does_not_revoke_the_retained_token_when_a_cancelled_acquisition_deduplicates_to_it",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::reference_drafts::keeps_valid_entries_when_another_source_fails_and_retries_the_original_owner",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::application::tests::reference_drafts::discards_a_late_resolution_after_reset_and_releases_its_preview",
+    "target": "puppy-one-rust"
+   }
+  ]
+ },
+ {
+  "id": "agent-chat-view-model",
+  "acceptance": "The chat view model derives readiness, startup loading, recovery, stale-replica blocking, hidden runtimes, route and compute readiness, first-use onboarding versus credential recovery, empty-state suppression, attachment-only feedback, silent event-gap recovery and read-only capability from one state.",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/transcript/agentChatViewModel.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22,
+     23,
+     24,
+     25,
+     26,
+     27,
+     28,
+     29
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::derives_ready_rendering_and_session_preparation_from_the_same_route",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::shows_startup_loading_while_discovering_restoring_or_creating",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::preserves_failed_and_exited_recovery",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::blocks_the_composer_while_the_replica_is_stale_or_subscribing",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_hidden_sessions_bound_while_hiding_unused_runtimes",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::blocks_missing_unregistered_and_pending_model_routes",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::requires_compute_readiness_only_for_app_managed_models",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::offers_first_use_access_without_turning_setup_into_a_failure",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::retains_recovery_for_credential_failures",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::excludes_saved_state_from_first_use_onboarding",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::suppresses_the_empty_state_for_committed_or_interactive_content",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_the_empty_overlay_for_drafts_but_hides_it_for_history_gaps_and_connection_status",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_attachment_only_submission_feedback_across_preparation_and_admission",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::preserves_silent_event_gap_recovery_without_suppressing_other_errors",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_read_only_capability_separate_from_route_readiness",
+    "target": "puppy-one-rust"
+   }
+  ]
+ },
+ {
+  "id": "agent-ended-session-every-locale",
+  "acceptance": "Every bundled locale carries its own message for an ended session, so the presentation never falls back or shows the key.",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/transcript/desktop-agent.error-presentation.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::renders_an_ended_session_without_a_missing_message_fallback",
+    "target": "puppy-one-rust"
+   }
+  ]
+ },
+ {
+  "id": "agent-session-presentation",
+  "acceptance": "Session controls project native model and mode capabilities without inventing effort, derive effort only from the selected model's variants; streaming text advances by grapheme-safe frames, keeps incomplete Markdown in a plain tail, promotes a validated table one row at a time, never promotes malformed pipes, and ends a streaming table before a competing block.",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/transcript/desktop-agent.session-presentation.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::projects_native_model_and_mode_capabilities_without_inventing_effort",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::derives_effort_only_from_the_selected_models_native_variants",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::advances_by_grapheme_safe_adaptive_frames_and_converges",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::keeps_an_incomplete_markdown_block_in_a_stable_plain_text_tail",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::promotes_a_validated_gfm_table_one_completed_row_at_a_time",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::does_not_promote_malformed_or_ambiguous_pipe_text",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::chat_view_model::ends_table_streaming_before_a_competing_flow_block",
+    "target": "puppy-one-rust"
+   }
+  ]
+ },
+ {
+  "id": "agent-timeline-layout-and-anchor",
+  "acceptance": "Timeline gaps follow one deterministic rhythm independent of remeasurement, drop non-visual usage rows, survive virtualization boundaries, recompute a handoff when a user turn follows a summary; the viewport anchor keeps a visible row's coordinate through reflow, keeps an absolute coordinate above the canvas, falls back to the nearest surviving row and never guesses a replacement.",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/transcript/desktop-agent.timeline-layout.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4
+    ]
+   },
+   {
+    "path": "tests/unit/agent/transcript/desktop-agent.timeline-viewport.test.ts",
+    "cases": [
+     0,
+     1,
+     2,
+     3
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::timeline::uses_one_deterministic_rhythm_for_work_flow_and_turn_handoffs",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::timeline::recomputes_the_handoff_when_a_user_turn_follows_a_settled_summary",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::timeline::keeps_semantic_spacing_independent_from_content_remeasurement",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::timeline::removes_non_visual_usage_state_before_it_affects_row_adjacency",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::timeline::retains_full_timeline_gaps_across_a_virtualization_boundary",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::timeline::keeps_the_same_visible_row_coordinate_when_earlier_rows_reflow",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::timeline::retains_an_absolute_viewport_coordinate_above_the_virtual_canvas",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::timeline::preserves_the_nearest_surviving_row_when_the_anchor_is_filtered",
+    "target": "puppy-one-rust"
+   },
+   {
+    "package": "po-app",
+    "test": "features::desktop_agent::ui::tests::timeline::does_not_guess_a_replacement_when_the_anchored_row_disappears",
+    "target": "puppy-one-rust"
+   }
+  ]
+ },
+ {
+  "id": "agent-event-workspace-paths",
+  "acceptance": "Absolute Codex file-change paths become workspace-relative before delivery and paths owned by another workspace folder fail closed.",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/references/electron.agent-event-workspace-paths.test.mjs",
+    "cases": [
+     0,
+     1
+    ]
+   }
+  ],
+  "rust": [
+   {
+    "package": "po-agent",
+    "test": "agent::domain::tests::normalizes_absolute_codex_file_change_paths_before_renderer_delivery"
+   },
+   {
+    "package": "po-agent",
+    "test": "agent::domain::tests::fails_closed_for_paths_owned_by_another_workspace_folder"
+   }
+  ]
+ },
+ {
+  "id": "dom-scroll-ownership-guard",
+  "kind": "out-of-scope",
+  "reason": "TS lints its renderer so only the transcript viewport hook writes scroll positions or creates ResizeObservers. GPUI's list owns the native transcript's scrolling and measurement; there is no DOM scroll API to guard.",
+  "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/transcript.md",
+  "typescript": [
+   {
+    "path": "tests/unit/agent/transcript/desktop-agent.renderer-ownership.test.mjs",
+    "cases": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12
+    ]
+   }
+  ]
+ }
+]
