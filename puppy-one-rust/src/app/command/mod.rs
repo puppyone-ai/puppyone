@@ -159,31 +159,34 @@ pub fn dock_menu() -> Vec<MenuItem> {
 
 pub fn bind_keys(cx: &mut App) {
     super::home::import_sources::bind_keys(cx);
-    for modifier in ["cmd", "ctrl"] {
-        let key = |k: &str| format!("{modifier}-{k}");
-        // The product's own shortcuts: the menu's ⌘, ⌘N ⌘W ⌘Q, ⌘S in a
-        // document, ⌘/ and ⇧⌘M for Markdown's view, ⌘V on the Homepage.
-        cx.bind_keys([
-            KeyBinding::new(&key(","), OpenSettings, None),
-            KeyBinding::new(&key("s"), Save, None),
-            KeyBinding::new(&key("w"), CloseWindow, None),
-            KeyBinding::new(&key("q"), Quit, None),
-            KeyBinding::new(&key("n"), NewWindow, None),
-            KeyBinding::new(&key("/"), ToggleMarkdownSource, None),
-            KeyBinding::new(&key("shift-m"), ToggleMarkdownSource, None),
-            KeyBinding::new(&key("v"), PasteTemplateLink, Some("Homepage")),
-        ]);
-    }
+    // The product's own shortcuts: the menu's primary+, primary+N primary+W
+    // primary+Q, primary+S in a document, primary+/ and Shift+primary+M for
+    // Markdown's view, primary+V on the Homepage. GPUI's `secondary-` maps to
+    // Cmd on macOS and Ctrl on Windows/Linux.
+    cx.bind_keys([
+        KeyBinding::new("secondary-,", OpenSettings, None),
+        KeyBinding::new("secondary-s", Save, None),
+        KeyBinding::new("secondary-w", CloseWindow, None),
+        KeyBinding::new("secondary-q", Quit, None),
+        KeyBinding::new("secondary-n", NewWindow, None),
+        KeyBinding::new("secondary-/", ToggleMarkdownSource, None),
+        KeyBinding::new("secondary-shift-m", ToggleMarkdownSource, None),
+        KeyBinding::new("secondary-v", PasteTemplateLink, Some("Homepage")),
+    ]);
     cx.bind_keys([
         KeyBinding::new("ctrl-tab", NextEditor, None),
         KeyBinding::new("ctrl-shift-tab", PreviousEditor, None),
-        KeyBinding::new("ctrl-cmd-f", ToggleFullScreen, None),
     ]);
-    cx.bind_keys([
-        KeyBinding::new("cmd-h", HideApp, None),
-        KeyBinding::new("alt-cmd-h", HideOtherApps, None),
-        KeyBinding::new("cmd-m", Minimize, None),
-    ]);
+    if crate::platform::os::Os::current().is_macos() {
+        cx.bind_keys([
+            KeyBinding::new("ctrl-secondary-f", ToggleFullScreen, None),
+            KeyBinding::new("secondary-h", HideApp, None),
+            KeyBinding::new("alt-secondary-h", HideOtherApps, None),
+            KeyBinding::new("secondary-m", Minimize, None),
+        ]);
+    } else {
+        cx.bind_keys([KeyBinding::new("f11", ToggleFullScreen, None)]);
+    }
     cx.bind_keys([KeyBinding::new("escape", Escape, None)]);
     super::explorer::bind_keys(cx);
     super::file_mode::bind_keys(cx);

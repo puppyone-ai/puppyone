@@ -586,7 +586,7 @@ fn type_url(shell: &Entity<crate::app::Shell>, cx: &mut VisualTestContext, text:
             .focus_handle(cx)
             .focus(w, cx);
     });
-    cx.simulate_keystrokes("cmd-a");
+    cx.simulate_keystrokes("secondary-a");
     cx.simulate_input(text);
     draw_url_dialog(cx);
 }

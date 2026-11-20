@@ -828,7 +828,12 @@ mod tests {
             assert!(v.local_path.is_some());
             assert_eq!(v.byte_size, Some(expected_len));
             assert_eq!(v.file_type.as_deref(), Some("QQQQ"));
-            assert!(v.thumbnail.is_some());
+            if crate::platform::capabilities::Capabilities::probe()
+                .quick_look_thumbnails
+                .is_available()
+            {
+                assert!(v.thumbnail.is_some());
+            }
         });
     }
 }

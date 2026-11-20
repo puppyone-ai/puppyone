@@ -150,10 +150,15 @@ mod tests {
     fn scripts_and_executable_files_ask_and_links_are_never_opened() {
         let dir = tempfile::tempdir().unwrap();
         let file = |name: &str, mode: u32| {
-            use std::os::unix::fs::PermissionsExt;
             let path = dir.path().join(name);
             std::fs::write(&path, "echo").unwrap();
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+            }
+            #[cfg(not(unix))]
+            let _ = mode;
             path
         };
         for name in [
@@ -165,14 +170,18 @@ mod tests {
         ] {
             assert!(potentially_executable(&file(name, 0o644)), "{name}");
         }
+        #[cfg(unix)]
         assert!(potentially_executable(&file("binary", 0o755)));
         assert!(!potentially_executable(&file("note.md", 0o644)));
         let opened = record_opens();
         let note = dir.path().join("note.md");
         open(&note).unwrap();
-        let link = dir.path().join("link.md");
-        std::os::unix::fs::symlink(&note, &link).unwrap();
-        assert!(open(&link).is_err());
+        #[cfg(unix)]
+        {
+            let link = dir.path().join("link.md");
+            std::os::unix::fs::symlink(&note, &link).unwrap();
+            assert!(open(&link).is_err());
+        }
         assert!(open(dir.path()).is_err());
         assert_eq!(*opened.borrow(), [note]);
     }

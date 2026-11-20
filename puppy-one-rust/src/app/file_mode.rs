@@ -70,18 +70,16 @@ const HTML_KEY_CONTEXT: &str = "HtmlFileWindow";
 
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
-        KeyBinding::new("cmd-r", HtmlReload, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("ctrl-r", HtmlReload, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("cmd-shift-c", HtmlPickElement, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("ctrl-shift-c", HtmlPickElement, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("cmd-d", HtmlAnnotate, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("ctrl-d", HtmlAnnotate, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("cmd-shift-s", HtmlScreenshot, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("ctrl-shift-s", HtmlScreenshot, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("cmd-l", HtmlToggleChat, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("ctrl-l", HtmlToggleChat, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("cmd-shift-f", HtmlToggleFullscreen, Some(HTML_KEY_CONTEXT)),
-        KeyBinding::new("ctrl-shift-f", HtmlToggleFullscreen, Some(HTML_KEY_CONTEXT)),
+        KeyBinding::new("secondary-r", HtmlReload, Some(HTML_KEY_CONTEXT)),
+        KeyBinding::new("secondary-shift-c", HtmlPickElement, Some(HTML_KEY_CONTEXT)),
+        KeyBinding::new("secondary-d", HtmlAnnotate, Some(HTML_KEY_CONTEXT)),
+        KeyBinding::new("secondary-shift-s", HtmlScreenshot, Some(HTML_KEY_CONTEXT)),
+        KeyBinding::new("secondary-l", HtmlToggleChat, Some(HTML_KEY_CONTEXT)),
+        KeyBinding::new(
+            "secondary-shift-f",
+            HtmlToggleFullscreen,
+            Some(HTML_KEY_CONTEXT),
+        ),
     ]);
 }
 

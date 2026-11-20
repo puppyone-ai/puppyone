@@ -612,7 +612,28 @@ fn open_nofollow_read_write(dir: &Dir, name: &Path) -> Result<cap_std::fs::File>
 }
 
 fn sync_dir(dir: &Dir) -> Result<()> {
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::fd::{AsRawFd, FromRawFd};
+        // `cap_std::fs::Dir` opens directories with `O_PATH` on Linux, and
+        // `fsync` on an `O_PATH` descriptor fails with `EBADF`. Reopen `.`
+        // directly from `dir`'s fd with `O_RDONLY | O_DIRECTORY | O_CLOEXEC`
+        // so capability confinement is preserved and `fsync` succeeds.
+        let fd = unsafe {
+            libc::openat(
+                dir.as_raw_fd(),
+                c".".as_ptr(),
+                libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC,
+            )
+        };
+        if fd < 0 {
+            return Err(io(std::io::Error::last_os_error()));
+        }
+        // SAFETY: `fd` is a newly opened, valid file descriptor owned here.
+        let file = unsafe { std::fs::File::from_raw_fd(fd) };
+        file.sync_all().map_err(io)?;
+    }
+    #[cfg(all(unix, not(target_os = "linux")))]
     dir.try_clone()
         .map_err(io)?
         .into_std_file()
@@ -1132,7 +1153,20 @@ impl Workspace {
             return Err(crate::localization::t("native.workspace.regularOnly").into());
         }
         let current_stat = StatFingerprint::from_metadata(&meta);
-        if current_stat == baseline.stat {
+        // On coarse-timestamp filesystems (e.g. Linux ext4 `CLOCK_REALTIME_COARSE`
+        // ~4ms ticks), an external same-size write right after `read` can share
+        // the exact same `mtime`/`ctime` and inode. Only trust the zero-read stat
+        // fast path once the file's mtime is safely outside the coarse tick window.
+        let stat_fresh = meta
+            .modified()
+            .ok()
+            .and_then(|m| {
+                std::time::SystemTime::now()
+                    .duration_since(m.into_std())
+                    .ok()
+            })
+            .is_some_and(|age| age >= std::time::Duration::from_millis(50));
+        if current_stat == baseline.stat && stat_fresh {
             return Ok(Precondition::Matched(meta));
         }
 

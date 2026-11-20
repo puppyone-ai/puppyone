@@ -7,8 +7,13 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 const REMOTE: &str = "https://api.puppyone.ai/git/project-1.git";
 const OPERATION: &str = "11111111-1111-4111-8111-111111111111";
 
+#[cfg(unix)]
+const GIT_BIN: &str = "/usr/bin/git";
+#[cfg(not(unix))]
+const GIT_BIN: &str = "git";
+
 fn git(root: &Path, args: &[&str]) {
-    let out = std::process::Command::new("/usr/bin/git")
+    let out = std::process::Command::new(GIT_BIN)
         .args(args)
         .current_dir(root)
         .output()
@@ -16,7 +21,7 @@ fn git(root: &Path, args: &[&str]) {
     assert!(out.status.success(), "{args:?}");
 }
 fn values(root: &Path, key: &str) -> Vec<String> {
-    let out = std::process::Command::new("/usr/bin/git")
+    let out = std::process::Command::new(GIT_BIN)
         .args(["config", "--local", "--get-all", key])
         .current_dir(root)
         .output()
@@ -32,7 +37,16 @@ fn helper(root: &Path) -> Vec<String> {
 /// A pending operation's credential state, its snapshot taken now; `store`
 /// replaces the secure helper the snapshot chose.
 fn pending(root: &Path, store: &Path) -> Record {
-    let cli = Cli { helper: None };
+    let default_helper = if crate::platform::os::Os::current().is_macos() {
+        None
+    } else if crate::platform::os::Os::current().is_windows() {
+        Some("manager".into())
+    } else {
+        Some("libsecret".into())
+    };
+    let cli = Cli {
+        helper: default_helper,
+    };
     let commit = cli.source_commit(root, "main").unwrap();
     let mut record = super::super::initial_record(&request(root), "fixture", &commit);
     record.operation_id = OPERATION.into();
@@ -86,11 +100,34 @@ fn an_unknown_helper_is_reset_only_for_the_canonical_url_and_restored_on_abandon
             "false",
         ],
     );
-    // Only an allowlisted helper is chosen: on macOS, the keychain.
+    // Only an allowlisted helper is chosen: macOS defaults to `osxkeychain`;
+    // on Linux/Windows configure an allowlisted helper in local git config so
+    // the URL-scoped snapshot/reset/restore saga runs against real `git config`.
+    let expected_helper = if crate::platform::os::Os::current().is_macos() {
+        "osxkeychain"
+    } else if crate::platform::os::Os::current().is_windows() {
+        git(
+            root,
+            &["config", "--local", "--add", "credential.helper", "manager"],
+        );
+        "manager"
+    } else {
+        git(
+            root,
+            &[
+                "config",
+                "--local",
+                "--add",
+                "credential.helper",
+                "libsecret",
+            ],
+        );
+        "libsecret"
+    };
     let snapshot = Cli { helper: None }
         .prepare_credential_config(root, REMOTE, OPERATION)
         .unwrap();
-    assert_eq!(snapshot.helper, "osxkeychain");
+    assert_eq!(snapshot.helper, expected_helper);
     assert_eq!(snapshot.previous_helpers, ["store --file=/tmp/old"]);
     assert_eq!(snapshot.previous_use_http_path, ["false"]);
     let record = pending(root, &store.path().join("credentials"));
@@ -100,7 +137,12 @@ fn an_unknown_helper_is_reset_only_for_the_canonical_url_and_restored_on_abandon
         helper(root),
         ["".to_owned(), config(&record).helper.clone()]
     );
-    assert_eq!(values(root, "credential.helper"), ["!malicious-capture"]);
+    let expected_general: Vec<String> = if crate::platform::os::Os::current().is_macos() {
+        vec!["!malicious-capture".into()]
+    } else {
+        vec!["!malicious-capture".into(), expected_helper.into()]
+    };
+    assert_eq!(values(root, "credential.helper"), expected_general);
     // The secret goes to the pinned helper on standard input, never argv.
     let stored = std::fs::read_to_string(store.path().join("credentials")).unwrap();
     assert!(stored.contains("pwg_top_secret"));
@@ -117,7 +159,7 @@ fn an_unknown_helper_is_reset_only_for_the_canonical_url_and_restored_on_abandon
         values(root, &format!("credential.{REMOTE}.useHttpPath")),
         ["false"]
     );
-    assert_eq!(values(root, "credential.helper"), ["!malicious-capture"]);
+    assert_eq!(values(root, "credential.helper"), expected_general);
 }
 
 #[test]
@@ -188,10 +230,19 @@ fn shell_and_path_helpers_never_receive_the_secret() {
             script.to_str().unwrap(),
         ],
     );
-    let snapshot = Cli { helper: None }
-        .prepare_credential_config(root, REMOTE, OPERATION)
-        .unwrap();
-    assert_eq!(snapshot.helper, "osxkeychain");
+    if crate::platform::os::Os::current().is_macos() {
+        let snapshot = Cli { helper: None }
+            .prepare_credential_config(root, REMOTE, OPERATION)
+            .unwrap();
+        assert_eq!(snapshot.helper, "osxkeychain");
+    } else {
+        // Without a configured allowlisted helper, non-macOS fails closed
+        // rather than accepting shell or arbitrary path helpers.
+        let err = Cli { helper: None }
+            .prepare_credential_config(root, REMOTE, OPERATION)
+            .unwrap_err();
+        assert_eq!(err.code, Code::RemoteConfigFailed);
+    }
     let record = pending(root, &store.path().join("credentials"));
     Cli { helper: None }
         .approve(root, &record, "pwg_never_shared")

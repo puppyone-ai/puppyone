@@ -421,6 +421,26 @@ editor_self_test = subprocess.run(
 )
 if editor_self_test.returncode:
     errors.append(editor_self_test.stdout.rstrip())
+platform_arch = subprocess.run(
+    [sys.executable, '-B', str(Path(__file__).resolve().parent / 'check-platform-boundaries.py')],
+    cwd=root,
+    text=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+)
+if platform_arch.returncode:
+    errors.append(platform_arch.stdout.rstrip())
+else:
+    print(platform_arch.stdout.rstrip())
+platform_self_test = subprocess.run(
+    [sys.executable, '-B', str(Path(__file__).resolve().parent / 'check-platform-boundaries.py'), '--self-test'],
+    cwd=root,
+    text=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+)
+if platform_self_test.returncode:
+    errors.append(platform_self_test.stdout.rstrip())
 if errors:
     raise SystemExit("\n".join(errors))
 print("Native UI boundary guard passed (GPUI primitives, Markdown layers and retired framework guard)")

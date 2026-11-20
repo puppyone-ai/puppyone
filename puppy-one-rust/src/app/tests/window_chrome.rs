@@ -295,7 +295,7 @@ fn macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu(cx: &mut TestA
         menus[0].name.as_ref(),
         crate::app::windows::application_name()
     );
-    cx.simulate_keystrokes("cmd-,");
+    cx.simulate_keystrokes("secondary-,");
     draw(cx);
     view.read_with(cx, |s, cx| {
         assert_eq!(s.dialogs.read(cx).task(), Some(Task::Settings))

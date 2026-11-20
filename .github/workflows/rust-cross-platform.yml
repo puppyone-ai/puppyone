@@ -1,0 +1,99 @@
+name: Rust cross-platform CI
+
+on:
+  pull_request:
+    paths:
+      - 'puppy-one-rust/**'
+      - '.github/workflows/rust-cross-platform.yml'
+  push:
+    branches: [puppyone-rust, qubits, main]
+    paths:
+      - 'puppy-one-rust/**'
+      - '.github/workflows/rust-cross-platform.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-cross-platform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Rust (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux
+            os: ubuntu-24.04
+            run_tests: true
+            run_clippy: true
+          - label: windows
+            os: windows-2025
+            run_tests: false
+            run_clippy: true
+          - label: macos
+            os: macos-15
+            run_tests: true
+            run_clippy: true
+    defaults:
+      run:
+        working-directory: rust/puppy-one-rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: rust
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 5e87974efcfae0c9a83801ccc9add2f2deceb395
+          path: puppyone-baseline-5e87974ef
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install Linux system libraries for GPUI
+        if: matrix.label == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libwayland-dev \
+            libxcb1-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libvulkan-dev \
+            libfontconfig1-dev \
+            libasound2-dev \
+            libssl-dev
+      - name: Install reviewed Rust toolchain and dependencies
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
+          rustup override set 1.97.1
+          npm ci --prefix ../../puppyone-baseline-5e87974ef
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path tools/source-index/Cargo.toml
+      - name: Check formatting and architecture boundaries
+        run: |
+          cargo fmt --all --check
+          python3 -B tools/check-ui-boundaries.py
+      - name: Check workspace compilation (all targets)
+        run: |
+          cargo check --locked --workspace --all-targets
+          cargo check --locked --workspace --all-targets --features dev-capture
+      - name: Run strict clippy (all targets)
+        if: matrix.run_clippy
+        run: |
+          cargo clippy --locked --workspace --all-targets --features dev-capture -- -D warnings
+      - name: Run workspace tests
+        if: matrix.run_tests
+        env:
+          PUPPYONE_PRODUCT_ROOT: ${{ github.workspace }}/puppyone-baseline-5e87974ef
+        run: |
+          cargo test --locked --workspace

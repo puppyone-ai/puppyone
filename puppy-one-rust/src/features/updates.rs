@@ -64,6 +64,7 @@ pub fn init(quit: fn(&mut App), cx: &mut App) {
     let data = crate::platform::data_dir();
     let automatic = updates::read_automatic_download(&data);
     let exe = std::env::current_exe().ok();
+    #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
     let app_bundle = exe
         .as_ref()
         .and_then(|e| e.ancestors().nth(3))
@@ -493,12 +494,11 @@ impl Updates {
     /// `installOnQuit`: a prepared update goes in as the app exits, and the
     /// app reopens when the person asked to restart.
     fn install_on_exit(&mut self) {
-        if !matches!(self.state.status, Status::Downloaded | Status::Installing) {
-            return;
-        }
-        #[cfg(target_os = "macos")]
-        if let Some(prepared) = &mut self.prepared {
-            prepared.install_on_exit(self.restart_requested);
+        if matches!(self.state.status, Status::Downloaded | Status::Installing) {
+            #[cfg(target_os = "macos")]
+            if let Some(prepared) = &mut self.prepared {
+                prepared.install_on_exit(self.restart_requested);
+            }
         }
     }
 

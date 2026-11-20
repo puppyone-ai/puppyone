@@ -254,12 +254,26 @@ impl Terminal {
                     &root,
                     &activity_owner,
                 );
-                let pair = native_pty_system().openpty(PtySize {
+                // Drain any resize/input requests queued before the PTY opened
+                // so the shell starts with the caller's dimensions rather than
+                // racing `24x80` against fast non-interactive startup.
+                let mut initial_size = PtySize {
                     rows: 24,
                     cols: 80,
                     pixel_width: 0,
                     pixel_height: 0,
-                })?;
+                };
+                let mut early_inputs: Vec<Vec<u8>> = Vec::new();
+                while let Ok(request) = rx.try_recv() {
+                    match request {
+                        Request::Resize(rows, cols) => {
+                            initial_size.rows = rows;
+                            initial_size.cols = cols;
+                        }
+                        Request::Input(bytes) => early_inputs.push(bytes),
+                    }
+                }
+                let pair = native_pty_system().openpty(initial_size)?;
                 let shell = launch.is_none();
                 let executable = launch
                     .as_ref()
@@ -341,6 +355,10 @@ impl Terminal {
                 });
                 if let Some(bootstrap) = prepared.bootstrap {
                     bootstrap_writer(&mut writer, &bootstrap).map_err(anyhow::Error::msg)?;
+                }
+                for bytes in early_inputs {
+                    writer.write_all(&bytes)?;
+                    writer.flush()?;
                 }
                 loop {
                     #[cfg(unix)]
@@ -628,7 +646,10 @@ mod tests {
                     Event::Exit(_) => break,
                 }
             }
-            let lines: Vec<&str> = output.lines().map(str::trim).collect();
+            let lines: Vec<&str> = output
+                .lines()
+                .map(|l| l.trim().trim_start_matches("$ ").trim())
+                .collect();
             assert!(
                 lines.contains(&folder.to_string_lossy().as_ref()),
                 "{output}"

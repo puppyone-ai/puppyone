@@ -757,7 +757,7 @@ impl WebHost {
         Self::new_child(window, window_key(window), content, dark)
     }
     fn new_child(
-        window: &gpui::Window,
+        window: &impl raw_window_handle::HasWindowHandle,
         key: u64,
         content: Content,
         dark: bool,

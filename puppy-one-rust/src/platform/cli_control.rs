@@ -8,12 +8,15 @@
 //! The protocol is a cross-repository contract, pinned byte for byte at
 //! `contracts/cli-control-protocol.mjs`.
 use serde_json::{Value, json};
+#[cfg(unix)]
 use std::{
     io::{Read, Write},
     os::unix::{
         fs::{MetadataExt, PermissionsExt},
         net::{UnixListener, UnixStream},
     },
+};
+use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -220,6 +223,7 @@ pub struct Incoming {
 /// its own; each request reaches the app through the channel, and its
 /// answer goes back on the connection, even after the client stopped
 /// sending (`allowHalfOpen`).
+#[cfg(unix)]
 pub fn serve(endpoint: &Path, app: AppInfo) -> std::io::Result<async_channel::Receiver<Incoming>> {
     let directory = endpoint.parent().unwrap_or(Path::new("/"));
     prepare_directory(directory)?;
@@ -243,8 +247,19 @@ pub fn serve(endpoint: &Path, app: AppInfo) -> std::io::Result<async_channel::Re
         })?;
     Ok(rx)
 }
+#[cfg(not(unix))]
+pub fn serve(
+    _endpoint: &Path,
+    _app: AppInfo,
+) -> std::io::Result<async_channel::Receiver<Incoming>> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "Command-line control server is not implemented on this platform yet.",
+    ))
+}
 /// The /tmp fallback is shared ground: never listen inside someone else's
 /// directory.
+#[cfg(unix)]
 fn prepare_directory(directory: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(directory)?;
     let metadata = std::fs::symlink_metadata(directory)?;
@@ -260,6 +275,7 @@ fn prepare_directory(directory: &Path) -> std::io::Result<()> {
     }
     Ok(())
 }
+#[cfg(unix)]
 fn accept(mut stream: UnixStream, tx: &async_channel::Sender<Incoming>, app: &AppInfo) {
     let _ = stream.set_read_timeout(Some(REQUEST_TIMEOUT));
     let mut buffer = Vec::new();
@@ -422,6 +438,7 @@ mod tests {
 
     /// A client that sends its line and stops sending still gets its
     /// answer on the same connection.
+    #[cfg(unix)]
     #[test]
     fn a_half_closed_request_is_answered() {
         let dir = tempfile::tempdir().unwrap();

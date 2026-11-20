@@ -285,6 +285,9 @@ mod tests {
             .unwrap()
             .unwrap();
         let modified = revision.before.modified().unwrap();
+        // Ensure coarse filesystem `ctime` granularity (e.g. Linux 4ms timer ticks)
+        // advances before overwriting with identical size and restoring `mtime`.
+        std::thread::sleep(std::time::Duration::from_millis(20));
         std::fs::write(&path, b"replaced").unwrap();
         std::fs::File::open(&path)
             .unwrap()

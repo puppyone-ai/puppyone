@@ -28,11 +28,11 @@ fn kit_textarea_caps_paste_before_recording_undo(cx: &mut TestAppContext) {
     let (input, cx) = setup(cx, true, 4);
     cx.simulate_input("中");
     cx.update(|_, cx| cx.write_to_clipboard(ClipboardItem::new_string("🐶abc".into())));
-    cx.simulate_keystrokes("cmd-v");
+    cx.simulate_keystrokes("secondary-v");
     assert_eq!(input.read_with(cx, |i, _| i.text().to_owned()), "中🐶ab");
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     assert_eq!(input.read_with(cx, |i, _| i.text().to_owned()), "中");
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     assert_eq!(input.read_with(cx, |i, _| i.text().to_owned()), "中🐶ab");
     cx.simulate_keystrokes("enter");
     assert_eq!(input.read_with(cx, |i, _| i.text().to_owned()), "中🐶ab");
@@ -53,9 +53,9 @@ fn kit_ime_commit_undo_and_unmark_share_the_same_state(cx: &mut TestAppContext) 
         i.replace_text_in_range(None, "你好🐶", w, cx);
         assert!(!i.composing(w, cx));
     });
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     assert_eq!(input.read_with(cx, |i, _| i.text().to_owned()), "");
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     assert_eq!(input.read_with(cx, |i, _| i.text().to_owned()), "你好🐶");
     input.update_in(cx, |i, w, cx| {
         i.replace_and_mark_text_in_range(None, "文", None, w, cx);
@@ -81,7 +81,7 @@ fn kit_composer_submit_does_not_insert_a_newline(cx: &mut TestAppContext) {
         .detach();
     });
     cx.simulate_input("prompt");
-    cx.simulate_keystrokes("cmd-enter");
+    cx.simulate_keystrokes("secondary-enter");
     assert_eq!(count.get(), 1);
     assert_eq!(input.read_with(cx, |i, _| i.text().to_owned()), "prompt");
     cx.simulate_keystrokes("shift-enter");
@@ -89,7 +89,7 @@ fn kit_composer_submit_does_not_insert_a_newline(cx: &mut TestAppContext) {
     input.update_in(cx, |i, w, cx| {
         i.replace_and_mark_text_in_range(None, "ni", None, w, cx)
     });
-    cx.simulate_keystrokes("cmd-enter");
+    cx.simulate_keystrokes("secondary-enter");
     assert_eq!(count.get(), 1, "preedit must not submit an agent request");
 }
 
@@ -145,7 +145,7 @@ fn mentions_insert_at_the_caret_as_atomic_tokens(cx: &mut TestAppContext) {
     });
     // After a word, the mention is separated from it; at the end nothing
     // follows.
-    cx.simulate_keystrokes("cmd-down");
+    cx.simulate_keystrokes("secondary-down");
     cx.simulate_input("x");
     input.update_in(cx, |i, w, cx| {
         assert!(i.insert_tokens(&[("r3".into(), "@c.md".into())], w, cx));

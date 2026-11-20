@@ -561,20 +561,28 @@ pub fn save(connection: ModelConnection, secret: Option<String>) -> Result<(), S
         return Err(crate::localization::t("native.modelConnections.limitReached").into());
     }
     let (mut connection, secret) = parse_save(connection, secret, previous.as_ref())?;
+    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
     let mut staged_credential: Option<String> = None;
     if let Some(secret) = secret {
         let credential_id = uuid::Uuid::new_v4().to_string();
         #[cfg(target_os = "macos")]
-        security_framework::passwords::set_generic_password(
-            "PuppyOne GPUI Model Connections",
-            &credential_id,
-            secret.as_bytes(),
-        )
-        .map_err(|_| crate::localization::t("native.modelConnections.keychainSaveFailed"))?;
+        {
+            security_framework::passwords::set_generic_password(
+                "PuppyOne GPUI Model Connections",
+                &credential_id,
+                secret.as_bytes(),
+            )
+            .map_err(|_| crate::localization::t("native.modelConnections.keychainSaveFailed"))?;
+            connection.credential_id = Some(credential_id.clone());
+            staged_credential = Some(credential_id);
+        }
         #[cfg(not(target_os = "macos"))]
-        return Err(crate::localization::t("native.modelConnections.noCredentialStorage").into());
-        connection.credential_id = Some(credential_id.clone());
-        staged_credential = Some(credential_id);
+        {
+            let _ = (secret, credential_id);
+            return Err(
+                crate::localization::t("native.modelConnections.noCredentialStorage").into(),
+            );
+        }
     }
     connection.generation = uuid::Uuid::new_v4().to_string();
     connections.retain(|c| c.id != connection.id);

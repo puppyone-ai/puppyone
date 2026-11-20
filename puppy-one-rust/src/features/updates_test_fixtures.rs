@@ -1,10 +1,12 @@
 #![cfg(test)]
 use super::*;
+#[cfg(target_os = "macos")]
+use std::path::Path;
 use std::{
     collections::BTreeMap,
     io::{Read, Write},
     net::TcpListener,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Mutex,
     time::Duration,
 };

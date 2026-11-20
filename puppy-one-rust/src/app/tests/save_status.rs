@@ -226,7 +226,7 @@ fn new_input_removes_saved_immediately_and_cmd_s_announces_the_explicit_write(
     let (view, memory, cx) = hosted(cx);
     let held = HeldCall::new(&memory);
     type_text(&view, cx, " explicit");
-    cx.simulate_keystrokes("cmd-s");
+    cx.simulate_keystrokes("secondary-s");
     poll(&view, cx);
     held.entered();
     assert_eq!(
@@ -254,7 +254,7 @@ fn new_input_removes_saved_immediately_and_cmd_s_announces_the_explicit_write(
 fn a_second_save_keeps_its_own_expiry_after_the_first_confirmation_timer(cx: &mut TestAppContext) {
     let (view, memory, cx) = hosted(cx);
     type_text(&view, cx, " first");
-    cx.simulate_keystrokes("cmd-s");
+    cx.simulate_keystrokes("secondary-s");
     until(&view, cx, |cx| {
         cx.debug_bounds("editor-save-saved-0").is_some()
     });
@@ -262,7 +262,7 @@ fn a_second_save_keeps_its_own_expiry_after_the_first_confirmation_timer(cx: &mu
     cx.executor().advance_clock(Duration::from_millis(900));
     cx.run_until_parked();
     type_text(&view, cx, " second");
-    cx.simulate_keystrokes("cmd-s");
+    cx.simulate_keystrokes("secondary-s");
     until(&view, cx, |cx| {
         cx.debug_bounds("editor-save-saved-0").is_some()
     });
@@ -308,17 +308,17 @@ fn each_retained_document_confirmation_repaints_at_its_own_deadline(cx: &mut Tes
         });
         poll(&view, cx);
         type_text(&view, cx, " saved");
-        cx.simulate_keystrokes("cmd-s");
+        cx.simulate_keystrokes("secondary-s");
         until(&view, cx, |cx| {
             view.read_with(cx, |s, cx| s.files(cx).save_status() == SaveStatus::Saved)
         });
         if index == 0 {
-            std::thread::sleep(Duration::from_millis(900));
-            cx.executor().advance_clock(Duration::from_millis(900));
+            std::thread::sleep(Duration::from_millis(500));
+            cx.executor().advance_clock(Duration::from_millis(500));
             cx.run_until_parked();
         }
     }
-    view.read_with(cx, |s, cx| {
+    let (first, second) = view.read_with(cx, |s, cx| {
         let first = s
             .files(cx)
             .slot(editors[0].0)
@@ -333,9 +333,11 @@ fn each_retained_document_confirmation_repaints_at_its_own_deadline(cx: &mut Tes
             .unwrap();
         assert!(first < second);
         assert_eq!(s.editor.read(cx).saved_refresh.as_ref().unwrap().0, first);
+        (first, second)
     });
-    std::thread::sleep(Duration::from_millis(400));
-    cx.executor().advance_clock(Duration::from_millis(400));
+    let wait_first = first.saturating_duration_since(Instant::now()) + Duration::from_millis(20);
+    std::thread::sleep(wait_first);
+    cx.executor().advance_clock(wait_first);
     cx.run_until_parked();
     draw(cx);
     view.read_with(cx, |s, cx| {
@@ -351,8 +353,9 @@ fn each_retained_document_confirmation_repaints_at_its_own_deadline(cx: &mut Tes
             .unwrap();
         assert_eq!(s.editor.read(cx).saved_refresh.as_ref().unwrap().0, second);
     });
-    std::thread::sleep(Duration::from_millis(850));
-    cx.executor().advance_clock(Duration::from_millis(850));
+    let wait_second = second.saturating_duration_since(Instant::now()) + Duration::from_millis(20);
+    std::thread::sleep(wait_second);
+    cx.executor().advance_clock(wait_second);
     cx.run_until_parked();
     draw(cx);
     view.read_with(cx, |s, cx| {

@@ -397,6 +397,7 @@ mod tests {
                 .contains("outside a packaged release build")
         );
         let packaged = configuration(&identity(Channel::Stable, true), none);
+        #[cfg(target_os = "macos")]
         assert!(
             disabled_reason(&packaged, true, || Signature::AdHoc)
                 .unwrap()

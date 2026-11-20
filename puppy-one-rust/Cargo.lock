@@ -6726,6 +6726,7 @@ dependencies = [
  "po-ui",
  "po-workspace",
  "pulldown-cmark",
+ "raw-window-handle",
  "regex",
  "rusqlite",
  "semver",

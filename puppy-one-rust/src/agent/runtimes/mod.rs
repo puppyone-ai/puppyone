@@ -10,7 +10,7 @@ pub mod pi;
 pub mod puppyone_agent;
 pub mod workbuddy;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod discovery_tests;
 
 #[cfg(test)]

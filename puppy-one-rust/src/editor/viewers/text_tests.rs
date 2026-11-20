@@ -279,10 +279,10 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
     draw(cx);
     assert_text(&host, "source", cx);
     assert_eq!(count.get(), 1);
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     draw(cx);
     assert_text(&host, "", cx);
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     draw(cx);
     assert_text(&host, "source", cx);
     host.update_in(cx, |h, w, cx| {
@@ -296,10 +296,10 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
     });
     draw(cx);
     // Undo in the page must undo the earlier source edit, not an independent copy.
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     draw(cx);
     assert_text(&host, "", cx);
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     draw(cx);
     assert_text(&host, "source", cx);
     host.update_in(cx, |h, w, cx| h.surface.command(HostCommand::Undo, w, cx));
