@@ -367,4 +367,46 @@ mod tests {
             })
         );
     }
+
+    /// `markdownAssetPolicy.test.ts` under the product's settings (images
+    /// `https-only`, video `deny`): executable and local schemes, capability
+    /// URLs, credentials, plain http, SVG and oversized data and workspace
+    /// escapes are refused; small raster data, credential-free https images
+    /// and workspace paths beside the document load; a video never loads
+    /// remotely.
+    #[test]
+    fn markdown_assets_follow_the_products_image_and_video_settings() {
+        let doc = Path::new("notes/doc.md");
+        for href in [
+            "file:///etc/passwd.png",
+            "javascript:alert(1)",
+            "vbscript:msgbox",
+            "blob:https://app.example/id",
+            "puppyone-local://file/token/root/a.png",
+            "https://user:pass@example.com/a.png",
+            "http://example.com/a.png",
+            "data:image/svg+xml;base64,PHN2Zz4=",
+            "../../secret.png",
+        ] {
+            assert_eq!(markdown(doc, href), None, "{href}");
+        }
+        assert_eq!(
+            markdown(doc, "data:image/png;base64,iVBO"),
+            Some(MediaSource::Data(vec![0x89, 0x50, 0x4e]))
+        );
+        assert_eq!(
+            markdown(doc, "https://example.com/a.png"),
+            Some(MediaSource::Remote("https://example.com/a.png".into()))
+        );
+        assert_eq!(
+            markdown(doc, "./img/a.png"),
+            Some(MediaSource::Workspace(PathBuf::from("notes/img/a.png")))
+        );
+        assert_eq!(embed(doc, "https://example.com/clip.mp4", None), None);
+        assert_eq!(markdown(doc, "data:video/mp4;base64,AAAA"), None);
+        assert_eq!(
+            embed(doc, "assets/clip.mp4", None),
+            Some(MediaSource::Workspace(PathBuf::from("assets/clip.mp4")))
+        );
+    }
 }

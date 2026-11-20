@@ -198,3 +198,12 @@ fn inline_syntax_projects_like_the_product() {
     assert!(!s.elements.iter().any(|e| e.kind == Kind::Strike));
     assert!(s.elements.iter().any(|e| e.kind == Kind::Comment));
 }
+
+/// `keeps image and video policy capabilities distinct`: an embed is an
+/// image or a video by its extension, never both.
+#[test]
+fn images_and_videos_are_distinct_kinds() {
+    use super::lines::{is_image_path, is_video_path};
+    assert!(is_video_path("assets/clip.mp4") && !is_image_path("assets/clip.mp4"));
+    assert!(is_image_path("assets/poster.png") && !is_video_path("assets/poster.png"));
+}

@@ -38747,6 +38747,126 @@
           "test": "render_service::tests::unavailable_is_never_permanently_cached_and_superseded_jobs_skip"
         }
       ]
+    },
+    {
+      "id": "markdown-asset-policy",
+      "acceptance": "Under the product's settings (images https-only, video deny) Markdown assets refuse file, executable, blob and private-protocol URLs, credentials, plain http, SVG and oversized data images and workspace escapes, accept small raster data, credential-free https images and paths beside the document; workspace files are verified inside the root (no symlink escape, size limits); images and videos stay distinct kinds and video never loads remotely or from data.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/markdownAssetPolicy.test.ts",
+          "sha256": "d9a8572fbb6ceb73d0375b0c71f9a51708d52a60c503ed2e089df617823ef515",
+          "cases": [
+            {
+              "index": 1,
+              "name": "markdownAssetPolicy > denies file:// and executable schemes"
+            },
+            {
+              "index": 3,
+              "name": "markdownAssetPolicy > denies svg data URLs and oversized data images"
+            },
+            {
+              "index": 4,
+              "name": "markdownAssetPolicy > allows small raster data images"
+            },
+            {
+              "index": 5,
+              "name": "markdownAssetPolicy > rejects workspace escape via .."
+            },
+            {
+              "index": 6,
+              "name": "markdownAssetPolicy > keeps workspace-relative document paths when the host root is absolute"
+            },
+            {
+              "index": 7,
+              "name": "markdownAssetPolicy > denies remote tracking loads and ambient capability URLs by default"
+            },
+            {
+              "index": 8,
+              "name": "markdownAssetPolicy > allows canonical credential-free HTTPS only with the explicit passive-image policy"
+            },
+            {
+              "index": 9,
+              "name": "markdownAssetPolicy > never treats file:// as a safe resolved broker URL"
+            },
+            {
+              "index": 10,
+              "name": "markdownAssetPolicy > keeps image and video policy capabilities distinct"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::shared::media_source::tests::markdown_assets_follow_the_products_image_and_video_settings"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::shared::media_source::tests::media_sources_and_oversized_data_urls_follow_policy"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::policy::tests::workspace_containment_refuses_escaping_symlinks_and_oversized_files"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::policy::tests::oversized_data_image_url_is_rejected_before_decode"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::syntax::tests::images_and_videos_are_distinct_kinds"
+        }
+      ]
+    },
+    {
+      "id": "markdown-web-embed-policy",
+      "acceptance": "Only a lone credential-free https iframe becomes a web embed; localhost (also with a trailing dot or in capitals), local suffixes, private, loopback and IPv4-mapped addresses never load; one private DNS answer fails the whole resolution and the embed is pinned to the public addresses; at most a bounded number of embeds stay loaded per window, the least recently used invisible one evicted.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/markdownWebEmbed.service.test.mjs",
+          "sha256": "84ad8b06d6f0f548a16e971c6eff07ede4297ead9b3213cc483ebbbe0f152b4f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown web embed href policy > allows only credential-free https embeds"
+            },
+            {
+              "index": 1,
+              "name": "Markdown web embed href policy > rejects loopback aliases, trailing-dot localhost and IPv4-mapped IPv6"
+            },
+            {
+              "index": 2,
+              "name": "Markdown web embed href policy > fails closed when DNS returns any non-public endpoint"
+            },
+            {
+              "index": 12,
+              "name": "Markdown web embed service > caps concurrent remote views per owner"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::html::embed::tests::only_a_lone_https_iframe_is_an_embed"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::html::embed::tests::private_and_local_targets_never_load"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::policy::tests::one_private_dns_answer_fails_the_whole_resolution"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::embed::web_embed::tests::lone_https_iframe_and_pinned_client_follow_policy"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::embed::tests::window_host_pool_bounds_per_window_and_evicts_lru_invisible"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -48408,6 +48528,228 @@
             {
               "index": 9,
               "name": "Mermaid host request boundary > does not start without an explicit asset root"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hosted-absolute-asset-urls",
+      "kind": "gap",
+      "reason": "A hosted Markdown document resolves relative and root-relative assets inside its project through the provider, but an authored absolute `puppyone-cloud://` URL that points inside the same project root is refused natively (the product accepts it and rejects only other roots and token queries).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/assets.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/markdownAssetPolicy.test.ts",
+          "sha256": "d9a8572fbb6ceb73d0375b0c71f9a51708d52a60c503ed2e089df617823ef515",
+          "cases": [
+            {
+              "index": 0,
+              "name": "markdownAssetPolicy > resolves Cloud relative and root assets within the complete account/project/scope root"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-asset-broker-architecture",
+      "kind": "out-of-scope",
+      "reason": "TS resolves Markdown assets through an AssetBroker that hands features capability URLs (including provider-resolved loopback URLs) under host leases it revokes, validates sinks and purposes, and runs trusted local HTML in revocable execution sessions. The native editor reads asset bytes itself through the workspace or provider after the same policy (no URLs, leases or capability purposes), and never executes HTML in Markdown (executable HTML is removed from the native flow).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/assets.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/markdownAssetPolicy.test.ts",
+          "sha256": "d9a8572fbb6ceb73d0375b0c71f9a51708d52a60c503ed2e089df617823ef515",
+          "cases": [
+            {
+              "index": 2,
+              "name": "markdownAssetPolicy > accepts provider-resolved loopback assets while keeping authored HTTP images denied"
+            },
+            {
+              "index": 11,
+              "name": "AssetBroker policy gate > keeps remote scheme authority in broker configuration, not feature requests"
+            },
+            {
+              "index": 12,
+              "name": "AssetBroker policy gate > does not call the host resolver for denied hrefs"
+            },
+            {
+              "index": 13,
+              "name": "AssetBroker policy gate > drops file:// results even if the host resolver returns them"
+            },
+            {
+              "index": 14,
+              "name": "AssetBroker policy gate > rejects the wrong capability purpose or a mismatched source document"
+            },
+            {
+              "index": 15,
+              "name": "AssetBroker policy gate > propagates handle revocation to the host capability lease"
+            },
+            {
+              "index": 16,
+              "name": "AssetBroker policy gate > revokes a host lease when the resolver result fails sink validation"
+            },
+            {
+              "index": 17,
+              "name": "trust + execution sessions > requires an explicit local-active-html grant"
+            },
+            {
+              "index": 18,
+              "name": "trust + execution sessions > destroys execution sessions on revision change and revokes handles"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "web-embed-navigation-and-subresources",
+      "kind": "gap",
+      "reason": "Natively only the embed's top page is preflighted (one DNS resolution, every address public, pinned HTTPS) and its frames are limited to allowed origins. Its subresources are not filtered by scheme or DNS, a link the user activates to another origin is refused instead of opening in the browser (popups do open there), and downloads are not checked.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/html-block.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/markdownWebEmbed.service.test.mjs",
+          "sha256": "84ad8b06d6f0f548a16e971c6eff07ede4297ead9b3213cc483ebbbe0f152b4f",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown web embed service > denies non-https and DNS-private subresources"
+            },
+            {
+              "index": 4,
+              "name": "Markdown web embed service > keeps fragment navigation in the embed and externalizes activated page links"
+            },
+            {
+              "index": 5,
+              "name": "Markdown web embed service > cancels downloads and routes only activated popup intents to external navigation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-web-embed-views",
+      "kind": "out-of-scope",
+      "reason": "TS hosts web embeds as Electron WebContentsViews owned by a renderer: it checks the live owner and the IPC sender's main frame, clips and hides views by reported bounds, keeps the page while product chrome occludes it, reserves capacity while loading and destroys every view when its owner closes, crashes or fails to load. Native embeds are child web views inside the editor's own GPUI layout, released with their pane and window (bounded per-window pool).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/html-block.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/markdownWebEmbed.service.test.mjs",
+          "sha256": "84ad8b06d6f0f548a16e971c6eff07ede4297ead9b3213cc483ebbbe0f152b4f",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Markdown web embed service > requires an exact live owner and rejects cross-owner operations"
+            },
+            {
+              "index": 7,
+              "name": "Markdown web embed service > preserves the embedded page while product chrome temporarily occludes it"
+            },
+            {
+              "index": 8,
+              "name": "Markdown web embed service > requires explicit finite bounds, clips partial bounds and hides offscreen views"
+            },
+            {
+              "index": 9,
+              "name": "Markdown web embed service > destroys all native/session state when the owner closes"
+            },
+            {
+              "index": 10,
+              "name": "Markdown web embed service > destroys owner views when the application renderer crashes"
+            },
+            {
+              "index": 11,
+              "name": "Markdown web embed service > cleans up an attached view when load fails or times out"
+            },
+            {
+              "index": 13,
+              "name": "Markdown web embed service > reserves capacity while an embed is still loading"
+            },
+            {
+              "index": 14,
+              "name": "Markdown web embed service > throws when the owner window is unavailable"
+            },
+            {
+              "index": 15,
+              "name": "Markdown web embed IPC ownership > accepts only a live application main-frame sender"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-html-id-fragment-targets",
+      "kind": "gap",
+      "reason": "Fragment links resolve only to headings natively. Controlled inline HTML ids (`<a id>`, `<span id>`) are not fragment targets, so explicit ids, their case-preserving lookup and precedence over heading slugs, their incremental rescans and the empty anchor as one deletion unit do not exist.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/link-activation.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/links/markdownFragmentTargets.test.ts",
+          "sha256": "119ffecd0d2851b709b5ecf2ad26bf94e13b818baa0900aa248a6f53a9018291",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <a id=\"target\"></a>"
+            },
+            {
+              "index": 1,
+              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <a id=target></a>"
+            },
+            {
+              "index": 2,
+              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <span id=\"target\">text</span>"
+            },
+            {
+              "index": 3,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: `<a id=\"target\"></a>`"
+            },
+            {
+              "index": 4,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: ```html\n<a id=\"target\"></a>\n```"
+            },
+            {
+              "index": 5,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <!-- <a id=\"target\"></a> -->"
+            },
+            {
+              "index": 6,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: Text \\<a id=\"target\"></a>"
+            },
+            {
+              "index": 7,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=target><a>"
+            },
+            {
+              "index": 8,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=target href=\"javascript:alert(1)\"></a>"
+            },
+            {
+              "index": 9,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=\"target other\"></a>"
+            },
+            {
+              "index": 10,
+              "name": "Markdown source fragment targets > decodes fragments once, preserves authored case, and chooses the first duplicate"
+            },
+            {
+              "index": 11,
+              "name": "Markdown source fragment targets > prefers explicit IDs to heading slugs and retains heading fallback"
+            },
+            {
+              "index": 12,
+              "name": "Markdown source fragment targets > keeps lookups pane-local and reuses them for selection-only transactions"
+            },
+            {
+              "index": 13,
+              "name": "Markdown source fragment targets > maps reused HTML subtrees after a distant edit and rescans only changed blocks"
+            },
+            {
+              "index": 14,
+              "name": "Markdown source fragment targets > removes targets when Markdown context changes to a code fence"
+            },
+            {
+              "index": 15,
+              "name": "Markdown source fragment targets > treats an empty anchor as one hidden deletion unit"
             }
           ]
         }
