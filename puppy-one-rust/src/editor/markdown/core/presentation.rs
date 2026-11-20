@@ -92,8 +92,19 @@ pub fn block_rhythm_in_lines(
         }
     }
 
+    // The enclosing top-level block's start: lists and items nest, so their
+    // ends are only ordered across top-level blocks, and a binary search
+    // over ends must start from there (a nested list ending before the
+    // window does not end its parent list).
+    let block_min = syntax
+        .top_blocks
+        .partition_point(|b| b.start <= byte_start)
+        .checked_sub(1)
+        .and_then(|i| syntax.top_blocks.get(i))
+        .map_or(byte_start, |b| b.start.min(byte_start));
+
     // 2. Top-level lists intersecting `[byte_start..=byte_end]`.
-    let l_first = syntax.lists.partition_point(|l| l.range.end < byte_start);
+    let l_first = syntax.lists.partition_point(|l| l.range.end < block_min);
     let l_last = syntax
         .lists
         .partition_point(|l| l.range.start <= byte_end)
@@ -107,12 +118,6 @@ pub fn block_rhythm_in_lines(
 
     // 3. Items in tree (pre-)order intersecting `[byte_start..=byte_end]`.
     // Start from the enclosing top-level block so outer parent items are included!
-    let block_min = syntax
-        .top_blocks
-        .partition_point(|b| b.start <= byte_start)
-        .checked_sub(1)
-        .and_then(|i| syntax.top_blocks.get(i))
-        .map_or(byte_start, |b| b.start.min(byte_start));
     let i_first = syntax.items.partition_point(|i| i.range.end < block_min);
     let i_last = syntax
         .items
@@ -347,6 +352,158 @@ mod tests {
                 assert!(line.classes.has(Class::LIST_CONTINUATION), "{text:?}");
                 assert_eq!(line.classes.has(Class::TASK_LINE), task, "{text:?}");
             }
+        }
+    }
+
+    // `markdownBlockRhythm.test.ts`.
+
+    /// `marks paragraph edges without separating soft source lines or
+    /// decorating empty lines`.
+    #[test]
+    fn paragraph_edges_span_soft_lines_and_skip_blank_ones() {
+        let (_, _, lines) = rhythm("First line\ncontinued paragraph\n\nSecond paragraph", None);
+        assert!(
+            lines[0].classes.has(Class::PARAGRAPH_START)
+                && !lines[0].classes.has(Class::PARAGRAPH_END)
+        );
+        assert!(
+            lines[1].classes.has(Class::PARAGRAPH_END)
+                && !lines[1].classes.has(Class::PARAGRAPH_START)
+        );
+        assert_eq!(lines[2], LineRhythm::default());
+        assert!(
+            lines[3]
+                .classes
+                .has(Class::PARAGRAPH_START | Class::PARAGRAPH_END)
+        );
+    }
+
+    /// `resolves nesting from parsed ownership and keeps continuation lines
+    /// in the same hanging column`.
+    #[test]
+    fn nesting_follows_parsed_ownership() {
+        let (_, _, lines) = rhythm(
+            "- root\n  continued\n    - child\n      child continued\n- next",
+            None,
+        );
+        assert!(lines[1].classes.has(Class::LIST_CONTINUATION));
+        let depth = |line: usize| lines[line].list.as_ref().unwrap().depth;
+        // Four source spaces are still one nested level.
+        assert_eq!([depth(1), depth(2), depth(3), depth(4)], [0, 1, 1, 0]);
+    }
+
+    /// `reserves one shared column for the widest ordered marker`;
+    /// `projects ancestor columns for mixed nested lists and keeps ordered
+    /// continuations classified` (a nested ordered list starts at 1: under
+    /// CommonMark only a list starting at 1 can interrupt its parent's
+    /// paragraph).
+    #[test]
+    fn ordered_lists_share_their_widest_marker_column_with_descendants() {
+        let (_, _, lines) = rhythm("9. nine\n10. ten\n100. hundred", None);
+        for line in &lines {
+            assert!(line.classes.has(Class::ORDERED_LIST_LINE));
+            assert_eq!(line.list.as_ref().unwrap().columns, 4);
+        }
+        let (_, _, lines) = rhythm(
+            "100. parent\n     1. child\n        continued\n     1000. wide\n           - grandchild",
+            None,
+        );
+        assert!(lines[1].classes.has(Class::NESTED_LIST_LINE));
+        assert_eq!(lines[1].list.as_ref().unwrap().parent_columns, [4]);
+        assert!(
+            lines[2]
+                .classes
+                .has(Class::ORDERED_LIST_LINE | Class::LIST_CONTINUATION)
+        );
+        assert!(!lines[4].classes.has(Class::ORDERED_LIST_LINE));
+        let grandchild = lines[4].list.as_ref().unwrap();
+        assert_eq!(grandchild.depth, 2);
+        assert_eq!(grandchild.parent_columns, [4, 5]);
+    }
+
+    /// `reuses ordered column geometry through ordinary body edits instead
+    /// of scanning siblings`; `reuses every ancestor column when typing
+    /// inside a nested ordered item`: one edited line's window agrees with
+    /// the whole document.
+    #[test]
+    fn an_edited_line_keeps_its_ordered_columns_in_its_own_window() {
+        let mut text: String = (1..=100)
+            .map(|i| {
+                let nested = if i == 50 {
+                    "\n    1. nested\n    10. nested second"
+                } else {
+                    ""
+                };
+                format!("{i}. Item {i}{nested}")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let at = text.find("nested second").unwrap() + "nested second".len();
+        text.insert_str(at, " revised");
+        let (doc, syntax, whole) = rhythm(&text, None);
+        let line = doc.line_index(at);
+        let window = block_rhythm_in_lines(&doc, &syntax, line..line + 1, None);
+        assert_eq!(window[0], whole[line]);
+        assert_eq!(window[0].list.as_ref().unwrap().parent_columns, [4]);
+        assert_eq!(whole[49].list.as_ref().unwrap().columns, 4);
+    }
+
+    /// `matches a fresh projection after <edit>`: an incremental parse after
+    /// each edit equals a fresh one, and so does its rhythm.
+    #[test]
+    fn edits_match_a_fresh_projection() {
+        use crate::editor::{
+            markdown::composition::FEATURES,
+            text::{
+                change::ChangeSet,
+                state::{EditorState, Transaction, UserEvent},
+            },
+        };
+        for (text, from, to, insert) in [
+            ("First\nsecond\nthird\nfourth", 12, 12, "\n"),
+            ("First\n\nsecond\nthird", 6, 7, ""),
+            ("- root\n- child\n  - grandchild\n- last", 7, 7, "  "),
+            ("9. nine\n10. ten\n100. hundred", 27, 27, "\n1000. appended"),
+            ("9. nine\n10. ten\n100. hundred", 15, 18, "1000"),
+            (
+                "9. first\n100. parent\n     1. child\n        - grandchild",
+                0,
+                1,
+                "1000",
+            ),
+            (
+                "100. parent\n     9. child one\n     10. child two\n         - grandchild",
+                17,
+                18,
+                "1000",
+            ),
+            ("- first\n- last", 0, 0, "- inserted\n"),
+            ("- first\n- last", 0, 8, ""),
+        ] {
+            let mut state = EditorState::new(text);
+            let before = Syntax::parse_with(&state.doc, FEATURES);
+            let applied = state
+                .apply(Transaction::edit(
+                    ChangeSet::replace(from..to, insert),
+                    None,
+                    UserEvent::Input,
+                ))
+                .unwrap();
+            let fresh = Syntax::parse_with(&state.doc, FEATURES);
+            let syntax = Syntax::try_parse_incremental(
+                &state.doc,
+                &applied.before_doc,
+                &before,
+                &applied.changes,
+                FEATURES,
+            )
+            .map_or_else(|| fresh.clone(), |(syntax, _)| syntax);
+            assert_eq!(syntax, fresh, "{text:?}");
+            assert_eq!(
+                block_rhythm(&state.doc, &syntax, None),
+                block_rhythm(&state.doc, &fresh, None),
+                "{text:?}"
+            );
         }
     }
 }

@@ -38867,6 +38867,100 @@
           "test": "editor::markdown::platform::embed::tests::window_host_pool_bounds_per_window_and_evicts_lru_invisible"
         }
       ]
+    },
+    {
+      "id": "markdown-block-rhythm",
+      "acceptance": "Paragraph edges span soft source lines and blank lines carry no rhythm; list nesting follows parsed ownership with continuation lines in the item's hanging column; an ordered list reserves one shared column for its widest marker and nested items carry every ancestor column (nested ordered lists start at 1, the only start CommonMark lets interrupt an item's text); one edited line's bounded window agrees with the whole document; after splitting/merging paragraphs, reparenting, widening or resizing ordered columns and inserting/removing the first item an incremental parse and its rhythm equal a fresh one.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/rendering/markdownBlockRhythm.test.ts",
+          "sha256": "7971cec3ea08ca9145b5c9c24a5989321b33e335489b121c425cb9357c17a371",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown semantic block rhythm > marks paragraph edges without separating soft source lines or decorating empty lines"
+            },
+            {
+              "index": 1,
+              "name": "Markdown semantic block rhythm > resolves nesting from parsed ownership and keeps continuation lines in the same hanging column"
+            },
+            {
+              "index": 2,
+              "name": "Markdown semantic block rhythm > reserves one shared column for the widest ordered marker"
+            },
+            {
+              "index": 3,
+              "name": "Markdown semantic block rhythm > projects ancestor columns for mixed nested lists and keeps ordered continuations classified"
+            },
+            {
+              "index": 4,
+              "name": "Markdown semantic block rhythm > reuses ordered column geometry through ordinary body edits instead of scanning siblings"
+            },
+            {
+              "index": 5,
+              "name": "Markdown semantic block rhythm > reuses every ancestor column when typing inside a nested ordered item"
+            },
+            {
+              "index": 6,
+              "name": "Markdown semantic block rhythm > matches a fresh projection after 'split paragraph'"
+            },
+            {
+              "index": 7,
+              "name": "Markdown semantic block rhythm > matches a fresh projection after 'merge paragraphs'"
+            },
+            {
+              "index": 8,
+              "name": "Markdown semantic block rhythm > matches a fresh projection after 'reparent descendants'"
+            },
+            {
+              "index": 9,
+              "name": "Markdown semantic block rhythm > matches a fresh projection after 'append wider ordered item'"
+            },
+            {
+              "index": 10,
+              "name": "Markdown semantic block rhythm > matches a fresh projection after 'resize shared ordered column'"
+            },
+            {
+              "index": 11,
+              "name": "Markdown semantic block rhythm > matches a fresh projection after 'resize ancestor ordered column'"
+            },
+            {
+              "index": 12,
+              "name": "Markdown semantic block rhythm > matches a fresh projection after 'resize nested ordered column'"
+            },
+            {
+              "index": 13,
+              "name": "Markdown semantic block rhythm > matches a fresh projection after 'insert first item'"
+            },
+            {
+              "index": 14,
+              "name": "Markdown semantic block rhythm > matches a fresh projection after 'remove first item'"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::tests::paragraph_edges_span_soft_lines_and_skip_blank_ones"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::tests::nesting_follows_parsed_ownership"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::tests::ordered_lists_share_their_widest_marker_column_with_descendants"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::tests::an_edited_line_keeps_its_ordered_columns_in_its_own_window"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::tests::edits_match_a_fresh_projection"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -48448,7 +48542,7 @@
     {
       "id": "commonmark-ordered-list-interruption",
       "kind": "out-of-scope",
-      "reason": "The native editor parses Markdown with pulldown-cmark, which follows CommonMark: `2.` at column 0 after a list item starts a new ordered list. The product's Lezer parser keeps that line as a lazy continuation of the item, so it shows the number as literal text.",
+      "reason": "The native editor parses Markdown with pulldown-cmark, which follows CommonMark: `2.` at column 0 after a list item starts a new ordered list. The product's Lezer parser keeps that line as a lazy continuation of the item, so it shows the number as literal text. Likewise an indented ordered list starting at a number other than 1 directly under an item's text stays a lazy continuation of that text under CommonMark, while Lezer nests it.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/README.md",
       "typescript": [
         {
