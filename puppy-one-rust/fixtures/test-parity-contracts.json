@@ -52223,6 +52223,144 @@
           ]
         }
       ]
+    },
+    {
+      "id": "html-preview-link-routing",
+      "kind": "gap",
+      "reason": "A native HTML preview keeps link clicks inside its own page. The product instead resolves each activated link against the page's base (relative, root, scheme-relative, percent-decoded and mailto forms; frame-local, malformed and traversal inputs refused), hands safe external links to the system browser and workspace links to the editor through the host's routes, never gives unsafe protocols, files, data URLs or credentials to the OS, reports missing files, opening failures and offline folder pages, ignores other frames, stale sessions and messages without user activation, and authorizes only its own fixed UI script through the author's CSP. None of that routing exists natively.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/html/interact.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/html/htmlLinkNavigation.test.tsx",
+          "sha256": "0f7281d87dc563b0d36deaf1eea3b0b59edccc5ed886a4b747911f497445b240",
+          "cases": [
+            {
+              "index": 0,
+              "name": "HTML link destinations > resolves notes.md with author base null"
+            },
+            {
+              "index": 1,
+              "name": "HTML link destinations > resolves notes%20%E4%B8%AD.md with author base null"
+            },
+            {
+              "index": 2,
+              "name": "HTML link destinations > resolves ../other.html#section with author base null"
+            },
+            {
+              "index": 3,
+              "name": "HTML link destinations > resolves other.html with author base ../pages/"
+            },
+            {
+              "index": 4,
+              "name": "HTML link destinations > resolves other.html with author base ../pages/index.html"
+            },
+            {
+              "index": 5,
+              "name": "HTML link destinations > resolves /notes.md with author base pages/"
+            },
+            {
+              "index": 6,
+              "name": "HTML link destinations > resolves other.html?q=1#section with author base https://example.test/docs/"
+            },
+            {
+              "index": 7,
+              "name": "HTML link destinations > resolves //example.test/docs with author base null"
+            },
+            {
+              "index": 8,
+              "name": "HTML link destinations > resolves //example.test/docs with author base http://example.test/"
+            },
+            {
+              "index": 9,
+              "name": "HTML link destinations > resolves guide.html with author base //example.test/docs/"
+            },
+            {
+              "index": 10,
+              "name": "HTML link destinations > resolves mailto:person@example.test with author base null"
+            },
+            {
+              "index": 11,
+              "name": "HTML link destinations > rejects malformed or frame-local input #section"
+            },
+            {
+              "index": 12,
+              "name": "HTML link destinations > rejects malformed or frame-local input "
+            },
+            {
+              "index": 13,
+              "name": "HTML link destinations > rejects malformed or frame-local input //"
+            },
+            {
+              "index": 14,
+              "name": "HTML link destinations > rejects malformed or frame-local input a\n.md"
+            },
+            {
+              "index": 15,
+              "name": "HTML link destinations > rejects malformed or frame-local input %2fetc/passwd"
+            },
+            {
+              "index": 16,
+              "name": "HTML link destinations > rejects malformed or frame-local input a%5cb.md"
+            },
+            {
+              "index": 17,
+              "name": "HTML link destinations > rejects malformed or frame-local input %00.md"
+            },
+            {
+              "index": 18,
+              "name": "HTML link destinations > rejects malformed or frame-local input %broken"
+            },
+            {
+              "index": 19,
+              "name": "HTML link destinations > authorizes only fixed UI scripts without enabling authored inline scripts"
+            },
+            {
+              "index": 20,
+              "name": "HTML link destinations > preserves author CSP and base semantics in a disposable projection"
+            },
+            {
+              "index": 21,
+              "name": "HTML navigation capability > uses the host's existing external and workspace routes"
+            },
+            {
+              "index": 22,
+              "name": "HTML navigation capability > rejects another frame, stale sessions and messages without user activation"
+            },
+            {
+              "index": 23,
+              "name": "HTML navigation capability > never hands javascript:alert(1) to the OS"
+            },
+            {
+              "index": 24,
+              "name": "HTML navigation capability > never hands file:///etc/passwd to the OS"
+            },
+            {
+              "index": 25,
+              "name": "HTML navigation capability > never hands data:text/html,x to the OS"
+            },
+            {
+              "index": 26,
+              "name": "HTML navigation capability > never hands https://user:password@example.test/ to the OS"
+            },
+            {
+              "index": 27,
+              "name": "HTML navigation capability > reports missing files and external-opening failures"
+            },
+            {
+              "index": 28,
+              "name": "HTML navigation capability > keeps folder-authorized pages offline"
+            },
+            {
+              "index": 29,
+              "name": "HTML navigation capability > reports a host resolution error without navigating the frame"
+            },
+            {
+              "index": 30,
+              "name": "HTML navigation capability > does not show a late opening error in a replacement document"
+            }
+          ]
+        }
+      ]
     }
   ]
 }
