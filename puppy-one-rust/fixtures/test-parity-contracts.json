@@ -48451,6 +48451,439 @@
           "test": "app::tests::appearance_settings::hidden_file_icons_keep_the_slot_and_leave_folder_disclosures"
         }
       ]
+    },
+    {
+      "id": "source-control-unit-diff-history-and-metadata-watch",
+      "acceptance": "Git porcelain v2 status, revision pairs, comparison previews, history invalidation across ref/fetch/merge vs index changes, metadata reason merging, and shared common-dir metadata watch recovery and promotion follow the product contract.",
+      "typescript": [
+        {
+          "path": "tests/unit/source-control/diff/gitDiffComparison.test.mjs",
+          "sha256": "ecc3faa6d260520db3d05c67fb0f04ac14b866593e3e89c70edc93315f518816",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git comparison preview parser > maps aggregate diff records, including rename tuples, into sidebar resources"
+            },
+            {
+              "index": 1,
+              "name": "Git comparison preview parser > bounds resources and rejects an unknown presentation group"
+            },
+            {
+              "index": 2,
+              "name": "Git comparison preview parser > summarizes aggregate file statuses without exposing file names"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/history/gitHistoryInvalidation.test.ts",
+          "sha256": "609cfe1331e8565cf308f5dbe36b407534dd7a74b2b83ec7d38cdede45f70820",
+          "cases": [
+            {
+              "index": 0,
+              "name": "history invalidation policy > invalidates cached history for ref/fetch/merge/config metadata reasons"
+            },
+            {
+              "index": 1,
+              "name": "history invalidation policy > preserves history across working-tree and index-only refreshes"
+            },
+            {
+              "index": 2,
+              "name": "history invalidation policy > preserves repository-change semantics across retries"
+            },
+            {
+              "index": 3,
+              "name": "history invalidation policy > clears commits when invalidateHistory is requested even if HEAD is unchanged"
+            },
+            {
+              "index": 4,
+              "name": "history invalidation policy > keeps commits when HEAD is unchanged and history is not invalidated"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/history/gitRevisionSpecs.test.mjs",
+          "sha256": "e2130515e441628464d1f8cef5ade86feea6bce0d9adde53272599b5104a8a64",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Git revision pair scope matrix > derives 'remote rename' without renderer refs"
+            },
+            {
+              "index": 5,
+              "name": "Git revision pair scope matrix > derives 'remote addition' without renderer refs"
+            },
+            {
+              "index": 6,
+              "name": "Git revision pair scope matrix > derives 'committed deletion' without renderer refs"
+            },
+            {
+              "index": 7,
+              "name": "Git revision pair scope matrix > derives 'committed modification' without renderer refs"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/status/gitMetadataReasonMerge.test.mjs",
+          "sha256": "4b9e9c7e04b988a48f3d2a536c49651c4d8fce14a6ccdda8accfc008f50e5c05",
+          "cases": [
+            {
+              "index": 0,
+              "name": "mergeMetadataInvalidationReason > keeps a stronger ref reason when a later index event arrives"
+            },
+            {
+              "index": 1,
+              "name": "mergeMetadataInvalidationReason > promotes to repository-level reasons over refs"
+            },
+            {
+              "index": 2,
+              "name": "mergeMetadataInvalidationReason > keeps fetch/merge/config above index"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/status/gitMetadataRecovery.test.mjs",
+          "sha256": "eba1e5f83fde9007163d65345d8cd3d7fa2533fa6e2eb8563ce6b8117861f645",
+          "cases": [
+            {
+              "index": 0,
+              "name": "git metadata watch recovery > stops metadata reconciliation after the last subscriber leaves"
+            },
+            {
+              "index": 2,
+              "name": "git metadata watch recovery > recreates a shared common-dir watcher after error instead of reusing the dead handle"
+            },
+            {
+              "index": 3,
+              "name": "git metadata watch recovery > rechecks pending promotion when a later .git event arrives during identity resolve"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/status/gitPorcelainV2.test.mjs",
+          "sha256": "34b4bc08de138d0dab05774e7e454592ec2a3719e9dafab4b098fb746a5b2a30",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git porcelain v2 parser > parses headers, ordinary changes, renames, and untracked files"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::tests::nul_paths_renames_and_counts"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::tests::real_repository_stage_commit_diff_and_unborn_unstage"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_history::tests::a_repository_reads_its_history_and_head"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::native::tests::native_directory_leases_share_a_handle_and_last_drop_closes_it_before_arc_retirement"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::native::tests::a_failed_shared_handle_wakes_all_owners_and_is_never_reused_or_removed_by_old_cleanup"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::pending_identity_is_rechecked_after_arming_and_drop_releases_native_handles"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git_watch::worker::tests::cold_non_repository_promotes_on_reconciliation_without_native_events"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::refresh::tests::metadata_noise_is_filtered_like_the_product"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::tests::reads_follow_invalidations_and_the_metadata_watch_not_a_clock"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff::tests::each_file_resolves_to_the_products_renderer"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff::tests::the_list_lays_out_cards_with_their_hunks"
+        }
+      ]
+    },
+    {
+      "id": "source-control-sidebar-changes-history-and-header",
+      "acceptance": "The right sidebar hosts Changes and History surfaces under one Header Changes toggle, renders collapsible flat status/conflict groups, omits remote provider panels and standalone History header buttons, focuses file diffs inside the sidebar without navigating the editor, groups commits by local calendar day newest-first with expandable previews and full-hash copy, blocks sync on conflicts or diverged branches, and presents one primary action per collaboration state.",
+      "typescript": [
+        {
+          "path": "tests/component/source-control/diff/localGitDiffPresentation.test.tsx",
+          "sha256": "a19f3d0f2eeac45a7d2fc713d08fc9ec5cee6b9919b4aa82a3077118103b15c9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local Git diff presentation > centers the shared loading treatment inside a focused file detail"
+            },
+            {
+              "index": 1,
+              "name": "local Git diff presentation > uses the exact same file surface in focused Changes and embedded History contexts"
+            },
+            {
+              "index": 2,
+              "name": "local Git diff presentation > keeps file identity and status on one line with totals aligned separately"
+            },
+            {
+              "index": 3,
+              "name": "local Git diff presentation > keeps local mutations in a separate low-emphasis toolbar without restoring scope copy"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/source-control/status/gitChangesSidebar.test.tsx",
+          "sha256": "71d268a2b627c36a49efc3e84d9e0f763d738ef2ff4a7a23e47d9f562ffac040",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Changes right sidebar > opens a file diff inside the sidebar and returns without navigating the editor"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/source-control/status/gitHistorySidebar.test.tsx",
+          "sha256": "b8c9703547b49c284c73817ff0504e9ea122ed658c5be625768e73bd8bf08f1a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git History right-sidebar surface > offers one version-history action before Git is initialized"
+            },
+            {
+              "index": 1,
+              "name": "Git History right-sidebar surface > returns from the History list to Changes"
+            },
+            {
+              "index": 2,
+              "name": "Git History right-sidebar surface > drills into a commit without introducing workbench tabs"
+            },
+            {
+              "index": 3,
+              "name": "Git History right-sidebar surface > copies the full commit id from its subordinate detail control"
+            },
+            {
+              "index": 4,
+              "name": "Git History right-sidebar surface > keeps loading feedback inside the History surface"
+            },
+            {
+              "index": 5,
+              "name": "Git History right-sidebar surface > groups commits by local date in descending date order"
+            },
+            {
+              "index": 6,
+              "name": "Git History right-sidebar surface > previews four changed files before summarizing the remainder"
+            },
+            {
+              "index": 7,
+              "name": "Git History right-sidebar surface > collapses and expands a calendar day"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/source-control/status/gitHistoryTitlebar.test.tsx",
+          "sha256": "f81434736b4c3652caa4afb61c8a2eb43db9c92ee386bb68576cc08ecef20dbd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git right-sidebar titlebar entries > keeps one working Git entry on the right"
+            },
+            {
+              "index": 1,
+              "name": "Git right-sidebar titlebar entries > retains Git in the workspace toolbar"
+            },
+            {
+              "index": 2,
+              "name": "Git right-sidebar titlebar entries > keeps the high-frequency Changes entry and removes standalone History"
+            },
+            {
+              "index": 3,
+              "name": "Git right-sidebar titlebar entries > keeps Changes discoverable without restoring the standalone Git mark"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/source-control/status/gitStatusView.test.tsx",
+          "sha256": "b1403d05a1f4181a48f986a74917fda52d2abe38e5aa28f4c2cda874855fd8c2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git main preview > shows the neutral preview prompt instead of a main-panel loader"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/source-control/status/headerGitSidebar.test.tsx",
+          "sha256": "7c34c37d58200376d60a5efffd5ab52e455aab85edceb26f10e2f40e4fb1c7d9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Header Git sidebar navigation > opens and closes Changes in the right sidebar without a popup"
+            },
+            {
+              "index": 1,
+              "name": "Header Git sidebar navigation > switches from Chat to Changes and routes History and Back through the same sidebar"
+            },
+            {
+              "index": 2,
+              "name": "Header Git sidebar navigation > does not reveal Git without an active project"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/source-control/status/sourceControlSidebar.test.tsx",
+          "sha256": "26c962c5c4809fb9bfa48431a9acbced095d8e961b35dd6bebef2cc43d5635c4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git sidebar status groups > reduces an uninitialized repository to one centered enable action"
+            },
+            {
+              "index": 1,
+              "name": "Git sidebar status groups > restores the established section-level commit workflow inside Changes"
+            },
+            {
+              "index": 2,
+              "name": "Git sidebar status groups > keeps every local group on the same collapsible flat-section contract"
+            },
+            {
+              "index": 3,
+              "name": "Git sidebar status groups > hides Staged Changes until files are actually staged"
+            },
+            {
+              "index": 4,
+              "name": "Git sidebar status groups > keeps local groups flat without rendering a remote provider surface"
+            },
+            {
+              "index": 5,
+              "name": "Git sidebar status groups > keeps low-frequency History out of the changes sidebar"
+            },
+            {
+              "index": 6,
+              "name": "Git sidebar status groups > does not render a floating overflow action at the bottom of Changes"
+            },
+            {
+              "index": 7,
+              "name": "Git sidebar status groups > presents incoming commits with the established compact sidebar notice"
+            },
+            {
+              "index": 8,
+              "name": "Git sidebar status groups > renders one quiet Changes section when the working tree is clean"
+            },
+            {
+              "index": 9,
+              "name": "Git sidebar status groups > omits the generic-git remote region from the Git sidebar"
+            },
+            {
+              "index": 10,
+              "name": "Git sidebar status groups > omits the puppyone-cloud remote region from the Git sidebar"
+            },
+            {
+              "index": 11,
+              "name": "Git sidebar status groups > omits the github remote region from the Git sidebar"
+            },
+            {
+              "index": 12,
+              "name": "Git sidebar status groups > renders merge conflicts through the same default-expanded flat contract"
+            },
+            {
+              "index": 13,
+              "name": "Git sidebar status groups > makes the compact Pull notice actionable and blocks Push while the branch is diverged"
+            },
+            {
+              "index": 14,
+              "name": "Git sidebar status groups > keeps Pull as a visible CTA when incoming commits and staged files exist together"
+            },
+            {
+              "index": 15,
+              "name": "Git sidebar status groups > blocks sync actions until working-tree conflicts are resolved"
+            },
+            {
+              "index": 16,
+              "name": "Git sidebar status groups > makes Continue the only primary action after rebase conflicts are staged"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::git::tests::a_conflicted_merge_continues_once_resolved_or_aborts"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::git::tests::a_diverged_or_interrupted_branch_cannot_push_or_publish"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::tests::one_primary_action_follows_the_collaboration_policy"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::tests::committed_commits_are_published_or_pushed"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::tests::native_sync_buttons_use_the_live_state_and_do_not_dispatch_disabled_operations"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::history::tests::commits_group_by_day_newest_first"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::sidebar_tests::collapsing_a_group_hides_its_rows_and_restores_its_resized_height"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::sidebar_tests::switching_to_history_cancels_a_preview_and_ignores_late_release"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::diff_tests::back_from_working_and_commit_details_cancels_the_read"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::the_header_entries_switch_and_close_the_right_sidebar"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::sidebar_surfaces::changes_open_file_opens_it_in_the_editor"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::the_folder_header_offers_changes_and_the_agent_only_while_its_tool_is_on"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -51500,6 +51933,198 @@
               "name": "Electron document close coordination > times out an autonomous drain without presenting a destructive close dialog"
             }
           ]
+        },
+        {
+          "path": "tests/unit/source-control/auto-commit/electron.git-auto-commit-ipc.test.mjs",
+          "sha256": "8c8cc5a4c14c26634aca91fd429cec88e2014915026c0ac3afd424f1bc4f6bdc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git Auto Commit IPC authority > uses only the Main-authorized workspace root"
+            },
+            {
+              "index": 1,
+              "name": "Git Auto Commit IPC authority > filters workspace policy input before passing it to the service"
+            },
+            {
+              "index": 2,
+              "name": "Git Auto Commit IPC authority > rejects empty policy mutations"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/auto-commit/gitAutoCommitDeadlineScheduler.test.mjs",
+          "sha256": "3f4dc0b6cd003b78c65d7909a007b8788c7d8c1d85bb3145999bcff9f7683b71",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git Auto Commit deadline scheduler > does no work until the effective gate is enabled"
+            },
+            {
+              "index": 1,
+              "name": "Git Auto Commit deadline scheduler > coalesces activity behind the minimum interval and quiet period"
+            },
+            {
+              "index": 2,
+              "name": "Git Auto Commit deadline scheduler > runs one trailing attempt after activity during an active run"
+            },
+            {
+              "index": 3,
+              "name": "Git Auto Commit deadline scheduler > does not replay every missed deadline after resume"
+            },
+            {
+              "index": 4,
+              "name": "Git Auto Commit deadline scheduler > cancels a safe waiting phase when disabled"
+            },
+            {
+              "index": 5,
+              "name": "Git Auto Commit deadline scheduler > uses monotonic elapsed time when the wall clock moves backwards"
+            },
+            {
+              "index": 6,
+              "name": "Git Auto Commit deadline scheduler > applies one bounded retry deadline instead of spinning after a safe skip"
+            },
+            {
+              "index": 7,
+              "name": "Git Auto Commit deadline scheduler > does not schedule trailing work after disposal during an active run"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/auto-commit/gitAutoCommitFeatureProfile.test.mjs",
+          "sha256": "c3c550ad6e6f5c46c8234180ff7d086b173459966d04ce43ab6403b38d7c2702",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git Auto Commit release capability > is unavailable by default"
+            },
+            {
+              "index": 1,
+              "name": "Git Auto Commit release capability > allows only an unpackaged development override"
+            },
+            {
+              "index": 2,
+              "name": "Git Auto Commit release capability > allows an explicit packaged capability and rejects malformed metadata"
+            },
+            {
+              "index": 3,
+              "name": "Git Auto Commit release capability > rejects a builder-only capability override"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/auto-commit/gitAutoCommitHost.test.mjs",
+          "sha256": "6b8faa45bd11e099f353b4b624b03cd5b69fe58973b302fe0ac0e5de1f831156",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git Auto Commit optional-feature host > is a side-effect-free null object when the release capability is unavailable"
+            },
+            {
+              "index": 1,
+              "name": "Git Auto Commit optional-feature host > owns every optional IPC channel when the release capability is available"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/auto-commit/gitAutoCommitService.test.mjs",
+          "sha256": "b526fe2984e25a27375ff9f992869b4e5465a5bcf3ed3b05c010dcef52baf13d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git Auto Commit main-process service > requires every release, user, workspace, and repository gate"
+            },
+            {
+              "index": 1,
+              "name": "Git Auto Commit main-process service > drains documents and workspace writes before entering the Git transaction"
+            },
+            {
+              "index": 2,
+              "name": "Git Auto Commit main-process service > recovers journals but never schedules a transaction when the release gate is off"
+            },
+            {
+              "index": 3,
+              "name": "Git Auto Commit main-process service > does not acquire Git ownership or activity ports while opted out with no recovery work"
+            },
+            {
+              "index": 4,
+              "name": "Git Auto Commit main-process service > skips instead of queueing behind an interactive Git owner"
+            },
+            {
+              "index": 5,
+              "name": "Git Auto Commit main-process service > skips safely when another Desktop process owns the repository lease"
+            },
+            {
+              "index": 6,
+              "name": "Git Auto Commit main-process service > cancels a waiting workspace when its window releases ownership"
+            },
+            {
+              "index": 7,
+              "name": "Git Auto Commit main-process service > subscribes to workspace activity only while every consent gate is enabled"
+            },
+            {
+              "index": 8,
+              "name": "Git Auto Commit main-process service > activates and disposes the optional activity port with workspace policy changes"
+            },
+            {
+              "index": 9,
+              "name": "Git Auto Commit main-process service > reports a non-repository snapshot without attaching optional runtime ports"
+            },
+            {
+              "index": 10,
+              "name": "Git Auto Commit main-process service > keeps Git untouched when the document durability barrier reports conflict"
+            },
+            {
+              "index": 11,
+              "name": "Git Auto Commit main-process service > keeps Git untouched when the document durability barrier reports timeout"
+            },
+            {
+              "index": 12,
+              "name": "Git Auto Commit main-process service > keeps Git untouched when the document durability barrier reports renderer-unavailable"
+            },
+            {
+              "index": 13,
+              "name": "Git Auto Commit main-process service > retries without entering Git while a Main-owned workspace write is active"
+            },
+            {
+              "index": 14,
+              "name": "Git Auto Commit main-process service > reconciles eligible work on window focus without depending on a Renderer view"
+            },
+            {
+              "index": 15,
+              "name": "Git Auto Commit main-process service > keeps two workspace runtimes isolated when one owning window closes"
+            },
+            {
+              "index": 16,
+              "name": "Git Auto Commit main-process service > discards stale recovery results across an A to B workspace generation change"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/source-control/auto-commit/gitAutoCommitSettings.test.tsx",
+          "sha256": "22f3c83bcc915024b047b37b999fd26f769dc709613801cc9cf778cf55a8bbf7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git Auto Commit settings > renders no feature controls when the optional preload capability is absent"
+            },
+            {
+              "index": 1,
+              "name": "Git Auto Commit settings > keeps workspace controls hidden until the global experiment is enabled"
+            },
+            {
+              "index": 2,
+              "name": "Git Auto Commit settings > requires confirmation and sends only the bounded workspace policy"
+            },
+            {
+              "index": 3,
+              "name": "Git Auto Commit settings > renders structured runtime events and a quiet inline mutation error"
+            },
+            {
+              "index": 4,
+              "name": "Git Auto Commit settings > refreshes on demand, reports initial load failure, and disposes subscriptions"
+            }
+          ]
         }
       ]
     },
@@ -51834,6 +52459,16 @@
             {
               "index": 2,
               "name": "workspace content watch re-arm > stops only subscriptions for one removed Workspace Folder"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/status/gitMetadataRecovery.test.mjs",
+          "sha256": "eba1e5f83fde9007163d65345d8cd3d7fa2533fa6e2eb8563ce6b8117861f645",
+          "cases": [
+            {
+              "index": 1,
+              "name": "git metadata watch recovery > detaches renderer lifecycle listeners when subscriptions stop"
             }
           ]
         }
@@ -55820,6 +56455,82 @@
             {
               "index": 0,
               "name": "local workspace copy bridge > forwards normalized DataPort paths to the authorized desktop workspace bridge"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/diff/gitDiffResourceBroker.test.mjs",
+          "sha256": "0b021389267b3dfc4ef593c4809603cd5fb157d24e13b3a1d2aee054b4813595",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git diff revision resource broker > serves bounded chunks, validates audience and identity, and zeroes revoked bytes"
+            },
+            {
+              "index": 1,
+              "name": "Git diff revision resource broker > enforces range, operation, byte, and per-resource budgets"
+            },
+            {
+              "index": 2,
+              "name": "Git diff revision resource broker > actively expires handles and releases their owned memory"
+            },
+            {
+              "index": 3,
+              "name": "Git diff revision resource broker > enforces cumulative session, owner, session-count, and global quotas"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/diff/localFiles.git-diff-resource.test.ts",
+          "sha256": "c25c5e590ff38c084e2c9ad9e1ac692a249e70c92030b6f7ec8d3e50a5ca70be",
+          "cases": [
+            {
+              "index": 0,
+              "name": "renderer Git diff resource reader > assembles a bounded resource from identity-checked 4 MiB chunks"
+            },
+            {
+              "index": 1,
+              "name": "renderer Git diff resource reader > fails closed on a mismatched range response"
+            },
+            {
+              "index": 2,
+              "name": "renderer Git diff resource reader > observes cancellation at chunk boundaries and skips IPC when already aborted"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/status/electron.git-status-ipc.test.mjs",
+          "sha256": "81dd4aa1d8662d0d1ba8db9b2426ca8c7446ddf3514232fd6624521c2b9dc96e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Git status IPC cancellation > cancels an active request within the calling renderer"
+            },
+            {
+              "index": 1,
+              "name": "Git status IPC cancellation > honors cancellation that arrives before status handler setup"
+            },
+            {
+              "index": 2,
+              "name": "Git status IPC cancellation > cancels a format-aware diff request and revokes its resource session"
+            },
+            {
+              "index": 3,
+              "name": "Git status IPC cancellation > forwards only the calling renderer audience and bounded range to resource reads"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/status/localFiles.git-status.test.ts",
+          "sha256": "04df115c281f0f35f3a9216436bce8ee0c2eb6c1b9137be5309a3e2042f4d111",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local Git status cancellation bridge > uses one request id for status and cancellation"
+            },
+            {
+              "index": 1,
+              "name": "local Git status cancellation bridge > does not invoke IPC for an already-cancelled request"
             }
           ]
         }
@@ -63388,6 +64099,166 @@
             {
               "index": 21,
               "name": "experimental preferences > restores explicit project reach consent without moving another experiment"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/incoming-changes/incomingChangeReceipt.test.ts",
+          "sha256": "a929d5b845832d770b5075edd0f74cc4de571cac5de6a5f63024140cbcd7311e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "a receipt projects the local Git facts about changes made elsewhere > names who made how many changes, when, and which files"
+            },
+            {
+              "index": 1,
+              "name": "a receipt projects the local Git facts about changes made elsewhere > identifies the receipt by the commit the decision was about"
+            },
+            {
+              "index": 2,
+              "name": "a receipt projects the local Git facts about changes made elsewhere > still produces a receipt when the tracking tip is not in the snapshot"
+            },
+            {
+              "index": 3,
+              "name": "a receipt projects the local Git facts about changes made elsewhere > stays silent when nothing was made elsewhere"
+            },
+            {
+              "index": 4,
+              "name": "a receipt projects the local Git facts about changes made elsewhere > reports the user's own saved work without mixing it into the count"
+            },
+            {
+              "index": 5,
+              "name": "a receipt projects the local Git facts about changes made elsewhere > refuses to offer applying while files need a decision"
+            },
+            {
+              "index": 6,
+              "name": "a receipt projects the local Git facts about changes made elsewhere > cannot offer applying when the repository itself cannot take the changes"
+            },
+            {
+              "index": 7,
+              "name": "the ledger records the decision, never the changes > keeps a set-aside receipt across reads"
+            },
+            {
+              "index": 8,
+              "name": "the ledger records the decision, never the changes > restores a receipt by forgetting the decision only"
+            },
+            {
+              "index": 9,
+              "name": "the ledger records the decision, never the changes > records one decision per receipt and keeps the newest first"
+            },
+            {
+              "index": 10,
+              "name": "the ledger records the decision, never the changes > stays bounded so a long-lived workspace cannot grow it forever"
+            },
+            {
+              "index": 11,
+              "name": "the ledger records the decision, never the changes > shows the pending review again rather than trusting a damaged ledger"
+            },
+            {
+              "index": 12,
+              "name": "the ledger records the decision, never the changes > keeps the decision for the session when storage refuses to write"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/incoming-changes/reachSidebarWording.test.ts",
+          "sha256": "cf6f8467f33a276f3356dc9cd473951f91b5aaa27fd71dac7ab42361a40d0603",
+          "cases": [
+            {
+              "index": 0,
+              "name": "the established Source Control wording > still describes the repository, so the wording gate has a baseline to compare against"
+            },
+            {
+              "index": 1,
+              "name": "the Project Reach wording states the consequence > removes every system-view string from the sidebar state"
+            },
+            {
+              "index": 2,
+              "name": "the Project Reach wording states the consequence > keeps the facts it was given and only replaces the words"
+            },
+            {
+              "index": 3,
+              "name": "the Project Reach wording states the consequence > says nothing is waiting once the review is done"
+            },
+            {
+              "index": 4,
+              "name": "the Project Reach wording states the consequence > renames the send primitive without removing or unblocking it"
+            },
+            {
+              "index": 5,
+              "name": "the Project Reach wording states the consequence > renames the publish variant and drops its waiting counter"
+            },
+            {
+              "index": 6,
+              "name": "the Project Reach wording states the consequence > leaves actions it does not own untouched"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/source-control/status/gitPublishScope.test.mjs",
+          "sha256": "a2c6a5c246f5aa7162895d9e86485fadbcd5f44c949cd585942665eec68039fe",
+          "cases": [
+            {
+              "index": 0,
+              "name": "what a folder would make reachable > counts committed and new files together and leaves ignored ones out"
+            },
+            {
+              "index": 1,
+              "name": "what a folder would make reachable > answers for a folder without version history and creates nothing inside it"
+            },
+            {
+              "index": 2,
+              "name": "what a folder would make reachable > measures only the chosen folder"
+            },
+            {
+              "index": 3,
+              "name": "what a folder would make reachable > reports a floor instead of walking a folder larger than a summary can count"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/source-control/status/incomingChangesReceipt.test.tsx",
+          "sha256": "19b9847e9614fb0e3c6e5bf30315b8d227f2faa6b9c123b95b13a9f2b68415a8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "changes made elsewhere arrive as a receipt > states who changed how much, promises the files are untouched, and lists the scope"
+            },
+            {
+              "index": 1,
+              "name": "changes made elsewhere arrive as a receipt > says nothing at all when no changes were made elsewhere"
+            },
+            {
+              "index": 2,
+              "name": "changes made elsewhere arrive as a receipt > keeps the receipt and admits the outcome when applying does not finish"
+            },
+            {
+              "index": 3,
+              "name": "changes made elsewhere arrive as a receipt > stops offering to apply while files need a decision, and keeps resolution in the Git view"
+            },
+            {
+              "index": 4,
+              "name": "changes made elsewhere arrive as a receipt > mentions the user's own saved work instead of folding it into the count"
+            },
+            {
+              "index": 5,
+              "name": "setting a receipt aside is a decision, not a deletion > survives a restart and can be restored without touching the changes"
+            },
+            {
+              "index": 6,
+              "name": "setting a receipt aside is a decision, not a deletion > asks again when the other side changes something new"
+            },
+            {
+              "index": 7,
+              "name": "the Git view keeps its primitives and loses the system wording > describes sending saved work by its consequence"
+            },
+            {
+              "index": 8,
+              "name": "the Git view keeps its primitives and loses the system wording > never shows a direction counter or a Git verb while the receipt is pending"
+            },
+            {
+              "index": 9,
+              "name": "the established path is untouched while the experience is off > keeps the compact notice, its Pull action and an unused ledger"
             }
           ]
         }

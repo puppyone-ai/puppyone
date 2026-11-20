@@ -649,8 +649,9 @@ fn synchronize(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
     }
     status_owned(root, cancel)
 }
-/// Continue (`-c core.editor=true <kind> --continue`, keeping Git's own
-/// message) or abort the operation in progress.
+/// Continue (`GIT_EDITOR=true` + `-c core.editor=true <kind> --continue`,
+/// keeping Git's own message even when `GIT_EDITOR` is set in the environment)
+/// or abort the operation in progress.
 fn resolve_operation(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
     let current = status_owned(root, cancel)?;
     let verb = op.label();
@@ -660,18 +661,34 @@ fn resolve_operation(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result
         ));
     };
     let kind = operation.command();
-    let args = if matches!(op, Operation::Continue) {
+    let (args, environment): (Vec<&str>, &[(&str, &str)]) = if matches!(op, Operation::Continue) {
         if current.changes.iter().any(Change::conflict) {
             return Err(
                 "Unable to continue Git operation: resolve and stage all conflicted files first."
                     .into(),
             );
         }
-        vec!["-c", "core.editor=true", kind, "--continue"]
+        (
+            vec!["-c", "core.editor=true", kind, "--continue"],
+            &[("GIT_EDITOR", "true"), ("GIT_SEQUENCE_EDITOR", "true")],
+        )
     } else {
-        vec![kind, "--abort"]
+        (vec![kind, "--abort"], &[])
     };
-    git(root, &args, None, cancel).map_err(|e| format!("Unable to {verb} {kind}: {e}"))?;
+    let full_args = runner::arguments(&args);
+    runner::execute_prepared(
+        root,
+        runner::Invocation {
+            program: Path::new("/usr/bin/git"),
+            args: &full_args,
+            environment,
+        },
+        None,
+        cancel,
+        runner::Kind::Mutation,
+        runner::MAX_BUFFER,
+    )
+    .map_err(|e| format!("Unable to {verb} {kind}: {e}"))?;
     status_owned(root, cancel)
 }
 fn missing_upstream(message: &str) -> bool {
