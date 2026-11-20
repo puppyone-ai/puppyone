@@ -40728,6 +40728,164 @@
           "test": "editor::markdown::platform::embed::media::tests::media_page_and_clip_enforce_single_file_and_protocol"
         }
       ]
+    },
+    {
+      "id": "markdown-html-block-policy",
+      "acceptance": "Before any widget exists an HTML block is classified with the product's inputs: safe blocks, details, unknown custom and component-like elements render (unknown tags reduced to their content, event handlers stripped, reduced styles granting nothing); a blocked root, a form, an unsafe link, an iframe with extra behaviour or a plain-HTTP one stay source with a stable code (a mismatched pair is malformed); a lone HTTPS iframe is an embed; README align attributes become alignment and invalid ones inherit; every tag of the safe-block and safe-media profiles is admitted; a blank-line-split README header is one flow (also from an inner fragment), mounted whole as one widget with its five images and four links in editable and read-only views; a flow across Markdown renders that Markdown, one that never closes stays source, adjacent complete blocks stay independent; an unavailable local or plain-HTTP image keeps its alt text.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlConformance.test.ts",
+          "sha256": "fe6ac14a8876cc8f777a11850666bf4e3dfe7fba0666e5f1256b4d5cbc52da07",
+          "cases": [
+            {
+              "index": 20,
+              "name": "Markdown HTML authored-structure model > reports the exact mismatched authored pair instead of root balance"
+            },
+            {
+              "index": 21,
+              "name": "Markdown HTML plan-level policy > classifies safe block before Widget creation"
+            },
+            {
+              "index": 22,
+              "name": "Markdown HTML plan-level policy > classifies safe details before Widget creation"
+            },
+            {
+              "index": 23,
+              "name": "Markdown HTML plan-level policy > classifies blocked script before Widget creation"
+            },
+            {
+              "index": 24,
+              "name": "Markdown HTML plan-level policy > classifies blocked form before Widget creation"
+            },
+            {
+              "index": 25,
+              "name": "Markdown HTML plan-level policy > classifies unknown custom element before Widget creation"
+            },
+            {
+              "index": 26,
+              "name": "Markdown HTML plan-level policy > classifies unsafe anchor before Widget creation"
+            },
+            {
+              "index": 27,
+              "name": "Markdown HTML plan-level policy > classifies exact HTTPS iframe before Widget creation"
+            },
+            {
+              "index": 28,
+              "name": "Markdown HTML plan-level policy > classifies iframe with ignored behavior before Widget creation"
+            },
+            {
+              "index": 29,
+              "name": "Markdown HTML plan-level policy > classifies non-HTTPS iframe before Widget creation"
+            },
+            {
+              "index": 30,
+              "name": "Markdown HTML plan-level policy > records reducible attributes/styles without turning them into authority"
+            },
+            {
+              "index": 32,
+              "name": "Markdown HTML plan-level policy > keeps policy and defensive sanitizer aligned for approved safe blocks"
+            },
+            {
+              "index": 33,
+              "name": "Markdown HTML plan-level policy > normalizes conventional README align attributes into safe presentation"
+            },
+            {
+              "index": 34,
+              "name": "Markdown HTML plan-level policy > reduces invalid legacy align values without changing block classification"
+            },
+            {
+              "index": 35,
+              "name": "Markdown HTML plan-level policy > covers every versioned safe-block tag through one policy authority"
+            },
+            {
+              "index": 36,
+              "name": "Markdown HTML plan-level policy > covers every passive-media tag only through the composed media profile"
+            },
+            {
+              "index": 38,
+              "name": "Markdown HTML cross-surface conformance > reassembles a conventional blank-line-split README HTML flow into one plan"
+            },
+            {
+              "index": 39,
+              "name": "Markdown HTML cross-surface conformance > returns the same HTML flow when a range projection starts at an inner parser fragment"
+            },
+            {
+              "index": 40,
+              "name": "Markdown HTML cross-surface conformance > mounts the complete README header instead of raw fragments (readOnly=false)"
+            },
+            {
+              "index": 41,
+              "name": "Markdown HTML cross-surface conformance > mounts the complete README header instead of raw fragments (readOnly=true)"
+            },
+            {
+              "index": 43,
+              "name": "Markdown HTML cross-surface conformance > keeps accessible alt text when a unresolved local image is unavailable"
+            },
+            {
+              "index": 44,
+              "name": "Markdown HTML cross-surface conformance > keeps accessible alt text when a denied HTTP image is unavailable"
+            },
+            {
+              "index": 45,
+              "name": "Markdown HTML cross-surface conformance > reassembles an HTML flow across Markdown and renders the Markdown inside"
+            },
+            {
+              "index": 46,
+              "name": "Markdown HTML cross-surface conformance > leaves an HTML flow that never closes as source"
+            },
+            {
+              "index": 47,
+              "name": "Markdown HTML cross-surface conformance > keeps adjacent already-complete HTML blocks as independent plans"
+            },
+            {
+              "index": 53,
+              "name": "Markdown HTML cross-surface conformance > compiles one safe block profile into both editable and read-only snapshots"
+            },
+            {
+              "index": 56,
+              "name": "Markdown HTML cross-surface conformance > renders safe blocks without an unavailable card (readOnly=false)"
+            },
+            {
+              "index": 57,
+              "name": "Markdown HTML cross-surface conformance > renders safe blocks without an unavailable card (readOnly=true)"
+            },
+            {
+              "index": 58,
+              "name": "Markdown HTML cross-surface conformance > drops an unknown block tag and keeps its content (readOnly=false)"
+            },
+            {
+              "index": 59,
+              "name": "Markdown HTML cross-surface conformance > drops an unknown block tag and keeps its content (readOnly=true)"
+            },
+            {
+              "index": 63,
+              "name": "Markdown HTML cross-surface conformance > reduces ordinary GFM component-like HTML to its content"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::html::tests::html_block_policy_follows_the_product_classification"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::html::tests::every_safe_block_and_media_tag_is_admitted"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::shared::html_surface::tests::readme_align_attributes_become_alignment_and_invalid_ones_inherit"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::the_readme_header_mounts_whole_and_missing_images_keep_their_alt"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_policy_acceptance::html_plan_rejections_keep_exact_source_ranges_and_stable_diagnostic_codes"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -50549,7 +50707,7 @@
     {
       "id": "markdown-asset-broker-architecture",
       "kind": "out-of-scope",
-      "reason": "TS resolves Markdown assets through an AssetBroker that hands features capability URLs (including provider-resolved loopback URLs) under host leases it revokes, validates sinks and purposes, and runs trusted local HTML in revocable execution sessions. The native editor reads asset bytes itself through the workspace or provider after the same policy (no URLs, leases or capability purposes), and never executes HTML in Markdown (executable HTML is removed from the native flow), so its features are given no HTML trust mode. The rest of that embed runtime is likewise TS's own: embedded edit sessions that commit a draft against a base revision (native widget commands re-derive their edit from the current source, so no draft can go stale), widget sessions disposed by DOM node, web embeds bound to a capability principal and revision with single-flight native view creation (a native embed is keyed by its view, block and URL, and a loading one takes no second click), principal-scoped render deduplication (the native render service shares one job per drawing), and explicit grants for local active HTML. No authored source URL ever reaches a live browser sink either, because the native surface hands images bytes, not URLs.",
+      "reason": "TS resolves Markdown assets through an AssetBroker that hands features capability URLs (including provider-resolved loopback URLs) under host leases it revokes, validates sinks and purposes, and runs trusted local HTML in revocable execution sessions. The native editor reads asset bytes itself through the workspace or provider after the same policy (no URLs, leases or capability purposes), and never executes HTML in Markdown (executable HTML is removed from the native flow), so its features are given no HTML trust mode. The rest of that embed runtime is likewise TS's own: embedded edit sessions that commit a draft against a base revision (native widget commands re-derive their edit from the current source, so no draft can go stale), widget sessions disposed by DOM node, web embeds bound to a capability principal and revision with single-flight native view creation (a native embed is keyed by its view, block and URL, and a loading one takes no second click), principal-scoped render deduplication (the native render service shares one job per drawing), and explicit grants for local active HTML. No authored source URL ever reaches a live browser sink either, because the native surface hands images bytes, not URLs. A media block therefore needs no broker at plan time (natively it renders and reads its bytes when shown), and remote badges load through the pinned HTTPS client rather than browser image sinks with referrer, CORS and lazy-loading attributes.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/assets.md",
       "typescript": [
         {
@@ -50651,6 +50809,24 @@
               "name": "Markdown theme-aware picture media > never leaves an authored source URL on a live browser sink"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlConformance.test.ts",
+          "sha256": "fe6ac14a8876cc8f777a11850666bf4e3dfe7fba0666e5f1256b4d5cbc52da07",
+          "cases": [
+            {
+              "index": 31,
+              "name": "Markdown HTML plan-level policy > requires a broker at plan time for raw media source intents"
+            },
+            {
+              "index": 42,
+              "name": "Markdown HTML cross-surface conformance > hydrates the exact README local logo and HTTPS badges through one broker policy"
+            },
+            {
+              "index": 62,
+              "name": "Markdown HTML cross-surface conformance > reduces media to visible source when a surface lacks Asset Broker capability"
+            }
+          ]
         }
       ]
     },
@@ -50733,7 +50909,7 @@
     {
       "id": "markdown-html-id-fragment-targets",
       "kind": "gap",
-      "reason": "Fragment links resolve only to headings natively. Controlled inline HTML ids (`<a id>`, `<span id>`) are not fragment targets, so explicit ids, their case-preserving lookup and precedence over heading slugs, their incremental rescans and the empty anchor as one deletion unit do not exist. Nor does a legacy named anchor (`<a name>`) become a target or yield to an explicit id; an empty one stays visible source.",
+      "reason": "Fragment links resolve only to headings natively. Controlled inline HTML ids (`<a id>`, `<span id>`) are not fragment targets, so explicit ids, their case-preserving lookup and precedence over heading slugs, their incremental rescans and the empty anchor as one deletion unit do not exist. Nor does a legacy named anchor (`<a name>`) become a target or yield to an explicit id; an empty one stays visible source. An empty `<a id>` anchor is therefore not hidden or revealed for editing either.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/link-activation.md",
       "typescript": [
         {
@@ -50821,6 +50997,28 @@
             {
               "index": 73,
               "name": "Markdown HTML reduction > prefers an explicit id over a legacy anchor name"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlConformance.test.ts",
+          "sha256": "fe6ac14a8876cc8f777a11850666bf4e3dfe7fba0666e5f1256b4d5cbc52da07",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown empty HTML anchors > hides <a id=\"target\"></a> in both live preview and isolated inline preview"
+            },
+            {
+              "index": 1,
+              "name": "Markdown empty HTML anchors > hides <a id=target></a> in both live preview and isolated inline preview"
+            },
+            {
+              "index": 2,
+              "name": "Markdown empty HTML anchors > keeps an unclosed anchor visible instead of repairing the authored source"
+            },
+            {
+              "index": 3,
+              "name": "Markdown empty HTML anchors > reveals an anchor for editing and folds it again without changing source"
             }
           ]
         }
@@ -51003,6 +51201,28 @@
             {
               "index": 7,
               "name": "isolated inline preview link dependencies > conservatively refreshes HTML with entity-decoded link candidates"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlConformance.test.ts",
+          "sha256": "fe6ac14a8876cc8f777a11850666bf4e3dfe7fba0666e5f1256b4d5cbc52da07",
+          "cases": [
+            {
+              "index": 64,
+              "name": "Markdown HTML cross-surface conformance > uses the shared policy in the fragment surface: safe inline"
+            },
+            {
+              "index": 65,
+              "name": "Markdown HTML cross-surface conformance > uses the shared policy in the fragment surface: blocked inline"
+            },
+            {
+              "index": 66,
+              "name": "Markdown HTML cross-surface conformance > uses the shared policy in the fragment surface: malformed inline"
+            },
+            {
+              "index": 67,
+              "name": "Markdown HTML cross-surface conformance > uses the shared policy in the fragment surface: unknown inline"
             }
           ]
         }
@@ -51977,6 +52197,28 @@
             {
               "index": 83,
               "name": "Markdown inline SVG and audio > removes a linked style attribute"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-conformance-surfaces",
+      "kind": "out-of-scope",
+      "reason": "TS projects one HTML classification onto five surfaces (live editable, live read-only, isolated fragment, export and index), each only reducing capability, and checks that none upgrades an unsupported result. The native editor has only the two live surfaces, which share one plan set (covered by the policy and README header tests); there is no fragment, export or index projection.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/plans-and-decorations.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlConformance.test.ts",
+          "sha256": "fe6ac14a8876cc8f777a11850666bf4e3dfe7fba0666e5f1256b4d5cbc52da07",
+          "cases": [
+            {
+              "index": 54,
+              "name": "Markdown HTML cross-surface conformance > keeps classification immutable while each surface only reduces capability"
+            },
+            {
+              "index": 55,
+              "name": "Markdown HTML cross-surface conformance > never lets a surface upgrade an unsupported HTML result"
             }
           ]
         }

@@ -486,3 +486,52 @@ fn html_blocks_reduce_unsafe_parts_and_keep_the_rest() {
     assert_eq!(start("<ol start=\"3\"><li>x</li></ol>"), 3);
     assert_eq!(start("<ol start=\"1e9\"><li>x</li></ol>"), 1);
 }
+
+const CENTERED_README_HEADER: &str = "<div align=\"center\">\n  <img src=\"public/assets/brand/puppy/puppy-dark.svg\" alt=\"puppyone Logo\" width=\"72\" height=\"72\" />\n\n  <h1>puppyone</h1>\n\n  <p><b>A local-first editor. Built for you and your agents.</b></p>\n\n  <p>\n    <a href=\"https://www.puppyone.ai\"><img src=\"https://img.shields.io/badge/Website-puppyone.ai-39BC66?style=flat-square\" alt=\"Website\" /></a>\n    <a href=\"https://www.puppyone.ai/doc\"><img src=\"https://img.shields.io/badge/Docs-Read-D7F3FF?style=flat-square&logo=readthedocs&logoColor=black\" alt=\"Documentation\" /></a>\n    <a href=\"https://discord.gg/zwJ9Y3Uvpd\"><img src=\"https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white\" alt=\"Discord\" /></a>\n    <a href=\"https://x.com/puppyone_ai\"><img src=\"https://img.shields.io/badge/X-(Twitter)-000000?style=flat-square&logo=x&logoColor=white\" alt=\"X\" /></a>\n  </p>\n</div>";
+
+/// `markdownHtmlConformance.test.ts`: `mounts the complete README header
+/// instead of raw fragments` (editable and read-only) — one HTML widget
+/// for the whole blank-line-split header, with its five images and four
+/// links and none of its tags as text; `keeps accessible alt text when a
+/// … image is unavailable` (an unresolved local or a plain-HTTP image).
+#[gpui::test]
+fn the_readme_header_mounts_whole_and_missing_images_keep_their_alt(cx: &mut TestAppContext) {
+    for read_only in [false, true] {
+        let (view, cx) = setup_with_focus(cx, CENTERED_README_HEADER, false);
+        view.update_in(cx, |v, _, cx| v.set_read_only(read_only, cx));
+        draw(cx);
+        view.read_with(cx, |v, _| {
+            let widgets = v
+                .decorations()
+                .blocks
+                .iter()
+                .filter(|b| matches!(b, Block::Widget { .. }))
+                .count();
+            assert_eq!(widgets, 1, "read_only={read_only}");
+            assert_eq!(v.text(), CENTERED_README_HEADER);
+        });
+        let nodes = parsed(&html_block(CENTERED_README_HEADER).html);
+        assert_eq!(descendants(&nodes, "img").len(), 5);
+        assert_eq!(descendants(&nodes, "a").len(), 4);
+    }
+    for href in ["http://example.com/tracker.png", "missing/logo.png"] {
+        let source = format!("<img src=\"{href}\" alt=\"Missing logo\">");
+        let (view, cx) = setup_with_focus(cx, &source, false);
+        view.update(cx, |v, cx| {
+            v.dispatch(
+                config_transaction(SetAssets(Some(DocumentAssets {
+                    workspace: "html-missing-image".into(),
+                    document: "README.md".into(),
+                    read: std::sync::Arc::new(|_| None),
+                }))),
+                cx,
+            );
+        });
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while cx.debug_bounds("md-html-chip:Missing logo").is_none() {
+            assert!(std::time::Instant::now() < deadline, "{href}");
+            draw(cx);
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+}

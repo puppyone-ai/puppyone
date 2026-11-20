@@ -282,6 +282,229 @@ mod tests {
         assert!(doc.slice(found[1].range.clone()).ends_with("</details>"));
     }
 
+    /// What compiling `text` gives: the blocks' sources (an embed as
+    /// `embed:<url>`) and the fallbacks' codes.
+    fn compiled(text: &str) -> (Vec<String>, Vec<&'static str>) {
+        let doc = Buffer::new(text);
+        let syntax = Syntax::parse(&doc);
+        let folds = Default::default();
+        let mut fallbacks = Vec::new();
+        let found = super::blocks(
+            &CompileCx {
+                doc: &doc,
+                syntax: &syntax,
+                folds: &folds,
+            },
+            &mut fallbacks,
+        );
+        let codes = fallbacks
+            .iter()
+            .filter_map(|p| match p.presentation {
+                Presentation::SourceFallback { code } => Some(code),
+                _ => None,
+            })
+            .collect();
+        let blocks = found
+            .iter()
+            .map(|b| match &b.embed {
+                Some(url) => format!("embed:{url}"),
+                None => b.html.clone(),
+            })
+            .collect();
+        (blocks, codes)
+    }
+
+    /// `markdownHtmlConformance.test.ts`, plan-level policy and
+    /// cross-surface cases with the product's inputs: safe blocks, details,
+    /// unknown and component-like elements render (unknown tags reduced to
+    /// their content, event handlers stripped); a blocked root, an unsafe
+    /// link, an iframe with extra behaviour or a plain-HTTP one stay source;
+    /// a lone HTTPS iframe is an embed; a README header split by blank lines
+    /// is one flow, also from an inner fragment; a flow across Markdown
+    /// renders that Markdown; one that never closes stays source; adjacent
+    /// complete blocks stay independent.
+    #[test]
+    fn html_block_policy_follows_the_product_classification() {
+        for safe in [
+            "<div><strong>safe</strong></div>",
+            "<details><summary>Title</summary>Body</details>",
+            "<div onclick=\"run()\" style=\"display:none;color:red\">safe</div>",
+            "<div onclick=\"run()\"><time datetime=\"2026-08-05\">Today</time></div>",
+            "<my-widget>\nvalue\n</my-widget>",
+            "<Tabs>\n<Tab>one</Tab>\n</Tabs>",
+            "<div align=\"center\"><p align=\"right\">safe</p></div>",
+            "<div align=\"sideways\">safe</div>",
+        ] {
+            let (blocks, codes) = compiled(safe);
+            assert_eq!((blocks.len(), codes.len()), (1, 0), "{safe}: {codes:?}");
+            let dom::Parsed::Complete(nodes) = dom::parse(&blocks[0]) else {
+                panic!("{safe}");
+            };
+            let mut pending: Vec<_> = nodes.iter().collect();
+            while let Some(node) = pending.pop() {
+                if let dom::Node::Element(e) = node {
+                    assert!(
+                        e.attributes.iter().all(|(n, _)| !n.starts_with("on")),
+                        "{safe}"
+                    );
+                    pending.extend(&e.children);
+                }
+            }
+        }
+        for (refused, code) in [
+            ("<script>alert(1)</script>", "htmlBlock.blocked-tag"),
+            ("<form><input></form>", "htmlBlock.blocked-tag"),
+            (
+                "<div><a href=\"javascript:alert(1)\">x</a></div>",
+                "htmlBlock.unsafe-href",
+            ),
+            (
+                "<iframe src=\"https://example.com\" allow=\"camera\"></iframe>",
+                "htmlBlock.blocked-tag",
+            ),
+            (
+                "<iframe src=\"http://example.com\"></iframe>",
+                "htmlBlock.blocked-tag",
+            ),
+        ] {
+            assert_eq!(compiled(refused), (vec![], vec![code]), "{refused}");
+        }
+        assert_eq!(
+            compiled("<iframe src=\"https://example.com/embed\"></iframe>").0,
+            ["embed:https://example.com/embed"]
+        );
+
+        let header = "<div align=\"center\">\n  <img src=\"public/assets/brand/puppy/puppy-dark.svg\" alt=\"puppyone Logo\" width=\"72\" height=\"72\" />\n\n  <h1>puppyone</h1>\n\n  <p><b>A local-first editor. Built for you and your agents.</b></p>\n\n  <p>\n    <a href=\"https://www.puppyone.ai\"><img src=\"https://img.shields.io/badge/Website-puppyone.ai-39BC66?style=flat-square\" alt=\"Website\" /></a>\n  </p>\n</div>";
+        let (blocks, codes) = compiled(header);
+        assert_eq!((blocks.len(), codes.len()), (1, 0));
+        assert!(blocks[0].contains("<h1>puppyone</h1>") && blocks[0].contains("img.shields.io"));
+
+        let (blocks, _) = compiled("<div>\n\n**Markdown** child\n\n</div>");
+        assert!(
+            blocks[0].contains("<strong>Markdown</strong>"),
+            "{blocks:?}"
+        );
+        assert_eq!(
+            compiled("<div>\n\nMarkdown child"),
+            (vec![], vec!["htmlBlock.incomplete"])
+        );
+        assert_eq!(
+            compiled("<div>one</div>\n\n<section>two</section>").0.len(),
+            2
+        );
+    }
+
+    /// `covers every versioned safe-block tag through one policy authority`;
+    /// `covers every passive-media tag only through the composed media
+    /// profile`: each tag of the product's safe-block and safe-media
+    /// profiles is admitted on its own.
+    #[test]
+    fn every_safe_block_and_media_tag_is_admitted() {
+        const TAGS: &[&str] = &[
+            "a",
+            "abbr",
+            "b",
+            "br",
+            "cite",
+            "code",
+            "del",
+            "em",
+            "i",
+            "ins",
+            "kbd",
+            "mark",
+            "q",
+            "rp",
+            "rt",
+            "ruby",
+            "s",
+            "samp",
+            "small",
+            "span",
+            "strike",
+            "strong",
+            "sub",
+            "sup",
+            "time",
+            "tt",
+            "u",
+            "var",
+            "bdi",
+            "bdo",
+            "big",
+            "data",
+            "dfn",
+            "font",
+            "label",
+            "meter",
+            "nobr",
+            "output",
+            "progress",
+            "wbr",
+            "address",
+            "article",
+            "aside",
+            "blockquote",
+            "caption",
+            "center",
+            "dd",
+            "details",
+            "div",
+            "dl",
+            "dt",
+            "figcaption",
+            "fieldset",
+            "figure",
+            "footer",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "header",
+            "hgroup",
+            "hr",
+            "legend",
+            "li",
+            "main",
+            "menu",
+            "nav",
+            "ol",
+            "p",
+            "pre",
+            "section",
+            "summary",
+            "table",
+            "tbody",
+            "td",
+            "tfoot",
+            "th",
+            "thead",
+            "tr",
+            "ul",
+            "audio",
+            "img",
+            "picture",
+            "source",
+            "video",
+        ];
+        const VOID: &[&str] = &["br", "hr", "img", "source", "wbr"];
+        let mut refused = Vec::new();
+        for tag in TAGS {
+            let source = if VOID.contains(tag) {
+                format!("<{tag}>")
+            } else {
+                format!("<{tag}></{tag}>")
+            };
+            match dom::parse(&source) {
+                dom::Parsed::Complete(nodes) if admission_failure(&source, &nodes).is_none() => {}
+                other => refused.push(format!("{tag}: {other:?}")),
+            }
+        }
+        assert!(refused.is_empty(), "{refused:?}");
+    }
+
     #[test]
     fn a_lone_iframe_block_is_a_web_embed() {
         let text = "<iframe src=\"https://example.com/v\"></iframe>\n\n<div><iframe src=\"https://example.com/v\"></iframe></div>\n";
