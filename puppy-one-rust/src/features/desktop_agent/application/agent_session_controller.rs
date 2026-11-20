@@ -410,6 +410,10 @@ impl AgentSessionController {
         Rc::ptr_eq(&self.0, &other.0)
     }
 
+    pub fn workspace_root(&self) -> &str {
+        &self.0.workspace_root
+    }
+
     /// The state store (`getSnapshot`, `subscribe`).
     #[cfg(test)]
     pub fn store(&self) -> &Rc<AgentControllerStore> {

@@ -47,12 +47,18 @@ pub struct CandidateSpec {
     pub launcher_path: Option<String>,
     pub args_prefix: Option<Vec<String>>,
     pub environment_overrides: Option<Vec<(String, String)>>,
+    pub append_launcher_directory: bool,
     pub identity_file_path: Option<String>,
     pub requires_manifest_identity: bool,
     pub identity_mismatch_as_not_found: bool,
 }
 
 impl CandidateSpec {
+    pub fn with_launcher_directory_on_path(mut self) -> Self {
+        self.append_launcher_directory = true;
+        self
+    }
+
     pub fn new(path: impl Into<String>, source: &str) -> Self {
         Self {
             path: path.into(),

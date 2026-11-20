@@ -630,7 +630,18 @@ impl SetupSection {
         let section = cx.weak_entity();
         let (id, name) = (id.to_owned(), name.to_owned());
         self.dialog = Some(cx.new(|cx| {
-            ActivationDialog::new(id, name, surface, owner, !operation, section, window, cx)
+            ActivationDialog::new(
+                id,
+                name,
+                surface,
+                owner,
+                !operation,
+                std::rc::Rc::new(move |cx| {
+                    let _ = section.update(cx, |s, cx| s.close(cx));
+                }),
+                window,
+                cx,
+            )
         }));
         cx.notify();
     }
@@ -956,18 +967,18 @@ pub struct ActivationDialog {
     busy: bool,
     confirming: bool,
     details_open: bool,
-    section: WeakEntity<SetupSection>,
+    on_close: std::rc::Rc<dyn Fn(&mut App)>,
     focus: FocusHandle,
 }
 impl ActivationDialog {
     #[allow(clippy::too_many_arguments)]
-    fn new(
+    pub(crate) fn new(
         setup_id: String,
         display_name: String,
         surface: Surface,
         owner: String,
         confirming: bool,
-        section: WeakEntity<SetupSection>,
+        on_close: std::rc::Rc<dyn Fn(&mut App)>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -986,7 +997,7 @@ impl ActivationDialog {
             busy: false,
             confirming,
             details_open: false,
-            section,
+            on_close,
             focus,
         };
         if confirming {
@@ -1072,10 +1083,8 @@ impl ActivationDialog {
         }
     }
     fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let section = self.section.clone();
-        window.defer(cx, move |_, cx| {
-            let _ = section.update(cx, |s, cx| s.close(cx));
-        });
+        let close = self.on_close.clone();
+        window.defer(cx, move |_, cx| close(cx));
     }
 }
 fn store_ref(cx: &App) -> Option<Entity<Activation>> {

@@ -145,8 +145,15 @@ pub async fn run_bounded_process_probe(
     let invocation = resolve_process_invocation(executable_path, args, &options.platform, env)
         .map_err(|_| failure("could not start."))?;
     let mut command = tokio::process::Command::new(&invocation.file);
+    #[cfg(windows)]
+    if invocation.verbatim_arguments {
+        command.raw_arg(invocation.args.join(" "));
+    } else {
+        command.args(&invocation.args);
+    }
+    #[cfg(not(windows))]
+    command.args(&invocation.args);
     command
-        .args(&invocation.args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
