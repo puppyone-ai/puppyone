@@ -42528,6 +42528,480 @@
           "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes"
         }
       ]
+    },
+    {
+      "id": "editor-session-boundary-and-external-changes",
+      "acceptance": "Document editing sessions preserve unsaved Cloud drafts until explicit discard/reload, adopt clean and dirty local disk updates without conflict or writeback, route late acknowledgements to the owning document, ignore own save echoes, and save subsequent edits against the latest baseline.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/document-session/documentSessionBoundary.test.tsx",
+          "sha256": "4de5782380b31ca8be5c9175b7fdb4f7fb8a0fa9d5ee942cb5a5fed910519fe2",
+          "cases": [
+            {
+              "index": 3,
+              "name": "DocumentSessionBoundary > routes a late acknowledgement to the callback owned by the original document"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/document-session/editableDocumentExternalChanges.test.tsx",
+          "sha256": "4d33ab1a10a4450b792cf482cec2e66d6e44215ce9f82505c041aac5fc9eedff",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editable document external changes > preserves unsaved Cloud edits until an explicit discard and reload"
+            },
+            {
+              "index": 1,
+              "name": "editable document external changes > reloads an external file version when the editor is clean"
+            },
+            {
+              "index": 2,
+              "name": "editable document external changes > adopts an Agent version after the complete Viewer tree remounts without writing it back"
+            },
+            {
+              "index": 3,
+              "name": "editable document external changes > replaces unsaved local input with disk content without a conflict prompt"
+            },
+            {
+              "index": 4,
+              "name": "editable document external changes > saves subsequent typing against the latest disk baseline"
+            },
+            {
+              "index": 5,
+              "name": "editable document external changes > does not show an external-conflict banner for its own in-flight save echo"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::external_disk_retires_pending_and_old_success_error_and_conflict"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::cloud_conflicts_preserve_the_draft_until_discard_and_reload"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::acceptance_tests::cloud_publication_fences_every_old_write_outcome_until_explicit_reload"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::cloud_matching_external_bytes_before_autosave_adopt_without_writeback"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::destroyed_views_reopen_the_latest_external_text_without_saving"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::dirty_edits_yield_to_external_updates_without_conflict_or_writeback"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::manual_save_after_external_adoption_uses_the_new_storage_revision"
+        }
+      ]
+    },
+    {
+      "id": "editor-html-source-panel-and-preview-modes",
+      "acceptance": "HTML file mode offers Edit and Source panel switches (omitting Edit when read-only) while keeping source open beside visual editing, and standalone HTML mode menus recognize empty pages, keep mode menus local per pane, switch between preview/edit/source, and preserve source edits across mode switches.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/document-session/documentSourcePanel.test.tsx",
+          "sha256": "a45f3212dda7ba6a0b5a45aed59d86ed756760fd9fd8d850c66fdb9b34a3b9cc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "a page with its source in a panel beside it > HTML > offers Edit and the source panel as switches instead of a view menu, and opens on the page"
+            },
+            {
+              "index": 1,
+              "name": "a page with its source in a panel beside it > HTML > opens the source beside the page, and keeps the page while editing it"
+            },
+            {
+              "index": 2,
+              "name": "a page with its source in a panel beside it > HTML > leaves Edit out for a page that cannot be changed"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/html/htmlEditorPreview.test.tsx",
+          "sha256": "99f5088d91c3f097e28d81cddbd50463104723e505108b4f402844ae97b2e006",
+          "cases": [
+            {
+              "index": 0,
+              "name": "HTML interaction and editing > shows a useful empty page and opens the unchanged source, then renders newly added content"
+            },
+            {
+              "index": 2,
+              "name": "HTML interaction and editing > opens Cloud HTML interactively and keeps source editing available without a native projection service"
+            },
+            {
+              "index": 3,
+              "name": "HTML interaction and editing > fills the pane and switches between interaction, editing and source through its existing menu"
+            },
+            {
+              "index": 4,
+              "name": "HTML interaction and editing > keeps standalone mode menus local to each pane and hides unavailable modes"
+            },
+            {
+              "index": 5,
+              "name": "HTML interaction and editing > keeps the latest source snapshot durable after switching to Preview"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html::tests::html_file_mode_source_panel_and_standalone_mode_menus"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html::tests::an_empty_page_is_recognised_and_dynamic_content_is_kept"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html::tests::prepare_barrier_flushes_pending_visual_draft_and_preserves_scroll_ratio"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::html_edit_mode_applies_page_edits_to_the_source_and_its_history"
+        }
+      ]
+    },
+    {
+      "id": "editor-code-and-structured-document-sessions",
+      "acceptance": "Code editor keystrokes avoid full-document stringification and persist snapshots through the document session; Context Map and PuppyFlow open through the structured viewer host, drive pane-menu layout switches, persist edits, and preserve invalid source verbatim until edited.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/code/codeEditorSourceSnapshot.test.tsx",
+          "sha256": "d3d7fe8d81c97603d4f47d0d98629c5e3449d1cde5b152e6a68940b5368a89b1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "code editor source snapshot boundary > does not stringify the complete file during an ordinary edit transaction"
+            },
+            {
+              "index": 1,
+              "name": "code editor source snapshot boundary > persists the latest CodeMirror snapshot through the shared document session"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/context-map/contextMapDocumentSession.test.tsx",
+          "sha256": "1b8a6dfec72500758546626d842430e0e5dd11ce0376ec917b7ae74ca88a65ae",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Context Map Document Session integration > opens as a standard editable file and persists disclosure state through the host session"
+            },
+            {
+              "index": 1,
+              "name": "Context Map Document Session integration > switches between radial and layered hierarchy renderers"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/puppyflow/puppyFlowDocumentSession.test.tsx",
+          "sha256": "819ea00ef7bdead53ab083c6b0afcd4f5422dc845366ba3a6a9c37d792476022",
+          "cases": [
+            {
+              "index": 0,
+              "name": "PuppyFlow Document Session integration > preserves an invalid source verbatim until the user performs an edit"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::code::tests::keystrokes_avoid_flat_string_copy_and_cache_derived_data_by_revision"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::code_snapshot_defers_during_ime_and_freezes_until_thawed"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::structured::tests::the_context_map_lists_the_workspace_and_drives_the_pane_menu"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::structured::tests::page_edits_become_the_document_text_and_read_only_refuses_them"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::json_shows_formatted_but_saves_only_after_an_edit"
+        }
+      ]
+    },
+    {
+      "id": "editor-database-pdf-fallback-and-resource-leases",
+      "acceptance": "Database viewers display tables inertly, clear unsafe results without automatic retry, and discard stale recovery after switching workspaces; PDF viewers contribute reload to pane chrome, support retry on failure, and fence stale generation callbacks; binary fallback renders an honest placeholder; resource viewers cover every registered family and refresh HTML on own rebind.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/database/databaseViewer.test.tsx",
+          "sha256": "8e29122f6162df7fd6de8f2df6558b69aafa479423b28432f9318ca68e2eac9c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "registered database DOM viewer > routes through FilePreview, displays database text inertly and pages without a working copy"
+            },
+            {
+              "index": 12,
+              "name": "registered database DOM viewer > clears unsafe results and does not automatically retry timeout"
+            },
+            {
+              "index": 13,
+              "name": "registered database DOM viewer > clears unsafe results and does not automatically retry invalid-request"
+            },
+            {
+              "index": 16,
+              "name": "registered database DOM viewer > discards delayed recovery results after switching workspace"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/fallback/binaryFallbackViewer.test.tsx",
+          "sha256": "f11fd8e650dfefdda30b8da17591a0359f2618d665129620c6eb172a9f712fe3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "binary fallback viewer > renders the registered binary route as a minimal inert signal surface"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/pdf/pdfViewer.test.tsx",
+          "sha256": "bd33999117d688e9921132a453cdb3cc2516984702219d8107d84b968a823f64",
+          "cases": [
+            {
+              "index": 1,
+              "name": "DOM-owned PDF transport and attachment lifecycle > keeps PDF actions out of the Viewer and contributes reload to pane chrome"
+            },
+            {
+              "index": 13,
+              "name": "DOM-owned PDF transport and attachment lifecycle > times out a hung loading phase and supports a fresh manual attempt"
+            },
+            {
+              "index": 15,
+              "name": "DOM-owned PDF transport and attachment lifecycle > invalidates late paint callbacks on project identity changes, pending input, and unmount"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/resources/fileResourceLease.test.tsx",
+          "sha256": "85e548b14beafb4fe5234086de43c1c49bbd4a5ddb14d1b324db5e10584810a3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "file resource lease > requires every built-in resource Viewer family to have an invalidation fixture"
+            },
+            {
+              "index": 1,
+              "name": "file resource lease > 'html-artifact' reacquires only for its own external change and retires the previous lease"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::the_registry_picks_each_documents_surface"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::tests::a_sqlite_file_lists_tables_and_pages_rows"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::changed_and_recovery_required_database_queries_clear_unsafe_pages_without_automatic_retry"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::rebinding_during_a_provider_read_cancels_and_drops_the_old_session_without_replacing_the_new_page"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::an_unknown_document_stays_on_the_honest_placeholder"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::text_layer_supports_find_selection_copy_links_and_outline"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::pdf_input_failures_never_reach_ready_and_keep_the_retry_control"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::revoked_pdf_inputs_discard_late_open_and_page_replies_and_clear_cached_pages"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::pdf::tests::pdf_rebinding_and_terminal_failure_fence_old_generation_callbacks"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::the_registry_covers_every_source_shape_and_each_surface_contract"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html::tests::rebind_name_refreshes_interact_source_url_and_path"
+        }
+      ]
+    },
+    {
+      "id": "editor-find-mode-toggle-render-boundary-and-source-switching",
+      "acceptance": "Host find opens with secondary-f, highlights and wraps matches across Markdown, code, and CSV panes, and closes cleanly; mode toggle publishes segmented pane-menu controls and toggles Live/Source via command; panicking viewers degrade only their pane; pane source switching avoids buffering databases, fences late watcher reads, and keeps multi-pane lifecycles isolated.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/navigation/editorFindInteractions.test.tsx",
+          "sha256": "5c1d77281317f6c6b39c4bb08504470368f9c198958c5573c3f75d45abfcd41a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor find architecture > does not let a stale adapter cleanup dismiss the active find session"
+            },
+            {
+              "index": 1,
+              "name": "editor find architecture > keeps the real Markdown find widget mounted while typing and preserves its scroll owner"
+            },
+            {
+              "index": 2,
+              "name": "editor find architecture > uses the CodeMirror adapter for query matching, highlights, and wrapped navigation"
+            },
+            {
+              "index": 3,
+              "name": "editor find architecture > publishes a pane command while keeping keyboard and widget behavior in the host"
+            },
+            {
+              "index": 4,
+              "name": "editor find architecture > opens with Mod-F and navigates structured CSV cells without coupling the host to table data"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/runtime/editorModeToggle.test.tsx",
+          "sha256": "a1bcfa749d83acdbd3a25e4a3953acf1c476151914d44191f39c4bdd7de9a970",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor mode toggle > publishes the editor modes as a segmented pane-menu control"
+            },
+            {
+              "index": 1,
+              "name": "editor mode toggle > toggles preview/source mode with Command shortcut"
+            },
+            {
+              "index": 2,
+              "name": "editor mode toggle > toggles preview/source mode with Control shortcut"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/runtime/editorPaneRenderBoundary.test.tsx",
+          "sha256": "1dcdeee89dc1ad28cae4f68ac80f6b2f719317d05f0071076a2d1a67d2848b9c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "EditorPaneRenderBoundary > contains one pane failure and recovers when the editor resource changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/runtime/editorPaneSourceSwitching.test.tsx",
+          "sha256": "22894790fa91344bbf896493db635b6c978728ef32a89ce7dd6abeb4df0dcc5a",
+          "cases": [
+            {
+              "index": 1,
+              "name": "editor pane source switching > does not buffer a database or allocate a file URL before its native-session viewer opens"
+            },
+            {
+              "index": 2,
+              "name": "editor pane source switching > keeps a late watcher read from replacing a saved pane baseline or conflicting with newer typing"
+            },
+            {
+              "index": 3,
+              "name": "editor pane source switching > revalidates the retained document input across 'spreadsheet -> image -> spreadsheet'"
+            },
+            {
+              "index": 4,
+              "name": "editor pane source switching > revalidates the retained document input across 'markdown -> PDF -> markdown'"
+            },
+            {
+              "index": 5,
+              "name": "editor pane source switching > revalidates the retained document input across 'code -> video -> code'"
+            },
+            {
+              "index": 6,
+              "name": "editor pane source switching > revalidates a retained document after its pane becomes empty"
+            },
+            {
+              "index": 7,
+              "name": "editor pane source switching > keeps three pane source lifecycles isolated across mixed viewer transitions"
+            },
+            {
+              "index": 8,
+              "name": "editor pane source switching > commits concurrent pane reads to the pane that requested them regardless of completion order"
+            },
+            {
+              "index": 9,
+              "name": "editor pane source switching > retains open document reads while a pane switches to another document"
+            },
+            {
+              "index": 10,
+              "name": "editor pane source switching > keeps a hidden document completion from replacing the active pane"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::find_shortcut_and_navigation_work_across_markdown_and_csv_panes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::find_marks_and_selects_matches_in_text_editors"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::csv_contributes_view_items_and_find"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::code::tests::code_find_wraps_without_changing_the_document"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::markdown_contributes_its_mode_segments"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::rg23_panicking_viewer_surface_degrades_only_its_pane_and_preserves_unsaved_working_copy"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::documents_route_to_their_viewer_source_and_capability"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::database::admission_tests::the_database_open_budget_includes_provider_admission_before_the_engine_exists"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::history_recorded_before_an_unseen_external_update_is_discarded"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -42549,6 +43023,16 @@
             {
               "index": 1,
               "name": "preset viewer host composition > keeps loading non-visual and renders recoverable errors before mounting a content viewer"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/runtime/editorPaneSourceSwitching.test.tsx",
+          "sha256": "22894790fa91344bbf896493db635b6c978728ef32a89ce7dd6abeb4df0dcc5a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editor pane source switching > retries a failed Cloud file in its existing surface and shows pending state before the retry returns"
             }
           ]
         }
@@ -42617,6 +43101,16 @@
               "name": "database candidate routing and cancellation > routes sample.ddb to a lazy native session, never a full-file buffer"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/database/databaseViewer.test.tsx",
+          "sha256": "8e29122f6162df7fd6de8f2df6558b69aafa479423b28432f9318ca68e2eac9c",
+          "cases": [
+            {
+              "index": 1,
+              "name": "registered database DOM viewer > keeps unavailable objects discoverable while supported DuckDB views remain operable"
+            }
+          ]
         }
       ]
     },
@@ -42655,6 +43149,16 @@
             {
               "index": 8,
               "name": "database candidate routing and cancellation > keeps a retriable close handle even if startup and the first close cannot confirm exit"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/database/databaseViewer.test.tsx",
+          "sha256": "8e29122f6162df7fd6de8f2df6558b69aafa479423b28432f9318ca68e2eac9c",
+          "cases": [
+            {
+              "index": 15,
+              "name": "registered database DOM viewer > waits for confirmed exit before opening a replacement session"
             }
           ]
         }
@@ -44867,6 +45371,16 @@
             {
               "index": 2,
               "name": "built-in Slides workspace template > rejects traversal and unknown template ids before writing"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/app-preview/createSlidesAction.test.tsx",
+          "sha256": "083f66a814389d3c84b68feec87bdc89a5130bf83647e2c0147b8941caceda14",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Slides create action > delegates one template intent and opens the manifest returned by the main process"
             }
           ]
         }
@@ -50685,6 +51199,16 @@
               "name": "editable table drag boundaries > mirrors column boundary detection for RTL"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/runtime/tabularViewport.test.tsx",
+          "sha256": "c2932aa6f90b22a51a7023e7e8420131051fa908fc16bb300763125ebf351b4c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "tabular viewport geometry changes > keeps RTL geometry in logical scroll coordinates as the table grows"
+            }
+          ]
         }
       ]
     },
@@ -53679,6 +54203,16 @@
               "name": "DataWorkspace Markdown environment > opens an unexpanded file without treating puppyone-cloud://organization/project/folder-a scope segments as Explorer folders"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/document-session/documentSessionBoundary.test.tsx",
+          "sha256": "4de5782380b31ca8be5c9175b7fdb4f7fb8a0fa9d5ee942cb5a5fed910519fe2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DocumentSessionBoundary > passes an intact Workspace Resource URI across the save boundary"
+            }
+          ]
         }
       ]
     },
@@ -53707,6 +54241,16 @@
             {
               "index": 3,
               "name": "provider-neutral immutable preview documents > bounds retained leases and releases capacity on owner close"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/html/htmlEditorPreview.test.tsx",
+          "sha256": "99f5088d91c3f097e28d81cddbd50463104723e505108b4f402844ae97b2e006",
+          "cases": [
+            {
+              "index": 1,
+              "name": "HTML interaction and editing > waits for the actual projected page rather than the initial blank iframe load"
             }
           ]
         }
@@ -53789,6 +54333,26 @@
               "name": "unsaved documents in a window > reports when a window starts and stops holding unsaved edits"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/document-session/documentSessionBoundary.test.tsx",
+          "sha256": "4de5782380b31ca8be5c9175b7fdb4f7fb8a0fa9d5ee942cb5a5fed910519fe2",
+          "cases": [
+            {
+              "index": 1,
+              "name": "DocumentSessionBoundary > hides save chrome by default and only renders it when explicitly enabled"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/document-session/quietAutoSaveStatus.test.tsx",
+          "sha256": "f2d1a0326e862ab0a19efcd87e3e88cf1e0c79e4d89cdfa6afc1f4999eba121a",
+          "cases": [
+            {
+              "index": 5,
+              "name": "save chip during Cloud editing > reports an explicit save immediately in manual mode"
+            }
+          ]
         }
       ]
     },
@@ -53805,6 +54369,16 @@
             {
               "index": 5,
               "name": "active Document Session registry > does not retire a session during React StrictMode's cleanup/setup probe"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/document-session/documentSessionBoundary.test.tsx",
+          "sha256": "4de5782380b31ca8be5c9175b7fdb4f7fb8a0fa9d5ee942cb5a5fed910519fe2",
+          "cases": [
+            {
+              "index": 2,
+              "name": "DocumentSessionBoundary > remains writable after React StrictMode's cleanup/setup probe"
             }
           ]
         }
@@ -53983,6 +54557,28 @@
             {
               "index": 5,
               "name": "Markdown nested block virtualizer > routes an oversized Markdown table through the windowed widget adapter"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/runtime/tabularViewport.test.tsx",
+          "sha256": "c2932aa6f90b22a51a7023e7e8420131051fa908fc16bb300763125ebf351b4c",
+          "cases": [
+            {
+              "index": 1,
+              "name": "tabular viewport geometry changes > uses the current shape after an older resize frame and a 2→5 change"
+            },
+            {
+              "index": 2,
+              "name": "tabular viewport geometry changes > uses the current shape after an older scroll end and a 2→5 change"
+            },
+            {
+              "index": 3,
+              "name": "tabular viewport geometry changes > uses the current shape after an older resize frame and a 5→2 change"
+            },
+            {
+              "index": 4,
+              "name": "tabular viewport geometry changes > uses the current shape after an older scroll end and a 5→2 change"
             }
           ]
         }
@@ -54883,6 +55479,168 @@
             {
               "index": 3,
               "name": "DataWorkspace Markdown environment > keeps semantic query and command ports stable across controlled active-pane routing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "one-step-create-entry-without-dialog",
+      "kind": "gap",
+      "reason": "TS creates files, folders, apps, and slides in one click from the menu under the next free Untitled name with no naming dialog; Rust's native CreateEntryDialog opens a naming text input modal before creating the entry.",
+      "owner": "puppy-issues/docs/rust-architecture/native-editor.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/app-preview/appPreviewCreationDialog.test.tsx",
+          "sha256": "61ab854d1e8dd14b9451ac0413dc29030fe6253f18be5c8a22d495a7e68b27ec",
+          "cases": [
+            {
+              "index": 0,
+              "name": "App and Slides creation > creates app in one step from the menu without exposing launch configuration or template plumbing"
+            },
+            {
+              "index": 1,
+              "name": "App and Slides creation > creates slides in one step from the menu without exposing launch configuration or template plumbing"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/app-preview/createSlidesAction.test.tsx",
+          "sha256": "083f66a814389d3c84b68feec87bdc89a5130bf83647e2c0147b8941caceda14",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Slides create action > returns a created folder as an Explorer node instead of a document path"
+            },
+            {
+              "index": 2,
+              "name": "Slides create action > creates the chosen kind at once under the next free Untitled name, with no naming step"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chromium-pdf-iframe-transport",
+      "kind": "out-of-scope",
+      "reason": "TS embeds Chromium's PDF plugin via #toolbar=0&navpanes=0 URL parameters and HTTP HEAD content-length transport framing; native Rust renders PDFs directly via Pdfium from workspace SessionReader with byte budget checks.",
+      "owner": "puppy-issues/docs/rust-architecture/native-editor.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/pdf/pdfViewer.test.tsx",
+          "sha256": "bd33999117d688e9921132a453cdb3cc2516984702219d8107d84b968a823f64",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DOM-owned PDF transport and attachment lifecycle > preserves PDF URL parameters without exposing filesystem paths"
+            },
+            {
+              "index": 8,
+              "name": "DOM-owned PDF transport and attachment lifecycle > fails closed for MIME or budget violations {\"content-type\":\"application/pdf\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-surface-staging-handoff",
+      "kind": "out-of-scope",
+      "reason": "TS React double-buffers viewer swaps in hidden DOM staging slots with inert/aria-busy attributes, two-frame requestAnimationFrame readiness boundaries, React useLayoutEffect contribution cleanup, and DOM performance probes; native GPUI mounts viewer surfaces directly in DocumentEditor and queries contributions synchronously.",
+      "owner": "puppy-issues/docs/rust-architecture/native-editor.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/resources/resourcePreviewReadiness.test.tsx",
+          "sha256": "70390ca1fd884f77cc0d63fbc43a7e1cd2722e940fddf267ea0e905067972250",
+          "cases": [
+            {
+              "index": 0,
+              "name": "resource preview readiness > keeps the initial neutral surface committed while the image URL loads in staging"
+            },
+            {
+              "index": 1,
+              "name": "resource preview readiness > retains the committed preview until the image URL is ready, then hides the image until it loads"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/runtime/documentSurfaceHost.test.tsx",
+          "sha256": "85d3d5bdab321a0f072afa4103dd0e46d62cb92efc28eb121c0385ecf9314213",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DocumentSurfaceHost > keeps pending state accessible without rendering visible loading copy"
+            },
+            {
+              "index": 1,
+              "name": "DocumentSurfaceHost > keeps the committed document interactive until the staged document is ready"
+            },
+            {
+              "index": 2,
+              "name": "DocumentSurfaceHost > cannot commit a stale readiness signal after a newer request"
+            },
+            {
+              "index": 3,
+              "name": "DocumentSurfaceHost > shows loading immediately without discarding the retained document or accepting stale readiness"
+            },
+            {
+              "index": 4,
+              "name": "DocumentSurfaceHost > commits a visible-first Viewer immediately instead of mounting it in a hidden staging slot"
+            },
+            {
+              "index": 5,
+              "name": "DocumentSurfaceHost > updates the current document without remounting or creating a staging slot"
+            },
+            {
+              "index": 6,
+              "name": "DocumentSurfaceHost > keeps the empty surface committed while the first selected file is still loading"
+            },
+            {
+              "index": 7,
+              "name": "DocumentSurfaceReadinessBoundary > accepts an explicit measured projection before paint but never bypasses busy content"
+            },
+            {
+              "index": 8,
+              "name": "DocumentSurfaceReadinessBoundary > does not starve handoff when a ready viewer reasserts its idle state"
+            },
+            {
+              "index": 9,
+              "name": "DocumentSurfaceReadinessBoundary > waits for aria-busy to clear and for two stable animation frames"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/runtime/documentSurfaceProbe.test.ts",
+          "sha256": "0378b4b88058f1906cedec3d41aa4095d74359fa0cb4bf21c1d89da70559cf96",
+          "cases": [
+            {
+              "index": 0,
+              "name": "performance probe document identity and presentation > inspects the requested staged editor while the previous document is still visible"
+            },
+            {
+              "index": 1,
+              "name": "performance probe document identity and presentation > requires the host handoff even when the inner preview is already ready"
+            },
+            {
+              "index": 2,
+              "name": "performance probe document identity and presentation > matches literal document paths containing selector punctuation"
+            },
+            {
+              "index": 3,
+              "name": "committed document wait > waits for the requested host to commit even when an old matching table is visible"
+            },
+            {
+              "index": 4,
+              "name": "committed document wait > resolves an already committed surface and rejects a missing document"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/runtime/editorModeToggle.test.tsx",
+          "sha256": "a1bcfa749d83acdbd3a25e4a3953acf1c476151914d44191f39c4bdd7de9a970",
+          "cases": [
+            {
+              "index": 3,
+              "name": "editor mode toggle > ignores stale Viewer cleanup after a newer contribution takes ownership"
             }
           ]
         }

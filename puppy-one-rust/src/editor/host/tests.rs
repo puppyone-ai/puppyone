@@ -276,6 +276,23 @@ fn markdown_contributes_its_mode_segments(cx: &mut TestAppContext) {
                 .unwrap()
                 .live
         );
+        // Mode toggle command (`ToggleMarkdownSource` / `Mod-/`) flips back to Live and to Source.
+        v.command("source", w, cx);
+        assert!(
+            editor
+                .read(cx)
+                .extension::<MarkdownExtension>()
+                .unwrap()
+                .live
+        );
+        v.command("source", w, cx);
+        assert!(
+            !editor
+                .read(cx)
+                .extension::<MarkdownExtension>()
+                .unwrap()
+                .live
+        );
     });
 }
 
@@ -310,6 +327,57 @@ fn find_marks_and_selects_matches_in_text_editors(cx: &mut TestAppContext) {
     bar.update(cx, |_, cx| cx.emit(FindEvent::Close));
     cx.run_until_parked();
     editor.update(cx, |e, _| assert!(e.find_marks().matches.is_empty()));
+}
+
+#[gpui::test]
+fn find_shortcut_and_navigation_work_across_markdown_and_csv_panes(cx: &mut TestAppContext) {
+    // 1. Markdown pane opens find bar via secondary-f, highlights matches, wraps navigation,
+    //    and clears highlights on Close/Escape.
+    let md_doc = format!(
+        "{}Puppy one\npuppy two\ncat\n{}",
+        "first line\n".repeat(40),
+        "last line\n".repeat(40)
+    );
+    let (view, _, cx) = setup(cx, "long-notes.md", &md_doc);
+    view.update_in(cx, |v, w, cx| v.focus_document(w, cx));
+    cx.run_until_parked();
+    cx.simulate_keystrokes("secondary-f");
+    cx.run_until_parked();
+    let bar = view
+        .update(cx, |v, cx| v.find_bar(cx))
+        .expect("find bar opened by secondary-f");
+    bar.update(cx, |_, cx| cx.emit(FindEvent::Query("puppy".into())));
+    cx.run_until_parked();
+    bar.update(cx, |b, _| assert_eq!((b.current, b.total), (1, 2)));
+    bar.update(cx, |_, cx| cx.emit(FindEvent::Move { forward: true }));
+    cx.run_until_parked();
+    bar.update(cx, |b, _| assert_eq!((b.current, b.total), (2, 2)));
+    bar.update(cx, |_, cx| cx.emit(FindEvent::Move { forward: true }));
+    cx.run_until_parked();
+    bar.update(cx, |b, _| assert_eq!((b.current, b.total), (1, 2)));
+    bar.update(cx, |_, cx| cx.emit(FindEvent::Close));
+    cx.run_until_parked();
+    assert!(view.update(cx, |v, cx| v.find_bar(cx)).is_none());
+
+    // 2. CSV pane opens find bar via secondary-f and navigates structured cells without
+    //    coupling DocumentEditor to table data.
+    let (csv_view, _, cx) = setup(cx, "people.csv", "Name,Role\nAda,Engineer\nGrace,Admiral\n");
+    csv_view.update_in(cx, |v, w, cx| v.focus_document(w, cx));
+    cx.run_until_parked();
+    cx.simulate_keystrokes("secondary-f");
+    cx.run_until_parked();
+    let csv_bar = csv_view
+        .update(cx, |v, cx| v.find_bar(cx))
+        .expect("CSV find bar opened by secondary-f");
+    csv_bar.update(cx, |_, cx| cx.emit(FindEvent::Query("ad".into())));
+    cx.run_until_parked();
+    csv_bar.update(cx, |b, _| assert_eq!((b.current, b.total), (1, 2)));
+    csv_bar.update(cx, |_, cx| cx.emit(FindEvent::Move { forward: true }));
+    cx.run_until_parked();
+    csv_bar.update(cx, |b, _| assert_eq!((b.current, b.total), (2, 2)));
+    csv_bar.update(cx, |_, cx| cx.emit(FindEvent::Close));
+    cx.run_until_parked();
+    assert!(csv_view.update(cx, |v, cx| v.find_bar(cx)).is_none());
 }
 
 #[gpui::test]

@@ -1260,4 +1260,157 @@ mod tests {
         assert!(page.upgrade().is_none(), "the Interact page leaked");
         assert!(edit_page.upgrade().is_none(), "the Edit page leaked");
     }
+
+    #[gpui::test]
+    fn html_file_mode_source_panel_and_standalone_mode_menus(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+                gpui_kit::init(cx);
+            }
+            cx.text_system()
+                .add_fonts(crate::editor::view::style::font_bytes())
+                .unwrap();
+        });
+        let (_, cx) = cx.add_window_view(|_, _| EmptyPage);
+        let open = |id: &str,
+                    name: &str,
+                    text: &str,
+                    file_mode: bool,
+                    source_kind: SourceKind,
+                    window: &mut Window,
+                    cx: &mut App| {
+            let doc = EditorDocument::with_source(name, source_kind);
+            let resolved = resolve(&doc);
+            surface(
+                &SurfaceRequest {
+                    id,
+                    name,
+                    input: SurfaceInput::Text(text),
+                    format: resolved.format,
+                    resolved_extension: Some(".html"),
+                    dark: false,
+                    scale: Scale::default(),
+                    workspace: None,
+                    file_mode,
+                    folder: None,
+                    web_source: None,
+                    assets: None,
+                    references: None,
+                    source_kind,
+                    models: Default::default(),
+                },
+                window,
+                cx,
+            )
+        };
+
+        // 1. File mode offers Edit and Source panel switches (no segmented mode menu),
+        //    opens on the page, opens source beside page, and keeps source open while editing.
+        cx.update(|window, cx| {
+            let s = open(
+                "html-file-mode",
+                "page.html",
+                "<h1>Page</h1>",
+                true,
+                SourceKind::Local,
+                window,
+                cx,
+            );
+            let pane = s.pane(cx);
+            assert!(pane.segmented.is_none());
+            assert_eq!(
+                pane.toggles
+                    .iter()
+                    .map(|t| (t.id, t.checked))
+                    .collect::<Vec<_>>(),
+                vec![
+                    (DOCUMENT_EDITING_TOGGLE_ID, false),
+                    (DOCUMENT_SOURCE_PANEL_TOGGLE_ID, false),
+                ]
+            );
+            assert_eq!(s.mode.get(), Mode::Preview);
+            assert!(!s.source_panel.get());
+
+            s.pane_item(PaneItemId::DocumentSourcePanel, window, cx);
+            assert!(s.source_panel.get());
+            assert_eq!(s.text(cx).as_deref(), Some("<h1>Page</h1>"));
+
+            s.pane_item(PaneItemId::DocumentEditing, window, cx);
+            assert_eq!(s.mode.get(), Mode::Edit);
+            assert!(
+                s.source_panel.get(),
+                "source stays open beside page while editing"
+            );
+
+            s.pane_item(PaneItemId::DocumentSourcePanel, window, cx);
+            assert!(!s.source_panel.get());
+
+            // Read-only HTML page omits Edit switch and offers only Source panel.
+            s.read_only.set(true);
+            let ro_pane = s.pane(cx);
+            assert_eq!(
+                ro_pane.toggles.iter().map(|t| t.id).collect::<Vec<_>>(),
+                vec![DOCUMENT_SOURCE_PANEL_TOGGLE_ID]
+            );
+        });
+
+        // 2. Standalone mode menus stay local to each pane, hide Edit when read-only,
+        //    and empty pages transition to non-empty after editing source.
+        cx.update(|window, cx| {
+            let empty_src =
+                "<!doctype html><html><head><title>Untitled</title></head><body>\n</body></html>";
+            let editable = open(
+                "html-pane-1",
+                "one.html",
+                empty_src,
+                false,
+                SourceKind::Local,
+                window,
+                cx,
+            );
+            let readonly = open(
+                "html-pane-2",
+                "two.html",
+                "<p>Page</p>",
+                false,
+                SourceKind::Cloud,
+                window,
+                cx,
+            );
+            readonly.read_only.set(true);
+
+            assert!(is_empty_page(empty_src));
+            assert_eq!(
+                editable
+                    .pane(cx)
+                    .segmented
+                    .unwrap()
+                    .options
+                    .iter()
+                    .map(|o| o.id)
+                    .collect::<Vec<_>>(),
+                vec!["preview", "edit", "source"]
+            );
+            assert_eq!(
+                readonly
+                    .pane(cx)
+                    .segmented
+                    .unwrap()
+                    .options
+                    .iter()
+                    .map(|o| o.id)
+                    .collect::<Vec<_>>(),
+                vec!["preview", "source"]
+            );
+
+            editable.pane_segment(PaneSegmentId::Source, window, cx);
+            assert_eq!(editable.text(cx).as_deref(), Some(empty_src));
+            editable.replace_text("<h1>Now visible</h1>", window, cx);
+            editable.pane_segment(PaneSegmentId::Preview, window, cx);
+            assert_eq!(editable.text(cx).as_deref(), Some("<h1>Now visible</h1>"));
+            assert!(!is_empty_page(&editable.text(cx).unwrap()));
+            assert_eq!(editable.pane(cx).segmented.unwrap().value, "preview");
+            assert_eq!(readonly.pane(cx).segmented.unwrap().value, "preview");
+        });
+    }
 }
