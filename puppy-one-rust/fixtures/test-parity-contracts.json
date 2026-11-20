@@ -46751,6 +46751,928 @@
           "test": "features::settings::workspace_config::tests::writes_are_atomic_private_and_round_trip"
         }
       ]
+    },
+    {
+      "id": "appearance-app-icon-and-file-icon-semantics",
+      "acceptance": "Channel application icon sources follow release policy, DuckDB extensions classify as databases without weakening binary admission, Office families retain distinct preview identities, database and folder glyphs follow the default theme, file icon theme contracts stay distinct, and malformed glyph requests cannot escape the installed catalog.",
+      "typescript": [
+        {
+          "path": "tests/unit/appearance/icons/electron.app-icon.test.mjs",
+          "sha256": "29583ac340233a10574157838efc87a9b60dee9eb9fa27812006323df5108fea",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native app icon ownership > leaves the packaged dev Dock icon to macOS"
+            },
+            {
+              "index": 1,
+              "name": "native app icon ownership > leaves the packaged internal Dock icon to macOS"
+            },
+            {
+              "index": 2,
+              "name": "native app icon ownership > leaves the packaged stable Dock icon to macOS"
+            },
+            {
+              "index": 3,
+              "name": "native app icon ownership > uses the channel source directly for the unbundled runner"
+            },
+            {
+              "index": 4,
+              "name": "native app icon ownership > does not use the development checkout to hide missing installed resources"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/appearance/icons/fileIconSemantics.test.tsx",
+          "sha256": "c476449bab9740895fb3c259e9cbcd09ca1a9e776a81da5beabe05baa6e0733d",
+          "cases": [
+            {
+              "index": 4,
+              "name": "file icon semantics > classifies data.duckdb as a database without changing binary admission"
+            },
+            {
+              "index": 5,
+              "name": "file icon semantics > classifies data.ddb as a database without changing binary admission"
+            },
+            {
+              "index": 11,
+              "name": "file icon semantics > renders standalone database cylinders for glyphs and previews in the 'default' theme"
+            },
+            {
+              "index": 38,
+              "name": "file icon semantics > keeps Word, Excel, and presentation preview identities distinct"
+            },
+            {
+              "index": 49,
+              "name": "file icon semantics > renders folder previews and their child count through the default theme"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/appearance/icons/fileIconThemePlugins.test.tsx",
+          "sha256": "2ef466081ab4708eb7f1714f944c1bbf1129bfa44ce5fe13efa6cb9a764e3dad",
+          "cases": [
+            {
+              "index": 2,
+              "name": "file icon theme plug-in contract > lets a factory-built theme draw every file kind and the shared preview shell"
+            },
+            {
+              "index": 3,
+              "name": "file icon theme plug-in contract > lets a variant override a few kinds and inherit every other one from its base"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/appearance/styles/rendererPublicAsset.test.ts",
+          "sha256": "9f85ba2c84707c68268d6ff7d8916979c30e6ad5e99a6923613fe4e19e947c57",
+          "cases": [
+            {
+              "index": 3,
+              "name": "renderer public asset URLs > rejects an unsafe public asset path: /assets/icons/ui/folder.svg"
+            },
+            {
+              "index": 4,
+              "name": "renderer public asset URLs > rejects an unsafe public asset path: ../assets/icons/ui/folder.svg"
+            },
+            {
+              "index": 5,
+              "name": "renderer public asset URLs > rejects an unsafe public asset path: assets/icons/../folder.svg"
+            },
+            {
+              "index": 6,
+              "name": "renderer public asset URLs > rejects an unsafe public asset path: assets\\icons\\ui\\folder.svg"
+            },
+            {
+              "index": 7,
+              "name": "renderer public asset URLs > rejects an unsafe public asset path: https://example.com/icon.svg"
+            },
+            {
+              "index": 8,
+              "name": "renderer public asset URLs > rejects an unsafe public asset path: assets/icons/ui/folder.svg?theme=dark"
+            },
+            {
+              "index": 9,
+              "name": "renderer public asset URLs > rejects an unsafe public asset path: assets/icons/ui/folder.svg#mark"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::app_icon::tests::channel_icon_sources_match_release_policy"
+        },
+        {
+          "package": "po-contracts",
+          "test": "formats::tests::duckdb_extensions_route_to_binary_placeholder"
+        },
+        {
+          "package": "po-contracts",
+          "test": "formats::tests::semantic_identity_preserves_binary_admission_and_office_families"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::classification_and_display_follow_the_product_registry"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::rendered_glyphs_preserve_product_shapes_and_database_slot_geometry"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::every_known_format_has_a_glyph_in_every_theme"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::installed_themes_and_saved_theme_migrations_have_distinct_contracts"
+        },
+        {
+          "package": "po-contracts",
+          "test": "file_kind::tests::malformed_image_requests_cannot_escape_the_installed_glyph_catalog"
+        }
+      ]
+    },
+    {
+      "id": "appearance-theme-compiler-manifest-and-selection-colors",
+      "acceptance": "The Sub Theme CSS compiler, package manifest contract, single-file theme parser, and selection-color resolver validate schema versions, stable IDs, safe entrypoints, root compatibility, bounded Markdown/CSV/typography tokens, mode capabilities, opaque first-paint tokens, package-local imports, and non-cyclic selection color dependencies while rejecting unsafe selectors, @font-face, external imports, and system colors.",
+      "typescript": [
+        {
+          "path": "tests/unit/appearance/themes/electron.theme-css-compiler.test.mjs",
+          "sha256": "4910226a8cfaea1c6baf75acf8129ea5202d235e98720c043f1318fb813f18ee",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Sub Theme CSS compiler > maps public Markdown tokens onto the host boundary"
+            },
+            {
+              "index": 1,
+              "name": "Sub Theme CSS compiler > resolves explicit size presets and fills missing fields before registration"
+            },
+            {
+              "index": 2,
+              "name": "Sub Theme CSS compiler > preserves base presets through partial Dark and conditional overrides"
+            },
+            {
+              "index": 3,
+              "name": "Sub Theme CSS compiler > validates authored preset values rather than silently falling back"
+            },
+            {
+              "index": 4,
+              "name": "Sub Theme CSS compiler > maps public CSV tokens without exposing editor selectors"
+            },
+            {
+              "index": 5,
+              "name": "Sub Theme CSS compiler > resolves Markdown references at a scoped document boundary in each mode"
+            },
+            {
+              "index": 6,
+              "name": "Sub Theme CSS compiler > maps bounded typography defaults onto a private theme layer"
+            },
+            {
+              "index": 7,
+              "name": "Sub Theme CSS compiler > rejects unsafe or unbounded typography size 13.5px"
+            },
+            {
+              "index": 8,
+              "name": "Sub Theme CSS compiler > rejects unsafe or unbounded typography size 100px"
+            },
+            {
+              "index": 9,
+              "name": "Sub Theme CSS compiler > rejects unsafe or unbounded typography size 1rem"
+            },
+            {
+              "index": 10,
+              "name": "Sub Theme CSS compiler > rejects unsafe or unbounded typography size calc(10px + 1vw)"
+            },
+            {
+              "index": 11,
+              "name": "Sub Theme CSS compiler > rejects non-integer Markdown size 1.5em"
+            },
+            {
+              "index": 12,
+              "name": "Sub Theme CSS compiler > rejects non-integer Markdown size 23.5px"
+            },
+            {
+              "index": 13,
+              "name": "Sub Theme CSS compiler > rejects non-integer Markdown size clamp(20px, 3vw, 32px)"
+            },
+            {
+              "index": 14,
+              "name": "Sub Theme CSS compiler > inlines package-local token imports"
+            },
+            {
+              "index": 15,
+              "name": "Sub Theme CSS compiler > limits application variants to the public color-token allowlist"
+            },
+            {
+              "index": 16,
+              "name": "Sub Theme CSS compiler > derives mode-specific first paint only from opaque public canvas tokens"
+            },
+            {
+              "index": 17,
+              "name": "Sub Theme CSS compiler > supports root-level dark variants while retaining the same host boundary"
+            },
+            {
+              "index": 18,
+              "name": "Sub Theme CSS compiler > enforces declared Color Mode capabilities instead of allowing hidden mode branches"
+            },
+            {
+              "index": 19,
+              "name": "Sub Theme CSS compiler > prevents static application colors from leaking from light into dark mode"
+            },
+            {
+              "index": 20,
+              "name": "Sub Theme CSS compiler > rejects CSS that crosses the semantic token contract: :root h1 { --po-md-content-color: red }"
+            },
+            {
+              "index": 21,
+              "name": "Sub Theme CSS compiler > rejects CSS that crosses the semantic token contract: .cm-editor { --po-md-content-color: red }"
+            },
+            {
+              "index": 22,
+              "name": "Sub Theme CSS compiler > rejects CSS that crosses the semantic token contract: .markdown-codemirror-editor { --po-md-content-color: red }"
+            },
+            {
+              "index": 23,
+              "name": "Sub Theme CSS compiler > rejects CSS that crosses the semantic token contract: .theme-root + .outside { --po-md-content-color: red }"
+            },
+            {
+              "index": 24,
+              "name": "Sub Theme CSS compiler > rejects CSS that crosses the semantic token contract: .theme-root { color: red }"
+            },
+            {
+              "index": 25,
+              "name": "Sub Theme CSS compiler > rejects CSS that crosses the semantic token contract: .theme-root { --po-md-unknown-token: red }"
+            },
+            {
+              "index": 26,
+              "name": "Sub Theme CSS compiler > rejects unsupported or forceful CSS: @import url(\"https://example.com/theme.css\");"
+            },
+            {
+              "index": 27,
+              "name": "Sub Theme CSS compiler > rejects unsupported or forceful CSS: @font-face { font-family: Reader; src: url(\"./reader.woff2\") }"
+            },
+            {
+              "index": 28,
+              "name": "Sub Theme CSS compiler > rejects unsupported or forceful CSS: :global(body) { --po-md-content-color: red }"
+            },
+            {
+              "index": 29,
+              "name": "Sub Theme CSS compiler > rejects unsupported or forceful CSS: :root { --po-md-h1-size: 4em !important }"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/appearance/themes/electron.theme-package-contract.test.mjs",
+          "sha256": "e60bb2d30be6029bc90754cd2ac2898d42499f9bd4ebe4416e5ef809b06ee5c6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSS theme package manifest > normalizes a valid version 1 manifest"
+            },
+            {
+              "index": 1,
+              "name": "CSS theme package manifest > declares which Root Themes a Sub Theme can extend"
+            },
+            {
+              "index": 2,
+              "name": "CSS theme package manifest > accepts an optional typography target with its own entrypoint"
+            },
+            {
+              "index": 3,
+              "name": "CSS theme package manifest > rejects invalid Root Theme compatibility []"
+            },
+            {
+              "index": 4,
+              "name": "CSS theme package manifest > rejects invalid Root Theme compatibility [\"Default\"]"
+            },
+            {
+              "index": 5,
+              "name": "CSS theme package manifest > rejects invalid Root Theme compatibility [\"windows xp\"]"
+            },
+            {
+              "index": 6,
+              "name": "CSS theme package manifest > rejects invalid Root Theme compatibility [\"default\",\"default\"]"
+            },
+            {
+              "index": 7,
+              "name": "CSS theme package manifest > rejects unsupported schema versions"
+            },
+            {
+              "index": 8,
+              "name": "CSS theme package manifest > rejects unsafe or unstable theme id newsprint"
+            },
+            {
+              "index": 9,
+              "name": "CSS theme package manifest > rejects unsafe or unstable theme id Com.Example.Newsprint"
+            },
+            {
+              "index": 10,
+              "name": "CSS theme package manifest > rejects unsafe or unstable theme id com.example.news print"
+            },
+            {
+              "index": 11,
+              "name": "CSS theme package manifest > rejects unsafe or unstable theme id com/example/newsprint"
+            },
+            {
+              "index": 12,
+              "name": "CSS theme package manifest > rejects unsafe or unstable theme id com..example.newsprint"
+            },
+            {
+              "index": 13,
+              "name": "CSS theme package manifest > rejects unsafe entrypoint ../markdown.css"
+            },
+            {
+              "index": 14,
+              "name": "CSS theme package manifest > rejects unsafe entrypoint styles/markdown.css"
+            },
+            {
+              "index": 15,
+              "name": "CSS theme package manifest > rejects unsafe entrypoint /tmp/markdown.css"
+            },
+            {
+              "index": 16,
+              "name": "CSS theme package manifest > rejects unsafe entrypoint markdown.scss"
+            },
+            {
+              "index": 17,
+              "name": "CSS theme package manifest > requires targets and entrypoints to describe the same surfaces"
+            },
+            {
+              "index": 18,
+              "name": "CSS theme package manifest > rejects unknown targets and invalid modes"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/appearance/themes/electron.theme-single-file-contract.test.mjs",
+          "sha256": "3acba342a38bb707df17717d9f1ec7091448e10d18586b88688004aafd9355be",
+          "cases": [
+            {
+              "index": 0,
+              "name": "single-file CSS theme contract > extracts metadata and one stylesheet per declared target"
+            },
+            {
+              "index": 1,
+              "name": "single-file CSS theme contract > leaves metadata-free CSS on the legacy Typora-style path"
+            },
+            {
+              "index": 2,
+              "name": "single-file CSS theme contract > keeps reserved built-in identity and compatibility metadata behind the generator boundary"
+            },
+            {
+              "index": 3,
+              "name": "single-file CSS theme contract > rejects coordinated CSS with duplicate metadata"
+            },
+            {
+              "index": 4,
+              "name": "single-file CSS theme contract > rejects coordinated CSS with duplicate target"
+            },
+            {
+              "index": 5,
+              "name": "single-file CSS theme contract > rejects coordinated CSS with unknown target"
+            },
+            {
+              "index": 6,
+              "name": "single-file CSS theme contract > rejects coordinated CSS with rules outside targets"
+            },
+            {
+              "index": 7,
+              "name": "single-file CSS theme contract > rejects coordinated CSS with unknown metadata"
+            },
+            {
+              "index": 8,
+              "name": "single-file CSS theme contract > rejects nested PuppyOne control blocks"
+            },
+            {
+              "index": 9,
+              "name": "single-file CSS theme contract > requires valid stable metadata and at least one target"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/appearance/themes/selectionColors.test.mjs",
+          "sha256": "42691624e3cc8d9e21d622a0c6d7ed3a6b559b96ae6d8335945bb7721e814836",
+          "cases": [
+            {
+              "index": 0,
+              "name": "theme selection color contract > keeps old themes valid and derives an inactive color from an explicit active override"
+            },
+            {
+              "index": 1,
+              "name": "theme selection color contract > projects markdown overrides and color references together"
+            },
+            {
+              "index": 2,
+              "name": "theme selection color contract > projects csv overrides and color references together"
+            },
+            {
+              "index": 3,
+              "name": "theme selection color contract > preserves explicit inactive colors and the existing terminal override"
+            },
+            {
+              "index": 4,
+              "name": "theme selection color contract > projects real domain references without rewriting quoted font names"
+            },
+            {
+              "index": 5,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value banana"
+            },
+            {
+              "index": 6,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value 12px"
+            },
+            {
+              "index": 7,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value rgb(nope)"
+            },
+            {
+              "index": 8,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value url(./paint.png)"
+            },
+            {
+              "index": 9,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value inherit"
+            },
+            {
+              "index": 10,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value initial"
+            },
+            {
+              "index": 11,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value Highlight"
+            },
+            {
+              "index": 12,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value AccentColor"
+            },
+            {
+              "index": 13,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value color-mix(in srgb, Highlight 20%, transparent)"
+            },
+            {
+              "index": 14,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value var(--po-unknown)"
+            },
+            {
+              "index": 15,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value var(--po-text-selection-bg)"
+            },
+            {
+              "index": 16,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value var(--po-accent, Highlight)"
+            },
+            {
+              "index": 17,
+              "name": "theme selection color contract > rejects invalid or system-dependent selection value device-cmyk(0 0 0 1)"
+            },
+            {
+              "index": 18,
+              "name": "theme selection color contract > checks dependencies even when the theme relies on the default selection recipe"
+            },
+            {
+              "index": 19,
+              "name": "theme selection color contract > requires a defined or fallback domain color rather than emitting an unresolved var"
+            },
+            {
+              "index": 20,
+              "name": "theme selection color contract > rejects a color cycle confined to dark mode and invalid conditional values"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::themes::compiler::tests::the_token_lists_match_the_product"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::compiler::tests::selection_colours_follow_their_dependencies"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::compiler::tests::markdown_sizes_complete_from_the_neutral_defaults"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::contract::tests::manifests_follow_the_package_contract"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::css::tests::reads_blocks_statements_and_declarations"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::css::tests::errors_name_the_position_like_postcss"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::document::tests::neutral_changes_nothing_and_packs_change_their_tokens"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::document::tests::csv_tokens_follow_the_application_through_the_product_defaults"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::document::tests::size_roles_follow_the_scale"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::value::tests::colours_evaluate_like_the_browser"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::value::tests::variables_substitute_with_fallbacks"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::manifest_packages_and_metadata_free_token_themes_are_discovered"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::a_coordinated_single_css_theme_loads_across_its_surfaces"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::fonts_cannot_be_injected_directly_or_through_an_import"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::imports_and_embedded_assets_are_bounded"
+        }
+      ]
+    },
+    {
+      "id": "appearance-preferences-migration-and-live-runtime",
+      "acceptance": "Appearance preferences normalize retired theme IDs, migrate legacy and canonical appearance documents safely, remember Sub Themes independently per effective color mode, propagate theme/scale/file-icon/pointer-cursor changes live across open and newly opened windows, and project built-in theme palettes and local theme catalogs cleanly.",
+      "typescript": [
+        {
+          "path": "tests/unit/appearance/themes/themePreferences.test.ts",
+          "sha256": "2a99087d510472c19bec0c330ef60fdf28d047481efd9e6099a32224befd6b64",
+          "cases": [
+            {
+              "index": 0,
+              "name": "sub-theme preference migration > normalizes retired id default"
+            },
+            {
+              "index": 1,
+              "name": "sub-theme preference migration > normalizes retired id builtin.pack.github"
+            },
+            {
+              "index": 2,
+              "name": "sub-theme preference migration > normalizes retired id builtin.pack.newsprint"
+            },
+            {
+              "index": 3,
+              "name": "sub-theme preference migration > normalizes retired id builtin.pack.newspaper"
+            },
+            {
+              "index": 4,
+              "name": "sub-theme preference migration > normalizes retired id builtin.markdown.newsprint"
+            },
+            {
+              "index": 5,
+              "name": "sub-theme preference migration > reads the coordinated pack from legacy preference documents"
+            },
+            {
+              "index": 6,
+              "name": "sub-theme preference migration > migrates version 1 only when every surface selected the same theme"
+            },
+            {
+              "index": 7,
+              "name": "sub-theme preference migration > ignores malformed legacy input null"
+            },
+            {
+              "index": 8,
+              "name": "sub-theme preference migration > ignores malformed legacy input "
+            },
+            {
+              "index": 9,
+              "name": "sub-theme preference migration > ignores malformed legacy input {"
+            },
+            {
+              "index": 10,
+              "name": "sub-theme preference migration > ignores malformed legacy input []"
+            },
+            {
+              "index": 11,
+              "name": "sub-theme preference migration > ignores malformed legacy input {\"version\":5}"
+            },
+            {
+              "index": 12,
+              "name": "sub-theme preference migration > ignores malformed legacy input {\"version\":1}"
+            },
+            {
+              "index": 13,
+              "name": "sub-theme preference migration > rejects managed Custom CSS and malformed ids"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/appearance/styles/surfaceAppearanceRuntime.test.ts",
+          "sha256": "bd82da6e13ee811e68e521bb4c20fa02dd43a5c99b8c4e2fec78995487f43ae1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "resolved surface appearance > invalidates imperative consumers when local CSS changes without an ID or version change"
+            },
+            {
+              "index": 1,
+              "name": "resolved surface appearance > publishes one typed follow-theme boundary with provenance"
+            },
+            {
+              "index": 2,
+              "name": "resolved surface appearance > applies and clears explicit user overrides without leaving stale portal state"
+            },
+            {
+              "index": 3,
+              "name": "resolved surface appearance > publishes the file-icon visibility to the root and to independently mounted hosts"
+            },
+            {
+              "index": 4,
+              "name": "resolved surface appearance > propagates scaled control geometry to independently mounted hosts"
+            },
+            {
+              "index": 5,
+              "name": "resolved surface appearance > changes the revision for theme, typography scale, font, and Markdown presentation inputs"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/appearance/themes/desktopThemePreferences.test.tsx",
+          "sha256": "0abcd926ea97c611e8378b9d45e17d8d6abbcf89fbebcbc534e237a2bd44b6a6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop appearance preferences > persists one canonical V6 document and remembers Sub Themes independently by mode and Root Theme"
+            },
+            {
+              "index": 1,
+              "name": "desktop appearance preferences > synchronizes the canonical appearance document across windows"
+            },
+            {
+              "index": 2,
+              "name": "desktop appearance preferences > migrates the retired coordinated Theme Pack into the active root"
+            },
+            {
+              "index": 3,
+              "name": "desktop appearance preferences > migrates standalone typography once and removes every legacy Appearance key"
+            },
+            {
+              "index": 4,
+              "name": "desktop appearance preferences > prefers the canonical document over conflicting standalone legacy values"
+            },
+            {
+              "index": 5,
+              "name": "desktop appearance preferences > ignores retired-key events after migration"
+            },
+            {
+              "index": 6,
+              "name": "desktop appearance preferences > does not overwrite a future canonical schema or erase its migration inputs"
+            },
+            {
+              "index": 7,
+              "name": "desktop appearance preferences > preserves migration inputs when the canonical write fails"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/appearance/themes/subThemeModeSettings.test.tsx",
+          "sha256": "babc91b3f80e3fae124ea5326feda7eb9c1f5e6abd0515399e01858f84eeb0e9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "mode-first Sub Theme settings > hides a light-only theme in Dark while preserving a safe effective selection"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/appearance/themes/themeCatalog.test.tsx",
+          "sha256": "1986678db2859bf3cc4c7b36b486ed4ed53a1382f84029012c211602ff9d06aa",
+          "cases": [
+            {
+              "index": 0,
+              "name": "renderer Sub Theme catalog > normalizes host mode declarations into explicit variants and filters by effective mode"
+            },
+            {
+              "index": 1,
+              "name": "renderer Sub Theme catalog > loads variants and refreshes them when the window regains focus"
+            },
+            {
+              "index": 2,
+              "name": "renderer Sub Theme catalog > uses the six built-in variants when the desktop host API is unavailable"
+            },
+            {
+              "index": 3,
+              "name": "renderer Sub Theme catalog > surfaces failures while opening the themes directory"
+            },
+            {
+              "index": 4,
+              "name": "renderer Sub Theme catalog > creates a local theme through the pathless host command and refreshes the catalog"
+            },
+            {
+              "index": 5,
+              "name": "renderer Sub Theme catalog > syncs only root-compatible variants to the native menu and routes requests"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/appearance/themes/themeCustomCssSettings.test.tsx",
+          "sha256": "54baf600278de9df207600748bd5325a13046f91a404a74013b7f0c12e80bdb4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Appearance theme settings > keeps the hugging pack selector and icon actions in one compact module"
+            },
+            {
+              "index": 1,
+              "name": "Appearance theme settings > creates and selects a local one-file theme from Add Theme"
+            },
+            {
+              "index": 2,
+              "name": "Appearance theme settings > makes an active reading-font override visible and lets the user restore theme control"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/appearance/themes/themeStyleHost.test.tsx",
+          "sha256": "0fdd66678886ba5ce3d67b79be14e55df30fd2f5b1afc6e2db78d17b34be4c62",
+          "cases": [
+            {
+              "index": 0,
+              "name": "renderer Sub Theme style host > registers built-ins as root-compatible visual variants"
+            },
+            {
+              "index": 1,
+              "name": "renderer Sub Theme style host > compiles each built-in's host boundary"
+            },
+            {
+              "index": 4,
+              "name": "renderer Sub Theme style host > injects only the compiled variant selected by the effective Color Mode"
+            },
+            {
+              "index": 5,
+              "name": "renderer Sub Theme style host > keeps retired managed Custom CSS out of the catalog"
+            },
+            {
+              "index": 6,
+              "name": "renderer Sub Theme style host > preserves declared future Root Theme compatibility without relabeling it as Default"
+            },
+            {
+              "index": 7,
+              "name": "renderer Sub Theme style host > puts typed surface preferences after Sub Theme CSS"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::themes::palette::tests::the_built_in_themes_project_exactly_as_the_importer_did"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::tests::the_folder_lists_what_the_product_lists"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::tests::new_themes_are_numbered_selectable_and_complete"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::every_package_is_one_self_describing_theme_in_its_place"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::builtin_tests::warm_light_shell_surfaces_do_not_leak_into_dark"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::themes::service::parity_tests::the_legacy_custom_css_folder_stays_and_its_id_is_reserved"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::appearance::tests::one_writer_installs_the_palette_and_the_type_scale"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::appearance::tests::kit_overlays_follow_light_dark_and_sub_theme_changes"
+        },
+        {
+          "package": "po-ui",
+          "test": "theme::tests::semantic_tokens_follow_the_web_formulas"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::tests::the_product_appearance_document_and_layout_carry_over"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::tests::appearance_documents_of_every_schema_migrate_like_the_product"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::hidden_file_icons_keep_the_slot_and_leave_folder_disclosures"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::the_appearance_page_offers_icon_and_theme_choices_like_the_product"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::the_remembered_sub_theme_follows_the_effective_color_mode"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::appearance_preferences_apply_to_the_open_window"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::a_new_window_keeps_the_persisted_appearance"
+        }
+      ]
+    },
+    {
+      "id": "appearance-typography-presets-and-fonts",
+      "acceptance": "Typography exposes the single application-wide Small/Medium/Large scale table across every semantic role, preserves trusted font primaries and script fallbacks without letting system keywords enter the cascade, migrates legacy font selections, and updates live windows when the scale changes.",
+      "typescript": [
+        {
+          "path": "tests/component/appearance/typography/typographyRuntime.test.ts",
+          "sha256": "348fcae489e493b91a27739eaf7203a4a9dc9c6935bff2cf6d493a187aba5957",
+          "cases": [
+            {
+              "index": 0,
+              "name": "typography runtime boundary > projects roots and imperative hosts from the same generated property map"
+            },
+            {
+              "index": 1,
+              "name": "typography runtime boundary > applies trusted primaries and categories without overriding product fallbacks"
+            },
+            {
+              "index": 2,
+              "name": "typography runtime boundary > applies one coordinated preset to every semantic role across the application"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/appearance/typography/typographySettings.test.tsx",
+          "sha256": "d62b4cc22969b1f5f56e146e54252e480758b2fb9bce1c818b4f530a6f1be61b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Typography settings > exposes one application-wide Small, Medium, and Large scale"
+            },
+            {
+              "index": 1,
+              "name": "Typography settings > previews the workspace around H1-H3, body, and bold without interactive controls"
+            },
+            {
+              "index": 2,
+              "name": "Typography settings > updates the single application scale without exposing custom values"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "typography::tests::medium_literals_follow_the_product_role_table"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::tests::every_preset_keeps_the_product_role_table_and_its_invariants"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::fonts::tests::stored_preferences_migrate_every_legacy_shape"
+        },
+        {
+          "package": "po-ui",
+          "test": "typography::fonts::tests::stored_selections_normalize_like_the_product"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::fonts::tests::the_interface_is_geist_and_system_keywords_never_enter_the_cascade"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::fonts::tests::the_active_stacks_follow_the_locale_and_selection"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::appearance_preferences_apply_to_the_open_window"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -47410,6 +48332,16 @@
             {
               "index": 5,
               "name": "WorkbenchDataService > uses native separators for the root \\\\server\\share\\Beta"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/appearance/icons/electron.app-icon.test.mjs",
+          "sha256": "29583ac340233a10574157838efc87a9b60dee9eb9fa27812006323df5108fea",
+          "cases": [
+            {
+              "index": 5,
+              "name": "native app icon ownership > does not call Dock APIs on other platforms"
             }
           ]
         }
@@ -48936,6 +49868,24 @@
             {
               "index": 0,
               "name": "workspace:project-previews IPC > rejects any path that is not registered in recentWorkspaces before reading folder children"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/appearance/themes/electron.theme-ipc.test.mjs",
+          "sha256": "5cb45fbabd95bd6598feb7c393efe9811510ab39c66b88e2fe7c2a688def6ed4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSS theme IPC > registers narrow list, open-directory, create, and native-menu handlers"
+            },
+            {
+              "index": 1,
+              "name": "CSS theme IPC > requires the trusted IPC and theme service ports"
+            },
+            {
+              "index": 2,
+              "name": "CSS theme IPC > bounds renderer-controlled theme menu metadata before it reaches the main menu"
             }
           ]
         }
@@ -50702,6 +51652,38 @@
               "name": "desktop Shell location bar > maps entered addresses back to workspace-scoped entry paths"
             }
           ]
+        },
+        {
+          "path": "tests/unit/appearance/themes/interfaceStyleRegistry.test.ts",
+          "sha256": "3c2a434659e3f10a72916153633254966b397a9ef739d940349d3608303542b0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Interface style registry > owns every style id and safely parses persisted values"
+            },
+            {
+              "index": 1,
+              "name": "Interface style registry > derives color controls and active modes from palette capabilities"
+            },
+            {
+              "index": 2,
+              "name": "Interface style registry > keeps every registry lookup total"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/appearance/styles/interfaceStyleSettings.test.tsx",
+          "sha256": "470cbca0f92b80528d43bb23092e8f8a54e12e9e1b7283f0255358e491f033fd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Interface style settings > renders style choices from the registry and emits their typed id"
+            },
+            {
+              "index": 1,
+              "name": "Interface style settings > shows only the color mode control for an adaptive palette"
+            }
+          ]
         }
       ]
     },
@@ -52390,6 +53372,20 @@
             {
               "index": 13,
               "name": "Homepage visual contract > page > lifts the first-run New in the accent's own hover"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/appearance/themes/themeStyleHost.test.tsx",
+          "sha256": "0fdd66678886ba5ce3d67b79be14e55df30fd2f5b1afc6e2db78d17b34be4c62",
+          "cases": [
+            {
+              "index": 2,
+              "name": "renderer Sub Theme style host > injects selected CSS inside the sub-theme cascade layer"
+            },
+            {
+              "index": 3,
+              "name": "renderer Sub Theme style host > removes stale CSS when the resolved Sub Theme changes"
             }
           ]
         }
@@ -60992,6 +61988,24 @@
               "name": "starts every reopened control with the resolved host identity on its first visible commit"
             }
           ]
+        },
+        {
+          "path": "tests/unit/appearance/styles/rendererPublicAsset.test.ts",
+          "sha256": "9f85ba2c84707c68268d6ff7d8916979c30e6ad5e99a6923613fe4e19e947c57",
+          "cases": [
+            {
+              "index": 0,
+              "name": "renderer public asset URLs > keeps assets relative to Electron's packaged renderer document"
+            },
+            {
+              "index": 1,
+              "name": "renderer public asset URLs > supports development and nested deployment bases"
+            },
+            {
+              "index": 2,
+              "name": "renderer public asset URLs > keeps the catalog unique and backed by files in public"
+            }
+          ]
         }
       ]
     },
@@ -61224,6 +62238,44 @@
               "name": "native surface pointer passthrough leases > releases a component-owned activity lease at lifecycle boundaries"
             }
           ]
+        },
+        {
+          "path": "tests/unit/appearance/styles/electron.appearance-ipc.test.mjs",
+          "sha256": "4000d50c2c7bdf2a68280452fd4098b0d1d5bd8edb257f23e5046903a0ec8b39",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native appearance IPC > applies a manifest-owned first-paint color to the sender's window"
+            },
+            {
+              "index": 1,
+              "name": "native appearance IPC > keeps native window chrome on the renderer's dark appearance"
+            },
+            {
+              "index": 2,
+              "name": "native appearance IPC > preserves native system following when the renderer follows the system"
+            },
+            {
+              "index": 3,
+              "name": "native appearance IPC > accepts compiler-shaped opaque colors from local Sub Themes"
+            },
+            {
+              "index": 4,
+              "name": "native appearance IPC > lets the platform adapter synchronize its titlebar appearance"
+            },
+            {
+              "index": 5,
+              "name": "native appearance IPC > rejects values outside the opaque first-paint contract"
+            },
+            {
+              "index": 6,
+              "name": "native appearance IPC > rejects unsupported native color schemes"
+            },
+            {
+              "index": 7,
+              "name": "native appearance IPC > does not touch a destroyed sender window"
+            }
+          ]
         }
       ]
     },
@@ -61404,6 +62456,66 @@
             {
               "index": 2,
               "name": "Workspace Surface Registry > returns one resolved instance that owns both Sidebar and Main content"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "loading-placeholder-rounded-only",
+      "kind": "out-of-scope",
+      "reason": "TS v0.4.4 offers only the rounded loading style in the UI (dither is unoffered/hidden behind an internal canvas implementation). Rust natively implements the rounded loading relay/gather geometry directly without shipping the unoffered dither loading-style preference or ordered-dither canvas field.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/ui/loading.md",
+      "typescript": [
+        {
+          "path": "tests/unit/appearance/styles/loadingPlaceholderPreference.test.ts",
+          "sha256": "29804614854a841f70f7403b2ffc0bc62aaf05d0ceaa156a2717fa67b8a20d7c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "loading placeholder style preference > defaults to the rounded style"
+            },
+            {
+              "index": 1,
+              "name": "loading placeholder style preference > accepts only the known styles"
+            },
+            {
+              "index": 2,
+              "name": "loading placeholder style preference > offers only the rounded style while dither stays implemented"
+            },
+            {
+              "index": 3,
+              "name": "loading placeholder style preference > persists with the shared appearance preferences and reads an unoffered style as the default"
+            },
+            {
+              "index": 4,
+              "name": "loading placeholder style preference > falls back to the default for unknown values and to the current value when absent"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-text-selection-focus-css",
+      "kind": "out-of-scope",
+      "reason": "TS attaches a document-level DOM selectionchange/focus observer to style readonly selections outside CodeMirror-managed subtrees. GPUI renders selection highlight state directly from each surface's own focus state without DOM Range observers or CodeMirror CSS decorators.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/ui/appearance.md",
+      "typescript": [
+        {
+          "path": "tests/component/appearance/styles/textSelectionAppearance.test.ts",
+          "sha256": "9ec302bcd4debf8ce9633d4a80b2ef1d0237d487b0a5e65255ad08d836621d54",
+          "cases": [
+            {
+              "index": 0,
+              "name": "selection focus presentation > tracks readonly selection focus and window state without modifying the range"
+            },
+            {
+              "index": 1,
+              "name": "selection focus presentation > shares one document lease and makes cleanup idempotent"
+            },
+            {
+              "index": 2,
+              "name": "selection focus presentation > never writes focus decorations inside CodeMirror-managed content"
             }
           ]
         }
