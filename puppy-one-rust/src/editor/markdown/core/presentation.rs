@@ -245,4 +245,108 @@ mod tests {
             doc.line_range(6).start + 2
         );
     }
+
+    // `markdownListEditing.test.ts`: list lines through one structural model.
+
+    /// The rhythm of every line, checked against the bounded computation
+    /// (`equivalent(state)`: an incremental window agrees with the whole).
+    fn rhythm(text: &str, source_line: Option<usize>) -> (Buffer, Syntax, Vec<LineRhythm>) {
+        let doc = Buffer::new(text);
+        let syntax = Syntax::parse(&doc);
+        let whole = block_rhythm(&doc, &syntax, source_line);
+        for line in 0..doc.line_count() {
+            assert_eq!(
+                block_rhythm_in_lines(&doc, &syntax, line..line + 1, source_line)[0],
+                whole[line],
+                "{text:?} line {line}"
+            );
+        }
+        (doc, syntax, whole)
+    }
+
+    /// `types a task without duplicate markers or lost parent geometry`;
+    /// `keeps both typed markers visible when the parser recognizes compact
+    /// nested lists`; `allows deleting a task prefix character by character
+    /// without a hidden checkbox`: while a list prefix is typed or deleted
+    /// on a source line the line keeps a list rail, and the finished task is
+    /// one item at its parent's depth plus one.
+    #[test]
+    fn a_typed_or_deleted_task_prefix_keeps_its_list_rail() {
+        for initial in ["", "- parent\n  ", "- parent\n    ", "10. parent\n    "] {
+            let mut text = initial.to_owned();
+            for c in "- [ ] task".chars() {
+                text.push(c);
+                let last = text.matches('\n').count();
+                let (_, _, lines) = rhythm(&text, Some(last));
+                assert!(lines[last].list.is_some(), "{text:?}");
+            }
+            let (_, syntax, lines) = rhythm(&text, None);
+            let task = syntax.items.iter().find(|i| i.task.is_some()).unwrap();
+            let nested = usize::from(!initial.is_empty());
+            assert_eq!(task.parents.len(), nested, "{initial:?}");
+            assert!(lines.last().unwrap().classes.has(Class::TASK_LINE));
+        }
+        let mut text = "- parent\n  ".to_owned();
+        for c in "- - [ ] task".chars() {
+            text.push(c);
+            let (_, _, lines) = rhythm(&text, Some(1));
+            assert!(lines[1].list.is_some(), "{text:?}");
+        }
+        let mut text = "- parent\n    - [ ] task".to_owned();
+        for at in (15..19).rev() {
+            text.remove(at);
+            let (_, syntax, lines) = rhythm(&text, Some(1));
+            assert!(lines[1].list.is_some(), "{text:?}");
+            assert_eq!(syntax.items.last().unwrap().parents.len(), 1, "{text:?}");
+        }
+        assert_eq!(text, "- parent\n    - task");
+    }
+
+    /// `shares nesting for every list item text block`.
+    #[test]
+    fn every_nested_item_block_shares_its_depth() {
+        for text in [
+            "- parent\n    - child",
+            "- parent\n    - [ ] task",
+            "- parent\n    - # heading",
+        ] {
+            let (_, _, lines) = rhythm(text, None);
+            assert_eq!(lines[1].list.as_ref().unwrap().depth, 1, "{text:?}");
+            assert!(lines[1].classes.has(Class::NESTED_LIST_LINE), "{text:?}");
+        }
+    }
+
+    /// `does not invent list/task semantics in literal content`.
+    #[test]
+    fn literal_content_has_no_task() {
+        for text in [
+            "    - [ ] code",
+            "- [ ]task",
+            "```md\n- [ ] code\n```",
+            "text\n2. literal",
+        ] {
+            let (_, syntax, lines) = rhythm(text, None);
+            assert!(syntax.items.iter().all(|i| i.task.is_none()), "{text:?}");
+            assert!(
+                lines.iter().all(|l| !l.classes.has(Class::TASK_LINE)),
+                "{text:?}"
+            );
+        }
+    }
+
+    /// `reprojects the whole item on a task transition`.
+    #[test]
+    fn a_task_transition_reprojects_the_whole_item() {
+        let item = "- root\n  one\n  two\n  three\n  four\n  five\n- last";
+        for (text, task) in [
+            (item.replacen("- ", "- [ ] ", 1), true),
+            (item.to_owned(), false),
+        ] {
+            let (_, _, lines) = rhythm(&text, None);
+            for line in &lines[1..6] {
+                assert!(line.classes.has(Class::LIST_CONTINUATION), "{text:?}");
+                assert_eq!(line.classes.has(Class::TASK_LINE), task, "{text:?}");
+            }
+        }
+    }
 }

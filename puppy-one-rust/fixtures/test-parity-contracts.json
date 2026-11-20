@@ -37573,6 +37573,166 @@
           "test": "editor::viewers::html_preview::tests::script_text_comments_and_quoted_angles_are_not_tags"
         }
       ]
+    },
+    {
+      "id": "markdown-list-structure-rhythm",
+      "acceptance": "While a list or task prefix is typed or deleted on a source line (also a compact nested `- - [ ]`) the line keeps its list rail and the finished task is one item at its parent's depth plus one; nested item text blocks share their depth; literal content (indented code, `- [ ]task`, fences, an un-interrupting number) never becomes a task; a task transition reprojects every line of its item; bounded rhythm windows agree with the whole document.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/rendering/markdownListEditing.test.ts",
+          "sha256": "39e8f68de9805da9bc4529ce2b4d27be08e845785e319cfc55a72051b8c746d4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown list editing through one structural model > types a task without duplicate markers or lost parent geometry: \"\""
+            },
+            {
+              "index": 1,
+              "name": "Markdown list editing through one structural model > types a task without duplicate markers or lost parent geometry: \"- parent\\n  \""
+            },
+            {
+              "index": 2,
+              "name": "Markdown list editing through one structural model > types a task without duplicate markers or lost parent geometry: \"- parent\\n    \""
+            },
+            {
+              "index": 3,
+              "name": "Markdown list editing through one structural model > types a task without duplicate markers or lost parent geometry: \"10. parent\\n    \""
+            },
+            {
+              "index": 4,
+              "name": "Markdown list editing through one structural model > shares nesting for every list item text block: \"- parent\\n    - child\""
+            },
+            {
+              "index": 5,
+              "name": "Markdown list editing through one structural model > shares nesting for every list item text block: \"- parent\\n    - [ ] task\""
+            },
+            {
+              "index": 6,
+              "name": "Markdown list editing through one structural model > shares nesting for every list item text block: \"- parent\\n    - # heading\""
+            },
+            {
+              "index": 7,
+              "name": "Markdown list editing through one structural model > does not invent list/task semantics in literal content: \"    - [ ] code\""
+            },
+            {
+              "index": 8,
+              "name": "Markdown list editing through one structural model > does not invent list/task semantics in literal content: \"- [ ]task\""
+            },
+            {
+              "index": 9,
+              "name": "Markdown list editing through one structural model > does not invent list/task semantics in literal content: \"```md\\n- [ ] code\\n```\""
+            },
+            {
+              "index": 10,
+              "name": "Markdown list editing through one structural model > does not invent list/task semantics in literal content: \"text\\n2. literal\""
+            },
+            {
+              "index": 12,
+              "name": "Markdown list editing through one structural model > keeps both typed markers visible when the parser recognizes compact nested lists"
+            },
+            {
+              "index": 13,
+              "name": "Markdown list editing through one structural model > reprojects the whole item on a task transition, reverse=false"
+            },
+            {
+              "index": 14,
+              "name": "Markdown list editing through one structural model > reprojects the whole item on a task transition, reverse=true"
+            },
+            {
+              "index": 23,
+              "name": "Markdown list editing through one structural model > allows deleting a task prefix character by character without a hidden checkbox"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::tests::a_typed_or_deleted_task_prefix_keeps_its_list_rail"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::tests::every_nested_item_block_shares_its_depth"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::tests::literal_content_has_no_task"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::tests::a_task_transition_reprojects_the_whole_item"
+        }
+      ]
+    },
+    {
+      "id": "markdown-list-commands",
+      "acceptance": "A task toggle flips exactly the parser's checkbox span (wide, tab and nested) and back; Tab moves a whole item with its continuation and children under the previous item's content column (also the last item of a list directly before, such as a two-digit ordered parent) and Shift-Tab restores it; a first nested child keeps its place on Tab; a selected sibling group moves once with its children; Enter continues ordered tasks locally and continues a source continuation without inventing an item.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/rendering/markdownListEditing.test.ts",
+          "sha256": "39e8f68de9805da9bc4529ce2b4d27be08e845785e319cfc55a72051b8c746d4",
+          "cases": [
+            {
+              "index": 15,
+              "name": "Markdown list editing through one structural model > toggles the parser's exact checkbox span: \"-   [ ] task\""
+            },
+            {
+              "index": 16,
+              "name": "Markdown list editing through one structural model > toggles the parser's exact checkbox span: \"-\\t[ ] task\""
+            },
+            {
+              "index": 17,
+              "name": "Markdown list editing through one structural model > toggles the parser's exact checkbox span: \"- parent\\n    - [ ] task\""
+            },
+            {
+              "index": 18,
+              "name": "Markdown list editing through one structural model > indents below a two-digit parent using its content column and restores with Shift-Tab"
+            },
+            {
+              "index": 19,
+              "name": "Markdown list editing through one structural model > does not turn a first nested child into a continuation on Tab"
+            },
+            {
+              "index": 20,
+              "name": "Markdown list editing through one structural model > moves a selected sibling group and its children once"
+            },
+            {
+              "index": 21,
+              "name": "Markdown list editing through one structural model > continues ordered tasks locally in one undo transaction"
+            },
+            {
+              "index": 22,
+              "name": "Markdown list editing through one structural model > continues a source continuation without inventing another list item"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::task::tests::a_toggle_flips_exactly_the_parsers_checkbox"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::commands::tests::tab_indents_under_a_two_digit_parent_and_back_tab_restores"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::commands::tests::tab_keeps_a_first_nested_child_in_place"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::commands::tests::tab_moves_a_selected_sibling_group_with_its_children_once"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::commands::tests::enter_continues_ordered_tasks_and_source_continuations_locally"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::lists_continue_and_tasks_toggle_with_history"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -47146,6 +47306,24 @@
             {
               "index": 30,
               "name": "HTML projection and resource boundaries > rejects oversized, non-finite and unrecognized bridge messages"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "commonmark-ordered-list-interruption",
+      "kind": "out-of-scope",
+      "reason": "The native editor parses Markdown with pulldown-cmark, which follows CommonMark: `2.` at column 0 after a list item starts a new ordered list. The product's Lezer parser keeps that line as a lazy continuation of the item, so it shows the number as literal text.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/README.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/rendering/markdownListEditing.test.ts",
+          "sha256": "39e8f68de9805da9bc4529ce2b4d27be08e845785e319cfc55a72051b8c746d4",
+          "cases": [
+            {
+              "index": 11,
+              "name": "Markdown list editing through one structural model > keeps a lazy continuation's literal number visible"
             }
           ]
         }

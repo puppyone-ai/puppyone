@@ -229,4 +229,30 @@ mod tests {
             assert_eq!(v.text(), "- [ ] Ship release\n- [ ] Write docs\n");
         });
     }
+
+    /// `toggles the parser's exact checkbox span`: wide and tab spacing and
+    /// a nested task toggle exactly their `[ ]` and back.
+    #[test]
+    fn a_toggle_flips_exactly_the_parsers_checkbox() {
+        use crate::editor::{markdown::core::feature::CommandCx, text::state::EditorState};
+        for text in ["-   [ ] task", "-\t[ ] task", "- parent\n    - [ ] task"] {
+            let mut state = EditorState::new(text);
+            let line = state.doc.line_count() - 1;
+            for expected in [text.replace("[ ]", "[x]"), text.to_owned()] {
+                let syntax = Syntax::parse(&state.doc);
+                let tr = FEATURE
+                    .command(
+                        &toggle_command(line),
+                        &CommandCx {
+                            state: &state,
+                            syntax: &syntax,
+                            plans: &[],
+                        },
+                    )
+                    .unwrap_or_else(|| panic!("{text:?}"));
+                state.apply(tr);
+                assert_eq!(state.doc.as_str(), expected);
+            }
+        }
+    }
 }

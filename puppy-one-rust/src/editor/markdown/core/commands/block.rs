@@ -5,6 +5,7 @@ use super::{change, edit, handled, selected_lines};
 use crate::editor::{
     markdown::core::syntax::{ListItem, Syntax},
     text::{
+        buffer::Buffer,
         change::Change,
         selection::Selection,
         state::{EditorState, Transaction, UserEvent},
@@ -260,6 +261,27 @@ pub fn continue_quote(state: &EditorState) -> Option<Transaction> {
     )
 }
 
+/// The list right before list `index` at the same nesting level, with
+/// nothing but blank space between them (Lezer's `list.prevSibling`).
+fn adjacent_previous_list(doc: &Buffer, syntax: &Syntax, index: usize) -> Option<usize> {
+    let list = &syntax.lists[index];
+    let previous = syntax
+        .lists
+        .iter()
+        .enumerate()
+        .filter(|(i, other)| {
+            *i != index
+                && other.parent == list.parent
+                && other.quoted == list.quoted
+                && other.range.end <= list.range.start
+        })
+        .max_by_key(|(_, other)| other.range.end)?;
+    doc.slice(previous.1.range.end..list.range.start)
+        .trim()
+        .is_empty()
+        .then_some(previous.0)
+}
+
 /// `adjustMarkdownListIndent`: move whole items (with their wrapped lines
 /// and descendants) under the previous sibling or out to the parent.
 pub fn indent(state: &EditorState, syntax: &Syntax, direction: i32) -> Option<Transaction> {
@@ -298,11 +320,19 @@ pub fn indent(state: &EditorState, syntax: &Syntax, direction: i32) -> Option<Tr
         } else {
             let list = &syntax.lists[item.list];
             let position = list.items.iter().position(|&i| i == index).unwrap_or(0);
+            // A selected sibling group moves together under its preceding
+            // item; a list's first item goes under the last item of a list
+            // directly before it.
             let previous = list.items[..position]
                 .iter()
                 .rev()
-                .find(|&&i| !starts.contains(&syntax.items[i].range.start));
-            let Some(&previous) = previous else { continue };
+                .find(|&&i| !starts.contains(&syntax.items[i].range.start))
+                .copied()
+                .or_else(|| {
+                    adjacent_previous_list(doc, syntax, item.list)
+                        .and_then(|p| syntax.lists[p].items.last().copied())
+                });
+            let Some(previous) = previous else { continue };
             syntax.items[previous].content_column
         };
         let delta = target as isize - item.indent_columns as isize;

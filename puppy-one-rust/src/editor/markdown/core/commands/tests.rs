@@ -79,6 +79,52 @@ fn tab_moves_whole_items() {
     assert_eq!(run("text|", EditIntent::Tab), "<default>");
 }
 
+/// `markdownListEditing.test.ts`: `indents below a two-digit parent using
+/// its content column and restores with Shift-Tab`.
+#[test]
+fn tab_indents_under_a_two_digit_parent_and_back_tab_restores() {
+    let flat = "9. nine\n10. ten\n- child\n  co|ntinued\n  - grandchild";
+    let nested = run(flat, EditIntent::Tab);
+    assert_eq!(
+        nested,
+        "9. nine\n10. ten\n    - child\n      co|ntinued\n      - grandchild"
+    );
+    assert_eq!(run(&nested, EditIntent::BackTab), flat);
+}
+
+/// `does not turn a first nested child into a continuation on Tab`.
+#[test]
+fn tab_keeps_a_first_nested_child_in_place() {
+    let doc = "- parent\n    - [ ] child|";
+    assert_eq!(run(doc, EditIntent::Tab), doc);
+}
+
+/// `moves a selected sibling group and its children once`.
+#[test]
+fn tab_moves_a_selected_sibling_group_with_its_children_once() {
+    assert_eq!(
+        run("- parent\n|- one\n  - nested\n- two|", EditIntent::Tab).replace('|', ""),
+        "- parent\n  - one\n    - nested\n  - two"
+    );
+}
+
+/// `continues ordered tasks locally in one undo transaction`;
+/// `continues a source continuation without inventing another list item`.
+#[test]
+fn enter_continues_ordered_tasks_and_source_continuations_locally() {
+    assert_eq!(
+        run(
+            "9. [x] first|\n10. [ ] second\n\n100. unrelated",
+            EditIntent::Enter
+        ),
+        "9. [x] first\n10. [ ] |\n11. [ ] second\n\n100. unrelated"
+    );
+    assert_eq!(
+        run("- item\n  continued|", EditIntent::Enter),
+        "- item\n  continued\n  |"
+    );
+}
+
 #[test]
 fn block_toggles_follow_the_product() {
     assert_eq!(run_fmt("## Title|", FormatCommand::Heading(1)), "# Title|");
