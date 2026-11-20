@@ -356,6 +356,25 @@ pub struct Preferences {
     /// `puppyone.desktop.explorer-pins.v1:<project>`: each project's pinned
     /// files, by its folder path (or its Cloud storage).
     pub explorer_pins: std::collections::BTreeMap<String, ExplorerPins>,
+    /// `fileTypeDefaults`: per-format default file handlers (`formatId -> HandlerId`).
+    #[serde(
+        default,
+        rename = "fileTypeDefaults",
+        alias = "file_type_defaults",
+        skip_serializing_if = "std::collections::BTreeMap::is_empty",
+        deserialize_with = "deserialize_file_type_defaults"
+    )]
+    pub file_type_defaults: std::collections::BTreeMap<String, crate::plugin_contract::HandlerId>,
+}
+
+fn deserialize_file_type_defaults<'de, D>(
+    deserializer: D,
+) -> Result<std::collections::BTreeMap<String, crate::plugin_contract::HandlerId>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(crate::editor::opening::parse_handler_map_json(&value))
 }
 /// A file pinned above a project's tree: enough to open it again without
 /// the tree loaded.
@@ -464,6 +483,7 @@ impl Default for Preferences {
             first_run_sign_in_completed: false,
             copied_template_checked: false,
             explorer_pins: Default::default(),
+            file_type_defaults: Default::default(),
         }
     }
 }
@@ -926,5 +946,38 @@ mod tests {
                 "{retired} should be omitted"
             );
         }
+    }
+
+    #[test]
+    fn file_type_defaults_round_trip_and_skip_malformed_entries() {
+        let loaded = Preferences::from_stored(serde_json::json!({
+            "version": 2,
+            "fileTypeDefaults": {
+                "markdown": "builtin:text",
+                "pptx": "plugin:puppyone.libreoffice/pptx-preview",
+                "broken": "invalid-id"
+            }
+        }))
+        .unwrap();
+        assert_eq!(loaded.file_type_defaults.len(), 2);
+        assert_eq!(
+            loaded.file_type_defaults.get("markdown"),
+            Some(&crate::plugin_contract::HandlerId::builtin("text"))
+        );
+        let serialized = serde_json::to_value(&loaded).unwrap();
+        assert_eq!(serialized["fileTypeDefaults"]["markdown"], "builtin:text");
+        assert_eq!(
+            serialized["fileTypeDefaults"]["pptx"],
+            "plugin:puppyone.libreoffice/pptx-preview"
+        );
+
+        let open_prefs = crate::editor::opening::OpenPreferences::new(
+            loaded.file_type_defaults.clone(),
+            Default::default(),
+        );
+        assert_eq!(
+            open_prefs.type_default("markdown"),
+            Some(&crate::plugin_contract::HandlerId::builtin("text"))
+        );
     }
 }

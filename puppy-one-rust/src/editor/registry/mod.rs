@@ -16,7 +16,7 @@ pub mod actions;
 pub mod admission;
 mod builtin;
 mod contribution;
-mod manifest;
+pub mod manifest;
 pub mod normalize;
 pub mod packs;
 pub mod request;
@@ -97,6 +97,14 @@ impl ViewerRegistry {
     #[cfg(test)]
     pub fn fallback(&self) -> &PresetViewer {
         &self.fallback
+    }
+    /// Looks up any registered built-in viewer (including the fallback) by its
+    /// canonical preset id (`markdown`, `text`, `document-placeholder`, …).
+    pub fn by_id(&self, id: &str) -> Option<&PresetViewer> {
+        if self.fallback.id == id {
+            return Some(&self.fallback);
+        }
+        self.contributions.iter().find(|viewer| viewer.id == id)
     }
     pub fn resolve(&self, m: &ViewerMatch) -> &PresetViewer {
         self.contributions
