@@ -45978,6 +45978,779 @@
           "test": "ui::native_cover::tests::a_floating_surface_reports_its_border_box_and_an_inline_card_does_not"
         }
       ]
+    },
+    {
+      "id": "workspace-unit-create-menu-registry",
+      "acceptance": "Create-entry menu registry defines every configurable file type and default placement centrally, migrates legacy layouts without losing hidden choices, and preserves configured order independently of default placement.",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/explorer/createEntryMenuRegistry.test.ts",
+          "sha256": "3c2659d37251b78dd4145e9bd88b9ea13700d92810bc94874ae13453ecfde099",
+          "cases": [
+            {
+              "index": 0,
+              "name": "create entry menu registry > defines every configurable item and its default menu placement centrally"
+            },
+            {
+              "index": 1,
+              "name": "create entry menu registry > preserves configured order independently of an item's default placement"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::create_new::create_entry_menu_registry::tests::move_preserves_exactly_one_owner_and_fixed_entries"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::create_menu_defaults_and_legacy_default_layouts_keep_the_complete_hierarchy"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::visible_create_menu_keeps_the_submenu_position_and_filters_only_its_experiment"
+        }
+      ]
+    },
+    {
+      "id": "workspace-unit-explorer-pins",
+      "acceptance": "Explorer pins keep files in pinned order, refuse folders, follow renames and parent folder moves, drop pins when files or ancestor folders are deleted, fold the tree only while pinned entries exist, and restore pins per project while ignoring invalid entries.",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/explorer/explorerPins.test.ts",
+          "sha256": "f2166bdc61527d63727f0359e50fb2e46ac5c3916b5bd076f68ffcd5fd22e90a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "explorer pins > pins and unpins files in the order they were pinned"
+            },
+            {
+              "index": 1,
+              "name": "explorer pins > never pins a folder"
+            },
+            {
+              "index": 2,
+              "name": "explorer pins > keeps a pin through a rename and through a move of its folder"
+            },
+            {
+              "index": 3,
+              "name": "explorer pins > drops pins for a deleted file or anything under a deleted folder"
+            },
+            {
+              "index": 4,
+              "name": "explorer pins > only folds the tree while something is pinned"
+            },
+            {
+              "index": 5,
+              "name": "explorer pins > restores pins and the fold from storage for the same project only"
+            },
+            {
+              "index": 6,
+              "name": "explorer pins > ignores stored entries that are not pinned files"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::explorer::tests::pinned_files_sit_above_the_tree_and_follow_their_files"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::tests::a_projects_pins_come_along"
+        }
+      ]
+    },
+    {
+      "id": "workspace-unit-explorer-reconciliation-and-refresh-scope",
+      "acceptance": "Explorer tree reconciliation preserves unchanged projections and loaded descendants across metadata or sibling updates, marks empty folders as loaded, treats folder-to-file replacement as a new node, and routes unscoped, overflowed, or unknown changes to a full revalidation while scoping named changes to loaded ancestors.",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/explorer/explorerRefreshScope.test.ts",
+          "sha256": "c11905e8bc389ce1e4800be610d8327b010068b8931e9664ba01c4290a8106fa",
+          "cases": [
+            {
+              "index": 6,
+              "name": "explorer refresh scope > only considers entries newer than the last processed sequence"
+            },
+            {
+              "index": 7,
+              "name": "explorer refresh scope > refreshes everything for an unscoped change"
+            },
+            {
+              "index": 8,
+              "name": "explorer refresh scope > refreshes everything for a change without a root"
+            },
+            {
+              "index": 9,
+              "name": "explorer refresh scope > refreshes everything for a newer sequence that names nothing"
+            },
+            {
+              "index": 10,
+              "name": "explorer refresh scope > refreshes everything when the journal moved backwards or dropped entries the consumer never saw"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/explorer/explorerTreeReconciliation.test.ts",
+          "sha256": "1ead88e4731d20f5e246c02adbcb56d0929bf80ecd63c0edac10137aac6c8651",
+          "cases": [
+            {
+              "index": 0,
+              "name": "explorer tree reconciliation > returns the previous array and nodes when a listing did not change"
+            },
+            {
+              "index": 1,
+              "name": "explorer tree reconciliation > keeps unchanged siblings and loaded descendants while accepting a metadata change"
+            },
+            {
+              "index": 2,
+              "name": "explorer tree reconciliation > accepts additions and removals but keeps the identity of nodes that stayed"
+            },
+            {
+              "index": 3,
+              "name": "explorer tree reconciliation > re-lists one folder without touching the rest of the tree when nothing changed"
+            },
+            {
+              "index": 4,
+              "name": "explorer tree reconciliation > replaces only the path from the root to a folder whose listing changed"
+            },
+            {
+              "index": 5,
+              "name": "explorer tree reconciliation > marks a never-loaded folder as loaded even when its listing is empty"
+            },
+            {
+              "index": 6,
+              "name": "explorer tree reconciliation > treats a folder that became a file as a new node"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/explorer/stickyListEndMotion.test.ts",
+          "sha256": "38b76770fd328fcbc0c75c2b7b8b3a6acb0c71354ae91eb24858d09a33bc89a1",
+          "cases": [
+            {
+              "index": 4,
+              "name": "sticky list-end fade > maps how much of the sentinel is clipped to how strongly rows fade"
+            },
+            {
+              "index": 5,
+              "name": "sticky list-end fade > observes both edges and evenly spaced steps between them"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "model::tests::refreshing_folders_keeps_loaded_subtrees_and_drops_removed_entries"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::empty_refresh_loads_a_folder_and_success_clears_only_its_error"
+        },
+        {
+          "package": "po-contracts",
+          "test": "model::tests::unchanged_relisting_preserves_projection_and_folder_replacement_drops_descendants"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local::adapter::tests::overflow_unknown_and_outside_root_changes_force_revalidation"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::explorer::refresh_scope::tests::scoped_changes_refresh_the_nearest_loaded_ancestor_and_never_unopened_folders"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::explorer::session::tests::scoped_refresh::named_and_unknown_changes_refresh_only_their_scope_and_preserve_unchanged_projection"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::sidebar_tree_fade_follows_use_scroll_edge_state"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::sidebar_tree_fades_into_the_footer_only_while_rows_remain_below"
+        }
+      ]
+    },
+    {
+      "id": "workspace-unit-resource-paths-and-isolation",
+      "acceptance": "Workspace resource paths keep equal relative paths in different workspaces distinct, never expose parents or permit traversal outside the workspace root, rebase descendants cleanly within one root, and refuse reads from missing or revoked grants.",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/files/dataResourcePath.test.ts",
+          "sha256": "f37e52047ce4c6b0244dae3d53d06356e235b56b207be132151df67b8c523edb",
+          "cases": [
+            {
+              "index": 1,
+              "name": "data Resource path operations > does not expose a parent above a Workspace Folder root"
+            },
+            {
+              "index": 2,
+              "name": "data Resource path operations > keeps equal provider paths isolated by Folder URI"
+            },
+            {
+              "index": 3,
+              "name": "data Resource path operations > rebases descendants without crossing Workspace Folders"
+            },
+            {
+              "index": 4,
+              "name": "data Resource path operations > retains legacy relative path behavior"
+            },
+            {
+              "index": 7,
+              "name": "data Resource path operations > refuses to encode host absolute paths as provider-relative resources"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/files/workbenchDataPort.test.ts",
+          "sha256": "aaa6ec1919c6650658ee8b85f9b3bdf839319599a2a2048859653f713486f1be",
+          "cases": [
+            {
+              "index": 1,
+              "name": "WorkbenchDataService > never reads a folder already known to be gone, in a window of one folder or several"
+            },
+            {
+              "index": 2,
+              "name": "WorkbenchDataService > answers a read of a gone folder's file in the person's words, without touching the disk"
+            },
+            {
+              "index": 3,
+              "name": "WorkbenchDataService > copies readable absolute paths from the owning root, preserving decoded file names"
+            },
+            {
+              "index": 13,
+              "name": "WorkbenchDataService > returns null for stale resources from a different Workbench without weakening strict access"
+            },
+            {
+              "index": 16,
+              "name": "WorkbenchDataService > keeps one-Folder Explorer presentation flat while retaining URI identity"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/files/workspaceResourceUri.test.ts",
+          "sha256": "7f995c78c378522dec6923eb166cc10a57e8e37ee19f0a3dfa01d362532ff7e1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace Resource URI identity > keeps equal relative paths in different folders globally distinct"
+            },
+            {
+              "index": 1,
+              "name": "workspace Resource URI identity > normalizes provider paths without permitting traversal outside the root"
+            },
+            {
+              "index": 2,
+              "name": "workspace Resource URI identity > owns equality, ancestry, relative paths, and rebasing for one provider"
+            },
+            {
+              "index": 3,
+              "name": "workspace Resource URI identity > uses provider-declared path casing without changing folder authority"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-contracts",
+          "test": "agent::contract::workspace_resource_reference::tests::resource_references_round_trip"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::paths::tests::resolves_and_relates_like_node_posix"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::identity_is_stable_but_open_grants_are_not_interchangeable"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::revocation_fences_reads_writes_and_existing_preview_leases"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_compatibility_tests::rename_move_copy_import_and_delete_stay_inside_the_grant"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_watch_parity_tests::same_name_documents_in_two_roots_are_invalidated_only_by_their_own_root"
+        }
+      ]
+    },
+    {
+      "id": "workspace-unit-folder-availability-and-relocation",
+      "acceptance": "Folder availability distinguishes available, missing, non-folder, unreadable, and disconnected-volume states without offering removal for disconnected disks, recognizes renamed folders at their previous location, and follows confirmed relocations cleanly.",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/projects/electron.folder-relocation.test.mjs",
+          "sha256": "07173a995c5f9df80fa43c512b4b7cf0ed4de8bbc9b88fd902099b0909a3e965",
+          "cases": [
+            {
+              "index": 0,
+              "name": "whether a project's folder can be opened now > tells a folder that is there from one that is gone, a file, or one PuppyOne may not read"
+            },
+            {
+              "index": 1,
+              "name": "whether a project's folder can be opened now > says a disk is away rather than the folder gone, so nothing is offered for removal that will come back"
+            },
+            {
+              "index": 2,
+              "name": "whether a project's folder can be opened now > starts looking for a moved folder from the closest place above it that is still there"
+            },
+            {
+              "index": 3,
+              "name": "finding where a project's folder went > recognises the same folder renamed where it was, and uses it once confirmed"
+            },
+            {
+              "index": 5,
+              "name": "finding where a project's folder went > says whether a folder the person points at is the same project, and never applies a stale choice"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::folder_availability::tests::a_folder_is_available_missing_or_not_a_folder"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::folder_availability::tests::a_folder_renamed_where_it_was_is_found_again"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::home::folder_status::tests::a_status_says_what_happened_and_what_helps"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::folder_availability::a_renamed_folder_is_found_again_from_the_homepage"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::folder_availability::a_window_whose_folder_moved_says_so_and_follows_it"
+        }
+      ]
+    },
+    {
+      "id": "workspace-unit-project-navigation-opening-and-home-model",
+      "acceptance": "Project navigation serializes Local and Cloud selections, commits only the latest intent, keeps the displayed project on failure, names opening targets from catalog/Cloud/folder/drop sources, abbreviates home paths cleanly, preserves hydrated dates across re-reads, ranks local/Cloud previews (HTML > MD > CSV > other, skipping dotfiles and folders), and opens projects in the current window by default.",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/projects/electron.window-workspace-state.test.mjs",
+          "sha256": "b925799c165a4f9749212a9f9efc6e0b009345767bdc0b15f06dfa11878314ad",
+          "cases": [
+            {
+              "index": 0,
+              "name": "WindowWorkspaceState > binds a File Mode window to one file without entering the folder composition"
+            },
+            {
+              "index": 4,
+              "name": "WindowWorkspaceState > opens a new window on its document once, so a reload does not reopen it"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/projectNavigation.test.ts",
+          "sha256": "14ba05c1c69f092655a7fe27eed03b787138bb78efd1f0f7b1067d3ce994da93",
+          "cases": [
+            {
+              "index": 0,
+              "name": "window project navigation > serializes Local and Cloud selections and commits only the latest intent"
+            },
+            {
+              "index": 1,
+              "name": "window project navigation > honors A -> B -> A even while A is still displayed"
+            },
+            {
+              "index": 2,
+              "name": "window project navigation > keeps the displayed project on failure and allows retry"
+            },
+            {
+              "index": 3,
+              "name": "window project navigation > suppresses obsolete errors and still opens the queued target"
+            },
+            {
+              "index": 4,
+              "name": "window project navigation > deduplicates pending targets and fences cancelled requests"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/projectOpening.test.ts",
+          "sha256": "c20fc940585b441cf3b4e250c3ef4147831c4f30f615d7ff2115018dcdd48d37",
+          "cases": [
+            {
+              "index": 0,
+              "name": "the project a window is entering > names a chosen project as the Homepage names it, wherever it lives"
+            },
+            {
+              "index": 1,
+              "name": "the project a window is entering > falls back to the folder when the catalog has no name for it"
+            },
+            {
+              "index": 2,
+              "name": "the project a window is entering > uses what the Cloud has said about a project the catalog does not list"
+            },
+            {
+              "index": 3,
+              "name": "the project a window is entering > names a dropped folder, which is not in the catalog yet"
+            },
+            {
+              "index": 4,
+              "name": "the project a window is entering > is nothing while no project is on its way"
+            },
+            {
+              "index": 5,
+              "name": "the project a window is entering > does not cover the project on screen when it is chosen again"
+            },
+            {
+              "index": 6,
+              "name": "the project a window is entering > is an open when the folder shares an id with nothing on screen"
+            },
+            {
+              "index": 7,
+              "name": "project targets > treats a dropped folder as the same target only when it is the same drop"
+            },
+            {
+              "index": 8,
+              "name": "project targets > never marks a catalog row as the target of a drop"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/projectPreviewsIpc.test.mjs",
+          "sha256": "1867d7ba4a9e5492049e6bb1ed687f53f913ab4d28c5c50b7ff3f3025607b7ff",
+          "cases": [
+            {
+              "index": 1,
+              "name": "workspace:project-previews IPC > excludes folders and dotfiles, sorts HTML > MD > CSV > other, caps at 3, and extracts snippets"
+            },
+            {
+              "index": 2,
+              "name": "workspace:project-previews IPC > falls back to the first HTML heading when <title> is absent"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/workspaceHomeModel.test.ts",
+          "sha256": "e1fd288a962d98fc7759a263456beca8e902f422e5c6f98efa748d83f252f2fc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop workspace display path > abbreviates Mac home paths without removing the project or abbreviating external locations"
+            },
+            {
+              "index": 1,
+              "name": "desktop workspace display path > shows the home-relative parent without repeating the project name"
+            },
+            {
+              "index": 2,
+              "name": "desktop workspace display path > keeps non-home parent paths canonical"
+            },
+            {
+              "index": 3,
+              "name": "desktop workspace display path > handles trailing separators and filesystem roots"
+            },
+            {
+              "index": 4,
+              "name": "keepHydratedRecentItems > keeps a project's dates through a re-read that has none"
+            },
+            {
+              "index": 5,
+              "name": "keepHydratedRecentItems > takes the re-read's name, order and any project it adds or drops"
+            },
+            {
+              "index": 6,
+              "name": "keepHydratedRecentItems > lets a hydrated result replace what was known"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/workspaceOpening.test.ts",
+          "sha256": "5c3401c103d1cd6df2a6171087e2d3a5dced374e900c0159b4f0b49fc616c655",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace placement contract > defaults project and folder opening to the current window"
+            },
+            {
+              "index": 1,
+              "name": "workspace placement contract > requires explicit placement to create another window"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::project_lifecycle::an_opening_stays_open_until_its_result_is_applied"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::project_lifecycle::a_cloud_project_is_entered_at_once_and_escape_abandons_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::project_lifecycle::a_newer_choice_replaces_a_project_still_opening"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::home::display::tests::project_names_and_folders_display_like_the_product"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::home::projects::tests::dates_learned_after_a_project_shows_wait_for_the_next_visit"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::home::previews::tests::local_previews_read_only_visible_top_level_files"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::home::previews::tests::cloud_previews_rank_html_md_csv_other_and_skip_dotfiles_and_folders"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::catalog::tests::known_dates_and_rows_survive_failures_and_a_new_session"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::windows_share_preferences_and_a_project_opens_where_it_was_chosen"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::file_window::a_file_window_shows_one_file_and_saves_it_as_it_is_edited"
+        }
+      ]
+    },
+    {
+      "id": "workspace-unit-template-links-and-clipboard",
+      "acceptance": "Template store links are parsed strictly for the channel scheme and store origin, a copied store link is offered once on first launch while non-link clipboard text is ignored, and store links hand off cleanly to open windows.",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/projects/template-intent-store.test.mjs",
+          "sha256": "7862d35de34b73b9b60a2f7e7b0c6739f30ddd7ce200f6a4b1fcbad07a6eb046",
+          "cases": [
+            {
+              "index": 0,
+              "name": "template links waiting for a window > keeps a link the store sent as its share link, and ignores anything else"
+            },
+            {
+              "index": 1,
+              "name": "template links waiting for a window > lets a newer store link replace one that is still waiting"
+            },
+            {
+              "index": 2,
+              "name": "template links waiting for a window > does not read the clipboard while a link the store sent is waiting"
+            },
+            {
+              "index": 3,
+              "name": "template links waiting for a window > takes a copied store link for the window that asked, marked as copied"
+            },
+            {
+              "index": 4,
+              "name": "template links waiting for a window > leaves other clipboard text alone and waits for nothing"
+            },
+            {
+              "index": 5,
+              "name": "template links waiting for a window > passes a link on when the window it was handed to has closed"
+            },
+            {
+              "index": 6,
+              "name": "template links waiting for a window > stops waiting once its own window has shown it, and not for anyone else"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::templates::link::tests::store_and_app_links_name_a_template"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::link::tests::pasted_text_looks_like_a_link_or_not"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::link::tests::only_a_whole_store_link_is_taken_from_the_clipboard"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::a_link_copied_from_the_store_is_offered_once_on_a_first_launch"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::a_template_link_gets_a_copy"
+        }
+      ]
+    },
+    {
+      "id": "workspace-unit-watch-coalescing-rearm-and-mutation-guards",
+      "acceptance": "Workspace watches recognize atomic replaces and renames, coalesce bursts losslessly while deduplicating repeated paths, degrade overflowed or unidentifiable events to scoped or full revalidation, filter own-save echoes without hiding newer external edits, guard concurrent writes, and clean up workers on drop.",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/watch/puppyoneConfigWatch.test.ts",
+          "sha256": "1b1243e50cd07c77c035c704d6364ae9052d7f9a2def878dfd2908c408b082cc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "PuppyOne config watcher filter > recognizes atomic replace/create/delete events across platform separators"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/watch/workbenchWorkspaceContentChange.test.ts",
+          "sha256": "f9c051024338fc1d494a83ab5e8dd5383305df69c19893bd9624b140add062a9",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Workbench Workspace mutation journal > normalizes Windows separators and deduplicates repeated batch paths"
+            },
+            {
+              "index": 4,
+              "name": "Workbench Workspace mutation journal > falls back to refresh instead of throwing for traversal or URI-shaped watcher paths"
+            },
+            {
+              "index": 5,
+              "name": "Workbench Workspace mutation journal > uses a conservative refresh when a consumer falls behind the bounded journal"
+            },
+            {
+              "index": 7,
+              "name": "Explorer action changes > refreshes everything when an action reports no resources"
+            },
+            {
+              "index": 8,
+              "name": "Explorer action changes > refreshes everything when an action reports an empty list"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/watch/workspace-watch-rearm.test.mjs",
+          "sha256": "dfaf01f13b35fde4400bfded81c8852f717c7ef45184ae44f1af309766ee98e9",
+          "cases": [
+            {
+              "index": 3,
+              "name": "workspace content watch re-arm > re-arms after watcher error and broadcasts a recovery event"
+            },
+            {
+              "index": 4,
+              "name": "workspace content watch re-arm > does not report recovery when re-arming fails"
+            },
+            {
+              "index": 5,
+              "name": "workspace content watch re-arm > does not echo an internal save to its writer but still notifies other windows"
+            },
+            {
+              "index": 6,
+              "name": "workspace content watch re-arm > preserves every changed path coalesced in one debounce window"
+            },
+            {
+              "index": 7,
+              "name": "workspace content watch re-arm > deduplicates repeated native events for one resource in a debounce window"
+            },
+            {
+              "index": 8,
+              "name": "workspace content watch re-arm > uses a bulk invalidation when the native watcher cannot identify a path"
+            },
+            {
+              "index": 9,
+              "name": "workspace content watch re-arm > filters an own-write path per sender without hiding other paths in the same batch"
+            },
+            {
+              "index": 10,
+              "name": "workspace content watch re-arm > correlates an internal save when fs.watch fires just after the write returns"
+            },
+            {
+              "index": 11,
+              "name": "workspace content watch re-arm > does not suppress a newer external edit on the same path"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/watch/workspaceMutationTracker.test.mjs",
+          "sha256": "345a0473bcde534f0e32baab8b005c0a8ac61b395ddbbfa38f4f35ccfcf94572",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace mutation tracker > guards active writes and advances the epoch after success"
+            },
+            {
+              "index": 1,
+              "name": "workspace mutation tracker > invalidates the epoch after a failed mutation attempt"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::local::adapter::tests::root_notifications_keep_both_rename_paths_and_ignore_git_internals"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local::adapter::tests::bursts_coalesce_losslessly_and_degrade_to_a_scoped_refresh"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local::adapter::tests::overflow_unknown_and_outside_root_changes_force_revalidation"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::local_root_watch_publishes_during_a_continuous_stream"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::tests::local_watch_coalesces_changes_and_drop_releases_its_worker"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::local_watch_parity_tests::single_file_watch_tracks_metadata_content_identity_and_recovery_then_releases_its_worker"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::the_echo_of_an_own_save_reads_once_as_the_same_bytes"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::mutations::tests::a_rename_waits_for_its_save_and_a_folder_delete_waits_for_its_child"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::workspace_config::tests::writes_are_atomic_private_and_round_trip"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -46623,6 +47396,20 @@
             {
               "index": 2,
               "name": "Windows registered application discovery > does no registry IO outside Windows"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/files/workbenchDataPort.test.ts",
+          "sha256": "aaa6ec1919c6650658ee8b85f9b3bdf839319599a2a2048859653f713486f1be",
+          "cases": [
+            {
+              "index": 4,
+              "name": "WorkbenchDataService > uses native separators for the root C:\\Projects\\Beta"
+            },
+            {
+              "index": 5,
+              "name": "WorkbenchDataService > uses native separators for the root \\\\server\\share\\Beta"
             }
           ]
         }
@@ -48105,6 +48892,52 @@
               "name": "trusted Electron IPC facade > guards both invoke handlers and one-way listeners"
             }
           ]
+        },
+        {
+          "path": "tests/unit/workspace/access/project-location-grants.test.mjs",
+          "sha256": "28efc37e79c2e4c4d019f26bb68851ed8091c7a15dabff0334664ddb6e0b5199",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project location grants > retains a committed grant only for that operation and sender"
+            },
+            {
+              "index": 1,
+              "name": "project location grants > requires a new grant for a new creation after commitment"
+            },
+            {
+              "index": 2,
+              "name": "project location grants > binds a selected location to the issuing sender"
+            },
+            {
+              "index": 3,
+              "name": "project location grants > replaces old Browse selections and revokes only the matching grant"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/electron.folder-relocation.test.mjs",
+          "sha256": "07173a995c5f9df80fa43c512b4b7cf0ed4de8bbc9b88fd902099b0909a3e965",
+          "cases": [
+            {
+              "index": 4,
+              "name": "finding where a project's folder went > answers only for projects it knows, so the screen cannot probe any path"
+            },
+            {
+              "index": 7,
+              "name": "asking Main about a project's folder from the screen > routes each question to the relocation service for the asking window only"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/projectPreviewsIpc.test.mjs",
+          "sha256": "1867d7ba4a9e5492049e6bb1ed687f53f913ab4d28c5c50b7ff3f3025607b7ff",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace:project-previews IPC > rejects any path that is not registered in recentWorkspaces before reading folder children"
+            }
+          ]
         }
       ]
     },
@@ -48337,6 +49170,150 @@
             {
               "index": 8,
               "name": "combined Home and project menu > keeps composition actions distinct from switching projects"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/explorer/explorerPins.test.ts",
+          "sha256": "f2166bdc61527d63727f0359e50fb2e46ac5c3916b5bd076f68ffcd5fd22e90a",
+          "cases": [
+            {
+              "index": 7,
+              "name": "explorer pins > keys a multi-folder project by all of its folders, whichever has focus"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/explorer/explorerRefreshScope.test.ts",
+          "sha256": "c11905e8bc389ce1e4800be610d8327b010068b8931e9664ba01c4290a8106fa",
+          "cases": [
+            {
+              "index": 5,
+              "name": "explorer refresh scope > uses the Folder row as the root of a multi-Folder tree"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/files/multiRootResourceRouting.test.ts",
+          "sha256": "36d8e4f53d8473309226cbb0fd4d66fa6461fd3de8a756e25423784cac156dfb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "multi-root Resource URI routing > keeps Context Map scope and relative paths inside the owning Folder URI"
+            },
+            {
+              "index": 1,
+              "name": "multi-root Resource URI routing > preserves an indexed Markdown media Resource URI through AssetBroker routing"
+            },
+            {
+              "index": 2,
+              "name": "multi-root Resource URI routing > qualifies Git, Agent, and AI provider paths at an explicit Folder boundary"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/files/workbenchDataPort.test.ts",
+          "sha256": "aaa6ec1919c6650658ee8b85f9b3bdf839319599a2a2048859653f713486f1be",
+          "cases": [
+            {
+              "index": 0,
+              "name": "WorkbenchDataService > lists a window's other folders when one is gone, and says which failed"
+            },
+            {
+              "index": 6,
+              "name": "WorkbenchDataService > routes projection leases and image imports through the document's owning Folder"
+            },
+            {
+              "index": 7,
+              "name": "WorkbenchDataService > assembles ordered Workspace Folder roots into one Explorer tree"
+            },
+            {
+              "index": 8,
+              "name": "WorkbenchDataService > routes equal relative paths to their owning Folder provider"
+            },
+            {
+              "index": 9,
+              "name": "WorkbenchDataService > revokes each file URL through the Folder provider that minted it"
+            },
+            {
+              "index": 10,
+              "name": "WorkbenchDataService > routes equal relative document writes to their owning Folder provider"
+            },
+            {
+              "index": 11,
+              "name": "WorkbenchDataService > rejects a malformed Resource URI before any Folder provider can write"
+            },
+            {
+              "index": 12,
+              "name": "WorkbenchDataService > routes root-level creation explicitly and rejects ambiguous provider paths"
+            },
+            {
+              "index": 14,
+              "name": "WorkbenchDataService > rejects cross-Project moves without mutating either provider"
+            },
+            {
+              "index": 15,
+              "name": "WorkbenchDataService > copies across Project roots through the privileged multi-root bridge"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/workbenchWorkspaceContext.test.ts",
+          "sha256": "77b3c51c16a70ebe210880a0c025bda309bd78d8053f815314153a92830cfca7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "WorkbenchWorkspaceContext > creates one stable Workbench identity independent of Folder order"
+            },
+            {
+              "index": 1,
+              "name": "WorkbenchWorkspaceContext > runs the single-folder product through the zero/one/many-folder model"
+            },
+            {
+              "index": 2,
+              "name": "WorkbenchWorkspaceContext > publishes one immutable revision after asynchronous removal barriers settle"
+            },
+            {
+              "index": 3,
+              "name": "WorkbenchWorkspaceContext > serializes concurrent mutations and rejects duplicate folder identity"
+            },
+            {
+              "index": 4,
+              "name": "WorkbenchWorkspaceContext > resolves overlapping provider roots to the most specific Folder"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/watch/workbenchWorkspaceContentChange.test.ts",
+          "sha256": "f9c051024338fc1d494a83ab5e8dd5383305df69c19893bd9624b140add062a9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Workbench Workspace mutation journal > retains near-simultaneous changes from different roots in one React state snapshot"
+            },
+            {
+              "index": 1,
+              "name": "Workbench Workspace mutation journal > never aliases the same relative path across roots"
+            },
+            {
+              "index": 2,
+              "name": "Workbench Workspace mutation journal > turns a detached or unknown Folder event into a safe global refresh"
+            },
+            {
+              "index": 6,
+              "name": "Explorer action changes > records the resources an action changed as one scoped entry per owning Folder"
+            },
+            {
+              "index": 9,
+              "name": "Explorer action changes > refreshes everything when an action reports a resource outside the Workbench"
+            },
+            {
+              "index": 10,
+              "name": "Explorer action changes > refreshes everything when an action reports a Folder root itself"
+            },
+            {
+              "index": 11,
+              "name": "Explorer action changes > refreshes everything when an action reports a bare provider path"
             }
           ]
         }
@@ -49031,6 +50008,94 @@
             {
               "index": 2,
               "name": "project-owned Terminal IPC and native shutdown > keeps A output while B opens and rejects commands with B's context for A's terminal"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/electron.window-workspace-composition.test.mjs",
+          "sha256": "ce9423bf364b7caa0fa7de9b8352a6f46751585c664c6edebd9249a2febf604e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "window Workspace composition service > persists before atomically publishing one attached Folder"
+            },
+            {
+              "index": 1,
+              "name": "window Workspace composition service > returns the authoritative composition when the Folder is already attached"
+            },
+            {
+              "index": 2,
+              "name": "window Workspace composition service > attaches in the requesting window even when another window has the same root"
+            },
+            {
+              "index": 3,
+              "name": "window Workspace composition service > leaves the old snapshot authoritative when persistence fails"
+            },
+            {
+              "index": 4,
+              "name": "window Workspace composition service > stops project resources before persisting and publishing a detached Folder"
+            },
+            {
+              "index": 5,
+              "name": "window Workspace composition service > removes a Folder that has gone from disk by the path the window holds for it"
+            },
+            {
+              "index": 6,
+              "name": "window Workspace composition service > does not publish a detach when persistence fails"
+            },
+            {
+              "index": 7,
+              "name": "window Workspace composition service > closes the last Project and leaves an empty composition"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/electron.window-workspace-state.test.mjs",
+          "sha256": "b925799c165a4f9749212a9f9efc6e0b009345767bdc0b15f06dfa11878314ad",
+          "cases": [
+            {
+              "index": 1,
+              "name": "WindowWorkspaceState > models one visible folder as a general ordered composition"
+            },
+            {
+              "index": 2,
+              "name": "WindowWorkspaceState > reports scoped Folder changes and releases an immutable snapshot"
+            },
+            {
+              "index": 3,
+              "name": "WindowWorkspaceState > rejects duplicate paths and duplicate Folder identity"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/workspaceWindowIndex.test.mjs",
+          "sha256": "9e207ce0bd16b687443dbfbba9949a7581dc344eb0a8f6022eb22b451545f423",
+          "cases": [
+            {
+              "index": 0,
+              "name": "open workspace window membership > retains the other window's membership on detach or close"
+            },
+            {
+              "index": 1,
+              "name": "open workspace window membership > prunes destroyed windows without dropping a live membership"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/watch/workspace-watch-rearm.test.mjs",
+          "sha256": "dfaf01f13b35fde4400bfded81c8852f717c7ef45184ae44f1af309766ee98e9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "workspace content watch re-arm > detaches renderer lifecycle listeners when subscriptions stop"
+            },
+            {
+              "index": 1,
+              "name": "workspace content watch re-arm > keeps a Main-owned activity subscription alive without renderer clients"
+            },
+            {
+              "index": 2,
+              "name": "workspace content watch re-arm > stops only subscriptions for one removed Workspace Folder"
             }
           ]
         }
@@ -52961,6 +54026,16 @@
             {
               "index": 6,
               "name": "Cloud IPC structured error transport > returns session API data in a versioned success envelope"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/files/localFiles.copy.test.ts",
+          "sha256": "8951d899ee6098ddf5f57a582d032b5af76b5dbe9d1c24dc85d131332f7cacc9",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local workspace copy bridge > forwards normalized DataPort paths to the authorized desktop workspace bridge"
             }
           ]
         }
@@ -57669,6 +58744,24 @@
               "name": "DocumentSessionBoundary > passes an intact Workspace Resource URI across the save boundary"
             }
           ]
+        },
+        {
+          "path": "tests/unit/workspace/files/dataResourcePath.test.ts",
+          "sha256": "f37e52047ce4c6b0244dae3d53d06356e235b56b207be132151df67b8c523edb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "data Resource path operations > preserves Resource URI identity across navigation operations"
+            },
+            {
+              "index": 5,
+              "name": "data Resource path operations > fails closed when a Resource URI delimiter has been damaged"
+            },
+            {
+              "index": 6,
+              "name": "data Resource path operations > refuses to normalize Resource URIs as provider-relative paths"
+            }
+          ]
         }
       ]
     },
@@ -59319,6 +60412,28 @@
               "name": "DataWorkspace Project switching > waits for cached root revalidation before restoring an active file absent from stale data"
             }
           ]
+        },
+        {
+          "path": "tests/unit/workspace/explorer/stickyListEndMotion.test.ts",
+          "sha256": "38b76770fd328fcbc0c75c2b7b8b3a6acb0c71354ae91eb24858d09a33bc89a1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "sticky list-end motion > travels with the rows while the tree fits before and after"
+            },
+            {
+              "index": 1,
+              "name": "sticky list-end motion > glides up from the pinned edge when a collapse makes the tree fit"
+            },
+            {
+              "index": 2,
+              "name": "sticky list-end motion > glides down to the pinned edge when an expansion makes the tree overflow"
+            },
+            {
+              "index": 3,
+              "name": "sticky list-end motion > stays still while it remains pinned"
+            }
+          ]
         }
       ]
     },
@@ -59507,6 +60622,16 @@
             {
               "index": 7,
               "name": "finding where a project's folder went > offers a shared project to the other computers again, through the ordinary Turn on"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/workspace/projects/electron.folder-relocation.test.mjs",
+          "sha256": "07173a995c5f9df80fa43c512b4b7cf0ed4de8bbc9b88fd902099b0909a3e965",
+          "cases": [
+            {
+              "index": 6,
+              "name": "finding where a project's folder went > reports a shared project's share as withdrawn, so it can be shared again from the new place"
             }
           ]
         }
@@ -60253,6 +61378,32 @@
             {
               "index": 7,
               "name": "project window for a folder > matches a window that is still restoring its folder"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-workspace-surface-registry",
+      "kind": "out-of-scope",
+      "reason": "TS uses a pluggable WorkspaceSurfaceRegistry to switch between Data/Cloud/other route modules inside React. Rust Shell renders its Explorer, Editor, and RightSidebar surfaces directly without a dynamic route registry.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/lifecycle.md",
+      "typescript": [
+        {
+          "path": "tests/unit/workspace/projects/workspaceSurfaceRegistry.test.ts",
+          "sha256": "6d7dbdf990ced2089988197c869e7c73a3df78f6b22c43e5ff6e2ecc83c3946c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Workspace Surface Registry > derives navigation and route availability from the same capability result"
+            },
+            {
+              "index": 1,
+              "name": "Workspace Surface Registry > falls back unavailable routes to Data without producing a second content instance"
+            },
+            {
+              "index": 2,
+              "name": "Workspace Surface Registry > returns one resolved instance that owns both Sidebar and Main content"
             }
           ]
         }
