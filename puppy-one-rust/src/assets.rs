@@ -255,6 +255,20 @@ embedded! {
     "integrations" / "google-drive.svg",
     "integrations" / "notion.svg",
     "integrations" / "obsidian.svg",
+    "providers" / "anthropic.svg",
+    "providers" / "deepseek-color.svg",
+    "providers" / "gemini-color.svg",
+    "providers" / "groq.svg",
+    "providers" / "kimi-color.svg",
+    "providers" / "lmstudio.svg",
+    "providers" / "mistral-color.svg",
+    "providers" / "ollama.svg",
+    "providers" / "openai.svg",
+    "providers" / "openrouter.svg",
+    "providers" / "qwen-color.svg",
+    "providers" / "vllm-color.svg",
+    "providers" / "xai.svg",
+    "providers" / "zhipu-color.svg",
 }
 pub struct Assets;
 impl AssetSource for Assets {

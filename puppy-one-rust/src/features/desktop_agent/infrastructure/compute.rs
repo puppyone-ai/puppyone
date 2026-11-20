@@ -26,6 +26,16 @@ pub(crate) struct ComputeSnapshot {
     pub managed: Option<ManagedCompute>,
 }
 
+/// PuppyOne compute for Settings: `(signed in, credit available)`, or
+/// `None` while Payments is off and compute is not offered (blocking: the
+/// account's cached directory).
+pub fn read_managed_status() -> Option<(bool, bool)> {
+    let account = super::host::agent_host_global::CloudCompute;
+    let signed_in = account.current().is_some();
+    let available = signed_in && !configuration::managed(&account).is_empty();
+    Some((signed_in, available))
+}
+
 /// Reads the connections (blocking: the configuration file and PuppyOne
 /// compute's cached catalog).
 pub(crate) fn read_compute_snapshot() -> ComputeSnapshot {

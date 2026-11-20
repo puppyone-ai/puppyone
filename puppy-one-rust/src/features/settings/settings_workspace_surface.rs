@@ -92,6 +92,14 @@ impl SettingsWorkspaceSurface {
         if page == Page::Account {
             self.refresh_compute(cx);
         }
+        // Opening Model Connections looks for local services (loopback only).
+        if page == Page::ModelConnections {
+            let payments = crate::features::flags::payments_enabled(&self.preferences, cx);
+            self.models.update(cx, |m, cx| {
+                m.set_payments(payments, cx);
+                m.shown(cx)
+            });
+        }
         // Account reads the space's plan too (`useAccountPlan`).
         if matches!(page, Page::Plan | Page::Account) {
             self.load_plan(false, cx);
@@ -247,6 +255,14 @@ impl SettingsWorkspaceSurface {
             &models,
             |_, _, _: &crate::features::model_connections::Saved, cx| {
                 cx.emit(SettingsEvent::ModelConfigurationChanged)
+            },
+        )
+        .detach();
+        cx.subscribe(
+            &models,
+            |s, _, _: &crate::features::model_connections::OpenAccount, cx| {
+                s.select_page(Page::Account, cx);
+                cx.notify();
             },
         )
         .detach();

@@ -1,114 +1,8 @@
-use crate::{agent::model_connections::configuration, wake::Wake};
-pub use configuration::{Auth, Driver, ModelConnection, SourceKind};
-use std::sync::mpsc::{self, Receiver};
-pub fn load(wake: Wake) -> Receiver<Result<Vec<ModelConnection>, String>> {
-    let (tx, rx) = mpsc::sync_channel(1);
-    crate::localization::spawn(move || {
-        let _ = tx.send(configuration::load());
-        wake.notify();
-    });
-    rx
-}
-pub fn save(
-    connection: ModelConnection,
-    secret: Option<String>,
-    wake: Wake,
-) -> Receiver<Result<Vec<ModelConnection>, String>> {
-    let (tx, rx) = mpsc::sync_channel(1);
-    crate::localization::spawn(move || {
-        let result = configuration::save(connection, secret).and_then(|()| configuration::load());
-        let _ = tx.send(result);
-        wake.notify();
-    });
-    rx
-}
-
-pub fn remove(
-    id: String,
-    generation: String,
-    wake: Wake,
-) -> Receiver<Result<Vec<ModelConnection>, String>> {
-    let (tx, rx) = mpsc::sync_channel(1);
-    crate::localization::spawn(move || {
-        let result = configuration::remove(&id, &generation).and_then(|()| configuration::load());
-        let _ = tx.send(result);
-        wake.notify();
-    });
-    rx
-}
-
-/// A reachable local model service (`discovery-service.mjs` candidates).
-#[derive(Clone, Debug, PartialEq)]
-pub struct Candidate {
-    pub driver: Driver,
-    pub name: &'static str,
-    pub endpoint: &'static str,
-}
-/// `drivers/{ollama,lm-studio}.mjs` candidates and their probes.
-const CANDIDATES: [(Candidate, &str); 2] = [
-    (
-        Candidate {
-            driver: Driver::Ollama,
-            name: "Ollama",
-            endpoint: "http://127.0.0.1:11434/v1",
-        },
-        "http://127.0.0.1:11434/api/version",
-    ),
-    (
-        Candidate {
-            driver: Driver::LmStudio,
-            name: "LM Studio",
-            endpoint: "http://127.0.0.1:1234/v1",
-        },
-        "http://127.0.0.1:1234/api/v1/models",
-    ),
-];
-/// Probe the known local services; only loopback is ever contacted.
-pub fn discover(wake: Wake) -> Receiver<Vec<Candidate>> {
-    let (tx, rx) = mpsc::sync_channel(1);
-    std::thread::spawn(move || {
-        let found = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map(|runtime| {
-                runtime.block_on(async {
-                    let Ok(client) = crate::platform::proxy::system(reqwest::Client::builder())
-                        .redirect_policy(reqwest::redirect::Policy::none())
-                        .timeout(std::time::Duration::from_millis(1500))
-                        .build()
-                    else {
-                        return vec![];
-                    };
-                    let mut found = vec![];
-                    for (candidate, probe) in CANDIDATES {
-                        let Ok(response) = client.get(probe).send().await else {
-                            continue;
-                        };
-                        let Ok(value) = response.json::<serde_json::Value>().await else {
-                            continue;
-                        };
-                        let reachable = if candidate.driver == Driver::Ollama {
-                            value["version"].is_string()
-                        } else {
-                            value["models"].as_array().is_some_and(|models| {
-                                models
-                                    .iter()
-                                    .all(|m| m["key"].is_string() && m["type"].is_string())
-                            })
-                        };
-                        if reachable {
-                            found.push(candidate);
-                        }
-                    }
-                    found
-                })
-            })
-            .unwrap_or_default();
-        let _ = tx.send(found);
-        wake.notify();
-    });
-    rx
-}
+//! Model catalogs: what each service reports about the models it serves
+//! (`drivers/*.list` and `projectModelCatalog`), read with the connection's
+//! credential, never written anywhere.
+use super::{Driver, ModelConnection};
+use crate::agent::model_connections::providers;
 
 /// What a model service reports about one model (`modelEntry`).
 #[derive(Clone, Debug, PartialEq)]
@@ -122,6 +16,9 @@ pub struct CatalogModel {
     pub context: Option<u64>,
     /// The largest window the model supports, when the service says.
     pub max_context: Option<u64>,
+    /// Served by a remote host through a local service (Ollama cloud
+    /// models): not offline, not free.
+    pub remote: bool,
 }
 impl CatalogModel {
     /// A model known by its ID alone.
@@ -134,6 +31,7 @@ impl CatalogModel {
             images: None,
             context: None,
             max_context: None,
+            remote: false,
         }
     }
 }
@@ -145,16 +43,37 @@ fn model_id(value: &serde_json::Value) -> Option<String> {
     (!id.trim().is_empty() && id.len() <= 300 && !id.chars().any(char::is_control))
         .then(|| id.to_owned())
 }
+/// How a catalog request authenticates.
+#[derive(Clone, Copy)]
+enum KeyHeader {
+    Bearer,
+    /// Anthropic: `x-api-key` and the API version.
+    Anthropic,
+}
 /// One metadata request (`createModelMetadataClient`): JSON, the key as a
-/// bearer token, a missing endpoint told apart.
+/// bearer token (or Anthropic's header), a missing endpoint told apart.
 async fn get_json(
     client: &reqwest::Client,
     url: String,
     key: Option<&str>,
 ) -> Result<serde_json::Value, String> {
+    get_json_as(client, url, key, KeyHeader::Bearer).await
+}
+async fn get_json_as(
+    client: &reqwest::Client,
+    url: String,
+    key: Option<&str>,
+    header: KeyHeader,
+) -> Result<serde_json::Value, String> {
     let mut request = client.get(url);
-    if let Some(key) = key {
-        request = request.bearer_auth(key);
+    match (key, header) {
+        (Some(key), KeyHeader::Bearer) => request = request.bearer_auth(key),
+        (Some(key), KeyHeader::Anthropic) => {
+            request = request
+                .header("x-api-key", key)
+                .header("anthropic-version", "2023-06-01");
+        }
+        (None, _) => {}
     }
     let response = request
         .send()
@@ -187,8 +106,10 @@ async fn openai_catalog(
 }
 /// `drivers/*.list` by the connection's driver: Ollama (tags, ps, show for
 /// the first 16), LM Studio (`/api/v1/models`, else the OpenAI catalog),
-/// Unsloth and OpenAI-compatible (`/models`); then `projectModelCatalog`.
-/// At most 500 models.
+/// llama.cpp (`/models` with the server's `/props` window), Anthropic
+/// (`/v1/models`), the other services (`/models`); a provider whose
+/// catalog cannot be read with this credential serves its known models.
+/// Then `projectModelCatalog`. At most 500 models.
 pub async fn list_models(
     client: &reqwest::Client,
     connection: &ModelConnection,
@@ -199,12 +120,13 @@ pub async fn list_models(
         .trim_end_matches('/')
         .trim_end_matches("/v1")
         .to_owned();
-    let models = match connection.driver {
+    let provider = connection.provider();
+    let listed = match connection.driver {
         Driver::Ollama => {
             let tags = get_json(client, format!("{native}/api/tags"), key).await?;
             let running = get_json(client, format!("{native}/api/ps"), key).await.ok();
             let mut models = ollama_models(&tags, running.as_ref());
-            for model in models.iter_mut().take(16) {
+            for model in models.iter_mut().filter(|m| !m.remote).take(16) {
                 let detail = client
                     .post(format!("{native}/api/show"))
                     .json(&serde_json::json!({"model": model.id}))
@@ -217,18 +139,107 @@ pub async fn list_models(
                     ollama_detail(model, &value);
                 }
             }
-            models
+            Ok(models)
         }
         Driver::LmStudio => match get_json(client, format!("{native}/api/v1/models"), key).await {
-            Ok(value) => lm_studio_models(&value),
-            Err(e) if e != "ENDPOINT_NOT_FOUND" => return Err(e),
-            Err(_) => openai_catalog(client, connection, key).await?,
+            Ok(value) => Ok(lm_studio_models(&value)),
+            Err(e) if e != "ENDPOINT_NOT_FOUND" => Err(e),
+            Err(_) => openai_catalog(client, connection, key).await,
         },
-        Driver::Unsloth | Driver::OpenaiCompatible => {
-            openai_catalog(client, connection, key).await?
+        Driver::LlamaCpp => {
+            let mut models = openai_catalog(client, connection, key).await?;
+            if let Ok(props) = get_json(client, format!("{native}/props"), key).await
+                && let Some(window) = llama_cpp_window(&props)
+            {
+                for model in &mut models {
+                    model.context = Some(window);
+                }
+            }
+            Ok(models)
         }
+        Driver::Anthropic => {
+            let header = if connection.auth == super::Auth::Oauth {
+                KeyHeader::Bearer
+            } else {
+                KeyHeader::Anthropic
+            };
+            get_json_as(
+                client,
+                format!(
+                    "{}/v1/models?limit=100",
+                    connection.endpoint.trim_end_matches('/')
+                ),
+                key,
+                header,
+            )
+            .await
+            .map(|value| openai_models(&value))
+        }
+        // The Codex backend has no public catalog: its known models serve.
+        Driver::Chatgpt => Ok(vec![]),
+        Driver::OpenaiCompatible if provider.is_some_and(|p| p.id == "openrouter") => {
+            let url = format!("{}/models", connection.endpoint.trim_end_matches('/'));
+            get_json(client, url, key)
+                .await
+                .map(|v| openrouter_models(&v))
+        }
+        Driver::Unsloth
+        | Driver::Mlx
+        | Driver::Vllm
+        | Driver::Jan
+        | Driver::LocalAi
+        | Driver::OpenaiCompatible
+        | Driver::OpenaiResponses => openai_catalog(client, connection, key).await,
+    };
+    let known = provider.map(|p| p.known).unwrap_or_default();
+    let models = match listed {
+        Ok(models) if !models.is_empty() || known.is_empty() => models,
+        Ok(_) => known_models(known),
+        // A sign-in credential may not read the catalog (xAI, Kimi): the
+        // provider's known models stand in. Any other failure is reported.
+        Err(_) if !known.is_empty() && connection.auth == super::Auth::Oauth => known_models(known),
+        Err(e) => return Err(e),
     };
     Ok(project(connection, models))
+}
+fn known_models(known: &[providers::KnownModel]) -> Vec<CatalogModel> {
+    known
+        .iter()
+        .map(|k| CatalogModel {
+            tools: Some(true),
+            context: Some(k.context),
+            ..CatalogModel::named(k.id.to_owned())
+        })
+        .collect()
+}
+/// llama.cpp `/props`: the server's context window (`n_ctx`).
+pub fn llama_cpp_window(props: &serde_json::Value) -> Option<u64> {
+    positive(&props["default_generation_settings"]["n_ctx"]).or_else(|| positive(&props["n_ctx"]))
+}
+/// OpenRouter `/models`: each model's window and whether it accepts tools.
+pub fn openrouter_models(value: &serde_json::Value) -> Vec<CatalogModel> {
+    value["data"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .take(500)
+        .filter_map(|entry| {
+            let id = model_id(&entry["id"])?;
+            let parameters = entry["supported_parameters"].as_array();
+            Some(CatalogModel {
+                name: entry["name"]
+                    .as_str()
+                    .map(|n| n.chars().take(300).collect())
+                    .unwrap_or_else(|| id.clone()),
+                tools: parameters.map(|p| p.iter().any(|v| v == "tools")),
+                images: entry["architecture"]["input_modalities"]
+                    .as_array()
+                    .map(|m| m.iter().any(|v| v == "image")),
+                context: positive(&entry["context_length"]),
+                ..CatalogModel::named(id)
+            })
+        })
+        .collect()
 }
 /// `projectModelCatalog`: the manual model joins a catalog that does not
 /// list it, and the context budget stands in for a window the service did
@@ -278,7 +289,9 @@ pub fn ollama_models(
                 .find(|m| m["name"] == id.as_str() || m["model"] == id.as_str())
                 .cloned()
         });
+        let remote = entry["remote_host"].is_string() || entry["remote_model"].is_string();
         models.push(CatalogModel {
+            remote,
             loaded: running.map(|_| instance.is_some()),
             context: instance
                 .as_ref()
@@ -316,6 +329,7 @@ pub fn lm_studio_models(value: &serde_json::Value) -> Vec<CatalogModel> {
                 .filter_map(|i| positive(&i["config"]["context_length"]))
                 .min(),
             max_context: positive(&entry["max_context_length"]),
+            remote: false,
         });
     }
     models
@@ -331,64 +345,93 @@ pub fn openai_models(value: &serde_json::Value) -> Vec<CatalogModel> {
         .map(CatalogModel::named)
         .collect()
 }
-/// The catalog of `connection`, read on a worker.
-pub fn catalog(
-    connection: ModelConnection,
-    wake: Wake,
-) -> Receiver<Result<Vec<CatalogModel>, String>> {
-    let (tx, rx) = mpsc::sync_channel(1);
-    std::thread::spawn(move || {
-        let result = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| e.to_string())
-            .and_then(|runtime| {
-                runtime.block_on(async {
-                    let client = crate::platform::proxy::system(reqwest::Client::builder())
-                        .redirect_policy(reqwest::redirect::Policy::none())
-                        .timeout(std::time::Duration::from_secs(15))
-                        .build()
-                        .map_err(|e| e.to_string())?;
-                    let key = connection.credential().ok().flatten();
-                    list_models(&client, &connection, key.as_deref()).await
-                })
-            });
-        let _ = tx.send(result);
-        wake.notify();
-    });
-    rx
-}
-/// `verify`: the Agent tool round trip for the connection's model.
-pub fn verify(connection: ModelConnection, wake: Wake) -> Receiver<Result<(), String>> {
-    let (tx, rx) = mpsc::sync_channel(1);
-    std::thread::spawn(move || {
-        let result = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| e.to_string())
-            .and_then(|runtime| {
-                runtime.block_on(async {
-                    tokio::time::timeout(
-                        std::time::Duration::from_secs(60),
-                        crate::agent::runtimes::puppyone_agent::verify(
-                            &connection,
-                            &crate::features::desktop_agent::CloudCompute,
-                        ),
-                    )
-                    .await
-                    .map_err(|_| "TIMEOUT".to_owned())?
-                })
-            });
-        let _ = tx.send(result);
-        wake.notify();
-    });
-    rx
-}
-
 #[cfg(test)]
 mod catalog_tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn ollama_cloud_models_are_marked_remote_and_not_inspected() {
+        let tags = json!({"models": [
+            {"name": "qwen3:8b"},
+            {"name": "gpt-oss:120b-cloud", "remote_model": "gpt-oss:120b", "remote_host": "https://ollama.com:443"}
+        ]});
+        let models = ollama_models(&tags, None);
+        assert_eq!(
+            models
+                .iter()
+                .map(|m| (m.id.as_str(), m.remote))
+                .collect::<Vec<_>>(),
+            [("qwen3:8b", false), ("gpt-oss:120b-cloud", true)]
+        );
+    }
+
+    #[test]
+    fn openrouter_reports_tool_support_and_windows() {
+        let value = json!({"data": [
+            {"id": "a/tools", "name": "A", "context_length": 200000, "supported_parameters": ["tools", "temperature"]},
+            {"id": "b/plain", "context_length": 8192, "supported_parameters": ["temperature"]},
+            {"id": "c/unknown"}
+        ]});
+        let models = openrouter_models(&value);
+        assert_eq!(
+            models
+                .iter()
+                .map(|m| (m.id.as_str(), m.tools, m.context))
+                .collect::<Vec<_>>(),
+            [
+                ("a/tools", Some(true), Some(200000)),
+                ("b/plain", Some(false), Some(8192)),
+                ("c/unknown", None, None)
+            ]
+        );
+    }
+
+    #[test]
+    fn llama_cpp_reports_its_window_in_props() {
+        assert_eq!(
+            llama_cpp_window(&json!({"default_generation_settings": {"n_ctx": 16384}})),
+            Some(16384)
+        );
+        assert_eq!(llama_cpp_window(&json!({"n_ctx": 4096})), Some(4096));
+        assert_eq!(llama_cpp_window(&json!({})), None);
+    }
+
+    #[test]
+    fn a_signed_in_provider_without_a_catalog_serves_its_known_models() {
+        let codex = ModelConnection {
+            driver: Driver::Chatgpt,
+            auth: crate::agent::model_connections::configuration::Auth::Oauth,
+            oauth_provider: Some(crate::agent::model_connections::oauth::OauthProvider::Chatgpt),
+            endpoint: "https://chatgpt.com/backend-api".into(),
+            ..Default::default()
+        };
+        let models = list(&codex, Some("token")).unwrap();
+        assert_eq!(models[0].id, "gpt-5.5");
+        assert!(
+            models
+                .iter()
+                .all(|m| m.tools == Some(true) && m.context.is_some())
+        );
+    }
+
+    #[test]
+    fn anthropic_catalogs_send_the_key_in_anthropic_headers() {
+        let (port, server) = serve("200 OK", r#"{"data":[{"id":"claude-sonnet-4-5"}]}"#);
+        let connection = ModelConnection {
+            driver: Driver::Anthropic,
+            auth: crate::agent::model_connections::configuration::Auth::Bearer,
+            endpoint: format!("http://127.0.0.1:{port}"),
+            ..Default::default()
+        };
+        let models = list(&connection, Some("sk-ant-test")).unwrap();
+        let head = server.join().unwrap().to_ascii_lowercase();
+        assert!(head.starts_with("get /v1/models?limit=100 "), "{head}");
+        assert!(head.contains("x-api-key: sk-ant-test"));
+        assert!(head.contains("anthropic-version: 2023-06-01"));
+        assert!(!head.contains("authorization:"));
+        assert_eq!(models[0].id, "claude-sonnet-4-5");
+    }
 
     #[test]
     fn ollama_catalog_marks_loaded_models_and_their_context() {

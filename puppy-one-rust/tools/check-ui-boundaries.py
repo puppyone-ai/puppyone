@@ -258,7 +258,7 @@ for path in sorted(set(views)):
 for path in (root / 'src/agent/model_connections').rglob('*.rs'):
     if re.search(r'\b(?:gpui|wry)\s*::|crate::features', path.read_text()):
         errors.append(f'{path.relative_to(root)}: model configuration depends on presentation')
-for path in [root / 'src/features/model_connections/ui.rs']:
+for path in sorted((root / 'src/features/model_connections/ui').rglob('*.rs')):
     if re.search(r'\b(?:security_framework|reqwest)\s*::|\bstd\s*::\s*(?:fs|process|thread|net)|configuration::', path.read_text()):
         errors.append(f'{path.relative_to(root)}: model configuration view bypasses native client')
 # Product-level owners must survive the language port; views do not persist data.

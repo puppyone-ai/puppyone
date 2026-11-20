@@ -678,15 +678,15 @@
         "src/features/model-connections/model-connections-settings.css"
       ],
       "targets": [
-        "src/features/model_connections/ui.rs",
-        "src/features/model_connections/infrastructure.rs",
+        "src/features/model_connections/ui/mod.rs",
+        "src/features/model_connections/infrastructure/mod.rs",
         "src/agent/model_connections/configuration.rs"
       ],
       "evidence": [
         "test:base_urls_are_canonical_and_unsafe_endpoints_are_rejected",
         "test:concurrent_edit_and_delete_do_not_resurrect_or_retire_active_credentials"
       ],
-      "remaining": "List, add/edit and detail flow with Keychain credentials. Local service discovery, tool-support verification and managed (cloud) connections are not ported."
+      "remaining": "List, add/edit and detail flow with Keychain credentials, local service discovery, tool-support verification and the managed (cloud) status row are ported; the Rust app goes further (provider presets, Pi-derived sign-ins, one-click local binding). Pixel parity with the Electron page is not verified."
     },
     {
       "name": "Header and window chrome",

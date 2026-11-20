@@ -1,7 +1,7 @@
 //! The in-process kernel behind the product's Built-in Agent adapter: the
 //! model-connection binding, the shared Pi RPC client and its event
 //! normalizer, with a scripted model in place of the network.
-use super::super::model_client::Completion;
+use super::super::model_client::{Completion, Usage};
 use super::super::native_model_connections::{
     NativeModelConnectionPort, connection_catalog, product_connection_id,
 };
@@ -56,7 +56,12 @@ enum Step {
 fn text(text: &str) -> Completion {
     Completion {
         text: text.into(),
-        usage: json!({ "prompt_tokens": 12, "completion_tokens": 3 }),
+        usage: Usage {
+            input: 12,
+            output: 3,
+            cache_read: 8,
+            cache_write: 0,
+        },
         ..Default::default()
     }
 }
@@ -227,6 +232,10 @@ fn a_prompt_streams_through_the_kernel_and_settles() {
         assert_eq!(answer["itemId"], streamed["itemId"]);
         assert!(kinds(&events).contains(&"reasoning.summary.delta".to_string()));
         assert!(kinds(&events).contains(&"usage.updated".to_string()));
+        let usage = all.iter().find(|e| e["type"] == "usage.updated").unwrap();
+        // Cache hits reach the usage report instead of a placeholder zero.
+        assert_eq!(usage["payload"]["inputTokens"], 12);
+        assert_eq!(usage["payload"]["cachedTokens"], 8);
         let context = model.contexts.borrow()[0].clone();
         assert_eq!(context[0]["role"], "system");
         assert_eq!(context[1], json!({ "role": "user", "content": "Hello" }));
