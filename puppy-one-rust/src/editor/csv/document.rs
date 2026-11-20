@@ -531,6 +531,106 @@ pub fn column_label(index: usize) -> String {
 mod tests {
     use super::*;
 
+    fn rows(rows: &[&[&str]]) -> Vec<Vec<String>> {
+        rows.iter()
+            .map(|r| r.iter().map(|c| (*c).to_owned()).collect())
+            .collect()
+    }
+
+    /// `csvDocument.test.ts` with the product's inputs: quoted delimiters,
+    /// escaped quotes and multiline cells; a snapshot that reparses to the
+    /// same cells; the delimiter policy; malformed quoted source keeps its
+    /// cells; newline and BOM conventions survive an edit; a terminal empty
+    /// one-column record survives; normalization, header inference and
+    /// column labels.
+    #[test]
+    fn the_product_document_cases_parse_and_serialize_alike() {
+        let p = parse(
+            "name,notes\n\"Ada, A.\",\"said \"\"hello\"\"\non two lines\"",
+            Delimiter::Comma,
+        );
+        assert_eq!(
+            p.rows,
+            rows(&[
+                &["name", "notes"],
+                &["Ada, A.", "said \"hello\"\non two lines"]
+            ])
+        );
+        assert_eq!(
+            (
+                p.layout.line_ending,
+                p.layout.trailing_line_ending,
+                p.layout.utf8_bom
+            ),
+            (LineEnding::Lf, false, false)
+        );
+
+        let cells = rows(&[
+            &["plain", "comma,value", "quote \" value"],
+            &["line\nbreak", " padded ", ""],
+        ]);
+        let snapshot = stringify(&cells, Delimiter::Comma, Layout::default(), false);
+        assert_eq!(
+            snapshot,
+            "plain,\"comma,value\",\"quote \"\" value\"\n\"line\nbreak\",\" padded \","
+        );
+        assert_eq!(parse(&snapshot, Delimiter::Comma).rows, cells);
+
+        assert_eq!(infer_delimiter("table.tsv", "a,b\tc,d"), Delimiter::Tab);
+        assert_eq!(infer_delimiter("table.csv", "a\tb\nc\td"), Delimiter::Tab);
+        assert_eq!(infer_delimiter("table.csv", "a,b\nc,d"), Delimiter::Comma);
+
+        let malformed = parse("a,\"unfinished", Delimiter::Comma);
+        assert_eq!(malformed.rows, rows(&[&["a", "unfinished"]]));
+        assert_eq!(malformed.unclosed_quote, Some(0));
+
+        let parsed = parse("\u{FEFF}a,b\r\nc,d\r\n", Delimiter::Comma);
+        assert_eq!(
+            stringify(
+                &rows(&[&["updated", "b"], &["c", "d"]]),
+                Delimiter::Comma,
+                parsed.layout,
+                false
+            ),
+            "\u{FEFF}updated,b\r\nc,d\r\n"
+        );
+
+        let terminal = rows(&[&["value"], &[""]]);
+        let snapshot = stringify(&terminal, Delimiter::Comma, Layout::default(), true);
+        assert_eq!(snapshot, "value\n\"\"");
+        assert_eq!(parse(&snapshot, Delimiter::Comma).rows, terminal);
+
+        assert_eq!(
+            normalize(rows(&[&["a"], &["b", "c"]])),
+            rows(&[&["a", ""], &["b", "c"]])
+        );
+        for (table, header) in [
+            (rows(&[&["Name", "Count"], &["Ada", "2"]]), true),
+            (
+                rows(&[&["Name", "Email"], &["Ada", "ada@example.com"]]),
+                true,
+            ),
+            (
+                rows(&[
+                    &["Column 1", "Column 2", "Column 3"],
+                    &["", "", ""],
+                    &["", "", ""],
+                ]),
+                true,
+            ),
+            (rows(&[&["Name", "City"], &["Ada", "London"]]), false),
+            (rows(&[&["Alice", "London"], &["Bob", "Paris"]]), false),
+            (rows(&[&["Alice", "London"], &["", ""]]), false),
+            (rows(&[&["Name", "Name"], &["Ada", "Lovelace"]]), false),
+        ] {
+            assert_eq!(infer_header(&table), header, "{table:?}");
+        }
+        assert_eq!(
+            (column_label(0), column_label(26)),
+            ("A".into(), "AA".into())
+        );
+    }
+
     #[test]
     fn parse_and_stringify_round_trip_with_layout() {
         let text = "\u{FEFF}a,\"b, c\",\"say \"\"hi\"\"\"\r\n1,2,3\r\n";

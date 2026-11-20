@@ -221,6 +221,76 @@ mod tests {
             .collect()
     }
 
+    /// `csvTableOperations.test.ts` with the product's inputs: the header
+    /// stays fixed while rows move by command or drop; body rows insert,
+    /// duplicate and delete without touching the source; columns move,
+    /// insert and delete whole; deleting the only row leaves a blank one;
+    /// expanding grows rows and columns at once and never shrinks.
+    #[test]
+    fn the_product_operation_cases_rewrite_only_what_they_name() {
+        let rows = m(&[&["Name", "Score"], &["Ada", "1"], &["Lin", "2"]]);
+        assert_eq!(apply(&rows, true, Operation::MoveRowUp, 1, 0).0, rows);
+        assert_eq!(apply(&rows, true, Operation::DeleteRow, 0, 0).0, rows);
+        assert_eq!(
+            apply(&rows, true, Operation::MoveRowTo(1), 2, 1),
+            (
+                m(&[&["Name", "Score"], &["Lin", "2"], &["Ada", "1"]]),
+                Focus { row: 1, column: 1 }
+            )
+        );
+
+        let rows = m(&[&["Header"], &["one"], &["two"]]);
+        let (inserted, _) = apply(&rows, true, Operation::InsertRowAbove, 1, 0);
+        let (duplicated, _) = apply(&inserted, true, Operation::DuplicateRow, 2, 0);
+        let (deleted, _) = apply(&duplicated, true, Operation::DeleteRow, 1, 0);
+        assert_eq!(rows, m(&[&["Header"], &["one"], &["two"]]));
+        assert_eq!(inserted, m(&[&["Header"], &[""], &["one"], &["two"]]));
+        assert_eq!(
+            duplicated,
+            m(&[&["Header"], &[""], &["one"], &["one"], &["two"]])
+        );
+        assert_eq!(deleted, m(&[&["Header"], &["one"], &["one"], &["two"]]));
+
+        let rows = m(&[&["A", "B", "C"], &["1", "2", "3"]]);
+        let moved = apply(&rows, false, Operation::MoveColumnTo(0), 0, 2);
+        assert_eq!(
+            moved,
+            (
+                m(&[&["C", "A", "B"], &["3", "1", "2"]]),
+                Focus { row: 0, column: 0 }
+            )
+        );
+        let (inserted, _) = apply(&moved.0, false, Operation::InsertColumnRight, 1, 1);
+        assert_eq!(inserted, m(&[&["C", "A", "", "B"], &["3", "1", "", "2"]]));
+        assert_eq!(
+            apply(&inserted, false, Operation::DeleteColumn, 1, 2).0,
+            moved.0
+        );
+
+        assert_eq!(
+            apply(&m(&[&["value"]]), false, Operation::DeleteRow, 0, 0),
+            (m(&[&[""]]), Focus { row: 0, column: 0 })
+        );
+
+        let source = m(&[&["Name", "Score"], &["Ada", "1"]]);
+        let grow = |data_rows, columns| Operation::ExpandToShape { data_rows, columns };
+        let expanded = apply(&source, true, grow(4, 5), 1, 1);
+        assert_eq!(
+            expanded,
+            (
+                m(&[
+                    &["Name", "Score", "", "", ""],
+                    &["Ada", "1", "", "", ""],
+                    &["", "", "", "", ""],
+                    &["", "", "", "", ""],
+                    &["", "", "", "", ""],
+                ]),
+                Focus { row: 2, column: 2 }
+            )
+        );
+        assert_eq!(apply(&expanded.0, true, grow(1, 1), 1, 1).0, expanded.0);
+    }
+
     #[test]
     fn header_stays_fixed_and_shapes_expand() {
         let rows = m(&[&["h1", "h2"], &["a", "b"], &["c", "d"]]);

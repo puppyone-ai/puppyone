@@ -40078,6 +40078,308 @@
           "test": "editor::document_session::tests::new_edits_after_external_adoption_wait_for_retired_call"
         }
       ]
+    },
+    {
+      "id": "csv-document-format",
+      "acceptance": "With the product's inputs CSV parses quoted delimiters, escaped quotes and multiline cells; a serialized snapshot reparses to the same cells; `.tsv` and tab-heavy samples choose the tab delimiter; malformed quoted source keeps its cells and reports the unclosed quote; newline and BOM conventions survive an edit; a terminal empty one-column record survives; rows normalize to a rectangle, header inference follows the product's rules and columns are labelled A…Z, AA (the product's trimRows has no caller).",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/csv/csvDocument.test.ts",
+          "sha256": "80790f2bb87cd399bf3e5e966218a1eb6b9c3019ec07cfa0b70ccfb5cfec354b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV document model > parses quoted delimiters, escaped quotes, and multiline cells"
+            },
+            {
+              "index": 1,
+              "name": "CSV document model > serializes a complete snapshot that reparses to the same cell model"
+            },
+            {
+              "index": 2,
+              "name": "CSV document model > keeps CSV and TSV delimiter policy in the format model"
+            },
+            {
+              "index": 3,
+              "name": "CSV document model > reports malformed quoted source without discarding its cells"
+            },
+            {
+              "index": 4,
+              "name": "CSV document model > preserves source newline and BOM conventions when a table is edited"
+            },
+            {
+              "index": 5,
+              "name": "CSV document model > can preserve a terminal one-column empty record for structural editing"
+            },
+            {
+              "index": 6,
+              "name": "CSV document model > owns table normalization, trimming, header inference, and column labels"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::csv::document::tests::the_product_document_cases_parse_and_serialize_alike"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::document::tests::parse_and_stringify_round_trip_with_layout"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::document::tests::inference_follows_the_product_rules"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::document::tests::property_round_trip_preserves_untouched_bytes_and_edited_values"
+        }
+      ]
+    },
+    {
+      "id": "csv-document-model",
+      "acceptance": "A cell edit replaces only its row and serializes on demand (the same text object until the next change); accepted source stays byte-exact until a local edit and a replacement is taken as written; row and column identities follow their moves; undo and redo belong to the model; one edit in a 500 × 20 table shares every other row.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/csv/csvDocumentModel.test.ts",
+          "sha256": "fa78ee37a170cdf469d42b433d646d409c219f055a4fceb0a5e0aa9465356c19",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV structured document model > updates only the target row and serializes only at an explicit snapshot boundary"
+            },
+            {
+              "index": 1,
+              "name": "CSV structured document model > preserves exact accepted source until a local transaction requires canonical serialization"
+            },
+            {
+              "index": 2,
+              "name": "CSV structured document model > keeps stable row and column identities across edits and structural moves"
+            },
+            {
+              "index": 3,
+              "name": "CSV structured document model > provides model-owned undo and redo without relying on mounted input history"
+            },
+            {
+              "index": 4,
+              "name": "CSV structured document model > keeps a 500 by 20 character edit local to one row"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::csv::model::tests::the_product_model_cases_keep_rows_identities_and_history"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::model::tests::edits_share_history_and_serialize_canonically"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::model::tests::large_table_10000x20_retains_all_200_incremental_undo_steps"
+        }
+      ]
+    },
+    {
+      "id": "csv-table-operations",
+      "acceptance": "The header stays fixed while rows move by command or drop; body rows insert, duplicate and delete without touching the source; columns move, insert and delete whole; deleting the only row leaves a blank one; expanding grows rows and columns at once and never shrinks; capacity caps refuse overflow.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/csv/csvTableOperations.test.ts",
+          "sha256": "eb04e4f90f2d2a79c8c87a231c5179b73bbd60163924b2f69c9f31afa055b7a8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV table structural operations > keeps the header fixed while rows move through commands and direct drops"
+            },
+            {
+              "index": 1,
+              "name": "CSV table structural operations > inserts, duplicates, and deletes body rows without mutating the source"
+            },
+            {
+              "index": 2,
+              "name": "CSV table structural operations > moves and edits whole columns as one structural operation"
+            },
+            {
+              "index": 3,
+              "name": "CSV table structural operations > turns deletion of the only non-header row into an editable blank row"
+            },
+            {
+              "index": 4,
+              "name": "CSV table structural operations > expands rows and columns atomically without allowing inward data loss"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::csv::operations::tests::the_product_operation_cases_rewrite_only_what_they_name"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::operations::tests::header_stays_fixed_and_shapes_expand"
+        }
+      ]
+    },
+    {
+      "id": "csv-column-layout",
+      "acceptance": "Column widths are view state: they catch up with the document whenever the view syncs (also after columns were added while it was away, and on undo), never follow cell content, follow column identities through a move, a delete and its undo, restore compatible stored widths without entering the CSV, cap only initial and reset widths (an explicit width is kept) and fit proportionally while keeping readable minimums; widths for CSV and Markdown share one visual-width model sampled from at most 128 rows including the last.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/csv/csvColumnLayoutModel.test.ts",
+          "sha256": "02cf06d69d01f95d1d44d4c7dc55ceeaa68d8049634087fcfcaf8970d1bfb10e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV column layout view state > connects only for mounted consumers and catches up after a subscription replay"
+            },
+            {
+              "index": 1,
+              "name": "CSV column layout view state > does not resize a column when cell content changes"
+            },
+            {
+              "index": 2,
+              "name": "CSV column layout view state > keeps widths with stable column identities through move, delete, and undo"
+            },
+            {
+              "index": 3,
+              "name": "CSV column layout view state > restores compatible persisted widths without putting them in the CSV model"
+            },
+            {
+              "index": 4,
+              "name": "CSV column layout view state > caps only initial and reset widths while preserving an explicit user width"
+            },
+            {
+              "index": 5,
+              "name": "CSV column layout view state > fits proportionally when possible and preserves readable overflow below the minimum"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/csv/editableTableLayout.test.ts",
+          "sha256": "309bb423a740d61176da14dd93cb7e5085a815105c66e7e743d674f8558352dd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "editable table layout > uses the same bounded visual-width model for CSV and Markdown cells"
+            },
+            {
+              "index": 1,
+              "name": "editable table layout > samples a large document evenly and includes its final rows"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::csv::layout::tests::widths_follow_column_identities_and_never_follow_cell_content"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::table::layout::tests::widths_follow_visual_units_and_sample_large_documents"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::table::layout::tests::fitting_scales_clamps_and_distributes_the_remainder"
+        }
+      ]
+    },
+    {
+      "id": "csv-corner-resize-geometry",
+      "acceptance": "Corner drags snap outward distance to whole rows and columns once past a track's midpoint, never shrink and stop at the remaining budget; added rows are capped by the canvas below the table while columns may grow past its edge; edge scrolling runs only at the outward edge at a bounded speed (left to right; the mirrored right-to-left case belongs to rtl-writing-direction).",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/csv/csvTableResizeControl.test.ts",
+          "sha256": "be0655c50605df846a12adf1b7b38dac95162430f23cd49da76c599d6cce458e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV table corner resize geometry > snaps outward distance to the nearest complete row and column"
+            },
+            {
+              "index": 1,
+              "name": "CSV table corner resize geometry > does not preview the first track until the pointer crosses its midpoint"
+            },
+            {
+              "index": 2,
+              "name": "CSV table corner resize geometry > never turns inward movement into a shrinking operation"
+            },
+            {
+              "index": 3,
+              "name": "CSV table corner resize geometry > clamps expansion to the remaining safety budget"
+            },
+            {
+              "index": 4,
+              "name": "CSV table corner resize geometry > caps rows to the viewport but lets columns grow past its edge"
+            },
+            {
+              "index": 5,
+              "name": "CSV table corner resize geometry > does not block column growth when the existing table already fills the viewport"
+            },
+            {
+              "index": 6,
+              "name": "CSV table corner resize geometry > scrolls only at the outward edge, with bounded speed and mirrored RTL behavior"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::expand::tests::the_product_corner_geometry_snaps_caps_and_scrolls_outward"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::expand::tests::drags_snap_to_whole_tracks_past_their_midpoint"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::view::expand::tests::edge_scrolling_ramps_up_inside_the_trailing_zone"
+        }
+      ]
+    },
+    {
+      "id": "csv-view-preferences",
+      "acceptance": "Header interpretation, row numbers and column widths are kept per document without disturbing each other or a sibling document; a malformed store or a missing document id reads as empty and writes nothing; widths come back only for the same delimiter and column count.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/csv/csvViewPreferences.test.ts",
+          "sha256": "3434382fefb2df5f89f17cc39a282c4b10e40e7ba9e42d8075911f138f5ddd4c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "CSV view preferences > keeps header interpretation per document without touching CSV content"
+            },
+            {
+              "index": 1,
+              "name": "CSV view preferences > keeps row-number visibility per document and preserves sibling preferences"
+            },
+            {
+              "index": 2,
+              "name": "CSV view preferences > fails open when preference storage is missing or malformed"
+            },
+            {
+              "index": 3,
+              "name": "CSV view preferences > stores compatible column geometry as view state beside other preferences"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::csv::preferences::tests::view_state_is_per_document_and_fails_open"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::csv::preferences::tests::the_store_round_trips_and_drops_malformed_entries"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -50857,6 +51159,48 @@
             {
               "index": 4,
               "name": "local document persistence adapter > preserves the structured 'io' outcome across the renderer adapter"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-tabular-windowing",
+      "kind": "out-of-scope",
+      "reason": "TS mounts a bounded window of DOM rows and columns (prefix geometry for variable widths, a mounted-item cap, directional and velocity-predicted overscan) so fast scrolling stays inside rendered rows. The native grid paints exactly the rows and columns that intersect the viewport on every frame, so there are no mounted items, caps or overscan to predict; large-table cost is covered by the CSV view tests (large_csv_parses_in_background_while_showing_readonly_preview_and_respects_replace_text) and the csv_table_cost bench.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/csv/performance-and-testing.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/csv/tabularWindow.test.ts",
+          "sha256": "b6eac4a57667666dd5b1fde7de82457d1c4c76ff0a48e983820991e1273c90a1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "bounded tabular projection > keeps a fixed row window bounded while advancing through the logical model"
+            },
+            {
+              "index": 1,
+              "name": "bounded tabular projection > uses prefix geometry to bound variable-width columns"
+            },
+            {
+              "index": 2,
+              "name": "bounded tabular projection > windows overflowing rows and columns even when they are below the safety cap"
+            },
+            {
+              "index": 3,
+              "name": "bounded tabular projection > allocates a directional row buffer without crossing the mounted-row cap"
+            },
+            {
+              "index": 4,
+              "name": "bounded tabular projection > predicts two paint intervals in the scroll direction and clamps extreme velocity"
+            },
+            {
+              "index": 5,
+              "name": "bounded tabular projection > keeps the next fast-scroll viewport inside the predicted render envelope"
+            },
+            {
+              "index": 6,
+              "name": "bounded tabular projection > represents offscreen geometry as gaps and keeps a pinned interaction item"
             }
           ]
         }

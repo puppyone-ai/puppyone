@@ -198,11 +198,7 @@ impl CsvEditor {
         });
         // Stored view state wins over the defaults (`readCsv…Preference`).
         let stored = preferences::read(document_id);
-        let widths = stored
-            .column_layout
-            .as_ref()
-            .filter(|(d, w)| *d == delimiter && w.len() == model.column_count())
-            .map(|(_, w)| w.as_slice());
+        let widths = stored.widths_for(delimiter, model.column_count());
         let layout = ColumnLayout::new(&model, widths);
         let header = stored
             .first_record_as_header
@@ -318,11 +314,7 @@ impl CsvEditor {
         if stored.first_record_as_header.is_none() {
             self.header = self.model.content().suggested_header;
         }
-        let widths = stored
-            .column_layout
-            .as_ref()
-            .filter(|(d, w)| *d == delimiter && w.len() == self.model.column_count())
-            .map(|(_, w)| w.as_slice());
+        let widths = stored.widths_for(delimiter, self.model.column_count());
         self.layout = ColumnLayout::new(&self.model, widths);
     }
 

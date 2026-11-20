@@ -69,6 +69,17 @@ pub(super) fn snap(distance: f32, track: f32, maximum: usize) -> usize {
     (((distance.max(0.) + track / 2.) / track).floor() as usize).min(maximum)
 }
 
+/// `getCsvTableResizeViewportConstraints`: added rows stop at the bottom of
+/// the visible canvas below the table; columns may grow past its edge.
+pub(super) fn viewport_rows(
+    viewport_bottom: f32,
+    surface_bottom: f32,
+    row_height: f32,
+    available: usize,
+) -> usize {
+    available.min(((viewport_bottom - surface_bottom).max(0.) / row_height).floor() as usize)
+}
+
 /// `getCsvExpansionEdgeVelocity`: px/s while the pointer presses into the
 /// trailing 48px of the scrollport.
 pub(super) fn edge_velocity(pointer_x: f32, viewport_right: f32) -> f32 {
@@ -133,9 +144,11 @@ impl CsvEditor {
             f32::from(origin.y),
             f32::from(origin.y) + self.port.size.height,
         );
-        let max_rows = rows.min(
-            ((viewport.1 - surface_bottom).max(0.) / self.theme.table.row_min_height).floor()
-                as usize,
+        let max_rows = viewport_rows(
+            viewport.1,
+            surface_bottom,
+            self.theme.table.row_min_height,
+            rows,
         );
         self.expansion.drag = Some(ExpandDrag {
             start: position,
@@ -523,7 +536,28 @@ impl CsvEditor {
 
 #[cfg(test)]
 mod tests {
-    use super::{edge_velocity, snap};
+    use super::{edge_velocity, snap, viewport_rows};
+
+    /// `csvTableResizeControl.test.ts` with the product's geometry: outward
+    /// distance snaps to whole tracks once past a track's midpoint, never
+    /// shrinks and stops at the remaining budget; added rows are capped by
+    /// the canvas below the table (columns are not); edge scrolling runs
+    /// only at the outward edge, at a bounded speed (left to right; the
+    /// mirrored right-to-left case belongs to `rtl-writing-direction`).
+    #[test]
+    fn the_product_corner_geometry_snaps_caps_and_scrolls_outward() {
+        assert_eq!((snap(193., 96., 100), snap(63., 31., 100)), (2, 2));
+        assert_eq!((snap(47., 96., 100), snap(15., 31., 100)), (0, 0));
+        assert_eq!((snap(48., 96., 100), snap(16., 31., 100)), (1, 1));
+        assert_eq!((snap(-200., 96., 100), snap(-200., 31., 100)), (0, 0));
+        assert_eq!((snap(10_000., 31., 4), snap(10_000., 96., 2)), (4, 2));
+        assert_eq!(viewport_rows(670., 193., 31., 100), 15);
+        assert_eq!(viewport_rows(600., 197., 31., 100), 13);
+        assert_eq!(viewport_rows(600., 197., 31., 5), 5);
+        for (x, speed) in [(300., 0.), (476., 300.), (510., 600.), (10_000., 600.)] {
+            assert_eq!(edge_velocity(x, 500.), speed, "{x}");
+        }
+    }
 
     #[test]
     fn drags_snap_to_whole_tracks_past_their_midpoint() {

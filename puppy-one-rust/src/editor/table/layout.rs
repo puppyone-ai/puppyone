@@ -153,6 +153,49 @@ pub fn fit_widths(current: &[f32], available: f32, maximum: f32) -> Vec<f32> {
 mod tests {
     use super::*;
 
+    /// `editableTableLayout.test.ts`: one bounded visual-width model for CSV
+    /// and Markdown cells (wide characters count double, the widest line of
+    /// a multiline cell counts); a large document is sampled evenly, its
+    /// final rows included, at 128 rows.
+    #[test]
+    fn widths_follow_visual_units_and_sample_large_documents() {
+        let rows = [
+            vec![
+                "short".to_owned(),
+                "中文中文中文中文中文".to_owned(),
+                "first\nabcdefghijklmnopqrst".to_owned(),
+                "x".repeat(100),
+            ],
+            vec![String::new(); 4],
+        ];
+        assert_eq!(
+            estimate_widths(&rows, 5, |row, c| row.get(c).map(String::as_str)),
+            [
+                COLUMN_MIN_WIDTH,
+                168.,
+                168.,
+                COLUMN_MAX_WIDTH,
+                COLUMN_MIN_WIDTH
+            ]
+        );
+        let large: Vec<String> = (0..10_000)
+            .map(|i| {
+                if i == 9_999 {
+                    "z".repeat(100)
+                } else {
+                    i.to_string()
+                }
+            })
+            .collect();
+        let inspected = std::cell::Cell::new(0);
+        let widths = estimate_widths(&large, 1, |row, _| {
+            inspected.set(inspected.get() + 1);
+            Some(row.as_str())
+        });
+        assert_eq!(inspected.get(), 128);
+        assert_eq!(widths, [COLUMN_MAX_WIDTH]);
+    }
+
     #[test]
     fn fitting_scales_clamps_and_distributes_the_remainder() {
         // Proportional, floored, remainder to the largest fractions.
