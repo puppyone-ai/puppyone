@@ -14,14 +14,10 @@ pub fn codex_installation_definition() -> InstallationDefinition {
         if let Some(path) =
             crate::agent::installation::codex_repair::saved(context.homedir, context.platform)
         {
-            let mut candidate = CandidateSpec::new(path.to_string_lossy(), "product-fallback");
-            candidate.environment_overrides =
-                crate::agent::installation::codex_repair::launch_path(
-                    &path,
-                    context.var("PATH").unwrap_or_default(),
-                )
-                .map(|value| vec![("PATH".into(), value)]);
-            candidates.push(candidate);
+            candidates.push(
+                CandidateSpec::new(path.to_string_lossy(), "product-fallback")
+                    .with_launcher_directory_on_path(),
+            );
         }
         if let Some(directory) = context.var("CODEX_INSTALL_DIR") {
             candidates.push(CandidateSpec::new(

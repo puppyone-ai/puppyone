@@ -9,7 +9,7 @@ use crate::agent::{
         },
         executable_discovery_port::{DiscoveryPortOptions, ExecutableDiscoveryPort},
     },
-    installation::codex_repair::{candidates, launch_path, remember},
+    installation::codex_repair::{candidates, remember},
     installation::{
         executable_resolver::{LocalAgentExecutableResolver, Observation},
         installation_definition::CandidateSpec,
@@ -97,7 +97,8 @@ async fn repair_from_snapshot(
     let mut outdated = false;
     for file in candidates(&home, platform, &inherited, selected, &workspace) {
         attempted = true;
-        let spec = CandidateSpec::new(file.to_string_lossy(), "explicit-configuration");
+        let spec = CandidateSpec::new(file.to_string_lossy(), "explicit-configuration")
+            .with_launcher_directory_on_path();
         let Ok(Observation::Found { candidate, .. }) = resolver
             .resolve("codex", Some(context.clone()), vec![spec])
             .await
@@ -107,13 +108,10 @@ async fn repair_from_snapshot(
         if std::path::Path::new(&candidate.executable_path) != file {
             continue;
         }
-        let mut env = context.environment.clone();
-        if let Some(path) = launch_path(&file, env.get("PATH").map_or("", String::as_str)) {
-            env.insert("PATH".into(), path);
-        }
+        let env = candidate.environment.clone();
         let probe = probe_codex_local(CodexProbeOptions {
             candidate: Some(*candidate),
-            env: Some(env),
+            env,
             inspect_protocol: inspect_protocol.clone(),
             workspace_root: Some(home.display().to_string()),
             ..Default::default()
@@ -162,6 +160,52 @@ mod tests {
             fs::set_permissions(&file, fs::Permissions::from_mode(0o700)).unwrap();
         }
         file
+    }
+
+    #[test]
+    fn rediscovery_keeps_sibling_interpreter_on_a_long_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let bin = temp.path().join("wrapper");
+        let executable = cli(&bin, "0.170.0");
+        let platform = node_platform();
+        remember(temp.path(), &executable, platform).unwrap();
+        let dirs: Vec<_> = (0..150)
+            .map(|i| temp.path().join(format!("existing-directory-{i}")))
+            .collect();
+        let original = std::env::join_paths(&dirs).unwrap().into_string().unwrap();
+        assert!(original.encode_utf16().count() > 4096);
+        let snapshot = EnvironmentSnapshot {
+            environment: EnvMap::from([("PATH".into(), original)]),
+            complete: true,
+            source: "test".into(),
+            reason_code: None,
+        };
+        let resolver = LocalAgentExecutableResolver::new(
+            None,
+            ExecutableDiscoveryPort::new(DiscoveryPortOptions {
+                node_platform: Some(platform.into()),
+                homedir: Some(temp.path().into()),
+                read_environment: Some(Rc::new(move |_, _, _, _| {
+                    let snapshot = snapshot.clone();
+                    Box::pin(async move { Ok(snapshot) })
+                })),
+                ..Default::default()
+            }),
+        );
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        tokio::task::LocalSet::new().block_on(&rt, async {
+            let Observation::Found { candidate, .. } =
+                resolver.resolve("codex", None, vec![]).await.unwrap()
+            else {
+                panic!("saved CLI was not resolved");
+            };
+            let launch_env = candidate.environment.unwrap();
+            let entries: Vec<_> = std::env::split_paths(&launch_env["PATH"]).collect();
+            assert_eq!(entries, [dirs, vec![bin]].concat());
+        });
     }
 
     #[test]

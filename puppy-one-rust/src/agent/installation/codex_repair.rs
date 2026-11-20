@@ -157,18 +157,6 @@ pub(crate) fn candidates(
     out
 }
 
-/// A wrapper may need a sibling interpreter. Keep the authoritative search order.
-pub(crate) fn launch_path(path: &Path, original: &str) -> Option<String> {
-    let parent = path.parent()?;
-    let mut dirs: Vec<_> = std::env::split_paths(original)
-        .filter(|p| p.is_absolute())
-        .collect();
-    if !dirs.iter().any(|p| p == parent) {
-        dirs.push(parent.into());
-    }
-    std::env::join_paths(dirs).ok()?.into_string().ok()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
