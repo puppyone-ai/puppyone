@@ -523,10 +523,16 @@ impl EditorExtension for MarkdownExtension {
                 changed = true;
             }
             if let Some(refs) = eff.downcast_ref::<SetReferences>() {
+                let (syntax, plans) = self.parse(state);
+                let before =
+                    references_fingerprint(&state.doc, &syntax, &plans, self.references.as_ref());
+                let after = references_fingerprint(&state.doc, &syntax, &plans, refs.0.as_ref());
                 self.references = refs.0.clone();
-                let next_epoch = self.cache.borrow().config_epoch.wrapping_add(1);
-                self.cache.borrow_mut().config_epoch = next_epoch;
-                changed = true;
+                if before != after {
+                    let next_epoch = self.cache.borrow().config_epoch.wrapping_add(1);
+                    self.cache.borrow_mut().config_epoch = next_epoch;
+                    changed = true;
+                }
             }
             if let Some(assets) = eff.downcast_ref::<SetAssets>() {
                 self.assets = assets.0.clone();
@@ -992,6 +998,60 @@ impl EditorExtension for MarkdownExtension {
         })
         .flatten()
     }
+}
+
+/// Semantic fingerprint of how `refs` resolves every link and embed currently
+/// present in `doc` (including inside block widgets such as tables and MDX
+/// Tabs). Unrelated workspace folder loads leave this fingerprint unchanged,
+/// avoiding unnecessary decoration invalidation and widget remounts.
+fn references_fingerprint(
+    doc: &crate::editor::text::buffer::Buffer,
+    syntax: &Syntax,
+    plans: &[Plan],
+    refs: Option<&ReferenceContext>,
+) -> u64 {
+    let hash_resolution =
+        |h: &mut std::collections::hash_map::DefaultHasher,
+         res: Option<crate::editor::navigation::Resolution>| {
+            res.is_some().hash(h);
+            if let Some(r) = res {
+                (r.exists, r.ambiguous, r.path, r.candidates).hash(h);
+            }
+        };
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    for e in &syntax.elements {
+        match e.kind {
+            core::syntax::Kind::WikiLink
+            | core::syntax::Kind::ImageEmbed
+            | core::syntax::Kind::VideoEmbed => {
+                if let Some(target) = e.href.as_deref() {
+                    (0u8, e.range.start, e.range.end).hash(&mut h);
+                    hash_resolution(&mut h, refs.map(|r| r.resolve(target)));
+                }
+            }
+            core::syntax::Kind::Link => {
+                if let Some(href) = e.href.as_deref() {
+                    (1u8, e.range.start, e.range.end).hash(&mut h);
+                    hash_resolution(&mut h, refs.and_then(|r| r.markdown(href)));
+                }
+            }
+            _ => {}
+        }
+    }
+    for plan in plans {
+        if plan.embed().is_some() {
+            let slice = doc.slice_cow(plan.source.clone());
+            for w in find_wiki_links(&slice) {
+                (2u8, plan.source.start + w.range.start, w.target.as_str()).hash(&mut h);
+                hash_resolution(&mut h, refs.map(|r| r.resolve(&w.target)));
+            }
+            for l in find_links(&slice) {
+                (3u8, plan.source.start + l.range.start, l.href.as_str()).hash(&mut h);
+                hash_resolution(&mut h, refs.and_then(|r| r.markdown(&l.href)));
+            }
+        }
+    }
+    h.finish()
 }
 
 #[cfg(test)]

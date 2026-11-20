@@ -42134,6 +42134,400 @@
           "test": "editor::markdown::tests::core_interaction_acceptance::math_interaction_keeps_failed_latex_visible_and_edits_or_deletes_formulas"
         }
       ]
+    },
+    {
+      "id": "markdown-image-keyboard-interaction",
+      "acceptance": "Read-only Markdown images ignore Backspace and Delete even after dynamic read-only reconfiguration, while editable images delete as one atomic undoable change.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownImageInteraction.test.ts",
+          "sha256": "569308b44796f4f665f0d7efd36bac37bdea8a3e8bb8c6f04adb52912e2245af",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown image keyboard interaction > preserves a read-only image on Backspace"
+            },
+            {
+              "index": 1,
+              "name": "Markdown image keyboard interaction > preserves a read-only image on Delete"
+            },
+            {
+              "index": 2,
+              "name": "Markdown image keyboard interaction > checks current read-only state after retaining the mounted image"
+            },
+            {
+              "index": 3,
+              "name": "Markdown image keyboard interaction > deletes an editable image as one undoable change"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::media_isolation_acceptance::markdown_image_keyboard_interaction_honors_readonly_and_single_undo_delete"
+        }
+      ]
+    },
+    {
+      "id": "markdown-image-readiness-and-workspace-media",
+      "acceptance": "Obsidian and relative Markdown images resolve through workspace references and document assets without forwarding remote HTTPS URLs to the workspace reader, keep one decoded session across adjacent edits, pointer selection, single clicks, and unrelated index refreshes, and reveal shifted source on double-click.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownImageReadiness.test.ts",
+          "sha256": "54bc46ebba0da0532089534f66ae03d33cd9a93faeb79fb9c3cd6f03692a2be6",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown image readiness > resolves Obsidian image embeds through the workspace link graph"
+            },
+            {
+              "index": 4,
+              "name": "Markdown image readiness > keeps the loading placeholder until the brokered image has loaded and decoded"
+            },
+            {
+              "index": 5,
+              "name": "Markdown image readiness > keeps one mounted image session when an adjacent paragraph shifts its source range"
+            },
+            {
+              "index": 6,
+              "name": "Markdown image readiness > keeps the decoded image and asset lease when a pointer selection crosses its line"
+            },
+            {
+              "index": 7,
+              "name": "Markdown image readiness > owns image mousedown before CodeMirror can reveal the replaced Markdown source"
+            },
+            {
+              "index": 8,
+              "name": "Markdown image readiness > keeps the decoded image mounted when a link-index refresh reconfigures preview context"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownMediaWorkspace.test.tsx",
+          "sha256": "ebf8a38495ce5705ad741d83c27d5f7f942ae2b4892ac149c812a7434c11cfe6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown workspace media integration > hydrates the canonical README logo while keeping HTTPS badges out of the workspace resolver"
+            },
+            {
+              "index": 1,
+              "name": "Markdown workspace media integration > resolves a standard Markdown image relative to the active document"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::media_isolation_acceptance::markdown_image_readiness_resolves_embeds_keeps_sessions_and_owns_clicks"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::the_readme_header_mounts_whole_and_missing_images_keep_their_alt"
+        }
+      ]
+    },
+    {
+      "id": "markdown-video-embeds",
+      "acceptance": "Standalone Obsidian video embeds compile into typed block widgets that retain one session across unrelated edits, while inline video embeds stay source.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownVideoEmbed.test.ts",
+          "sha256": "701911c4d06ff7dad486f4f856bfdc181b85ac7f17c996fde85c18b76d337d59",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown video embeds > compiles a full-line Obsidian video embed into a typed block atom"
+            },
+            {
+              "index": 1,
+              "name": "Markdown video embeds > keeps a video embed visible as source when it does not own the line"
+            },
+            {
+              "index": 2,
+              "name": "Markdown video embeds > preserves one mounted playback session across unrelated document edits"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::media_isolation_acceptance::markdown_video_embed_keeps_session_across_edits_and_resolves_html_video"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::video::tests::a_video_embed_alone_on_its_line_is_a_player"
+        }
+      ]
+    },
+    {
+      "id": "markdown-mermaid-render-service",
+      "acceptance": "Mermaid render orchestration coalesces identical in-flight work, keeps shared jobs alive when one consumer cancels, rejects oversize inputs pre-host, keys cache entries by config/font, supports failure retry, and evicts by both aggregate bytes and entry count.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/mermaidRenderService.test.ts",
+          "sha256": "684a02f5f53d686c5b0e26383a113b514ee6862de366253f8cc4e6c68ace7df0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Mermaid render service ownership and reuse > coalesces in-flight work and synchronously reuses completed normalized output"
+            },
+            {
+              "index": 1,
+              "name": "Mermaid render service ownership and reuse > keeps work alive for another consumer when one view leaves"
+            },
+            {
+              "index": 3,
+              "name": "Mermaid render service ownership and reuse > rejects oversize and already cancelled inputs before host allocation"
+            },
+            {
+              "index": 4,
+              "name": "Mermaid render service ownership and reuse > does not reuse results across effective config or font changes"
+            },
+            {
+              "index": 5,
+              "name": "Mermaid render service ownership and reuse > retries failed work and rejects oversize SVG before caching"
+            },
+            {
+              "index": 6,
+              "name": "Mermaid render service ownership and reuse > evicts cache by aggregate bytes as well as entry count"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::media_isolation_acceptance::mermaid_render_service_coalesces_shares_consumers_keys_config_retries_and_evicts"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::render::tests::render_broker_deduplicates_cancels_superseded_and_retries_unavailable"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::render::tests::last_good_cache_enforces_entry_and_byte_lru_bounds"
+        }
+      ]
+    },
+    {
+      "id": "markdown-dialect-workspace-routing",
+      "acceptance": "OpenKnowledge MDX dialect enables Tabs widgets while standard .md documents stay conservative without host dialect metadata.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownDialectWorkspace.test.tsx",
+          "sha256": "8edb9c39708a85912343a77f6134e703a9617e647199639ef7bc65ba73c534b1",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Workspace to Markdown dialect integration > carries explicit OpenKnowledge metadata through DataWorkspace and EditorHost"
+            },
+            {
+              "index": 1,
+              "name": "Workspace to Markdown dialect integration > keeps the same .md source conservative without Host dialect metadata"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans"
+        }
+      ]
+    },
+    {
+      "id": "markdown-block-widget-selection",
+      "acceptance": "Covering document selections mark whole block widgets (Tabs, video, table) and clear for a caret, preserve table selection across reference refreshes, and isolate focus from sibling editors.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownBlockWidgetSelection.test.ts",
+          "sha256": "0ee41a0e0e6888d74e8f621370fdbb40508b5e6ae1a00952130c8b8b31c71559",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown whole-widget selection feedback > marks a fully selected Tabs and clears it for a caret"
+            },
+            {
+              "index": 1,
+              "name": "Markdown whole-widget selection feedback > marks a fully selected video and clears it for a caret"
+            },
+            {
+              "index": 2,
+              "name": "Markdown whole-widget selection feedback > reapplies the covering selection when an index refresh replaces a table"
+            },
+            {
+              "index": 3,
+              "name": "Markdown whole-widget selection feedback > does not treat a sibling editor's widget focus as its own"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::media_isolation_acceptance::whole_widget_selection_covers_tabs_video_table_and_isolates_sibling_editors"
+        }
+      ]
+    },
+    {
+      "id": "markdown-pane-isolation-and-workspace-projection",
+      "acceptance": "Each Markdown pane keeps independent reveal and link-click state across sibling focus, retains mounted table and Tabs widgets across unrelated workspace folder loads, and invalidates decorations only when semantic link resolutions change.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownPaneStateIsolation.test.ts",
+          "sha256": "e2b4c8e97866d73087cdfe94dc1ad050050289d5bc8f0dd2ded766ecb8cde1d8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown pane-owned view state > keeps each visible pane's reveal projection stable across sibling focus"
+            },
+            {
+              "index": 1,
+              "name": "Markdown pane-owned view state > does not let one pane consume another pane's link click"
+            },
+            {
+              "index": 2,
+              "name": "Markdown pane-owned view state > invalidates a projection only when its semantic link policy changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownWorkspaceProjection.test.ts",
+          "sha256": "be01f5190747e13b4eadcf94fa1209fefbfbc7656a1c98ca11d5c40c78ea8e5b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown workspace projection continuity > retains table DOM on unrelated folder loads and refreshes changed wiki targets"
+            },
+            {
+              "index": 1,
+              "name": "Markdown workspace projection continuity > retains tabs DOM on unrelated folder loads and refreshes changed wiki targets"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/dataWorkspaceMarkdownEnvironment.test.tsx",
+          "sha256": "518c0e740d33044a3b46f3171721e261b7a0ec3927fab048703f143cf5c89c6d",
+          "cases": [
+            {
+              "index": 2,
+              "name": "DataWorkspace Markdown environment > retains the open Markdown table when an unloaded parent folder first loads children"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::media_isolation_acceptance::pane_state_isolation_and_workspace_projection_retain_widgets_across_unrelated_loads"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_media_acceptance::native_link_clicks_honor_policy_and_drag_cancellation_in_tables_and_prose"
+        }
+      ]
+    },
+    {
+      "id": "markdown-pane-mode-menu-and-source-switch",
+      "acceptance": "Switching between Live Preview and Source mode from the pane menu toggles Markdown Live Preview immediately without floating editor controls.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownPaneModeMenu.test.tsx",
+          "sha256": "8b60747567400b2e5a4200e877be4ca32c9a3d77621fe3d8040eb201c1573e07",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown pane mode menu > switches source mode from the three-dot pane menu without floating editor controls"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownPreviewReadiness.test.tsx",
+          "sha256": "ef541a25047d7eb98a5f4c9c58ab0608f896ac066f83ef30d7d584c73e9a6b0b",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown Live Preview presentation readiness > shows intentional source mode immediately and removes Live Preview extensions"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::markdown_contributes_its_mode_segments"
+        }
+      ]
+    },
+    {
+      "id": "markdown-source-snapshot-and-persistence-boundary",
+      "acceptance": "Markdown edits mutate incrementally, debounce persistence and retry failed auto-saves, flush canonical snapshots on close, adopt external disk updates without dirty writeback, ignore identical echoed bytes, and clear revealed HTML source on external document replacement.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownSourceSnapshot.test.tsx",
+          "sha256": "0545aba8567aad91cb80be80232b7e34205a8422d7554018f81005dab6445027",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown source snapshot boundary > does not stringify the complete document during an ordinary input transaction"
+            },
+            {
+              "index": 1,
+              "name": "Markdown source snapshot boundary > starts frontend Markdown persistence once typing pauses after an edit transaction"
+            },
+            {
+              "index": 2,
+              "name": "Markdown source snapshot boundary > keeps an auto-save failure visible and retryable in auto mode"
+            },
+            {
+              "index": 3,
+              "name": "Markdown source snapshot boundary > flushes the canonical EditorView snapshot on explicit Working Copy close"
+            },
+            {
+              "index": 4,
+              "name": "Markdown source snapshot boundary > adopts disk content over unsaved CodeMirror input without asking for a version"
+            },
+            {
+              "index": 5,
+              "name": "Markdown source snapshot boundary > applies an external source update without a dirty writeback loop"
+            },
+            {
+              "index": 6,
+              "name": "Markdown source snapshot boundary > does not replace the CodeMirror document when a controlled host echoes identical local bytes"
+            },
+            {
+              "index": 7,
+              "name": "Markdown source snapshot boundary > clears a revealed HTML source range when an external document replaces the editor"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::media_isolation_acceptance::markdown_source_snapshot_preserves_echo_and_clears_revealed_html_on_external_replace"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::tests::one_active_write_coalesces_pending_input_and_closes_only_after_last_receipt"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::document_session::acceptance_tests::persistence_errors_keep_input_retryable_and_do_not_busy_loop"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::dirty_edits_yield_to_external_updates_without_conflict_or_writeback"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -52093,6 +52487,16 @@
               "name": "Mermaid host request boundary > does not start without an explicit asset root"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/mermaidRenderService.test.ts",
+          "sha256": "684a02f5f53d686c5b0e26383a113b514ee6862de366253f8cc4e6c68ace7df0",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Mermaid render service ownership and reuse > makes the document exit barrier wait for last-consumer cancellation acknowledgement"
+            }
+          ]
         }
       ]
     },
@@ -52299,6 +52703,26 @@
             {
               "index": 10,
               "name": "Markdown compound HTML media > rejects an over-broad srcset before starting broker work"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownImageReadiness.test.ts",
+          "sha256": "54bc46ebba0da0532089534f66ae03d33cd9a93faeb79fb9c3cd6f03692a2be6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown image readiness > applies the same brokered HTTPS privacy attributes to native Markdown images"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownVideoEmbed.test.ts",
+          "sha256": "701911c4d06ff7dad486f4f856bfdc181b85ac7f17c996fde85c18b76d337d59",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown video embeds > sanitizes raw HTML video into inert broker placeholders"
             }
           ]
         }
@@ -52865,6 +53289,16 @@
               "name": "Markdown live-preview link activation > updates a visible link when parsing reaches a target outside the viewport"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownBackgroundProjection.test.ts",
+          "sha256": "b3c0c89bc53bd8bb8eeedb8230f8f74e693cb682cde6e2447336a7f35135ada7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "reconciles actual background parse progress without scanning the unparsed document and matches a full projection"
+            }
+          ]
         }
       ]
     },
@@ -53231,6 +53665,20 @@
               "name": "editor pane resource invalidation > fails closed instead of crashing on malformed events"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/dataWorkspaceMarkdownEnvironment.test.tsx",
+          "sha256": "518c0e740d33044a3b46f3171721e261b7a0ec3927fab048703f143cf5c89c6d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DataWorkspace Markdown environment > opens an unexpanded file without treating puppyone-local://workspace/folder-a scope segments as Explorer folders"
+            },
+            {
+              "index": 1,
+              "name": "DataWorkspace Markdown environment > opens an unexpanded file without treating puppyone-cloud://organization/project/folder-a scope segments as Explorer folders"
+            }
+          ]
         }
       ]
     },
@@ -53591,6 +54039,20 @@
               "name": "CodeMirror application compatibility contract > fails explicitly if an engine upgrade stops flushing coordinate queries"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownFocusContinuity.test.ts",
+          "sha256": "f9c39a3ee81595c5bcb8bc7739d9160acb8e96817ed80c82e69755c978f0a576",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown focus scroll continuity > commits focus projection and the owning view snapshot in the same transaction"
+            },
+            {
+              "index": 1,
+              "name": "Markdown focus scroll continuity > captures exactly one editor-local snapshot per boundary over repeated pane switches"
+            }
+          ]
         }
       ]
     },
@@ -53801,6 +54263,30 @@
             {
               "index": 89,
               "name": "Markdown HTML in isolated table-cell previews > keeps media as visible source without an asset broker"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownImageReadiness.test.ts",
+          "sha256": "54bc46ebba0da0532089534f66ae03d33cd9a93faeb79fb9c3cd6f03692a2be6",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown image readiness > renders a raw HTML image inside a paragraph through the brokered media path"
+            },
+            {
+              "index": 2,
+              "name": "Markdown image readiness > edits a raw HTML image inside a paragraph through the canonical source"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownVideoEmbed.test.ts",
+          "sha256": "701911c4d06ff7dad486f4f856bfdc181b85ac7f17c996fde85c18b76d337d59",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Markdown video embeds > hydrates a standalone single-line HTML video through the typed broker path"
             }
           ]
         }
@@ -54345,6 +54831,58 @@
             {
               "index": 9,
               "name": "Markdown heading outline > preserves a focused directory dash while scroll state is measured"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "async-live-preview-activation",
+      "kind": "out-of-scope",
+      "reason": "TS activates CodeMirror Live Preview asynchronously via browser scheduler.postTask and requestAnimationFrame with pending/ready/error DOM states and timer fallbacks; native GPUI Live Preview is synchronous and isolates feature panics directly.",
+      "owner": "puppy-issues/docs/rust-architecture/native-editor.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownPreviewReadiness.test.tsx",
+          "sha256": "ef541a25047d7eb98a5f4c9c58ab0608f896ac066f83ef30d7d584c73e9a6b0b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown Live Preview presentation readiness > keeps canonical source pending until the same revision projection commits"
+            },
+            {
+              "index": 1,
+              "name": "Markdown Live Preview presentation readiness > reconfirms readiness when the canonical revision changes before paint"
+            },
+            {
+              "index": 2,
+              "name": "Markdown Live Preview presentation readiness > never lets stale activation reveal a superseded document"
+            },
+            {
+              "index": 4,
+              "name": "Markdown Live Preview presentation readiness > falls back explicitly to source when Live Preview activation fails"
+            },
+            {
+              "index": 5,
+              "name": "Markdown Live Preview presentation readiness > uses a cancellable timer fallback when Scheduler rejects activation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "react-workspace-environment-memoization",
+      "kind": "out-of-scope",
+      "reason": "Asserts React prop/hook object reference identity (useMemo stability of markdownEnvironment and documentNavigation across controlled DataWorkspace activePath re-renders); GPUI passes typed workspace handles directly without React prop memoization.",
+      "owner": "puppy-issues/docs/rust-architecture/native-editor.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/dataWorkspaceMarkdownEnvironment.test.tsx",
+          "sha256": "518c0e740d33044a3b46f3171721e261b7a0ec3927fab048703f143cf5c89c6d",
+          "cases": [
+            {
+              "index": 3,
+              "name": "DataWorkspace Markdown environment > keeps semantic query and command ports stable across controlled active-pane routing"
             }
           ]
         }
