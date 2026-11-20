@@ -339,8 +339,42 @@ mod tests {
         );
         let text = std::fs::read_to_string(temp.path().join("host-device-identity.json")).unwrap();
         assert!(!text.contains("private"), "only public parts on disk");
+        // It signs only for its own account's device.
+        let other_account = Owner {
+            account_id: OTHER.into(),
+            device_id: DEVICE.into(),
+        };
+        let other_device = Owner {
+            account_id: ACCOUNT.into(),
+            device_id: OTHER.into(),
+        };
+        assert!(identity.sign(&other_account, "x").is_err());
+        assert!(identity.sign(&other_device, "x").is_err());
+        // Another account here never reuses this identity.
+        let mut second = None;
+        identity
+            .register(OTHER, |key| {
+                second = Some(key.to_owned());
+                Ok(OTHER.into())
+            })
+            .unwrap();
+        assert_ne!(second.as_deref(), Some(sent[0].as_str()));
+        assert!(identity.register("nobody", |_| Ok(DEVICE.into())).is_err());
+        // Forgetting another account's device leaves this one; forgetting
+        // this one takes its key, and a later share registers a new key.
+        assert!(!identity.forget(&other_account));
         assert!(identity.forget(&owner));
         assert!(identity.existing_for(ACCOUNT).is_none());
         assert!(identity.key(&owner).is_err());
+        assert!(identity.existing_for(OTHER).is_some());
+        let mut renewed = None;
+        identity
+            .register(ACCOUNT, |key| {
+                renewed = Some(key.to_owned());
+                Ok(DEVICE.into())
+            })
+            .unwrap();
+        assert_ne!(renewed.as_deref(), Some(sent[0].as_str()));
     }
+    const OTHER: &str = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 }

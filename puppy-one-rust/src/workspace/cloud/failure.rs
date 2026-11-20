@@ -500,6 +500,104 @@ mod tests {
         assert!(RequestId::parse(&"x".repeat(128)).is_some());
     }
 
+    /// `cloudFailurePresentation`: structured evidence alone decides the
+    /// reason, the same way for the connection notice and the opening; an
+    /// access decision wins over a dependency hint; exception text and
+    /// unknown codes never become a reason.
+    #[test]
+    fn connection_reasons_come_from_structured_evidence_only() {
+        for (status, reason, code) in [
+            (
+                None,
+                Some("CLOUD_TRANSPORT_UNAVAILABLE"),
+                "connection-unreachable",
+            ),
+            (None, Some("CLOUD_REQUEST_TIMEOUT"), "connection-timeout"),
+            (
+                Some(503),
+                Some("project_authorization_unreachable"),
+                "access-check-unreachable",
+            ),
+            (
+                Some(503),
+                Some("project_authorization_timeout"),
+                "access-check-timeout",
+            ),
+            (
+                Some(503),
+                Some("project_authorization_unavailable"),
+                "access-check-unavailable",
+            ),
+            (
+                Some(503),
+                Some("database_schema_outdated"),
+                "service-updating",
+            ),
+            (
+                Some(503),
+                Some("workbench_connection_unavailable"),
+                "workspace-connection-unavailable",
+            ),
+            (Some(503), None, "service-unavailable"),
+            (Some(502), None, "service-unavailable"),
+            (Some(504), None, "connection-timeout"),
+            (Some(429), None, "service-busy"),
+            (Some(426), None, "app-update-required"),
+        ] {
+            assert_eq!(
+                connection(status, reason),
+                Some(code),
+                "{status:?} {reason:?}"
+            );
+            assert_eq!(describe(status, reason, None, Stage::Project).code, code);
+        }
+        for status in [401, 403, 404] {
+            let hint = Some("project_authorization_unreachable");
+            assert_eq!(connection(Some(status), hint), None, "{status}");
+            assert_ne!(
+                describe(Some(status), hint, None, Stage::Project).action,
+                Action::Retry,
+                "{status}"
+            );
+        }
+        // Prose and unknown codes are not evidence.
+        assert_eq!(
+            connection(None, Some("proxy database migration failure")),
+            None
+        );
+        assert_eq!(connection(None, Some("constructor")), None);
+        let private = describe(
+            Some(503),
+            Some("private_customer_key"),
+            None,
+            Stage::Project,
+        );
+        assert_eq!(
+            (private.code, private.status, private.reason),
+            ("service-unavailable", Some(503), None)
+        );
+        // Configuration and protocol failures do not offer a retry.
+        let unconfigured = describe(
+            Some(503),
+            Some("workbench_provider_not_configured"),
+            None,
+            Stage::Workspace,
+        );
+        assert_eq!(
+            (unconfigured.code, unconfigured.action),
+            ("workspace-not-configured", Action::None)
+        );
+        assert_eq!(
+            describe(Some(426), None, None, Stage::Project).action,
+            Action::None
+        );
+        // Without a specific cause the failed workspace operation is kept.
+        assert_eq!(
+            d(Some(503), None, Stage::Workspace),
+            ("workspace-open-failed", Action::Retry)
+        );
+    }
+
     #[test]
     fn connection_failures_describe_the_boundary_not_a_cause() {
         assert_eq!(

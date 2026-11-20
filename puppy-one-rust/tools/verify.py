@@ -44,6 +44,7 @@ commands = [
     ('ui-assets', ['node', 'tools/import-ui-assets.mjs', '--check']),
     ('formats', ['python3', 'tools/import-formats.py', '--check']),
     ('templates', ['python3', 'tools/import-templates.py', '--check']),
+    ('theme-contract', ['node', 'tools/import-theme-contract.mjs', '--check']),
     ('file-icons', ['node', 'tools/import-file-icons.mjs', '--check']),
     ('integration-marks', ['python3', 'tools/import-integration-marks.py', '--check']),
     ('release-assets', ['python3', 'tools/import-release-assets.py', '--check']),

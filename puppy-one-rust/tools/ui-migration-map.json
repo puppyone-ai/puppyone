@@ -289,7 +289,9 @@
         "src/features/settings/sidebar/settings_sidebar_model.rs"
       ],
       "evidence": [
-        "test:project_and_import_pages_follow_visibility"
+        "test:project_and_import_pages_follow_visibility",
+        "test:personal_scope_is_the_account_and_its_plan",
+        "test:team_scope_is_members_plan_and_the_owners_settings"
       ]
     },
     {
@@ -484,13 +486,14 @@
         "src/features/settings/main/plan/format.rs",
         "src/workspace/cloud/pricing.rs"
       ],
-      "remaining": "v0.4.4 Plan (Your plan, the 24-cell hours rail, storage warning, three plan cards and add-ons) and the Account plan row are native over scripted billing. Plan card columns follow the last measured width; the storage disclosure is a line rather than <details>; not pixel-compared (AC-2).",
+      "remaining": "Plan follows the 2026-11-19 redesign rather than v0.4.4, drawn in the Settings row grammar (2026-11-21): the plan with its price and renewal, then two rows of 40-cell meters (agent hours with running agents half-lit, storage), the add-ons as rows, the paid plans someone on Free can choose as two tiles side by side (as Appearance offers themes) and any other plan as a row, each saying what it adds, a change confirmed in a group of rows under what it changes. Account is Personal's rows: who is signed in, the service, and the AI balance with its top-ups; its plan row moved to Plan beside it. Native over scripted billing; not pixel-compared with v0.4.4 by design (AC-2).",
       "evidence": [
         "test:offers_three_plans_with_one_price_each_and_the_same_allowances",
         "test:bills_a_team_per_person_and_names_a_legacy_plan_by_its_new_name",
         "test:a_quote_says_whether_it_pays_now_waits_or_keeps",
         "test:the_status_pill_and_the_rail_follow_the_holding_and_reading",
-        "test:plan_cards_share_a_row_above_600px",
+        "test:other_plans_list_upgrades_first_and_free_last",
+        "test:choosing_a_plan_quotes_it_in_its_row_requotes_new_people_and_confirms_once",
         "test:the_plan_page_shows_the_spaces_own_usage",
         "test:settings_manage_one_space_its_members_and_its_plan"
       ]
@@ -532,9 +535,12 @@
       "evidence": [
         "test:settings_manage_one_space_its_members_and_its_plan",
         "test:a_space_made_from_the_place_menu_opens_its_members_ready_to_invite",
-        "test:members_and_plan_open_settings_on_that_space"
+        "test:members_and_plan_open_settings_on_that_space",
+        "test:the_scope_switcher_turns_settings_between_personal_and_a_team",
+        "test:creating_a_space_from_settings_opens_the_windows_dialog",
+        "test:removing_a_member_waits_for_its_confirmation"
       ],
-      "remaining": "Members (rename, roles, remove, invite with its link, transfer) and Create space are native over scripted organization APIs. A failure says one fixed sentence rather than the server's words; acceptance on hosted qubits is pending (AC)."
+      "remaining": "Settings is scoped as Vercel scopes a dashboard (2026-11-20): a switcher heads the sidebar (Personal, the team spaces with role and plan, Create space); Personal is Account and Plan, a team space Members, Plan and, for its owner, Space settings. Members, Space settings and Account are drawn as every Settings page is (rows, 2026-11-21): Members is the owner's invitation row over the people, with roles in place and removal confirmed under its row; Space settings is the name, the owner and the transfer. Native over scripted organization APIs; a failure says one fixed sentence rather than the server's words; acceptance on hosted qubits is pending (AC)."
     },
     {
       "name": "Local Agents settings and inventory",

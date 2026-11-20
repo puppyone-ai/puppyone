@@ -340,7 +340,7 @@ mod tests {
         cx.run_until_parked();
         cx.update(|window, cx| {
             window.refresh();
-            let _ = window.draw(cx);
+            window.draw(cx).clear(cx);
         });
     }
     #[gpui::test]

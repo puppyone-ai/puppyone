@@ -342,4 +342,65 @@ mod tests {
         value["viewers"][0]["surprise"] = true.into();
         assert!(ViewerManifest::parse(&value.to_string()).is_err());
     }
+
+    /// `sharedPresetManifest.test.mjs`: `preserves index labels and
+    /// unknown-field insertion order`; `preserves the first semantic
+    /// violation`; the `formatViewerIds` and `surfaceTraits` diagnostics of
+    /// the main contract.
+    #[test]
+    fn diagnostics_name_the_definition_and_its_first_violation() {
+        let json = include_str!("../../../assets/formats/preset-viewers.json");
+        let base: serde_json::Value = serde_json::from_str(json).unwrap();
+        let refused = |edit: &dyn Fn(&mut serde_json::Value)| {
+            let mut value = base.clone();
+            edit(&mut value);
+            ViewerManifest::parse(&value.to_string()).unwrap_err()
+        };
+        assert_eq!(
+            refused(&|v| v["viewers"][7] = serde_json::Value::Null),
+            "Preset viewer definition at index 7 must be an object."
+        );
+        assert_eq!(
+            refused(&|v| v["viewers"][7] = serde_json::json!({"z": true, "a": true})),
+            "Preset viewer definition at index 7 has unknown field(s): z, a."
+        );
+        let id = base["viewers"][0]["id"].as_str().unwrap().to_owned();
+        assert_eq!(
+            refused(&|v| {
+                let viewer = &mut v["viewers"][0];
+                viewer["capability"] = "edit".into();
+                viewer["source"] = "none".into();
+                viewer["computeIsolation"] = "worker".into();
+            }),
+            format!("Editable preset viewer {id} must receive content or a resource.")
+        );
+        for (key, value, message) in [
+            (
+                "formatViewerIds",
+                serde_json::Value::Null,
+                "has invalid or repeated format viewer ids.",
+            ),
+            (
+                "formatViewerIds",
+                serde_json::json!(["alias", "alias"]),
+                "has invalid or repeated format viewer ids.",
+            ),
+            (
+                "surfaceTraits",
+                serde_json::Value::Null,
+                "has unsupported or repeated surface traits.",
+            ),
+            (
+                "surfaceTraits",
+                serde_json::json!(["scrollable", "scrollable"]),
+                "has unsupported or repeated surface traits.",
+            ),
+        ] {
+            assert_eq!(
+                refused(&|v| v["viewers"][0][key] = value.clone()),
+                format!("Preset viewer {id} {message}"),
+                "{key} {value}"
+            );
+        }
+    }
 }

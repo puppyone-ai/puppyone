@@ -30,6 +30,19 @@ pub fn warn(event: &str, fields: serde_json::Value) {
     }
 }
 
+/// [`warn`] with text fields, for code that keeps JSON at its edges.
+pub fn note(event: &str, fields: &[(&str, &str)]) {
+    warn(
+        event,
+        serde_json::Value::Object(
+            fields
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), (*value).into()))
+                .collect(),
+        ),
+    );
+}
+
 #[cfg_attr(any(test, feature = "test-support"), allow(dead_code))]
 fn append(line: &str) -> std::io::Result<()> {
     let path = path();

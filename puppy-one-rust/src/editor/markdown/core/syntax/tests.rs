@@ -172,7 +172,7 @@ fn inline_syntax_projects_like_the_product() {
         .find(|e| e.kind == Kind::Link && e.markers.is_empty())
         .unwrap();
     assert_eq!(&text[bare.range.clone()], "www.x.org");
-    assert_eq!(bare.href.as_deref(), Some("http://www.x.org"));
+    assert_eq!(bare.href.as_deref(), Some("https://www.x.org"));
     let strike = find(Kind::Strike);
     assert_eq!(&text[strike.content.clone().unwrap()], "gone");
     let highlight = find(Kind::Highlight);
@@ -197,4 +197,81 @@ fn inline_syntax_projects_like_the_product() {
     assert!(!s.elements.iter().any(|e| e.kind == Kind::Highlight));
     assert!(!s.elements.iter().any(|e| e.kind == Kind::Strike));
     assert!(s.elements.iter().any(|e| e.kind == Kind::Comment));
+}
+
+/// `keeps image and video policy capabilities distinct`: an embed is an
+/// image or a video by its extension, never both.
+#[test]
+fn images_and_videos_are_distinct_kinds() {
+    use super::lines::{is_image_path, is_video_path};
+    assert!(is_video_path("assets/clip.mp4") && !is_image_path("assets/clip.mp4"));
+    assert!(is_image_path("assets/poster.png") && !is_video_path("assets/poster.png"));
+}
+
+/// `markdownElements.test.ts`: `normalizes heading marker ranges`, `task
+/// marker stages`, `wiki links and standard links` and `escaped characters
+/// and autolinks`; `reveals inline elements only when the caret is strictly
+/// inside`; `keeps images atomic rather than inline-revealed`; `can query
+/// elements for the current line without scanning unrelated lines`.
+#[test]
+fn elements_follow_the_product_element_model() {
+    let find = |s: &Syntax, kind: Kind| s.elements.iter().find(|e| e.kind == kind).cloned();
+    let (_, s) = parse("# Heading");
+    let h = find(&s, Kind::Heading).unwrap();
+    assert_eq!(
+        (h.range, h.markers, h.content, h.level),
+        (0..9, vec![0..2], Some(2..9), 1)
+    );
+
+    let (_, s) = parse("- [x] Done");
+    let task = find(&s, Kind::Task).unwrap();
+    assert_eq!(
+        (task.markers, task.content),
+        (vec![0..2, 2..6], Some(6..10))
+    );
+
+    let (_, s) = parse("[label](note.md) and [[Target|Alias]]");
+    let links: Vec<_> = s
+        .elements
+        .iter()
+        .filter(|e| matches!(e.kind, Kind::Link | Kind::WikiLink))
+        .map(|e| (e.kind, e.range.clone(), e.content.clone()))
+        .collect();
+    assert_eq!(
+        links,
+        [
+            (Kind::Link, 0..16, Some(1..6)),
+            (Kind::WikiLink, 21..37, Some(30..35))
+        ]
+    );
+
+    let (_, s) = parse("A **bold** word");
+    let revealed = |caret| s.reveal_element(caret).map(|e| e.kind);
+    assert_eq!(
+        [revealed(2), revealed(3), revealed(8), revealed(10)],
+        [None, Some(Kind::Strong), Some(Kind::Strong), None]
+    );
+
+    let (_, s) = parse("![alt](image.png)");
+    assert_eq!(find(&s, Kind::Image).unwrap().range, 0..17);
+    assert!(s.reveal_element(4).is_none());
+
+    let (doc, s) = parse("# Heading\nA **bold** word\n[[Target]]");
+    let kinds: Vec<_> = s.elements_in(doc.line_range(1)).map(|e| e.kind).collect();
+    assert!(kinds.contains(&Kind::Strong));
+    assert!(!kinds.contains(&Kind::Heading) && !kinds.contains(&Kind::WikiLink));
+
+    let (_, s) = parse("\\*escaped\\* <https://example.com>");
+    let escapes: Vec<_> = s
+        .elements
+        .iter()
+        .filter(|e| e.kind == Kind::Escape)
+        .map(|e| e.markers.clone())
+        .collect();
+    assert_eq!(escapes, [vec![0..1], vec![9..10]]);
+    let auto = find(&s, Kind::Link).unwrap();
+    assert_eq!(
+        (auto.range, auto.markers, auto.content),
+        (12..33, vec![12..13, 32..33], Some(13..32))
+    );
 }

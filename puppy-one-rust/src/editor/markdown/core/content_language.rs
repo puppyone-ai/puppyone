@@ -68,8 +68,14 @@ fn uses_han_weight(text: &str, locale: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// `markdownContentLanguage.test.ts`: `prefers kana and hangul signals
+    /// before the shared Han script`; `falls back to the interface language
+    /// when the document has no script signal` (the weight it implies).
     #[test]
     fn reading_weight_follows_content_then_interface_and_stays_latched() {
+        assert!(!uses_han_weight("設計資料を更新する", "zh-CN"));
+        assert!(!uses_han_weight("문서 설계를 업데이트합니다", "en"));
+        assert!(!uses_han_weight("# Release notes", "en-US"));
         assert!(!uses_han_weight("English", "en"));
         assert!(uses_han_weight("English", "zh-Hans"));
         assert!(uses_han_weight("中文", "en"));

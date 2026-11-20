@@ -5,8 +5,8 @@
 //! until it answers (names only; signing out removes them), and a failed
 //! read keeps what the account already answered.
 use crate::localization::t;
-use crate::ui::components::{SpaceMark, SpacePlanBadge};
-use crate::workspace::cloud::spaces::{self, PlanKey, Space};
+use crate::ui::components::SpaceMark;
+use crate::workspace::cloud::spaces::{self, Space};
 use gpui::*;
 
 /// `SpaceMark` for `space`: one tone per id, its own name's first letter.
@@ -15,14 +15,6 @@ pub fn mark(space: &Space) -> SpaceMark {
         spaces::mark_tone(&space.id) as usize,
         spaces::mark_initial(&space.name),
     )
-}
-/// `SpacePlanBadge`: nothing without a published plan.
-pub fn plan_badge(space: &Space) -> Option<SpacePlanBadge> {
-    let plan = PlanKey::of(space.plan_id.as_deref()?);
-    Some(SpacePlanBadge::new(
-        t(&format!("onboarding.spaces.plan.{}", plan.key())),
-        plan != PlanKey::Free,
-    ))
 }
 /// `useSpaceName`: the account's own space reads "Personal".
 pub fn name(space: &Space) -> String {

@@ -152,7 +152,7 @@ impl Positioner {
     }
 
     // Read after trigger prepaint so an open popup follows a moving trigger.
-    pub(crate) fn tracked_corner_position(mut self, position: Rc<Cell<Point<Pixels>>>) -> Self {
+    pub fn tracked_corner_position(mut self, position: Rc<Cell<Point<Pixels>>>) -> Self {
         self.corner_position = Some(position);
         self
     }

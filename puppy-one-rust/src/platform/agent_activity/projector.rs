@@ -333,6 +333,116 @@ mod tests {
             json!({ "path": "y.rs", "paths": ["p"] })
         );
     }
+    /// Patch bodies, file content and shell commands never leave the hook:
+    /// a patch names its files, a write keeps its path, Cursor's
+    /// conversation is the session, and Codex 0.147.0's own payloads
+    /// (`tests/fixtures/agent/activity/codex-0.147.0`) keep only file names.
+    #[test]
+    fn only_file_names_leave_the_hook() {
+        let patch = project(
+            &json!({
+                "hook_event_name": "PreToolUse", "session_id": "session-1", "turn_id": "turn-1",
+                "tool_name": "apply_patch", "tool_use_id": "call-1", "cwd": "/workspace",
+                "tool_input": {
+                    "command": "*** Begin Patch\n*** Update File: src/app.ts\n@@\n-SECRET\n+NEW SECRET\n*** End Patch",
+                    "content": "ANOTHER_SECRET"
+                }
+            }),
+            "/",
+        )
+        .unwrap();
+        assert_eq!(
+            Value::Object(patch.input.clone()),
+            json!({ "paths": ["src/app.ts"] })
+        );
+        assert!(!patch.to_json().to_string().contains("SECRET"));
+        assert_eq!(
+            extract_patch_paths("*** Delete File: old.txt\n*** Add File: new.txt"),
+            ["old.txt", "new.txt"]
+        );
+        let write = project(
+            &json!({
+                "hook_event_name": "PreToolUse", "tool_name": "Write", "tool_use_id": "call-2",
+                "cwd": "/workspace",
+                "tool_input": { "file_path": "/workspace/a.md", "content": "private" }
+            }),
+            "/",
+        )
+        .unwrap();
+        assert_eq!(
+            Value::Object(write.input),
+            json!({ "file_path": "/workspace/a.md" })
+        );
+        let cursor = project(
+            &json!({
+                "hook_event_name": "preToolUse", "conversation_id": "cursor-conversation",
+                "generation_id": "cursor-generation", "tool_name": "Read",
+                "tool_use_id": "cursor-call", "cwd": "/workspace",
+                "tool_input": { "path": "/workspace/cursor.ts", "content": "private" }
+            }),
+            "/",
+        )
+        .unwrap();
+        assert_eq!(
+            (
+                cursor.event_name.as_str(),
+                cursor.session_id.as_deref(),
+                cursor.tool_call_id.as_str(),
+                cursor.tool_name.as_str()
+            ),
+            (
+                "preToolUse",
+                Some("cursor-conversation"),
+                "cursor-call",
+                "Read"
+            )
+        );
+        assert_eq!(
+            Value::Object(cursor.input.clone()),
+            json!({ "path": "/workspace/cursor.ts" })
+        );
+        assert!(!cursor.to_json().to_string().contains("private"));
+        let codex = |tool: &str, id: &str, command: &str| {
+            json!({
+                "hook_event_name": "PreToolUse", "session_id": "codex-session-fixture",
+                "turn_id": "codex-turn-fixture", "tool_name": tool, "tool_use_id": id,
+                "cwd": "/workspace", "model": "gpt-test", "permission_mode": "default",
+                "transcript_path": null, "tool_input": { "command": command }
+            })
+        };
+        let read = project(
+            &codex(
+                "Bash",
+                "codex-tool-fixture",
+                "tail -20 notes.md && wc -l notes.md",
+            ),
+            "/",
+        )
+        .unwrap();
+        assert_eq!(
+            (read.event_name.as_str(), read.tool_name.as_str()),
+            ("PreToolUse", "Bash")
+        );
+        assert_eq!(
+            Value::Object(read.input.clone()),
+            json!({ "read_paths": ["notes.md"] })
+        );
+        assert!(!read.to_json().to_string().contains("tail -20"));
+        let apply = project(
+            &codex(
+                "apply_patch",
+                "codex-patch-fixture",
+                "*** Begin Patch\n*** Update File: notes.md\n@@\n-old\n+new\n*** End Patch",
+            ),
+            "/",
+        )
+        .unwrap();
+        assert_eq!(
+            Value::Object(apply.input.clone()),
+            json!({ "paths": ["notes.md"] })
+        );
+        assert!(!apply.to_json().to_string().contains("+new"));
+    }
     #[test]
     fn frames_with_unsafe_input_are_rejected() {
         let ok = json!({ "eventName": "e", "sessionId": null, "turnId": null, "toolCallId": "t", "toolName": "Read", "cwd": "/", "input": { "path": "a" } });

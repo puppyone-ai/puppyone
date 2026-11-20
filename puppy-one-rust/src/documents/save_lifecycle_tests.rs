@@ -96,7 +96,13 @@ fn late_revision_during_drain(intent: Intent, latest: &str, dirty: bool) {
         if latest == "first" { 1 } else { 2 }
     );
     match intent {
-        Intent::CloseFile => assert!(d.document.is_none()),
+        Intent::CloseFile => {
+            assert!(d.document.is_none());
+            // Reopening reads the drained revision.
+            d.begin(Intent::OpenFile("note.md".into()), &wake);
+            wait(&mut d, &wake);
+            assert_eq!(d.document.as_ref().unwrap().text, latest);
+        }
         Intent::Quit => assert!(d.allow_quit),
         Intent::Save => {
             assert!(d.outgoing.contains(&HostMessage::Thaw));
@@ -387,4 +393,131 @@ fn panicking_storage_settles_close_retains_the_draft_and_retries_unknown_outcome
         assert!(d.document.is_none());
         assert_eq!(provider.writes.load(Ordering::SeqCst), 2);
     }
+}
+
+#[test]
+fn abandonment_cancels_a_queued_write_before_the_provider_is_entered() {
+    let (provider, mut d, wake) = memory_document();
+    let calls = provider.calls.load(Ordering::SeqCst);
+    let (started, entered) = mpsc::channel();
+    let (release, finish) = mpsc::channel();
+    *provider.hook.lock().unwrap() = Some(Box::new(move || {
+        let _ = started.send(());
+        let _ = finish.recv_timeout(Duration::from_secs(10));
+    }));
+    // This real observation owns the resource lock, so the following save
+    // stays in the bounded I/O queue until we release it.
+    d.revalidate();
+    d.poll(&wake);
+    entered.recv_timeout(Duration::from_secs(10)).unwrap();
+    edit(&mut d, &wake, 1, "must never reach storage", true);
+    d.begin(Intent::Save, &wake);
+    snapshot(&mut d, &wake, "must never reach storage");
+    d.abandon_unsaved();
+    release.send(()).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Ok(working_copy::CopyCompleted::Save { result, .. }) = d.copy_rx.try_recv() {
+            assert!(
+                result.is_err(),
+                "the queued save must exit without committing"
+            );
+            break;
+        }
+        assert!(Instant::now() < deadline, "queued save did not retire");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    edit(&mut d, &wake, 2, "late input", true);
+    d.cancel_quit(&wake);
+    d.begin(Intent::Save, &wake);
+    d.retry_save(&wake);
+    d.poll_at(&wake, Instant::now() + Duration::from_secs(10));
+    assert!(d.allow_quit && !d.dirty && !d.saving());
+    assert_eq!(provider.calls.load(Ordering::SeqCst), calls + 1);
+    assert_eq!(*provider.text.lock().unwrap(), "original");
+    assert!(d.outgoing.is_empty());
+}
+
+#[test]
+fn abandonment_does_not_replay_newer_input_after_an_already_started_write() {
+    let (provider, mut d, wake) = memory_document();
+    let calls = provider.calls.load(Ordering::SeqCst);
+    let (started, entered) = mpsc::channel();
+    let (release, finish) = mpsc::channel();
+    *provider.hook.lock().unwrap() = Some(Box::new(move || {
+        let _ = started.send(());
+        let _ = finish.recv_timeout(Duration::from_secs(10));
+    }));
+    edit(&mut d, &wake, 1, "already entered storage", true);
+    d.begin(Intent::Save, &wake);
+    snapshot(&mut d, &wake, "already entered storage");
+    entered.recv_timeout(Duration::from_secs(10)).unwrap();
+    edit(&mut d, &wake, 2, "newer discarded input", true);
+    d.abandon_unsaved();
+    release.send(()).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Ok(working_copy::CopyCompleted::Save { result, .. }) = d.copy_rx.try_recv() {
+            assert!(
+                result.is_ok(),
+                "an entered provider call cannot be rolled back"
+            );
+            break;
+        }
+        assert!(Instant::now() < deadline, "started save did not finish");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    d.poll_at(&wake, Instant::now() + Duration::from_secs(10));
+    d.flush_pending_auto_save(&wake);
+    assert!(!d.saving() && !d.dirty && d.allow_quit);
+    assert_eq!(*provider.text.lock().unwrap(), "already entered storage");
+    assert_eq!(provider.calls.load(Ordering::SeqCst), calls + 1);
+    assert!(d.outgoing.is_empty());
+}
+
+#[test]
+fn recreated_storage_adapter_preserves_identity_until_close_and_reopen() {
+    let namespace = "memory://recreated-adapter/project/";
+    let first = Arc::new(Memory::new(namespace));
+    let original = Workspace::from_provider(first.clone()).unwrap();
+    let wake = Wake::default();
+    let mut d = Documents::in_workspace(original.clone());
+    d.begin(Intent::OpenFile("note.md".into()), &wake);
+    wait(&mut d, &wake);
+    let document = d.document.as_ref().unwrap().clone();
+    edit(&mut d, &wake, 1, "retained draft", true);
+    original.revoke();
+    let second = Arc::new(Memory::new(namespace));
+    let replacement = Workspace::from_provider(second.clone()).unwrap();
+    d.rebind_workspace(replacement.clone(), &wake);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while replacement.observe(d.document.as_ref().unwrap()).is_err() {
+        d.poll(&wake);
+        assert!(
+            Instant::now() < deadline,
+            "replacement adapter did not bind"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert_eq!(d.document.as_ref().unwrap().id, document.id);
+    assert_eq!(d.document.as_ref().unwrap().identity, document.identity);
+    assert_eq!(
+        d.session.as_ref().unwrap().latest_draft_buffer(),
+        Buffer::new("retained draft")
+    );
+    d.begin(Intent::Save, &wake);
+    snapshot(&mut d, &wake, "retained draft");
+    wait(&mut d, &wake);
+    assert_eq!(*second.text.lock().unwrap(), "retained draft");
+    assert_eq!(*first.text.lock().unwrap(), "original");
+    assert!(!d.dirty && d.error.is_none());
+    d.begin(Intent::CloseFile, &wake);
+    snapshot(&mut d, &wake, "retained draft");
+    wait(&mut d, &wake);
+    assert!(d.document.is_none() && d.session.is_none());
+    d.begin(Intent::OpenFile("note.md".into()), &wake);
+    wait(&mut d, &wake);
+    assert_ne!(d.document.as_ref().unwrap().id, document.id);
+    assert_eq!(d.document.as_ref().unwrap().identity, document.identity);
+    assert_eq!(d.document.as_ref().unwrap().text, "retained draft");
 }

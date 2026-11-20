@@ -11,7 +11,7 @@ use crate::{
     ui::agent_brand_mark::{LauncherIdentity, launcher_icon},
     ui::components::{AnchoredMenu, IconButton, Menu, MenuItem, Spinner},
 };
-use gpui_kit::base::{h_flex, v_flex};
+use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 
 /// `.desktop-terminal-launcher-content`: `min(100%, 252px)`, 264px from a 460px container.
 fn content_width(container: f32) -> f32 {
@@ -25,6 +25,21 @@ fn content_width(container: f32) -> f32 {
 const FEEDBACK_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
 
 impl WorkbenchLauncher {
+    /// `availabilityMessage` while discovery runs: nothing for the first
+    /// 200ms, then what it is doing. Never a failure or an empty result:
+    /// background discovery is best-effort and manual refresh stays.
+    pub(super) fn discovery_label(&self) -> Option<&'static str> {
+        let shown = self.scanning
+            && !self.hosted.is_open()
+            && self
+                .scan_started
+                .is_some_and(|start| start.elapsed() >= FEEDBACK_DELAY);
+        shown.then_some(if self.refreshing {
+            "terminal.launcher.refreshing"
+        } else {
+            "terminal.launcher.detecting"
+        })
+    }
     /// The launcher's setup section, narrowed to this launcher's surface and
     /// the detected Agents.
     fn setup_section(
@@ -87,7 +102,7 @@ impl WorkbenchLauncher {
             // `:disabled`: a contribution at its `maximumItems`.
             .disabled(!available)
             .when(available, |b| {
-                b.cursor(theme::clickable_cursor())
+                b.cursor(theme::navigation_cursor())
                     .hover(move |b| b.bg(t.hover).text_color(t.text))
             })
             .when(!available, |b| b.opacity(0.52))
@@ -162,6 +177,7 @@ impl WorkbenchLauncher {
         for (i, installation) in visible.iter().filter(|i| !i.bundled()).cloned().enumerate() {
             let terminal = installation.clone();
             let row_group = SharedString::from(format!("launch-agent-{group}-{i}"));
+            let id = installation.id;
             external = external.child(
                 self.launcher_row(
                     ElementId::NamedInteger("launch-agent".into(), group * 100 + i as u64),
@@ -171,6 +187,7 @@ impl WorkbenchLauncher {
                     if installation.chat { chats } else { terminals },
                     cx,
                 )
+                .debug_selector(move || format!("launcher-agent-{id}"))
                 .on_click(cx.listener(move |s, _, w, cx| {
                     s.chat_mode = true;
                     s.launch(group, tab, Some(installation.clone()), w, cx)
@@ -192,6 +209,7 @@ impl WorkbenchLauncher {
         }
         let mut bundled = v_flex().gap(px(1.));
         for (i, installation) in visible.iter().filter(|i| i.bundled()).cloned().enumerate() {
+            let id = installation.id;
             bundled = bundled.child(
                 self.launcher_row(
                     ElementId::NamedInteger("launch-bundled".into(), group * 100 + i as u64),
@@ -201,6 +219,7 @@ impl WorkbenchLauncher {
                     if installation.chat { chats } else { terminals },
                     cx,
                 )
+                .debug_selector(move || format!("launcher-agent-{id}"))
                 .on_click(cx.listener(move |s, _, w, cx| {
                     s.chat_mode = true;
                     s.launch(group, tab, Some(installation.clone()), w, cx)
@@ -216,6 +235,7 @@ impl WorkbenchLauncher {
                 terminals,
                 cx,
             )
+            .debug_selector(|| "launcher-shell".into())
             .on_click(cx.listener(move |s, _, w, cx| s.launch(group, tab, None, w, cx)));
 
         // `.desktop-terminal-launcher-scan` / `-history`: 18px quiet controls.
@@ -226,11 +246,14 @@ impl WorkbenchLauncher {
                 .color(t.subtle)
                 .rounded(px(4.))
         };
+        // A scan already running is the one a click would ask for.
         let scan = quiet(
             "launcher-scan",
             Icon::new("refresh-cw").xsmall().stroke(1.7),
             tr("terminal.launcher.scanAgain"),
         )
+        .disabled(self.scanning)
+        .debug_selector(|| "launcher-scan".into())
         .on_click(cx.listener(|s, _, _, cx| s.rescan(cx)));
 
         // `.desktop-terminal-launcher-history`: opens the cross-runtime
@@ -241,6 +264,7 @@ impl WorkbenchLauncher {
             tr("agent.history.title"),
         )
         .bg(t.auxiliary())
+        .debug_selector(|| "launcher-history".into())
         .on_click(cx.listener(move |s, _, window, cx| {
             // Cloud reads the hosted Agent's own history (`CloudAgentHistory`).
             s.open_history(group, tab, window, cx)
@@ -250,19 +274,17 @@ impl WorkbenchLauncher {
         let mut entries = v_flex().gap(px(1.)).child(external);
         // `discoveryPhase="ready"`: no local discovery in Cloud.
         let scanning = self.scanning && !cloud;
-        let feedback = scanning
-            && self
-                .scan_started
-                .is_some_and(|start| start.elapsed() >= FEEDBACK_DELAY);
-        if scanning && !feedback {
+        let feedback = self.discovery_label();
+        if scanning && feedback.is_none() {
             // Re-render once the indicator delay has passed.
             let wake = self.wake.clone();
             wake.after(FEEDBACK_DELAY);
         }
-        if feedback {
+        if let Some(label) = feedback {
             // `LauncherDiscoveryFeedback`: an 11px spinning ring in the icon column.
             entries = entries.child(
                 h_flex()
+                    .debug_selector(|| "launcher-discovery".into())
                     .min_h(px(theme::control_large()))
                     .px(px(8.))
                     .py(px(5.))
@@ -277,13 +299,17 @@ impl WorkbenchLauncher {
                         t.border,
                         t.subtle,
                     )))
-                    .child(tr("terminal.launcher.detecting")),
+                    .child(tr(label)),
             );
         }
         // `agentSetup`: suggested and running activations, between the
         // detected Agents and the bundled one.
         if !cloud && let Some(setup) = self.setup_section(cx) {
-            entries = entries.child(setup);
+            entries = entries.child(
+                div()
+                    .debug_selector(|| "launcher-setup".into())
+                    .child(setup),
+            );
         }
         // `terminalEnabled={false}`: a Cloud launcher offers no shell.
         entries = entries.child(bundled).when(!cloud, |e| e.child(shell));
@@ -291,6 +317,7 @@ impl WorkbenchLauncher {
         // `.desktop-terminal-launcher-error`.
         let error = self.launch_errors.get(&group).map(|message| {
             h_flex()
+                .debug_selector(|| "launcher-error".into())
                 .min_w_0()
                 .items_start()
                 .gap(px(6.))

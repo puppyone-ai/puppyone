@@ -11,6 +11,13 @@ import rust_paths  # noqa: E402
 
 root = Path(__file__).resolve().parents[1]
 errors = []
+# Window::draw returns an explicit frame-arena cleanup token. Discarding it
+# retains the rendered element tree, invalidating teardown tests and excluding
+# cleanup from frame benchmarks. The production event loop clears this token.
+for path in (root / "src").rglob("*.rs"):
+    if re.search(r"\blet\s+_\s*=\s*(?:w|window)\.draw\(\w+\)\s*;", path.read_text()):
+        errors.append(f"{path.relative_to(root)}: clear the Window::draw frame arena")
+
 # UI primitives, the component library and the native text input (ui::input).
 primitives = list((root / "src/ui").rglob("*.rs"))
 for path in primitives:
@@ -62,6 +69,17 @@ for relative in ['src/documents/mod.rs', 'src/app/explorer', 'src/features/creat
         source = source.split('#[cfg(test)]')[0]
         if re.search(r'workspace::local|cap_std\s*::|std\s*::\s*fs\b', source):
             errors.append(f'{path.relative_to(root)}: workspace consumer bypasses provider authority')
+
+# Installation discovery inspects executables only: it never reads or changes
+# an Agent's activity Hook enrollment (`detects local Agents without reading or
+# changing activity Hook enrollment`).
+discovery = list((root / 'src/agent/installation').rglob('*.rs')) + [
+    root / 'src/agent/host/installation_host.rs',
+    root / 'src/features/local_agents/discovery.rs',
+]
+for path in discovery:
+    if re.search(r'\bagent_activity\b', path.read_text()):
+        errors.append(f'{path.relative_to(root)}: installation discovery touches Hook enrollment')
 
 # Native auth has one credential/transport owner, outside presentation. Only
 # features/cloud/account.rs projects public snapshots and opens validated URLs.
@@ -233,7 +251,7 @@ for base in ['src/app', 'src/features', 'src/editor']:
 # document pump in `app/command/`; the window's parts are their own
 # entities. The dev-capture scenario driver, the Homepage and Cloud screen
 # lab fixtures and tests are the exceptions.
-shell_impls = {'mod.rs', 'command/route.rs', 'command/events.rs', 'command/pump.rs', 'dev/capture_scenario.rs', 'dev/home_lab.rs', 'dev/screen_lab.rs'}
+shell_impls = {'mod.rs', 'command/route.rs', 'command/events.rs', 'command/pump.rs', 'dev/capture_scenario.rs', 'dev/home_lab.rs', 'dev/screen_lab.rs', 'dev/settings_lab.rs'}
 for path in (root / 'src/app').rglob('*.rs'):
     relative = path.relative_to(root / 'src/app').as_posix()
     if relative not in shell_impls and not fixture(path) and re.search(r'^impl\s+Shell\b', path.read_text(), re.M):
@@ -335,7 +353,8 @@ colour_literal = re.compile(r"\b(?:rgb|rgba|hsla|hsl)\s*\(|\b(?:Rgba|Hsla)\s*\{\
 colour_sources = {root / 'src/theme.rs', root / 'src/editor/tokens.rs'}
 for path in (root / 'src').rglob('*.rs'):
     if (path in colour_sources or root / 'src/platform/themes' in path.parents
-            or path.name == 'tests.rs' or path.name.endswith('_tests.rs')):
+            or path.name == 'tests.rs' or path.name.endswith('_tests.rs')
+            or 'tests' in path.relative_to(root / 'src').parts):
         continue
     for number, line in enumerate(path.read_text().splitlines(), 1):
         if colour_literal.search(line) and not line.lstrip().startswith('//'):

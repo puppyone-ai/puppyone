@@ -4,12 +4,15 @@
 //! per URL through CFNetwork. reqwest's own system support reads only the
 //! fixed HTTP and HTTPS proxies, so a client adds [`system`] to its builder;
 //! without a PAC it changes nothing.
+#[cfg(target_os = "macos")]
 use std::time::Duration;
 
 /// How long a URL's answer is reused (by scheme, host and port).
+#[cfg(target_os = "macos")]
 const CACHE_FOR: Duration = Duration::from_secs(60);
 /// The longest one PAC evaluation may take; past it, the request goes
 /// direct.
+#[cfg(target_os = "macos")]
 const PAC_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// `builder` with the system's PAC proxy, when the system uses one.
@@ -30,8 +33,10 @@ pub fn system(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
 }
 
 /// What a resolution says: a proxy's URL, or direct.
+#[cfg(target_os = "macos")]
 type Answer = Option<String>;
 
+#[cfg(target_os = "macos")]
 fn cached(url: &reqwest::Url, resolve: impl FnOnce() -> Answer) -> Answer {
     use std::{
         collections::HashMap,

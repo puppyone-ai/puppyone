@@ -90,6 +90,18 @@ impl DocumentEditor {
         cx.notify();
     }
 
+    /// Whether the pane menu is open.
+    pub fn pane_menu_open(&self) -> bool {
+        self.chrome.open
+    }
+
+    /// Escape for an open pane menu. The window's Escape binding runs
+    /// before the menu's own key handler, so the shell routes it here:
+    /// the menu closes and focus returns to the document.
+    pub fn dismiss_pane_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_pane_menu(true, window, cx);
+    }
+
     pub(super) fn pane_menu_key(
         &mut self,
         event: &KeyDownEvent,
@@ -117,7 +129,7 @@ impl DocumentEditor {
 
     /// Dev-capture: the reference's `md-menu` (handle revealed, menu open)
     /// and `md-find` (find bar open, unfocused) states.
-    #[cfg(feature = "dev-capture")]
+    #[cfg(any(feature = "dev-capture", feature = "test-support"))]
     pub fn lab_state(&mut self, state: &str, window: &mut Window, cx: &mut Context<Self>) {
         match state {
             "menu" => {
@@ -132,7 +144,7 @@ impl DocumentEditor {
     }
 
     /// Run a pane menu entry (`runAndClose` for commands).
-    #[cfg(feature = "dev-capture")]
+    #[cfg(any(feature = "dev-capture", feature = "test-support"))]
     pub fn lab_pane_segment(
         &mut self,
         id: &'static str,

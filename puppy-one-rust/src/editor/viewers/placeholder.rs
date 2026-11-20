@@ -219,8 +219,13 @@ impl Render for OversizedCard {
                 Button::new("oversized-open-default")
                     .variant(ButtonVariant::Secondary)
                     .label(t("editor.openDefaultApp"))
-                    .on_click(move |_, _, _| {
-                        let _ = crate::platform::desktop::open(&path);
+                    .on_click(move |_, window, cx| {
+                        crate::editor::question::open_external(
+                            Some(window.window_handle()),
+                            path.clone(),
+                            |_, _| {},
+                            cx,
+                        );
                     })
                     .into_any_element(),
             );
@@ -361,8 +366,13 @@ impl Render for FaultedCard {
                 Button::new("faulted-open-default")
                     .variant(ButtonVariant::Secondary)
                     .label(t("editor.openDefaultApp"))
-                    .on_click(move |_, _, _| {
-                        let _ = crate::platform::desktop::open(&path);
+                    .on_click(move |_, window, cx| {
+                        crate::editor::question::open_external(
+                            Some(window.window_handle()),
+                            path.clone(),
+                            |_, _| {},
+                            cx,
+                        );
                     })
                     .into_any_element(),
             );
@@ -445,6 +455,37 @@ impl ViewerSurface for PlaceholderSurface {
         let resource = resource.clone();
         self.view
             .update(cx, |v, cx| v.rebind_resource(&resource, cx));
+    }
+
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    fn as_test_probe(&self) -> Option<&dyn SurfaceTestProbe> {
+        Some(self)
+    }
+}
+
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl SurfaceTestProbe for PlaceholderSurface {
+    /// `detail` is the text the card shows: the summary, and the name only
+    /// beside a preview image.
+    #[cfg(test)]
+    fn special_surface(&self, cx: &App) -> Option<SpecialSurfaceProbe> {
+        let v = self.view.read(cx);
+        let summary = std::iter::once(v.label.to_string())
+            .chain(v.details())
+            .collect::<Vec<_>>()
+            .join(" · ");
+        Some(SpecialSurfaceProbe {
+            kind: "placeholder",
+            size_bytes: v.byte_size,
+            limit_bytes: None,
+            can_open_default_app: v.local_path.is_some(),
+            can_reveal_in_finder: false,
+            can_switch_plain_text: false,
+            detail: match v.thumbnail {
+                Some(_) => format!("{}\n{summary}", display_name(&v.name)),
+                None => summary,
+            },
+        })
     }
 }
 
@@ -583,13 +624,19 @@ impl DocumentPreview {
         cx.notify();
     }
 
-    fn open_in_default_app(&self) {
+    fn open_in_default_app(&self, window: &Window, cx: &mut App) {
         if let Some(path) = &self.local_path {
-            let _ = crate::platform::desktop::open(path);
+            crate::editor::question::open_external(
+                Some(window.window_handle()),
+                path.clone(),
+                |_, _| {},
+                cx,
+            );
         }
     }
 
-    fn summary_line(&self, t_: theme::Theme) -> Div {
+    /// The summary after the label: the file type and size when known.
+    fn details(&self) -> Vec<String> {
         let mut details = Vec::new();
         if let Some(kind) = &self.file_type {
             details.push(kind.clone());
@@ -597,6 +644,11 @@ impl DocumentPreview {
         if let Some(bytes) = self.byte_size {
             details.push(format_file_size(bytes));
         }
+        details
+    }
+
+    fn summary_line(&self, t_: theme::Theme) -> Div {
+        let details = self.details();
         div()
             .flex()
             .flex_wrap()
@@ -620,7 +672,7 @@ impl Render for DocumentPreview {
             Button::new("placeholder-open-default")
                 .variant(ButtonVariant::Secondary)
                 .label(t("editor.openDefaultApp"))
-                .on_click(cx.listener(|v, _, _, _| v.open_in_default_app()))
+                .on_click(cx.listener(|v, _, window, cx| v.open_in_default_app(window, cx)))
         });
 
         let card = if let Some(thumb) = &self.thumbnail {
@@ -708,8 +760,14 @@ impl Render for DocumentPreview {
                 .into_any_element()
         };
 
+        // `role="status"`: the pane names the file it cannot preview.
         div()
             .id("document-preview")
+            .role(Role::Status)
+            .aria_label(tf(
+                "editor.preview.unavailableFor",
+                &[("name", display_name(&self.name).into())],
+            ))
             .size_full()
             .flex()
             .items_center()
@@ -718,6 +776,7 @@ impl Render for DocumentPreview {
             .p(px(32.))
             .bg(t_.canvas)
             .child(card)
+            .test_support()
     }
 }
 

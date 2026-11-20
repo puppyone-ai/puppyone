@@ -593,6 +593,63 @@ mod tests {
         });
     }
 
+    /// A read survives a lost connection (it is asked again on a new one);
+    /// a write is sent exactly once. A definite denial ends a watch.
+    #[test]
+    fn a_read_survives_a_lost_connection_and_a_write_is_sent_once() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        std::fs::write(root.join("note.md"), "hello").unwrap();
+        let cloud = fake(root.clone());
+        let hosts = Hosts::new(cloud.clone());
+        runtime().block_on(async {
+            *cloud.lose.lock().unwrap() = 2;
+            let read = hosts
+                .request(
+                    FOLDER,
+                    &Request::Read {
+                        path: "note.md".into(),
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(read["content_base64"], "aGVsbG8=");
+            assert_eq!(cloud.tunnels.lock().unwrap().len(), 3);
+            hosts.close(FOLDER);
+            cloud.tunnels.lock().unwrap().clear();
+            *cloud.lose.lock().unwrap() = 1;
+            let lost = hosts
+                .request(
+                    FOLDER,
+                    &Request::Write {
+                        path: "new.md".into(),
+                        content_base64: "aGk=".into(),
+                        expected_revision: Some(None),
+                    },
+                )
+                .await
+                .unwrap_err();
+            assert_eq!(
+                (lost.code.as_str(), lost.status),
+                ("network_unavailable", 0)
+            );
+            assert_eq!(cloud.tunnels.lock().unwrap().len(), 1);
+            assert!(!root.join("new.md").exists());
+        });
+        // A denial ends the watch for good.
+        *cloud.refuse.lock().unwrap() = Some("folder_unavailable");
+        let events = Mutex::new(Vec::new());
+        runtime().block_on(hosts.watch(FOLDER, |event| {
+            events.lock().unwrap().push(event);
+            true
+        }));
+        let events = events.into_inner().unwrap();
+        assert!(
+            matches!(events.as_slice(), [FolderEvent::Unavailable(error)] if error.code == "folder_unavailable"),
+            "{events:?}"
+        );
+    }
+
     /// A watch reports changes, and after the computer was out of reach it
     /// asks for a rescan; an unshared folder ends it.
     #[test]

@@ -43,6 +43,25 @@ const SOURCE_MIN: f32 = 120.;
 const SOURCE_MAX: f32 = 420.;
 const DEFAULT_MIN_SCALE: f32 = 0.7;
 
+#[cfg(test)]
+pub(crate) fn request_for_tests(
+    source: &str,
+    dark: bool,
+    scale: crate::typography::Scale,
+    zoom_scale: f32,
+) -> Request {
+    let t = Tokens::get(dark, scale);
+    let diagram = markdown_theme(t);
+    Request {
+        kind: Kind::Mermaid {
+            config: render_service::mermaid_config(&diagram),
+        },
+        source: source.to_owned(),
+        background: render_service::hex(diagram.panel),
+        scale: zoom_scale,
+    }
+}
+
 pub struct MermaidBlockWidget {
     block: MermaidBlock,
     dark: bool,
@@ -147,7 +166,7 @@ impl MermaidBlockWidget {
 
     fn evaluate_diagram(&self, inner_width: f32, cx: &mut WidgetCx) -> DiagramEvaluation {
         let editor = cx.render.view.entity_id();
-        let at = self.block.range.start;
+        let at = cx.source.start;
         let slot = render_broker::slot_for(editor, at);
         let natural =
             render_broker::get_for_slot(slot, &self.request, cx.render.window, cx.render.app);
@@ -211,6 +230,7 @@ impl MermaidBlockWidget {
             .flex_none();
         let content = div()
             .id(cx.id("mermaid-scroll"))
+            .debug_selector(|| "md-mermaid-canvas".into())
             .size_full()
             .overflow_scroll()
             .child(
@@ -234,7 +254,7 @@ impl BlockWidget for MermaidBlockWidget {
         let app = Theme::new(self.dark);
         let ty = theme::ty().ui;
         let send = cx.sender();
-        let at = self.block.range.start;
+        let at = cx.source.start;
         let mut children: Vec<AnyElement> = Vec::new();
         let mut y = PAD_TOP + if editing { EDITING_TOP } else { 0. };
 
@@ -273,6 +293,7 @@ impl BlockWidget for MermaidBlockWidget {
                 ),
                 None => (
                     div()
+                        .debug_selector(|| "md-mermaid-loading".into())
                         .size_full()
                         .flex()
                         .items_center()
@@ -302,6 +323,7 @@ impl BlockWidget for MermaidBlockWidget {
                 .bg(self.panel)
                 .when_some(open, |d, send| {
                     d.cursor(theme::clickable_cursor())
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .on_click(move |_, window, cx| {
                             send(Command::new(ID, Action::Edit { at }), window, cx);
                         })

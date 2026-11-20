@@ -22,6 +22,37 @@ pub struct TerminalItem {
     view: Entity<TerminalView>,
     title: String,
     runtime: Option<Runtime>,
+    /// The folder the session runs in, as the accessible label names it.
+    root: String,
+    /// `session.ordinal`: the session's number among its project's terminals.
+    ordinal: u32,
+}
+
+/// The next terminal number of the project at `root` (`Terminal 1`, ...).
+fn next_ordinal(root: &std::path::Path) -> u32 {
+    static NEXT: std::sync::Mutex<Option<std::collections::HashMap<PathBuf, u32>>> =
+        std::sync::Mutex::new(None);
+    let mut next = NEXT.lock().unwrap_or_else(|e| e.into_inner());
+    let n = next
+        .get_or_insert_with(Default::default)
+        .entry(root.to_path_buf())
+        .or_insert(0);
+    *n += 1;
+    *n
+}
+
+/// `DESKTOP_TERMINAL_LAUNCHERS[].nameMessage` for the CLI a tab runs.
+fn launcher_name(runtime: Option<Runtime>) -> Option<&'static str> {
+    Some(match runtime {
+        None => "terminal.launcher.shell.name",
+        Some(Runtime::Codex) => "terminal.launcher.codex.name",
+        Some(Runtime::Claude) => "terminal.launcher.claude.name",
+        Some(Runtime::Cursor) => "terminal.launcher.cursor.name",
+        Some(Runtime::OpenCode) => "terminal.launcher.opencode.name",
+        Some(Runtime::Pi) => "terminal.launcher.pi.name",
+        Some(Runtime::Hermes) => "terminal.launcher.hermes.name",
+        Some(Runtime::PuppyOne | Runtime::WorkBuddy) => return None,
+    })
 }
 
 impl TerminalItem {
@@ -35,17 +66,47 @@ impl TerminalItem {
         let title = path_label(&root);
         let runtime = installation.as_ref().map(|i| i.runtime);
         let launcher = installation.as_ref().map_or("shell", |i| i.id);
+        let ordinal = next_ordinal(&root);
+        let location = root.to_string_lossy().into_owned();
         let view = cx.new(|cx| TerminalView::new(root, launcher, window, cx));
-        Self::of(view, title, runtime)
-    }
-
-    /// The tab over `view`.
-    pub fn of(view: Entity<TerminalView>, title: String, runtime: Option<Runtime>) -> Self {
         Self {
             view,
             title,
             runtime,
+            root: location,
+            ordinal,
         }
+    }
+
+    /// The tab over `view` (fixtures): `title` stands for its folder.
+    #[cfg(any(test, feature = "dev-capture"))]
+    pub fn of(view: Entity<TerminalView>, title: String, runtime: Option<Runtime>) -> Self {
+        Self {
+            view,
+            root: title.clone(),
+            title,
+            runtime,
+            ordinal: 1,
+        }
+    }
+
+    /// `presentTerminalSessionHeader`'s accessible label: the session, the
+    /// CLI it runs, its folder and its status.
+    fn accessible_label(&self, status: SessionStatus) -> String {
+        let session = tf(
+            "terminal.sessionTitle",
+            &[("number", (self.ordinal as i64).into())],
+        );
+        [
+            Some(session.to_string()),
+            launcher_name(self.runtime).map(|key| tr(key).to_string()),
+            Some(self.root.trim().to_owned()).filter(|root| !root.is_empty()),
+            Some(tr(status.label_key()).to_string()),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" — ")
     }
 }
 
@@ -59,7 +120,7 @@ impl WorkbenchItem for TerminalItem {
         let status = terminal.status();
         ItemSnapshot {
             title: self.title.clone(),
-            accessible_label: self.title.clone(),
+            accessible_label: self.accessible_label(status),
             detail: Some(format!("{} — {}", self.title, tr(status.label_key()))),
             icon_key: None,
             status: match status {
@@ -175,6 +236,52 @@ mod launch_tests {
         fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
             div()
         }
+    }
+    /// `projects one consistent identity for the rail and overflow menu`: a
+    /// terminal tab is titled by its folder; its accessible label names the
+    /// session's number in its project, the CLI it runs, its folder and its
+    /// status; the overflow detail is the folder and status.
+    #[gpui::test]
+    fn a_terminal_tab_names_its_session_cli_folder_and_status(cx: &mut TestAppContext) {
+        crate::localization::set_current("en");
+        let root = std::path::Path::new("/workspace/my private");
+        let other = std::path::Path::new("/workspace/other");
+        assert_eq!(
+            [next_ordinal(root), next_ordinal(root), next_ordinal(other)],
+            [1, 2, 1]
+        );
+        let window = cx.add_window(|_, _| FixtureWindow);
+        let view = window
+            .update(cx, |_, window, cx| {
+                cx.new(|cx| {
+                    TerminalView::start(
+                        |wake| crate::platform::terminal::Terminal::bridged(wake).0,
+                        false,
+                        window,
+                        cx,
+                    )
+                })
+            })
+            .unwrap();
+        let tab = |runtime| TerminalItem {
+            view: view.clone(),
+            title: path_label(root),
+            runtime,
+            root: root.to_string_lossy().into_owned(),
+            ordinal: 2,
+        };
+        let codex = cx.update(|cx| tab(Some(Runtime::Codex)).snapshot(cx));
+        assert_eq!(codex.title, "my private");
+        assert_eq!(
+            codex.accessible_label,
+            "Terminal 2 — Codex — /workspace/my private — Running"
+        );
+        assert_eq!(codex.detail.as_deref(), Some("my private — Running"));
+        let shell = cx.update(|cx| tab(None).snapshot(cx));
+        assert_eq!(
+            shell.accessible_label,
+            "Terminal 2 — Shell — /workspace/my private — Running"
+        );
     }
     #[gpui::test]
     fn a_native_terminal_rejects_an_unregistered_inventory_entry_before_executing_its_cached_path(

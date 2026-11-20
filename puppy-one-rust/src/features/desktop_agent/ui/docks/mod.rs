@@ -115,3 +115,5 @@ impl Render for DocksView {
         v_flex().gap(px(8.)).children(approval).children(question)
     }
 }
+#[cfg(test)]
+mod tests;

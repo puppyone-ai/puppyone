@@ -499,4 +499,151 @@ mod tests {
         assert!(parse(&bytes, &super::descriptor(&value, ID, RELEASE, 0).unwrap()).is_err());
         assert!(!private_key(b"-----BEGIN PUBLIC KEY-----"));
     }
+
+    /// The store's own publisher's packages (`puppyone-web/scripts/
+    /// templates/publish.mjs`), as the TypeScript app's fixture holds them.
+    fn published() -> Vec<(Value, Vec<u8>)> {
+        use base64::Engine as _;
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../fixtures/workspace/projects/marketplace-packages.json"
+        ))
+        .unwrap();
+        fixture["fixtures"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| {
+                let zip = base64::engine::general_purpose::STANDARD
+                    .decode(f["zip"].as_str().unwrap())
+                    .unwrap();
+                (f["descriptor"].clone(), zip)
+            })
+            .collect()
+    }
+    fn now() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64
+    }
+    fn checked(value: &Value) -> Descriptor {
+        let id = value["template_id"].as_str().unwrap();
+        let release = value["release_id"].as_str().unwrap();
+        descriptor(value, id, release, now()).unwrap()
+    }
+
+    #[test]
+    fn every_published_package_is_verified_and_written() {
+        let packages = published();
+        assert_eq!(packages.len(), 4);
+        for (value, zip) in &packages {
+            let descriptor = checked(value);
+            let plan = parse(zip, &descriptor).unwrap();
+            assert_eq!(plan.files.len(), descriptor.file_count);
+            let parent = tempfile::tempdir().unwrap();
+            let project = super::super::materialize(parent.path(), "Project", &plan).unwrap();
+            let readme =
+                std::fs::read_to_string(project.join(plan.initial_open.as_deref().unwrap()))
+                    .unwrap();
+            assert!(readme.len() > 100, "{}", descriptor.locale);
+            let entries: Vec<_> = std::fs::read_dir(parent.path())
+                .unwrap()
+                .map(|e| e.unwrap().file_name())
+                .collect();
+            assert_eq!(entries, ["Project"]);
+        }
+        // Both locales of both templates.
+        let mut locales: Vec<_> = packages
+            .iter()
+            .map(|(v, _)| format!("{} {}", v["template_id"], v["locale"]))
+            .collect();
+        locales.dedup();
+        assert_eq!(locales.len(), 4);
+    }
+
+    #[test]
+    fn a_matching_bundle_digest_admits_no_traversal_extra_entry_or_link() {
+        let (value, original) = published().remove(0);
+        let renamed = |from: &str, to: &str| {
+            assert_eq!(from.len(), to.len());
+            let mut bytes = original.clone();
+            let mut at = 0;
+            while let Some(found) = bytes[at..]
+                .windows(from.len())
+                .position(|w| w == from.as_bytes())
+            {
+                let start = at + found;
+                bytes[start..start + to.len()].copy_from_slice(to.as_bytes());
+                at = start + to.len();
+            }
+            assert_ne!(bytes, original, "{from} is in the package");
+            bytes
+        };
+        let mut link = original.clone();
+        let directory = link
+            .windows(4)
+            .position(|w| w == [0x50, 0x4b, 0x01, 0x02])
+            .unwrap();
+        link[directory + 38..directory + 42].copy_from_slice(&(0o120777u32 << 16).to_le_bytes());
+        for (case, bytes) in [
+            (
+                "traversal",
+                renamed("content/README.md", "content/../bad.md"),
+            ),
+            (
+                "extra root entry",
+                renamed("manifest.json", "external.json"),
+            ),
+            ("link", link),
+        ] {
+            let mut descriptor = checked(&value);
+            descriptor.bundle_sha256 = sha256_hex(&bytes);
+            assert_eq!(parse(&bytes, &descriptor), Err(failure()), "{case}");
+        }
+    }
+
+    #[test]
+    fn corruption_identity_expiry_and_digests_are_refused() {
+        let (value, bytes) = published().remove(0);
+        let descriptor = checked(&value);
+        let mut corrupted = bytes.clone();
+        corrupted[80] ^= 1;
+        let other_release = Descriptor {
+            release_id: "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b".into(),
+            ..descriptor.clone()
+        };
+        for (case, bytes, descriptor) in [
+            ("corrupted", &corrupted, descriptor.clone()),
+            (
+                "content digest",
+                &bytes,
+                Descriptor {
+                    content_sha256: "0".repeat(64),
+                    ..descriptor.clone()
+                },
+            ),
+            (
+                "file count",
+                &bytes,
+                Descriptor {
+                    file_count: 1,
+                    ..descriptor.clone()
+                },
+            ),
+            ("release", &bytes, other_release),
+        ] {
+            let error = parse(bytes, &descriptor).unwrap_err();
+            assert!(error.contains("verification"), "{case}: {error}");
+        }
+        let id = value["template_id"].as_str().unwrap();
+        let release = value["release_id"].as_str().unwrap();
+        for expires in ["2000-01-01", "2000-01-01T00:00:00.000Z"] {
+            let mut expired = value.clone();
+            expired["expires_at"] = expires.into();
+            assert!(
+                super::descriptor(&expired, id, release, now()).is_err(),
+                "{expires}"
+            );
+        }
+    }
 }

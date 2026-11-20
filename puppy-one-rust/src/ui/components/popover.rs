@@ -96,10 +96,11 @@ impl Styled for PopoverMenu {
     }
 }
 impl RenderOnce for PopoverMenu {
-    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
         let mut popover = Popover::new(self.id)
             .anchor(self.anchor)
-            .offset(self.offset);
+            .offset(self.offset)
+            .overlay_closable(false);
         *popover.style() = self.style;
         if let Some(open) = self.open {
             popover = popover.open(open);
@@ -110,13 +111,22 @@ impl RenderOnce for PopoverMenu {
         if let Some(trigger) = self.trigger {
             popover = popover.trigger_with(move |open, _, _| trigger(open));
         }
+        let parent_view_id = window.current_view();
         if let Some(content) = self.content {
             popover = popover.content(move |_, window, cx| {
                 let state = cx.entity().downgrade();
                 let dismiss: Dismiss = Rc::new(move |window, cx| {
                     let _ = state.update(cx, |state, cx| state.dismiss(window, cx));
                 });
-                content(dismiss, window, cx)
+                let dismiss_out = dismiss.clone();
+                div()
+                    .on_mouse_down_out(move |event, window, cx| {
+                        if !super::menu::submenu_contains(event.position, window, cx) {
+                            dismiss_out(window, cx);
+                            cx.notify(parent_view_id);
+                        }
+                    })
+                    .child(content(dismiss, window, cx))
             });
         }
         popover
@@ -163,7 +173,11 @@ impl RenderOnce for AnchoredMenu {
                     div()
                         .id(self.id)
                         .when_some(dismiss, |d, dismiss| {
-                            d.on_mouse_down_out(move |_, window, cx| dismiss(window, cx))
+                            d.on_mouse_down_out(move |event, window, cx| {
+                                if !super::menu::submenu_contains(event.position, window, cx) {
+                                    dismiss(window, cx);
+                                }
+                            })
                         })
                         .child(self.content),
                 ),

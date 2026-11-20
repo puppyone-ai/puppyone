@@ -14,12 +14,15 @@ use super::{
     render::{MeasureCache, ParagraphCache},
     widget::{BlockId, WidgetStateStore},
 };
-use crate::editor::text::{
-    buffer::Buffer,
-    change::ChangeSet,
-    history::{History, minimal_diff, minimal_diff_buffers},
-    selection::Selection,
-    state::{Annotation, EditorState, Transaction, UserEvent},
+use crate::editor::{
+    document_session::models::{ModelHandle, ModelKind, ModelLease},
+    text::{
+        buffer::Buffer,
+        change::ChangeSet,
+        history::{History, minimal_diff, minimal_diff_buffers},
+        selection::Selection,
+        state::{Annotation, EditorState, Transaction, UserEvent},
+    },
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::text::{TextViewStyle, editor_host::RenderContext};
@@ -164,6 +167,11 @@ pub struct EditorView {
     pub(super) pointer: PointerState,
     pub(super) ime: ImeState,
     pub(super) scroll_y: f32,
+    /// The anchor a frame held at the viewport top, with the scroll and
+    /// revision it held it at: kept while neither changes, so a run of
+    /// relayouts (a window resize) holds one text still instead of
+    /// choosing again from each new row structure.
+    pub(super) held_anchor: Option<(super::layout::ScrollAnchor, f32, u64)>,
     pub(super) bounds: Option<Bounds<Pixels>>,
     blur: Option<Subscription>,
     pub(super) focused_before: bool,
@@ -175,6 +183,28 @@ pub struct EditorView {
     /// padding so content only passes under it when scrolled.
     chrome_inset: f32,
     pub(super) has_header_banner: bool,
+    /// Set on the document's own view: its history outlives it.
+    model: Option<ModelLease>,
+}
+
+/// The text and history a destroyed view leaves to the document's next view.
+struct RetainedText {
+    doc: Buffer,
+    history: History,
+}
+
+impl Drop for EditorView {
+    fn drop(&mut self) {
+        let Some(lease) = self.model.take() else {
+            return;
+        };
+        let doc = self.committed_doc().clone();
+        let mut history = std::mem::take(&mut self.history);
+        history.seal();
+        if history.can_undo() || history.can_redo() {
+            lease.detach(RetainedText { doc, history });
+        }
+    }
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
@@ -224,6 +254,7 @@ impl EditorView {
             pointer: PointerState::default(),
             ime: ImeState::default(),
             scroll_y,
+            held_anchor: None,
             bounds: None,
             blur: None,
             focused_before: false,
@@ -231,7 +262,24 @@ impl EditorView {
             dark: true,
             chrome_inset: 0.,
             has_header_banner: false,
+            model: None,
         }
+    }
+
+    /// Make this the document's own view (`DocumentModels`): it continues
+    /// the history a destroyed view left for the same text, and leaves its
+    /// own history behind when it is dropped. Followers never attach.
+    pub fn attach_model(&mut self, models: &ModelHandle) {
+        let doc = &self.state.doc;
+        let Some((lease, retained)) =
+            models.attach::<RetainedText>(ModelKind::Text, |retained| retained.doc == *doc)
+        else {
+            return;
+        };
+        if let Some(retained) = retained {
+            self.history = retained.history;
+        }
+        self.model = Some(lease);
     }
 
     pub fn text(&self) -> &str {
@@ -284,6 +332,21 @@ impl EditorView {
 
     /// Document top and bottom of the block holding `offset`, as the last
     /// frame's height plan has them (laid out or estimated).
+    /// The text at the viewport top, from the last frame's layout, while
+    /// that layout is of the current document.
+    pub(super) fn scroll_anchor(&self) -> Option<super::layout::ScrollAnchor> {
+        if let Some((anchor, scroll, revision)) = self.held_anchor
+            && scroll == self.scroll_y
+            && revision == self.state.revision
+        {
+            return Some(anchor);
+        }
+        let layout = self.caches.layout.as_ref()?;
+        (layout.revision == self.state.revision)
+            .then(|| layout.anchor(self.scroll_y))
+            .flatten()
+    }
+
     pub(super) fn estimated_block_of(&self, offset: usize) -> Option<(f32, f32)> {
         let layered = &self.caches.decorations;
         let line = self.state.doc.line_index(offset);
@@ -298,6 +361,11 @@ impl EditorView {
 
     pub fn extension<T: 'static>(&self) -> Option<&T> {
         self.extensions.extension::<T>()
+    }
+
+    #[cfg(test)]
+    pub fn extension_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.extensions.extension_mut::<T>()
     }
 
     pub fn add_extension(&mut self, extension: Box<dyn EditorExtension>, cx: &mut Context<Self>) {
@@ -378,8 +446,13 @@ impl EditorView {
         if self.blur.is_none() {
             self.blur = Some(cx.on_blur(&self.focus, window, |this, _, cx| {
                 this.pointer.link_press = None;
-                this.commit_composition(cx);
                 let mut notify = false;
+                if this.pointer.drag.take().is_some() {
+                    this.focused_before = false;
+                    this.extensions.selection_changed(&this.state, false, false);
+                    notify = true;
+                }
+                this.commit_composition(cx);
                 for plugin in &mut this.extensions.plugins {
                     notify |= plugin.on_blur(&this.state);
                 }
@@ -542,6 +615,8 @@ impl EditorView {
         let doc_modified = applied.is_some();
         match applied {
             Some(applied) => {
+                // Committed edits never defer preview projection behind an in-flight pointer gesture.
+                self.pointer.drag = None;
                 if !is_compose && !self.history.composing() {
                     self.committed_rev = self.state.revision;
                 }
@@ -766,7 +841,7 @@ impl EditorView {
 
     /// Kit's rendering context: link and inline-code colours of the surface.
     /// Kept while the surface is unchanged so Kit's paragraph caches hold.
-    pub(super) fn kit_context(&mut self) -> Rc<RenderContext> {
+    pub(super) fn kit_context(&mut self, cx: &Context<Self>) -> Rc<RenderContext> {
         let surface = self.caches.decorations.surface();
         if let Some((s, kit)) = &self.caches.kit
             && s == surface
@@ -793,7 +868,21 @@ impl EditorView {
         if let Some(padding) = surface.inline_code_padding {
             style = style.with_inline_code_padding(padding);
         }
-        let kit = Rc::new(RenderContext::new(style));
+        let view = cx.entity().downgrade();
+        let kit = Rc::new(
+            RenderContext::new(style).on_link_click(move |href, event, w, cx| {
+                let _ = view.update(cx, |v, cx| match event {
+                    // Kit consumes the leaf mouse-up before it reaches the editor.
+                    // Finish the editor's existing press/release gesture, including
+                    // current-source policy, drag cancellation and selection restore.
+                    ClickEvent::Mouse(click) if click.up.button == MouseButton::Left => {
+                        v.mouse_up(&click.up, w, cx);
+                    }
+                    ClickEvent::Keyboard(_) => v.follow_href(href, cx),
+                    _ => {}
+                });
+            }),
+        );
         self.caches.kit = Some((surface.clone(), kit.clone()));
         kit
     }
@@ -807,7 +896,9 @@ impl EditorView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.focus.focus(window, cx);
+        if command.focuses_editor() {
+            self.focus.focus(window, cx);
+        }
         self.commit_composition(cx);
         if let Some(tr) = self.extensions.command(command, &self.state) {
             self.dispatch(tr, cx);

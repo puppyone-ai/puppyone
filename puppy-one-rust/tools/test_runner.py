@@ -13,6 +13,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 from source_identity import source_hashes
 
@@ -51,8 +52,22 @@ def validate_result(name, code, output):
     return None
 
 
-def execute(command, *, env=None, timeout=240):
-    process = subprocess.Popen(command, cwd=ROOT, env=env, text=True,
+def validate_python_result(test, code, output):
+    """One named unittest ran and passed: `Class.method` reported `ok`."""
+    method = test.rsplit('.', 1)[-1]
+    rows = re.findall(r'^(\w+) \(([\w.]+)\)(?: \.\.\.|\n.*?\.\.\.) (ok|FAIL|ERROR|skipped[^\n]*)$',
+                      output, re.M)
+    if code != 0:
+        return f'exit {code}'
+    if [(name, outcome) for name, _, outcome in rows] != [(method, 'ok')]:
+        return f'expected exactly one passing test {test}; observed {rows}'
+    if not re.search(r'^Ran 1 test in ', output, re.M) or not re.search(r'^OK$', output, re.M):
+        return 'missing successful single-test unittest summary'
+    return None
+
+
+def execute(command, *, env=None, timeout=240, cwd=ROOT):
+    process = subprocess.Popen(command, cwd=cwd, env=env, text=True,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                start_new_session=True)
     def collected_output(output, diagnostics):
@@ -82,6 +97,8 @@ def run_gate(name, required, *, env=None, metadata=None):
     receipt.unlink(missing_ok=True)
     before = source_hashes()
     checks = []
+    python = [item for item in required if item.get('python')]
+    required = [item for item in required if not item.get('python')]
     packages = sorted({item['package'] for item in required})
     command = [CARGO, 'test', '--locked', '--offline', '--no-run', '--message-format=json']
     for package in packages:
@@ -89,7 +106,7 @@ def run_gate(name, required, *, env=None, metadata=None):
     features = sorted({feature for item in required for feature in item.get('features', [])})
     if features:
         command += ['--features', ','.join(features)]
-    code, output = execute(command, env=env, timeout=1200)
+    code, output = execute(command, env=env, timeout=1200) if required else (0, '')
     (out / 'build.log').write_text(output)
     binaries = {}
     support_binaries = {}
@@ -130,6 +147,19 @@ def run_gate(name, required, *, env=None, metadata=None):
         (out / log).write_text(content)
         checks.append({**item, 'exit': result_code, 'passed': error is None, 'error': error, 'log': log})
         print(f'{test}: {error or "passed"}', flush=True)
+    # The native tooling's own unittests (release, packaging), one at a
+    # time from the test file's directory, under the same isolation.
+    for index, item in enumerate(python, start=len(checks)):
+        test, path = item['test'], ROOT / item['python']
+        with isolated_test_environment(env) as test_env:
+            result_code, content = execute([sys.executable, '-B', '-m', 'unittest', '-v',
+                                            f'{path.stem}.{test}'], env=dict(test_env, PYTHONPATH=str(path.parent)),
+                                           cwd=path.parent, timeout=item.get('timeout', 240))
+        error = validate_python_result(test, result_code, content)
+        log = f'{index:02d}-{test.split(".")[-1]}.log'
+        (out / log).write_text(content)
+        checks.append({**item, 'exit': result_code, 'passed': error is None, 'error': error, 'log': log})
+        print(f'{item["python"]}::{test}: {error or "passed"}', flush=True)
     unchanged = before == source_hashes()
     report = {'capturedAt': datetime.now(timezone.utc).isoformat(),
               'passed': bool(checks) and all(c['passed'] for c in checks) and unchanged,

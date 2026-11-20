@@ -1,5 +1,6 @@
 use super::*;
 use core::prelude::v1::test;
+use std::{cell::Cell, rc::Rc};
 
 #[test]
 fn a_session_is_titled_by_its_folder() {
@@ -59,7 +60,7 @@ fn a_click_on_a_link_opens_it_and_a_selection_does_not(cx: &mut TestAppContext) 
         cx.notify();
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let (origin, grid) = view.read_with(cx, |s, _| (s.bounds.origin, s.grid.clone()));
     let at = |row: f32, col: f32| {
@@ -95,7 +96,7 @@ fn native_pointer_selection_copy_and_shift_override(cx: &mut TestAppContext) {
         view
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     // A drop on an exited session, or from a workspace without local
     // paths, is refused with the product notice.
@@ -113,7 +114,7 @@ fn native_pointer_selection_copy_and_shift_override(cx: &mut TestAppContext) {
         s.bounds.origin
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let cell_w = view.read_with(cx, |s, _| s.grid.cell_w);
     let start = origin + point(px(PAD_LEFT), px(PAD_TOP + 4.));
@@ -148,4 +149,146 @@ fn native_pointer_selection_copy_and_shift_override(cx: &mut TestAppContext) {
             "selection must not write to the disconnected PTY"
         );
     });
+}
+
+/// `resolveResourceReferences`: entries resolve through the workspace
+/// they were dragged from, never by joining the receiver's root; a
+/// workspace without local files refuses rather than guessing a path.
+#[test]
+fn dragged_entries_resolve_through_their_own_workspace() {
+    let source = tempfile::tempdir().unwrap();
+    let receiver = tempfile::tempdir().unwrap();
+    std::fs::write(source.path().join("README.md"), "b").unwrap();
+    let drag = |workspace| crate::ui::resource_drag::ResourceDrag {
+        single_file: true,
+        paths: vec![std::path::PathBuf::from("README.md")],
+        label: "README.md".into(),
+        workspace,
+        native: std::rc::Rc::new(std::cell::Cell::new(false)),
+    };
+    let local = drag(Some(
+        crate::workspace::Workspace::open(source.path()).unwrap(),
+    ));
+    let resolved = local.local_paths().unwrap();
+    assert_eq!(
+        resolved,
+        [source.path().canonicalize().unwrap().join("README.md")]
+    );
+    assert!(!resolved[0].starts_with(receiver.path()));
+    let hosted = drag(Some(
+        crate::workspace::Workspace::from_provider(std::sync::Arc::new(
+            crate::workspace::testing::Memory::new("memory://cloud/project/"),
+        ))
+        .unwrap(),
+    ));
+    assert_eq!(hosted.local_paths(), None);
+    assert_eq!(drag(None).local_paths(), None);
+}
+
+/// `uses product selection pairs and dims a retained terminal on window
+/// blur`: the focused terminal of the focused window selects with the
+/// active pair; a blurred window, or another focus, dims it and redraws.
+#[gpui::test]
+fn a_selection_dims_when_its_terminal_or_window_loses_focus(cx: &mut TestAppContext) {
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        TerminalView::start(|wake| Terminal::bridged(wake).0, false, window, cx)
+    });
+    let paint = |cx: &mut VisualTestContext| {
+        view.update_in(cx, |s, w, cx| {
+            let t = cx.palette();
+            let paint = s.selection_paint(&t, w);
+            assert!(paint == t.terminal_selection || paint == t.terminal_selection_inactive);
+            paint == t.terminal_selection
+        })
+    };
+    let draw = |cx: &mut VisualTestContext| {
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+        cx.run_until_parked();
+    };
+    cx.update(|w, _| w.activate_window());
+    draw(cx);
+    view.update_in(cx, |s, w, cx| w.focus(&s.focus, cx));
+    draw(cx);
+    assert!(
+        paint(cx),
+        "the focused terminal selects with the active pair"
+    );
+    let notified = Rc::new(Cell::new(0));
+    let _watch = cx.update(|_, cx| {
+        let notified = notified.clone();
+        cx.observe(&view, move |_, _| notified.set(notified.get() + 1))
+    });
+    cx.deactivate_window();
+    assert!(notified.get() > 0, "a blurred window redraws its terminal");
+    assert!(!paint(cx), "a blurred window dims the selection");
+    cx.update(|w, _| w.activate_window());
+    draw(cx);
+    assert!(paint(cx));
+    cx.update(|w, cx| w.blur(cx));
+    draw(cx);
+    assert!(!paint(cx), "another focus dims the selection");
+}
+
+/// `resolves the owning repo before dropping into a presented non-focused
+/// pane`: entries dragged from another workspace resolve through their own
+/// folder, reach the session as shell words, and focus the terminal.
+#[gpui::test]
+fn a_drop_into_an_unfocused_terminal_types_its_own_paths_and_focuses_it(cx: &mut TestAppContext) {
+    use crate::platform::terminal::Request;
+    let source = tempfile::tempdir().unwrap();
+    std::fs::create_dir(source.path().join("folder")).unwrap();
+    std::fs::write(source.path().join("folder/file name.md"), "b").unwrap();
+    let bridge = Rc::new(std::cell::RefCell::new(None));
+    let (view, cx) = cx.add_window_view({
+        let bridge = bridge.clone();
+        move |window, cx| {
+            TerminalView::start(
+                move |wake| {
+                    let (terminal, far) = Terminal::bridged(wake);
+                    *bridge.borrow_mut() = Some(far);
+                    terminal
+                },
+                false,
+                window,
+                cx,
+            )
+        }
+    });
+    let bridge = bridge.borrow_mut().take().unwrap();
+    bridge.outlet.send(Event::Started {
+        input_shell: "/bin/zsh".into(),
+    });
+    cx.update(|w, cx| {
+        w.activate_window();
+        w.draw(cx).clear(cx);
+    });
+    cx.run_until_parked();
+    let drag = crate::ui::resource_drag::ResourceDrag {
+        single_file: true,
+        paths: vec![PathBuf::from("folder/file name.md")],
+        label: "file name.md".into(),
+        workspace: Some(crate::workspace::Workspace::open(source.path()).unwrap()),
+        native: Rc::new(Cell::new(false)),
+    };
+    view.update_in(cx, |s, w, cx| {
+        assert!(!s.focus.is_focused(w));
+        s.insert_paths(drag.local_paths(), w, cx);
+        assert!(s.focus.is_focused(w));
+    });
+    let typed: Vec<Vec<u8>> = bridge
+        .requests
+        .try_iter()
+        .filter_map(|r| match r {
+            Request::Input(bytes) => Some(bytes),
+            Request::Resize(..) => None,
+        })
+        .collect();
+    let file = source
+        .path()
+        .canonicalize()
+        .unwrap()
+        .join("folder/file name.md");
+    assert_eq!(typed, [format!("'{}'", file.display()).into_bytes()]);
 }

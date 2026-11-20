@@ -13,8 +13,8 @@ mod fixtures;
 #[cfg(any(test, feature = "test-support", feature = "dev-capture"))]
 pub use fixtures::{
     Responder, ScreenResponder, SignInControl, account_fixture, protocol_fixture,
-    refresh_token_broker, relogin, responding_account_fixture, responding_screen_account_fixture,
-    sign_in_fixture,
+    refresh_token_broker, relogin, responding_account_fixture, responding_live_account_fixture,
+    responding_screen_account_fixture, sign_in_again, sign_in_fixture,
 };
 pub use transport::{
     BILLING_DISABLED, Cancellation, HostTunnel, ScreenReceiver, ScreenSender, ScreenSocket,

@@ -41,7 +41,8 @@ pub async fn complete(
             "{}/chat/completions",
             connection.endpoint.trim_end_matches('/')
         ));
-    if let Some(secret) = connection.credential()? {
+    let secret = connection.credential()?;
+    if let Some(secret) = &secret {
         request = request.bearer_auth(secret);
     }
     let response = request.json(&body).send().await.map_err(
@@ -55,14 +56,61 @@ pub async fn complete(
     }
     let mut stream = response.bytes_stream();
     let mut parser = Parser::default();
+    let mut redactor = Redactor::new(secret.as_deref());
+    let mut done = false;
     while let Some(chunk) = stream.next().await {
         let chunk =
             chunk.map_err(|_| "Model stream was interrupted; the request was not replayed")?;
-        if parser.feed(&chunk, &mut delta)? {
+        if parser.feed(&redactor.feed(&chunk), &mut delta)? {
+            done = true;
             break;
         }
     }
+    if !done {
+        parser.feed(&redactor.finish(), &mut delta)?;
+    }
     parser.finish()
+}
+
+/// `redactModelResponse`: the connection's own key, echoed by a provider,
+/// is replaced before the stream is parsed, shown or kept — also when the
+/// echo is split across network chunks. Bytes that could begin the key wait
+/// for the next chunk.
+struct Redactor {
+    secret: Vec<u8>,
+    held: Vec<u8>,
+}
+impl Redactor {
+    fn new(secret: Option<&str>) -> Self {
+        Self {
+            secret: secret.unwrap_or_default().as_bytes().to_vec(),
+            held: Vec::new(),
+        }
+    }
+    fn feed(&mut self, chunk: &[u8]) -> Vec<u8> {
+        if self.secret.is_empty() {
+            return chunk.to_vec();
+        }
+        self.held.extend_from_slice(chunk);
+        let mut out = Vec::with_capacity(self.held.len());
+        let mut at = 0;
+        while let Some(found) = self.held[at..]
+            .windows(self.secret.len())
+            .position(|w| w == self.secret.as_slice())
+        {
+            out.extend_from_slice(&self.held[at..at + found]);
+            out.extend_from_slice(b"[redacted]");
+            at += found + self.secret.len();
+        }
+        let keep = (self.secret.len() - 1).min(self.held.len() - at);
+        let end = self.held.len() - keep;
+        out.extend_from_slice(&self.held[at..end]);
+        self.held.drain(..end);
+        out
+    }
+    fn finish(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.held)
+    }
 }
 
 /// PuppyOne compute (`openAgentStream`): the signed-in account's broker
@@ -240,5 +288,30 @@ mod tests {
         assert_eq!(deltas.len(), 2);
         // No receipt: nothing is assumed.
         assert!(Parser::default().finish().is_err());
+    }
+
+    /// `redacts split provider echoes before native persistence, preserving
+    /// Unicode`: one byte at a time, the key never reaches the parser.
+    #[test]
+    fn an_echoed_key_is_redacted_even_one_byte_at_a_time() {
+        let text = "data: {\"choices\":[{\"delta\":{\"content\":\"中文😀 synthetic-private-key done\"}}]}\n\ndata: [DONE]\n";
+        let mut redactor = Redactor::new(Some("synthetic-private-key"));
+        let mut out = Vec::new();
+        for byte in text.as_bytes() {
+            out.extend(redactor.feed(std::slice::from_ref(byte)));
+        }
+        out.extend(redactor.finish());
+        assert_eq!(
+            String::from_utf8(out.clone()).unwrap(),
+            text.replace("synthetic-private-key", "[redacted]")
+        );
+        let mut parser = Parser::default();
+        let mut shown = String::new();
+        let mut sink = |_: &str, text: &str| shown.push_str(text);
+        assert!(parser.feed(&out, &mut sink).unwrap());
+        assert_eq!(shown, "中文😀 [redacted] done");
+        assert_eq!(parser.finish().unwrap().text, "中文😀 [redacted] done");
+        // Without a key the stream passes through untouched.
+        assert_eq!(Redactor::new(None).feed(b"abc"), b"abc");
     }
 }

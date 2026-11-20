@@ -223,6 +223,35 @@ pub struct LineDecoration<'b> {
     pub inline_images: &'b mut Vec<InlineImage>,
 }
 
+/// Inline-only feature output; no line box or block replacement capability.
+pub struct InlineDecoration<'b> {
+    pub doc: &'b Buffer,
+    pub range: Range<usize>,
+    pub syntax: &'b Syntax,
+    pub theme: &'b MarkdownTheme,
+    pub preview: &'b crate::editor::markdown::core::state::PreviewState,
+    pub assets: Option<&'b crate::editor::registry::DocumentAssets>,
+    pub references: Option<&'b crate::editor::navigation::ReferenceContext>,
+    pub replaced: &'b mut Vec<(Range<usize>, SharedString)>,
+    pub inline_images: &'b mut Vec<InlineImage>,
+}
+
+impl LineDecoration<'_> {
+    pub fn inline_content(&mut self) -> InlineDecoration<'_> {
+        InlineDecoration {
+            doc: self.doc,
+            range: self.range.clone(),
+            syntax: self.syntax,
+            theme: self.theme,
+            preview: self.preview,
+            assets: self.assets,
+            references: self.references,
+            replaced: self.replaced,
+            inline_images: self.inline_images,
+        }
+    }
+}
+
 /// A feature decorating its block (around its widget).
 pub struct BlockDecoration<'b, 'a> {
     pub(super) builder: &'b mut Builder<'a>,
@@ -257,5 +286,43 @@ impl BlockDecoration<'_, '_> {
         self.builder.contexts[local] = Some(context);
         let plans = self.builder.by_line[local].clone();
         self.builder.inline(line, &plans, Vec::new());
+        let cx = self.builder.cx;
+        let range = cx.doc.line_range(line);
+        for feat in cx.features {
+            let mut replaced = Vec::new();
+            let mut images = Vec::new();
+            let ok = feature::catch_feature_panic(feat.id(), "decorate_inline_content", || {
+                feat.decorate_inline_content(&mut InlineDecoration {
+                    doc: cx.doc,
+                    range: range.clone(),
+                    syntax: cx.syntax,
+                    theme: cx.theme,
+                    preview: cx.preview,
+                    assets: cx.assets,
+                    references: cx.references,
+                    replaced: &mut replaced,
+                    inline_images: &mut images,
+                });
+            })
+            .is_some();
+            if ok {
+                let bounded = |r: Range<usize>| {
+                    let r = cx.doc.clamp_range(r);
+                    r.start.clamp(range.start, range.end)..r.end.clamp(range.start, range.end)
+                };
+                self.builder
+                    .replaced
+                    .extend(replaced.into_iter().filter_map(|(r, text)| {
+                        let r = bounded(r);
+                        (!r.is_empty()).then_some((r, text))
+                    }));
+                self.builder
+                    .inline_images
+                    .extend(images.into_iter().filter_map(|mut image| {
+                        image.range = bounded(image.range);
+                        (!image.range.is_empty()).then_some(image)
+                    }));
+            }
+        }
     }
 }

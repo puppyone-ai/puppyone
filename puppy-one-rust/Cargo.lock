@@ -6733,6 +6733,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tree-sitter-javascript",
  "unicode-segmentation",
  "url",
  "uuid",

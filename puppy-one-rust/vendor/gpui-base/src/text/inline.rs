@@ -431,7 +431,7 @@ impl Inline {
     /// Editor seam (design D3): report this leaf's layout and take the
     /// editor's backgrounds. Inert unless the state carries an editor key
     /// and an editor sink is installed.
-    fn report_to_editor(&mut self) {
+    fn report_to_editor(&mut self, align: TextAlign) {
         // The sink (a thread-local read) is checked first: outside an
         // editor's prepaint no lock is taken.
         let Some(sink) = super::editor_seam::current() else {
@@ -455,7 +455,7 @@ impl Inline {
         let Some(key) = self.state.lock().ok().and_then(|state| state.editor_key) else {
             return;
         };
-        sink.report(key, self.styled_text.layout());
+        sink.report_aligned(key, self.styled_text.layout(), align);
         self.range_backgrounds.extend(sink.backgrounds(key));
     }
 
@@ -985,7 +985,7 @@ impl Element for Inline {
         let bounds = Bounds::new(self.paint_origin.unwrap_or(bounds.origin), bounds.size);
         self.styled_text
             .prepaint(id, inspector_id, bounds, &mut (), window, cx);
-        self.report_to_editor();
+        self.report_to_editor(window.text_style().text_align);
 
         // Report this element's laid-out extent so an ancestor TextView with
         // `max_lines` can snap its clip to a whole-line boundary. The state
@@ -1364,7 +1364,7 @@ fn glyph_boxes(text_layout: &TextLayout, align: TextAlign, align_width: Pixels) 
     boxes
 }
 
-fn aligned_row_left(align: TextAlign, align_width: Pixels, width: Pixels) -> Pixels {
+pub(super) fn aligned_row_left(align: TextAlign, align_width: Pixels, width: Pixels) -> Pixels {
     match align {
         TextAlign::Left => Pixels::ZERO,
         TextAlign::Center => (align_width - width) / 2.,

@@ -10,7 +10,12 @@ mod link;
 mod recents;
 mod tools;
 pub use computer_access::{SharedRow, no_folders, presence, shared_rows, sharing_status};
-pub use link::{HostLink, SharedFolder, global as host_link, read as read_link, suspend_leftover};
+#[cfg(test)]
+pub use link::HostStatus;
+pub use link::{
+    HostLink, SharedFolder, global as host_link, read as read_link, start_at_login,
+    suspend_leftover,
+};
 pub use recents::Recent;
 pub use tools::{HostTools, Target, Tool};
 
@@ -162,8 +167,8 @@ impl HostCatalog {
         self.epoch += 1;
     }
     /// The access side for the signed-in account, once read for it.
-    /// Captures: the catalog of `#homepage-computers-visual-smoke`.
-    #[cfg(feature = "dev-capture")]
+    /// Captures and tests: the catalog of `#homepage-computers-visual-smoke`.
+    #[cfg(any(test, feature = "dev-capture"))]
     pub fn install_fixture(&mut self, catalog: &serde_json::Value, this_device: &str) {
         self.devices = crate::workspace::hosts::remote::parse_catalog(catalog).unwrap_or_default();
         self.this_device = Some(this_device.to_owned());
@@ -310,5 +315,129 @@ impl HostCatalog {
         self.devices = devices;
         self.loaded = true;
         self.read_at = Some(Instant::now());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    use gpui::TestAppContext;
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    const THIS: &str = "0d9b7f61-1111-4c2a-8b2e-7a6b5c4d3e2f";
+    const OFFICE: &str = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+    fn settle(cx: &mut TestAppContext, ready: impl Fn(&mut TestAppContext) -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !ready(cx) {
+            cx.run_until_parked();
+            assert!(Instant::now() < deadline, "did not settle");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    /// `useHostDevices`: a read that failed says so rather than listing no
+    /// computers, and a retry reads again; what the account already answered
+    /// stays through a later failure; reads asked for while one is under way
+    /// are that one read. Removing a computer, another or this one, is the
+    /// same request and reads the list again; a removal refused without a
+    /// reason says the computer could not be removed.
+    #[gpui::test]
+    fn the_catalog_keeps_what_it_knew_and_removes_through_one_request(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        crate::localization::set_current("en");
+        let failing = Arc::new(Mutex::new(true));
+        let refusing = Arc::new(Mutex::new(false));
+        let reads = Arc::new(AtomicUsize::new(0));
+        let removed = Arc::new(Mutex::new(Vec::<String>::new()));
+        let (fail, refuse, read, gone) = (
+            failing.clone(),
+            refusing.clone(),
+            reads.clone(),
+            removed.clone(),
+        );
+        let responder: crate::cloud::auth::Responder = Arc::new(move |request| {
+            if request.path == "/hosts" {
+                read.fetch_add(1, Ordering::SeqCst);
+                if *fail.lock().unwrap() {
+                    return Err(crate::cloud::auth::Error::Unavailable);
+                }
+                let device = |id: &str, name: &str| {
+                    serde_json::json!({"id": id, "name": name, "online": true, "state": "active",
+                        "revision": 1, "folders": []})
+                };
+                return Ok(serde_json::json!({"devices": [device(THIS, "MacBook Pro"),
+                    device(OFFICE, "Office PC")]}));
+            }
+            if request.method == reqwest::Method::DELETE {
+                gone.lock().unwrap().push(request.path.clone());
+                if *refuse.lock().unwrap() {
+                    return Err(crate::cloud::auth::Error::Unavailable);
+                }
+                return Ok(serde_json::json!({"revoked": true}));
+            }
+            Err(crate::cloud::auth::Error::Unavailable)
+        });
+        let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+        cx.update(|cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+        settle(cx, |cx| {
+            cx.update(|cx| crate::features::cloud::account::has_account(cx))
+        });
+        let catalog = cx.update(global);
+        let idle = |cx: &mut TestAppContext| {
+            catalog.read_with(cx, |c, _| c.loaded && !c.reading && !c.pending)
+        };
+        catalog.update(cx, |c, cx| {
+            c.this_device = Some(THIS.into());
+            c.ensure(true, true, true, cx)
+        });
+        settle(cx, idle);
+        catalog.read_with(cx, |c, _| assert!(c.error() && c.devices().is_empty()));
+        *failing.lock().unwrap() = false;
+        let before = reads.load(Ordering::SeqCst);
+        // Asked again while the read is under way: still one read.
+        catalog.update(cx, |c, cx| {
+            c.ensure(true, true, true, cx);
+            c.ensure(true, true, true, cx)
+        });
+        settle(cx, idle);
+        assert_eq!(reads.load(Ordering::SeqCst), before + 1);
+        catalog.read_with(cx, |c, _| {
+            assert!(!c.error());
+            let others: Vec<_> = c.others().map(|d| d.name.as_str()).collect();
+            assert_eq!(others, ["Office PC"]);
+        });
+        // A later failure keeps what the account answered.
+        *failing.lock().unwrap() = true;
+        catalog.update(cx, |c, cx| c.ensure(true, true, true, cx));
+        settle(cx, idle);
+        catalog.read_with(cx, |c, _| assert!(c.error() && c.devices().len() == 2));
+        *failing.lock().unwrap() = false;
+        for device in [OFFICE, THIS] {
+            let before = reads.load(Ordering::SeqCst);
+            catalog.update(cx, |c, cx| c.remove_device(device.into(), cx));
+            settle(cx, |cx| idle(cx) && reads.load(Ordering::SeqCst) > before);
+        }
+        assert_eq!(
+            removed.lock().unwrap().as_slice(),
+            [
+                format!("/hosts/devices/{OFFICE}"),
+                format!("/hosts/devices/{THIS}")
+            ]
+        );
+        *refusing.lock().unwrap() = true;
+        catalog.update(cx, |c, cx| c.remove_device(OFFICE.into(), cx));
+        settle(cx, idle);
+        catalog.read_with(cx, |c, _| {
+            let failure = c.action_error.unwrap();
+            assert_eq!(
+                crate::localization::t(failure),
+                "Unable to remove this computer."
+            );
+        });
     }
 }

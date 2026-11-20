@@ -41,7 +41,7 @@ fn change_hint(root: &Path, result: notify::Result<notify::Event>) -> Option<Wat
         let Ok(relative) = absolute.strip_prefix(root) else {
             return Some(WatchEvent::Invalidated);
         };
-        if relative.components().any(|c| c.as_os_str() == ".git") {
+        if relative.components().any(|c| c.as_os_str() == ".git") || is_staging_file(relative) {
             continue;
         }
         let Ok(path) = RelativePath::new(relative) else {
@@ -55,6 +55,16 @@ fn change_hint(root: &Path, result: notify::Result<notify::Event>) -> Option<Wat
         }
     }
     (!paths.is_empty()).then_some(WatchEvent::Changed(paths))
+}
+
+/// A save's own staging file (`.puppyone-rust-….tmp`, and the TS app's
+/// `.name.puppyone-….tmp`): an atomic save's burst names only its target.
+fn is_staging_file(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            name.starts_with('.') && name.ends_with(".tmp") && name.contains("puppyone-")
+        })
 }
 
 struct LocalProvider {
@@ -747,6 +757,62 @@ mod tests {
         );
         let event = Event::new(EventKind::Any).add_path(root.join(".git/objects/abc"));
         assert!(change_hint(root, Ok(event)).is_none());
+    }
+
+    /// `workspaceMutationPipeline`: a save's rename/change burst with its
+    /// staging file names its target once; a large edit coalesces into one
+    /// lossless, deduplicated batch; past 256 paths, or with any unknown
+    /// path, the batch becomes a scoped full refresh of this root.
+    #[test]
+    fn bursts_coalesce_losslessly_and_degrade_to_a_scoped_refresh() {
+        let root = Path::new("/project");
+        let event = |kind, path: &str| {
+            change_hint(root, Ok(Event::new(kind).add_path(root.join(path)))).unwrap_or(
+                // A burst of staging files alone names nothing.
+                WatchEvent::Changed(Vec::new()),
+            )
+        };
+        let rename = EventKind::Modify(ModifyKind::Name(RenameMode::Any));
+        let change = EventKind::Modify(ModifyKind::Any);
+        let save = [
+            event(rename, ".note.md.puppyone-123-a1b2.tmp"),
+            event(rename, ".puppyone-rust-5f1c.tmp"),
+            event(rename, "note.md"),
+            event(change, "note.md"),
+            event(rename, "note.md"),
+        ]
+        .into_iter()
+        .reduce(WatchEvent::coalesce)
+        .unwrap();
+        assert!(
+            matches!(&save, WatchEvent::Changed(paths) if paths.iter().map(|p| p.as_path()).eq([Path::new("note.md")])),
+            "{save:?}"
+        );
+
+        let paths: Vec<String> = (0..200).map(|n| format!("generated/file-{n}.ts")).collect();
+        let batch = paths
+            .iter()
+            .map(|path| event(change, path))
+            .chain([event(rename, &paths[0]), event(change, &paths[0])])
+            .reduce(WatchEvent::coalesce)
+            .unwrap();
+        let WatchEvent::Changed(batch) = batch else {
+            panic!("a 200-file edit stays scoped")
+        };
+        assert!(
+            batch
+                .iter()
+                .map(|p| p.as_path())
+                .eq(paths.iter().map(Path::new))
+        );
+
+        let storm = (0..=256)
+            .map(|n| event(change, &format!("generated/file-{n}.ts")))
+            .reduce(WatchEvent::coalesce)
+            .unwrap();
+        assert!(matches!(storm, WatchEvent::Invalidated));
+        let mixed = event(change, "known.md").coalesce(WatchEvent::Invalidated);
+        assert!(matches!(mixed, WatchEvent::Invalidated));
     }
 
     #[test]

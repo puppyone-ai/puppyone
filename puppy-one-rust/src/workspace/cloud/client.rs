@@ -37,6 +37,9 @@ pub(super) struct Shared {
     pub mutations: super::mutations::Mutations,
     files: Flights<model::File>,
     lists: Flights<Vec<Entry>>,
+    /// One wake at a time: requests that find the Workspace asleep together
+    /// wait for the first to wake it.
+    waking: Mutex<()>,
 }
 impl Shared {
     pub fn new(
@@ -58,6 +61,7 @@ impl Shared {
             mutations: Default::default(),
             files: Flights::default(),
             lists: Flights::default(),
+            waking: Mutex::new(()),
         })
     }
     pub fn check_auth(&self) -> std::result::Result<(), auth::Error> {
@@ -112,22 +116,60 @@ impl Shared {
     }
     pub fn request(&self, request: ApiRequest) -> Result<Value> {
         self.check()?;
-        let value = self
-            .broker
-            .request_scoped(&self.binding, &request, &self.cancel);
-        match value {
-            Ok(value) => {
-                self.check().map_err(|e| if request.read_only() { e } else { Error::new(ErrorKind::OutcomeUnknown, "Cloud access changed after dispatch; verify the outcome before retrying") })?;
-                Ok(value)
-            }
-            Err(error) => {
-                self.invalidate();
-                if terminal(error) {
-                    self.retire();
+        let mut woken = false;
+        loop {
+            let value = self
+                .broker
+                .request_scoped(&self.binding, &request, &self.cancel);
+            match value {
+                Ok(value) => {
+                    self.check().map_err(|e| if request.read_only() { e } else { Error::new(ErrorKind::OutcomeUnknown, "Cloud access changed after dispatch; verify the outcome before retrying") })?;
+                    return Ok(value);
                 }
-                Err(map_error(error))
+                // The Workspace went to sleep: the server refused before doing
+                // anything, so it is woken and the same request sent again.
+                Err(auth::Error::Service(_, ServiceCode::NotRunning)) if !woken => {
+                    woken = true;
+                    match self.wake() {
+                        super::opening::Woken::Running => continue,
+                        super::opening::Woken::Replaced => {
+                            self.invalidate();
+                            self.retire();
+                            return Err(model::stale());
+                        }
+                        super::opening::Woken::Failed => {
+                            self.invalidate();
+                            return Err(Error::new(
+                                ErrorKind::Io,
+                                "The Cloud workspace is still waking up",
+                            ));
+                        }
+                    }
+                }
+                Err(error) => {
+                    self.invalidate();
+                    if terminal(error) {
+                        self.retire();
+                    }
+                    return Err(map_error(error));
+                }
             }
         }
+    }
+    /// Wakes the Workspace after it went to sleep, once for every request
+    /// that found it asleep together.
+    fn wake(&self) -> super::opening::Woken {
+        let _waking = self.waking.lock().unwrap();
+        let started = Instant::now();
+        let woken = super::opening::wake(&self.broker, &self.binding, &self.cancel, &self.runtime);
+        crate::platform::diagnostics::warn(
+            "[cloud-recovery] workspace woken",
+            json!({
+                "outcome": format!("{woken:?}"),
+                "duration_ms": started.elapsed().as_millis() as u64,
+            }),
+        );
+        woken
     }
     /// Verifies the root directory once during opening, preserving the full
     /// `auth::Error` (status, reason, request id, retryable) without side
@@ -288,9 +330,7 @@ pub(super) fn terminal(error: auth::Error) -> bool {
             | auth::Error::Service(401 | 403, _)
             | auth::Error::Service(
                 _,
-                ServiceCode::GenerationChanged
-                    | ServiceCode::WorkbenchNotFound
-                    | ServiceCode::NotRunning
+                ServiceCode::GenerationChanged | ServiceCode::WorkbenchNotFound
             )
     )
 }
@@ -300,9 +340,7 @@ pub(super) fn map_error(error: auth::Error) -> Error {
         | auth::Error::Cancelled
         | auth::Error::Service(
             _,
-            ServiceCode::GenerationChanged
-            | ServiceCode::WorkbenchNotFound
-            | ServiceCode::NotRunning,
+            ServiceCode::GenerationChanged | ServiceCode::WorkbenchNotFound,
         ) => ErrorKind::StaleLease,
         auth::Error::InvalidCredentials
         | auth::Error::Http(401 | 403)

@@ -64,7 +64,10 @@ impl WindowCloud {
     /// The invite: the steps, or the Agent it brought in.
     pub(super) fn invite_flow(&self, cx: &mut Context<Self>) -> AnyElement {
         let agents = self.agents.read(cx);
-        if agents.invite_phase() == InvitePhase::Joined {
+        if matches!(
+            agents.invite_phase(),
+            InvitePhase::Joined | InvitePhase::Connecting
+        ) {
             return self.invite_joined(cx);
         }
         let t = cx.palette();
@@ -501,7 +504,8 @@ impl WindowCloud {
             )
             .into_any_element()
     }
-    /// The invite ends on the Agent it brought in.
+    /// The invite ends on the Agent it brought in: let in, it is in once it
+    /// has reached the workspace, and until then it is waited for.
     fn invite_joined(&self, cx: &mut Context<Self>) -> AnyElement {
         let t = cx.palette();
         let agents = self.agents.read(cx);
@@ -510,11 +514,31 @@ impl WindowCloud {
         };
         let name = agent.agent.name.clone();
         let avatar = agent.agent.avatar.clone();
+        let joined = agents.invite_phase() == InvitePhase::Joined;
+        let overdue = !joined && agents.connect_overdue();
+        let (title, hint) = match (joined, overdue) {
+            (true, _) => ("native.agentInvite.joined", "native.agentInvite.joinedHint"),
+            (false, false) => (
+                "native.agentInvite.connecting",
+                "native.agentInvite.connectingHint",
+            ),
+            (false, true) => (
+                "native.agentInvite.notConnected",
+                "native.agentInvite.notConnectedHint",
+            ),
+        };
         let another = self.agents.clone();
         let host = self.weak.clone();
         v_flex()
             .id("cloud-agent-invite-joined")
-            .debug_selector(|| "cloud-agent-invite-joined".into())
+            .debug_selector(move || {
+                match (joined, overdue) {
+                    (true, _) => "cloud-agent-invite-joined",
+                    (false, false) => "cloud-agent-invite-connecting",
+                    (false, true) => "cloud-agent-invite-not-connected",
+                }
+                .into()
+            })
             .items_center()
             .pt(px(18.))
             .px(px(8.))
@@ -526,22 +550,24 @@ impl WindowCloud {
                     .relative()
                     .mb(px(12.))
                     .child(face(&name, avatar.as_deref(), 52., t))
-                    .child(
-                        div()
-                            .absolute()
-                            .right(px(-2.))
-                            .bottom(px(-2.))
-                            .size(px(20.))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded_full()
-                            .bg(t.success)
-                            .border(px(3.))
-                            .border_color(t.overlay)
-                            .text_color(t.text_inverse)
-                            .child(Icon::new("check").with_size(px(11.)).stroke(3.4)),
-                    ),
+                    .when(joined, |face| {
+                        face.child(
+                            div()
+                                .absolute()
+                                .right(px(-2.))
+                                .bottom(px(-2.))
+                                .size(px(20.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .rounded_full()
+                                .bg(t.success)
+                                .border(px(3.))
+                                .border_color(t.overlay)
+                                .text_color(t.text_inverse)
+                                .child(Icon::new("check").with_size(px(11.)).stroke(3.4)),
+                        )
+                    }),
             )
             .child(
                 div()
@@ -549,13 +575,14 @@ impl WindowCloud {
                     .line_height(px(22.))
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(t.text)
-                    .child(tf("native.agentInvite.joined", &[("name", name.into())])),
+                    .child(tf(title, &[("name", name.into())])),
             )
             .child(
                 div()
                     .mt(px(4.))
+                    .text_center()
                     .text_color(t.muted)
-                    .child(tr("native.agentInvite.joinedHint")),
+                    .child(tr(hint)),
             )
             .child(
                 h_flex()

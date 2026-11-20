@@ -5,7 +5,7 @@ use std::{path::Path, sync::atomic::AtomicBool};
 pub(super) enum Admitted {
     Missing,
     Blob { oid: String, size: u64 },
-    Working(working::Revision),
+    Working(Box<working::Revision>),
 }
 impl Admitted {
     pub(super) fn open(
@@ -20,7 +20,7 @@ impl Admitted {
                 let local = local
                     .ok_or_else(|| crate::localization::t("native.git.pathOutside").to_owned())?;
                 working::Revision::open(root, &local, cancel)?
-                    .map(Self::Working)
+                    .map(|rev| Self::Working(Box::new(rev)))
                     .ok_or_else(|| "The Word revision is not a regular file.".into())
             }
             Some(Revision::Blob(spec)) => {

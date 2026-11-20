@@ -39,6 +39,7 @@ fn dialect_surface<'a>(
                 assets: None,
                 references: None,
                 source_kind: crate::editor::registry::SourceKind::Local,
+                models: Default::default(),
             },
             window,
             cx,
@@ -206,6 +207,7 @@ fn companion_surface(text: &str, w: &mut Window, cx: &mut App) -> Box<dyn Viewer
             assets: None,
             references: None,
             source_kind: SourceKind::Local,
+            models: Default::default(),
         },
         w,
         cx,
@@ -248,7 +250,7 @@ fn setup<'a>(
 fn draw(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 fn assert_text(host: &Entity<Host>, text: &str, cx: &mut VisualTestContext) {

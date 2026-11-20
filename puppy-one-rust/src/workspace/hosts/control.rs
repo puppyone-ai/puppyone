@@ -388,6 +388,15 @@ mod tests {
                 assert!(tries < 200);
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
+            // Only this user reaches the directory, the socket and the token.
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+                let (socket, token) = paths(&dir);
+                assert_eq!(mode(&dir), 0o700);
+                assert_eq!(mode(&token), 0o600);
+                assert_eq!(mode(&socket), 0o600);
+            }
             let asked = Arc::new(Mutex::new(Vec::<Value>::new()));
             let seen = asked.clone();
             let handler: Handler = Arc::new(move |method, params| {

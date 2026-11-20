@@ -251,7 +251,7 @@ fn revoked_pending_and_cached_database_sessions_clear_rows_and_drop_the_reader(
         let cancel = view.read_with(cx, |v, _| v.cancel.clone());
         ws.revoke();
         cx.update(|window, cx| {
-            let _ = window.draw(cx);
+            window.draw(cx).clear(cx);
         });
         gate.release();
         until(cx, |_| gate.drops.load(Ordering::Acquire) == 1);
@@ -328,7 +328,7 @@ fn database_retry_and_reload_clicks_request_fresh_input_and_display_the_rebound_
     });
     settle(&view, cx);
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     let retry = cx.debug_bounds("database-retry").unwrap();
     cx.simulate_click(retry.center(), Modifiers::none());
@@ -338,7 +338,7 @@ fn database_retry_and_reload_clicks_request_fresh_input_and_display_the_rebound_
     cx.update(|_, cx| DatabaseSurface { view: view.clone() }.rebind_resource(&new, cx));
     settle(&view, cx);
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     assert!(cx.debug_bounds("database-retry").is_none());
     view.read_with(cx, |v, _| {
@@ -378,7 +378,7 @@ fn database_queries_use_the_admitted_provider_root_after_the_display_path_is_rep
 
 fn click(selector: &'static str, cx: &mut VisualTestContext) {
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     let bounds = cx
         .debug_bounds(selector)
@@ -580,7 +580,7 @@ fn changed_and_recovery_required_database_queries_clear_unsafe_pages_without_aut
             assert!(v.page.is_none() && v.session.is_none());
         });
         cx.update(|window, cx| {
-            let _ = window.draw(cx);
+            window.draw(cx).clear(cx);
         });
         assert!(cx.debug_bounds("database-retry").is_some());
     }

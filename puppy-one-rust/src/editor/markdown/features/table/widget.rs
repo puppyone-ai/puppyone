@@ -22,6 +22,22 @@ use crate::editor::{
 use gpui::{prelude::*, *};
 use std::rc::Rc;
 
+#[cfg(test)]
+thread_local! {
+    static LAST_TABLE_UI: std::cell::RefCell<Option<WeakEntity<TableUi>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn last_table_ui_for_tests() -> Option<Entity<TableUi>> {
+    LAST_TABLE_UI.with(|slot| slot.borrow().as_ref().and_then(WeakEntity::upgrade))
+}
+
+#[cfg(test)]
+pub(crate) fn clear_last_table_ui_for_tests() {
+    LAST_TABLE_UI.with(|slot| *slot.borrow_mut() = None);
+}
+
 /// `.po-editable-table-interaction-root`: rails reveal while it is hovered.
 pub(super) const GROUP: &str = "md-table";
 
@@ -82,12 +98,10 @@ impl TableWidget {
                 let w = widths[c];
                 let border = if c + 1 < columns { 1. } else { 0. };
                 let wrap = (w - border - p.left - p.right).max(0.);
-                let (element, text_height) = cx.render.text_aligned(
+                let (element, text_height) = cx.render.inline_content_aligned(
                     cell.range.clone(),
                     style,
-                    false,
-                    Some(wrap),
-                    false,
+                    wrap,
                     table_top,
                     x + p.left,
                     row_top + p.top,
@@ -158,15 +172,42 @@ impl BlockWidget for TableWidget {
         let m = &self.style.clone();
         let inset = m.cell_padding.left + m.cell_padding.right + 1.;
         let automatic = layout::column_widths(&self.table, width, m.size, inset);
-        let table_start = self.table.range.start;
+        let table_start = cx.source.start;
         let expected_cols = automatic.len();
-        let ui = cx
-            .render
-            .window
-            .use_keyed_state(cx.id("md-table-ui"), cx.render.app, |_, _| TableUi {
-                widths: bounded_widths(table_start, expected_cols),
-                ..TableUi::default()
-            });
+        let owner_view = cx.render.view.clone();
+        let ui =
+            cx.render
+                .window
+                .use_keyed_state(cx.id("md-table-ui"), cx.render.app, |window, cx| {
+                    let notify_owner = cx.observe_self(move |_, cx| {
+                        let _ = owner_view.update(cx, |_, cx| cx.notify());
+                    });
+                    let activation =
+                        cx.observe_window_activation(window, |u: &mut TableUi, w, cx| {
+                            if !w.is_window_active() {
+                                u.cancel_active_gesture(cx);
+                            }
+                        });
+                    let weak_ui = cx.weak_entity();
+                    let own_window = window.window_handle();
+                    let escape = cx.intercept_keystrokes(move |event, window, cx| {
+                        if window.window_handle() != own_window || event.keystroke.key != "escape" {
+                            return;
+                        }
+                        let _ = weak_ui.update(cx, |u, cx| {
+                            if u.handle_escape(cx) {
+                                cx.stop_propagation();
+                            }
+                        });
+                    });
+                    TableUi {
+                        widths: bounded_widths(table_start, expected_cols),
+                        _subscriptions: vec![notify_owner, activation, escape],
+                        ..TableUi::default()
+                    }
+                });
+        #[cfg(test)]
+        LAST_TABLE_UI.with(|slot| *slot.borrow_mut() = Some(ui.downgrade()));
         let state = ui.read(cx.render.app);
         let mut widths = state
             .widths

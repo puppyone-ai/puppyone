@@ -311,6 +311,37 @@ mod tests {
         }
     }
 
+    /// `markdownUrlPolicy.test.ts`: control characters (raw, entity-encoded
+    /// or percent-encoded), `javascript:` behind an entity colon,
+    /// `vbscript:` and `data:` schemes, scheme-relative URLs and credentials
+    /// are refused; https, relative paths and fragments open, a URL in its
+    /// canonical form.
+    #[test]
+    fn the_url_policy_refuses_obfuscated_and_unsafe_targets() {
+        for refused in [
+            "java\nscript:alert(1)",
+            "java\tscript:alert(1)",
+            "java&#10;script:alert(1)",
+            "javascript&#58;alert(1)",
+            "vbscript:msgbox(1)",
+            "data:text/html,<script>alert(1)</script>",
+            "//evil.example/path",
+            "https://example.com/%0aheader",
+            "https://user:pass@example.com/path",
+        ] {
+            assert_eq!(safe_href(refused), None, "{refused:?}");
+        }
+        for (allowed, opens) in [
+            ("https://example.com/a", "https://example.com/a"),
+            ("./note.md", "./note.md"),
+            ("#section", "#section"),
+            ("note.md", "note.md"),
+            ("HTTPS://EXAMPLE.COM/a", "https://example.com/a"),
+        ] {
+            assert_eq!(safe_href(allowed).as_deref(), Some(opens), "{allowed:?}");
+        }
+    }
+
     #[test]
     fn headings_from_syntax_ignore_code_fences_and_resolve_setext() {
         let src = "```python\n# comment not heading\n```\n\nSetext Heading\n==============\n\n## ATX Heading ##\n";
@@ -377,5 +408,122 @@ mod tests {
         );
         extension.live = false;
         assert!(extension.link_at(&state, offset, true).is_none());
+    }
+
+    /// `markdownLinkInteraction.test.ts`: `classifies only executable
+    /// destinations as navigation`, `fails closed for missing targets,
+    /// unsafe hrefs, and absent host commands` (without a workspace context
+    /// a workspace link leads nowhere), `indexes ATX, setext, Unicode, and
+    /// duplicate heading fragments`, `keeps the pane-local heading index
+    /// exact across incremental edits`.
+    #[test]
+    fn links_navigate_only_to_executable_targets_and_headings_stay_exact() {
+        use crate::{
+            editor::{
+                markdown::composition::FEATURES,
+                navigation::{Document, ReferenceContext, ReferenceIndex},
+                text::{
+                    change::ChangeSet,
+                    state::{Transaction, UserEvent},
+                },
+            },
+            typography::Scale,
+        };
+        let state = EditorState::new("# Current\n\nText");
+        let context = ReferenceContext {
+            source: "notes/current.md".into(),
+            index: std::sync::Arc::new(ReferenceIndex::new(vec![
+                Document {
+                    path: "notes/current.md".into(),
+                    name: "current.md".into(),
+                },
+                Document {
+                    path: "notes/target.md".into(),
+                    name: "target.md".into(),
+                },
+            ])),
+        };
+        let mut md = MarkdownExtension::new(true, Scale::Medium);
+        md.references = Some(context);
+        let mut action = |target: &str, wiki: bool| md.link_action(&state, target, wiki);
+        assert_eq!(action("#current", false), Some(LinkAction::Position(2)));
+        assert_eq!(
+            action("target.md", false),
+            Some(LinkAction::Workspace(vec!["notes/target.md".into()]))
+        );
+        assert_eq!(
+            action("https://example.com", false),
+            Some(LinkAction::External("https://example.com/".into()))
+        );
+        for (target, wiki) in [
+            ("#missing", false),
+            ("javascript:alert(1)", false),
+            ("missing", true),
+        ] {
+            assert_eq!(action(target, wiki), None, "{target}");
+        }
+        let mut bare = MarkdownExtension::new(true, Scale::Medium);
+        assert_eq!(bare.link_action(&state, "target.md", false), None);
+
+        let headings = |doc: &Buffer, syntax: &Syntax| {
+            let mut keys: Vec<_> = Headings::from_syntax(doc, syntax).0.into_iter().collect();
+            keys.sort();
+            keys
+        };
+        let source = "# Hello **world**\n\n设计哲学\n------\n\n# Repeat\n# Repeat";
+        let doc = Buffer::new(source);
+        let found = headings(&doc, &Syntax::parse(&doc));
+        for name in ["hello-world", "设计哲学", "repeat", "repeat-1"] {
+            assert!(found.iter().any(|(k, _)| k == name), "{name}");
+        }
+
+        let mut state = EditorState::new("# First\n\n设计哲学\n------\n\n# Repeat\n# Repeat");
+        let mut syntax = Syntax::parse_with(&state.doc, FEATURES);
+        for edit in [
+            |t: &str| {
+                (
+                    t.find("First").unwrap()..t.find("First").unwrap() + 5,
+                    "Renamed",
+                )
+            },
+            |t: &str| {
+                (
+                    t.find("------").unwrap()..t.find("------").unwrap() + 6,
+                    "ordinary",
+                )
+            },
+            |t: &str| {
+                (
+                    t.rfind("# Repeat").unwrap()..t.rfind("# Repeat").unwrap(),
+                    "## Inserted\n",
+                )
+            },
+        ] {
+            let (range, text) = edit(state.doc.as_str());
+            let applied = state
+                .apply(Transaction::edit(
+                    ChangeSet::replace(range, text),
+                    None,
+                    UserEvent::Input,
+                ))
+                .unwrap();
+            syntax = Syntax::try_parse_incremental(
+                &state.doc,
+                &applied.before_doc,
+                &syntax,
+                &applied.changes,
+                FEATURES,
+            )
+            .map_or_else(|| Syntax::parse_with(&state.doc, FEATURES), |(s, _)| s);
+            assert_eq!(
+                headings(&state.doc, &syntax),
+                headings(&state.doc, &Syntax::parse_with(&state.doc, FEATURES))
+            );
+        }
+        assert!(
+            Headings::from_syntax(&state.doc, &syntax)
+                .get("#repeat-1")
+                .is_some()
+        );
     }
 }

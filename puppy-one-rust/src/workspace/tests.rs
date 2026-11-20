@@ -28,6 +28,22 @@ fn identity_is_stable_but_open_grants_are_not_interchangeable() {
         ErrorKind::ForeignResource
     );
 }
+/// `deduplicates a symlink alias of the same physical workspace`: a folder
+/// opened through a link is its physical folder, which is what the project
+/// list remembers.
+#[test]
+fn a_folder_opened_through_a_link_is_its_physical_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let physical = dir.path().join("physical-workspace");
+    std::fs::create_dir(&physical).unwrap();
+    let alias = dir.path().join("workspace-alias");
+    std::os::unix::fs::symlink(&physical, &alias).unwrap();
+    let canonical = physical.canonicalize().unwrap();
+    for path in [&physical, &alias] {
+        let ws = Workspace::open(path).unwrap();
+        assert_eq!(ws.local_root(), Some(canonical.as_path()));
+    }
+}
 #[test]
 fn local_provider_roundtrip_preserves_encoding_conflicts_and_operations() {
     let dir = tempfile::tempdir().unwrap();
@@ -256,13 +272,20 @@ fn local_watch_coalesces_changes_and_drop_releases_its_worker() {
             }),
         )
         .unwrap();
-    std::fs::write(dir.path().join("note.md"), "after").unwrap();
+    // Subscribe performs an immediate baseline check. Publish a completed
+    // replacement so this coalescing/lifetime test never races a truncated file.
+    // In-place writes and failure recovery have their own real-watch acceptance.
+    let replacement = dir.path().join("note.tmp");
+    std::fs::write(&replacement, "after").unwrap();
+    std::fs::rename(&replacement, dir.path().join("note.md")).unwrap();
     let deadline = Instant::now() + Duration::from_secs(4);
     while !wake.load(Ordering::SeqCst) {
         assert!(Instant::now() < deadline);
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(matches!(watch.next(), Some(WatchEvent::Invalidated)));
+    let event = watch.next();
+    assert!(matches!(event, Some(WatchEvent::Invalidated)), "{event:?}");
+    assert_eq!(ws.read(Path::new("note.md")).unwrap().text, "after");
     assert!(watch.next().is_none());
     drop(watch);
     // The notify closure is held only while the watch worker lives.

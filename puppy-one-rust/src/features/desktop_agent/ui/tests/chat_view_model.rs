@@ -471,9 +471,21 @@ fn keeps_read_only_capability_separate_from_route_readiness() {
 
 #[test]
 fn renders_an_ended_session_without_a_missing_message_fallback() {
-    let presented = present_agent_error(Some(&error("session-ended"))).expect("presented");
-    assert!(!presented.summary.is_empty());
-    assert_ne!(presented.summary, "agent.error.session-ended");
+    let catalogs: Value = serde_json::from_str(
+        &std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/locales.json"))
+            .expect("the bundled catalogs"),
+    )
+    .expect("catalog JSON");
+    for locale in ["de", "en", "es", "fr", "ja", "ko", "pt-BR", "zh-Hans"] {
+        // Every catalog carries the message itself: no fallback to English.
+        let own = catalogs["catalogs"][locale]["agent.error.session-ended"].as_str();
+        assert!(own.is_some_and(|m| !m.is_empty()), "{locale}");
+        crate::localization::set_current(locale);
+        let presented = present_agent_error(Some(&error("session-ended"))).expect("presented");
+        assert!(!presented.summary.is_empty(), "{locale}");
+        assert_ne!(presented.summary, "agent.error.session-ended", "{locale}");
+    }
+    crate::localization::set_current("en");
 }
 
 fn inspection(models: Value, modes: Value) -> RuntimeInspection {
@@ -605,6 +617,24 @@ fn keeps_an_incomplete_markdown_block_in_a_stable_plain_text_tail() {
     );
 }
 
+/// `keeps backtick and tilde fences inert until their matching close fence
+/// arrives`: a shorter closing fence does not close a longer opening one.
+#[test]
+fn a_fence_stays_in_the_tail_until_its_matching_close() {
+    assert_eq!(
+        split("Before\n\n~~~mermaid\ngraph TD; A-->B"),
+        pair("Before\n\n", "~~~mermaid\ngraph TD; A-->B")
+    );
+    assert_eq!(
+        split("Before\n\n~~~~mermaid\ngraph TD; A-->B\n~~~\n"),
+        pair("Before\n\n", "~~~~mermaid\ngraph TD; A-->B\n~~~\n")
+    );
+    assert_eq!(
+        split("Before\n\n~~~~mermaid\ngraph TD; A-->B\n~~~~\n"),
+        pair("Before\n\n~~~~mermaid\ngraph TD; A-->B\n~~~~\n", "")
+    );
+}
+
 #[test]
 fn promotes_a_validated_gfm_table_one_completed_row_at_a_time() {
     assert_eq!(
@@ -679,5 +709,18 @@ fn ends_table_streaming_before_a_competing_flow_block() {
             "| Name | State |\n| --- | --- |\n| Parser | complete |\n",
             "# Result\nStill streaming"
         )
+    );
+}
+
+/// `removes the empty-state cue as soon as a prompt enters the live tail`.
+#[test]
+fn a_prompt_in_the_live_tail_removes_the_empty_cue() {
+    assert!(view(&ready_state()).show_ready_empty_state);
+    assert!(
+        !view(&AgentControllerState {
+            pending_prompt: Some("Start here".into()),
+            ..ready_state()
+        })
+        .show_ready_empty_state
     );
 }

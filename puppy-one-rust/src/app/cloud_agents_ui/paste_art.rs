@@ -232,6 +232,10 @@ fn scene(p: Option<f32>, agent: &str, t: Theme) -> Div {
         .child(sheet)
         .child(key)
 }
+/// The Agent a pass draws: another one each pass.
+fn drawn(pass: usize) -> &'static str {
+    DRAWN[pass % DRAWN.len()]
+}
 /// The drawing, playing unless less motion was asked for.
 pub(super) fn drawing(t: Theme) -> AnyElement {
     if crate::platform::accessibility::reduce_motion() {
@@ -246,7 +250,7 @@ pub(super) fn drawing(t: Theme) -> AnyElement {
             Animation::new(LOOP).repeat(),
             move |d, p| {
                 let pass = (crate::clock::now_ms() / LOOP.as_millis() as i64) as usize;
-                d.child(scene(Some(p), DRAWN[pass % DRAWN.len()], t))
+                d.child(scene(Some(p), drawn(pass), t))
             },
         )
         .into_any_element()
@@ -272,5 +276,15 @@ mod tests {
         assert!(answered.tick == 1. && answered.dots == 0. && answered.out == 1.);
         let still = at(None);
         assert!(still.tick == 1. && still.sheet.0 == 0. && still.key == 0.);
+    }
+
+    /// `PasteScene`: a picture of pasting with the paste keys, another Agent
+    /// each pass of the drawing.
+    #[test]
+    fn each_pass_draws_another_agent_pasting_with_the_paste_keys() {
+        let passes: Vec<_> = (0..5).map(drawn).collect();
+        assert_eq!(passes, ["claude", "codex", "cursor", "gemini", "claude"]);
+        assert_eq!(tr("cloud.share.agent.invite.scene.pasteMac"), "⌘V");
+        assert_eq!(tr("cloud.share.agent.invite.scene.pasteOther"), "Ctrl+V");
     }
 }

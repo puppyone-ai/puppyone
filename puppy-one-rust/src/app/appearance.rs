@@ -129,6 +129,16 @@ impl WindowPreferences {
         // the whole window renders again.
         window.refresh();
     }
+    /// A new window's appearance: the loaded preferences, or until they
+    /// load the default Sub Theme in the start-up mode. (The default would
+    /// repaint every window, as the appearance is shared.)
+    pub fn apply_initial(&mut self, window: &mut Window, cx: &mut App) {
+        if self.store.read(cx).loaded {
+            self.apply(window, cx);
+        } else {
+            self.apply_default(window, cx);
+        }
+    }
     /// Until preferences load: the default Sub Theme in the start-up mode.
     pub fn apply_default(&self, window: &mut Window, cx: &mut App) {
         crate::ui::appearance::Appearance::default()

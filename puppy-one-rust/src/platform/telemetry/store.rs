@@ -482,6 +482,24 @@ mod tests {
     }
 
     #[test]
+    fn a_fresh_cohort_persists_on_its_own_and_neutralizing_forgets_its_day() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = JsonFile::new(dir.path().join(LIFECYCLE));
+        assert_eq!(file.read().unwrap(), None);
+        let fresh = Lifecycle::initial(true);
+        file.write(&fresh).unwrap();
+        assert_eq!(
+            Lifecycle::normalize(file.read().unwrap().as_ref()),
+            Some(fresh)
+        );
+        // The cohort is its own document: no identity is created for it.
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+        assert_eq!(
+            serde_json::to_value(Lifecycle::neutral()).unwrap(),
+            json!({"version": 1, "cohort_status": "baseline", "first_run_utc_day": null, "first_run_enqueued": true})
+        );
+    }
+    #[test]
     fn a_missing_or_damaged_file_reads_as_absent_and_writes_replace_it_whole() {
         let dir = tempfile::tempdir().unwrap();
         let file = JsonFile::new(dir.path().join("x").join(QUEUE));

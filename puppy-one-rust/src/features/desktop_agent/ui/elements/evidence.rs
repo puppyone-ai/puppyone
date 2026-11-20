@@ -126,7 +126,7 @@ fn search_results(
         let row = match (path, open_file.clone()) {
             (Some(path), Some(open)) => {
                 let hover = a.row_hover;
-                row.cursor(theme::clickable_cursor())
+                row.cursor(theme::navigation_cursor())
                     .hover(move |s| s.bg(hover))
                     .on_click(move |_, window, cx| open(path.clone(), window, cx))
             }
@@ -256,7 +256,7 @@ pub fn evidence_tree(
                     match open_file.clone() {
                         Some(open) => {
                             let path = path.clone();
-                            row.cursor(theme::clickable_cursor())
+                            row.cursor(theme::navigation_cursor())
                                 .hover(|s| s.underline())
                                 .on_click(move |_, window, cx| open(path.clone(), window, cx))
                                 .into_any_element()

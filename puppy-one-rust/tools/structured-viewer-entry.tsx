@@ -7,7 +7,9 @@
 // every local edit, undo or redo sends the serialized document to the
 // native host, which owns the file text, dirty state and saves. A reset
 // (disk reload, external edit) replaces the model's content as an external
-// update, exactly like the product's Working Copy does.
+// update, exactly like the product's Working Copy does. Messages carry the
+// generation of the last reset taken, so the host can drop an edit that was
+// still on its way when the text it changed was replaced.
 //
 // The Context Map reads the workspace through the native host
 // (`contextMapEnvironment`) and publishes its layout and line filters to the
@@ -27,11 +29,11 @@ import type { DataNode, FileContent } from "./src/shared-ui/core/types";
 import { DesktopTooltipLayer } from "./src/components/DesktopTooltipLayer";
 
 type Boot = Readonly<{
-  kind: "puppyflow" | "context-map"; text: string; name: string; path: string; canEdit: boolean;
+  kind: "puppyflow" | "context-map"; text: string; generation: number; name: string; path: string; canEdit: boolean;
   workspaceRoot: string | null; hasWorkspace: boolean;
   locale: string; direction: "ltr" | "rtl"; messages: Record<string, string>;
 }>;
-type Inbound = { type: "reset"; text: string }
+type Inbound = { type: "reset"; text: string; generation: number }
   | { type: "enabled"; value: boolean }
   | { type: "history"; direction: "undo" | "redo" }
   | { type: "reply"; request: number; ok: boolean; value?: unknown; error?: string }
@@ -55,11 +57,12 @@ const boot = window.__PUPPYONE_STRUCTURED;
 const post = (message: object) => window.ipc?.postMessage(JSON.stringify(message));
 let port: Port | null = null;
 let sent = boot.text;
+let generation = boot.generation;
 const publish = () => {
   const text = port?.readSnapshot().content;
   if (text === undefined || text === sent) return;
   sent = text;
-  post({ type: "content", text });
+  post({ type: "content", generation, text });
 };
 const source: EditableDocumentSource = {
   attachSource: (next) => {
@@ -109,6 +112,7 @@ function App() {
   useEffect(() => {
     window.__puppyoneStructured = (message) => {
       if (message.type === "reset") {
+        generation = message.generation;
         sent = message.text;
         port?.replaceContent(message.text);
         setContent(message.text);
@@ -136,7 +140,7 @@ function App() {
         if (item?.kind === "command" && !item.disabled) item.run();
       }
     };
-    post({ type: "ready" });
+    post({ type: "ready", generation });
     return () => { window.__puppyoneStructured = undefined; };
   }, []);
   const document = useMemo(() => ({ name: boot.name, path: boot.path, type: boot.kind }) as never, []);

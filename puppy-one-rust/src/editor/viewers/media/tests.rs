@@ -256,7 +256,7 @@ fn a_current_media_failure_retires_its_requests_and_retry_rebinds_a_fresh_source
     });
     view.update(cx, |v, cx| v.receive_failure(v.generation, cx));
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     let retry = cx.debug_bounds("media-retry").unwrap();
     cx.simulate_click(retry.center(), Modifiers::none());
@@ -291,7 +291,7 @@ fn revoked_media_clears_the_frame_and_exposes_native_retry(cx: &mut TestAppConte
     ws.revoke();
     assert_eq!(request(&content, "movie.mp4", "HEAD", None).status, 403);
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     assert!(cx.debug_bounds("media-retry").is_some());
     view.read_with(cx, |v, _| {

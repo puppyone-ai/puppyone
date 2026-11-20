@@ -101,9 +101,10 @@ fn workspace_state(path: &Path) -> Vec<Recent> {
         .flatten()
         .filter_map(|entry| {
             let path = PathBuf::from(entry.get("path")?.as_str()?);
-            let name = entry
-                .get("name")
-                .and_then(|n| n.as_str())
+            // `displayName` is the name given with Rename; `name` the folder's.
+            let name = ["displayName", "name"]
+                .iter()
+                .find_map(|key| entry.get(*key)?.as_str().filter(|n| !n.trim().is_empty()))
                 .map(str::to_owned)
                 .or_else(|| path.file_name().map(|n| n.to_string_lossy().into_owned()))?;
             let opened_at = entry
@@ -238,7 +239,7 @@ mod tests {
             r#"{"version":7,"lastActiveWorkspacePath":"/p/b",
                "recentWorkspaces":[
                  {"path":"/p/a","name":"A","lastOpenedAt":"2026-10-29T13:08:51.265Z"},
-                 {"path":"/p/b","name":"B","lastOpenedAt":"2026-10-28T00:00:00Z"}]}"#,
+                 {"path":"/p/b","name":"b-folder","displayName":"B","lastOpenedAt":"2026-10-28T00:00:00Z"}]}"#,
         )
         .unwrap();
         std::fs::write(
@@ -279,6 +280,23 @@ mod tests {
         );
         assert_eq!(data.storage.len(), 1);
         assert!(read(&dir.path().join("absent")).is_none());
+        // An old registry's obsolete local Project id is not carried over;
+        // the folder is.
+        std::fs::write(
+            dir.path().join("desktop-workspace-state.json"),
+            r#"{"version":3,"lastActiveWorkspacePath":"/p/legacy",
+               "recentWorkspaces":[{"workspaceInstanceId":"instance-legacy",
+                 "projectId":"obsolete-local-project-id","path":"/p/legacy","name":"Legacy"}]}"#,
+        )
+        .unwrap();
+        let legacy = read(dir.path()).unwrap();
+        assert_eq!(
+            (
+                legacy.recent[0].path.as_path(),
+                legacy.recent[0].name.as_str()
+            ),
+            (Path::new("/p/legacy"), "Legacy")
+        );
     }
 
     #[test]

@@ -6,14 +6,17 @@
 //! hidden unpinned host in that window is evicted while its `WebFrame` retains
 //! its `Content` and restore state for seamless recreation when shown again.
 #![cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
+use crate::platform::webview::Content;
 #[cfg(target_os = "windows")]
 use crate::platform::webview::LOCAL_SCHEME;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use crate::platform::webview::{
-    Content, ENTRY_ORIGIN, PreparedContent, PreparedResponse, ProtocolResponse, SCHEME, entry_url,
+    ENTRY_ORIGIN, PreparedContent, PreparedResponse, ProtocolResponse, SCHEME, entry_url,
     prepare_request,
 };
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use std::borrow::Cow;
 use std::{
-    borrow::Cow,
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     rc::{Rc, Weak},
@@ -300,6 +303,15 @@ impl HostState {
             HostEngine::Headless { .. } => {
                 let _ = show;
             }
+            #[cfg(not(any(
+                target_os = "macos",
+                target_os = "windows",
+                test,
+                feature = "test-support"
+            )))]
+            _ => {
+                let _ = show;
+            }
         }
     }
 }
@@ -314,7 +326,9 @@ fn covers(cutout: &crate::ui::native_cover::Cutout, (x, y, w, h): (f32, f32, f32
 }
 impl Drop for HostState {
     fn drop(&mut self) {
+        #[cfg(target_os = "macos")]
         self.yield_focus_to_window();
+        #[cfg(target_os = "macos")]
         if let Some(clip) = self.clip.borrow_mut().take() {
             HOLES.with(|all| all.borrow_mut().remove(&clip_key(&clip)));
             // SAFETY: a live NSView on the main thread.
@@ -743,39 +757,41 @@ impl WebHost {
         Self::new_child(window, window_key(window), content, dark)
     }
     fn new_child(
-        window: &impl wry::raw_window_handle::HasWindowHandle,
+        window: &gpui::Window,
         key: u64,
         content: Content,
         dark: bool,
     ) -> Result<Self, String> {
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let engine = HostEngine::Native(Box::new(build_native_webview(window, content, dark)?));
         #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        let engine = {
-            let _ = (content, dark);
-            return Err("Web content is not available on this platform yet.".into());
-        };
-        let state = Rc::new(HostState {
-            window: key,
-            painted: Cell::new(false),
-            engine,
-            visible: Cell::new(false),
-            bounds: Cell::new((0., 0., 0., 0.)),
-            cutouts: RefCell::new(Cut::default()),
-            #[cfg(target_os = "macos")]
-            clip: RefCell::new(None),
-            #[cfg(target_os = "macos")]
-            shown: Cell::new((0., 0., 0., 0.)),
-        });
-        HOSTS.with(|h| h.borrow_mut().push(Rc::downgrade(&state)));
-        let slot = Rc::new(HostSlot {
-            window: key,
-            pinned: Cell::new(true),
-            last_used: Cell::new(next_use_tick()),
-            rendered_frame: Cell::new(current_window_seq(key)),
-            state: RefCell::new(Some(state)),
-        });
-        Ok(Self { slot })
+        {
+            let _ = (window, key, content, dark);
+            Err("Web content is not available on this platform yet.".into())
+        }
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        {
+            let engine = HostEngine::Native(Box::new(build_native_webview(window, content, dark)?));
+            let state = Rc::new(HostState {
+                window: key,
+                painted: Cell::new(false),
+                engine,
+                visible: Cell::new(false),
+                bounds: Cell::new((0., 0., 0., 0.)),
+                cutouts: RefCell::new(Cut::default()),
+                #[cfg(target_os = "macos")]
+                clip: RefCell::new(None),
+                #[cfg(target_os = "macos")]
+                shown: Cell::new((0., 0., 0., 0.)),
+            });
+            HOSTS.with(|h| h.borrow_mut().push(Rc::downgrade(&state)));
+            let slot = Rc::new(HostSlot {
+                window: key,
+                pinned: Cell::new(true),
+                last_used: Cell::new(next_use_tick()),
+                rendered_frame: Cell::new(current_window_seq(key)),
+                state: RefCell::new(Some(state)),
+            });
+            Ok(Self { slot })
+        }
     }
 
     /// Creates a `WebFrame`-managed WebView subject to the per-window LRU cap
@@ -786,58 +802,69 @@ impl WebHost {
         dark: bool,
         pinned: bool,
     ) -> Result<Self, String> {
-        let key = window_key(window);
-        let seq = begin_render_for_window(key);
-        enforce_window_cap(key);
+        #[cfg(not(any(
+            target_os = "macos",
+            target_os = "windows",
+            test,
+            feature = "test-support"
+        )))]
+        {
+            let _ = (window, content, dark, pinned);
+            Err("Web content is not available on this platform yet.".into())
+        }
+        #[cfg(any(
+            target_os = "macos",
+            target_os = "windows",
+            test,
+            feature = "test-support"
+        ))]
+        {
+            let key = window_key(window);
+            let seq = begin_render_for_window(key);
+            enforce_window_cap(key);
 
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let engine = match build_native_webview(window, content, dark) {
-            Ok(view) => HostEngine::Native(Box::new(view)),
-            #[cfg(any(test, feature = "test-support"))]
-            Err(_) => HostEngine::Headless {
-                scripts: RefCell::new(Vec::new()),
-            },
-            #[cfg(not(any(test, feature = "test-support")))]
-            Err(error) => return Err(error),
-        };
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            let engine = match build_native_webview(window, content, dark) {
+                Ok(view) => HostEngine::Native(Box::new(view)),
+                #[cfg(any(test, feature = "test-support"))]
+                Err(_) => HostEngine::Headless {
+                    scripts: RefCell::new(Vec::new()),
+                },
+                #[cfg(not(any(test, feature = "test-support")))]
+                Err(error) => return Err(error),
+            };
 
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        let engine = {
-            let _ = (content, dark);
-            #[cfg(any(test, feature = "test-support"))]
-            {
+            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+            let engine = {
+                let _ = (content, dark);
                 HostEngine::Headless {
                     scripts: RefCell::new(Vec::new()),
                 }
-            }
-            #[cfg(not(any(test, feature = "test-support")))]
-            {
-                return Err("Web content is not available on this platform yet.".into());
-            }
-        };
+            };
 
-        let state = Rc::new(HostState {
-            window: key,
-            painted: Cell::new(false),
-            engine,
-            visible: Cell::new(false),
-            bounds: Cell::new((0., 0., 0., 0.)),
-            cutouts: RefCell::new(Cut::default()),
-            #[cfg(target_os = "macos")]
-            clip: RefCell::new(None),
-            #[cfg(target_os = "macos")]
-            shown: Cell::new((0., 0., 0., 0.)),
-        });
-        HOSTS.with(|h| h.borrow_mut().push(Rc::downgrade(&state)));
-        let slot = Rc::new(HostSlot {
-            window: key,
-            pinned: Cell::new(pinned),
-            last_used: Cell::new(next_use_tick()),
-            rendered_frame: Cell::new(seq),
-            state: RefCell::new(Some(state)),
-        });
-        SLOTS.with(|s| s.borrow_mut().push(Rc::downgrade(&slot)));
-        Ok(Self { slot })
+            let state = Rc::new(HostState {
+                window: key,
+                painted: Cell::new(false),
+                engine,
+                visible: Cell::new(false),
+                bounds: Cell::new((0., 0., 0., 0.)),
+                cutouts: RefCell::new(Cut::default()),
+                #[cfg(target_os = "macos")]
+                clip: RefCell::new(None),
+                #[cfg(target_os = "macos")]
+                shown: Cell::new((0., 0., 0., 0.)),
+            });
+            HOSTS.with(|h| h.borrow_mut().push(Rc::downgrade(&state)));
+            let slot = Rc::new(HostSlot {
+                window: key,
+                pinned: Cell::new(pinned),
+                last_used: Cell::new(next_use_tick()),
+                rendered_frame: Cell::new(seq),
+                state: RefCell::new(Some(state)),
+            });
+            SLOTS.with(|s| s.borrow_mut().push(Rc::downgrade(&slot)));
+            Ok(Self { slot })
+        }
     }
 
     pub fn is_alive(&self) -> bool {
@@ -907,6 +934,13 @@ impl WebHost {
                 }
                 #[cfg(any(test, feature = "test-support"))]
                 HostEngine::Headless { .. } => {}
+                #[cfg(not(any(
+                    target_os = "macos",
+                    target_os = "windows",
+                    test,
+                    feature = "test-support"
+                )))]
+                _ => {}
             }
         }
     }
@@ -1031,6 +1065,13 @@ impl WebHost {
                 }
                 #[cfg(any(test, feature = "test-support"))]
                 HostEngine::Headless { .. } => {}
+                #[cfg(not(any(
+                    target_os = "macos",
+                    target_os = "windows",
+                    test,
+                    feature = "test-support"
+                )))]
+                _ => {}
             }
         }
     }
@@ -1120,6 +1161,15 @@ impl WebHost {
             #[cfg(any(test, feature = "test-support"))]
             HostEngine::Headless { scripts } => {
                 scripts.borrow_mut().push(script.to_owned());
+            }
+            #[cfg(not(any(
+                target_os = "macos",
+                target_os = "windows",
+                test,
+                feature = "test-support"
+            )))]
+            _ => {
+                let _ = script;
             }
         }
     }
@@ -1243,7 +1293,7 @@ fn reconcile(key: u64) {
 }
 
 /// Shared by the two Wry handlers, so method/origin/range checks cannot drift.
-#[cfg(any(target_os = "windows", test))]
+#[cfg(any(target_os = "windows", all(test, target_os = "macos")))]
 fn protocol_response(
     content: &PreparedContent,
     local: bool,
@@ -1256,6 +1306,7 @@ fn protocol_response(
     response(reply, content.policy)
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn prepare_protocol_response(
     content: &PreparedContent,
     local: bool,
@@ -1280,6 +1331,7 @@ fn prepare_protocol_response(
     )
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn response(
     reply: ProtocolResponse,
     policy: Option<&'static str>,
@@ -1477,6 +1529,14 @@ pub fn run_stream_probe() {
 #[cfg(all(target_os = "macos", feature = "dev-capture"))]
 pub fn run_whiteboard_probe(root: &std::path::Path) {
     macos::run_whiteboard_probe(root);
+}
+
+/// Runs the pages documents are edited and previewed in (the bundled Context
+/// Map and PuppyFlow viewers, the HTML preview) in the production native host
+/// and IPC channel.
+#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+pub fn run_document_pages_probe() {
+    macos::run_document_pages_probe();
 }
 
 #[cfg(test)]

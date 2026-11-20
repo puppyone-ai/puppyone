@@ -33,6 +33,15 @@ The Shell routes every snapshot/reply by its owning slot. Focus and moving a
 pane never read or drain a document. Closing a pane drops placement only;
 closing a reference drains that copy before retiring its host. Window close
 drains all retained copies; failed close thaws pending and completed barriers.
+Beyond the live-slot cap (`WB-01`) a clean hidden copy hibernates: its
+`Documents` and host go, its path, view state and document models stay.
+
+Undo history belongs to the open document, not to its view
+(`document_session/models.rs`, the product's `DocumentModelOwner`): the
+working copy owns it, the document's own view leaves its history (or CSV
+table model) behind when destroyed, and the next view of the same text
+continues it. Followers never attach; another document, closing, an unseen
+storage update and an open composition never inherit it.
 
 Metadata restoration is separate from document durability: an independent native
 profile namespace, 200ms coalescing, asynchronous atomic writes, Provider file

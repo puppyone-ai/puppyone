@@ -260,6 +260,7 @@ fn a_stale_permit_cannot_release_the_same_tab_number_in_a_reopened_project(
         let stale = w.reserve_creation(ItemKind::Chat, old_tab, cx).unwrap();
         w.shutdown(cx);
         assert!(!w.can_create(ItemKind::Chat));
+        assert!(!w.can_create(ItemKind::Terminal));
         assert!(w.new_launcher_tab(0, cx).is_none());
         w.show(root.path().to_path_buf(), cx);
         w.project_mut().unwrap().loading = false;

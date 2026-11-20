@@ -193,19 +193,23 @@ impl Homepage {
         let task = cx.background_spawn(async move {
             let store = Store::current();
             let release = detail.release_id.clone();
-            let authorize = move |url: &str| {
+            // The account a template was handed out to, if it needed one.
+            let granted = std::cell::RefCell::new(None);
+            let authorize = |url: &str| {
                 let Some((broker, binding)) = account else {
                     return Err(SIGNED_OUT.to_owned());
                 };
                 let url = url::Url::parse(url).map_err(|_| SIGNED_OUT.to_owned())?;
-                broker
+                let descriptor = broker
                     .template_download(&binding, &url, &release, &Default::default())
                     .map_err(|error| match error {
                         crate::cloud::auth::Error::Http(_) => {
                             "Template authorization failed. Please sign in again.".to_owned()
                         }
                         _ => SIGNED_OUT.to_owned(),
-                    })
+                    });
+                *granted.borrow_mut() = Some((broker, binding));
+                descriptor
             };
             let plan = store.download(
                 &detail.id,
@@ -215,7 +219,14 @@ impl Homepage {
             )?;
             // `numberIfTaken`: a copy never fails for a name in use.
             let name = templates::free_name(&parent, &name)?;
-            let path = templates::materialize(&parent, &name, &plan)?;
+            let path = templates::materialize_while(&parent, &name, &plan, || {
+                match granted.borrow_mut().take() {
+                    Some((broker, binding)) => broker
+                        .check_binding(&binding)
+                        .map_err(|_| SIGNED_OUT.to_owned()),
+                    None => Ok(()),
+                }
+            })?;
             Ok::<_, String>((path, plan.initial_open))
         });
         cx.spawn_in(window, async move |this, cx| {

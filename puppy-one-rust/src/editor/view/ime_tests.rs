@@ -89,7 +89,7 @@ impl Ime<'_> {
     fn draw(&mut self) {
         self.cx.run_until_parked();
         self.cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
     /// `setMarkedText:selectedRange:replacementRange:` (UTF-16 ranges).

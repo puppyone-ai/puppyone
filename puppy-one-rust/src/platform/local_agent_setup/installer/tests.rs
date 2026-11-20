@@ -335,7 +335,8 @@ fn cancellation_still_reaps_descendants_after_the_version_parent_has_exited() {
     let worker = std::thread::spawn(move || {
         let _ = sent.send(verify_version(&script, &worker_home, &worker_cancel));
     });
-    let deadline = Instant::now() + Duration::from_secs(3);
+    // Readiness only: macOS checks a new script on its first run.
+    let deadline = Instant::now() + Duration::from_secs(15);
     let parent = loop {
         if let Ok(text) = std::fs::read_to_string(home.join("worker.pid"))
             && let Some(pid) = text

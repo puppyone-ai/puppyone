@@ -6,8 +6,10 @@
 //! materialize a lightweight `.app` wrapper alongside the Cargo binary and
 //! apply the GPUI Blue-`D` development Dock icon (`puppy-app-image-gpui-dev.png`).
 
+#[cfg(target_os = "macos")]
 use super::application_identity;
 use super::build_identity::Channel;
+#[cfg(target_os = "macos")]
 use std::path::Path;
 
 pub const MACOS_APP_ICON_FILENAME: &str = "icon.icns";

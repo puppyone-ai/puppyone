@@ -487,6 +487,37 @@ mod tests {
         assert!((csv.r - 41. / 255.).abs() < 1e-3, "{csv:?}");
         crate::theme::set_pack(crate::theme::DEFAULT_PACK);
     }
+    /// `nativeSelectionPaint`: the opaque selection paint is the tint
+    /// painted source-over the canvas for every tint alpha, so a second
+    /// coat over an overlap changes nothing.
+    #[test]
+    fn a_tint_over_the_canvas_is_source_over_for_every_alpha() {
+        let canvas = Rgba {
+            r: 0.086,
+            g: 0.086,
+            b: 0.086,
+            a: 1.,
+        };
+        for alpha in [0., 0.05, 0.132, 0.22, 0.24, 0.28, 0.5, 0.7, 0.999, 1.] {
+            let tint = Rgba {
+                r: 0.376,
+                g: 0.647,
+                b: 0.98,
+                a: alpha,
+            };
+            let paint = over(tint, canvas);
+            assert_eq!(paint.a, 1., "{alpha}");
+            for (painted, top, bottom) in [
+                (paint.r, tint.r, canvas.r),
+                (paint.g, tint.g, canvas.g),
+                (paint.b, tint.b, canvas.b),
+            ] {
+                let source_over = top * alpha + bottom * (1. - alpha);
+                assert!((painted - source_over).abs() * 255. < 0.5, "{alpha}");
+            }
+            assert_eq!(over(paint, paint), paint, "{alpha}: overlap is inert");
+        }
+    }
     #[test]
     fn tokens_resolve_units_and_colours() {
         let t = Tokens::get(true, Scale::Medium);

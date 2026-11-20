@@ -317,6 +317,48 @@ impl RenderCx<'_> {
         )
     }
 
+    /// Rich inline content inside a widget, using the ordinary line's media
+    /// and superscript layout without replacing the widget's own box.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "same source geometry as text_aligned"
+    )]
+    pub fn inline_content_aligned(
+        &mut self,
+        source: Range<usize>,
+        style: &TextStyle,
+        width: f32,
+        block_top: f32,
+        x: f32,
+        y: f32,
+        align: TextAlign,
+    ) -> (AnyElement, f32) {
+        let previous_rooms = std::mem::take(&mut self.rooms);
+        self.rooms = self.ready_images(&source, style, None, width);
+        let (lift, drop) = self.shifted_growth(&source, style);
+        let (image_lift, image_drop) = self.image_growth(style);
+        let (lift, drop) = (lift.max(image_lift), drop.max(image_drop));
+        let origin = (x, y + lift);
+        let wrap = Some(width);
+        let (text, height) = self.text_aligned(
+            source.clone(),
+            style,
+            false,
+            wrap,
+            false,
+            block_top,
+            origin.0,
+            origin.1,
+            align,
+        );
+        let children = div()
+            .child(text)
+            .children(self.superscripts(&source, style, wrap, origin, block_top, align))
+            .children(self.inline_images(style, wrap, origin, align));
+        self.rooms = previous_rooms;
+        (children.into_any_element(), height + lift + drop)
+    }
+
     /// `text` with a horizontal alignment of its rows (`text-align`).
     #[allow(clippy::too_many_arguments)]
     pub fn text_aligned(
@@ -682,6 +724,7 @@ impl RenderCx<'_> {
         style: &TextStyle,
         wrap: Option<f32>,
         (x, y): (f32, f32),
+        align: TextAlign,
     ) -> Vec<AnyElement> {
         let Some(leaf) = self
             .leaves
@@ -709,18 +752,23 @@ impl RenderCx<'_> {
         for room in &self.rooms {
             let pad = room.pad;
             let index = leaf.to_display(room.range.start - leaf.source.start, false);
-            let Some(at) = shaped.position_for_index(index, px(row)) else {
+            let Some(at) = aligned_position(&shaped, index, row, wrap, align) else {
                 continue;
             };
             let image = &room.image;
             out.push(
-                img(ImageSource::Render(image.image.clone()))
+                div()
+                    .debug_selector(|| "editor-inline-image".to_owned())
                     .absolute()
                     .left(px(x + f32::from(at.x) + pad))
                     .top(px(y + f32::from(at.y) + line_baseline - image.baseline))
                     .w(px(image.width))
                     .h(px(image.height))
-                    .rounded(px(room.radius))
+                    .child(
+                        img(ImageSource::Render(image.image.clone()))
+                            .size_full()
+                            .rounded(px(room.radius)),
+                    )
                     .into_any_element(),
             );
         }
@@ -788,6 +836,7 @@ impl RenderCx<'_> {
         wrap: Option<f32>,
         (x, y): (f32, f32),
         block_top: f32,
+        align: TextAlign,
     ) -> Vec<AnyElement> {
         let found = self.shifted_in(source);
         let Some(leaf) = self
@@ -816,7 +865,7 @@ impl RenderCx<'_> {
         let mut out = Vec::new();
         for sup in found {
             let index = leaf.to_display(sup.range.start - leaf.source.start, false);
-            let Some(at) = shaped.position_for_index(index, px(row)) else {
+            let Some(at) = aligned_position(&shaped, index, row, wrap, align) else {
                 continue;
             };
             let text = Self::shifted_style(&sup, style);
@@ -836,14 +885,17 @@ impl RenderCx<'_> {
         let id = self.leaves.len();
         div()
             .id(("editor-hotspot", id))
+            .debug_selector(|| command.feature().to_owned())
             .absolute()
             .left(px(rect.x))
             .top(px(rect.y))
             .w(px(rect.width))
             .h(px(rect.height))
             .cursor(CursorStyle::Arrow)
-            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+            .on_mouse_down(MouseButton::Left, |_, _, cx| {
                 cx.stop_propagation();
+            })
+            .on_click(move |_, window, cx| {
                 let _ = view.update(cx, |v, cx| v.run_command(&command, window, cx));
             })
             .into_any_element()
@@ -959,10 +1011,10 @@ impl RenderCx<'_> {
         if let Some((placed, _)) = embed {
             line = line.child(placed);
         }
-        for sup in self.superscripts(&source, &style.text, wrap, (x, y), top) {
+        for sup in self.superscripts(&source, &style.text, wrap, (x, y), top, TextAlign::Left) {
             line = line.child(sup);
         }
-        for image in self.inline_images(&style.text, wrap, (x, y)) {
+        for image in self.inline_images(&style.text, wrap, (x, y), TextAlign::Left) {
             line = line.child(image);
         }
         self.rooms.clear();
@@ -999,4 +1051,36 @@ impl RenderCx<'_> {
         }
         (line.into_any_element(), height)
     }
+}
+
+/// Offset overlays by the same per-wrapped-row alignment used to paint text.
+fn aligned_position(
+    shaped: &WrappedLine,
+    index: usize,
+    row_height: f32,
+    wrap: Option<f32>,
+    align: TextAlign,
+) -> Option<Point<Pixels>> {
+    let mut position = shaped.position_for_index(index, px(row_height))?;
+    if align == TextAlign::Left {
+        return Some(position);
+    }
+    let row = (f32::from(position.y) / row_height).round() as usize;
+    let boundary_x = |i: usize| {
+        shaped.wrap_boundaries.get(i).map(|b| {
+            shaped.unwrapped_layout.runs[b.run_ix].glyphs[b.glyph_ix]
+                .position
+                .x
+        })
+    };
+    let start = row.checked_sub(1).and_then(boundary_x).unwrap_or(px(0.));
+    let end = boundary_x(row).unwrap_or(shaped.unwrapped_layout.width);
+    let width = wrap.map(px).unwrap_or(shaped.unwrapped_layout.width);
+    let extra = width - (end - start);
+    position.x += match align {
+        TextAlign::Center => extra / 2.,
+        TextAlign::Right => extra,
+        TextAlign::Left => px(0.),
+    };
+    Some(position)
 }

@@ -15,6 +15,8 @@ mod ingestion;
 mod launcher;
 mod routing;
 mod status;
+#[cfg(all(test, feature = "dev-capture"))]
+mod tests;
 mod view_model;
 
 use super::agent_chat_view_model::{
@@ -309,15 +311,17 @@ impl AgentChatTabPanel {
         self.apply_routing_preferences(cx);
         let state = self.state();
         let view = self.view_model(&state);
+        // The seeded prompt is sent once, when the chat first settles, and
+        // only if it can be sent then; otherwise it stays a draft.
         if self.controller.has_pending_initial_auto_submit()
             && state.initialized
             && !view.loading
             && routing::pending_preferences(&state, &view.runtime.runtime_models, &self.routing)
                 .ready()
+            && let Some(prompt) = self.controller.consume_initial_auto_submit()
             && view.routing_ready
             && state.phase == AgentControllerPhase::Ready
             && !view.unavailable
-            && let Some(prompt) = self.controller.consume_initial_auto_submit()
         {
             self.compute_access_prompt = false;
             self.transcript.update(cx, |t, _| t.follow_latest());
@@ -496,6 +500,7 @@ impl Render for AgentChatTabPanel {
         let view = self.view_model(&state);
         let panel = v_flex()
             .id("agent-chat-panel")
+            .debug_selector(|| "agent-chat-panel".into())
             .key_context("AgentChatPanel")
             .size_full()
             .min_h_0()
@@ -521,9 +526,13 @@ impl Render for AgentChatTabPanel {
             .show_status
             .then(|| self.render_status(&state, &view, cx));
         // `desktop-agent-conversation-region` and the empty-state overlay.
-        let empty = view
-            .show_ready_empty_state
-            .then(|| div().absolute().inset_0().child(self.empty_state.clone()));
+        let empty = view.show_ready_empty_state.then(|| {
+            div()
+                .debug_selector(|| "agent-empty-state".into())
+                .absolute()
+                .inset_0()
+                .child(self.empty_state.clone())
+        });
         let conversation = div()
             .relative()
             .flex_1()

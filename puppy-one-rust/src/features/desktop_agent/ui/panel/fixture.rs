@@ -259,6 +259,38 @@ fn lab_conversation(scenario: &str) -> Vec<Value> {
             None,
         );
     }
+    // A follow-up whose provider request ended degraded: the recovery dock.
+    if scenario == "chat-degraded" {
+        let degraded = Some("turn-degraded");
+        push(
+            &mut events,
+            t1 + 40_000,
+            "turn.started",
+            json!({ "prompt": "Finish it", "recoveryOfTurnId": "turn-original" }),
+            degraded,
+            None,
+        );
+        push(
+            &mut events,
+            t1 + 41_000,
+            "assistant.completed",
+            json!({ "text": "The stream was cancelled before the answer finished." }),
+            degraded,
+            Some("assistant-degraded"),
+        );
+        push(
+            &mut events,
+            t1 + 42_000,
+            "turn.completed",
+            json!({
+                "status": "completed", "durationMs": 2_000, "completionQuality": "degraded",
+                "failureScope": "upstream-request", "failureCode": "CURSOR_HTTP2_STREAM_CANCEL",
+                "retryable": true, "transportHealth": "healthy", "sideEffects": "possible",
+            }),
+            degraded,
+            None,
+        );
+    }
     if scenario == "chat-approval" {
         push(
             &mut events,
@@ -415,7 +447,7 @@ fn snapshot(events: &[Value], models: &Value, title: Option<&str>) -> Value {
         "session": {
             "id": "fixture-session", "runtimeId": "codex", "runtime": { "id": "codex", "displayName": "Codex", "iconKey": "codex" },
             "provider": "codex", "providerSessionId": "fixture-thread", "workspaceRoot": "/visual-reference-only",
-            "title": title, "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z",
+            "title": title.unwrap_or("Codex session"), "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z",
             "terminalState": display.get("presentation").map(|p| p["terminalState"].clone()).unwrap_or(Value::Null),
             "selectedModel": models[0]["model"], "selectedMode": "code", "activeTurnId": display.get("runningTurnId").cloned().unwrap_or(Value::Null),
             "lastSequence": events.len(),
@@ -463,11 +495,19 @@ fn capabilities() -> Value {
     })
 }
 
-fn inspection(models: &Value) -> Value {
-    let readiness = json!({
-        "runtimeId": "codex", "provider": "codex", "status": "ready", "code": "READY", "version": "0.144.1",
-        "minimumVersion": "0.144.1", "message": "ready", "selectable": true,
-    });
+fn inspection(models: &Value, ready: bool) -> Value {
+    let readiness = if ready {
+        json!({
+            "runtimeId": "codex", "provider": "codex", "status": "ready", "code": "READY", "version": "0.144.1",
+            "minimumVersion": "0.144.1", "message": "ready", "selectable": true,
+        })
+    } else {
+        json!({
+            "runtimeId": "codex", "provider": "codex", "status": "installed-not-authenticated",
+            "code": "AUTHENTICATION_REQUIRED", "version": "0.144.1", "minimumVersion": "0.144.1",
+            "message": "Sign in to Codex.", "selectable": true,
+        })
+    };
     let runtime = json!({ "id": "codex", "displayName": "Codex", "iconKey": "codex" });
     json!({
         "runtimes": [{ "descriptor": runtime, "readiness": readiness }],
@@ -476,12 +516,35 @@ fn inspection(models: &Value) -> Value {
     })
 }
 
+/// A runtime whose only route is PuppyOne compute: its model is offered once
+/// compute is `available`; until then it needs first-use setup.
+fn managed_inspection(models: &Value, available: bool) -> Value {
+    let mut inspection = inspection(models, true);
+    if !available {
+        inspection["models"] = json!([]);
+        inspection["readiness"]["status"] = json!("setup-required");
+        inspection["readiness"]["code"] = json!("RUNTIME_SETUP_REQUIRED");
+        inspection["runtimes"][0]["readiness"] = inspection["readiness"].clone();
+    }
+    inspection["capabilities"]["modelConnections"] = json!(true);
+    inspection
+}
+
 /// The recorded conversation as a client port.
 struct FixtureClient {
     snapshot: Option<Value>,
     /// The session a fresh chat starts.
     fresh: Value,
     models: Value,
+    /// The runtime is ready to run turns.
+    ready: bool,
+    /// Discovery fails with this message.
+    offline: Option<&'static str>,
+    /// The runtime routes through PuppyOne compute and offers its model only
+    /// while this holds (`managed_inspection`).
+    managed: Option<Rc<std::cell::Cell<bool>>>,
+    /// Every operation asked of it, in order (no turn runs).
+    asked: Rc<std::cell::RefCell<Vec<AgentOperation>>>,
 }
 
 impl JsonAgent for FixtureClient {
@@ -489,13 +552,16 @@ impl JsonAgent for FixtureClient {
         use AgentOperation as O;
         matches!(
             operation,
-            O::DiscoverRuntimes
+            O::StartTurn
+                | O::DiscoverRuntimes
                 | O::ResumeSession
                 | O::CreateSession
                 | O::AttachSession
                 | O::AcknowledgeFeed
                 | O::ReadFeedWatermark
                 | O::DetachFeed
+                | O::StageReferences
+                | O::ResolveWorkspaceReferences
         )
     }
 
@@ -508,8 +574,13 @@ impl JsonAgent for FixtureClient {
         let snapshot = self.snapshot.clone();
         // A fresh chat attaches to the session `createAgentSession` started.
         let current = snapshot.clone().unwrap_or_else(|| self.fresh.clone());
+        self.asked.borrow_mut().push(operation);
         let result = match operation {
-            O::DiscoverRuntimes => Ok(inspection(&self.models)),
+            O::DiscoverRuntimes => match (self.offline, &self.managed) {
+                (Some(message), _) => Err(AgentError::new(message)),
+                (None, Some(available)) => Ok(managed_inspection(&self.models, available.get())),
+                (None, None) => Ok(inspection(&self.models, self.ready)),
+            },
             O::ResumeSession => Ok(snapshot.unwrap_or(Value::Null)),
             O::CreateSession => Ok(current),
             O::AttachSession => Ok(json!({ "subscriptionId": "fixture", "snapshot": current })),
@@ -572,10 +643,80 @@ impl AgentChatTabPanel {
                     .then(|| snapshot(&events, &models, Some("Markdown editor review"))),
                 fresh: snapshot(&events[..1], &models, None),
                 models,
+                ready: true,
+                offline: None,
+                managed: None,
+                asked: Rc::default(),
             },
             window,
             cx,
         )
+    }
+
+    /// Tests: a fresh chat seeded with `prompt` (none when empty), over a
+    /// runtime that is `ready`, still needs sign-in, or whose discovery fails
+    /// `offline`; every operation it asked of the runtime.
+    #[cfg(test)]
+    pub(crate) fn seeded_fixture(
+        ready: bool,
+        offline: Option<&'static str>,
+        prompt: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> (Self, Rc<std::cell::RefCell<Vec<AgentOperation>>>) {
+        let events = lab_conversation("chat-empty");
+        let models = models();
+        let asked = Rc::<std::cell::RefCell<Vec<AgentOperation>>>::default();
+        let panel = Self::fixture(
+            FixtureClient {
+                snapshot: None,
+                fresh: snapshot(&events[..1], &models, None),
+                models,
+                ready,
+                offline,
+                managed: None,
+                asked: asked.clone(),
+            },
+            window,
+            cx,
+        );
+        if !prompt.is_empty() {
+            panel.controller.seed_initial_prompt(prompt);
+        }
+        (panel, asked)
+    }
+
+    /// Tests: a fresh chat over a runtime that routes through PuppyOne
+    /// compute (`managed_inspection`); every operation it asked of the
+    /// runtime.
+    #[cfg(test)]
+    pub(crate) fn managed_fixture(
+        available: Rc<std::cell::Cell<bool>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> (Self, Rc<std::cell::RefCell<Vec<AgentOperation>>>) {
+        let events = lab_conversation("chat-empty");
+        let models = json!([{
+            "id": "test-model", "model": "mc_paid/test-model", "connectionId": "mc_paid",
+            "displayName": "Test model", "description": "PuppyOne", "isDefault": true,
+        }]);
+        let mut fresh = snapshot(&events[..1], &models, None);
+        fresh["capabilities"]["modelConnections"] = json!(true);
+        let asked = Rc::<std::cell::RefCell<Vec<AgentOperation>>>::default();
+        let panel = Self::fixture(
+            FixtureClient {
+                snapshot: None,
+                fresh,
+                models,
+                ready: true,
+                offline: None,
+                managed: Some(available),
+                asked: asked.clone(),
+            },
+            window,
+            cx,
+        );
+        (panel, asked)
     }
 
     /// The pixel lab's chat `scenario` (`tools/workbench-scenarios.json`).
@@ -587,6 +728,10 @@ impl AgentChatTabPanel {
                 snapshot: Some(snapshot(&events, &models, Some("Codex"))),
                 fresh: snapshot(&events[..1], &models, None),
                 models,
+                ready: true,
+                offline: None,
+                managed: None,
+                asked: Rc::default(),
             },
             window,
             cx,

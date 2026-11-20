@@ -96,7 +96,65 @@ mod tests {
                 ]
             );
             assert_eq!(plan.initial_open.as_deref(), Some("Getting Started.md"));
+            let text = |name: &str| {
+                let (_, content) = plan.files.iter().find(|(p, _)| p == name).unwrap();
+                String::from_utf8(content.clone()).unwrap()
+            };
+            let english = getting_started("en", GETTING_STARTED_VERSION).unwrap();
+            if locale != "en" {
+                assert_ne!(
+                    plan.files[0].1, english.files[0].1,
+                    "{locale} is translated"
+                );
+            }
+            // A flat board, a table of every format, a page with nothing
+            // to fetch.
+            let map: serde_json::Value =
+                serde_json::from_str(&text("Workspace Map.excalidraw")).unwrap();
+            assert!(
+                map["elements"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|e| { e["roughness"] == 0 && e["roundness"].is_null() }),
+                "{locale}"
+            );
+            assert_eq!(
+                text("Formats.csv").trim().split('\n').count(),
+                9,
+                "{locale}"
+            );
+            let page = text("How It Works.html");
+            for attribute in ["src=\"", "href=\""] {
+                for (at, _) in page.match_indices(attribute) {
+                    let value = &page[at + attribute.len()..];
+                    assert!(
+                        !value.starts_with("//")
+                            && !value.starts_with("http://")
+                            && !value.starts_with("https://"),
+                        "{locale}: {}",
+                        &value[..value.len().min(40)]
+                    );
+                }
+            }
         }
+        let locales: Vec<&str> = manifest["locales"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| l.as_str().unwrap())
+            .collect();
+        assert_eq!(
+            locales,
+            ["de", "en", "es", "fr", "ja", "ko", "pt-BR", "zh-Hans"]
+        );
+        let chinese = getting_started("zh-Hans", GETTING_STARTED_VERSION).unwrap();
+        assert!(String::from_utf8_lossy(&chinese.files[0].1).contains("云端模型"));
+        // Only an unsupported language falls back.
+        assert_eq!(
+            getting_started("it", GETTING_STARTED_VERSION),
+            getting_started("en", GETTING_STARTED_VERSION)
+        );
         assert_eq!(
             getting_started("xx", GETTING_STARTED_VERSION),
             getting_started("en", GETTING_STARTED_VERSION)

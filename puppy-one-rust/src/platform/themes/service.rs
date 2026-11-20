@@ -727,6 +727,10 @@ fn locale_compare(a: &str, b: &str) -> std::cmp::Ordering {
 }
 
 #[cfg(test)]
+#[path = "service_parity_tests.rs"]
+mod parity_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use core::prelude::v1::test;

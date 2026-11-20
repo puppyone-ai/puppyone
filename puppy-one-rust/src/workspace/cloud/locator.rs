@@ -359,6 +359,77 @@ mod tests {
         ));
     }
 
+    /// `cloudRepositoryContextResolver`: the legacy official HTTP locator is
+    /// an identity hint only, never a Git transport; anything else (another
+    /// host or port, credentials, a query or fragment, another environment,
+    /// or a development mapping that is not exactly the HTTPS hosted origin)
+    /// is not this Cloud's Project.
+    #[test]
+    fn legacy_locators_are_identity_hints_for_their_own_environment_only() {
+        let api = "https://api.puppyone.ai/api/v1";
+        let legacy = "http://api.puppyone.ai/git/project-1.git";
+        assert!(is_trusted_project_locator(legacy, Some(api), None));
+        assert!(!is_trusted_git_origin(legacy, api, None));
+        for locator in [
+            "http://other.puppyone.ai/git/project-1.git",
+            "http://api.puppyone.ai:9000/git/project-1.git",
+            "http://user:secret@api.puppyone.ai/git/project-1.git",
+            "http://api.puppyone.ai/git/project-1.git?token=secret",
+            "http://api.puppyone.ai/git/project-1.git#secret",
+        ] {
+            assert!(
+                !is_trusted_project_locator(locator, Some(api), None),
+                "{locator}"
+            );
+            assert!(
+                !is_trusted_project_locator(
+                    locator,
+                    Some("http://localhost:9090/api/v1"),
+                    Some("https://api.puppyone.ai")
+                ),
+                "{locator}"
+            );
+        }
+        // Development and production stay distinct.
+        assert!(!is_trusted_project_locator(
+            legacy,
+            Some("http://localhost:8000/api/v1"),
+            None
+        ));
+        for local in [
+            "http://localhost:9090/api/v1",
+            "http://127.0.0.1:9090/api/v1",
+        ] {
+            let hosted = Some("https://api.puppyone.ai");
+            assert!(
+                is_trusted_project_locator(legacy, Some(local), hosted),
+                "{local}"
+            );
+            assert!(!is_trusted_git_origin(legacy, local, hosted), "{local}");
+        }
+        for configured in [
+            "https://other.puppyone.ai",
+            "http://api.puppyone.ai",
+            "https://api.puppyone.ai:9000",
+        ] {
+            let local = "http://localhost:9090/api/v1";
+            assert!(
+                !is_trusted_project_locator(legacy, Some(local), Some(configured)),
+                "{configured}"
+            );
+            assert!(
+                !is_trusted_git_origin(legacy, local, Some(configured)),
+                "{configured}"
+            );
+        }
+        // The development mapping never binds a different hosted API.
+        assert!(!is_trusted_project_locator(
+            legacy,
+            Some("https://other.puppyone.ai/api/v1"),
+            Some("https://api.puppyone.ai")
+        ));
+    }
+
     #[test]
     fn resource_links_encode_segments_and_mark_folders() {
         assert_eq!(
@@ -380,5 +451,66 @@ mod tests {
         assert!(resource_path(ID, "a/../b", false).is_err());
         assert!(resource_url("ftp://x", ID, "", false).is_err());
         assert_eq!(encode_component("中"), "%E4%B8%AD");
+    }
+
+    /// `workspaceResourceUrl`: every path segment survives the website
+    /// locator exactly, with nothing in a query or fragment; a path that
+    /// cannot be a safe locator, a missing Project id and a non-web or
+    /// credential-bearing origin are refused.
+    #[test]
+    fn resource_locators_keep_every_segment_and_refuse_unsafe_paths() {
+        const PROJECT: &str = "01926faa-7ed1-7000-a000-000000000001";
+        let decode = |segment: &str| {
+            let bytes = segment.as_bytes();
+            let mut out = Vec::new();
+            let mut i = 0;
+            while i < bytes.len() {
+                if bytes[i] == b'%' {
+                    out.push(u8::from_str_radix(&segment[i + 1..i + 3], 16).unwrap());
+                    i += 3;
+                } else {
+                    out.push(bytes[i]);
+                    i += 1;
+                }
+            }
+            String::from_utf8(out).unwrap()
+        };
+        assert_eq!(
+            resource_url("https://app.example/settings", PROJECT, "", true).unwrap(),
+            format!("https://app.example/{PROJECT}/")
+        );
+        assert_eq!(
+            resource_path(PROJECT, "notes/nested", true).unwrap(),
+            format!("/{PROJECT}/notes/nested/")
+        );
+        for path in [
+            "docs/笔记 #1?.md",
+            "100%/literal%2F.md",
+            "emoji/🐶.txt",
+            "a+b/space here.md",
+        ] {
+            let url = url::Url::parse(
+                &resource_url("https://app.example", PROJECT, path, false).unwrap(),
+            )
+            .unwrap();
+            assert_eq!((url.query(), url.fragment()), (None, None), "{path}");
+            let segments: Vec<String> = url.path_segments().unwrap().skip(1).map(decode).collect();
+            assert_eq!(segments.join("/"), path);
+        }
+        for path in [
+            "../secret",
+            "/notes",
+            "notes/",
+            "a//b",
+            "a/../b",
+            "a\\b",
+            "a\u{0}b",
+            "a\nb",
+        ] {
+            assert!(resource_path(PROJECT, path, false).is_err(), "{path:?}");
+        }
+        assert!(resource_path("project", "", true).is_err());
+        assert!(resource_url("file:///tmp", PROJECT, "", true).is_err());
+        assert!(resource_url("https://user:password@app.example", PROJECT, "", true).is_err());
     }
 }

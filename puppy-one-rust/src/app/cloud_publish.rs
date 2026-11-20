@@ -32,7 +32,11 @@ const STEPS: [&str; 5] = ["project", "access", "remote", "upload", "finish"];
 /// `resolveCloudPublishProgressActiveIndex`.
 pub(super) fn step_of(stage: Stage) -> usize {
     match stage {
-        Stage::Validating | Stage::CreatingProject => 0,
+        Stage::EnablingVersionControl
+        | Stage::CreatingSnapshot
+        | Stage::CreatingBranch
+        | Stage::Validating
+        | Stage::CreatingProject => 0,
         Stage::SecuringCredential => 1,
         Stage::ConfiguringRemote => 2,
         Stage::CheckingRemote | Stage::Uploading | Stage::Confirming => 3,
@@ -41,6 +45,9 @@ pub(super) fn step_of(stage: Stage) -> usize {
 }
 fn stage_key(stage: Stage) -> &'static str {
     match stage {
+        Stage::EnablingVersionControl => "cloud.initialize.progress.enabling-version-control",
+        Stage::CreatingSnapshot => "cloud.initialize.progress.creating-snapshot",
+        Stage::CreatingBranch => "cloud.initialize.progress.creating-branch",
         Stage::Validating => "cloud.initialize.progress.validating",
         Stage::CreatingProject => "cloud.initialize.progress.creating-project",
         Stage::SecuringCredential => "cloud.initialize.progress.securing-credential",
@@ -425,6 +432,7 @@ impl WindowCloud {
             .child(body.child(self.local_note(cx)))
             .footer(
                 Button::new("publish-not-now")
+                    .debug_selector(|| "publish-not-now".into())
                     .variant(ButtonVariant::Secondary)
                     .label(tr("cloud.activation.project.notNow"))
                     .on_click(cx.listener(|s, _, _, cx| {
@@ -434,6 +442,7 @@ impl WindowCloud {
             )
             .footer(
                 Button::new("publish-upload")
+                    .debug_selector(|| "publish-upload".into())
                     .variant(ButtonVariant::Solid)
                     .label(tr("cloud.activation.project.publish"))
                     .disabled(!ready)
@@ -469,13 +478,19 @@ impl WindowCloud {
         } else {
             ((active as f32 + 0.5) / STEPS.len() as f32).min(1.)
         };
-        let bar = div().w_full().h(px(4.)).rounded_full().bg(t.border).child(
-            div()
-                .h_full()
-                .w(relative(fraction))
-                .rounded_full()
-                .bg(if paused { t.warning } else { t.brand_blue }),
-        );
+        let bar = div()
+            .debug_selector(|| "publish-progress".into())
+            .w_full()
+            .h(px(4.))
+            .rounded_full()
+            .bg(t.border)
+            .child(
+                div()
+                    .h_full()
+                    .w(relative(fraction))
+                    .rounded_full()
+                    .bg(if paused { t.warning } else { t.brand_blue }),
+            );
         let rows = STEPS.iter().enumerate().map(|(index, step)| {
             let done = completed || index < active;
             let current = !completed && index == active;
@@ -572,6 +587,7 @@ impl WindowCloud {
             .child(self.progress(stage, false, cx));
         dialog.child(body).footer(
             Button::new("publish-hide")
+                .debug_selector(|| "publish-hide".into())
                 .variant(ButtonVariant::Secondary)
                 .label(tr("cloud.initialize.progress.hide"))
                 .on_click(cx.listener(|s, _, _, cx| s.publish_in_background(cx))),
@@ -675,6 +691,7 @@ impl WindowCloud {
                             .gap(px(8.))
                             .child(
                                 Button::new("publish-discard-cancel")
+                                    .debug_selector(|| "publish-discard-cancel".into())
                                     .variant(ButtonVariant::Secondary)
                                     .label(tr("cloud.common.cancel"))
                                     .track_focus(&self.dialog_focus.clone())
@@ -687,6 +704,7 @@ impl WindowCloud {
                             )
                             .child(
                                 Button::new("publish-discard-confirm")
+                                    .debug_selector(|| "publish-discard-confirm".into())
                                     .variant(ButtonVariant::SolidDanger)
                                     .label(tr("cloud.initialize.resume.abandonConfirm"))
                                     .disabled(busy)
@@ -701,6 +719,7 @@ impl WindowCloud {
         if can_discard && !confirming {
             dialog = dialog.footer(
                 Button::new("publish-discard")
+                    .debug_selector(|| "publish-discard".into())
                     .variant(ButtonVariant::Secondary)
                     .label(tr(if busy {
                         "cloud.initialize.resume.discarding"
@@ -719,6 +738,7 @@ impl WindowCloud {
         if finish_cleanup {
             dialog = dialog.footer(
                 Button::new("publish-finish-cleanup")
+                    .debug_selector(|| "publish-finish-cleanup".into())
                     .variant(ButtonVariant::Solid)
                     .label(tr(if busy {
                         "cloud.initialize.resume.discarding"
@@ -734,6 +754,7 @@ impl WindowCloud {
             let action = self.publish.read(cx).push_action();
             dialog = dialog.footer(
                 Button::new("publish-retry")
+                    .debug_selector(|| "publish-retry".into())
                     .variant(ButtonVariant::Solid)
                     .label(tr(if action == Action::PushLatest {
                         "cloud.initialize.pushLatestCommit"
@@ -878,6 +899,41 @@ mod tests {
     #[test]
     fn every_first_push_failure_has_its_own_message_in_every_locale() {
         const GENERAL: &str = "cloud.message.project-publish-failed";
+        // The window names exactly the failures publication can return
+        // (`CLOUD_PUBLISH_ERROR_CODES`, in order).
+        let wire: Vec<&str> = Code::all().map(Code::as_str).collect();
+        assert_eq!(
+            wire,
+            [
+                "SESSION_REQUIRED",
+                "IDENTITY_MISMATCH",
+                "ORGANIZATION_REQUIRED",
+                "REPOSITORY_REQUIRED",
+                "COMMIT_REQUIRED",
+                "BRANCH_REQUIRED",
+                "SOURCE_MISSING",
+                "MERGE_TIP_UNSUPPORTED",
+                "LFS_UNSUPPORTED",
+                "REMOTE_CONFLICT",
+                "REMOTE_REF_CONFLICT",
+                "PROJECT_CREATE_FAILED",
+                "PROJECT_UNAVAILABLE",
+                "CREDENTIAL_FAILED",
+                "SERVICE_UPGRADE_REQUIRED",
+                "REMOTE_CONFIG_FAILED",
+                "PUSH_FAILED",
+                "PUSH_LIMIT_EXCEEDED",
+                "PUSH_UNCERTAIN",
+                "LOCAL_FINALIZE_FAILED",
+                "CLEANUP_FAILED",
+                "CLEANUP_NOT_ALLOWED",
+                "COMPENSATION_FAILED",
+                "JOURNAL_CORRUPT",
+                "JOURNAL_IO_FAILED",
+                "PERMISSION_DENIED",
+                "UNKNOWN",
+            ]
+        );
         for code in Code::all() {
             let message = failure_copy(code);
             assert_eq!(message == GENERAL, code == Code::Unknown, "{code:?}");

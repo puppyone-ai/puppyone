@@ -1,5 +1,6 @@
-//! Frozen TS planSubscription component acceptance through actual GPUI
-//! rendering and pointer dispatch, without a browser or live billing service.
+//! Plan as redesigned on 2026-11-19 (the frozen TS planSubscription cases
+//! where the redesign keeps their meaning), through actual GPUI rendering
+//! and pointer dispatch, without a browser or live billing service.
 use super::*;
 use crate::features::settings::{Page, PreferencesStore};
 use crate::test_support::RecordingText;
@@ -43,24 +44,25 @@ impl Render for PageHarness {
                             .iter()
                             .find(|p| p.id.key() == holding.plan_id)
                             .unwrap();
-                        let scheduled_action = if let Content::Scheduled(_, ref calls) = content {
+                        let notices = if let Content::Scheduled(_, ref calls) = content {
                             let calls = calls.clone();
-                            Some(
-                                Button::new("keep-plan-fixture")
-                                    .label("Keep current plan")
-                                    .on_click(move |_, _, _| calls.set(calls.get() + 1))
-                                    .into_any_element(),
-                            )
+                            let keep = Button::new("keep-plan-fixture")
+                                .label("Keep current plan")
+                                .on_click(move |_, _, _| calls.set(calls.get() + 1))
+                                .into_any_element();
+                            vec![s.scheduled_notice(holding, Some(keep), t)]
                         } else {
-                            None
+                            vec![]
                         };
                         s.current_plan(
                             plan,
                             holding,
                             false,
                             &catalog.add_ons,
+                            vec![],
+                            notices,
                             None,
-                            scheduled_action,
+                            "native.plan.freeUp",
                             t,
                         )
                     }
@@ -233,95 +235,45 @@ impl Fixture {
                 .collect()
         })
     }
-    fn ticks(&mut self, expected_active: usize) {
-        const NORMAL: [&str; 25] = [
-            "plan-meter-tick-0",
-            "plan-meter-tick-1",
-            "plan-meter-tick-2",
-            "plan-meter-tick-3",
-            "plan-meter-tick-4",
-            "plan-meter-tick-5",
-            "plan-meter-tick-6",
-            "plan-meter-tick-7",
-            "plan-meter-tick-8",
-            "plan-meter-tick-9",
-            "plan-meter-tick-10",
-            "plan-meter-tick-11",
-            "plan-meter-tick-12",
-            "plan-meter-tick-13",
-            "plan-meter-tick-14",
-            "plan-meter-tick-15",
-            "plan-meter-tick-16",
-            "plan-meter-tick-17",
-            "plan-meter-tick-18",
-            "plan-meter-tick-19",
-            "plan-meter-tick-20",
-            "plan-meter-tick-21",
-            "plan-meter-tick-22",
-            "plan-meter-tick-23",
-            "plan-meter-tick-24",
-        ];
-        const ACTIVE: [&str; 25] = [
-            "plan-meter-active-0",
-            "plan-meter-active-1",
-            "plan-meter-active-2",
-            "plan-meter-active-3",
-            "plan-meter-active-4",
-            "plan-meter-active-5",
-            "plan-meter-active-6",
-            "plan-meter-active-7",
-            "plan-meter-active-8",
-            "plan-meter-active-9",
-            "plan-meter-active-10",
-            "plan-meter-active-11",
-            "plan-meter-active-12",
-            "plan-meter-active-13",
-            "plan-meter-active-14",
-            "plan-meter-active-15",
-            "plan-meter-active-16",
-            "plan-meter-active-17",
-            "plan-meter-active-18",
-            "plan-meter-active-19",
-            "plan-meter-active-20",
-            "plan-meter-active-21",
-            "plan-meter-active-22",
-            "plan-meter-active-23",
-            "plan-meter-active-24",
-        ];
-        assert!(self.cx.debug_bounds("plan-hours-meter").is_some());
-        for i in 0..25 {
-            let active = self.cx.debug_bounds(ACTIVE[i]);
-            let plain = self.cx.debug_bounds(NORMAL[i]);
-            assert_eq!(active.is_some(), i < expected_active, "active tick {i}");
-            assert_eq!(
-                plain.is_some(),
-                i >= expected_active && i < 24,
-                "plain tick {i}"
-            );
-            if let Some(bounds) = active.or(plain) {
-                assert_eq!(bounds.size, size(px(2.), px(18.)));
+    /// A meter's forty cells as drawn: each 14px tall, the first `used`
+    /// lit, the next `running` half-lit, the rest dark.
+    fn cells(&mut self, id: &'static str, used: usize, running: usize) {
+        let leak = |s: String| -> &'static str { Box::leak(s.into_boxed_str()) };
+        assert!(self.cx.debug_bounds(id).is_some(), "{id}");
+        for i in 0..f::CELLS {
+            let names = [
+                leak(format!("{id}-cell-{i}")),
+                leak(format!("{id}-used-{i}")),
+                leak(format!("{id}-running-{i}")),
+            ];
+            let expected = if i < used {
+                1
+            } else if i < used + running {
+                2
+            } else {
+                0
+            };
+            for (index, name) in names.into_iter().enumerate() {
+                let bounds = self.cx.debug_bounds(name);
+                assert_eq!(bounds.is_some(), index == expected, "{name}");
+                if let Some(bounds) = bounds {
+                    assert_eq!(bounds.size.height, px(14.));
+                }
             }
         }
     }
-    fn comparison_cards(&mut self) -> Vec<(String, Vec<String>)> {
+    /// The plans listed, by their rows' names.
+    fn rows(&mut self) -> Vec<String> {
         self.cx.update(|w, _| {
-            let mut cards = Vec::new();
-            for id in ["plan-card-free", "plan-card-team", "plan-card-enterprise"] {
-                let card = w.find(id);
-                assert_eq!(card.role(), Some(Role::Group));
-                let mut scope = w.within(id);
-                let mut text = vec![
-                    scope.find("amount").value().unwrap().to_owned(),
-                    scope.find("period").value().unwrap().to_owned(),
-                ];
-                for index in 0..4usize {
-                    let row = scope.within(("plan-spec", index));
-                    text.push(row.find("label").value().unwrap().to_owned());
-                    text.push(row.find("value").value().unwrap().to_owned());
-                }
-                cards.push((card.label().unwrap().to_owned(), text));
-            }
-            cards
+            ["plan-row-free", "plan-row-team", "plan-row-enterprise"]
+                .into_iter()
+                .filter(|id| w.try_find(*id).is_some())
+                .map(|id| {
+                    let row = w.find(id);
+                    assert_eq!(row.role(), Some(Role::Group));
+                    row.label().unwrap().to_owned()
+                })
+                .collect()
         })
     }
     // Headless TestWindow has no OS accessibility adapter. Kit observes the
@@ -335,6 +287,12 @@ impl Fixture {
             "max_numeric_value":n.max_numeric_value()
         })).collect()
         })
+    }
+    fn meters(&mut self) -> Vec<Value> {
+        self.accessibility()
+            .into_iter()
+            .filter(|n| n["role"] == "ProgressIndicator")
+            .collect()
     }
 }
 fn usage(used: u64, total: u64, reserved: u64, storage: u64) -> Usage {
@@ -355,55 +313,32 @@ fn signed_out_plan_renders_comparable_prices_and_routes_every_offer_to_account()
     .unwrap();
     for plan in ["free", "team", "enterprise"] {
         let mut f = Fixture::mount(Content::Page, None, false, false, false);
+        // Every plan with one price, saying what it gives; the two paid
+        // plans side by side as tiles, Enterprise only by what it adds to
+        // Team, and Free as a row.
         for expected in [
+            "All plans",
             "Free",
             "Team",
             "Enterprise",
             "$0",
             "$20",
             "$40",
-            "/ month",
-            "/ person / month",
-            "40 h / person / month",
-            "Storage",
-            "Included",
-            "Projects online",
-            "20 / person",
-            "History",
-            "30 days",
+            "per person / month",
+            "5 h a month, 1 GB, 1 project online",
+            "40 agent hours per person a month",
+            "10 GB of storage per person",
+            "20 projects each",
+            "Members and roles",
+            "Everything in Team",
+            "20 GB of storage per person",
+            "1 year of history",
+            "Activity log",
         ] {
             f.contains(expected);
         }
+        assert_eq!(f.rows(), ["Free", "Team", "Enterprise"]);
         assert_eq!(f.buttons(), ["Sign in to choose"; 3]);
-        let cards = f.comparison_cards();
-        assert_eq!(
-            cards
-                .iter()
-                .map(|(name, _)| name.as_str())
-                .collect::<Vec<_>>(),
-            ["Free", "Team", "Enterprise"]
-        );
-        for (card, price, period) in [
-            (&cards[0], "$0", "/ month"),
-            (&cards[1], "$20", "/ person / month"),
-            (&cards[2], "$40", "/ person / month"),
-        ] {
-            assert_eq!(&card.1[..2], [price, period]);
-        }
-        assert_eq!(
-            &cards[1].1[2..],
-            [
-                "Agent hours",
-                "40 h / person / month",
-                "Storage",
-                "Included",
-                "Projects online",
-                "20 / person",
-                "History",
-                "30 days"
-            ]
-        );
-
         assert!(
             f.strings()
                 .iter()
@@ -411,14 +346,7 @@ fn signed_out_plan_renders_comparable_prices_and_routes_every_offer_to_account()
                     && s.contains("AI model costs are separate"))
         );
         assert!(!forbidden.is_match(&f.strings().join("\n")));
-        f.excludes("Choose what each agent");
-        f.excludes("record of what agents");
-        assert!(!f.surface.read_with(&f.cx, |s, _| s.plan_page.storage_open));
-        let at = f.cx.debug_bounds("plan-storage-details").unwrap().center();
-        f.cx.simulate_click(at, Modifiers::default());
-        f.draw();
-        assert!(f.surface.read_with(&f.cx, |s, _| s.plan_page.storage_open));
-        f.contains("10 GB / person");
+        f.excludes("Current plan");
         f.cx.update(|w, cx| w.click(SharedString::from(format!("plan-sign-in-{plan}")), cx));
         assert_eq!(f.surface.read_with(&f.cx, |s, _| s.page), Page::Account);
     }
@@ -428,19 +356,16 @@ fn signed_in_and_restoring_pages_keep_loading_without_offering_sign_in_or_free()
     for (signed_in, restoring) in [(true, false), (false, true)] {
         let mut f = Fixture::mount(Content::Page, None, signed_in, false, restoring);
         assert!(f.cx.debug_bounds("plan-loading").is_some());
-        f.ticks(0);
-        f.contains("Your plan");
+        f.cells("plan-hours-meter", 0, 0);
+        f.cells("plan-storage-meter", 0, 0);
         f.contains("Agent hours");
+        f.contains("Storage");
         f.excludes("Free");
         f.excludes("Sign in to choose");
         assert!(f.buttons().is_empty());
         assert!(f.accessibility().iter().any(|n| n["role"] == "Status"
             && n["label"] == crate::localization::t("common.status.loading")));
-        assert!(
-            !f.accessibility()
-                .iter()
-                .any(|n| n["role"] == "ProgressIndicator")
-        );
+        assert!(f.meters().is_empty());
     }
 }
 #[test]
@@ -448,6 +373,8 @@ fn failed_signed_in_read_offers_retry_and_prices_without_inventing_current_plan(
     let mut f = Fixture::mount(Content::Page, None, true, true, false);
     assert!(f.cx.debug_bounds("plan-loading").is_none());
     f.contains("$20");
+    f.contains("per person / month");
+    assert_eq!(f.rows(), ["Free", "Team", "Enterprise"]);
     f.excludes("Sign in to choose");
     assert_eq!(f.buttons(), ["Retry"]);
     f.excludes("Current plan");
@@ -465,11 +392,15 @@ fn failed_signed_in_read_offers_retry_and_prices_without_inventing_current_plan(
     );
 }
 #[test]
-fn actual_current_plan_keeps_one_meter_and_shows_only_relevant_storage_warnings() {
-    for (percent, notice) in [
-        (30, None),
-        (85, Some("Storage is almost full")),
-        (100, Some("Storage is full")),
+fn actual_current_plan_meters_hours_and_storage_and_warns_only_when_storage_needs_it() {
+    for (percent, used, notice) in [
+        (30, 12, None),
+        (
+            85,
+            34,
+            Some(("85%", "Storage: almost full · Free up space")),
+        ),
+        (100, 40, Some(("100%", "Storage: full · Free up space"))),
     ] {
         let mut f = Fixture::mount(
             Content::Current(holding()),
@@ -478,24 +409,30 @@ fn actual_current_plan_keeps_one_meter_and_shows_only_relevant_storage_warnings(
             false,
             false,
         );
-        f.contains("20 / 40 h used");
-        f.contains("20 h left");
-        f.ticks(12);
-        let nodes = f.accessibility();
-        let meters: Vec<_> = nodes
-            .iter()
-            .filter(|n| n["role"] == "ProgressIndicator")
-            .collect();
-        assert_eq!(meters.len(), 1);
+        f.contains("Team");
+        f.contains("1 person");
+        f.contains("20/40 h");
+        f.contains("50%");
+        f.cells("plan-hours-meter", 20, 0);
+        f.cells("plan-storage-meter", used, 0);
+        let meters = f.meters();
+        assert_eq!(meters.len(), 2);
         assert_eq!(meters[0]["label"], "Agent hours");
         assert_eq!(meters[0]["numeric_value"], 50.0);
         assert_eq!(meters[0]["min_numeric_value"], 0.0);
         assert_eq!(meters[0]["max_numeric_value"], 100.0);
-        if let Some(text) = notice {
-            f.contains(text);
-        } else {
-            f.excludes("Storage is almost full");
-            f.excludes("Storage is full");
+        assert_eq!(meters[1]["label"], "Storage");
+        assert_eq!(meters[1]["numeric_value"], percent as f64);
+        match notice {
+            Some((reading, hint)) => {
+                f.contains(reading);
+                f.contains(hint);
+            }
+            None => {
+                f.contains("30%");
+                f.excludes("almost full");
+                f.excludes("Free up space");
+            }
         }
     }
 }
@@ -504,43 +441,40 @@ fn actual_usage_text_distinguishes_reserved_legacy_empty_and_missing_readings() 
     let legacy = |used, total, available, reserved| {
         serde_json::from_value(json!({"runtime":{"org_id":"o1","granted_units":total,"consumed_units":used,"available_units":available,"reserved_units":reserved,"postpaid_available_units":0,"postpaid_consumed_units":0,"buckets":[]},"storage":{"logical_bytes":0,"limit_bytes":1000000000}})).unwrap()
     };
-    for (reading, used, left, percent) in [
+    // The share used sits beside the meter; what running agents hold is
+    // the note under the rows.
+    for (reading, value, left, note, cells, percent) in [
         (
             Some(usage(1200, 2400, 60, 1000000000)),
-            "20 / 40 h used",
-            "19 h left",
+            "20/40 h",
+            "50%",
+            Some("Agent hours: 1 h in progress"),
+            (20, 1),
             Some(50.),
         ),
-        (Some(legacy(0, 0, 0, 0)), "0 h used", "0 h left", None),
+        (Some(legacy(0, 0, 0, 0)), "0/— h", "—", None, (0, 0), None),
         (
             Some(legacy(120, 300, 150, 30)),
-            "2 / 5 h used",
-            "2.5 h left",
+            "2/5 h",
+            "40%",
+            Some("Agent hours: 0.5 h in progress"),
+            (16, 4),
             Some(40.),
         ),
-        (None, "— h used", "— h left", None),
+        (None, "—/— h", "—", None, (0, 0), None),
     ] {
         let mut f = Fixture::mount(Content::Current(holding()), reading, false, false, false);
-        f.contains(used);
+        f.contains(value);
         f.contains(left);
-        f.ticks(match percent {
-            Some(50.) => 12,
-            Some(40.) => 10,
-            None => 0,
-            _ => unreachable!(),
-        });
-        if used == "20 / 40 h used" {
-            let at = f.cx.debug_bounds("plan-hours-left").unwrap().center();
-            f.cx.simulate_mouse_move(at, None, Modifiers::default());
-            f.cx.executor().advance_clock(Duration::from_secs(2));
-            f.cx.run_until_parked();
-            f.draw();
-            f.contains("1 h in progress");
+        match note {
+            Some(note) => f.contains(note),
+            None => f.excludes("in progress"),
         }
-        let nodes = f.accessibility();
-        let meters: Vec<_> = nodes
-            .iter()
-            .filter(|n| n["role"] == "ProgressIndicator")
+        f.cells("plan-hours-meter", cells.0, cells.1);
+        let meters: Vec<_> = f
+            .meters()
+            .into_iter()
+            .filter(|n| n["label"] == "Agent hours")
             .collect();
         if let Some(percent) = percent {
             assert_eq!(meters.len(), 1);
@@ -576,12 +510,9 @@ fn scheduled_changes_render_the_renewal_and_deliver_one_keep_action() {
         );
         f.contains("Scheduled change");
         f.contains(label);
-        f.ticks(0);
-        assert!(
-            !f.accessibility()
-                .iter()
-                .any(|n| n["role"] == "ProgressIndicator")
-        );
+        f.contains("3 people");
+        f.cells("plan-hours-meter", 0, 0);
+        assert!(f.meters().is_empty());
         f.cx.update(|w, cx| w.click("keep-plan-fixture", cx));
         assert_eq!(calls.get(), 1);
     }

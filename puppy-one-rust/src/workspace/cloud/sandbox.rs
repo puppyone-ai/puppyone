@@ -493,6 +493,52 @@ mod tests {
         assert!(!requires_uninstalled.screen_present());
     }
 
+    /// `cloudSandboxFeatures`: a disabled screen contributes nothing; a
+    /// computer staying on its own profile offers to install a desktop now;
+    /// the owner's toggle reads as off while any other refusal reads as
+    /// unavailable.
+    #[test]
+    fn disabled_screens_contribute_nothing_and_refusals_are_told_apart() {
+        let screen = |extra: Value| {
+            let mut feature = json!({
+                "id": "screen_stream", "surface": "screen", "transport": "vnc",
+                "installed": true, "enabled": true, "reason": null, "preview": false
+            });
+            feature
+                .as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            read_sandbox(&json!({
+                "profile": "desktop", "next_profile": "desktop", "settings": {},
+                "features": [{"id": "desktop", "installed": true, "enabled": true}, feature,
+                             {"id": "browser", "installed": true, "enabled": true},
+                             {"id": "from_a_newer_server", "surface": "panel", "installed": true, "enabled": true}]
+            }))
+        };
+        assert_eq!(
+            screen(json!({})).contributions(Some(SandboxSlot::SidebarFooter)),
+            vec![SCREEN_STREAM_FEATURE]
+        );
+        let off = screen(json!({"enabled": false, "reason": "user_disabled"}));
+        assert!(
+            off.contributions(Some(SandboxSlot::SidebarFooter))
+                .is_empty()
+        );
+        assert_eq!(off.availability(), ScreenAvailability::StreamOff);
+        assert_eq!(
+            screen(json!({"enabled": false, "reason": "disabled"})).availability(),
+            ScreenAvailability::Unavailable
+        );
+        let base = read_sandbox(&json!({
+            "profile": "base", "next_profile": "base",
+            "features": [{"id": "screen_stream", "installed": false, "enabled": false, "reason": "not_installed"}]
+        }));
+        assert_eq!(
+            base.availability(),
+            ScreenAvailability::Install { pending: false }
+        );
+    }
+
     #[test]
     fn settings_body_sends_only_the_settings_given() {
         assert_eq!(settings_body(&SandboxSettings::default()), None);

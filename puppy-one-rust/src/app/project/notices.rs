@@ -1,6 +1,7 @@
 //! `.desktop-workspace-notice-stack`: what is wrong with the workspace's
-//! change subscription (`workspaceSurfaceError`), with Retry, under the
-//! notices about the window's folder that lead it.
+//! change subscription (`workspaceSurfaceError`), with Retry, or a hosted
+//! Project reconnecting on its own, under the notices about the window's
+//! folder that lead it.
 use super::{ProjectEvent, ProjectLifecycle};
 use crate::{
     geometry::Rect,
@@ -29,6 +30,18 @@ impl ProjectLifecycle {
             )
         };
         let Some(message) = &self.record.notice else {
+            // Reconnecting on its own: said quietly, nothing to press.
+            if self.record.reconnecting {
+                return Some(
+                    stack()
+                        .children(folder)
+                        .child(FloatingNotice::new(
+                            "workspace-reconnecting",
+                            tr("native.cloud.reconnecting"),
+                        ))
+                        .into_any_element(),
+                );
+            }
             return (!folder.is_empty()).then(|| stack().children(folder).into_any_element());
         };
         let dismiss = weak.clone();

@@ -236,8 +236,13 @@ pub struct CloudHistory {
     collapsed_days: HashSet<String>,
     icon_theme: String,
     focus: FocusHandle,
+    /// Waits for file activity in the Project to fall quiet.
+    settling: Option<Task<()>>,
 }
 impl EventEmitter<CloudHistoryEvent> for CloudHistory {}
+/// `contentSettledKey`: how long the Project's files stay quiet before
+/// History reads what the activity recorded.
+const ACTIVITY_QUIET: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// `toGitCommitSummary` for the shared timeline. The day groups by the
 /// local calendar date of the Cloud time.
@@ -329,6 +334,7 @@ impl CloudHistory {
             collapsed_days: HashSet::new(),
             icon_theme: "default".into(),
             focus: cx.focus_handle(),
+            settling: None,
         }
     }
     pub fn focus_handle(&self) -> &FocusHandle {
@@ -456,6 +462,25 @@ impl CloudHistory {
                     model::parse_page(&value, &project, continuation).map_err(Failure::Invalid)
                 })
             })
+    }
+    /// A hosted run's accepted changes: an open History reads its first page
+    /// again (`useCloudHistoryData` refreshes after publication).
+    pub fn refresh_published(&mut self, cx: &mut Context<Self>) {
+        if self.is_open() {
+            self.load(cx);
+        }
+    }
+    /// The Project's files changed. Once they have been quiet for two
+    /// seconds an open History reads its first page again, so a burst of
+    /// writes reads it once (`contentSettledKey`).
+    pub fn file_activity(&mut self, cx: &mut Context<Self>) {
+        self.settling = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(ACTIVITY_QUIET).await;
+            let _ = this.update(cx, |h, cx| {
+                h.settling = None;
+                h.refresh_published(cx);
+            });
+        }));
     }
     /// `load` (also Refresh and the first page's Try again).
     pub fn load(&mut self, cx: &mut Context<Self>) {
@@ -1314,7 +1339,11 @@ mod tests {
             assert!(h.commits[0].changes.is_empty());
             assert_eq!(h.labels[&id(1)][0].name, "main");
         });
-        view.update(cx, |h, cx| h.load_more(cx));
+        // A rapid double click appends the cursor page once.
+        view.update(cx, |h, cx| {
+            h.load_more(cx);
+            h.load_more(cx);
+        });
         settle(cx, |cx| view.read_with(cx, |h, _| !h.loading_more));
         view.read_with(cx, |h, _| {
             assert_eq!(h.commits.len(), 3);
@@ -1352,6 +1381,34 @@ mod tests {
         });
         settle(cx, |cx| other.read_with(cx, |h, _| h.page.is_none()));
         assert_eq!(reads.lock().unwrap().len(), 4);
+        // A hosted run's publication reads the first page again.
+        view.update(cx, |h, cx| h.refresh_published(cx));
+        settle(cx, |cx| {
+            view.read_with(cx, |h, _| h.page.is_none() && !h.loading)
+        });
+        let first_pages = || {
+            reads
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|r| *r == "/content/p1/commits")
+                .count()
+        };
+        assert_eq!(first_pages(), 3);
+        // File activity reads it again once it has been quiet for two
+        // seconds, once for the whole burst.
+        for _ in 0..5 {
+            view.update(cx, |h, cx| h.file_activity(cx));
+            cx.executor()
+                .advance_clock(std::time::Duration::from_millis(500));
+            cx.run_until_parked();
+        }
+        assert_eq!(first_pages(), 3);
+        cx.executor().advance_clock(ACTIVITY_QUIET);
+        settle(cx, |cx| {
+            view.read_with(cx, |h, _| h.page.is_none() && !h.loading)
+        });
+        assert_eq!(first_pages(), 4);
         // The view belongs to its Project; closing drops everything.
         cx.update(|cx| {
             assert!(view.read(cx).matches(Some("p1"), cx));
@@ -1377,7 +1434,7 @@ mod tests {
         let (view, vcx) = cx.add_window_view(|_, cx| CloudHistory::new(cx));
         let draw = |vcx: &mut gpui::VisualTestContext| {
             vcx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             })
         };
         // Loading, then the list with its pagination footer.

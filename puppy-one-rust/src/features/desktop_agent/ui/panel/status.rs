@@ -63,7 +63,10 @@ impl AgentChatTabPanel {
                     description: String,
                     details: Option<AnyElement>,
                     actions: Vec<AnyElement>| {
+            let selector = format!("agent-status:{heading}");
+            let described = format!("agent-status-detail:{description}");
             h_flex()
+                .debug_selector(move || selector)
                 .w_full()
                 .items_start()
                 .gap(px(8.))
@@ -92,6 +95,7 @@ impl AgentChatTabPanel {
                         )
                         .child(
                             div()
+                                .debug_selector(move || described)
                                 .text_size(px(m.right.caption))
                                 .text_color(a.text_muted)
                                 .whitespace_normal()
@@ -151,6 +155,7 @@ impl AgentChatTabPanel {
                     .child(
                         h_flex()
                             .id("agent-diagnostics")
+                            .debug_selector(|| "agent-diagnostics".into())
                             .gap(px(4.))
                             .text_size(px(m.right.caption))
                             .text_color(a.text_subtle)
@@ -172,7 +177,9 @@ impl AgentChatTabPanel {
                     )
                     .when(open, |d| {
                         d.children(diagnostics.iter().map(|line| {
+                            let selector = format!("agent-diagnostic:{line}");
                             div()
+                                .debug_selector(move || selector)
                                 .mt(px(2.))
                                 .text_size(px(m.right.caption))
                                 .text_color(a.text_subtle)
@@ -182,18 +189,20 @@ impl AgentChatTabPanel {
                     })
                     .into_any_element()
             });
+            let retry_label = t(if runtime_exited {
+                "agent.readiness.reconnect"
+            } else {
+                "common.action.retry"
+            });
+            let retry_selector = format!("agent-readiness-retry:{retry_label}");
             let retry = agent_button(
                 "agent-readiness-retry",
-                t(if runtime_exited {
-                    "agent.readiness.reconnect"
-                } else {
-                    "common.action.retry"
-                })
-                .into(),
+                retry_label.into(),
                 ButtonTone::Secondary,
                 false,
                 &a,
             )
+            .debug_selector(move || retry_selector)
             .on_click(cx.listener(|s, _, _, cx| {
                 drop(s.controller.initialize(true));
                 cx.notify();
@@ -264,6 +273,7 @@ impl AgentChatTabPanel {
                             .with_size(px(13.))
                             .color(a.text_subtle),
                     )
+                    .debug_selector(|| "agent-status-reconnecting".into())
                     .child(t("agent.lifecycle.reconnecting")),
             );
         }
@@ -297,6 +307,7 @@ impl AgentChatTabPanel {
                         false,
                         &a,
                     )
+                    .debug_selector(|| "agent-retry-display".into())
                     .on_click(cx.listener(|s, _, _, cx| {
                         drop(s.controller.retry_display_recovery());
                         cx.notify();
@@ -312,6 +323,7 @@ impl AgentChatTabPanel {
                             false,
                             &a,
                         )
+                        .debug_selector(|| "agent-pause-display".into())
                         .on_click(cx.listener(|s, _, _, cx| {
                             s.controller.pause_display_recovery();
                             cx.notify();
@@ -328,6 +340,7 @@ impl AgentChatTabPanel {
                     false,
                     &a,
                 )
+                .debug_selector(|| "agent-manage-executions".into())
                 .on_click(cx.listener(|s, _, _, _| {
                     drop(s.controller.manage_executions());
                 }))

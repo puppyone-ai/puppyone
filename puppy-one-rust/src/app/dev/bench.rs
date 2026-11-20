@@ -66,7 +66,7 @@ fn window_frame_cost() {
             ..Default::default()
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         scroll.0.push(t.elapsed().as_secs_f64() * 1000.);
     }

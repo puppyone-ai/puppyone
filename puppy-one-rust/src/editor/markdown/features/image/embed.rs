@@ -454,6 +454,7 @@ impl LineEmbed for ImageEmbed {
             children.push(
                 div()
                     .id(("md-image", self.line.start * 64 + k))
+                    .debug_selector(move || format!("md-image-{k}"))
                     .group(SharedString::from(format!("md-image-{k}")))
                     .absolute()
                     .left(px(b.x))

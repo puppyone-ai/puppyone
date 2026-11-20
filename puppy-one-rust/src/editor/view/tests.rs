@@ -57,7 +57,7 @@ fn setup<'a>(
     let (view, cx) = cx.add_window_view(move |_, cx| EditorView::new(&text, plain(), cx));
     view.update_in(cx, |v, w, cx| v.focus(w, cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     (view, cx)
 }
@@ -92,7 +92,7 @@ fn typing_motion_deletion_and_history(cx: &mut TestAppContext) {
 fn layout_centres_the_rail_and_maps_points_to_offsets(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx, "one\ntwo");
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| {
         let layout = v.layout().unwrap();
@@ -201,7 +201,7 @@ fn a_new_editor_lays_out_for_its_pane_on_its_first_frame(cx: &mut TestAppContext
                 cx.notify();
                 p.editor.clone()
             });
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
             (editor.clone(), pane_layout(&editor, cx))
         })
     };
@@ -210,7 +210,7 @@ fn a_new_editor_lays_out_for_its_pane_on_its_first_frame(cx: &mut TestAppContext
     // The first frame is final: the next one lays out the same.
     let again = cx.update(|w, cx| {
         w.refresh();
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
         pane_layout(&editor, cx)
     });
     assert_eq!(again, first);
@@ -231,7 +231,7 @@ fn long_document(lines: usize, words: usize) -> String {
 fn settle(cx: &mut VisualTestContext) {
     for _ in 0..6 {
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         cx.run_until_parked();
     }
@@ -401,7 +401,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
         v.set_selection(Selection::cursor(2), cx);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let events = Rc::new(RefCell::new(Vec::new()));
     let sink = events.clone();
@@ -478,7 +478,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
     });
     assert!(events.borrow().is_empty());
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let jump = view.read_with(cx, |v, _| {
         v.caches
@@ -500,7 +500,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
         "heading navigation is not a document edit"
     );
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update_in(cx, |v, w, cx| {
         v.mouse_down(&down(at), w, cx);
@@ -515,7 +515,7 @@ fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut T
         "a save/modal barrier cancels the old gesture"
     );
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update_in(cx, |v, w, cx| {
         v.mouse_down(&down(at), w, cx);
@@ -534,7 +534,7 @@ fn double_click_and_drag_with_stale_layout_clamp_safely(cx: &mut TestAppContext)
     let initial = "alpha beta gamma delta epsilon\nsecond line here";
     let (view, cx) = setup(cx, initial);
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     let far_right = view.read_with(cx, |v, _| {
@@ -586,11 +586,11 @@ fn double_click_and_drag_with_stale_layout_clamp_safely(cx: &mut TestAppContext)
 
     // Also verify when the old layout offset lands mid-codepoint (e.g. byte 1 or 2 of "中文").
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update_in(cx, |v, _, cx| v.replace_text("ab third", cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let byte_two = view.read_with(cx, |v, _| {
         let layout = v.caches.layout.as_ref().unwrap();
@@ -628,4 +628,99 @@ fn double_click_and_drag_with_stale_layout_clamp_safely(cx: &mut TestAppContext)
         let s = v.state.selection;
         assert_eq!((s.from(), s.to()), (0, "中文 word".len()));
     });
+}
+
+/// The document's history stays within its step budget through a destroyed
+/// view: the newest 200 steps and a pending redo reach the next view.
+#[gpui::test]
+fn a_bounded_history_keeps_its_newest_steps_and_redo_through_a_new_view(cx: &mut TestAppContext) {
+    use crate::editor::{
+        document_session::models::DocumentModels,
+        text::{
+            change::ChangeSet,
+            history::MAX_STEPS,
+            state::{Transaction, UserEvent},
+        },
+    };
+    let models = DocumentModels::default();
+    let handle = models.handle();
+    let first = cx.update(|cx| {
+        cx.new(|cx| {
+            let mut view = EditorView::new("", plain(), cx);
+            view.attach_model(&handle);
+            view
+        })
+    });
+    first.update(cx, |view, cx| {
+        for _ in 0..220 {
+            let end = view.text().len();
+            view.dispatch(
+                Transaction::edit(ChangeSet::replace(end..end, "x"), None, UserEvent::Command),
+                cx,
+            );
+        }
+        view.undo(false, cx);
+        assert_eq!(view.text().len(), 219);
+    });
+    let released = first.downgrade();
+    drop(first);
+    // Dropped entities are released when the effect cycle ends.
+    cx.update(|_| {});
+    assert!(released.upgrade().is_none());
+    let second = cx.update(|cx| {
+        cx.new(|cx| {
+            let mut view = EditorView::new(&"x".repeat(219), plain(), cx);
+            view.attach_model(&handle);
+            view
+        })
+    });
+    second.update(cx, |view, cx| {
+        view.undo(true, cx);
+        assert_eq!(view.text().len(), 220, "the pending redo survived");
+        let mut undone = 0;
+        while view.history.can_undo() {
+            view.undo(false, cx);
+            undone += 1;
+        }
+        assert_eq!(undone, MAX_STEPS);
+        assert_eq!(view.text().len(), 220 - MAX_STEPS);
+    });
+}
+
+/// Resizing the window wraps every paragraph again and estimates again the
+/// blocks above the viewport that were never laid out: the text at the
+/// viewport top stays where it is, through any number of resizes.
+#[gpui::test]
+fn resizing_the_window_keeps_the_text_at_the_viewport_top(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, &long_document(400, 120));
+    cx.simulate_resize(size(px(900.), px(700.)));
+    settle(cx);
+    view.update(cx, |v, cx| {
+        v.scroll_y = 20_013.;
+        cx.notify();
+    });
+    settle(cx);
+    let row_of = |view: &Entity<EditorView>, cx: &mut VisualTestContext, offset: usize| {
+        view.read_with(cx, |v, _| {
+            let l = v.caches.layout.as_ref().unwrap();
+            f32::from(l.caret(offset, false).row_top - l.bounds.top())
+        })
+    };
+    let offset = view.read_with(cx, |v, _| {
+        let l = v.caches.layout.as_ref().unwrap();
+        l.offset_at(point(l.bounds.left() + px(200.), l.bounds.top() + px(2.)))
+            .0
+    });
+    let row = row_of(&view, cx, offset);
+    for width in [700., 560., 480., 640., 820., 900.].repeat(3) {
+        cx.simulate_resize(size(px(width), px(700.)));
+        settle(cx);
+        let now = row_of(&view, cx, offset);
+        // Scroll snaps to device pixels (2x here).
+        assert!(
+            (now - row).abs() <= 0.5,
+            "at {width}px the top text moved {}",
+            now - row
+        );
+    }
 }

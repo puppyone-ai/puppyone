@@ -74,10 +74,29 @@ pub fn movable_at_boundaries(
         return None;
     }
     let content_end = line.start + doc.slice_cow(line.clone()).trim_end().len();
-    if content_end == line.start {
+    let anchor = if content_end > line.start {
+        content_end - 1
+    } else if boundaries
+        .items
+        .iter()
+        .any(|item| item.range.start < line.start && line.start < item.range.end)
+    {
+        line.start
+    } else if boundaries
+        .lists
+        .iter()
+        .any(|list| list.range.start <= line.start && line.start < list.range.end)
+    {
         return None;
-    }
-    let anchor = content_end - 1;
+    } else if boundaries
+        .top_blocks
+        .iter()
+        .any(|b| b.start >= body && b.start < line.start && line.start < b.end)
+    {
+        line.start
+    } else {
+        return None;
+    };
     let mut items: Vec<usize> = (0..boundaries.items.len())
         .filter(|&i| boundaries.items[i].range.contains(&anchor))
         .collect();
@@ -129,7 +148,7 @@ pub fn movable_at_boundaries(
 }
 
 /// `getMarkdownMovableBlockAt`: by line, never by column; a blank line
-/// belongs to no block.
+/// belongs to an enclosing block/item, never to the gap between blocks.
 pub fn movable_at(doc: &Buffer, syntax: &Syntax, offset: usize) -> Option<Movable> {
     if doc.is_empty() {
         return None;
@@ -140,10 +159,29 @@ pub fn movable_at(doc: &Buffer, syntax: &Syntax, offset: usize) -> Option<Movabl
         return None;
     }
     let content_end = line.start + doc.slice_cow(line.clone()).trim_end().len();
-    if content_end == line.start {
+    let anchor = if content_end > line.start {
+        content_end - 1
+    } else if syntax
+        .items
+        .iter()
+        .any(|item| item.range.start < line.start && line.start < item.range.end)
+    {
+        line.start
+    } else if syntax
+        .lists
+        .iter()
+        .any(|list| list.range.start <= line.start && line.start < list.range.end)
+    {
         return None;
-    }
-    let anchor = content_end - 1;
+    } else if syntax
+        .top_blocks
+        .iter()
+        .any(|b| b.start >= body && b.start < line.start && line.start < b.end)
+    {
+        line.start
+    } else {
+        return None;
+    };
     let mut items: Vec<usize> = (0..syntax.items.len())
         .filter(|&i| syntax.items[i].range.contains(&anchor))
         .collect();

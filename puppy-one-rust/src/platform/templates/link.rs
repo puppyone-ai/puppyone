@@ -47,14 +47,20 @@ pub fn scheme(channel: Channel) -> &'static str {
 /// `resolveTemplateStoreOrigin`: the store, or in a development build a
 /// local one named by `PUPPYONE_TEMPLATE_STORE_ORIGIN`.
 pub fn store_origin() -> String {
-    let identity = build_identity::current();
-    let Some(value) = std::env::var("PUPPYONE_TEMPLATE_STORE_ORIGIN")
-        .ok()
-        .filter(|_| !identity.packaged)
-    else {
+    origin_for(
+        std::env::var("PUPPYONE_TEMPLATE_STORE_ORIGIN")
+            .ok()
+            .as_deref(),
+        build_identity::current().packaged,
+    )
+}
+/// The store a build uses: a packaged app ignores any override, and an
+/// override that is not the store or a loopback one falls back to the store.
+fn origin_for(value: Option<&str>, packaged: bool) -> String {
+    let Some(value) = value.filter(|_| !packaged) else {
         return STORE_ORIGIN.into();
     };
-    url::Url::parse(&value)
+    url::Url::parse(value)
         .ok()
         .filter(|url| {
             url.username().is_empty()
@@ -220,6 +226,42 @@ mod tests {
         ] {
             assert!(parse(&bad, STORE_ORIGIN, Channel::Dev).is_err(), "{bad}");
         }
+        // The current channel's app link, and the official store's pages.
+        assert_eq!(
+            parse(
+                &format!("puppyone://templates/import?id={ID}"),
+                STORE_ORIGIN,
+                Channel::Stable
+            ),
+            Ok(TemplateRef {
+                id: ID.into(),
+                release: None
+            })
+        );
+        for bad in [
+            format!("https://evil.example/t/{ID}"),
+            "https://github.com/user/repo".into(),
+            format!("puppyone-development://templates/import?id={ID}"),
+            format!("https://www.puppyone.ai/t/{ID}#code"),
+        ] {
+            assert!(parse(&bad, STORE_ORIGIN, Channel::Stable).is_err(), "{bad}");
+        }
+        // A packaged app ignores a store override; a development build
+        // takes only a loopback one.
+        assert_eq!(origin_for(Some("https://evil.example"), true), STORE_ORIGIN);
+        assert_eq!(
+            origin_for(Some("https://evil.example"), false),
+            STORE_ORIGIN
+        );
+        assert_eq!(
+            origin_for(Some("http://localhost:3000/"), true),
+            STORE_ORIGIN
+        );
+        assert_eq!(
+            origin_for(Some("http://localhost:3000/"), false),
+            "http://localhost:3000"
+        );
+        assert_eq!(origin_for(None, false), STORE_ORIGIN);
         // A development store is accepted alongside the real one.
         assert!(
             parse(
@@ -233,13 +275,29 @@ mod tests {
 
     #[test]
     fn pasted_text_looks_like_a_link_or_not() {
-        assert!(looks_like(&format!(" https://www.puppyone.ai/t/{ID} ")));
-        assert!(looks_like(&format!(
-            "https://example.com/t/{ID}?release={RELEASE}"
-        )));
-        assert!(looks_like(&format!("puppyone://templates/import?id={ID}")));
-        assert!(!looks_like("hello world"));
-        assert!(!looks_like(&format!("https://www.puppyone.ai/x/{ID}")));
+        // It judges nothing: another host looks like a link too.
+        for value in [
+            format!(" https://www.puppyone.ai/t/{ID} "),
+            format!("  https://www.puppyone.ai/t/{ID}?release={RELEASE}\n"),
+            format!("https://example.com/t/{ID}?release={RELEASE}"),
+            format!("http://127.0.0.1:3035/t/{ID}"),
+            format!("puppyone://templates/import?id={ID}"),
+            format!("puppyone://templates/import?id={ID}&release={RELEASE}"),
+        ] {
+            assert!(looks_like(&value), "{value}");
+        }
+        for value in [
+            String::new(),
+            "hello".into(),
+            "hello world".into(),
+            "https://www.puppyone.ai/templates".into(),
+            "sk-secret https://www.puppyone.ai/t/x".into(),
+            format!("see https://www.puppyone.ai/t/{ID}"),
+            format!("https://www.puppyone.ai/x/{ID}"),
+            "x".repeat(3000),
+        ] {
+            assert!(!looks_like(&value), "{value}");
+        }
         assert!(require_id("0d3b7a4e-1f2a-6b5c-8d9e-0123456789ab").is_err());
     }
 
@@ -250,10 +308,24 @@ mod tests {
             from_copied_text(&format!(" {link}\n"), STORE_ORIGIN, Channel::Stable).as_deref(),
             Some(link.as_str())
         );
+        // The app's own link is copied as the store page it names.
+        assert_eq!(
+            from_copied_text(
+                &format!("puppyone://templates/import?id={ID}"),
+                STORE_ORIGIN,
+                Channel::Stable
+            ),
+            Some(format!("https://www.puppyone.ai/t/{ID}"))
+        );
         for text in [
             format!("Try this: {link}"),
+            format!("see {link} for details"),
             format!("https://github.com/t/{ID}"),
+            format!("https://evil.example/t/{ID}"),
+            format!("{link}#code"),
+            format!("puppyone-development://templates/import?id={ID}"),
             "a shopping list".into(),
+            "meeting notes".into(),
             String::new(),
         ] {
             assert_eq!(

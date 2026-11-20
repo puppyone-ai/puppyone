@@ -60,28 +60,6 @@ pub fn short_date(iso: &str) -> String {
         .unwrap_or_default()
 }
 
-/// `heldPlanName` with `describeHolding`: the plan held, and what it costs
-/// a month when that is known.
-pub fn held_plan(holding: &PlanHolding) -> String {
-    let name = t(if !holding.subscribed {
-        "settings.plan.name.free"
-    } else if holding.plan_id == "enterprise" {
-        "settings.plan.name.enterprise"
-    } else {
-        "settings.plan.name.team"
-    });
-    match (holding.subscribed, holding.monthly_cents) {
-        (true, Some(cents)) => format!(
-            "{name} · {}",
-            tf(
-                "settings.plan.monthlyFor",
-                &[("amount", money(Some(cents), &holding.currency).into())]
-            )
-        ),
-        _ => name.to_owned(),
-    }
-}
-
 /// `PlanStatus`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Status {
@@ -186,6 +164,15 @@ pub fn quote_timing(quote: Option<&Quote>, holding: &PlanHolding) -> QuoteTiming
             opens_browser: false,
         };
     }
+    // Only a new subscription is paid in the browser; a change to one held
+    // applies to it, charged to the card it already uses.
+    if quote.is_some_and(|q| q.application_mode != "checkout") {
+        return QuoteTiming {
+            confirm: "settings.plan.confirm",
+            note: t("native.plan.chargedNow").to_owned(),
+            opens_browser: false,
+        };
+    }
     QuoteTiming {
         confirm: "settings.plan.confirmAndPay",
         note: t("settings.plan.quoteNote").to_owned(),
@@ -200,34 +187,51 @@ pub fn percent_of(used: Option<f64>, total: Option<f64>) -> Option<f64> {
         _ => None,
     }
 }
-/// `PlanUsageBar`: 24 ticks; any reading above zero lights at least one.
-pub const METER_TICKS: usize = 24;
-pub fn active_ticks(percent: Option<f64>) -> usize {
-    match percent.map(|p| p.clamp(0., 100.)) {
+/// A meter is forty cells, 2.5% each.
+pub const CELLS: usize = 40;
+/// How many cells are used and how many are held by agents still running
+/// (`percent`s of the allowance); any reading above zero lights at least
+/// one, and the two never pass the end together.
+pub fn cells(used: Option<f64>, running: Option<f64>) -> (usize, usize) {
+    let count = |percent: Option<f64>| match percent.map(|p| p.clamp(0., 100.)) {
         None => 0,
         Some(0.) => 0,
-        Some(p) => ((p / 100. * METER_TICKS as f64).round() as usize).max(1),
+        Some(p) => ((p / 100. * CELLS as f64).round() as usize).max(1),
+    };
+    let used = count(used);
+    (used, count(running).min(CELLS - used))
+}
+/// How full a meter reads: its used cells turn warning from 80% and danger
+/// once nothing is left.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fill {
+    Calm,
+    Near,
+    Full,
+}
+pub fn fill(percent: Option<f64>) -> Fill {
+    match percent {
+        Some(p) if p >= 100. => Fill::Full,
+        Some(p) if p >= 80. => Fill::Near,
+        _ => Fill::Calm,
     }
 }
-
-/// `teamActionLabel`.
-pub fn team_action(on_team: bool, sellable: bool) -> &'static str {
-    if on_team {
-        "settings.plan.changePeople"
-    } else if sellable {
-        "settings.plan.upgrade"
-    } else {
-        "settings.plan.comingSoon"
-    }
+/// A percentage as a meter prints it.
+pub fn percent(value: f64) -> String {
+    format!("{}%", value.round() as i64)
 }
-/// `planActionLabel`.
-pub fn plan_action(subscribed: bool, sellable: bool) -> &'static str {
-    if !sellable {
-        "settings.plan.comingSoon"
-    } else if subscribed {
-        "settings.plan.switch"
-    } else {
-        "settings.plan.upgrade"
+/// History kept: days, whole years, or no limit.
+pub fn history(days: Option<u64>) -> String {
+    match days {
+        None => t("settings.plan.spec.unlimited").to_owned(),
+        Some(days) if days >= 365 && days % 365 == 0 => tf(
+            "settings.plan.spec.years",
+            &[("count", Arg::Number((days / 365) as i64))],
+        ),
+        Some(days) => tf(
+            "settings.plan.spec.days",
+            &[("count", Arg::Number(days as i64))],
+        ),
     }
 }
 
@@ -253,8 +257,11 @@ mod tests {
         }
     }
     fn quote(plan: &str, seats: u64, effective: Option<&str>) -> Quote {
+        quote_as(plan, seats, effective, "plan_change")
+    }
+    fn quote_as(plan: &str, seats: u64, effective: Option<&str>, mode: &str) -> Quote {
         serde_json::from_value(serde_json::json!({"quote_id": "q", "org_id": "o",
-            "target_plan_id": plan, "target_seats": seats, "application_mode": "plan_change",
+            "target_plan_id": plan, "target_seats": seats, "application_mode": mode,
             "effective": effective, "expires_at": "2026-12-01T00:00:00Z"}))
         .unwrap()
     }
@@ -276,7 +283,8 @@ mod tests {
     }
 
     /// "tells a downgrade apart from a payment before it is confirmed",
-    /// "says what changes at renewal and offers to keep the current plan".
+    /// "says what changes at renewal and offers to keep the current plan";
+    /// only a new subscription is paid in the browser.
     #[test]
     fn a_quote_says_whether_it_pays_now_waits_or_keeps() {
         crate::localization::set_current("en");
@@ -287,7 +295,19 @@ mod tests {
         assert!(later.note.starts_with("Takes effect on Dec 8"));
         assert!(later.note.contains("nothing is refunded"));
         let now = quote_timing(Some(&quote("team_v2", 4, Some("now"))), &held);
-        assert!(now.opens_browser && now.confirm == "settings.plan.confirmAndPay");
+        assert!(!now.opens_browser && now.confirm == "settings.plan.confirm");
+        assert!(now.note.starts_with("Starts now."));
+        let people = quote_timing(
+            Some(&quote_as("team_v2", 5, Some("now"), "seat_change")),
+            &held,
+        );
+        assert!(!people.opens_browser && people.confirm == "settings.plan.confirm");
+        let free = holding("free", 1, None);
+        let new = quote_timing(
+            Some(&quote_as("team_v2", 3, Some("now"), "checkout")),
+            &free,
+        );
+        assert!(new.opens_browser && new.confirm == "settings.plan.confirmAndPay");
         let scheduled = holding(
             "team",
             3,
@@ -318,12 +338,19 @@ mod tests {
         assert_eq!(status(&held), Status::Updating);
         held.subscribed = false;
         assert_eq!(status(&held), Status::Free);
-        // "keeps every tick" and lights one for any reading above zero.
-        assert_eq!(active_ticks(None), 0);
-        assert_eq!(active_ticks(Some(0.)), 0);
-        assert_eq!(active_ticks(Some(0.1)), 1);
-        assert_eq!(active_ticks(Some(50.)), 12);
-        assert_eq!(active_ticks(Some(140.)), 24);
+        // Every cell stays; any reading above zero lights one, and what
+        // agents still hold follows what is used without passing the end.
+        assert_eq!(cells(None, None), (0, 0));
+        assert_eq!(cells(Some(0.), Some(0.)), (0, 0));
+        assert_eq!(cells(Some(0.1), None), (1, 0));
+        assert_eq!(cells(Some(50.), Some(2.)), (20, 1));
+        assert_eq!(cells(Some(140.), Some(10.)), (40, 0));
+        assert_eq!(cells(Some(95.), Some(10.)), (38, 2));
+        assert_eq!(fill(None), Fill::Calm);
+        assert_eq!(fill(Some(79.)), Fill::Calm);
+        assert_eq!(fill(Some(80.)), Fill::Near);
+        assert_eq!(fill(Some(100.)), Fill::Full);
+        assert_eq!(percent(92.6), "93%");
         assert_eq!(percent_of(Some(20.), Some(40.)), Some(50.));
         assert_eq!(percent_of(Some(1.), Some(0.)), None);
     }

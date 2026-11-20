@@ -264,6 +264,7 @@ impl RenderOnce for ChangesButton {
         }
         let label = self.label();
         Button::new("changes")
+            .debug_selector(|| "header-changes".into())
             .variant(if self.coachmark {
                 ButtonVariant::TitlebarCoachmark
             } else {
@@ -289,6 +290,7 @@ pub(super) fn agent_entry(open: bool) -> Button {
         "shell.titlebar.showAgent"
     });
     Button::new("right")
+        .debug_selector(|| "header-agent".into())
         .variant(ButtonVariant::Titlebar)
         .icon("agent-entry")
         .accessibility_label(label)

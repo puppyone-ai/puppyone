@@ -82,7 +82,20 @@ impl BlockId {
     }
 
     pub fn map(&mut self, changes: &ChangeSet, new_revision: u64) {
-        self.anchor.map(changes, new_revision);
+        // Pure insertions right at the block's start push the block down
+        // (`Assoc::After`), while an in-place replacement starting at the
+        // block's start (such as a table structure rewrite) keeps the block
+        // anchored at its start offset (`Assoc::Before`).
+        let starts_replaced = changes
+            .changes()
+            .iter()
+            .any(|c| c.range.start == self.anchor.offset && !c.range.is_empty());
+        if starts_replaced {
+            self.anchor.offset = changes.map(self.anchor.offset, Assoc::Before);
+            self.anchor.revision = new_revision;
+        } else {
+            self.anchor.map(changes, new_revision);
+        }
     }
 
     pub fn shift(&mut self, byte_delta: isize, new_revision: u64) {

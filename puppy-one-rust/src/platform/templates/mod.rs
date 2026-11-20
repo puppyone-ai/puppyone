@@ -198,6 +198,26 @@ pub fn free_name(parent: &Path, name: &str) -> Result<String, String> {
 /// only if nothing has that name — so a project appears complete or not at
 /// all, and never merges into an existing folder.
 pub fn materialize(parent: &Path, name: &str, plan: &Plan) -> Result<PathBuf, String> {
+    materialize_while(parent, name, plan, || Ok(()))
+}
+/// [`materialize`], published only if `still_allowed` holds once every file
+/// is written (`validateSource` before `publishDirectory`): a template
+/// handed out to one account is not published after another took over.
+pub fn materialize_while(
+    parent: &Path,
+    name: &str,
+    plan: &Plan,
+    still_allowed: impl FnOnce() -> Result<(), String>,
+) -> Result<PathBuf, String> {
+    materialize_with(parent, name, plan, still_allowed, publish)
+}
+fn materialize_with(
+    parent: &Path,
+    name: &str,
+    plan: &Plan,
+    still_allowed: impl FnOnce() -> Result<(), String>,
+    publish: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+) -> Result<PathBuf, String> {
     let (directories, _) = validate(plan)?;
     if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\', '\0']) {
         return Err("Invalid template directory name.".into());
@@ -208,7 +228,14 @@ pub fn materialize(parent: &Path, name: &str, plan: &Plan) -> Result<PathBuf, St
         uuid::Uuid::new_v4().simple()
     ));
     std::fs::create_dir(&staging).map_err(|e| e.to_string())?;
-    let written = (|| {
+    let describe = |error: std::io::Error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            format!("A file or folder named “{name}” already exists in that location.")
+        } else {
+            error.to_string()
+        }
+    };
+    let written = (|| -> std::io::Result<()> {
         for directory in &directories {
             std::fs::create_dir(staging.join(directory))?;
         }
@@ -220,17 +247,16 @@ pub fn materialize(parent: &Path, name: &str, plan: &Plan) -> Result<PathBuf, St
                 .open(staging.join(path))?
                 .write_all(content)?;
         }
-        publish(&staging, &target)
-    })();
+        Ok(())
+    })()
+    .map_err(&describe)
+    .and_then(|()| still_allowed())
+    .and_then(|()| publish(&staging, &target).map_err(&describe));
     match written {
         Ok(()) => Ok(target),
         Err(error) => {
             let _ = std::fs::remove_dir_all(&staging);
-            Err(if error.kind() == std::io::ErrorKind::AlreadyExists {
-                format!("A file or folder named “{name}” already exists in that location.")
-            } else {
-                error.to_string()
-            })
+            Err(error)
         }
     }
 }
@@ -360,6 +386,8 @@ mod tests {
 
     #[test]
     fn a_plan_holds_portable_paths_without_conflicts() {
+        let temp = tempfile::tempdir().unwrap();
+        let parent = temp.path();
         assert!(validate(&plan(&[("a.md", "x"), ("docs/b.md", "y")], Some("a.md"))).is_ok());
         for bad in [
             "../x.md",
@@ -369,15 +397,52 @@ mod tests {
             "con.md",
             "a/trailing.",
             "x:y",
+            // `project-initialization`'s unsafe outputs.
+            "../outside",
+            "a/../b",
+            "a:",
+            "NUL.txt",
+            "a. ",
+            "a/CON",
+            "a\0b",
         ] {
-            assert!(validate(&plan(&[(bad, "")], None)).is_err(), "{bad}");
+            let error = materialize(parent, "Notes", &plan(&[(bad, "no")], None)).unwrap_err();
+            assert!(error.to_lowercase().contains("invalid"), "{bad}: {error}");
         }
-        // Case-folded names and a file where a folder must be.
-        assert!(validate(&plan(&[("A.md", ""), ("a.md", "")], None)).is_err());
-        assert!(validate(&plan(&[("docs", ""), ("docs/b.md", "")], None)).is_err());
-        assert!(validate(&plan(&[("Docs/a.md", ""), ("docs/b.md", "")], None)).is_err());
+        assert_eq!(
+            std::fs::read_dir(parent).unwrap().count(),
+            0,
+            "nothing written"
+        );
+        let refused = |files: &[(&str, &str)], open: Option<&str>, reason: &str| {
+            let error = validate(&plan(files, open)).unwrap_err();
+            assert!(error.to_lowercase().contains(reason), "{files:?}: {error}");
+        };
+        // Case-folded and canonically equivalent names, a file where a
+        // folder must be, folders differing in case.
+        for files in [
+            [("A.md", "a"), ("a.md", "b")],
+            [("a", "a"), ("a/b", "b")],
+            [("docs", ""), ("docs/b.md", "")],
+            [("\u{e9}.md", "a"), ("e\u{301}.md", "b")],
+            [("A/b", "a"), ("a/c", "b")],
+            [("Docs/a.md", ""), ("docs/b.md", "")],
+        ] {
+            refused(&files, None, "conflict");
+        }
         // The file to open must be one it writes.
-        assert!(validate(&plan(&[("a.md", "")], Some("b.md"))).is_err());
+        refused(&[("a.md", "")], Some("b.md"), "opening document");
+        refused(
+            &[("a.md", "")],
+            Some("https://example.com"),
+            "opening document",
+        );
+        // Counts and bytes are bounded.
+        let many: Vec<(String, &str)> = (0..=MAX_FILES).map(|n| (format!("{n}.md"), "")).collect();
+        let many: Vec<(&str, &str)> = many.iter().map(|(p, c)| (p.as_str(), *c)).collect();
+        refused(&many, None, "count");
+        let big = "x".repeat(MAX_BYTES + 1);
+        refused(&[("big", big.as_str())], None, "budget");
         let (folders, _) = validate(&plan(&[("x/y/z.md", ""), ("x/a.md", "")], None)).unwrap();
         assert_eq!(folders, vec!["x", "x/y"]);
     }
@@ -414,6 +479,126 @@ mod tests {
         // Numbering picks a name no folder has yet.
         assert_eq!(free_name(parent, "Notes").unwrap(), "Notes 2");
         assert_eq!(free_name(parent, "Fresh").unwrap(), "Fresh");
+    }
+
+    /// Another process makes the project's folder after the files are
+    /// staged: even an empty one is not replaced, and the staging goes.
+    #[test]
+    fn a_folder_made_just_before_publication_is_never_replaced() {
+        let temp = tempfile::tempdir().unwrap();
+        let parent = temp.path();
+        let target = parent.join("Notes");
+        let error = materialize_while(
+            parent,
+            "Notes",
+            &plan(
+                &[("Getting Started.md", "hello")],
+                Some("Getting Started.md"),
+            ),
+            || {
+                assert!(!target.exists());
+                std::fs::create_dir(&target).unwrap();
+                Ok(())
+            },
+        )
+        .unwrap_err();
+        assert!(error.contains("already exists"), "{error}");
+        assert_eq!(std::fs::read_dir(&target).unwrap().count(), 0);
+        let names: Vec<_> = std::fs::read_dir(parent)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["Notes"]);
+    }
+
+    /// A failure after staging, or a publisher that cannot refuse to
+    /// replace, removes only the staging and publishes nothing.
+    #[test]
+    fn a_failure_cleans_only_its_staging_and_never_publishes_part_of_a_project() {
+        let temp = tempfile::tempdir().unwrap();
+        let parent = temp.path();
+        std::fs::write(parent.join("keep.txt"), "keep").unwrap();
+        let files = plan(&[("a", "a"), ("b", "b")], None);
+        let error = materialize_while(parent, "Notes", &files, || Err("disk full".into()));
+        assert_eq!(error, Err("disk full".into()));
+        let error = materialize_with(
+            parent,
+            "Notes",
+            &files,
+            || Ok(()),
+            |_, _| Err(std::io::Error::other("unsupported filesystem")),
+        );
+        assert_eq!(error, Err("unsupported filesystem".into()));
+        let names: Vec<_> = std::fs::read_dir(parent)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["keep.txt"]);
+        assert_eq!(
+            std::fs::read_to_string(parent.join("keep.txt")).unwrap(),
+            "keep"
+        );
+    }
+
+    /// `cancels publication when the user changes account during
+    /// materialization`: the check runs once every file is written, and a
+    /// refusal publishes nothing and leaves nothing behind.
+    #[test]
+    fn a_refused_publication_leaves_nothing_behind() {
+        let temp = tempfile::tempdir().unwrap();
+        let parent = temp.path();
+        let files = plan(&[("README.md", "# Hi"), ("a/b.md", "b")], None);
+        let error = materialize_while(parent, "CRM", &files, || {
+            let staged: Vec<_> = std::fs::read_dir(parent)
+                .unwrap()
+                .map(|e| e.unwrap().path())
+                .collect();
+            assert_eq!(staged.len(), 1);
+            assert_eq!(
+                std::fs::read_to_string(staged[0].join("a/b.md")).unwrap(),
+                "b"
+            );
+            Err("Sign in again.".into())
+        })
+        .unwrap_err();
+        assert_eq!(error, "Sign in again.");
+        assert_eq!(std::fs::read_dir(parent).unwrap().count(), 0);
+        let made = materialize_while(parent, "CRM", &files, || Ok(())).unwrap();
+        assert_eq!(made, parent.join("CRM"));
+        assert!(made.join("README.md").is_file());
+    }
+
+    /// `createProject`: one empty folder under a trimmed name; a taken name
+    /// is numbered only when asked (`numberIfTaken`, as the Agent start
+    /// does), past folders and files alike, within the name limit.
+    #[test]
+    fn a_blank_project_is_one_empty_folder_numbered_past_taken_names() {
+        let temp = tempfile::tempdir().unwrap();
+        let parent = temp.path();
+        let blank = Plan::default();
+        let name = require_project_name("  Notes  ").unwrap();
+        let made = materialize(parent, name, &blank).unwrap();
+        assert_eq!(made, parent.join("Notes"));
+        assert_eq!(std::fs::read_dir(&made).unwrap().count(), 0);
+        let error = materialize(parent, "Notes", &blank).unwrap_err();
+        assert!(error.contains("already exists"), "{error}");
+        let numbered = |name: &str| {
+            let free = free_name(parent, name).unwrap();
+            materialize(parent, &free, &blank).unwrap();
+            free
+        };
+        assert_eq!(numbered("CRM"), "CRM");
+        std::fs::write(parent.join("CRM/mine.md"), "my notes").unwrap();
+        assert_eq!(numbered("CRM"), "CRM 2");
+        std::fs::write(parent.join("CRM 3"), "a file, not a folder").unwrap();
+        assert_eq!(numbered("CRM"), "CRM 4");
+        assert_eq!(
+            std::fs::read_to_string(parent.join("CRM/mine.md")).unwrap(),
+            "my notes"
+        );
+        let long = "n".repeat(NAME_MAX);
+        assert_eq!(numbered(&long), long);
+        assert_eq!(numbered(&long), format!("{} 2", "n".repeat(NAME_MAX - 2)));
     }
 
     #[test]

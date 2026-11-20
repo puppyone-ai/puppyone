@@ -28,6 +28,10 @@ impl TranscriptView {
         let a = AgentTheme::new(&palette);
         let last = index + 1 == self.row_signatures.len();
         let content_width = (self.width - 2. * INSET).clamp(0., CONTENT_MAX);
+        let row_id = self
+            .rows
+            .get(index)
+            .map_or_else(|| "live-tail".to_owned(), |row| row.row.id.clone());
         let (body, gap) = match self.rows.get(index).cloned() {
             Some(row) => {
                 let parts: Vec<Arc<Part>> = row
@@ -53,6 +57,7 @@ impl TranscriptView {
             .then(|| self.render_history_notice(&self.input.projection, &a, cx))
             .flatten();
         div()
+            .debug_selector(move || format!("agent-row:{row_id}"))
             .w_full()
             .pl(px(INSET))
             .pr(px(INSET))
@@ -87,7 +92,11 @@ impl TranscriptView {
                 } else {
                     tf("agent.turn.workedFor", &[("duration", Arg::Text(duration))])
                 };
-                run_feedback(label.into(), None, &a).into_any_element()
+                let selector = format!("agent-turn-summary:{label}");
+                div()
+                    .debug_selector(move || selector)
+                    .child(run_feedback(label.into(), None, &a))
+                    .into_any_element()
             }
             "notification" | "usage" | "permission" | "question" => div().into_any_element(),
             "unknown" => self.render_unregistered(part, &a),
@@ -162,7 +171,9 @@ impl TranscriptView {
                 PromptPart::Mention { text, .. } => body.child(mention_chip(a, text, false)),
             };
         }
+        let selector = format!("agent-user-message:{}", part.id);
         v_flex()
+            .debug_selector(move || selector)
             .w_full()
             .px(px(12.))
             .py(px(8.))
@@ -176,7 +187,9 @@ impl TranscriptView {
                         .gap(px(6.))
                         .mb(px(6.))
                         .children(media.iter().map(|reference| {
+                            let selector = format!("agent-media:{}", reference.display_name);
                             div()
+                                .debug_selector(move || selector)
                                 .px(px(6.))
                                 .py(px(2.))
                                 .rounded(px(4.))
@@ -198,7 +211,9 @@ impl TranscriptView {
                 )
             })
             .children(delivery.map(|label| {
+                let selector = format!("agent-delivery:{label}");
                 div()
+                    .debug_selector(move || selector)
                     .mt(px(4.))
                     .text_size(px(m.left.meta))
                     .line_height(px(m.right.meta_line_height))
@@ -283,7 +298,9 @@ impl TranscriptView {
                     }),
             )
             .children(terminal.map(|(state, label)| {
+                let selector = format!("agent-reply-state:{label}");
                 div()
+                    .debug_selector(move || selector)
                     .px(px(12.))
                     .mt(px(4.))
                     .text_size(px(m.left.meta))
@@ -302,6 +319,14 @@ impl TranscriptView {
                     div().px(px(12.)).flex().child(
                         div()
                             .id(SharedString::from(format!("agent-md-disclosure-{id}")))
+                            .debug_selector(move || {
+                                let key = if full {
+                                    "agent.markdown.collapse"
+                                } else {
+                                    "agent.markdown.showFull"
+                                };
+                                format!("agent-md-disclosure:{}", t(key))
+                            })
                             .mt(px(8.))
                             .h(px(theme::control()))
                             .px(px(9.))
@@ -338,6 +363,7 @@ impl TranscriptView {
             .when(part.truncated == Some(true), |d| {
                 d.child(
                     div()
+                        .debug_selector(|| "agent-reply-partial".into())
                         .px(px(12.))
                         .text_size(px(m.left.meta))
                         .text_color(a.text_muted)

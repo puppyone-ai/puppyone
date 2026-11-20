@@ -427,6 +427,32 @@ mod tests {
         }
     }
 
+    /// A read that gets no answer times out; a write without one is
+    /// reported as uncertain, never as not written.
+    #[tokio::test(start_paused = true)]
+    async fn an_unanswered_read_times_out_and_an_unanswered_write_is_uncertain() {
+        let (_host, access) = tokio::io::duplex(64 * 1024);
+        let client = FilesClient::new(access);
+        let read = client
+            .request(&Request::Read {
+                path: "a.md".into(),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(
+            (read.code.as_str(), read.outcome_unknown),
+            ("device_timeout", false)
+        );
+        let write = client
+            .request(&Request::Mkdir { path: "c".into() })
+            .await
+            .unwrap_err();
+        assert_eq!(
+            (write.code.as_str(), write.outcome_unknown),
+            ("device_timeout", true)
+        );
+    }
+
     /// The protocol both ways over one stream: requests, errors, a watch,
     /// and the end of the connection failing what is in flight.
     #[tokio::test]

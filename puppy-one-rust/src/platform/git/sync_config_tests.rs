@@ -1,6 +1,6 @@
 //! Real Git acceptance with process-local, disposable configuration. No test
 //! changes the parent process environment or the developer's Git preferences.
-use super::super::{Operation, git, operate};
+use super::super::{Operation, RepositoryOperation, git, operate};
 use super::*;
 use crate::platform::process::{self, OutputLimits, OutputOptions};
 use std::{path::PathBuf, time::Duration};
@@ -655,6 +655,158 @@ fn checkout_during_publication_cannot_change_the_upload_or_rebind_either_branch(
                     .is_err()
                 );
             }
+        },
+    );
+}
+
+/// `cloud-local.collaboration`: changes go both ways through the shared
+/// remote, ahead and behind are counted, and a pull keeps staged, unstaged
+/// and untracked work that does not overlap.
+#[test]
+fn collaboration_runs_both_ways_and_keeps_work_that_does_not_overlap() {
+    isolated(
+        concat!(
+            module_path!(),
+            "::collaboration_runs_both_ways_and_keeps_work_that_does_not_overlap"
+        ),
+        || {
+            let repos = Repositories::new();
+            let cancel = AtomicBool::new(false);
+            commit(&repos.root, "shared.txt", "v1\nv2 from A\n");
+            let ahead = super::super::status(&repos.root, &cancel).unwrap();
+            assert_eq!((ahead.ahead, ahead.behind), (1, 0));
+            operate(&repos.root, &Operation::Push, &cancel).unwrap();
+            operate(&repos.peer, &Operation::Pull, &cancel).unwrap();
+            assert_eq!(
+                std::fs::read_to_string(repos.peer.join("shared.txt")).unwrap(),
+                "v1\nv2 from A\n"
+            );
+            commit(&repos.peer, "from-b.md", "# Authored on B\n");
+            run(&repos.peer, &["push", "-q"]);
+            run(&repos.root, &["fetch", "-q", "puppyone"]);
+            let behind = super::super::status(&repos.root, &cancel).unwrap();
+            assert_eq!((behind.ahead, behind.behind), (0, 1));
+            // Work in progress here: staged, unstaged and untracked.
+            std::fs::write(
+                repos.root.join("local-staged.md"),
+                "staged but not committed\n",
+            )
+            .unwrap();
+            run(&repos.root, &["add", "local-staged.md"]);
+            std::fs::write(repos.root.join("local-draft.md"), "not staged\n").unwrap();
+            let pulled = operate(&repos.root, &Operation::Pull, &cancel).unwrap();
+            assert_eq!((pulled.ahead, pulled.behind), (0, 0));
+            for (file, text) in [
+                ("from-b.md", "# Authored on B\n"),
+                ("local-staged.md", "staged but not committed\n"),
+                ("local-draft.md", "not staged\n"),
+            ] {
+                assert_eq!(
+                    std::fs::read_to_string(repos.root.join(file)).unwrap(),
+                    text
+                );
+            }
+            let change = |path: &str| pulled.changes.iter().find(|c| c.path == path).unwrap();
+            assert!(change("local-staged.md").staged());
+            assert!(change("local-draft.md").untracked());
+        },
+    );
+}
+
+/// A pull that cannot replay a local commit stops in a rebase, which must
+/// be resolved and continued (or aborted) before anything is sent.
+#[test]
+fn a_rebase_conflict_is_surfaced_and_finished_before_push() {
+    isolated(
+        concat!(
+            module_path!(),
+            "::a_rebase_conflict_is_surfaced_and_finished_before_push"
+        ),
+        || {
+            let repos = Repositories::new();
+            let cancel = AtomicBool::new(false);
+            let local = commit(&repos.root, "base.txt", "local version\n");
+            commit(&repos.peer, "base.txt", "remote version\n");
+            run(&repos.peer, &["push", "-q"]);
+            let error = operate(&repos.root, &Operation::Pull, &cancel).unwrap_err();
+            assert!(
+                error.to_lowercase().contains("conflict") || error.contains("could not apply"),
+                "{error}"
+            );
+            let conflicted = super::super::status(&repos.root, &cancel).unwrap();
+            assert_eq!(conflicted.operation, Some(RepositoryOperation::Rebase));
+            assert_eq!(
+                conflicted.changes.iter().filter(|c| c.conflict()).count(),
+                1
+            );
+            for op in [Operation::Push, Operation::Pull] {
+                let refused = operate(&repos.root, &op, &cancel).unwrap_err();
+                assert!(refused.contains("rebase is in progress"), "{refused}");
+            }
+            let aborted = operate(&repos.root, &Operation::Abort, &cancel).unwrap();
+            assert_eq!(aborted.operation, None);
+            assert_eq!(run(&repos.root, &["rev-parse", "HEAD"]), local);
+            run(&repos.root, &["fetch", "-q", "puppyone"]);
+            let diverged = super::super::status(&repos.root, &cancel).unwrap();
+            assert_eq!((diverged.ahead, diverged.behind), (1, 1));
+            assert!(operate(&repos.root, &Operation::Pull, &cancel).is_err());
+            std::fs::write(repos.root.join("base.txt"), "resolved version\n").unwrap();
+            run(&repos.root, &["add", "base.txt"]);
+            let continued = operate(&repos.root, &Operation::Continue, &cancel).unwrap();
+            assert_eq!(continued.operation, None);
+            assert_eq!((continued.ahead, continued.behind), (1, 0));
+            assert_eq!(
+                std::fs::read_to_string(repos.root.join("base.txt")).unwrap(),
+                "resolved version\n"
+            );
+            assert_eq!(run(&repos.root, &["log", "--merges", "--oneline"]), "");
+            operate(&repos.root, &Operation::Push, &cancel).unwrap();
+            assert_eq!(
+                run(&repos.bare, &["rev-parse", "main"]),
+                run(&repos.root, &["rev-parse", "HEAD"])
+            );
+        },
+    );
+}
+
+/// An uncommitted edit that conflicts with the pulled commit stays in the
+/// file beside the remote text, and nothing is sent until it is resolved.
+#[test]
+fn an_autostash_conflict_keeps_the_uncommitted_edit_and_blocks_push() {
+    isolated(
+        concat!(
+            module_path!(),
+            "::an_autostash_conflict_keeps_the_uncommitted_edit_and_blocks_push"
+        ),
+        || {
+            let repos = Repositories::new();
+            let cancel = AtomicBool::new(false);
+            std::fs::write(repos.root.join("base.txt"), "uncommitted local version\n").unwrap();
+            commit(&repos.peer, "base.txt", "committed remote version\n");
+            run(&repos.peer, &["push", "-q"]);
+            let _ = operate(&repos.root, &Operation::Pull, &cancel);
+            let conflicted = super::super::status(&repos.root, &cancel).unwrap();
+            assert_eq!(conflicted.operation, None);
+            assert_eq!(
+                conflicted.changes.iter().filter(|c| c.conflict()).count(),
+                1
+            );
+            assert_eq!(conflicted.behind, 0);
+            let text = std::fs::read_to_string(repos.root.join("base.txt")).unwrap();
+            assert!(text.contains("uncommitted local version"), "{text}");
+            assert!(text.contains("committed remote version"), "{text}");
+            let refused = operate(&repos.root, &Operation::Push, &cancel).unwrap_err();
+            assert!(refused.contains("unresolved file conflicts"), "{refused}");
+            std::fs::write(repos.root.join("base.txt"), "resolved autostash version\n").unwrap();
+            run(&repos.root, &["add", "base.txt"]);
+            operate(
+                &repos.root,
+                &Operation::Commit("resolve: autostash conflict".into()),
+                &cancel,
+            )
+            .unwrap();
+            let pushed = operate(&repos.root, &Operation::Push, &cancel).unwrap();
+            assert_eq!((pushed.ahead, pushed.behind), (0, 0));
         },
     );
 }

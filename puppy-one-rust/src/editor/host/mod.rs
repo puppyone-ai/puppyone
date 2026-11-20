@@ -230,6 +230,21 @@ impl DocumentEditor {
         self.surface.as_ref()?.as_test_probe()?.csv_editor()
     }
 
+    /// Window tests deliver a web page's message to the open surface.
+    #[cfg(feature = "test-support")]
+    pub fn page_deliver(&self, body: &str, cx: &mut App) -> bool {
+        self.surface
+            .as_ref()
+            .and_then(|s| s.as_test_probe())
+            .is_some_and(|probe| probe.page_deliver(body, cx))
+    }
+
+    /// The generation the open page's next messages must carry.
+    #[cfg(feature = "test-support")]
+    pub fn page_generation(&self, cx: &App) -> Option<u64> {
+        self.surface.as_ref()?.as_test_probe()?.page_generation(cx)
+    }
+
     pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
             workbench: false,
@@ -336,6 +351,18 @@ impl DocumentEditor {
             .unwrap_or(false)
     }
 
+    /// Whether the open surface's undo history lives only in its page
+    /// (`WB-01` retention guard).
+    pub fn holds_page_history(&self, cx: &App) -> bool {
+        if self.is_faulted() {
+            return false;
+        }
+        self.surface
+            .as_ref()
+            .and_then(|s| catch_unwind(AssertUnwindSafe(|| s.holds_page_history(cx))).ok())
+            .unwrap_or(false)
+    }
+
     /// Captures serializable cursor/scroll/mode/zoom/fold state (`WB-10`).
     pub fn view_state(&self, cx: &App) -> Option<SurfaceViewState> {
         if self.is_faulted() {
@@ -413,6 +440,7 @@ impl DocumentEditor {
             assets,
             source_kind,
             sniffed_format: None,
+            models: Default::default(),
         }
     }
 
@@ -568,6 +596,7 @@ impl DocumentEditor {
             assets: context.assets,
             references: self.references.clone(),
             source_kind: context.source_kind,
+            models: context.models,
         };
         let surface = code::open_with(&request, Some("plaintext"), false, window, cx);
         self.displayed = None;
@@ -583,6 +612,7 @@ impl DocumentEditor {
 
     /// A placeholder-grade local document an installed pack renders, when
     /// the host can render packs (`EditorDocumentHost`'s plugin routes).
+    /// Pack surfaces see the document, never its working copy's models.
     fn extension_surface(
         &self,
         document: &EditorDocument,
@@ -592,6 +622,10 @@ impl DocumentEditor {
     ) -> Option<Box<dyn ViewerSurface>> {
         let host = self.extensions.as_ref()?;
         let render = host.surface?;
+        let request = &SurfaceRequest {
+            models: Default::default(),
+            ..request.clone()
+        };
         match route::route_for_document(document, &host.snapshot) {
             Route::Plugin(pack) => Some(render(request, pack, window, cx)),
             Route::Chooser(candidates) => Some(external::chooser(
@@ -683,6 +717,7 @@ impl DocumentEditor {
             assets: context.assets,
             references: self.references.clone(),
             source_kind: context.source_kind,
+            models: context.models,
         };
         #[cfg(test)]
         let custom = self.custom_factory;
@@ -1373,6 +1408,24 @@ impl DocumentEditor {
         }
     }
 
+    /// Tests: whether the pane menu is open, and whether keyboard focus is
+    /// in the document.
+    #[cfg(any(feature = "dev-capture", feature = "test-support"))]
+    pub fn lab_focus(&self, window: &Window, cx: &App) -> (bool, bool) {
+        let document = self
+            .surface
+            .as_ref()
+            .and_then(|s| s.focus_handle(cx))
+            .is_some_and(|handle| handle.contains_focused(window, cx));
+        (self.chrome.open, document)
+    }
+
+    /// Tests: whether the pane's handle shows.
+    #[cfg(any(feature = "dev-capture", feature = "test-support"))]
+    pub fn lab_handle_revealed(&self) -> bool {
+        self.chrome.revealed()
+    }
+
     #[cfg(any(test, feature = "test-support"))]
     pub fn lab_deliver_html_ipc(&self, body: &str, cx: &mut App) {
         if let Some(probe) = self.surface.as_ref().and_then(|s| s.as_test_probe()) {
@@ -1524,6 +1577,7 @@ impl Render for DocumentEditor {
             let handle = pane::handle(
                 self.dark,
                 self.chrome.revealed(),
+                name,
                 handle_label.into(),
                 self.pane_drag.clone(),
                 move |window, cx| {
@@ -1539,7 +1593,10 @@ impl Render for DocumentEditor {
                 &self.chrome,
                 &self.contribution(cx),
                 self.dark,
-                bounds,
+                pane::MenuPlace {
+                    pane: bounds,
+                    viewport_height: window.viewport_size().height,
+                },
                 Rc::new(move |action, window, cx| {
                     let _ = run.update(cx, |this, cx| this.run_pane_action(action, window, cx));
                 }),

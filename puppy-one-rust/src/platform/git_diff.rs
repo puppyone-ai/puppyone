@@ -510,7 +510,7 @@ fn untracked(
             root,
             path,
             Admitted::Missing,
-            Admitted::Working(working),
+            Admitted::Working(Box::new(working)),
             cancel,
         ));
         working::check_cancel(cancel)?;

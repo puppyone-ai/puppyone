@@ -750,6 +750,35 @@ mod tests {
         assert!(!entry.accept("about:srcdoc", "{}".into()));
     }
 
+    /// `htmlImageImport.test.ts`: SVG, a mislabelled or empty file and one
+    /// over 20 MiB are refused without writing anything; a name with a
+    /// path never leaves the document folder; a failed write is reported.
+    #[test]
+    fn image_imports_refuse_unsafe_files_and_report_failed_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let uuid = "0c9d3f1e-6a1b-4f2e-9c3d-1a2b3c4d5e6f";
+        let png = |len: usize| {
+            let mut bytes = vec![137u8, 80, 78, 71, 13, 10, 26, 10];
+            bytes.resize(len.max(8), 0);
+            bytes
+        };
+        for (name, bytes) in [
+            (format!("image-{uuid}.svg"), b"<svg></svg>".to_vec()),
+            (
+                format!("image-{uuid}.png"),
+                b"<script>bad()</script>".to_vec(),
+            ),
+            (format!("image-{uuid}.png"), Vec::new()),
+            (format!("image-{uuid}.png"), png(20 * 1024 * 1024 + 1)),
+            (format!("../private/image-{uuid}.png"), png(9)),
+        ] {
+            assert!(import_image(dir.path(), &name, &bytes).is_err(), "{name}");
+        }
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+        let missing = dir.path().join("missing-folder");
+        assert!(import_image(&missing, &format!("image-{uuid}.png"), &png(9)).is_err());
+    }
+
     struct Memory;
     impl ResourceSource for Memory {
         fn read(&self, relative: &Path) -> Option<Vec<u8>> {

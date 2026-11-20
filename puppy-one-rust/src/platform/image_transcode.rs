@@ -6,12 +6,13 @@
 //! decode in-process through macOS `ImageIO` without spawning `/usr/bin/sips`
 //! or writing temporary files; `image` crate and `/usr/bin/sips` remain last-resort
 //! fallbacks when `ImageIO` cannot read an input.
+#[cfg(target_os = "macos")]
+use std::sync::mpsc;
 use std::{
     io::Read,
     path::Path,
     process::Command,
     sync::atomic::{AtomicBool, Ordering},
-    sync::mpsc,
     time::{Duration, Instant},
 };
 

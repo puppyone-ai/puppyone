@@ -47,8 +47,30 @@ def verify(icns, source):
         iconset = Path(temporary) / 'decoded.iconset'
         subprocess.run(['/usr/bin/iconutil', '-c', 'iconset', str(icns), '-o', str(iconset)], check=True)
         for name, pixels in REPRESENTATIONS:
+            if not (iconset / name).is_file():
+                raise ValueError(f'{name} is missing')
             image = (iconset / name).read_bytes()
             if png_size(image) != (pixels, pixels):
                 raise ValueError(f'{name} is not {pixels} px')
         if png_size(source) != (1024, 1024):
             raise ValueError('The App Image is not 1024 px')
+        # Stale or substituted artwork: the 1024 px representation shows the
+        # channel's App Image itself, pixel for pixel (iconutil re-encodes it).
+        if _pixels(iconset / 'icon_512x512@2x.png') != _pixels_of(source, temporary):
+            raise ValueError(f'{icns} does not carry this channel\'s App Image')
+
+
+def _pixels_of(data, directory):
+    path = Path(directory) / 'source.png'
+    path.write_bytes(bytes(data))
+    return _pixels(path)
+
+
+def _pixels(png):
+    """The decoded pixels: a bitmap `sips` writes, without its header."""
+    with tempfile.TemporaryDirectory(prefix='puppyone-pixels-') as temporary:
+        bitmap = Path(temporary) / 'image.bmp'
+        subprocess.run(['/usr/bin/sips', '-s', 'format', 'bmp', str(png), '--out', str(bitmap)],
+                       check=True, capture_output=True)
+        data = bitmap.read_bytes()
+        return data[struct.unpack('<I', data[10:14])[0]:]

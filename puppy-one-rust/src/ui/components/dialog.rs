@@ -222,6 +222,7 @@ impl RenderOnce for Dialog {
                 )
                 .children(close.clone().map(|close| {
                     IconButton::new(child_id(&self.id, "close"), "dialog-close")
+                        .debug_selector(|| "dialog-close".into())
                         .label(crate::localization::t("common.action.close"))
                         .no_tooltip()
                         .with_size(px(24.))

@@ -248,6 +248,16 @@ pub(super) const OBSERVATION_RETRIES: [Duration; 3] = [
     Duration::from_secs(3),
     Duration::from_secs(10),
 ];
+/// After those, a re-read that keeps failing in transit tries again this often,
+/// quietly, for as long as the document is open.
+pub(super) const OBSERVATION_QUIET_RETRY: Duration = Duration::from_secs(30);
+/// A change subscription that ended for a passing reason subscribes again
+/// after these delays, then every 30 seconds.
+pub(super) const WATCH_RETRIES: [Duration; 3] = [
+    Duration::from_secs(1),
+    Duration::from_secs(5),
+    Duration::from_secs(30),
+];
 
 /// Selects localized UI copy for a failed save by typed [`workspace::ErrorKind`] (`DP-43`).
 pub fn localized_save_error(kind: Option<workspace::ErrorKind>, detail: &str) -> String {
@@ -526,6 +536,7 @@ impl Documents {
                     self.copy.local_overwrite_notice = None;
                     self.copy.recovered_draft_notice = None;
                     self.copy.drafts.reset();
+                    self.copy.next_open = None;
                     self.folder_busy = false;
                     self.tree_update = Some(rows);
                     self.copy.phase = Phase::Idle;
@@ -554,6 +565,12 @@ impl Documents {
         self.copy.poll_copy_with(ctx, now, move |copy, path, wake| {
             Self::spawn_open_folder(copy, folder_tx.clone(), path, wake);
         });
+        // The newest file choice, once the copy is free.
+        if matches!(self.copy.phase, Phase::Idle)
+            && let Some(intent) = self.copy.next_open.take()
+        {
+            self.begin(intent, ctx);
+        }
     }
 }
 

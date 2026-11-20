@@ -108,6 +108,7 @@ impl<'a> Fixture<'a> {
             }
         }
     }
+    #[track_caller]
     fn settle(&mut self, condition: impl Fn(&SourceControl) -> bool) {
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
@@ -115,7 +116,17 @@ impl<'a> Fixture<'a> {
             if self.view.read_with(self.cx, |s, _| condition(s)) {
                 break;
             }
-            assert!(Instant::now() < deadline, "the status owner did not settle");
+            if Instant::now() >= deadline {
+                let state = self.view.read_with(self.cx, |s, _| {
+                    format!("busy={}, running={:?}, read={:?}, absent={}, snapshot={}, dirty={}, error={:?}, failure={}",
+                        s.busy, s.running, s.read_ticket, s.repository_absent, s.snapshot.is_some(), s.dirty, s.error, s.failure.is_some())
+                });
+                panic!(
+                    "the status owner did not settle: {state}; reads started={}, active={}",
+                    self.reads.started.load(Ordering::SeqCst),
+                    self.reads.active.load(Ordering::SeqCst)
+                );
+            }
             std::thread::sleep(Duration::from_millis(1));
         }
         assert!(!self.reads.timed_out.load(Ordering::SeqCst));
@@ -399,7 +410,7 @@ fn absent_repositories_are_quiet_states_and_retire_old_history_instead_of_retryi
     f.refresh();
     let pending = f.request();
     f.cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     let at = f.cx.debug_bounds("git-init").unwrap().center();
     f.cx.simulate_click(at, Modifiers::default());
@@ -410,7 +421,7 @@ fn absent_repositories_are_quiet_states_and_retire_old_history_instead_of_retryi
     pending.finish(Err("fatal: not a git repository".into()));
     f.settle(|s| !s.busy && s.repository_absent);
     f.cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     let at = f.cx.debug_bounds("git-init").unwrap().center();
     f.cx.simulate_click(at, Modifiers::default());

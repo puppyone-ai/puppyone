@@ -8,5 +8,8 @@ pub mod agent_session_actor;
 pub mod agent_session_control;
 pub mod agent_session_model;
 #[cfg(test)]
+#[path = "tests/sidebar_contract.rs"]
+mod sidebar_contract_tests;
+#[cfg(test)]
 mod tests;
 pub mod transcript;

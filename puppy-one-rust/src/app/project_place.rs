@@ -69,6 +69,44 @@ pub(super) fn notice_of(context: &Association) -> Option<Notice> {
         }
     })
 }
+/// What opening a linked folder's Cloud project does
+/// (`resolveLocalFolderCloudEntry`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum LinkedEntry {
+    /// Opens the Cloud project as its own project.
+    Open,
+    /// Continues the first publication that is still running or saved,
+    /// instead of opening the Cloud project it is creating.
+    Publish,
+}
+pub(super) fn linked_entry(publication_pending: bool) -> LinkedEntry {
+    if publication_pending {
+        LinkedEntry::Publish
+    } else {
+        LinkedEntry::Open
+    }
+}
+/// The one action a notice offers (`LocalFolderCloudNotice`): open the
+/// Cloud project (never from a scoped checkout), sign in, end a link this
+/// app can end, or retry; an ambiguous link is only explained.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NoticeAct {
+    Open,
+    SignIn,
+    Disconnect,
+    Retry,
+}
+pub(super) fn notice_act(notice: &Notice, disconnectable: bool) -> Option<NoticeAct> {
+    match notice {
+        Notice::Linked { openable, .. } => openable.then_some(NoticeAct::Open),
+        Notice::SignIn => Some(NoticeAct::SignIn),
+        Notice::OtherEnvironment { .. } | Notice::Missing | Notice::NoAccess => {
+            disconnectable.then_some(NoticeAct::Disconnect)
+        }
+        Notice::Ambiguous => None,
+        Notice::Unreachable { .. } => Some(NoticeAct::Retry),
+    }
+}
 /// `localFolderCloudNoticeKey`: a new folder or a new meaning shows again.
 pub(super) fn notice_key(root: &std::path::Path, notice: &Notice) -> String {
     let kind = match notice {
@@ -274,6 +312,23 @@ pub(super) fn place_name(menu: &PlaceMenu) -> (String, Vec<String>) {
     }
 }
 
+/// The place button's name: the place, the role or path, the link, then
+/// what the menu is.
+pub(super) fn spoken_place(menu: &PlaceMenu) -> String {
+    let (_, spoken) = place_name(menu);
+    let link = menu.link.as_ref().map(|link| {
+        link_problem(&link.0)
+            .filter(|_| link_has_problem(Some(link)))
+            .unwrap_or_else(|| tr("cloud.placeMenu.link.linked").to_owned())
+    });
+    spoken
+        .into_iter()
+        .chain(link)
+        .chain([tr("shell.placeMenu.label").to_owned()])
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 impl WindowCloud {
     /// The open local folder's notice, while Cloud is on.
     pub(super) fn local_folder_notice(&self, cx: &App) -> Option<Notice> {
@@ -355,18 +410,8 @@ impl WindowCloud {
     pub(super) fn place_button(&self, menu: &PlaceMenu, cx: &App) -> Button {
         let t = cx.palette();
         let ty = theme::ty().header;
-        let (name, spoken) = place_name(menu);
-        let link = menu.link.as_ref().map(|link| {
-            link_problem(&link.0)
-                .filter(|_| link_has_problem(Some(link)))
-                .unwrap_or_else(|| tr("cloud.placeMenu.link.linked").to_owned())
-        });
-        let accessible = spoken
-            .into_iter()
-            .chain(link)
-            .chain([tr("shell.placeMenu.label").to_owned()])
-            .collect::<Vec<_>>()
-            .join(", ");
+        let (name, _) = place_name(menu);
+        let accessible = spoken_place(menu);
         let mark: AnyElement = match (&menu.space, menu.place) {
             (Some(space), _) => crate::features::cloud::space_mark(space).into_any_element(),
             (None, Place::Cloud) => Icon::product(ProductIcon::Cloud)
@@ -461,6 +506,11 @@ impl WindowCloud {
         self.dialog_focus.focus(window, cx);
         cx.notify();
     }
+    /// A first publication of this folder is running or saved.
+    pub(super) fn publication_pending(&self, cx: &App) -> bool {
+        let publish = self.publish.read(cx);
+        publish.running.is_some() || publish.outcome.as_ref().is_some_and(|o| o.record.is_some())
+    }
     /// `LocalFolderCloudNotice`: the folder stays usable; this only says
     /// what its Cloud project means and offers the one action that helps.
     pub(super) fn local_folder_notice_view(&self, cx: &App) -> Option<FloatingNotice> {
@@ -480,49 +530,20 @@ impl WindowCloud {
                     let _ = host.update(cx, |s, cx| run(s, w, cx));
                 })
             };
-        let disconnect = self.disconnectable(cx).then(|| {
-            action(
-                "local-folder-notice-disconnect",
-                tr("cloud.localFolderNotice.disconnect"),
-                |s, w, cx| s.open_disconnect(w, cx),
-            )
-        });
-        let (tone, message, action) = match &notice {
-            Notice::Linked {
-                project,
-                name,
-                openable,
-            } => {
-                let message = match name {
+        let (tone, message) = match &notice {
+            Notice::Linked { name, .. } => (
+                NoticeTone::Info,
+                match name {
                     Some(name) => tf(
                         "cloud.localFolderNotice.linked",
                         &[("name", name.clone().into())],
                     ),
                     None => tr("cloud.localFolderNotice.linkedUnnamed").to_owned(),
-                };
-                let project = project.clone();
-                let host = host.clone();
-                let open = openable.then(|| {
-                    NoticeAction::new(
-                        "local-folder-notice-open",
-                        tr("cloud.localFolderNotice.openProject"),
-                        move |_, cx| {
-                            let _ = host.update(cx, |_, cx| {
-                                cx.emit(CloudEvent::OpenCloud(project.clone()))
-                            });
-                        },
-                    )
-                });
-                (NoticeTone::Info, message, open)
-            }
+                },
+            ),
             Notice::SignIn => (
                 NoticeTone::Info,
                 tr("cloud.localFolderNotice.signIn").to_owned(),
-                Some(action(
-                    "local-folder-notice-sign-in",
-                    tr("cloud.auth.signIn"),
-                    |s, w, cx| s.sign_in_for_cloud(w, cx),
-                )),
             ),
             Notice::OtherEnvironment { origin } => (
                 NoticeTone::Info,
@@ -533,22 +554,18 @@ impl WindowCloud {
                     ),
                     None => tr("cloud.localFolderNotice.otherEnvironmentUnknown").to_owned(),
                 },
-                disconnect,
             ),
             Notice::Missing => (
                 NoticeTone::Warning,
                 tr("cloud.localFolderNotice.missing").to_owned(),
-                disconnect,
             ),
             Notice::NoAccess => (
                 NoticeTone::Warning,
                 tr("cloud.localFolderNotice.noAccess").to_owned(),
-                disconnect,
             ),
             Notice::Ambiguous => (
                 NoticeTone::Warning,
                 tr("cloud.localFolderNotice.ambiguous").to_owned(),
-                None,
             ),
             Notice::Unreachable { cause } => (
                 NoticeTone::Warning,
@@ -560,15 +577,48 @@ impl WindowCloud {
                     ),
                     None => tr("cloud.localFolderNotice.unreachable").to_owned(),
                 },
-                Some(action(
-                    "local-folder-notice-retry",
-                    tr("common.action.retry"),
-                    |s, _, cx| {
-                        s.repository.update(cx, |r, cx| r.retry(cx));
-                    },
-                )),
             ),
         };
+        let action = notice_act(&notice, self.disconnectable(cx)).map(|act| match act {
+            NoticeAct::Open => {
+                let Notice::Linked { project, .. } = &notice else {
+                    unreachable!("only a linked notice opens its project")
+                };
+                let project = project.clone();
+                let host = host.clone();
+                NoticeAction::new(
+                    "local-folder-notice-open",
+                    tr("cloud.localFolderNotice.openProject"),
+                    move |w, cx| {
+                        let _ = host.update(cx, |s, cx| {
+                            match linked_entry(s.publication_pending(cx)) {
+                                LinkedEntry::Publish => s.put_in_cloud(w, cx),
+                                LinkedEntry::Open => {
+                                    cx.emit(CloudEvent::OpenCloud(project.clone()))
+                                }
+                            }
+                        });
+                    },
+                )
+            }
+            NoticeAct::SignIn => action(
+                "local-folder-notice-sign-in",
+                tr("cloud.auth.signIn"),
+                |s, w, cx| s.sign_in_for_cloud(w, cx),
+            ),
+            NoticeAct::Disconnect => action(
+                "local-folder-notice-disconnect",
+                tr("cloud.localFolderNotice.disconnect"),
+                |s, w, cx| s.open_disconnect(w, cx),
+            ),
+            NoticeAct::Retry => action(
+                "local-folder-notice-retry",
+                tr("common.action.retry"),
+                |s, _, cx| {
+                    s.repository.update(cx, |r, cx| r.retry(cx));
+                },
+            ),
+        });
         let dismiss = self.weak.clone();
         let mut notice = FloatingNotice::new("local-folder-cloud-notice", message)
             .tone(tone)
@@ -694,10 +744,15 @@ impl WindowCloud {
             _ => None,
         };
         self.show_popover(None, cx);
+        let remotes = self
+            .root()
+            .map(|root| crate::cloud::publication::git::reviewed_remotes(&root))
+            .unwrap_or_default();
         self.disconnect = Some(Disconnect {
             project_name,
             unsent: self.unsent(cx),
             url,
+            remotes,
             busy: false,
             failed: false,
         });
@@ -713,9 +768,12 @@ impl WindowCloud {
     /// remote is still the one reviewed. The Cloud project and the files
     /// stay; the folder is then an ordinary local project.
     pub(super) fn confirm_disconnect(&mut self, cx: &mut Context<Self>) {
-        let (Some(root), Some(url)) =
-            (self.root(), self.disconnect.as_ref().map(|d| d.url.clone()))
-        else {
+        let (Some(root), Some((url, remotes))) = (
+            self.root(),
+            self.disconnect
+                .as_ref()
+                .map(|d| (d.url.clone(), d.remotes.clone())),
+        ) else {
             return;
         };
         if let Some(d) = self.disconnect.as_mut() {
@@ -728,7 +786,7 @@ impl WindowCloud {
         cx.notify();
         let task = cx
             .background_executor()
-            .spawn(async move { crate::cloud::publication::git::detach(&root, &url) });
+            .spawn(async move { crate::cloud::publication::git::detach(&root, &url, &remotes) });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             let _ = this.update(cx, |s, cx| {
@@ -830,6 +888,8 @@ pub(super) struct Disconnect {
     pub unsent: u32,
     /// The `puppyone` remote's URL, compared again under the lock.
     pub url: String,
+    /// Every remote as reviewed; the link ends only while they are unchanged.
+    pub remotes: crate::cloud::publication::git::Reviewed,
     pub busy: bool,
     pub failed: bool,
 }
@@ -884,6 +944,76 @@ mod tests {
         assert!(place_name(&off).0.starts_with("This "));
     }
 
+    /// `ProjectPlaceMenu`: the place button says this computer, the
+    /// folder's path and its Cloud link or what is wrong with it; a Cloud
+    /// folder by its organization until its space is known, then by the
+    /// space (the account's own one is Personal) and the account's role.
+    #[test]
+    fn the_place_button_says_the_place_its_path_or_role_and_its_link() {
+        use crate::workspace::cloud::spaces::Space;
+        crate::localization::set_current("en");
+        let device = if cfg!(target_os = "macos") {
+            "This Mac"
+        } else {
+            "This computer"
+        };
+        let local = |address: Option<Address>, notice| {
+            spoken_place(&resolve(Place::Local, address, None, true, notice, false))
+        };
+        let linked = Notice::Linked {
+            project: "p1".into(),
+            name: Some("Vault".into()),
+            openable: true,
+        };
+        assert_eq!(
+            local(
+                local_address(std::path::Path::new("/tmp/one")),
+                Some(linked)
+            ),
+            format!("{device}, /tmp/one, Linked to a Cloud project, Places and account")
+        );
+        assert_eq!(
+            local(None, Some(Notice::Missing)),
+            format!("{device}, No longer in the Cloud, Places and account")
+        );
+        assert_eq!(
+            local(
+                None,
+                Some(Notice::OtherEnvironment {
+                    origin: Some("http://localhost:9090".into())
+                })
+            ),
+            format!("{device}, In another environment: localhost:9090, Places and account")
+        );
+        let cloud = |address, space| {
+            spoken_place(&resolve(Place::Cloud, address, space, true, None, false))
+        };
+        assert_eq!(
+            cloud(cloud_address(Some("Acme")), None),
+            "Cloud project, Acme, Places and account"
+        );
+        let acme = Space {
+            id: "acme".into(),
+            name: "Acme".into(),
+            role: Some("owner".into()),
+            can_create_projects: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            cloud(cloud_address(Some("Acme org")), Some(acme)),
+            "Acme, Owner, Places and account"
+        );
+        let own = Space {
+            id: "mine".into(),
+            name: "guanqun's Workspace".into(),
+            is_default: true,
+            can_create_projects: true,
+            ..Default::default()
+        };
+        let menu = resolve(Place::Cloud, None, Some(own), true, None, false);
+        assert_eq!(place_name(&menu).0, "Personal");
+    }
+
     #[test]
     fn a_local_address_is_the_folder_that_holds_it_shortened() {
         let home = std::env::var("HOME").unwrap_or_default();
@@ -901,6 +1031,99 @@ mod tests {
             "/"
         );
         assert!(cloud_address(Some("  ")).is_none());
+    }
+
+    /// `localFolderCloudNoticeState`: every association has its notice, an
+    /// unnamed project and an origin-less environment stay presentable, a
+    /// linked folder opens its Cloud project unless a first publication is
+    /// pending, and the dismissal key follows the folder and the meaning.
+    #[test]
+    fn every_association_has_its_notice_and_a_pending_publication_continues() {
+        let resolved = Association::Resolved {
+            project: "p1".into(),
+            name: " Vault ".into(),
+        };
+        assert_eq!(
+            notice_of(&resolved),
+            Some(Notice::Linked {
+                project: "p1".into(),
+                name: Some("Vault".into()),
+                openable: true
+            })
+        );
+        assert_eq!(
+            notice_of(&Association::WrongHost {
+                origin: "http://api.puppyone.ai".into()
+            }),
+            Some(Notice::OtherEnvironment {
+                origin: Some("http://api.puppyone.ai".into())
+            })
+        );
+        assert_eq!(
+            notice_of(&Association::WrongHost { origin: " ".into() }),
+            Some(Notice::OtherEnvironment { origin: None })
+        );
+        assert_eq!(
+            notice_of(&Association::NotFound {
+                project: "p1".into()
+            }),
+            Some(Notice::Missing)
+        );
+        assert_eq!(
+            notice_of(&Association::NotAuthorized),
+            Some(Notice::NoAccess)
+        );
+        assert_eq!(
+            notice_of(&Association::LocatorConflict),
+            Some(Notice::Ambiguous)
+        );
+        for unreachable in [
+            Association::TemporarilyUnavailable,
+            Association::Unresolvable,
+            Association::Mismatch,
+        ] {
+            assert!(
+                matches!(
+                    notice_of(&unreachable),
+                    Some(Notice::Unreachable { cause: Some(_) })
+                ),
+                "{unreachable:?}"
+            );
+        }
+        assert_eq!(linked_entry(false), LinkedEntry::Open);
+        assert_eq!(linked_entry(true), LinkedEntry::Publish);
+        let linked = notice_of(&resolved).unwrap();
+        let other = Notice::OtherEnvironment { origin: None };
+        let (a, b) = (std::path::Path::new("/a"), std::path::Path::new("/b"));
+        assert_ne!(notice_key(a, &linked), notice_key(b, &linked));
+        assert_ne!(notice_key(a, &linked), notice_key(a, &other));
+    }
+
+    /// `LocalFolderCloudNotice`: each notice offers the one action that
+    /// helps, and only explains what this app cannot end by itself.
+    #[test]
+    fn each_notice_offers_only_the_action_that_helps() {
+        let linked = |openable| Notice::Linked {
+            project: "p".into(),
+            name: None,
+            openable,
+        };
+        assert_eq!(notice_act(&linked(true), true), Some(NoticeAct::Open));
+        assert_eq!(notice_act(&linked(false), true), None);
+        assert_eq!(notice_act(&Notice::SignIn, false), Some(NoticeAct::SignIn));
+        for notice in [
+            Notice::OtherEnvironment { origin: None },
+            Notice::Missing,
+            Notice::NoAccess,
+        ] {
+            assert_eq!(notice_act(&notice, true), Some(NoticeAct::Disconnect));
+            assert_eq!(notice_act(&notice, false), None, "{notice:?}");
+        }
+        assert_eq!(notice_act(&Notice::Ambiguous, true), None);
+        assert_eq!(
+            notice_act(&Notice::Unreachable { cause: None }, true),
+            Some(NoticeAct::Retry)
+        );
     }
 
     #[test]

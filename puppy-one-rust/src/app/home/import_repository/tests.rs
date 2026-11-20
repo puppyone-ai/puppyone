@@ -458,7 +458,7 @@ fn cancellable_attempt(
 fn click_import_cancel(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let bounds = cx
         .debug_bounds("import-cancel")
@@ -571,7 +571,7 @@ fn show_url_dialog(
 fn draw_url_dialog(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 fn type_url(shell: &Entity<crate::app::Shell>, cx: &mut VisualTestContext, text: &str) {

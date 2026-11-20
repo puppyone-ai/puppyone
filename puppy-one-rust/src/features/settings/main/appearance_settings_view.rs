@@ -9,8 +9,8 @@ use crate::{
     theme::{self, Theme},
     ui::appearance::ActiveAppearance as _,
     ui::components::{
-        FileIcon, Icon, Segment, SegmentLayout, SegmentedControl, Select, SelectOption, SettingRow,
-        SettingsList, SettingsSection, SurfaceCorners, SurfaceStyledExt, Switch, tooltip,
+        FileIcon, Icon, IconButton, Segment, SegmentLayout, SegmentedControl, Select, SelectOption,
+        SettingRow, SettingsList, SettingsSection, SurfaceCorners, SurfaceStyledExt, Switch,
     },
 };
 use gpui::{prelude::*, *};
@@ -284,34 +284,27 @@ impl SettingsWorkspaceSurface {
                     });
                     let catalog = catalog.clone();
                     let set_pack = set_pack.clone();
-                    // `.desktop-theme-pack-icon-action`: a 14px glyph, muted
-                    // until hovered.
-                    let hover_bg = t.hover;
-                    div()
-                        .id(SharedString::from(format!("theme-pack-{icon}")))
-                        .size(px(theme::control_compact()))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded(px(6.))
-                        .cursor(theme::clickable_cursor())
-                        .text_color(t.muted)
-                        .hover(move |s| s.bg(hover_bg).text_color(t.text))
-                        .child(Icon::new(icon).small().stroke(if add { 1.9 } else { 1.8 }))
-                        .tooltip(tooltip(label))
-                        .on_click(move |_, _, cx| {
-                            let Some(catalog) = catalog.clone() else {
-                                return;
-                            };
-                            let set_pack = set_pack.clone();
-                            catalog.update(cx, |c, cx| {
-                                if add {
-                                    c.create(move |id, cx| set_pack(id, cx), cx)
-                                } else {
-                                    c.open_directory(cx)
-                                }
-                            })
+                    // `.desktop-theme-pack-icon-action`: a 28px button with a
+                    // 14px glyph, muted until hovered, named by its label.
+                    IconButton::new(
+                        SharedString::from(format!("theme-pack-{icon}")),
+                        Icon::new(icon).small().stroke(if add { 1.9 } else { 1.8 }),
+                    )
+                    .label(label)
+                    .color(t.muted)
+                    .on_click(move |_, _, cx| {
+                        let Some(catalog) = catalog.clone() else {
+                            return;
+                        };
+                        let set_pack = set_pack.clone();
+                        catalog.update(cx, |c, cx| {
+                            if add {
+                                c.create(move |id, cx| set_pack(id, cx), cx)
+                            } else {
+                                c.open_directory(cx)
+                            }
                         })
+                    })
                 }));
         // Status, error and loading issues under the list (8px apart).
         let font_prefs = prefs.clone();

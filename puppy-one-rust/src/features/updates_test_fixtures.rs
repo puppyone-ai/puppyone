@@ -92,6 +92,12 @@ impl Feed {
     pub fn put(&self, name: &str, body: Vec<u8>) {
         self.replies.lock().unwrap().files.insert(name.into(), body);
     }
+    /// Whether the worker thread, which owns the listener, still holds its
+    /// state: `false` once the listener is closed.
+    pub fn listening(&self) -> impl Fn() -> bool + use<> {
+        let state = Arc::downgrade(&self.replies);
+        move || state.strong_count() > 0
+    }
 }
 impl Drop for Feed {
     fn drop(&mut self) {

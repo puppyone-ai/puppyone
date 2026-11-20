@@ -14,6 +14,27 @@ use crate::{
 };
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
+mod block_acceptance;
+mod block_move_acceptance;
+mod code_isolation_acceptance;
+mod composition_acceptance;
+mod core_interaction_acceptance;
+mod document_scope_acceptance;
+mod editor_view_acceptance;
+mod embed_runtime_acceptance;
+mod html_acceptance;
+mod html_policy_acceptance;
+mod inline_acceptance;
+mod inline_html_acceptance;
+mod linked_image_acceptance;
+mod math_acceptance;
+mod mdx_acceptance;
+mod media_isolation_acceptance;
+mod projection_acceptance;
+mod table_inline_acceptance;
+mod table_interaction_acceptance;
+mod table_media_acceptance;
+
 #[test]
 fn dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans() {
     use super::{
@@ -74,6 +95,14 @@ fn setup<'a>(
     cx: &'a mut TestAppContext,
     text: &str,
 ) -> (Entity<EditorView>, &'a mut VisualTestContext) {
+    setup_with_focus(cx, text, true)
+}
+
+fn setup_with_focus<'a>(
+    cx: &'a mut TestAppContext,
+    text: &str,
+    focused: bool,
+) -> (Entity<EditorView>, &'a mut VisualTestContext) {
     cx.update(|cx| {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
@@ -89,14 +118,16 @@ fn setup<'a>(
             cx,
         )
     });
-    view.update_in(cx, |v, w, cx| v.focus(w, cx));
+    if focused {
+        view.update_in(cx, |v, w, cx| v.focus(w, cx));
+    }
     cx.run_until_parked();
     (view, cx)
 }
 
 fn hidden(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Vec<std::ops::Range<usize>> {
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| v.decorations().hidden.clone())
 }
@@ -142,10 +173,38 @@ fn lists_continue_and_tasks_toggle_with_history(cx: &mut TestAppContext) {
     view.update(cx, |v, _| assert_eq!(v.text(), "- [ ] one\n- [ ] **two**"));
 }
 
+/// `markdownFormatHotkeys.test.ts` and the macOS half of
+/// `markdownFormatShortcuts.electron.test.mjs`: ⌘B, ⌘I, ⌘U, ⌘D and ⌘⇧X format
+/// the selection in a focused Markdown editor; ⌘⇧B, ⌥ or Control chords do
+/// not, and nothing formats an editor without focus.
+#[gpui::test]
+fn format_shortcuts_follow_the_product_contract(cx: &mut TestAppContext) {
+    for (chord, formatted) in [
+        ("cmd-b", "**word**"),
+        ("cmd-i", "*word*"),
+        ("cmd-u", "<u>word</u>"),
+        ("cmd-d", "~~word~~"),
+        ("cmd-shift-x", "~~word~~"),
+        ("cmd-shift-b", "word"),
+        ("cmd-alt-i", "word"),
+        ("ctrl-i", "word"),
+        ("cmd-ctrl-i", "word"),
+    ] {
+        let (view, cx) = setup(cx, "word");
+        view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
+        cx.simulate_keystrokes(chord);
+        view.update(cx, |v, _| assert_eq!(v.text(), formatted, "{chord}"));
+    }
+    let (view, cx) = setup_with_focus(cx, "word", false);
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
+    cx.simulate_keystrokes("cmd-i");
+    view.update(cx, |v, _| assert_eq!(v.text(), "word"));
+}
+
 /// The lines each block of the frame shows, widgets as their line ranges.
 fn blocks(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Vec<std::ops::Range<usize>> {
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| {
         v.decorations()
@@ -296,7 +355,7 @@ fn an_image_line_shows_its_images_and_reveals_on_request(cx: &mut TestAppContext
     });
     let embeds = |view: &Entity<EditorView>, cx: &mut VisualTestContext| {
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.update(cx, |v, _| {
             v.decorations()
@@ -355,6 +414,26 @@ fn an_html_block_renders_until_its_source_is_shown(cx: &mut TestAppContext) {
     assert_eq!(blocks(&view, cx), vec![0..1, 1..2, 2..3, 3..4, 4..5]);
 }
 
+/// `runtime-foundations.test.ts`: `defaults external web embeds to
+/// click-to-load and blocks non-https`. A lone https iframe waits for a
+/// click before anything loads; a `file:` iframe is never an embed.
+#[gpui::test]
+fn a_web_embed_waits_for_a_click_and_only_https_embeds(cx: &mut TestAppContext) {
+    let text = "<iframe src=\"https://example.com/embed\"></iframe>\n\nafter";
+    let (_view, cx) = setup(cx, text);
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    assert!(cx.debug_bounds("md-web-embed:click-to-load").is_some());
+    assert!(cx.debug_bounds("md-web-embed:loading").is_none());
+    let text = "<iframe src=\"file:///tmp/x.html\"></iframe>\n\nafter";
+    let (_view, cx) = setup(cx, text);
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    assert!(cx.debug_bounds("md-web-embed:click-to-load").is_none());
+}
+
 #[gpui::test]
 fn blocks_move_by_keyboard_and_by_handle_with_the_experiment(cx: &mut TestAppContext) {
     use super::core::commands::block_move;
@@ -406,7 +485,7 @@ fn missing_and_ambiguous_link_targets_are_underlined(cx: &mut TestAppContext) {
         v.set_selection(Selection::cursor(text.len()), cx)
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| {
         let lines: Vec<_> = v
@@ -724,7 +803,7 @@ fn cursor_movement_rebuilds_zero_document_layer_blocks_and_zero_full_height_plan
     let (view, cx) = setup(cx, text);
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     let (rebuilds_before, full_plans_before) =
@@ -736,7 +815,7 @@ fn cursor_movement_rebuilds_zero_document_layer_blocks_and_zero_full_height_plan
     ] {
         cx.simulate_keystrokes(chord);
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
 
@@ -761,13 +840,13 @@ fn typing_on_upper_line_preserves_paragraph_cache_hits_for_lines_below(cx: &mut 
     let (view, cx) = setup(cx, &initial);
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(8), cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     let (hits_before, misses_before) = view.read_with(cx, |v, _| v.paragraph_cache_stats());
     cx.simulate_input("X");
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let (hits_after, misses_after) = view.read_with(cx, |v, _| v.paragraph_cache_stats());
     let new_hits = hits_after - hits_before;
@@ -793,7 +872,7 @@ fn block_id_remains_stable_across_prefix_edits_and_reuses_unchanged_widget_rc(
     let (view, cx) = setup(cx, text);
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     let before_widgets: Vec<_> = view.update(cx, |v, _| {
@@ -811,7 +890,7 @@ fn block_id_remains_stable_across_prefix_edits_and_reuses_unchanged_widget_rc(
     // Edit line 0 above both block widgets.
     cx.simulate_input("updated ");
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     let after_widgets: Vec<_> = view.update(cx, |v, _| {
@@ -1021,7 +1100,7 @@ fn revealed_code_and_table_lines_carry_source_classes_and_setext_gets_heading_st
         v.set_selection(Selection::cursor(code_hash_at), cx);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     view.update(cx, |v, _| {
@@ -1062,7 +1141,7 @@ fn revealed_code_and_table_lines_carry_source_classes_and_setext_gets_heading_st
         v.set_selection(Selection::cursor(table_at), cx);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| {
         let decos = v.decorations();
@@ -1285,7 +1364,7 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
         v.run_command(&Command::new("test-panic-hooks", "panic-cmd"), w, cx);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 
     view.update(cx, |v, _| {
@@ -1319,7 +1398,7 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
     });
     cx.simulate_input("!");
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     view.update(cx, |v, _| {
         assert!(v.text().contains("- [x] healthy"));
@@ -1501,4 +1580,57 @@ fn read_only_allows_view_commands_and_blocks_document_edits(cx: &mut TestAppCont
         assert!(v.text().contains("- [x] immutable task"));
         assert_ne!(v.text(), text);
     });
+}
+
+/// A Markdown document (headings, long paragraphs, lists, code, tables)
+/// resized narrower and wider again: the text at the viewport top stays
+/// where it is, with no drift accumulating across resizes.
+#[gpui::test]
+fn resizing_keeps_the_markdown_at_the_viewport_top(cx: &mut TestAppContext) {
+    use gpui::{point, px, size};
+    let prose = "Every paragraph here wraps across several rows, so a narrower column adds rows to the blocks above the viewport as well as to the one at its top. ".repeat(4);
+    let text = (0..60)
+        .map(|i| {
+            format!(
+                "## Section {i}\n\n{prose}\n\n- first item {prose}\n- second item\n\n```rust\nfn section_{i}() {{}}\n```\n\n| a | b |\n| - | - |\n| {i} | cell |\n"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let (view, cx) = setup(cx, &text);
+    cx.simulate_resize(size(px(1000.), px(700.)));
+    for _ in 0..6 {
+        let _ = blocks(&view, cx);
+        cx.run_until_parked();
+    }
+    view.update(cx, |v, cx| v.set_scroll_top(30_000., cx));
+    let settle = |cx: &mut VisualTestContext| {
+        for _ in 0..6 {
+            let _ = blocks(&view, cx);
+            cx.run_until_parked();
+        }
+    };
+    settle(cx);
+    let row_of = |cx: &mut VisualTestContext, offset: usize| {
+        view.read_with(cx, |v, _| {
+            let l = v.layout().unwrap();
+            f32::from(l.caret(offset, false).row_top - l.bounds.top())
+        })
+    };
+    let offset = view.read_with(cx, |v, _| {
+        let l = v.layout().unwrap();
+        let left = l.blocks[0].bounds.left();
+        l.offset_at(point(left, l.bounds.top() + px(2.))).0
+    });
+    let row = row_of(cx, offset);
+    for width in [760., 560., 440., 880., 1000.].repeat(3) {
+        cx.simulate_resize(size(px(width), px(700.)));
+        settle(cx);
+        let now = row_of(cx, offset);
+        assert!(
+            (now - row).abs() <= 0.5,
+            "at {width}px the top text moved {}",
+            now - row
+        );
+    }
 }

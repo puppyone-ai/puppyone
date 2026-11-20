@@ -420,4 +420,69 @@ mod tests {
         ));
         assert!(can_open(&unresolved));
     }
+
+    /// `documentNavigation.test.ts` with the product's inputs: only
+    /// complete, intentional references are recognised; unsafe external
+    /// targets are denied; resolved, ambiguous (with candidates) and
+    /// external references can open while missing and forged ones cannot.
+    #[test]
+    fn the_product_reference_cases_route_like_the_product() {
+        assert_eq!(
+            kind("https://example.com/docs"),
+            "external https://example.com/docs https://example.com/docs"
+        );
+        assert_eq!(
+            kind("[Docs](https://example.com/docs)"),
+            "external Docs https://example.com/docs"
+        );
+        assert_eq!(
+            kind("[[Spec|Design spec]]"),
+            "workspace WikiLink Design spec Spec"
+        );
+        assert_eq!(
+            kind("[Spec](../notes/spec.md)"),
+            "workspace MarkdownLink Spec ../notes/spec.md"
+        );
+        assert_eq!(
+            kind("./notes/spec.md"),
+            "workspace WorkspacePath ./notes/spec.md ./notes/spec.md"
+        );
+        assert_eq!(kind("spec.md"), "text");
+        assert_eq!(kind("Read https://example.com"), "text");
+        assert_eq!(kind("javascript:alert(1)"), "denied UnsafeProtocol");
+        assert_eq!(
+            kind("https://user:secret@example.com"),
+            "denied Credentials"
+        );
+        assert_eq!(
+            kind("https://example.com/%0aattack"),
+            "denied ControlCharacter"
+        );
+
+        let resolver = |target: &str| match target {
+            "Spec" => Some(Resolution {
+                exists: true,
+                ambiguous: false,
+                path: Some("notes/spec.md".into()),
+                candidates: vec!["notes/spec.md".into()],
+            }),
+            "Duplicate" => Some(Resolution {
+                exists: false,
+                ambiguous: true,
+                path: None,
+                candidates: vec!["a/duplicate.md".into(), "b/duplicate.md".into()],
+            }),
+            _ => Some(Resolution::default()),
+        };
+        let open = |raw: &str| can_open(&resolve(raw, Some(&resolver)).unwrap());
+        assert!(open("https://example.com/docs"));
+        assert!(open("[[Spec]]"));
+        assert!(open("[[Duplicate]]"));
+        assert!(!open("[[Missing]]"));
+        assert!(!open("javascript:alert(1)"));
+        assert!(matches!(
+            resolve("[[Duplicate]]", Some(&resolver)),
+            Some(Reference::Workspace { candidates, .. }) if candidates.len() == 2
+        ));
+    }
 }

@@ -231,6 +231,18 @@ impl Explorer {
         let menu = self.menu.as_ref().expect("an open menu");
         self.menu_fill(menu, cx)(Menu::new("labels")).labels()
     }
+    #[cfg(test)]
+    pub(in crate::app) fn open_menu_separator_count(&self, cx: &App) -> usize {
+        let menu = self.menu.as_ref().expect("an open menu");
+        self.menu_fill(menu, cx)(Menu::new("separators")).separator_count()
+    }
+    #[cfg(test)]
+    pub(in crate::app) fn set_menu_submenu_open(&mut self, open: bool, cx: &mut Context<Self>) {
+        if let Some(menu) = &mut self.menu {
+            menu.submenu_open = open;
+            cx.notify();
+        }
+    }
     fn menu_fill(&self, menu: &ExplorerMenu, cx: &App) -> MenuFill {
         match &menu.kind {
             MenuKind::Create { parent } => {
@@ -477,10 +489,17 @@ impl Explorer {
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.openDefaultApp"))
                     .icon("external-link")
-                    .on_click(act(Box::new(move |_, _, cx| {
-                        if let Err(e) = crate::platform::desktop::open(&path) {
-                            cx.emit(ExplorerEvent::Error(e))
-                        }
+                    .on_click(act(Box::new(move |_, window, cx| {
+                        let explorer = cx.weak_entity();
+                        crate::editor::question::open_external(
+                            Some(window.window_handle()),
+                            path.clone(),
+                            move |e, cx| {
+                                let _ =
+                                    explorer.update(cx, |_, cx| cx.emit(ExplorerEvent::Error(e)));
+                            },
+                            cx,
+                        );
                     }))),
             ));
         }

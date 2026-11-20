@@ -36,9 +36,16 @@ impl Render for EmptyStateView {
         let turns = self.turns;
         let runtime = self.icon_key.as_deref().and_then(AgentMark::from_icon_key);
         let label = self.label.clone();
-        let mark: AnyElement = match runtime
-            .and_then(|runtime| svg_path(runtime, palette.dark).map(|path| (runtime, path)))
-        {
+        let vector = runtime.and_then(|runtime| svg_path(runtime, palette.dark));
+        // What the mark is drawn from, for tests: the theme-coloured vector,
+        // a greyed brand image, or the generic bot.
+        let drawn = match (vector, runtime) {
+            (Some(_), _) => "vector",
+            (None, Some(_)) => "image",
+            (None, None) => "bot",
+        };
+        let selector = format!("agent-empty-logo:{drawn}:{turns}");
+        let mark: AnyElement = match runtime.zip(vector) {
             Some((_, path)) => svg()
                 .path(path)
                 .size(px(28.))
@@ -78,6 +85,7 @@ impl Render for EmptyStateView {
             .child(
                 div()
                     .id("agent-panel-empty-logo")
+                    .debug_selector(move || selector)
                     .cursor(theme::clickable_cursor())
                     .tooltip(crate::ui::components::tooltip(tf(
                         "agent.empty.spinLogo",
@@ -91,6 +99,7 @@ impl Render for EmptyStateView {
             )
             .child(
                 div()
+                    .debug_selector(|| "agent-empty-prompt".into())
                     .text_size(px(theme::ty().left.content))
                     .text_color(a.text_subtle)
                     .child(t("agent.empty.prompt")),

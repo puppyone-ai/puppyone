@@ -177,4 +177,53 @@ mod tests {
         assert!(!accepts_agent_attachment(&capabilities, "", "a.txt"));
         assert!(has_agent_attachment_support(&capabilities));
     }
+
+    /// `classifies semantic input kinds without knowing any Harness
+    /// transport`.
+    #[test]
+    fn classifies_semantic_input_kinds_without_knowing_any_harness_transport() {
+        for (mime, name, kind) in [
+            ("image/png", "shot.png", "image"),
+            ("image/svg+xml", "logo.svg", "text"),
+            ("", "README.md", "text"),
+            ("audio/wav", "note.wav", "audio"),
+            ("video/mp4", "clip.mp4", "video"),
+            ("application/pdf", "paper.pdf", "binary"),
+        ] {
+            assert_eq!(classify_agent_attachment(mime, name), kind, "{name}");
+        }
+    }
+
+    /// `admits only the declared semantic kinds, MIME patterns and
+    /// extensions`.
+    #[test]
+    fn admits_only_the_declared_semantic_kinds_mime_patterns_and_extensions() {
+        let capabilities = json!({
+            "schemaVersion": 1,
+            "workspace": { "files": true, "directories": true },
+            "attachments": {
+                "image": { "accepted": true, "mimeTypes": ["image/png", "image/jpeg"] },
+                "text": { "accepted": true, "mimeTypes": ["text/*", "application/json"], "extensions": [".md"] },
+                "audio": { "accepted": false },
+                "video": { "accepted": false },
+                "binary": { "accepted": false },
+            },
+        });
+        assert!(has_agent_attachment_support(&capabilities));
+        for (mime, name, accepted) in [
+            ("image/png", "shot.png", true),
+            ("image/webp", "shot.webp", false),
+            ("text/x-python", "app.py", true),
+            ("", "README.md", true),
+            ("audio/wav", "note.wav", false),
+            ("video/mp4", "clip.mp4", false),
+            ("application/pdf", "paper.pdf", false),
+        ] {
+            assert_eq!(
+                accepts_agent_attachment(&capabilities, mime, name),
+                accepted,
+                "{name}"
+            );
+        }
+    }
 }

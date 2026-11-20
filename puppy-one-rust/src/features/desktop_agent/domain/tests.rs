@@ -148,3 +148,68 @@ fn supports_windows_paths_case_insensitively() {
         Some("src/App.tsx".into())
     );
 }
+
+/// `preserves registry-provided Agent products without provider-specific UI
+/// filtering`; `shows only locally selected and still-installed Coding
+/// Agents`.
+#[test]
+fn runtime_lists_keep_the_registry_and_drop_uninstalled_or_hidden_agents() {
+    use super::agent_backend_routing::{
+        list_agent_runtimes, list_enabled_agent_runtimes, list_visible_agent_runtimes,
+    };
+    use crate::agent::contract::dto::RuntimeInspection;
+    let entry = |id: &str, name: &str, status: &str| {
+        json!({
+            "descriptor": { "id": id, "displayName": name },
+            "readiness": { "runtimeId": id, "provider": id, "status": status, "code": "READY",
+                "version": "1.0.0", "minimumVersion": null, "message": "Ready" },
+        })
+    };
+    let inspection = |runtimes: Vec<serde_json::Value>| -> RuntimeInspection {
+        typed(json!({
+            "runtimes": runtimes, "readiness": null, "account": null, "models": [],
+            "capabilities": null, "warnings": [],
+        }))
+    };
+    let names = |entries: Vec<crate::agent::contract::dto::RuntimeCatalogEntry>| {
+        entries
+            .into_iter()
+            .map(|e| e.descriptor.display_name)
+            .collect::<Vec<_>>()
+    };
+    let registry = inspection(vec![
+        entry("custom-agent", "Custom Agent", "ready"),
+        entry("codex", "Codex", "ready"),
+        entry("claude", "Claude Agent", "ready"),
+        entry("opencode-native", "OpenCode", "ready"),
+        entry("cursor", "Cursor Agent", "ready"),
+    ]);
+    assert_eq!(
+        names(list_agent_runtimes(Some(&registry))),
+        [
+            "Custom Agent",
+            "Codex",
+            "Claude Agent",
+            "OpenCode",
+            "Cursor Agent"
+        ]
+    );
+    let local = inspection(vec![
+        entry("codex", "Codex", "ready"),
+        entry("claude", "Claude Agent", "ready"),
+        entry("opencode-native", "OpenCode", "ready"),
+        entry("cursor", "Cursor Agent", "not-installed"),
+    ]);
+    let enabled = ["claude", "opencode-native", "cursor"].map(String::from);
+    assert_eq!(
+        names(list_enabled_agent_runtimes(Some(&local), Some(&enabled))),
+        ["Claude Agent", "OpenCode"]
+    );
+    assert_eq!(
+        names(list_visible_agent_runtimes(
+            Some(&local),
+            &["claude".to_string()]
+        )),
+        ["Codex", "OpenCode"]
+    );
+}

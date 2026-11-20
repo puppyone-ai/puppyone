@@ -26,6 +26,24 @@ pub struct MathFeature;
 pub static FEATURE: MathFeature = MathFeature;
 pub const ID: &str = "math";
 const KINDS: &[Kind] = &[Kind::FeatureInline(ID)];
+// The product's rich-preview budget is measured in JS UTF-16 code units,
+// independently of the raster service's byte and image-size limits.
+const MAX_RICH_SOURCE_UNITS: usize = 32 * 1024;
+
+fn source_diagnostic(source: &str) -> Option<&'static str> {
+    if source.trim().is_empty() {
+        Some("math.empty-source")
+    } else if source
+        .encode_utf16()
+        .take(MAX_RICH_SOURCE_UNITS + 1)
+        .count()
+        > MAX_RICH_SOURCE_UNITS
+    {
+        Some("math.source-too-large")
+    } else {
+        None
+    }
+}
 
 /// A display formula (`MarkdownMathBlock`).
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -171,15 +189,27 @@ impl MarkdownFeature for MathFeature {
         }
         for (open, close) in scan_inline_math(line_text) {
             let (from, to) = (line_start + open, line_start + close + 1);
+            let raw = &line_text[open + 1..close];
+            let backtick = raw
+                .strip_prefix('`')
+                .and_then(|s| s.strip_suffix('`'))
+                .filter(|s| !s.is_empty() && !s.contains('`'));
+            let delimiter_len = if backtick.is_some() { 2 } else { 1 };
             let mut e = Element::new(
                 Kind::FeatureInline(ID),
                 from..to,
-                vec![from..from + 1, to - 1..to],
-                Some(from + 1..to - 1),
+                vec![from..from + delimiter_len, to - delimiter_len..to],
+                Some(from + delimiter_len..to - delimiter_len),
             );
-            e.text = Some(tex::convert(&line_text[open + 1..close]));
+            e.text = Some(tex::convert(backtick.unwrap_or(raw)));
             out.push(e);
         }
+    }
+
+    fn owns_inline_code(&self, element: &Element, code: &Element) -> bool {
+        element.content == code.content
+            && code.range == (element.range.start + 1..element.range.end - 1)
+            && element.markers.first().is_some_and(|m| m.len() == 2)
     }
 
     fn scan_block_delimiters(
@@ -208,12 +238,16 @@ impl MarkdownFeature for MathFeature {
         KINDS
     }
 
-    fn compile_element(&self, index: usize, element: &Element, _cx: &CompileCx) -> Option<Plan> {
-        let text = element.text.clone()?;
+    fn compile_element(&self, index: usize, element: &Element, cx: &CompileCx) -> Option<Plan> {
+        let source = cx.doc.slice_cow(element.content.clone()?);
+        let presentation = match source_diagnostic(&source) {
+            Some(code) => Presentation::SourceFallback { code },
+            None => Presentation::InlineAtom(Atom::Text(element.text.clone()?)),
+        };
         Some(Plan {
             element: Some(index),
             source: element.range.clone(),
-            presentation: Presentation::InlineAtom(Atom::Text(text)),
+            presentation,
             delete_units: Vec::new(),
         })
     }
@@ -231,12 +265,7 @@ impl MarkdownFeature for MathFeature {
             self as render_broker, Kind as RenderKind, Request, hex,
         };
         let range = cx.doc.clamp_range(element.range.clone());
-        let raw_cow = cx.doc.slice_cow(range.clone());
-        let raw = raw_cow.as_ref();
-        let formula = raw
-            .strip_prefix('$')
-            .and_then(|s| s.strip_suffix('$'))
-            .unwrap_or(raw);
+        let formula = cx.doc.slice_cow(element.content.clone()?);
         let t = crate::editor::tokens::Tokens::get(cx.theme.dark, cx.theme.scale);
         let editor_bg = t.color("--po-editor-bg");
         let request = Request {
@@ -245,7 +274,7 @@ impl MarkdownFeature for MathFeature {
                 color: hex(t.color("--po-md-content-color")),
                 font_size: t.len("--po-md-math-inline-font-size", 15.),
             },
-            source: formula.to_owned(),
+            source: formula.into_owned(),
             background: hex(editor_bg),
             scale: 1.,
         };
@@ -297,7 +326,10 @@ impl MarkdownFeature for MathFeature {
             out.push(Plan {
                 element: None,
                 source: block.range.clone(),
-                presentation: Presentation::BlockAtom(BlockEmbed::new(ID, block)),
+                presentation: match source_diagnostic(&block.source) {
+                    Some(code) => Presentation::SourceFallback { code },
+                    None => Presentation::BlockAtom(BlockEmbed::new(ID, block)),
+                },
                 delete_units: Vec::new(),
             });
         }

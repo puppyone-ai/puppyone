@@ -16,7 +16,6 @@ use crate::agent::runtime::agent_runtime_port::AgentRuntimeAdapter;
 use core::prelude::v1::test;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
-use std::os::unix::fs::PermissionsExt;
 use std::rc::Rc;
 
 type Events = Rc<RefCell<Vec<Value>>>;
@@ -501,12 +500,12 @@ fn routes_pi_extension_dialogs_through_the_shared_structured_question_contract()
 
 fn pi_executable(directory: &std::path::Path, help: &str) -> String {
     let path = directory.join("pi");
-    std::fs::write(
+    crate::agent::application::tests_support::installed_shell_fixture(
         &path,
-        format!("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 0.84.3; else printf '%s\\n' '{help}'; fi\n"),
-    )
-    .unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        &format!(
+            "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 0.84.3; else printf '%s\\n' '{help}'; fi\n"
+        ),
+    );
     std::fs::canonicalize(&path)
         .unwrap()
         .to_string_lossy()

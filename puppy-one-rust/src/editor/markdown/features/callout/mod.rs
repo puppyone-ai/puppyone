@@ -212,7 +212,8 @@ impl MarkdownFeature for CalloutFeature {
                             at: callout.marker.start,
                             folded: !folded,
                         },
-                    ),
+                    )
+                    .preserving_focus(),
                 });
             }
             if callout.has_title {

@@ -33,9 +33,10 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 /// screen's aspect, with the title and status under it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Card {
-    /// The card's box in window coordinates; its height follows the unfold.
+    /// The card's box in window coordinates. It stands on the Explorer's
+    /// bottom edge: its height follows the unfold and it grows upwards.
     pub x: f32,
-    pub y: f32,
+    pub bottom: f32,
     pub w: f32,
     /// The unfolded preview's height.
     preview: f32,
@@ -43,7 +44,7 @@ pub struct Card {
 impl Card {
     /// The card's inset in the plane: level with the Explorer's rows.
     pub const INSET_X: f32 = 12.;
-    pub const INSET_TOP: f32 = 8.;
+    pub const INSET_BOTTOM: f32 = 8.;
     pub const RADIUS: f32 = 10.;
     pub const ROW: f32 = 52.;
     pub const PAD: f32 = 8.;
@@ -56,17 +57,22 @@ impl Card {
     const META_H: f32 = 38.;
     const END: f32 = 4.;
 
-    /// The card at the top of the Explorer's `plane`, its preview at the
-    /// screen's `aspect` (height over width), kept between a wide 2:1 and 4:3.
-    pub fn new(plane: Rect, aspect: f32) -> Self {
+    /// The card at the bottom of the Explorer's `plane`, over its `footer`,
+    /// its preview at the screen's `aspect` (height over width), kept between
+    /// a wide 2:1 and 4:3.
+    pub fn new(plane: Rect, footer: f32, aspect: f32) -> Self {
         let w = (plane.w - 2. * Self::INSET_X).max(Self::THUMB_W + 2. * Self::PAD);
         let preview = (w - 2. * Self::PAD) * aspect.clamp(0.5, 0.75);
         Self {
             x: plane.x + Self::INSET_X,
-            y: plane.y + Self::INSET_TOP,
+            bottom: plane.y + plane.h - footer - Self::INSET_BOTTOM,
             w,
             preview: preview.round(),
         }
+    }
+    /// The card's top in window coordinates at `unfold`.
+    pub fn top(&self, unfold: f32) -> f32 {
+        self.bottom - self.height(unfold)
     }
     pub fn height(&self, unfold: f32) -> f32 {
         let open = Self::PAD + self.preview + Self::UNDER_PREVIEW + Self::META_H + Self::END;
@@ -84,7 +90,7 @@ impl Card {
     /// The screen's place in the card, in window coordinates.
     pub fn slot_in_window(&self, unfold: f32) -> Rect {
         let slot = self.slot(unfold);
-        Rect::new(self.x + slot.x, self.y + slot.y, slot.w, slot.h)
+        Rect::new(self.x + slot.x, self.top(unfold) + slot.y, slot.w, slot.h)
     }
     /// Where the title and status start, relative to the card's box.
     pub fn meta(&self, unfold: f32) -> (f32, f32) {
@@ -315,7 +321,7 @@ mod tests {
     use core::prelude::v1::test;
 
     fn card() -> Card {
-        Card::new(Rect::new(0., 40., 260., 700.), 0.625)
+        Card::new(Rect::new(0., 40., 260., 700.), 0., 0.625)
     }
     const STAGE: Rect = Rect {
         x: 260.,
@@ -327,8 +333,16 @@ mod tests {
     #[test]
     fn the_card_is_a_row_folded_and_a_preview_at_the_screens_aspect_unfolded() {
         let card = card();
-        assert_eq!((card.x, card.y, card.w), (12., 48., 236.));
+        // On the Explorer's bottom edge, growing upwards as it unfolds.
+        assert_eq!((card.x, card.bottom, card.w), (12., 732., 236.));
         assert_eq!(card.height(0.), 52.);
+        assert_eq!(card.top(0.), 680.);
+        assert_eq!(card.slot_in_window(0.).y, 690.);
+        assert_eq!(card.top(1.), 732. - card.height(1.));
+        assert_eq!(
+            Card::new(Rect::new(0., 40., 260., 700.), 44., 0.625).bottom,
+            688.
+        );
         assert_eq!(card.slot(0.), Rect::new(8., 10., 48., 32.));
         // 220 wide at 10:16.
         assert_eq!(card.slot(1.), Rect::new(8., 8., 220., 138.));
@@ -336,8 +350,14 @@ mod tests {
         assert_eq!(card.meta(0.), (68., 8.));
         assert_eq!(card.meta(1.), (10., 155.));
         // A tall or wide screen keeps the preview between 2:1 and 4:3.
-        assert_eq!(Card::new(Rect::new(0., 0., 260., 0.), 2.).slot(1.).h, 165.);
-        assert_eq!(Card::new(Rect::new(0., 0., 260., 0.), 0.1).slot(1.).h, 110.);
+        assert_eq!(
+            Card::new(Rect::new(0., 0., 260., 0.), 0., 2.).slot(1.).h,
+            165.
+        );
+        assert_eq!(
+            Card::new(Rect::new(0., 0., 260., 0.), 0., 0.1).slot(1.).h,
+            110.
+        );
     }
 
     #[test]

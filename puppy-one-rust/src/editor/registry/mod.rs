@@ -28,7 +28,7 @@ pub use contribution::{
     EditorDocument, Presentation, PresetViewer, SourceKind, SurfaceFactory, ViewerImplementation,
     ViewerMatch,
 };
-pub use manifest::{Source, ViewerManifest, manifest};
+pub use manifest::{Capability, Source, ViewerManifest, manifest};
 pub use request::{AssetReader, DocumentAssets, DocumentContext, SurfaceInput, SurfaceRequest};
 #[cfg(test)]
 pub use surface::SpecialSurfaceProbe;
@@ -205,6 +205,44 @@ mod tests {
         resolve(&EditorDocument::local(path)).viewer.id
     }
 
+    /// `databasePreviewContract.test.ts`: SQLite names, in any case, route
+    /// to the lazy database preview that reads a resource session in a
+    /// native worker, never a full-file buffer; a `.db` file keeps the
+    /// generic binary MIME and generic binary data never routes to it.
+    #[test]
+    fn sqlite_names_route_to_the_lazy_native_database_session() {
+        use manifest::{Capability, ComputeIsolation, Runtime, Source, SurfaceIsolation};
+        for name in ["sample.DB", "sample.db3", "sample.sqlite", "sample.sqlite3"] {
+            let viewer = resolve(&EditorDocument::local(name)).viewer;
+            let d = viewer.definition;
+            assert_eq!(viewer.id, "database-preview", "{name}");
+            assert_eq!(source_requirement(name), Source::ResourceSession);
+            assert_eq!(
+                (
+                    d.capability,
+                    d.surface_isolation,
+                    d.compute_isolation,
+                    d.runtime
+                ),
+                (
+                    Capability::Preview,
+                    SurfaceIsolation::Inline,
+                    ComputeIsolation::NativeProcess,
+                    Runtime::Lazy
+                ),
+                "{name}"
+            );
+        }
+        assert_eq!(
+            formats::preferred_mime("sample.db"),
+            Some("application/octet-stream")
+        );
+        assert_ne!(
+            formats::resolve(Some("unknown"), Some("application/octet-stream")).default_viewer,
+            "database-preview"
+        );
+    }
+
     #[test]
     fn source_budgets_follow_the_product_manifest() {
         assert_eq!(source_budget("a.md"), 16 * 1024 * 1024);
@@ -363,6 +401,139 @@ mod tests {
         assert_eq!(viewer("blob.qqqq"), "document-placeholder");
     }
 
+    /// `publishes one immutable, versioned registry covering every source
+    /// shape`; `declares the layout and first-frame contract for every
+    /// preset Viewer`.
+    #[test]
+    fn the_registry_covers_every_source_shape_and_each_surface_contract() {
+        use manifest::{
+            ComputeIsolation, ContentSandbox, MemoryClass, ReadinessSignal, Runtime, Source as S,
+            SurfaceIsolation, SurfacePreparation as P, SurfaceTrait,
+        };
+        let registry = registry();
+        let shapes: HashSet<_> = registry
+            .contributions
+            .iter()
+            .map(|v| format!("{:?}", v.definition.source))
+            .collect();
+        let expected: HashSet<_> = [
+            S::Content,
+            S::Resource,
+            S::ContentAndResource,
+            S::ResourceSession,
+        ]
+        .iter()
+        .map(|s| format!("{s:?}"))
+        .collect();
+        assert_eq!(shapes, expected);
+        let fallback = registry.fallback();
+        assert_eq!(fallback.definition.source, S::None);
+        assert_eq!(fallback.id, manifest::manifest().fallback_viewer_id);
+        let ids: HashSet<&str> = registry
+            .contributions
+            .iter()
+            .map(|v| v.id)
+            .chain([fallback.id])
+            .collect();
+        let declared: HashSet<&str> = manifest::manifest()
+            .viewers
+            .iter()
+            .map(|v| v.id.as_str())
+            .collect();
+        assert_eq!(ids, declared);
+        let pdf = manifest::manifest().definition("pdf-preview").unwrap();
+        assert_eq!(pdf.runtime, Runtime::Eager);
+        assert_eq!(pdf.surface_isolation, SurfaceIsolation::Inline);
+        assert_eq!(pdf.compute_isolation, ComputeIsolation::BrowserEngine);
+        assert_eq!(pdf.content_sandbox, ContentSandbox::None);
+        assert_eq!(pdf.resource_policy.memory_class, MemoryClass::Large);
+        assert_eq!(pdf.resource_policy.max_source_bytes, 536_870_912);
+        assert_eq!(
+            (
+                pdf.resource_policy.max_canvas_pixels,
+                pdf.resource_policy.max_active_canvases,
+                pdf.resource_policy.max_workers
+            ),
+            (0, 0, 0)
+        );
+        assert_eq!(
+            (
+                pdf.recovery_policy.max_automatic_retries,
+                pdf.recovery_policy.supports_safe_mode
+            ),
+            (0, false)
+        );
+        assert_eq!(pdf.surface_preparation, P::RequiresVisible);
+        assert_eq!(pdf.readiness_signal, ReadinessSignal::FramePaint);
+        for (path, preparation) in [
+            ("page.html", P::HiddenSafe),
+            ("movie.mp4", P::RequiresVisible),
+            ("photo.png", P::HiddenSafe),
+        ] {
+            let id = viewer(path);
+            assert_eq!(
+                manifest::manifest()
+                    .definition(id)
+                    .unwrap()
+                    .surface_preparation,
+                preparation,
+                "{path}"
+            );
+        }
+        for v in &manifest::manifest().viewers {
+            assert_eq!(
+                v.source == S::None,
+                v.resource_policy.max_source_bytes == 0,
+                "{}",
+                v.id
+            );
+            assert_eq!(
+                v.compute_isolation == ComputeIsolation::Worker,
+                v.resource_policy.max_workers > 0,
+                "{}",
+                v.id
+            );
+            assert_eq!(
+                v.content_sandbox == ContentSandbox::SandboxedFrame,
+                v.surface_traits.contains(&SurfaceTrait::Sandboxed),
+                "{}",
+                v.id
+            );
+        }
+    }
+
+    /// `viewerRegistryContract.test.ts`: `routes … through the
+    /// deterministic preset order` — the viewer, what the host hands it and
+    /// its capability.
+    #[test]
+    fn documents_route_to_their_viewer_source_and_capability() {
+        use manifest::{Capability as C, Source as S};
+        for (path, id, source, capability) in [
+            ("Board.excalidraw", "excalidraw", S::Content, C::Edit),
+            ("Board.excalidraw.json", "excalidraw", S::Content, C::Edit),
+            ("Knowledge.contextmap", "context-map", S::Content, C::Edit),
+            ("notes.md", "markdown", S::Content, C::Edit),
+            ("settings.json", "json", S::Content, C::Edit),
+            ("table.csv", "csv-table", S::Content, C::Edit),
+            ("page.html", "html-artifact", S::ContentAndResource, C::Edit),
+            ("photo.png", "image-preview", S::Resource, C::Preview),
+            ("report.pdf", "pdf-preview", S::Resource, C::Preview),
+            ("report.docx", "office-preview", S::Resource, C::Preview),
+            ("sound.mp3", "audio-preview", S::Resource, C::Preview),
+            ("movie.mp4", "video-preview", S::Resource, C::Preview),
+            ("source.ts", "text", S::Content, C::Edit),
+            ("scene.glb", "document-placeholder", S::None, C::Placeholder),
+        ] {
+            assert_eq!(viewer(path), id, "{path}");
+            let definition = manifest::manifest().definition(id).unwrap();
+            assert_eq!(
+                (definition.source, definition.capability),
+                (source, capability),
+                "{path}"
+            );
+        }
+    }
+
     #[test]
     fn the_source_requirement_decides_what_the_host_reads() {
         assert!(source_requirement("a.md").reads_content());
@@ -453,6 +624,98 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    /// The product's pane fixture matrix (`EDITOR_PANE_CASES`): each fixture
+    /// resolves to its declared viewer, and together they cover every
+    /// registered viewer and the fallback.
+    #[test]
+    fn every_pane_fixture_selects_its_declared_viewer_and_all_viewers_are_covered() {
+        const CASES: [(&str, &str, &str, &str, Option<&str>); 20] = [
+            (
+                "context-map",
+                "context-map",
+                "map.contextmap",
+                "context-map",
+                None,
+            ),
+            ("app", "app-preview", "demo.puppyoneapp", "app", None),
+            ("markdown", "markdown", "note.md", "markdown", None),
+            ("puppyflow", "puppyflow", "flow.puppyflow", "workflow", None),
+            ("json", "json", "settings.json", "json", None),
+            (
+                "whiteboard",
+                "excalidraw",
+                "board.excalidraw",
+                "whiteboard",
+                None,
+            ),
+            (
+                "csv",
+                "csv-table",
+                "table.csv",
+                "spreadsheet",
+                Some("text/csv"),
+            ),
+            (
+                "tsv",
+                "csv-table",
+                "table.tsv",
+                "spreadsheet",
+                Some("text/tab-separated-values"),
+            ),
+            ("html", "html-artifact", "page.html", "html", None),
+            ("image", "image-preview", "image.png", "image", None),
+            ("pdf", "pdf-preview", "document.pdf", "pdf", None),
+            ("database", "database-preview", "sample.db", "file", None),
+            ("word", "office-preview", "document.docx", "document", None),
+            (
+                "spreadsheet",
+                "office-preview",
+                "workbook.xlsx",
+                "spreadsheet",
+                None,
+            ),
+            (
+                "presentation",
+                "office-preview",
+                "slides.pptx",
+                "presentation",
+                None,
+            ),
+            ("audio", "audio-preview", "tone.wav", "audio", None),
+            ("video", "video-preview", "clip.webm", "video", None),
+            ("text", "text", "plain.txt", "text", None),
+            ("code", "text", "worker.py", "code", None),
+            (
+                "fallback",
+                "document-placeholder",
+                "unknown.pane-binary",
+                "file",
+                None,
+            ),
+        ];
+        for (id, expected, name, kind, mime) in CASES {
+            let mut document = EditorDocument::local(name);
+            document.kind = kind.into();
+            document.mime = mime.map(str::to_owned);
+            assert_eq!(resolve(&document).viewer.id, expected, "{id}");
+        }
+        let mut covered: Vec<&str> = CASES.iter().map(|case| case.1).collect();
+        covered.sort_unstable();
+        covered.dedup();
+        let mut registered: Vec<&str> = registry()
+            .contributions
+            .iter()
+            .map(|viewer| viewer.id)
+            .chain([registry().fallback().id])
+            .collect();
+        registered.sort_unstable();
+        assert_eq!(covered, registered);
+        let mut ids: Vec<&str> = CASES.iter().map(|case| case.0).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), CASES.len());
     }
 
     #[test]

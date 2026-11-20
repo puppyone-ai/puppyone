@@ -199,6 +199,9 @@ impl TerminalView {
             cx.notify();
         })
         .detach();
+        // A blurred window dims the selection of a terminal kept on screen.
+        cx.observe_window_activation(window, |_, _, cx| cx.notify())
+            .detach();
         view
     }
     fn assemble(terminal: Terminal, agent: bool, running: bool, cx: &mut Context<Self>) -> Self {
@@ -388,6 +391,15 @@ impl TerminalView {
         self.activity = TerminalActivity::new(true);
         self.activity.note_title("⠋ claude");
         self.running = true;
+    }
+    /// `readTerminalTheme` with xterm's inactive selection: the active pair
+    /// only in the focused terminal of the focused window.
+    fn selection_paint(&self, t: &Theme, window: &Window) -> Rgba {
+        if self.focused && window.is_window_active() {
+            t.terminal_selection
+        } else {
+            t.terminal_selection_inactive
+        }
     }
     /// The session status, including the Agent's first-paint wait.
     pub fn status(&self) -> SessionStatus {
@@ -581,6 +593,7 @@ impl Render for TerminalView {
                                     snap(bounds.origin.y) + px(PAD_TOP),
                                 );
                                 let (rows, cols) = screen.size();
+                                let selection_paint = s.selection_paint(&t, window);
                                 let painted: Vec<Vec<CellPaint>> = (0..rows)
                                     .map(|r| {
                                         (0..cols)
@@ -591,9 +604,11 @@ impl Render for TerminalView {
                                                     screen,
                                                     r,
                                                     c,
-                                                    s.selection.is_some_and(|selection| {
-                                                        selection.contains(screen, r, c)
-                                                    }),
+                                                    s.selection
+                                                        .is_some_and(|selection| {
+                                                            selection.contains(screen, r, c)
+                                                        })
+                                                        .then_some(selection_paint),
                                                     s.hover_link
                                                         .as_ref()
                                                         .is_some_and(|l| l.contains(r, c)),
@@ -611,7 +626,7 @@ impl Render for TerminalView {
                                     && !screen.hide_cursor())
                                 .then(|| {
                                     CellPaint::of(
-                                        &t, &grid, screen, cursor_row, cursor_col, false, false,
+                                        &t, &grid, screen, cursor_row, cursor_col, None, false,
                                     )
                                     .map(|cell| CellPaint {
                                         fg: t.terminal_bg,

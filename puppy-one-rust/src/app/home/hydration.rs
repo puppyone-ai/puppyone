@@ -116,6 +116,8 @@ impl Homepage {
         }
         self.read_for = Some(paths.clone());
         self.reading = true;
+        self.read_id += 1;
+        let read_id = self.read_id;
         let identities: HashMap<PathBuf, Option<String>> = self
             .recent(cx)
             .iter()
@@ -147,6 +149,10 @@ impl Homepage {
         cx.spawn(async move |this, cx| {
             let read = read.await;
             let _ = this.update(cx, |s, cx| {
+                // A read a newer one replaced settles nothing.
+                if s.read_id != read_id {
+                    return;
+                }
                 s.locators = read
                     .iter()
                     .filter_map(|(path, _, remote, _, _, _)| Some((path.clone(), remote.clone()?)))
@@ -196,9 +202,25 @@ impl Homepage {
 
     /// `useHomepageListHold`: Home leaves at once and only the list waits,
     /// so the project just left is in its new place the first time it shows.
-    pub(in crate::app) fn hold_list(&mut self) {
+    /// The list waits at most the first-paint budget; an earlier hold's
+    /// budget never releases a later one.
+    pub(in crate::app) fn hold_list(&mut self, cx: &mut Context<Self>) {
         self.list_held_since = Some(Instant::now());
         self.read_for = None;
+        // A hold is a new visit: the dates read for it may move projects.
+        self.shown_dates.clear();
+        self.hold_id += 1;
+        let hold = self.hold_id;
+        let budget = cx.background_executor().timer(FIRST_PAINT_BUDGET);
+        cx.spawn(async move |this, cx| {
+            budget.await;
+            let _ = this.update(cx, |s, cx| {
+                if s.hold_id == hold && s.list_held_since.take().is_some() {
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     /// `useCloudSpaces` (`App.tsx`): the spaces of the signed-in account.
@@ -416,13 +438,20 @@ impl Homepage {
         if self.session.restoring || self.released_for.as_ref() == Some(&account) {
             return Some(account);
         }
+        // A Homepage released before a slow session turned up is not taken
+        // back when it does.
+        if self.released_restoring && self.released_for == Some(None) && account.is_some() {
+            return Some(account);
+        }
         let catalog = self.catalog.read(cx);
-        let catalog_settled = account.is_none()
-            || matches!(catalog.state, crate::features::cloud::CatalogState::Failed)
-            || (matches!(
-                catalog.state,
-                crate::features::cloud::CatalogState::Ready(_)
-            ) && catalog.fresh);
+        // Signed out is not yet known while the session restores.
+        let catalog_settled = !self.cloud_session_restoring(cx)
+            && (account.is_none()
+                || matches!(catalog.state, crate::features::cloud::CatalogState::Failed)
+                || (matches!(
+                    catalog.state,
+                    crate::features::cloud::CatalogState::Ready(_)
+                ) && catalog.fresh));
         let settled = !self.reading && self.read_for.is_some() && catalog_settled;
         let over = self
             .first_paint
@@ -430,11 +459,42 @@ impl Homepage {
         (settled || over).then_some(account)
     }
 
+    /// Whether the Cloud session (with Cloud on) is still being restored.
+    pub(in crate::app::home) fn cloud_session_restoring(&self, cx: &App) -> bool {
+        crate::features::flags::cloud_enabled(&self.preferences, cx)
+            && crate::features::cloud::account::status(cx)
+                == Some(crate::cloud::auth::Status::Restoring)
+    }
+
+    /// Tests: whether the list still waits for its first paint.
+    #[cfg(test)]
+    pub(in crate::app) fn first_paint_held(&self, cx: &App) -> bool {
+        self.first_paint_released(cx).is_none()
+    }
+    /// Tests: the first-paint budget has run out.
+    #[cfg(test)]
+    pub(in crate::app) fn expire_first_paint(&mut self) {
+        self.first_paint = Some(Instant::now() - FIRST_PAINT_BUDGET);
+    }
+    /// Tests: a new launch's Homepage, nothing released yet.
+    #[cfg(test)]
+    pub(in crate::app) fn relaunch_first_paint(&mut self) {
+        self.released_for = None;
+        self.released_restoring = false;
+        self.first_paint = Some(Instant::now());
+    }
+    /// Tests: a new first-paint wait starts now.
+    #[cfg(test)]
+    pub(in crate::app) fn restart_first_paint(&mut self) {
+        self.first_paint = Some(Instant::now());
+    }
+
     pub(in crate::app::home) fn release_first_paint(&mut self, cx: &mut Context<Self>) {
         if let Some(account) = self.first_paint_released(cx)
             && self.released_for.as_ref() != Some(&account)
             && !self.session.restoring
         {
+            self.released_restoring = self.cloud_session_restoring(cx);
             self.released_for = Some(account);
             self.first_paint = None;
             self.list_held_since = None;

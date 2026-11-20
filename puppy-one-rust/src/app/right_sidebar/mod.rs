@@ -151,8 +151,13 @@ impl RightSidebar {
                 s.source_control
                     .update(cx, |git, cx| git.cancel_panel_resize(cx));
             }
+            s.sync_workbench_visibility(cx);
         })
         .detach();
+        // A surface change notifies the sidebar itself.
+        let this = cx.entity();
+        cx.observe(&this, |s, _, cx| s.sync_workbench_visibility(cx))
+            .detach();
         // Each surface takes its part of the preferences when it changes.
         observe_slice(
             &preferences,
@@ -184,7 +189,15 @@ impl RightSidebar {
         };
         let shown = Shown::of(&preferences.read(cx).state);
         sidebar.show(&shown, cx);
+        sidebar.sync_workbench_visibility(cx);
         sidebar
+    }
+    /// `AuxiliaryPanelHost`'s `contentVisible`: the workbench presents its
+    /// items only while the open sidebar shows it.
+    fn sync_workbench_visibility(&self, cx: &mut App) {
+        let visible = self.shows(Surface::Agent, cx);
+        self.workbench
+            .update(cx, |w, cx| w.set_content_visible(visible, cx));
     }
     fn show(&mut self, shown: &Shown, cx: &mut Context<Self>) {
         let Shown {

@@ -416,9 +416,23 @@ impl Render for CodeView {
 }
 
 pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
-    open_with(request, None, false, window, cx)
+    open_document(request, None, false, window, cx)
 }
 
+/// The document's own source view: unlike a view that follows another
+/// ([`open_with`]), its history outlives it (`DocumentModels`).
+pub fn open_document(
+    request: &SurfaceRequest,
+    language: Option<&str>,
+    soft_wrap: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> Box<dyn ViewerSurface> {
+    open_view(request, language, soft_wrap, true, window, cx)
+}
+
+/// A view whose text another view owns (a companion source panel) or that
+/// shows text no document history keeps (a fallback after a viewer fault).
 pub fn open_with(
     request: &SurfaceRequest,
     language: Option<&str>,
@@ -426,7 +440,25 @@ pub fn open_with(
     window: &mut Window,
     cx: &mut App,
 ) -> Box<dyn ViewerSurface> {
-    let view = cx.new(|cx| CodeView::new_with(request, language, soft_wrap, window, cx));
+    open_view(request, language, soft_wrap, false, window, cx)
+}
+
+fn open_view(
+    request: &SurfaceRequest,
+    language: Option<&str>,
+    soft_wrap: bool,
+    owns_document: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> Box<dyn ViewerSurface> {
+    let view = cx.new(|cx| {
+        let view = CodeView::new_with(request, language, soft_wrap, window, cx);
+        if owns_document {
+            view.editor
+                .update(cx, |editor, _| editor.attach_model(&request.models));
+        }
+        view
+    });
     #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
     let editor = view.read(cx).editor.clone();
     Box::new(CodeSurface {

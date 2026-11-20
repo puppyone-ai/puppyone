@@ -258,6 +258,61 @@ mod tests {
         );
     }
 
+    /// `restores only a validated last-selected Agent id`.
+    #[test]
+    fn only_a_valid_runtime_id_is_restored_as_the_selection() {
+        let stored = |id: &str| {
+            let v2 = serde_json::json!({ "version": 2, "selectedRuntimeId": id, "routes": {} });
+            AgentRoutingPreferences::parse(Some(&v2.to_string()), None, None).selected_runtime_id
+        };
+        assert_eq!(stored("codex").as_deref(), Some("codex"));
+        for invalid in ["../../not-a-runtime", "Codex", "x", "workbuddy", ""] {
+            assert_eq!(stored(invalid), None, "{invalid}");
+        }
+        assert_eq!(AgentRoutingPreferences::default().selected_runtime_id, None);
+    }
+
+    /// `keeps Provider, Model, Variant, Effort and Mode scoped to one Agent
+    /// runtime`.
+    #[test]
+    fn a_route_change_stays_with_its_own_runtime() {
+        let stored = serde_json::json!({ "version": 2, "selectedRuntimeId": "puppyone-agent", "routes": {
+            "puppyone-agent": { "providerId": "openai", "modelId": "openai/gpt-5", "variant": "fast", "mode": "build" },
+            "codex": { "modelId": "gpt-5.6", "effort": "high" },
+        }});
+        let initial = AgentRoutingPreferences::parse(Some(&stored.to_string()), None, None);
+        let updated = initial.update_route(
+            "codex",
+            &AgentRoutePatch {
+                model_id: Some(Some("gpt-5.6-terra".into())),
+                effort: Some(Some("xhigh".into())),
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            updated.routes["puppyone-agent"],
+            initial.routes["puppyone-agent"]
+        );
+        assert_eq!(
+            updated.routes["codex"].model_id.as_deref(),
+            Some("gpt-5.6-terra")
+        );
+        assert_eq!(updated.routes["codex"].effort.as_deref(), Some("xhigh"));
+        assert_eq!(
+            updated.selected_runtime_id.as_deref(),
+            Some("puppyone-agent")
+        );
+    }
+
+    /// `clears the channel-ambiguous legacy WorkBuddy route`.
+    #[test]
+    fn the_ambiguous_legacy_workbuddy_route_is_cleared() {
+        let stored = r#"{"version":2,"selectedRuntimeId":"workbuddy","routes":{"workbuddy":{"modelId":"auto"}}}"#;
+        let parsed = AgentRoutingPreferences::parse(Some(stored), None, None);
+        assert_eq!(parsed.selected_runtime_id, None);
+        assert!(parsed.routes.is_empty());
+    }
+
     #[test]
     fn routes_follow_the_selected_runtime_and_empty_routes_are_dropped() {
         let preferences = AgentRoutingPreferences::default().select_runtime(Some("codex"));

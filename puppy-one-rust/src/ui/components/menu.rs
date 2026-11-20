@@ -16,7 +16,11 @@ use gpui_kit::{
     base::{Positioner, StyledExt as _},
     component::Sizable as _,
 };
-use std::{rc::Rc, time::Duration};
+use std::{
+    cell::Cell,
+    rc::{Rc, Weak},
+    time::Duration,
+};
 
 mod keyboard;
 #[cfg(test)]
@@ -325,6 +329,13 @@ impl Menu {
             })
             .collect()
     }
+    /// Number of separator rows currently in this menu surface.
+    pub fn separator_count(&self) -> usize {
+        self.entries
+            .iter()
+            .filter(|entry| matches!(entry, MenuEntry::Separator))
+            .count()
+    }
 }
 /// A menu surface. Items run their handler, then `on_dismiss`.
 #[derive(IntoElement)]
@@ -593,6 +604,36 @@ struct SubmenuState {
     epoch: u64,
     trigger: Bounds<Pixels>,
 }
+
+/// Live deferred submenu bounds currently on screen. Each entry is held alive
+/// by the submenu host's frame mouse listener, so cached view replays keep it
+/// alive and closing/unmounting the submenu drops it automatically.
+#[derive(Default)]
+struct ActiveSubmenus(Vec<(WindowId, Weak<Cell<Bounds<Pixels>>>)>);
+impl Global for ActiveSubmenus {}
+
+/// Whether `position` lies inside an open deferred submenu of `window`.
+pub(super) fn submenu_contains(position: Point<Pixels>, window: &Window, cx: &App) -> bool {
+    let Some(active) = cx.try_global::<ActiveSubmenus>() else {
+        return false;
+    };
+    let window_id = window.window_handle().window_id();
+    active.0.iter().any(|(id, weak)| {
+        *id == window_id && weak.upgrade().is_some_and(|b| b.get().contains(&position))
+    })
+}
+
+fn register_active_submenu(window: &Window, surface: &Rc<Cell<Bounds<Pixels>>>, cx: &mut App) {
+    let window_id = window.window_handle().window_id();
+    let weak = Rc::downgrade(surface);
+    if !cx.has_global::<ActiveSubmenus>() {
+        cx.set_global(ActiveSubmenus::default());
+    }
+    cx.update_global::<ActiveSubmenus, _>(|active, _| {
+        active.0.retain(|(_, entry)| entry.strong_count() > 0);
+        active.0.push((window_id, weak));
+    });
+}
 /// `.desktop-menu-item`.
 fn row(
     fallback_id: ElementId,
@@ -845,10 +886,18 @@ impl RenderOnce for SubmenuRow {
         };
         let open = state.read(cx).open;
         let trigger = state.read(cx).trigger;
+        let corner_cell = Rc::new(Cell::new(point(
+            trigger.right() + px(4.),
+            trigger.top() - px(4.),
+        )));
         let measure = {
             let state = state.clone();
+            let corner_cell = corner_cell.clone();
             canvas(
-                move |bounds, _, cx| state.update(cx, |s, _| s.trigger = bounds),
+                move |bounds, _, cx| {
+                    corner_cell.set(point(bounds.right() + px(4.), bounds.top() - px(4.)));
+                    state.update(cx, |s, _| s.trigger = bounds);
+                },
                 |_, _, _, _| {},
             )
             .absolute()
@@ -875,16 +924,24 @@ impl RenderOnce for SubmenuRow {
         if open {
             let mut menu = (self.build)(window, cx);
             menu.dismiss_handler(self.dismiss);
-            let corner = point(trigger.right() + px(4.), trigger.top() - px(4.));
+            let corner = corner_cell.get();
+            let surface = Rc::new(Cell::new(Bounds::default()));
+            register_active_submenu(window, &surface, cx);
+            let position_surface = surface.clone();
             row = row.child(
                 deferred(
                     Positioner::corner(Anchor::TopLeft, corner)
+                        .tracked_corner_position(corner_cell)
                         .margin(px(8.))
                         .occlude()
+                        .on_position(move |resolved| position_surface.set(resolved.bounds))
                         .child(
                             div()
                                 .id(child_id(&self.id, "submenu-host"))
-                                .on_hover(move |hovered, window, cx| hover(*hovered, window, cx))
+                                .on_hover(move |hovered, window, cx| {
+                                    let _keep_active = &surface;
+                                    hover(*hovered, window, cx);
+                                })
                                 .child(menu.w(px(184.))),
                         ),
                 )

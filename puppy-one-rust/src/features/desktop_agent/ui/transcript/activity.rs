@@ -99,6 +99,10 @@ impl TranscriptView {
             shell.active(),
             &a,
         );
+        let line = line.debug_selector({
+            let selector = format!("agent-step:{part_id}");
+            move || selector
+        });
         let line = if has_detail {
             let (row, id) = (row_id.to_string(), part_id.clone());
             line.on_click(cx.listener(move |s, _, _, cx| {
@@ -147,6 +151,10 @@ impl TranscriptView {
                 &a,
             )
             .into_any_element(),
+        });
+        let detail = detail.map(|detail| {
+            let selector = format!("agent-step-detail:{part_id}");
+            div().debug_selector(move || selector).child(detail)
         });
         v_flex()
             .min_w_0()
@@ -233,6 +241,10 @@ impl TranscriptView {
                         false,
                         &a,
                     )
+                    .debug_selector({
+                        let selector = format!("agent-fold:{id}");
+                        move || selector
+                    })
                     .on_click(cx.listener(move |s, _, _, cx| {
                         if !s.open_folds.remove(&toggle) {
                             s.open_folds.insert(toggle.clone());

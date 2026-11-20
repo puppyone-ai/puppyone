@@ -15,6 +15,7 @@ pub trait SecretVault: Send + Sync {
 
 /// The macOS keychain (generic passwords).
 pub struct Keychain;
+#[cfg(target_os = "macos")]
 const SERVICE: &str = "PuppyOne Cloud Git credential";
 impl SecretVault for Keychain {
     #[cfg(target_os = "macos")]

@@ -22,6 +22,17 @@ pub struct Entry {
     pub updated_at: f64,
 }
 
+impl Entry {
+    /// `readCsvColumnWidthsPreference`: stored widths only for the same
+    /// delimiter and column count.
+    pub fn widths_for(&self, delimiter: Delimiter, columns: usize) -> Option<&[f32]> {
+        self.column_layout
+            .as_ref()
+            .filter(|(d, w)| *d == delimiter && w.len() == columns)
+            .map(|(_, w)| w.as_slice())
+    }
+}
+
 fn path() -> PathBuf {
     std::env::var_os("PUPPYONE_RUST_DATA_DIR")
         .map(PathBuf::from)
@@ -134,12 +145,21 @@ pub fn merge(
 
 struct Store {
     entries: Vec<(String, Entry)>,
-    writer: mpsc::Sender<Value>,
+    writer: Option<mpsc::Sender<Value>>,
 }
 
 fn store() -> &'static Mutex<Store> {
     static STORE: OnceLock<Mutex<Store>> = OnceLock::new();
     STORE.get_or_init(|| {
+        // Tests stay purely in-memory so they never read or mutate the user's
+        // on-disk preference store while still exercising per-document
+        // persistence across view remounts.
+        if cfg!(test) {
+            return Mutex::new(Store {
+                entries: Vec::new(),
+                writer: None,
+            });
+        }
         let path = path();
         let entries = std::fs::read(&path)
             .ok()
@@ -156,7 +176,10 @@ fn store() -> &'static Mutex<Store> {
                 let _ = write(&path, &value);
             }
         });
-        Mutex::new(Store { entries, writer })
+        Mutex::new(Store {
+            entries,
+            writer: Some(writer),
+        })
     })
 }
 
@@ -188,23 +211,112 @@ pub fn read(id: &str) -> Entry {
 }
 
 pub fn update(id: &str, patch: impl FnOnce(&mut Entry)) {
-    // The CSV editor has no document id in tests; never touch the real store.
-    if cfg!(test) {
-        return;
-    }
     let Some(key) = normalize(id) else { return };
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0., |d| d.as_millis() as f64);
     let mut store = store().lock().unwrap_or_else(|e| e.into_inner());
     merge(&mut store.entries, key, patch, now);
-    let value = serialize(&store.entries);
-    let _ = store.writer.send(value);
+    if let Some(writer) = &store.writer {
+        let value = serialize(&store.entries);
+        let _ = writer.send(value);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `csvViewPreferences.test.ts`: header interpretation and row numbers
+    /// are kept per document without disturbing each other or a sibling
+    /// document; a malformed store or a missing document id reads as empty
+    /// and writes nothing; column widths come back only for the same
+    /// delimiter and column count.
+    #[test]
+    fn view_state_is_per_document_and_fails_open() {
+        let mut entries = Vec::new();
+        let read = |entries: &[(String, Entry)], key: &str| {
+            entries
+                .iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, e)| e.clone())
+                .unwrap_or_default()
+        };
+        assert_eq!(
+            read(&entries, "/vault/one.csv").first_record_as_header,
+            None
+        );
+        merge(
+            &mut entries,
+            "/vault/one.csv",
+            |e| e.first_record_as_header = Some(true),
+            1.,
+        );
+        merge(
+            &mut entries,
+            "/vault/two.csv",
+            |e| e.first_record_as_header = Some(false),
+            2.,
+        );
+        merge(
+            &mut entries,
+            "/vault/one.csv",
+            |e| e.show_row_numbers = Some(false),
+            3.,
+        );
+        merge(
+            &mut entries,
+            "/vault/three.csv",
+            |e| e.show_row_numbers = Some(true),
+            4.,
+        );
+        let one = read(&entries, "/vault/one.csv");
+        assert_eq!(
+            (one.first_record_as_header, one.show_row_numbers),
+            (Some(true), Some(false))
+        );
+        assert_eq!(
+            read(&entries, "/vault/two.csv").first_record_as_header,
+            Some(false)
+        );
+        let three = read(&entries, "/vault/three.csv");
+        assert_eq!(
+            (three.first_record_as_header, three.show_row_numbers),
+            (None, Some(true))
+        );
+        merge(
+            &mut entries,
+            "/vault/one.csv",
+            |e| e.first_record_as_header = Some(false),
+            5.,
+        );
+        assert_eq!(
+            read(&entries, "/vault/one.csv").show_row_numbers,
+            Some(false)
+        );
+
+        assert!(parse(&json!("not-json")).is_empty());
+        assert_eq!(normalize("  "), None);
+        assert_eq!(read_missing(), Entry::default());
+
+        merge(
+            &mut entries,
+            "/vault/table.csv",
+            |e| e.column_layout = Some((Delimiter::Comma, vec![144., 260.])),
+            6.,
+        );
+        let table = read(&entries, "/vault/table.csv");
+        assert_eq!(
+            table.widths_for(Delimiter::Comma, 2),
+            Some(&[144., 260.][..])
+        );
+        assert_eq!(table.widths_for(Delimiter::Tab, 2), None);
+        assert_eq!(table.widths_for(Delimiter::Comma, 3), None);
+    }
+
+    fn read_missing() -> Entry {
+        read("")
+    }
 
     #[test]
     fn the_store_round_trips_and_drops_malformed_entries() {

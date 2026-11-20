@@ -19,6 +19,7 @@ use super::{
 };
 use crate::{
     editor::{
+        document_session::models::{ModelHandle, ModelKind, ModelLease},
         frame::{self, FrameTheme},
         table::{
             COLUMN_MIN_WIDTH,
@@ -148,6 +149,21 @@ pub struct CsvEditor {
     /// Dev capture: a cell to activate once mounted (`PUPPYONE_CSV_ACTIVE`, `CS-15`).
     #[cfg(any(test, feature = "dev-capture"))]
     pending_active: Option<(usize, usize)>,
+    /// Set on the document's table view: its model outlives it.
+    model_lease: Option<ModelLease>,
+}
+
+impl Drop for CsvEditor {
+    fn drop(&mut self) {
+        let Some(lease) = self.model_lease.take() else {
+            return;
+        };
+        if self.loading || self.model.undo_len() + self.model.redo_len() == 0 {
+            return;
+        }
+        let empty = CsvModel::new("", self.model.delimiter());
+        lease.detach(std::mem::replace(&mut self.model, empty));
+    }
 }
 
 impl EventEmitter<CsvEvent> for CsvEditor {}
@@ -182,11 +198,7 @@ impl CsvEditor {
         });
         // Stored view state wins over the defaults (`readCsv…Preference`).
         let stored = preferences::read(document_id);
-        let widths = stored
-            .column_layout
-            .as_ref()
-            .filter(|(d, w)| *d == delimiter && w.len() == model.column_count())
-            .map(|(_, w)| w.as_slice());
+        let widths = stored.widths_for(delimiter, model.column_count());
         let layout = ColumnLayout::new(&model, widths);
         let header = stored
             .first_record_as_header
@@ -223,6 +235,7 @@ impl CsvEditor {
             find: Default::default(),
             #[cfg(any(test, feature = "dev-capture"))]
             pending_active: None,
+            model_lease: None,
         };
         if let Some(full_rc) = full_rc {
             let generation = this.parse_generation;
@@ -276,6 +289,33 @@ impl CsvEditor {
             }
         }
         this
+    }
+
+    /// Make this the document's table view (`DocumentModels`): it continues
+    /// the table model, and so the history, a destroyed view left for the
+    /// same text, and leaves its own behind when it is dropped.
+    pub fn attach_model(&mut self, models: &ModelHandle) {
+        let (delimiter, text) = (self.model.delimiter(), self.model.text());
+        let Some((lease, retained)) = models.attach::<CsvModel>(ModelKind::Table, |model| {
+            model.delimiter() == delimiter && model.text() == text
+        }) else {
+            return;
+        };
+        self.model_lease = Some(lease);
+        let Some(model) = retained else {
+            return;
+        };
+        // The retained model is complete: no background parse is needed.
+        self.parse_generation += 1;
+        self.parse_task = None;
+        self.loading = false;
+        self.model = model;
+        let stored = preferences::read(&self.document_id);
+        if stored.first_record_as_header.is_none() {
+            self.header = self.model.content().suggested_header;
+        }
+        let widths = stored.widths_for(delimiter, self.model.column_count());
+        self.layout = ColumnLayout::new(&self.model, widths);
     }
 
     pub fn is_live(&self) -> bool {
@@ -932,6 +972,28 @@ impl CsvEditor {
         self.end_cell(cx);
         let change = self.model.append_column(self.header);
         self.after_structure(change, window, cx);
+    }
+
+    /// Window tests press the table's growth controls: the add-record and
+    /// add-field rails, and a size picker choice adding `rows` and `columns`.
+    #[cfg(feature = "test-support")]
+    pub fn press_add_row(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.add_row(window, cx);
+    }
+    #[cfg(feature = "test-support")]
+    pub fn press_add_column(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.add_column(window, cx);
+    }
+    #[cfg(feature = "test-support")]
+    pub fn press_expand(
+        &mut self,
+        rows: usize,
+        columns: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (data_rows, all_columns) = (self.data_rows(), self.columns());
+        self.expand_to(data_rows + rows, all_columns + columns, window, cx);
     }
 
     fn after_structure(&mut self, change: Change, window: &mut Window, cx: &mut Context<Self>) {
@@ -1778,7 +1840,13 @@ impl Render for CsvEditor {
                     let on_blur = cx.on_blur(&this.focus, window, |this, _, cx| {
                         this.flush_cell(cx);
                     });
-                    this.focus_subscriptions = vec![on_focus, on_blur];
+                    let on_activation = cx.observe_window_activation(window, |this, window, cx| {
+                        if !window.is_window_active() {
+                            this.cancel_transient_gestures();
+                            cx.notify();
+                        }
+                    });
+                    this.focus_subscriptions = vec![on_focus, on_blur, on_activation];
                 }
             });
         }

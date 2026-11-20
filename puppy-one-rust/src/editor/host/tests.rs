@@ -15,6 +15,8 @@ use crate::{
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use std::{cell::RefCell, rc::Rc};
 
+mod external_consistency;
+
 fn setup<'a>(
     cx: &'a mut TestAppContext,
     name: &str,
@@ -159,6 +161,94 @@ fn csv_contributes_view_items_and_find(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn csv_pane_menu_stays_scoped_to_clicked_pane_across_two_csv_panes(cx: &mut TestAppContext) {
+    use gpui::AppContext as _;
+    let (left, left_messages, visual) =
+        setup_with(cx, "csv-pane-left", None, "left.csv", "Name,Score\nAda,1\n");
+    let right = visual.update(|_, cx| cx.new(DocumentEditor::new));
+    let right_messages = Rc::new(RefCell::new(Vec::new()));
+    let right_sink = right_messages.clone();
+    visual.update(|_, cx| {
+        cx.subscribe(&right, move |_, m: &ClientMessage, _| {
+            right_sink.borrow_mut().push(m.clone())
+        })
+        .detach();
+    });
+    let open_right = HostMessage::Open {
+        id: "csv-pane-right".into(),
+        name: "right.csv".into(),
+        text: "Name,Score\nAda,1\n".into(),
+        revision: 0,
+        external: false,
+    };
+    right.update_in(visual, |v, w, cx| v.receive(&open_right, w, cx));
+    visual.run_until_parked();
+
+    left.update_in(visual, |v, w, cx| {
+        assert_eq!(v.contribution(cx).items[0].kind, ItemKind::Toggle(true));
+        v.toggle_pane_menu(w, cx);
+        v.run_pane_action(Action::Item("csv-header-row"), w, cx);
+        assert_eq!(v.contribution(cx).items[0].kind, ItemKind::Toggle(false));
+        v.run_pane_action(Action::OpenExternal, w, cx);
+        assert!(!v.chrome.open);
+    });
+
+    // Right pane keeps its own header state and never receives the left pane's external open.
+    right.read_with(visual, |v, cx| {
+        assert_eq!(v.contribution(cx).items[0].kind, ItemKind::Toggle(true));
+        assert_eq!(
+            v.session.as_ref().map(|s| s.name.as_str()),
+            Some("right.csv")
+        );
+    });
+    assert!(
+        left_messages
+            .borrow()
+            .iter()
+            .any(|m| matches!(m, ClientMessage::Action { action } if action == "open-external"))
+    );
+    assert!(right_messages.borrow().is_empty());
+}
+
+/// `Editor pane actions menu`: a resource-only pane offers just Open in
+/// default app and Close, with no segments, find or items; Close is the
+/// shell's command and closes the menu. An image keeps that pair first
+/// and adds its zoom items after it.
+#[gpui::test]
+fn a_resource_only_pane_menu_is_open_externally_and_close(cx: &mut TestAppContext) {
+    let (view, messages, cx) = setup(cx, "archive.zip", "");
+    view.update_in(cx, |v, w, cx| {
+        let c = v.contribution(cx);
+        assert!(c.segmented.is_none() && !c.find && c.items.is_empty());
+        assert_eq!(c.entries(), [Action::OpenExternal, Action::Close]);
+        v.toggle_pane_menu(w, cx);
+        v.run_pane_action(Action::Close, w, cx);
+        assert!(!v.chrome.open);
+    });
+    assert!(
+        messages
+            .borrow()
+            .iter()
+            .any(|m| matches!(m, ClientMessage::Action { action } if action == "close-file"))
+    );
+    let (image, _, cx) = setup_with(cx, "image", None, "009_Bauhaus.png", "");
+    image.update(cx, |v, cx| {
+        let c = v.contribution(cx);
+        assert!(c.segmented.is_none() && !c.find);
+        assert_eq!(c.entries()[..2], [Action::OpenExternal, Action::Close]);
+        assert_eq!(
+            c.items.iter().map(|i| i.id).collect::<Vec<_>>(),
+            [
+                "image-zoom-fit",
+                "image-zoom-actual",
+                "image-zoom-in",
+                "image-zoom-out"
+            ]
+        );
+    });
+}
+
+#[gpui::test]
 fn markdown_contributes_its_mode_segments(cx: &mut TestAppContext) {
     let (view, _, cx) = setup(cx, "notes.md", "# Title\n");
     view.update_in(cx, |v, w, cx| {
@@ -179,6 +269,23 @@ fn markdown_contributes_its_mode_segments(cx: &mut TestAppContext) {
             .and_then(|s| s.as_test_probe())
             .and_then(|p| p.editor_view())
             .unwrap();
+        assert!(
+            !editor
+                .read(cx)
+                .extension::<MarkdownExtension>()
+                .unwrap()
+                .live
+        );
+        // Mode toggle command (`ToggleMarkdownSource` / `Mod-/`) flips back to Live and to Source.
+        v.command("source", w, cx);
+        assert!(
+            editor
+                .read(cx)
+                .extension::<MarkdownExtension>()
+                .unwrap()
+                .live
+        );
+        v.command("source", w, cx);
         assert!(
             !editor
                 .read(cx)
@@ -220,6 +327,57 @@ fn find_marks_and_selects_matches_in_text_editors(cx: &mut TestAppContext) {
     bar.update(cx, |_, cx| cx.emit(FindEvent::Close));
     cx.run_until_parked();
     editor.update(cx, |e, _| assert!(e.find_marks().matches.is_empty()));
+}
+
+#[gpui::test]
+fn find_shortcut_and_navigation_work_across_markdown_and_csv_panes(cx: &mut TestAppContext) {
+    // 1. Markdown pane opens find bar via secondary-f, highlights matches, wraps navigation,
+    //    and clears highlights on Close/Escape.
+    let md_doc = format!(
+        "{}Puppy one\npuppy two\ncat\n{}",
+        "first line\n".repeat(40),
+        "last line\n".repeat(40)
+    );
+    let (view, _, cx) = setup(cx, "long-notes.md", &md_doc);
+    view.update_in(cx, |v, w, cx| v.focus_document(w, cx));
+    cx.run_until_parked();
+    cx.simulate_keystrokes("secondary-f");
+    cx.run_until_parked();
+    let bar = view
+        .update(cx, |v, cx| v.find_bar(cx))
+        .expect("find bar opened by secondary-f");
+    bar.update(cx, |_, cx| cx.emit(FindEvent::Query("puppy".into())));
+    cx.run_until_parked();
+    bar.update(cx, |b, _| assert_eq!((b.current, b.total), (1, 2)));
+    bar.update(cx, |_, cx| cx.emit(FindEvent::Move { forward: true }));
+    cx.run_until_parked();
+    bar.update(cx, |b, _| assert_eq!((b.current, b.total), (2, 2)));
+    bar.update(cx, |_, cx| cx.emit(FindEvent::Move { forward: true }));
+    cx.run_until_parked();
+    bar.update(cx, |b, _| assert_eq!((b.current, b.total), (1, 2)));
+    bar.update(cx, |_, cx| cx.emit(FindEvent::Close));
+    cx.run_until_parked();
+    assert!(view.update(cx, |v, cx| v.find_bar(cx)).is_none());
+
+    // 2. CSV pane opens find bar via secondary-f and navigates structured cells without
+    //    coupling DocumentEditor to table data.
+    let (csv_view, _, cx) = setup(cx, "people.csv", "Name,Role\nAda,Engineer\nGrace,Admiral\n");
+    csv_view.update_in(cx, |v, w, cx| v.focus_document(w, cx));
+    cx.run_until_parked();
+    cx.simulate_keystrokes("secondary-f");
+    cx.run_until_parked();
+    let csv_bar = csv_view
+        .update(cx, |v, cx| v.find_bar(cx))
+        .expect("CSV find bar opened by secondary-f");
+    csv_bar.update(cx, |_, cx| cx.emit(FindEvent::Query("ad".into())));
+    cx.run_until_parked();
+    csv_bar.update(cx, |b, _| assert_eq!((b.current, b.total), (1, 2)));
+    csv_bar.update(cx, |_, cx| cx.emit(FindEvent::Move { forward: true }));
+    cx.run_until_parked();
+    csv_bar.update(cx, |b, _| assert_eq!((b.current, b.total), (2, 2)));
+    csv_bar.update(cx, |_, cx| cx.emit(FindEvent::Close));
+    cx.run_until_parked();
+    assert!(csv_view.update(cx, |v, cx| v.find_bar(cx)).is_none());
 }
 
 #[gpui::test]
@@ -458,11 +616,21 @@ impl crate::editor::registry::ViewerSurface for PackProbe {
     }
 }
 fn pack_surface(
-    _: &crate::editor::registry::SurfaceRequest,
+    request: &crate::editor::registry::SurfaceRequest,
     pack: &crate::editor::registry::packs::PackContribution,
     _: &mut gpui::Window,
     _: &mut gpui::App,
 ) -> Box<dyn crate::editor::registry::ViewerSurface> {
+    // A pack never reaches the working copy: no models to attach to.
+    assert!(
+        request
+            .models
+            .attach::<()>(
+                crate::editor::document_session::models::ModelKind::Text,
+                |_| true
+            )
+            .is_none()
+    );
     PACK_SURFACES.with(|s| s.borrow_mut().push(pack.plugin_id.clone()));
     Box::new(PackProbe)
 }
@@ -504,6 +672,23 @@ fn installed_packs_render_placeholder_documents_through_the_host_port(cx: &mut T
             },
             surface: Some(pack_surface),
         }))
+    });
+    // The working copy hands the host its document models; the pack still
+    // never receives them (`pack_surface` asserts).
+    let models = crate::editor::document_session::models::DocumentModels::default();
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Context {
+                id: "2".into(),
+                context: crate::editor::registry::DocumentContext {
+                    source_kind: crate::editor::registry::SourceKind::Local,
+                    models: models.handle(),
+                    ..Default::default()
+                },
+            },
+            w,
+            cx,
+        )
     });
     open(&view, cx, "2", "scene/model.glb");
     assert_eq!(rendered(), vec!["a.glb"]);
@@ -1136,7 +1321,7 @@ fn rg02_rg03_oversized_opens_in_pane_card_and_large_text_locks_readonly_banner(
     });
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     assert!(cx.debug_bounds("document-readonly-banner").is_some());
     let ed = view.update(cx, |v, _| {
@@ -1154,6 +1339,69 @@ fn rg02_rg03_oversized_opens_in_pane_card_and_large_text_locks_readonly_banner(
     });
     view.read_with(cx, |v, cx| {
         assert_eq!(v.text(cx).as_deref(), Some("bounded read-only log\n"));
+    });
+}
+
+/// `viewerHost` #0: a document no viewer renders stays on the honest preset
+/// placeholder. It names its kind ("Binary file · GLB"), shows the name only
+/// beside a preview image and gives it to assistive technology as a status;
+/// with no Viewer Pack installed there is nothing to install or route to.
+#[gpui::test]
+fn an_unknown_document_stays_on_the_honest_placeholder(cx: &mut TestAppContext) {
+    let (view, _, cx) = setup(cx, "notes.md", "# hi\n");
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Context {
+                id: "glb".into(),
+                context: crate::editor::registry::DocumentContext {
+                    source_kind: crate::editor::registry::SourceKind::Local,
+                    ..Default::default()
+                },
+            },
+            w,
+            cx,
+        );
+        v.receive(
+            &HostMessage::OpenResource {
+                id: "glb".into(),
+                name: "assets/scene.glb".into(),
+                path: crate::workspace::testing::preview("scene.glb"),
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |v, cx| {
+        assert_eq!(
+            v.session.as_ref().unwrap().viewer.id,
+            "document-placeholder"
+        );
+        let probe = v
+            .surface
+            .as_ref()
+            .unwrap()
+            .as_test_probe()
+            .unwrap()
+            .special_surface(cx)
+            .unwrap();
+        assert_eq!(probe.kind, "placeholder");
+        assert!(
+            probe.detail.starts_with("Binary file · GLB"),
+            "{}",
+            probe.detail
+        );
+        assert!(!probe.detail.contains("scene.glb"), "{}", probe.detail);
+    });
+    // The name is read out, not drawn.
+    cx.update(|w, _| {
+        use gpui_kit::test::TestQueryExt;
+        let status: Vec<_> = w
+            .find_all_by_role(gpui::Role::Status)
+            .into_iter()
+            .filter_map(|element| element.label().map(str::to_owned))
+            .collect();
+        assert_eq!(status, ["scene.glb: preview unavailable"]);
     });
 }
 
@@ -1183,6 +1431,7 @@ fn rg10_rg11_instance_context_drops_on_close_and_cloud_source_blocks_external_pa
             }),
             source_kind: SourceKind::Cloud,
             sniffed_format: None,
+            models: Default::default(),
         },
     };
 
@@ -1254,6 +1503,13 @@ fn rg10_rg11_instance_context_drops_on_close_and_cloud_source_blocks_external_pa
             s.borrow().is_empty(),
             "RG-11: Cloud document must NOT activate external Viewer Pack"
         );
+    });
+    // It stays on the honest preset placeholder instead.
+    view.update(cx, |v, _| {
+        assert_eq!(
+            v.session.as_ref().unwrap().viewer.id,
+            "document-placeholder"
+        )
     });
 }
 

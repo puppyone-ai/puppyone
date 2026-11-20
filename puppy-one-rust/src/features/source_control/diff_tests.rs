@@ -92,7 +92,7 @@ impl<'a> Fixture<'a> {
         self.cx.run_until_parked();
         self.cx.update(|w, cx| {
             w.refresh();
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
     fn click_retry(&mut self) {

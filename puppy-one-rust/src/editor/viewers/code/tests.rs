@@ -36,6 +36,19 @@ fn setup<'a>(
     Rc<RefCell<Vec<SurfaceEvent>>>,
     &'a mut VisualTestContext,
 ) {
+    setup_with_language(cx, name, text, None)
+}
+
+fn setup_with_language<'a>(
+    cx: &'a mut TestAppContext,
+    name: &str,
+    text: &str,
+    language: Option<&str>,
+) -> (
+    Entity<CodeView>,
+    Rc<RefCell<Vec<SurfaceEvent>>>,
+    &'a mut VisualTestContext,
+) {
     cx.update(|cx| {
         gpui_kit::init(cx);
         crate::ui::ime::init(cx);
@@ -43,7 +56,7 @@ fn setup<'a>(
     });
     let resolved = registry::resolve(&EditorDocument::local(name));
     let (view, cx) = cx.add_window_view(|w, cx| {
-        CodeView::new(
+        CodeView::new_with(
             &SurfaceRequest {
                 id: "code",
                 name,
@@ -59,7 +72,10 @@ fn setup<'a>(
                 assets: None,
                 references: None,
                 source_kind: SourceKind::Local,
+                models: Default::default(),
             },
+            language,
+            false,
             w,
             cx,
         )
@@ -83,7 +99,7 @@ fn setup<'a>(
 fn draw(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 
@@ -199,6 +215,166 @@ fn code_platform_typing_autocloses_and_indents_json(cx: &mut TestAppContext) {
     view.update_in(cx, |v, w, cx| {
         assert_eq!(v.selected_text_range(false, w, cx).unwrap().range, 4..4);
     });
+}
+
+#[gpui::test]
+fn native_code_surfaces_execute_each_required_language_parser(cx: &mut TestAppContext) {
+    // The TS language acceptance requires real parsing support, not merely a
+    // recognized name. Verify its examples through the rendered native surface.
+    for (name, language, source, token) in [
+        ("main.js", "javascript", "const answer = 42", "const"),
+        (
+            "worker.py",
+            "python",
+            "def greet(name):\n    return f'Hello {name}'",
+            "def",
+        ),
+        ("value.json", "json", "{\"ready\": true}", "true"),
+        ("workflow.yml", "yaml", "name: puppyone", "name"),
+        ("schema.sql", "sql", "select * from documents", "select"),
+        ("deploy.sh", "shell", "echo $SHELL", "echo"),
+        (
+            "pyproject.toml",
+            "toml",
+            "name = \"puppyone\"",
+            "\"puppyone\"",
+        ),
+        (
+            "component.jsx",
+            "jsx",
+            "const view = <button>OK</button>",
+            "const",
+        ),
+        (
+            "component.tsx",
+            "tsx",
+            "const view = <button>OK</button>",
+            "const",
+        ),
+    ] {
+        let (view, events, visual) = setup_with_language(cx, name, source, Some(language));
+        view.read_with(visual, |v, cx| {
+            assert_eq!(v.language(), Language(language), "{name}");
+            assert_eq!(v.text(cx), source, "parsing must preserve source bytes");
+            let expected = source.find(token).unwrap()..source.find(token).unwrap() + token.len();
+            let decorations = v.editor.read(cx).decorations();
+            assert!(
+                decorations.marks.iter().any(|mark| {
+                    mark.range.start <= expected.start
+                        && mark.range.end >= expected.end
+                        && mark.style.color.is_some()
+                }),
+                "{name} must parse and color {token:?}: {:?}",
+                decorations.marks
+            );
+        });
+        assert!(events.borrow().is_empty(), "parsing must not emit an edit");
+    }
+    // The shared TS format catalog explicitly routes TOML as plaintext. Parser
+    // availability and default format routing are separate contracts: an
+    // explicit plaintext hint must still override filename inference.
+    let (view, _, visual) = setup(cx, "pyproject.toml", "name = \"puppyone\"");
+    view.read_with(visual, |v, cx| {
+        assert_eq!(v.language(), Language("plaintext"));
+        assert!(v.editor.read(cx).decorations().marks.is_empty());
+    });
+}
+
+#[gpui::test]
+fn native_python_and_typescript_align_tab_display_with_enter_and_tab_input(
+    cx: &mut TestAppContext,
+) {
+    for (name, source, width) in [
+        ("worker.py", "def greet():\n\tpass", 4),
+        ("main.ts", "function greet() {\n\treturn 'hello'\n}", 2),
+    ] {
+        let (view, _, visual) = setup(cx, name, source);
+        view.read_with(visual, |v, cx| {
+            for block in &v.editor.read(cx).decorations().blocks {
+                if let Block::Line { style, .. } = block {
+                    assert_eq!(style.tab_size, Some(width), "{name}");
+                }
+            }
+        });
+        view.update_in(visual, |v, w, cx| v.set_selected_text_range(0..0, w, cx));
+        visual.simulate_keystrokes("tab");
+        draw(visual);
+        assert_eq!(
+            text(&view, visual),
+            format!("{}{source}", " ".repeat(width)),
+            "{name}"
+        );
+        view.update_in(visual, |v, w, cx| v.history(false, w, cx));
+        draw(visual);
+        assert_eq!(text(&view, visual), source);
+        let first_line_end = source.find('\n').unwrap();
+        view.update_in(visual, |v, w, cx| {
+            v.set_selected_text_range(first_line_end..first_line_end, w, cx)
+        });
+        visual.simulate_keystrokes("enter");
+        draw(visual);
+        assert_eq!(
+            text(&view, visual),
+            format!(
+                "{}\n{}{}",
+                &source[..first_line_end],
+                " ".repeat(width),
+                &source[first_line_end..]
+            ),
+            "{name}"
+        );
+    }
+}
+
+#[gpui::test]
+fn jsx_and_tsx_source_keep_javascript_jsx_and_typescript_roles(cx: &mut TestAppContext) {
+    for (name, language, source) in [
+        (
+            "component.jsx",
+            "jsx",
+            "// example\nconst view = <button title=\"Go\">{42}</button>;",
+        ),
+        (
+            "component.tsx",
+            "tsx",
+            "// example\nconst view: number = <button title=\"Go\">{42}</button>;",
+        ),
+    ] {
+        let colors = SyntaxColors::resolve(true, Scale::Medium);
+        let (view, events, visual) = setup(cx, name, source);
+        view.read_with(visual, |v, cx| {
+            assert_eq!(v.language(), Language(language));
+            let decorations = v.editor.read(cx).decorations();
+            let mut tokens = vec![
+                ("// example", colors.comment),
+                ("const", colors.keyword),
+                ("button", colors.type_name),
+                ("title", colors.property),
+                ("\"Go\"", colors.string),
+                ("42", colors.constant),
+            ];
+            if language == "tsx" {
+                tokens.push(("number", colors.type_name));
+            }
+            for (token, color) in tokens {
+                // Both opening and closing tags must carry the same role.
+                for (start, _) in source.match_indices(token) {
+                    let expected = start..start + token.len();
+                    assert!(
+                        decorations.marks.iter().any(|mark| {
+                            mark.range.start <= expected.start
+                                && mark.range.end >= expected.end
+                                && mark.style.color == Some(packed(color))
+                        }),
+                        "native {language} role missing for {token:?}: {:?}",
+                        decorations.marks
+                    );
+                }
+            }
+            assert_eq!(v.text(cx), source);
+        });
+        assert!(events.borrow().is_empty());
+    }
 }
 
 #[gpui::test]
@@ -381,6 +557,7 @@ fn markdown_source_highlighting_subtheme_tokens_and_indent_guides(cx: &mut TestA
                 assets: None,
                 references: None,
                 source_kind: SourceKind::Local,
+                models: Default::default(),
             },
             Some("markdown"),
             true,
@@ -422,6 +599,7 @@ fn markdown_source_highlighting_subtheme_tokens_and_indent_guides(cx: &mut TestA
                 assets: None,
                 references: None,
                 source_kind: SourceKind::Local,
+                models: Default::default(),
             },
             w,
             cx,
@@ -531,6 +709,7 @@ fn chrome_inset_avoids_titlebar_and_conflict_banner_is_shared_across_surfaces(
                 assets: None,
                 references: None,
                 source_kind: SourceKind::Local,
+                models: Default::default(),
             },
             w,
             cx,

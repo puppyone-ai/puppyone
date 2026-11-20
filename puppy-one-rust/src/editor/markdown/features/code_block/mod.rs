@@ -1,6 +1,9 @@
 //! Fenced code blocks (product features/code-block): every fence is a block
 //! widget showing its code lines in a highlighted panel; the fence lines
 //! themselves are not caret positions while the block is rendered.
+#[cfg(test)]
+pub(crate) mod highlight;
+#[cfg(not(test))]
 mod highlight;
 pub mod style;
 mod widget;

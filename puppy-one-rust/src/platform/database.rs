@@ -564,5 +564,22 @@ mod tests {
         let mut duck = vec![0u8; 20];
         duck[8..12].copy_from_slice(b"DUCK");
         assert_eq!(detect(&duck), None);
+        // Only a full 100-byte SQLite header is a signature.
+        for head in [&b""[..], &[0; 8], b"SQLite format 3\0", b"secret data"] {
+            assert_eq!(detect(head), None);
+        }
+        // Failures are payload-free kinds with fixed messages: no native
+        // path or SQL text can reach the viewer.
+        for failure in [
+            Failure::Recovery,
+            Failure::Unsupported,
+            Failure::Expired,
+            Failure::SessionExpired,
+            Failure::Permission,
+            Failure::Budget,
+            Failure::Unavailable,
+        ] {
+            assert!(failure.message_key().starts_with("editor.database."));
+        }
     }
 }

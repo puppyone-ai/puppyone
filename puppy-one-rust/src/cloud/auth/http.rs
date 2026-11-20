@@ -11,6 +11,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// The most of a refused change stream's body read for its reason code.
+const STREAM_REFUSAL_BYTES: usize = 64 * 1024;
+
 pub(super) trait Remote: Send + Sync {
     fn providers(&self, env: &Environment, fence: &Fence) -> Result<()>;
     fn exchange(
@@ -619,7 +622,24 @@ impl Remote for Http {
             let operation = async {
                 let response = tokio::time::timeout(Duration::from_secs(15), http.send()).await.map_err(|_| Error::Unavailable)?.map_err(|_| Error::Unavailable)?;
                 let status = response.status().as_u16();
-                if status != 200 { return Err(response_error(status, &Value::Null)); }
+                if status != 200 {
+                    // The refusal's code says why: a sleeping Workspace is
+                    // waited for, a replaced one ends the lease.
+                    let mut bytes = Vec::new();
+                    let mut parts = response.bytes_stream();
+                    let _ = tokio::time::timeout(Duration::from_secs(5), async {
+                        while let Some(Ok(part)) = parts.next().await {
+                            bytes.extend_from_slice(&part);
+                            if bytes.len() > STREAM_REFUSAL_BYTES {
+                                bytes.clear();
+                                break;
+                            }
+                        }
+                    })
+                    .await;
+                    let value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+                    return Err(response_error(status, &value));
+                }
                 if !response.headers().get("content-type").and_then(|v| v.to_str().ok()).is_some_and(|v| v.split(';').next().unwrap_or_default().trim().eq_ignore_ascii_case("text/event-stream")) { return Err(Error::InvalidResponse); }
                 fence.check()?; sink(StreamEvent::Connected)?;
                 let mut body = response.bytes_stream();

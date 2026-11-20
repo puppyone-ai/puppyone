@@ -629,3 +629,109 @@ fn a_new_native_page_resumes_the_persisted_operation_without_submitting_it_again
     assert!(remounted.requests("checkout").is_empty());
     assert!(remounted.requests("plan/quote").is_empty());
 }
+
+/// The redesign's one way to change plan: `Switch` opens the plan's row and
+/// asks its price for the people held; more people ask again; the change is
+/// confirmed once, as quoted, and its row closes when it ended.
+#[test]
+fn choosing_a_plan_quotes_it_in_its_row_requotes_new_people_and_confirms_once() {
+    let catalog = json!({"schema_version": "1.1", "runtime": {"unit_seconds": 60},
+        "plans": [
+            {"id": "free", "name": "Free", "public": true, "purchasable": false, "currency": "USD",
+                "price_per_seat_cents": 0, "seats": {"minimum": 1, "maximum": 1},
+                "runtime": {"fixed_units": 300, "units_per_seat": 0},
+                "fixed_limits": {"projects.max": 1, "storage.max_bytes": 1000000000u64}},
+            {"id": "team_v2", "name": "Team", "public": true, "purchasable": true, "currency": "USD",
+                "price_per_seat_cents": 2000, "seats": {"minimum": 1, "maximum": null},
+                "runtime": {"fixed_units": 0, "units_per_seat": 2400},
+                "per_seat_limits": {"projects.max": 20, "storage.max_bytes": 10000000000u64}},
+            {"id": "enterprise_v2", "name": "Enterprise", "public": true, "purchasable": true,
+                "currency": "USD", "price_per_seat_cents": 4000, "seats": {"minimum": 1, "maximum": null},
+                "runtime": {"fixed_units": 0, "units_per_seat": 2400},
+                "fixed_limits": {"history.retention_days": 365},
+                "per_seat_limits": {"projects.max": 20, "storage.max_bytes": 20000000000u64}}]});
+    let server = Arc::new(Mutex::new(Server::default()));
+    server.lock().unwrap().replies.insert(
+        "/billing/catalog".into(),
+        (0..8).map(|_| Ok(catalog.clone())).collect(),
+    );
+    let mut h = BillingFixture::with_server(server);
+    let quote = |id: &str, seats: u64| {
+        json!({"quote_id": id, "org_id": "o1", "target_plan_id": "enterprise_v2",
+            "target_seats": seats, "currency": "USD", "target_amount_cents": 4000 * seats,
+            "application_mode": "plan_change", "effective": "now",
+            "expires_at": "2099-01-01T00:00:00Z"})
+    };
+    h.enqueue("plan/quote", Ok(quote("q2", 2)));
+    h.enqueue("plan/quote", Ok(quote("q3", 3)));
+    h.f.draw();
+    // Team is held; Enterprise is the way up, Free the way out.
+    assert!(h.f.buttons().contains(&"Upgrade".to_owned()));
+    assert!(h.f.buttons().contains(&"Change people".to_owned()));
+    h.f.cx.update(|w, cx| w.click("plan-choose-enterprise", cx));
+    h.wait(|s| !s.plan_page.controller.acting && s.plan_page.controller.quote.is_some());
+    h.f.draw();
+    // The total replaces the price held; a change of a held plan applies
+    // in place, so it is confirmed without the browser.
+    h.f.contains("Monthly total");
+    h.f.contains("$40 → $80 / month");
+    let buttons = h.f.buttons();
+    assert!(buttons.contains(&"Confirm".to_owned()), "{buttons:?}");
+    assert!(!buttons.contains(&"Confirm and pay".to_owned()));
+    let asked = h.requests("plan/quote");
+    assert_eq!(asked.len(), 1);
+    assert_eq!(
+        asked[0].body,
+        Some(json!({"target_plan_id": "enterprise_v2", "seat_quantity": 2}))
+    );
+
+    h.f.cx.update(|w, cx| w.click("plan-seats-more", cx));
+    h.wait(|s| {
+        !s.plan_page.controller.acting
+            && s.plan_page
+                .controller
+                .quote
+                .as_ref()
+                .is_some_and(|q| q.target_seats == 3)
+    });
+    h.f.draw();
+    h.f.contains("$40 → $120 / month");
+    assert_eq!(h.requests("plan/quote").len(), 2);
+
+    let mut applied = quote("q3", 3);
+    applied["operation"] = json!({"id": "operation-e", "org_id": "o1", "kind": "plan_change",
+        "state": "succeeded", "terminal": true, "target_plan_id": "enterprise_v2",
+        "target_seat_quantity": 3, "quote_id": "q3"});
+    h.enqueue("plan/change", Ok(applied));
+    h.f.cx.update(|w, cx| w.click("plan-confirm-quote", cx));
+    h.wait(|s| !s.plan_page.controller.acting && s.plan_page.controller.target.is_none());
+    let changes = h.requests("plan/change");
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].body, Some(json!({"quote_id": "q3"})));
+    assert!(h.requests("checkout").is_empty());
+    h.f.surface.read_with(&h.f.cx, |s, _| {
+        assert!(s.plan_page.controller.quote.is_none());
+        assert!(s.plan_page.controller.error.is_none());
+    });
+}
+
+/// `Cancel` leaves everything as it was and asks nothing more.
+#[test]
+fn cancelling_a_chosen_plan_closes_its_row_without_another_request() {
+    let mut h = BillingFixture::new();
+    h.f.surface.update(&mut h.f.cx, |s, cx| {
+        s.plan_page.controller.target = Some(Target::Plan(PlanId::Enterprise));
+        s.plan_page.controller.seats = 4;
+        cx.notify();
+    });
+    h.f.draw();
+    h.f.cx.update(|w, cx| w.click("plan-cancel-change", cx));
+    h.f.cx.run_until_parked();
+    h.f.surface.read_with(&h.f.cx, |s, _| {
+        assert!(s.plan_page.controller.target.is_none());
+        assert!(s.plan_page.controller.quote.is_none());
+        // The people go back to what is held.
+        assert_eq!(s.plan_page.controller.seats, 2);
+    });
+    assert!(h.requests("plan/quote").is_empty());
+}

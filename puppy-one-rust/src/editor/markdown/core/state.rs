@@ -384,10 +384,15 @@ impl PreviewState {
     ) {
         self.features
             .map(&applied.changes, &state.doc, state.revision);
-        self.revealed_source = self.revealed_source.as_ref().map(|r| {
-            applied.changes.map(r.start, Assoc::Before)..applied.changes.map(r.end, Assoc::After)
-        });
-        self.settle_revealed(state, false);
+        if applied.event == UserEvent::External {
+            self.revealed_source = None;
+        } else {
+            self.revealed_source = self.revealed_source.as_ref().map(|r| {
+                applied.changes.map(r.start, Assoc::Before)
+                    ..applied.changes.map(r.end, Assoc::After)
+            });
+            self.settle_revealed(state, false);
+        }
         let map = |r: &Range<usize>| {
             applied.changes.map(r.start, Assoc::Before)..applied.changes.map(r.end, Assoc::After)
         };

@@ -223,6 +223,9 @@ pub fn set_current(code: &str) {
 /// exact tag, script (`zh-Hans`), region-less language, else English.
 pub fn resolve_system(languages: &[String]) -> &'static str {
     let choices: Vec<&'static str> = Locale::choices().map(|(id, _)| id).collect();
+    resolve_among(&choices, languages)
+}
+fn resolve_among<'a>(choices: &[&'a str], languages: &[String]) -> &'a str {
     for tag in languages {
         let tag = tag.replace('_', "-");
         if let Some(found) = choices.iter().find(|c| c.eq_ignore_ascii_case(&tag)) {
@@ -248,6 +251,16 @@ pub fn resolve_system(languages: &[String]) -> &'static str {
         }
     }
     "en"
+}
+/// The manifest's `productionReady` locales: a locale whose release flag
+/// is off is neither offered nor chosen for the system.
+fn ready(manifest: &Value) -> impl Iterator<Item = (&str, &str)> {
+    manifest["locales"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|v| v["productionReady"].as_bool() == Some(true))
+        .map(|v| (v["locale"].as_str().unwrap(), v["label"].as_str().unwrap()))
 }
 /// Catalog id the OS language resolves to.
 pub fn system_locale() -> &'static str {
@@ -497,11 +510,7 @@ impl Default for Locale {
 }
 impl Locale {
     pub fn choices() -> impl Iterator<Item = (&'static str, &'static str)> {
-        data()["locales"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| (v["locale"].as_str().unwrap(), v["label"].as_str().unwrap()))
+        ready(data())
     }
     pub fn set(&mut self, code: &str) -> bool {
         if Self::choices().any(|(id, _)| id == code) && self.code != code {
@@ -770,31 +779,30 @@ pub fn relative_now() -> &'static str {
         _ => "now",
     }
 }
-/// `Intl.ListFormat(locale, { type: "conjunction" })` of one or two items
-/// ("3 files and 2 searches", "3 个文件和 2 次搜索").
+/// `Intl.ListFormat(locale, { type: "conjunction" })` ("3 files and 2
+/// searches", "A, B, and C", "A、B和C").
 pub fn and_list(items: &[String]) -> String {
     let code = CURRENT.with(|c| c.borrow().clone());
+    and_list_in(&code, items)
+}
+fn and_list_in(code: &str, items: &[String]) -> String {
+    // CLDR's standard list patterns: the separator between the items, the
+    // one before the last of three or more, and the one between two.
+    let (between, last, pair) = match code {
+        "zh-Hans" => ("、", "和", "和"),
+        "ja" => ("、", "、", "、"),
+        "ko" => (", ", " 및 ", " 및 "),
+        "de" => (", ", " und ", " und "),
+        "fr" => (", ", " et ", " et "),
+        "es" => (", ", " y ", " y "),
+        "pt-BR" => (", ", " e ", " e "),
+        _ => (", ", ", and ", " and "),
+    };
     match items {
         [] => String::new(),
         [one] => one.clone(),
-        [a, b] => {
-            let and = match code.as_str() {
-                "zh-Hans" => "和",
-                "ja" => "、",
-                "ko" => " 및 ",
-                "de" => " und ",
-                "fr" => " et ",
-                "es" => " y ",
-                "pt-BR" => " e ",
-                _ => " and ",
-            };
-            format!("{a}{and}{b}")
-        }
-        [rest @ .., last] => format!(
-            "{}, {}",
-            rest.join(", "),
-            and_list(&[String::new(), last.clone()]).trim_start()
-        ),
+        [a, b] => format!("{a}{pair}{b}"),
+        [rest @ .., end] => format!("{}{last}{end}", rest.join(between)),
     }
 }
 /// `Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(n, "day")`
@@ -909,6 +917,28 @@ mod tests {
             "23 de out. de 2024"
         );
     }
+    /// `formatList`: Intl's conjunction, however many there are.
+    #[test]
+    fn lists_join_as_intl_list_format_does() {
+        let names = |n: usize| {
+            ["A", "B", "C", "D"][..n]
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(super::and_list_in("en", &names(0)), "");
+        assert_eq!(super::and_list_in("en", &names(1)), "A");
+        assert_eq!(super::and_list_in("en", &names(2)), "A and B");
+        assert_eq!(super::and_list_in("en", &names(4)), "A, B, C, and D");
+        assert_eq!(super::and_list_in("zh-Hans", &names(2)), "A和B");
+        assert_eq!(super::and_list_in("zh-Hans", &names(3)), "A、B和C");
+        assert_eq!(super::and_list_in("ja", &names(3)), "A、B、C");
+        assert_eq!(super::and_list_in("ko", &names(3)), "A, B 및 C");
+        assert_eq!(super::and_list_in("de", &names(3)), "A, B und C");
+        assert_eq!(super::and_list_in("fr", &names(3)), "A, B et C");
+        assert_eq!(super::and_list_in("es", &names(2)), "A y B");
+        assert_eq!(super::and_list_in("pt-BR", &names(3)), "A, B e C");
+    }
     #[test]
     fn relative_past_follows_intl_relative_time_format() {
         use super::{TimeUnit::*, relative_past_in};
@@ -920,6 +950,161 @@ mod tests {
         assert_eq!(relative_past_in("ja", 5, Day), "5 日前");
     }
     use super::*;
+
+    /// `settingsVisualArchitecture`: every product locale carries the core
+    /// Settings, Typography, Privacy, Local Agents, Agent file activity,
+    /// Language and Local Project copy, and none the retired sidebar entries.
+    #[test]
+    fn core_settings_copy_is_complete_in_every_product_locale() {
+        let mut present: Vec<String> = [
+            "sidebar.localProject",
+            "sidebar.privacy",
+            "sidebar.projectInfo",
+            "sidebar.localAgents",
+            "sidebar.agents",
+            "sidebar.createNew",
+            "sidebar.typography",
+            "general.title",
+            "general.detail",
+            "localAgents.title",
+            "localAgents.detail",
+            "localAgents.activeChat.title",
+            "localAgents.toggle",
+            "localAgents.history.title",
+            "localAgents.history.detail",
+            "localAgents.history.toggle",
+            "localAgentHooks.title",
+            "localAgentHooks.manage",
+            "localAgentHooks.choose",
+            "localAgentHooks.status.installed",
+            "appearance.agentFileActivity.title",
+        ]
+        .map(String::from)
+        .into();
+        let groups: [(&str, &[&str]); 5] = [
+            (
+                "typography",
+                &[
+                    "title",
+                    "detail",
+                    "textSize.title",
+                    "textSize.ariaLabel",
+                    "textSize.scale.small",
+                    "textSize.scale.medium",
+                    "textSize.scale.large",
+                    "textSize.useScale",
+                    "preview.ariaLabel",
+                    "preview.leftSidebar",
+                    "preview.editor",
+                    "preview.rightSidebar",
+                    "preview.chat",
+                    "preview.message",
+                ],
+            ),
+            (
+                "privacy",
+                &[
+                    "title",
+                    "detail",
+                    "productAnalyze.title",
+                    "productAnalyze.detail",
+                    "productAnalyze.error",
+                    "productAnalyze.learnMore",
+                ],
+            ),
+            (
+                "appearance.agentFileActivity.permission",
+                &[
+                    "title",
+                    "detail",
+                    "accessTitle",
+                    "accessDetail",
+                    "localOnly",
+                    "enable",
+                    "enabling",
+                    "error",
+                ],
+            ),
+            (
+                "language",
+                &["selectorLabel", "system", "changing", "changeFailed"],
+            ),
+            (
+                "localProject",
+                &[
+                    "title",
+                    "detail",
+                    "name",
+                    "path",
+                    "mode",
+                    "modeLocal",
+                    "status",
+                    "protected",
+                    "recentWorkspace",
+                    "unlink.title",
+                    "unlink.action",
+                    "unlink.progress",
+                    "unlink.confirm",
+                ],
+            ),
+        ];
+        for (group, keys) in groups {
+            present.extend(keys.iter().map(|key| format!("{group}.{key}")));
+        }
+        let retired = [
+            "sidebar.language",
+            "sidebar.editor",
+            "sidebar.defaultApps",
+            "sidebar.localAgentHooks",
+        ];
+        let catalogs = data()["catalogs"].as_object().unwrap();
+        assert_eq!(catalogs.len(), 8);
+        for (locale, catalog) in catalogs {
+            for key in &present {
+                assert!(
+                    catalog[format!("settings.{key}")]
+                        .as_str()
+                        .is_some_and(|text| !text.is_empty()),
+                    "{locale}: settings.{key}"
+                );
+            }
+            for key in retired {
+                assert!(
+                    catalog[format!("settings.{key}")].is_null(),
+                    "{locale}: settings.{key}"
+                );
+            }
+        }
+    }
+    /// `DesktopLocaleService`: the system's first supported language is
+    /// chosen (regional tags fall back to their language), the OS is
+    /// followed only while the preference is System, an unsupported
+    /// preference is not kept, and a locale whose release flag is off is
+    /// neither offered nor resolved for the system.
+    #[test]
+    fn the_system_language_is_followed_only_while_the_preference_is_system() {
+        let langs = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(resolve_system(&langs(&["fr-CA", "en-US"])), "fr");
+        assert_eq!(
+            resolve_preference("system", &langs(&["zh-TW", "es-MX"])),
+            "es"
+        );
+        assert_eq!(resolve_preference("system", &langs(&["ja-JP"])), "ja");
+        assert_eq!(resolve_preference("ko", &langs(&["fr-FR"])), "ko");
+        assert_eq!(resolve_preference("it", &langs(&["de-DE"])), "de");
+        let fr = Locale { code: "fr".into() };
+        assert_eq!(fr.text("native.dock.newWindow"), "Nouvelle fenêtre");
+        assert_eq!(fr.text("native.menu.file"), "Fichier");
+        let mut manifest = data().clone();
+        for entry in manifest["locales"].as_array_mut().unwrap() {
+            if entry["locale"] == "es" {
+                entry["productionReady"] = false.into();
+            }
+        }
+        let choices: Vec<&str> = ready(&manifest).map(|(id, _)| id).collect();
+        assert!(!choices.contains(&"es") && choices.contains(&"fr"));
+        assert_eq!(resolve_among(&choices, &langs(&["es-MX", "en-US"])), "en");
+    }
     #[test]
     fn languages_come_from_product_and_invalid_updates_keep_previous_state() {
         let mut locale = Locale { code: "en".into() };
@@ -1120,6 +1305,39 @@ mod tests {
                 let value = locale.text(key);
                 assert_ne!(value, key, "{code} lacks {key}");
                 assert!(!value.trim().is_empty(), "{code} has empty {key}");
+            }
+        }
+    }
+    /// `cloudOpeningFailureClassification`: every message the opening table
+    /// names, and the diagnostic copy, exists in every product locale.
+    #[test]
+    fn cloud_opening_failure_copy_exists_in_every_product_locale() {
+        let keys = [
+            "message.workspace-start-timeout",
+            "message.workspace-preparing",
+            "message.workspace-connection-unavailable",
+            "message.workspace-open-failed",
+            "message.workspace-changed",
+            "message.workspace-disk-lost",
+            "message.workspace-recovery-required",
+            "message.workspace-plan-required",
+            "message.workspace-access-denied",
+            "message.project-unavailable",
+            "message.workspace-not-configured",
+            "opening.failedTitle",
+            "opening.diagnosticCode",
+            "opening.diagnosticRequest",
+            "opening.copyDiagnostic",
+            "opening.diagnosticCopied",
+        ];
+        let catalogs = data()["catalogs"].as_object().unwrap();
+        assert_eq!(catalogs.len(), 8);
+        for (locale, catalog) in catalogs {
+            for key in keys {
+                assert!(
+                    catalog[format!("cloud.{key}")].is_string(),
+                    "{locale}: cloud.{key}"
+                );
             }
         }
     }

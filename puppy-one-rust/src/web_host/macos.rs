@@ -365,3 +365,11 @@ mod whiteboard_probe;
 pub(super) fn run_whiteboard_probe(root: &std::path::Path) {
     whiteboard_probe::run(root);
 }
+
+#[cfg(feature = "dev-capture")]
+#[path = "macos_document_pages_probe.rs"]
+mod document_pages_probe;
+#[cfg(feature = "dev-capture")]
+pub(super) fn run_document_pages_probe() {
+    document_pages_probe::run();
+}

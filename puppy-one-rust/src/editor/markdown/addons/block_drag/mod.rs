@@ -167,6 +167,25 @@ fn compute_edge_scroll_delta(pointer_y: f32, bounds_top: f32, bounds_bottom: f32
     }
 }
 
+/// Binary-search the drop boundary across `count` vertically ordered blocks,
+/// splitting each block at its midpoint (`(top + bottom) / 2`).
+fn pick_drop_boundary(
+    count: usize,
+    pointer_y: f32,
+    mut bounds: impl FnMut(usize) -> Option<(f32, f32)>,
+) -> usize {
+    let mut lo = 0usize;
+    let mut hi = count;
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        match bounds(mid) {
+            Some((top, bottom)) if pointer_y < (top + bottom) / 2. => hi = mid,
+            _ => lo = mid + 1,
+        }
+    }
+    lo
+}
+
 impl ViewPlugin for BlockDragAddon {
     fn as_any(&self) -> &dyn Any {
         self
@@ -264,19 +283,14 @@ impl ViewPlugin for BlockDragAddon {
                 ctx.scroll_by(scroll_dy);
             }
 
-            let mut boundary = block.group.len();
-            for (i, range) in block.group.iter().enumerate() {
-                let (Some(top), Some(bottom)) = (
-                    block_top(layout, &ctx.state.doc, range),
-                    block_bottom(layout, &ctx.state.doc, range),
-                ) else {
-                    continue;
-                };
-                if event.position.y < (top + bottom) / 2. {
-                    boundary = i;
-                    break;
-                }
-            }
+            let pointer_y = f32::from(event.position.y);
+            let boundary = pick_drop_boundary(block.group.len(), pointer_y, |i| {
+                let range = &block.group[i];
+                Some((
+                    f32::from(block_top(layout, &ctx.state.doc, range)?),
+                    f32::from(block_bottom(layout, &ctx.state.doc, range)?),
+                ))
+            });
             let next_boundary = Some(boundary).filter(|&b| !block_move::is_noop(block.index, b));
             if next_boundary != prev_boundary {
                 self.dragging = Some((block, next_boundary));
@@ -522,5 +536,53 @@ mod tests {
         assert!(compute_edge_scroll_delta(8., 0., 400.) < 0.);
         assert_eq!(compute_edge_scroll_delta(200., 0., 400.), 0.);
         assert!(compute_edge_scroll_delta(392., 0., 400.) > 0.);
+    }
+
+    #[test]
+    fn block_drag_geometry_splits_midpoints_clamps_binary_searches_and_edge_scrolls() {
+        let blocks = [(0., 100.), (120., 140.), (160., 400.)];
+        let pick = |y: f32| pick_drop_boundary(blocks.len(), y, |i| Some(blocks[i]));
+        // Splits each block at its midpoint.
+        assert_eq!(pick(49.), 0);
+        assert_eq!(pick(50.), 1);
+        assert_eq!(pick(129.), 1);
+        assert_eq!(pick(130.), 2);
+        assert_eq!(pick(279.), 2);
+        assert_eq!(pick(280.), 3);
+        // Clamps outside the group.
+        assert_eq!(pick(-500.), 0);
+        assert_eq!(pick(9000.), 3);
+        // Reads only logarithmically many blocks for 100,000 blocks.
+        let mut reads = 0usize;
+        let boundary = pick_drop_boundary(100_000, 5_000_000., |i| {
+            reads += 1;
+            let top = (i as f32) * 100.;
+            Some((top, top + 50.))
+        });
+        assert_eq!(boundary, 50_000);
+        assert!(reads <= 18, "reads={reads}");
+        // Edge scroll rests outside zones, ramps inside zones, and caps past edges.
+        assert_eq!(compute_edge_scroll_delta(300., 0., 600.), 0.);
+        assert_eq!(compute_edge_scroll_delta(EDGE_SCROLL_ZONE, 0., 600.), 0.);
+        assert_eq!(
+            compute_edge_scroll_delta(600. - EDGE_SCROLL_ZONE, 0., 600.),
+            0.
+        );
+        assert_eq!(
+            compute_edge_scroll_delta(EDGE_SCROLL_ZONE / 2., 0., 600.),
+            -EDGE_SCROLL_MAX_STEP / 2.
+        );
+        assert_eq!(
+            compute_edge_scroll_delta(600. - EDGE_SCROLL_ZONE / 2., 0., 600.),
+            EDGE_SCROLL_MAX_STEP / 2.
+        );
+        assert_eq!(
+            compute_edge_scroll_delta(-200., 0., 600.),
+            -EDGE_SCROLL_MAX_STEP
+        );
+        assert_eq!(
+            compute_edge_scroll_delta(900., 0., 600.),
+            EDGE_SCROLL_MAX_STEP
+        );
     }
 }

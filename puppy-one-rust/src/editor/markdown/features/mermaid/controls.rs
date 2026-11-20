@@ -39,6 +39,7 @@ pub(super) fn zoom_controls(
         let send = send.clone();
         div()
             .id(cx.id(id))
+            .debug_selector(move || format!("md-{id}"))
             .h(px(22.))
             .min_w(px(26.))
             .px(px(6.))
@@ -56,6 +57,7 @@ pub(super) fn zoom_controls(
             .when(enabled, |d| {
                 d.cursor(theme::clickable_cursor())
                     .hover(|d| d.bg(app.control_hover).text_color(app.text))
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .on_click(move |_, window, cx| {
                         cx.stop_propagation();
                         let percent = (target.clamp(MIN_SCALE, MAX_SCALE) * 100.).round() as u16;
@@ -79,6 +81,7 @@ pub(super) fn zoom_controls(
         ))
         .child(
             div()
+                .debug_selector(move || format!("md-mermaid-zoom:{percent}%"))
                 .min_w(px(42.))
                 .px(px(5.))
                 .text_size(px(ty.micro))
@@ -123,6 +126,14 @@ pub(super) fn edit_button(
     };
     div()
         .id(cx.id("mermaid-edit"))
+        .debug_selector(move || {
+            if editing {
+                "md-mermaid-done"
+            } else {
+                "md-mermaid-edit"
+            }
+            .into()
+        })
         .h(px(24.))
         .px(px(9.))
         .rounded(px(5.))
@@ -135,6 +146,7 @@ pub(super) fn edit_button(
         .text_color(app.muted)
         .cursor(theme::clickable_cursor())
         .hover(|d| d.bg(app.control_hover).text_color(app.text))
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(move |_, window, cx| {
             cx.stop_propagation();
             send(Command::new(ID, action), window, cx);
@@ -170,6 +182,7 @@ pub(super) fn deferred_offer(
                 .line_height(px(22.))
                 .cursor(theme::clickable_cursor())
                 .hover(|d| d.bg(app.control_hover).text_color(app.text))
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .on_click(move |_, window, cx| {
                     cx.stop_propagation();
                     send(Command::new(ID, Action::Activate { at }), window, cx);

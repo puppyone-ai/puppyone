@@ -44,6 +44,8 @@ libc = "0.2"
 
 [dev-dependencies]
 po-platform = { path = "../po-platform", features = ["test-support"] }
+# Paused clocks for the host protocol's timeouts.
+tokio = { version = "1", features = ["test-util"] }
 
 [features]
 dev-capture = ["po-platform/dev-capture"]

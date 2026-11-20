@@ -442,6 +442,55 @@ mod tests {
         change(|p| p.sidebar_collapsed = false, cx);
         owner.read_with(cx, |o, _| assert_eq!(o.heard, vec![true, false]));
     }
+    /// `locale preference persistence`: an unreadable preferences file
+    /// loads the defaults (the language follows the system) and says so.
+    #[gpui::test]
+    fn a_malformed_preferences_file_loads_the_defaults_and_reports_it(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("preferences.json"), "{broken").unwrap();
+        let store = cx.new(|cx| PreferencesStore::isolated(dir.path().to_path_buf(), cx));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !store.read_with(cx, |s, _| s.loaded) {
+            assert!(std::time::Instant::now() < deadline, "preferences load");
+            cx.run_until_parked();
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        store.read_with(cx, |s, _| {
+            assert_eq!(s.state, Preferences::default());
+            assert_eq!(s.state.locale, "system");
+            assert!(s.error.is_some());
+        });
+        // The unreadable file is kept aside, and a later save cannot
+        // destroy it.
+        let kept = || {
+            std::fs::read_dir(dir.path())
+                .unwrap()
+                .map(|e| e.unwrap().path())
+                .filter(|p| {
+                    p.file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .starts_with("preferences.json.corrupt.")
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(kept().len(), 1);
+        store.update(cx, |s, cx| s.change(|p| p.locale = "ja".into(), cx));
+        let saved = store.update(cx, |s, cx| s.flush(cx));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !store.read_with(cx, |s, _| s.drained()) {
+            assert!(std::time::Instant::now() < deadline, "preferences save");
+            cx.run_until_parked();
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        drop(saved);
+        assert_eq!(std::fs::read_to_string(&kept()[0]).unwrap(), "{broken");
+        let written: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join("preferences.json")).unwrap())
+                .unwrap();
+        assert_eq!(written["locale"], "ja");
+    }
     #[test]
     fn preferences_roundtrip_preserves_menu_placement_and_defaults_new_fields() {
         let mut p: Preferences =

@@ -37,7 +37,24 @@ fn installed_themes_resolve_per_mode_and_paint() {
             vec![Target::Application],
         ),
         theme("default.warm", vec![Mode::Light], vec![Target::Csv]),
+        Theme {
+            compatible_root_theme_ids: vec!["windows-xp".into()],
+            ..theme(
+                "external.xp-only",
+                vec![Mode::Light, Mode::Dark],
+                vec![Target::Application, Target::Markdown, Target::Csv],
+            )
+        },
     ]);
+    // A Sub Theme for another root theme falls back to Neutral.
+    assert_eq!(
+        catalog.effective("external.xp-only", false),
+        "default.neutral"
+    );
+    assert_eq!(
+        catalog.effective("external.xp-only", true),
+        "default.neutral"
+    );
     assert_eq!(
         catalog.effective("local.user.both", true),
         "local.user.both"

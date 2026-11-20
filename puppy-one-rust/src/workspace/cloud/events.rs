@@ -1,14 +1,17 @@
-//! One bounded change stream per admitted provider, shared by document and tree
-//! subscriptions. No file polling, cursor journal, wake POST or mutation replay.
+//! One change stream per admitted provider, shared by document and tree
+//! subscriptions. No file polling, cursor journal, wake POST or mutation replay:
+//! a passing fault reconnects for as long as anyone watches, and a sleeping
+//! Workspace is waited for, never woken.
 use super::{
     client::{Shared, map_error},
     model,
 };
 use crate::{
-    cloud::auth::{self as auth, Cancellation, StreamEvent},
+    cloud::auth::{self as auth, Cancellation, ServiceCode, StreamEvent},
     workspace::{contracts::*, ports::*},
 };
 use reqwest::Method;
+use serde_json::json;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex, Weak},
@@ -154,6 +157,24 @@ fn subscribable(value: &str) -> bool {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
+/// Reconnecting after a passing fault: quickly at first, then every 30 seconds
+/// for as long as anyone watches.
+const RECONNECT_DELAYS: [Duration; 5] = [
+    Duration::from_millis(250),
+    Duration::from_secs(1),
+    Duration::from_secs(3),
+    Duration::from_secs(10),
+    Duration::from_secs(30),
+];
+/// How often a sleeping Workspace is looked at again.
+const ASLEEP_RETRY: Duration = Duration::from_secs(30);
+/// Sleeps `delay`, or less once `stop` is cancelled.
+fn wait(stop: &Cancellation, delay: Duration) {
+    let until = Instant::now() + delay;
+    while Instant::now() < until && stop.check().is_ok() {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
 fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation) {
     if !subscribable(&shared.runtime.project_id) || !subscribable(&shared.runtime.generation) {
         if let Some(hub) = hub.upgrade() {
@@ -173,12 +194,14 @@ fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation
             break model::stale();
         }
         let mut parser = Parser::default();
+        let mut connected = false;
         let result = shared
             .broker
             .stream(&shared.binding, &request, &stop, &mut |event| {
                 shared.check().map_err(|_| auth::Error::SessionChanged)?;
                 match event {
                     StreamEvent::Connected => {
+                        connected = true;
                         parser = Parser::default();
                         if let Some(hub) = hub.upgrade() {
                             hub.publish(run, WatchEvent::Invalidated);
@@ -201,23 +224,38 @@ fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation
         if stop.check().is_err() || shared.check().is_err() {
             break model::stale();
         }
-        let delay = [250, 1000, 3000].get(attempts).copied();
+        // A stream that was up starts its backoff over: the hosting edge ends
+        // every response after 15 minutes, which is no failure at all.
+        if connected {
+            attempts = 0;
+        }
+        // Asleep: whoever uses the Workspace next wakes it; the stream only
+        // waits for that, so watching alone never keeps a machine running.
+        if matches!(failure, auth::Error::Service(_, ServiceCode::NotRunning)) {
+            shared.invalidate();
+            wait(&stop, ASLEEP_RETRY);
+            continue;
+        }
         // Transport loss, server errors and 429 reconnect; any other 4xx is
         // a decision (`status >= 400 && status < 500 && status !== 429`).
         let transient = matches!(failure, auth::Error::Unavailable | auth::Error::Timeout)
             || matches!(failure, auth::Error::Response(status, _, _) | auth::Error::Http(status) if status >= 500 || status == 429);
-        if !transient || delay.is_none() {
+        if !transient {
             break map_error(failure);
         }
         // `reconnecting`: what was read may have missed a change, so the
         // caches go; watchers hear nothing until the stream is back
-        // (`Connected` revalidates them) or gives up (`finish`).
+        // (`Connected` revalidates them). A passing fault never ends it.
         shared.invalidate();
+        let delay = RECONNECT_DELAYS[attempts.min(RECONNECT_DELAYS.len() - 1)];
         attempts += 1;
-        let until = Instant::now() + Duration::from_millis(delay.unwrap());
-        while Instant::now() < until && stop.check().is_ok() {
-            std::thread::sleep(Duration::from_millis(10));
+        if attempts == RECONNECT_DELAYS.len() {
+            crate::platform::diagnostics::warn(
+                "[cloud-recovery] change stream still reconnecting",
+                json!({ "failure": failure.to_string() }),
+            );
         }
+        wait(&stop, delay);
     };
     if let Some(hub) = hub.upgrade() {
         hub.finish(run, error);
@@ -390,6 +428,34 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// `cloudWorkspaceEvents.test.mjs`: "decodes split UTF-8 frames and
+    /// heartbeats without requiring Agent cursors", with its chunks verbatim.
+    #[test]
+    fn heartbeats_and_split_frames_decode_without_event_ids() {
+        let mut parser = Parser::default();
+        let mut events = Vec::new();
+        for chunk in [
+            ": keepalive\r\n\r\nevent: cha",
+            "nge\ndata: {\"generation\":\"one\",\"reset\":true}\n\n",
+        ] {
+            parser
+                .feed(chunk.as_bytes(), "one", &mut |p| events.push(p))
+                .unwrap();
+        }
+        assert_eq!(events, vec![None]);
+        // An `unavailable` the server does not call retryable is a decision
+        // that ends the subscription, not an interruption to reconnect from.
+        assert_eq!(
+            parser.feed(
+                b": keepalive\n\nevent: unavailable\ndata: {}\n\n",
+                "one",
+                &mut |p| events.push(p)
+            ),
+            Err(auth::Error::Http(409))
+        );
+        assert_eq!(events, vec![None]);
     }
 
     #[test]

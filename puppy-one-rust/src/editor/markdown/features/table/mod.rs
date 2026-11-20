@@ -3,14 +3,26 @@
 //! Markdown; pipes and the delimiter row are not caret positions) and the
 //! table widget.
 mod commands;
+#[cfg(test)]
+pub(crate) mod controls;
+#[cfg(not(test))]
 mod controls;
+#[cfg(test)]
+pub(crate) mod interaction;
+#[cfg(not(test))]
 mod interaction;
+#[cfg(test)]
+pub(crate) mod layout;
+#[cfg(not(test))]
 mod layout;
 pub mod model;
 mod operation;
 pub mod style;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+pub(crate) mod widget;
+#[cfg(not(test))]
 mod widget;
 
 use crate::editor::{

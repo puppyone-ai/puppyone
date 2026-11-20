@@ -21,6 +21,12 @@ pub use drops::StateMut;
 #[cfg(test)]
 mod tests;
 pub type SlotId = u64;
+/// A hosted Project root in the Cloud (not a local folder, nor another
+/// computer's): its lease can end and be renewed by reopening it.
+fn in_cloud(ws: &crate::workspace::Workspace) -> bool {
+    ws.resource_id(std::path::Path::new(""))
+        .is_ok_and(|id| id.storage.as_str().starts_with("puppyone-cloud://"))
+}
 struct Slot {
     key: String,
     files: Documents,
@@ -74,6 +80,14 @@ pub struct Runtime {
     /// `ProjectNavigationFailure`: a local Project that could not open.
     pub root_failure: Option<(PathBuf, String)>,
     last_cloud_failure: Option<crate::workspace::cloud::opening::Failure>,
+    /// A quiet reopen of the hosted Project shown, whose lease the service
+    /// ended ([`Runtime::recover_cloud`]): prepared out of sight.
+    recovering: Option<Documents>,
+    /// How the last quiet reopen ended (`Err` says why), taken once.
+    recovery: Option<Result<(), String>>,
+    /// A file asked for while the hosted Project shown was reconnecting, or
+    /// refused because its lease ended: it opens once the Project is back.
+    reopen_file: Option<PathBuf>,
     /// A host was activated: subscribe its hosted documents on next poll.
     resume_cloud: bool,
     serial: u64,
@@ -108,6 +122,8 @@ pub struct Runtime {
     host_mru: Vec<String>,
     /// Slots currently in active IME composition reported by `EditorArea` (`WB-01`).
     composing_slots: std::collections::BTreeSet<SlotId>,
+    /// Slots whose undo history lives only in their page, reported by `EditorArea` (`WB-01`).
+    page_history_slots: std::collections::BTreeSet<SlotId>,
     /// Saved `SurfaceViewState`s queued to restore when `EditorArea` opens/rehydrates a slot (`WB-10`).
     pending_view_restores: BTreeMap<SlotId, super::view_state::SurfaceViewState>,
     /// Mapping of recently hibernated `SlotId -> (workspace_key, resource_key)` so `EditorArea::sync`
@@ -351,6 +367,78 @@ impl Runtime {
         if let Some(mut previous) = self.preparing.take() {
             previous.cancel_cloud();
         }
+        if let Some(mut recovering) = self.recovering.take() {
+            recovering.cancel_cloud();
+        }
+    }
+    /// The service ended the lease of the hosted Project shown (it was
+    /// replaced or retired while open): nothing it holds reads or saves
+    /// until it is reopened.
+    pub fn lease_lost(&self) -> bool {
+        self.active
+            .as_ref()
+            .and_then(|key| self.hosts.get(key))
+            .and_then(|host| host.empty.workspace.as_deref())
+            .is_some_and(|ws| in_cloud(ws) && ws.lost())
+    }
+    /// A quiet reopen is on its way.
+    pub fn recovering(&self) -> bool {
+        self.recovering.is_some()
+    }
+    /// How the last quiet reopen ended, once.
+    pub fn take_recovery(&mut self) -> Option<Result<(), String>> {
+        self.recovery.take()
+    }
+    /// Reopens the hosted Project shown under a new lease without an opening
+    /// on screen: its retained documents are rebound and keep their drafts
+    /// (`DP-01`). An opening the person started is never replaced; one they
+    /// start replaces this.
+    pub fn recover_cloud(
+        &mut self,
+        broker: std::sync::Arc<crate::cloud::auth::Broker>,
+        binding: crate::cloud::auth::model::Binding,
+        project: String,
+        wake: &Wake,
+    ) {
+        if self.quitting || self.preparing.is_some() || self.recovering.is_some() {
+            return;
+        }
+        let mut recovering = Documents::default();
+        recovering.open_cloud(broker, binding, project, wake);
+        self.recovering = Some(recovering);
+    }
+    /// The same storage opened again under a new lease (the same account's
+    /// Project root): its retained Working Copies are rebound, never
+    /// replaced, and keep their drafts. `false` when no host retains it.
+    fn rebind_host(
+        &mut self,
+        key: &str,
+        ws: &std::sync::Arc<crate::workspace::Workspace>,
+        rows: &[Node],
+        wake: &Wake,
+    ) -> bool {
+        let Some(host) = self.hosts.get_mut(key) else {
+            return false;
+        };
+        if host
+            .empty
+            .workspace
+            .as_ref()
+            .is_none_or(|current| !std::sync::Arc::ptr_eq(current, ws))
+        {
+            if let Some(previous) = host.empty.workspace.take() {
+                previous.revoke();
+            }
+            let mut empty =
+                Documents::in_workspace_with_journal(ws.clone(), self.draft_journal.clone());
+            empty.task_scope = self.scratch.task_scope.clone();
+            host.empty = empty;
+            host.rows = rows.to_vec();
+            for slot in host.slots.values_mut() {
+                slot.files.rebind_workspace(ws.clone(), wake);
+            }
+        }
+        true
     }
     /// The visible phase of a Cloud opening in progress.
     pub fn cloud_opening(&self) -> Option<crate::workspace::cloud::opening::Phase> {
@@ -456,6 +544,11 @@ impl Runtime {
                     self.scratch.begin(Intent::OpenFile(path), wake);
                     return;
                 }
+                if self.lease_lost() || self.recovering.is_some() {
+                    self.reopen_file = Some(path);
+                    wake.notify();
+                    return;
+                }
                 let key = match ws.resource_id(&path) {
                     Ok(id) if !id.path.is_root() => resource_key(&id),
                     _ => return,
@@ -468,7 +561,7 @@ impl Runtime {
                 }
                 let host = self.hosts.get_mut(self.active.as_ref().unwrap()).unwrap();
                 host.interact();
-                host.hibernated.remove(&key);
+                let hibernated = host.hibernated.remove(&key);
                 if let Some(slot) = host.slots.values_mut().find(|s| s.key == key) {
                     slot.opening = self.navigation;
                     slot.restoring = false;
@@ -481,6 +574,9 @@ impl Runtime {
                     Documents::in_workspace_with_journal(ws, self.draft_journal.clone());
                 files.task_scope = self.scratch.task_scope.clone();
                 files.file_window = self.file_window;
+                if let Some(hibernated) = hibernated {
+                    files.inherit_document_models(hibernated.models);
+                }
                 files.begin(Intent::OpenFile(path), wake);
                 host.slots.insert(
                     self.serial,
@@ -554,6 +650,18 @@ impl Runtime {
         self.navigation += 1;
         if let Some(mut state) = self.state_mut() {
             state.focus(pane);
+        }
+        self.generation += 1;
+    }
+    /// Closing a pane is a navigation: a document still loading into it
+    /// stays open as a tab but no longer takes a pane when its read lands.
+    pub fn close_pane(&mut self, pane: &str) {
+        if self.quitting {
+            return;
+        }
+        self.navigation += 1;
+        if let Some(mut state) = self.state_mut() {
+            state.close_pane(pane);
         }
         self.generation += 1;
     }
@@ -693,10 +801,11 @@ impl Runtime {
     /// changes that could not be saved left unsaved (after persisting any
     /// unflushable drafts to the local recovery journal, `DP-10`).
     pub fn abandon_unsaved(&mut self) {
-        self.scratch.flush_unflushable_draft();
+        self.scratch.abandon_unsaved();
         for host in self.hosts.values_mut() {
+            host.empty.abandon_unsaved();
             for slot in host.slots.values_mut() {
-                slot.files.flush_unflushable_draft();
+                slot.files.abandon_unsaved();
             }
         }
         self.close_refused = false;
@@ -705,8 +814,10 @@ impl Runtime {
         self.allow_quit = true;
     }
     pub fn cancel_quit(&mut self, wake: &Wake) {
+        if self.abandoned {
+            return;
+        }
         self.quitting = false;
-        self.abandoned = false;
         self.allow_quit = false;
         for id in self.retained_slots() {
             if let Some(files) = self.slot_mut(id) {
@@ -715,6 +826,11 @@ impl Runtime {
         }
     }
     pub fn poll(&mut self, wake: &Wake) {
+        if self.abandoned {
+            self.poll_metadata(wake);
+            self.persist_metadata(wake, true);
+            return;
+        }
         if std::mem::take(&mut self.resume_cloud) {
             self.resume_visible_cloud(wake);
         }
@@ -745,31 +861,7 @@ impl Runtime {
             } else if let Some(rows) = preparing.tree_update.take() {
                 let ws = preparing.workspace.clone().unwrap();
                 let key = resource_key(&ws.resource_id(std::path::Path::new("")).unwrap());
-                // The same storage reopened under a new lease (the same
-                // account's Project root): its retained Working Copies are
-                // rebound, never replaced, and keep their drafts.
-                if let Some(host) = self.hosts.get_mut(&key)
-                    && host
-                        .empty
-                        .workspace
-                        .as_ref()
-                        .is_none_or(|current| !std::sync::Arc::ptr_eq(current, &ws))
-                {
-                    if let Some(previous) = host.empty.workspace.take() {
-                        previous.revoke();
-                    }
-                    let mut empty = Documents::in_workspace_with_journal(
-                        ws.clone(),
-                        self.draft_journal.clone(),
-                    );
-                    empty.task_scope = self.scratch.task_scope.clone();
-                    host.empty = empty;
-                    host.rows = rows.clone();
-                    for slot in host.slots.values_mut() {
-                        slot.files.rebind_workspace(ws.clone(), wake);
-                    }
-                }
-                if !self.hosts.contains_key(&key) {
+                if !self.rebind_host(&key, &ws, &rows, wake) {
                     let mut empty =
                         Documents::in_workspace_with_journal(ws, self.draft_journal.clone());
                     empty.task_scope = self.scratch.task_scope.clone();
@@ -802,6 +894,29 @@ impl Runtime {
                 self.activate_workspace(key);
             }
         }
+        if let Some(recovering) = &mut self.recovering {
+            recovering.poll(wake);
+            if let Some(error) = recovering.error.take() {
+                self.recovering = None;
+                self.reopen_file = None;
+                self.recovery = Some(Err(error));
+            } else if let Some(rows) = recovering.tree_update.take() {
+                let ws = recovering.workspace.clone().unwrap();
+                self.recovering = None;
+                let key = resource_key(&ws.resource_id(std::path::Path::new("")).unwrap());
+                let file = self.reopen_file.take();
+                if !self.rebind_host(&key, &ws, &rows, wake) {
+                    // Nothing retains it any more: nothing to rebind.
+                    ws.revoke();
+                } else if self.active.as_deref() == Some(key.as_str()) {
+                    self.activate_workspace(key);
+                    if let Some(path) = file {
+                        self.begin(Intent::OpenFile(path), wake);
+                    }
+                }
+                self.recovery = Some(Ok(()));
+            }
+        }
         let mut quit_failed = false;
         for (key, host) in &mut self.hosts {
             host.empty.poll(wake);
@@ -823,6 +938,14 @@ impl Runtime {
                     self.conflict_copy_created = Some(created);
                     self.generation += 1;
                 }
+                // A file refused because the Project's lease ended opens
+                // again once it is back, without a dialog.
+                if let Some(path) = slot.files.lease_refused.take()
+                    && slot.files.workspace.as_deref().is_some_and(in_cloud)
+                {
+                    slot.reported_error = slot.files.error.clone();
+                    self.reopen_file.get_or_insert(path);
+                }
                 if let Some(error) = &slot.files.error {
                     if !slot.restoring && slot.reported_error.as_ref() != Some(error) {
                         self.error = Some(error.clone());
@@ -835,6 +958,7 @@ impl Runtime {
                                 super::retention::HibernatedSlot {
                                     path,
                                     failed_at_navigation: Some(self.navigation),
+                                    models: slot.files.take_document_models(),
                                 },
                             );
                         }
@@ -927,7 +1051,7 @@ impl Runtime {
             self.error = Some(error);
             quit_failed |= self.quitting;
         }
-        if quit_failed && !self.abandoned {
+        if quit_failed {
             self.cancel_quit(wake);
             self.close_refused = true;
         }
@@ -939,9 +1063,7 @@ impl Runtime {
             self.enforce_background_host_limit(wake);
         }
         self.persist_metadata(wake, self.quitting);
-        if self.abandoned {
-            self.allow_quit = true;
-        } else if self.quitting {
+        if self.quitting {
             self.allow_quit = self.metadata_inflight == 0
                 && self.hosts.values().all(|h| h.metadata_due.is_none())
                 && self
@@ -989,6 +1111,15 @@ impl Runtime {
             self.composing_slots.insert(slot);
         } else {
             self.composing_slots.remove(&slot);
+        }
+    }
+
+    /// Marks whether `slot`'s undo history lives only in its page (`WB-01`).
+    pub fn set_slot_page_history(&mut self, slot: SlotId, held: bool) {
+        if held {
+            self.page_history_slots.insert(slot);
+        } else {
+            self.page_history_slots.remove(&slot);
         }
     }
 
@@ -1128,6 +1259,7 @@ impl Runtime {
                 unflushable_draft: slot.files.has_unflushable_draft(),
                 owned_by_mutation: self.mutation_owns_slot(*id),
                 composing: self.composing_slots.contains(id),
+                page_history: self.page_history_slots.contains(id),
             })
             .collect();
 
@@ -1149,7 +1281,9 @@ impl Runtime {
             };
             let rel = path.to_path_buf();
             slot.files.pause_watch();
+            let models = slot.files.take_document_models();
             self.composing_slots.remove(&slot_id);
+            self.page_history_slots.remove(&slot_id);
             self.pending_view_restores.remove(&slot_id);
             if self.evicted_slot_keys.len() >= 128
                 && let Some(first) = self.evicted_slot_keys.keys().next().copied()
@@ -1163,6 +1297,7 @@ impl Runtime {
                 super::retention::HibernatedSlot {
                     path: rel,
                     failed_at_navigation: None,
+                    models,
                 },
             );
             self.generation += 1;
@@ -1214,6 +1349,7 @@ impl Runtime {
             let mut files = Documents::in_workspace_with_journal(ws, self.draft_journal.clone());
             files.task_scope = self.scratch.task_scope.clone();
             files.file_window = self.file_window;
+            files.inherit_document_models(entry.models);
             files.begin(Intent::OpenFile(entry.path.clone()), wake);
             host.slots.insert(
                 self.serial,

@@ -1,7 +1,8 @@
 //! Sanitized HTML block DOM tree (`htmlTagTokenizer.ts`, `htmlBlockStructure.ts`):
 //! a block renders only when its tags nest strictly as authored — anything a
 //! browser would repair stays visible source. Executable and embedding tags
-//! (`BLOCKED_TAGS`) are dropped in open/close, void, and self-closing forms,
+//! (`BLOCKED_TAGS`) are dropped in open/close, void, and self-closing forms
+//! (a `form` wrapper keeps its content, payload tags drop theirs),
 //! `on*` event attributes are stripped, and nesting deeper than
 //! `MAX_HTML_DEPTH` is refused (`TA-51`).
 use std::hash::{Hash, Hasher};
@@ -50,6 +51,11 @@ const CLOSES_P: &[&str] = &[
     "table",
     "ul",
 ];
+
+/// `BLOCKED_TAGS_DROPPED_WITH_CONTENT`: their payload never surfaces as
+/// text. The other blocked tags (a `form` wrapper) are unwrapped: the
+/// element goes and its content stays.
+const DROPPED_WITH_CONTENT: &[&str] = &["embed", "iframe", "object", "script", "style", "template"];
 
 pub fn is_blocked_tag(tag: &str) -> bool {
     BLOCKED_TAGS.contains(&tag.to_ascii_lowercase().as_str())
@@ -119,6 +125,7 @@ pub fn hash_nodes(nodes: &[Node], hasher: &mut impl Hasher) {
 pub enum Parsed {
     Complete(Vec<Node>),
     /// An element is still open (a cross-block flow may close it later).
+    /// An empty stack denotes an unfinished special construct, not a flow.
     Incomplete(Vec<String>),
     Malformed,
     /// A comment, declaration, processing instruction, or depth-exceeded block.
@@ -337,7 +344,20 @@ fn invalid_table_child(parent: &str, child: &str) -> bool {
 pub fn parse(source: &str) -> Parsed {
     let trimmed = source.trim_start();
     if trimmed.starts_with("<!") || trimmed.starts_with("<?") {
-        return Parsed::Unsupported;
+        let closing = if trimmed.starts_with("<!--") {
+            "-->"
+        } else if trimmed.starts_with("<![CDATA[") {
+            "]]>"
+        } else if trimmed.starts_with("<?") {
+            "?>"
+        } else {
+            ">"
+        };
+        return if trimmed.contains(closing) {
+            Parsed::Unsupported
+        } else {
+            Parsed::Incomplete(Vec::new())
+        };
     }
     let Some(tokens) = tokens(source) else {
         return Parsed::Malformed;
@@ -402,12 +422,11 @@ pub fn parse(source: &str) -> Parsed {
                     return Parsed::Malformed;
                 }
                 let element = stack.pop().unwrap();
+                let parent = &mut stack.last_mut().unwrap().children;
                 if !BLOCKED_TAGS.contains(&element.tag.as_str()) {
-                    stack
-                        .last_mut()
-                        .unwrap()
-                        .children
-                        .push(Node::Element(element));
+                    parent.push(Node::Element(element));
+                } else if !DROPPED_WITH_CONTENT.contains(&element.tag.as_str()) {
+                    parent.extend(element.children);
                 }
             }
         }
@@ -416,6 +435,30 @@ pub fn parse(source: &str) -> Parsed {
         return Parsed::Incomplete(stack[1..].iter().map(|e| e.tag.clone()).collect());
     }
     Parsed::Complete(stack.pop().unwrap().children)
+}
+
+/// Inspect authored roots before sanitization drops executable elements.
+/// Callers validate structure first; nested blocked payloads remain reducible.
+pub fn has_blocked_root(source: &str) -> bool {
+    let Some(tokens) = tokens(source) else {
+        return false;
+    };
+    let mut depth = 0usize;
+    for token in tokens {
+        match token {
+            Token::Open { tag, void, .. } => {
+                if depth == 0 && is_blocked_tag(&tag) {
+                    return true;
+                }
+                if !void {
+                    depth += 1;
+                }
+            }
+            Token::Close(_) => depth = depth.saturating_sub(1),
+            Token::Text(_) => {}
+        }
+    }
+    false
 }
 
 /// Open tag balance across a cross-block HTML flow (`None` when mismatched or

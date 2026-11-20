@@ -300,6 +300,23 @@ fn session_readers_keep_provider_roots_and_validate_identity_without_loading_the
 }
 
 #[test]
+fn session_readers_refuse_traversal_and_directories_before_any_read() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("workspace");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(temp.path().join("sample.db"), b"outside").unwrap();
+    std::fs::create_dir(root.join("folder.db")).unwrap();
+    let ws = Workspace::open(&root).unwrap();
+    for path in ["../sample.db", "folder.db"] {
+        let refused = match ws.resource(Path::new(path)) {
+            Err(_) => true,
+            Ok(resource) => resource.session_reader().is_err(),
+        };
+        assert!(refused, "{path}");
+    }
+}
+
+#[test]
 fn session_readers_reject_atomic_replacement_even_when_length_and_mtime_match() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("snapshot.db");

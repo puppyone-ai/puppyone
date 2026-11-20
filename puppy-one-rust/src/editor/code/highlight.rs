@@ -2,6 +2,47 @@
 //! [`Tokens::get`] so active Sub Theme overrides take effect at runtime (`CE-11`).
 use crate::{editor::tokens::Tokens, typography::Scale};
 use gpui::{HighlightStyle, Rgba};
+use gpui_kit::component::highlighter::{LanguageRegistry, SyntaxHighlighter};
+
+/// Both native code surfaces and Markdown fences use the complete product
+/// grammar. Kit 0.8's TSX query contains only TypeScript extensions, and its
+/// JavaScript query omits JSX. Compose both with the upstream JSX query while
+/// retaining their respective parsers and the other Kit configuration.
+pub fn syntax_highlighter(grammar: &str) -> SyntaxHighlighter {
+    if !matches!(grammar, "javascript" | "tsx") {
+        return SyntaxHighlighter::new(grammar);
+    }
+    const JAVASCRIPT: &str = "puppyone-javascript";
+    const TSX: &str = "puppyone-tsx";
+    static REGISTER: std::sync::Once = std::sync::Once::new();
+    REGISTER.call_once(|| {
+        let registry = LanguageRegistry::singleton();
+        let mut tsx = registry.language("tsx").expect("compiled TSX grammar");
+        let mut js = registry
+            .language("javascript")
+            .expect("compiled JavaScript grammar");
+        // Kit retains the first capture when several queries match the same
+        // range, so specific JSX and TypeScript rules precede JavaScript.
+        tsx.name = TSX.into();
+        tsx.highlights = format!(
+            "{}\n{}\n{}",
+            tree_sitter_javascript::JSX_HIGHLIGHT_QUERY,
+            tsx.highlights,
+            js.highlights
+        )
+        .into();
+        js.name = JAVASCRIPT.into();
+        js.highlights = format!(
+            "{}\n{}",
+            tree_sitter_javascript::JSX_HIGHLIGHT_QUERY,
+            js.highlights
+        )
+        .into();
+        registry.register(JAVASCRIPT, &js);
+        registry.register(TSX, &tsx);
+    });
+    SyntaxHighlighter::new(if grammar == "tsx" { TSX } else { JAVASCRIPT })
+}
 
 /// The product's eleven syntax colour roles (`--po-md-syntax-*`).
 #[derive(Clone, Debug, PartialEq)]
