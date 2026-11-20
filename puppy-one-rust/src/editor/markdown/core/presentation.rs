@@ -254,10 +254,10 @@ mod tests {
         let doc = Buffer::new(text);
         let syntax = Syntax::parse(&doc);
         let whole = block_rhythm(&doc, &syntax, source_line);
-        for line in 0..doc.line_count() {
+        for (line, expected) in whole.iter().enumerate() {
             assert_eq!(
-                block_rhythm_in_lines(&doc, &syntax, line..line + 1, source_line)[0],
-                whole[line],
+                &block_rhythm_in_lines(&doc, &syntax, line..line + 1, source_line)[0],
+                expected,
                 "{text:?} line {line}"
             );
         }
