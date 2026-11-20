@@ -255,7 +255,8 @@ impl CloudScreen {
                     fold_screen.update(cx, |s, cx| s.toggle_fold(cx));
                 })
                 .child(
-                    Icon::new(if folded { "chevron-down" } else { "chevron-up" })
+                    // It unfolds upwards, from the Explorer's bottom edge.
+                    Icon::new(if folded { "chevron-up" } else { "chevron-down" })
                         .with_size(px(14.)),
                 )
         });
@@ -292,7 +293,7 @@ impl CloudScreen {
             div()
                 .w_full()
                 .px(px(Card::INSET_X))
-                .pt(px(Card::INSET_TOP))
+                .pb(px(Card::INSET_BOTTOM))
                 .bg(t.sidebar)
                 .child(
                     div()

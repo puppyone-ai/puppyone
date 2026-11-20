@@ -251,7 +251,7 @@ fn the_same_cloud_target_joins_its_pending_opening(cx: &mut TestAppContext) {
         }
         cloud_project_responder()(request)
     });
-    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    let (broker, browser, _) = crate::cloud::auth::responding_live_account_fixture(responder);
     view.update(cx, |s, cx| {
         s.prefs
             .store
@@ -284,12 +284,23 @@ fn the_same_cloud_target_joins_its_pending_opening(cx: &mut TestAppContext) {
     assert_eq!(roots.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
 
+/// A hosted Project whose lease the service ends reopens on its own, out of
+/// sight and without a dialog; one that keeps losing it asks the person, and
+/// Retry rebinds the same host.
 #[gpui::test]
-fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut TestAppContext) {
+fn a_project_that_keeps_losing_its_lease_reopens_once_then_offers_retry(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    // The fixture transport has no event stream: the subscription fails.
-    let (broker, browser) =
-        crate::cloud::auth::responding_account_fixture(cloud_project_responder());
+    // The fixture transport has no event stream: every lease ends as soon
+    // as the Project is open.
+    let roots = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = roots.clone();
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(move |request| {
+        if request.path.ends_with("/repository-context") {
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+        cloud_project_responder()(request)
+    });
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
     view.update(cx, |s, cx| {
         s.prefs
             .store
@@ -312,6 +323,13 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
             if cx.update(|_, cx| ready(view.read(cx), cx)) {
                 break;
             }
+            // Nothing about it is a dialog, and no opening shows.
+            if cx.update(|_, cx| view.read(cx).hosted_project(cx).is_some()) {
+                view.read_with(cx, |s, cx| {
+                    assert!(!s.modal(cx), "a dialog showed");
+                    assert!(s.files(cx).cloud_opening().is_none());
+                });
+            }
             assert!(
                 std::time::Instant::now() < deadline,
                 "{what} did not settle"
@@ -329,25 +347,173 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
     settle(&view, cx, "the workspace notice", &|s, cx| {
         s.session.project.read(cx).record.notice.is_some()
     });
-    // A notice floats; it is not a dialog.
-    view.read_with(cx, |s, cx| assert!(!s.modal(cx)));
-    let (key, first) = view.read_with(cx, |s, cx| {
-        (
-            s.files(cx).workspace_key().unwrap().to_owned(),
-            s.files(cx).workspace.clone().unwrap(),
-        )
+    // Reopened once on its own, under a new lease, then it asked.
+    assert_eq!(roots.load(std::sync::atomic::Ordering::SeqCst), 2);
+    let (key, second) = view.read_with(cx, |s, cx| {
+        assert!(!s.modal(cx));
+        assert!(!s.session.project.read(cx).record.reconnecting);
+        assert!(!s.home_visible(cx));
+        let second = s.files(cx).workspace.clone().unwrap();
+        assert!(second.lost());
+        (s.files(cx).workspace_key().unwrap().to_owned(), second)
     });
+    // It does not reopen again on its own.
+    for _ in 0..20 {
+        view.update_in(cx, |s, w, cx| s.receive(w, cx));
+        cx.run_until_parked();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(roots.load(std::sync::atomic::Ordering::SeqCst), 2);
     view.update(cx, |s, cx| s.retry_workspace_surface(cx));
     settle(&view, cx, "the rebound host", &|s, cx| {
         s.files(cx)
             .workspace
             .as_ref()
-            .is_some_and(|ws| !std::sync::Arc::ptr_eq(ws, &first))
+            .is_some_and(|ws| !std::sync::Arc::ptr_eq(ws, &second))
     });
     // The same retained host, bound to the new lease.
     view.read_with(cx, |s, cx| {
         assert_eq!(s.files(cx).workspace_key(), Some(key.as_str()));
         assert_eq!(s.hosted_project(cx).as_deref(), Some("project-a"));
+    });
+    let reopened = crate::platform::diagnostics::recorded("[cloud-recovery] quiet reopen ended");
+    assert!(
+        reopened.iter().any(|l| l["fields"]["outcome"] == "rebound"),
+        "{reopened:?}"
+    );
+}
+
+/// The service replaced the hosted Workspace while a document was open: the
+/// window reopens it quietly, the document stays open in its place, and the
+/// person on the Homepage stays there.
+#[gpui::test]
+fn a_replaced_workspace_reopens_quietly_and_keeps_its_document(cx: &mut TestAppContext) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let (view, cx) = setup(cx);
+    let roots = std::sync::Arc::new(AtomicUsize::new(0));
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new({
+        let roots = roots.clone();
+        move |request| {
+            let path = request.path.as_str();
+            if path.ends_with("/repository-context") {
+                roots.fetch_add(1, Ordering::SeqCst);
+            }
+            if path.ends_with("/workbench/file") {
+                return Ok(cloud_file(b"# Cloud\n"));
+            }
+            cloud_project_responder()(request)
+        }
+    });
+    let (broker, browser, replace) = crate::cloud::auth::responding_live_account_fixture(responder);
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    cx.update(|_, cx| {
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
+    });
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle_cloud(&view, cx, "the hosted Project", &|s, cx| {
+        s.hosted_project(cx).as_deref() == Some("project-a")
+    });
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFile("cloud.md".into())))
+    });
+    let opened = |s: &Shell, cx: &App| {
+        s.files(cx)
+            .opened()
+            .is_some_and(|(_, path)| path == std::path::Path::new("cloud.md"))
+    };
+    settle_cloud(&view, cx, "the document", &opened);
+    let first = view.read_with(cx, |s, cx| s.files(cx).workspace.clone().unwrap());
+    // The person goes to the Homepage; the Project stays open behind it.
+    command(&view, cx, Command::Home);
+    view.read_with(cx, |s, cx| assert!(s.home_visible(cx)));
+    // The service replaces the Workspace: its change stream ends.
+    replace.store(true, std::sync::atomic::Ordering::SeqCst);
+    settle_cloud(&view, cx, "the quiet reopen", &|s, cx| {
+        assert!(!s.modal(cx), "a dialog showed: {:?}", s.files(cx).error);
+        assert!(s.files(cx).cloud_opening().is_none());
+        s.files(cx)
+            .workspace
+            .as_ref()
+            .is_some_and(|ws| !std::sync::Arc::ptr_eq(ws, &first))
+            && !s.session.project.read(cx).record.reconnecting
+    });
+    assert_eq!(roots.load(Ordering::SeqCst), 2);
+    view.read_with(cx, |s, cx| {
+        assert!(s.session.project.read(cx).record.notice.is_none());
+        // Still on the Homepage, the document still open behind it.
+        assert!(s.home_visible(cx));
+        assert!(opened(s, cx));
+    });
+}
+
+/// A file asked for in the moment the hosted Project lost its lease opens
+/// once it is back, without a dialog.
+#[gpui::test]
+fn a_file_asked_for_while_reconnecting_opens_once_the_project_is_back(cx: &mut TestAppContext) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let (view, cx) = setup(cx);
+    // The reopen is held until the file has been asked for.
+    let hold = std::sync::Arc::new(AtomicBool::new(false));
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new({
+        let hold = hold.clone();
+        move |request| {
+            let path = request.path.as_str();
+            if path.ends_with("/repository-context") {
+                while hold.load(Ordering::SeqCst) {
+                    std::thread::sleep(std::time::Duration::from_millis(2));
+                }
+            }
+            if path.ends_with("/workbench/file") {
+                return Ok(cloud_file(b"# Cloud\n"));
+            }
+            cloud_project_responder()(request)
+        }
+    });
+    let (broker, browser, replace) = crate::cloud::auth::responding_live_account_fixture(responder);
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    cx.update(|_, cx| {
+        crate::features::cloud::account::install_fixture(broker, browser, cx);
+    });
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle_cloud(&view, cx, "the hosted Project", &|s, cx| {
+        s.hosted_project(cx).as_deref() == Some("project-a")
+    });
+    hold.store(true, Ordering::SeqCst);
+    replace.store(true, Ordering::SeqCst);
+    settle_cloud(&view, cx, "the reconnecting notice", &|s, cx| {
+        s.session.project.read(cx).record.reconnecting
+    });
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFile("cloud.md".into())))
+    });
+    hold.store(false, Ordering::SeqCst);
+    settle_cloud(&view, cx, "the document", &|s, cx| {
+        assert!(!s.modal(cx), "a dialog showed");
+        s.files(cx)
+            .opened()
+            .is_some_and(|(_, path)| path == std::path::Path::new("cloud.md"))
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(!s.session.project.read(cx).record.reconnecting);
+        assert!(s.session.project.read(cx).record.notice.is_none());
     });
 }
 
@@ -368,7 +534,7 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
         }
         cloud_project_responder()(request)
     });
-    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    let (broker, browser, _) = crate::cloud::auth::responding_live_account_fixture(responder);
     view.update(cx, |s, cx| {
         s.prefs
             .store

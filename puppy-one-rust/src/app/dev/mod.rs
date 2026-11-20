@@ -8,3 +8,5 @@ pub(super) mod capture_scenario;
 mod home_lab;
 #[cfg(feature = "dev-capture")]
 mod screen_lab;
+#[cfg(feature = "dev-capture")]
+mod settings_lab;

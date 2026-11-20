@@ -746,18 +746,21 @@ fn a_background_reread_that_fails_in_transit_keeps_the_text_and_reads_again_quie
     }
     assert!(d.error.is_none() && !d.dirty);
 
-    // Failing in transit every time, it is reported once the retries are spent.
-    for _ in OBSERVATION_RETRIES {
+    // Failing in transit every time, it keeps trying quietly, every 30
+    // seconds once the quick retries are spent.
+    for _ in 0..OBSERVATION_RETRIES.len() + 2 {
         fail_read(&mut d, workspace::ErrorKind::Io);
         d.poll_at(&ctx, later);
         assert!(d.error.is_none());
     }
-    fail_read(&mut d, workspace::ErrorKind::Io);
+    let retry = d.observation_retry.expect("a later re-read");
+    assert_eq!(retry, later + OBSERVATION_QUIET_RETRY);
+    // A lease that ended says nothing either: the Project reconnects.
+    fail_read(&mut d, workspace::ErrorKind::StaleLease);
     d.poll_at(&ctx, later);
-    assert!(d.error.is_some());
+    assert!(d.error.is_none());
 
     // What needs the person (the file is gone) is said at once.
-    d.error = None;
     fail_read(&mut d, workspace::ErrorKind::NotFound);
     d.poll_at(&ctx, later);
     assert!(d.error.is_some());

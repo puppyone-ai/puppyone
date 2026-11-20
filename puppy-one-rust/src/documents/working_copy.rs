@@ -7,8 +7,9 @@
 //! opening progress and directory tree listings stay outside `WorkingCopy`.
 
 use super::{
-    ClientMessage, HostMessage, Intent, OBSERVATION_RETRIES, Phase, PresentationKey, Resource,
-    SAVED_STATUS_DURATION, SaveStatus, WorkspaceAssets, auto_save,
+    ClientMessage, HostMessage, Intent, OBSERVATION_QUIET_RETRY, OBSERVATION_RETRIES, Phase,
+    PresentationKey, Resource, SAVED_STATUS_DURATION, SaveStatus, WATCH_RETRIES, WorkspaceAssets,
+    auto_save,
     drafts::{self, DraftCoordinator, RecoveryPlan},
     io::{self, IoLane},
     read_budget, reconcile,
@@ -190,6 +191,13 @@ pub struct WorkingCopy {
     pub(super) observation_pending: bool,
     pub(super) observation_retry: Option<Instant>,
     pub(super) observation_failures: usize,
+    /// The file being read in, and a read the provider refused because its
+    /// lease ended: the runtime opens it again once the project reconnects.
+    pub(super) reading: Option<PathBuf>,
+    pub lease_refused: Option<PathBuf>,
+    /// When a change subscription that ended subscribes again.
+    pub(super) watch_retry: Option<Instant>,
+    pub(super) watch_failures: usize,
     pub(super) copy_tx: Sender<CopyCompleted>,
     pub(super) copy_rx: Receiver<CopyCompleted>,
     /// A file chosen while another transition was under way; it opens once
@@ -244,6 +252,10 @@ impl Default for WorkingCopy {
             observation_pending: false,
             observation_retry: None,
             observation_failures: 0,
+            reading: None,
+            lease_refused: None,
+            watch_retry: None,
+            watch_failures: 0,
             copy_tx,
             copy_rx,
             next_open: None,
@@ -624,6 +636,51 @@ impl WorkingCopy {
         self.observation_retry = None;
         self.observation_failures = 0;
     }
+    fn clear_watch_retry(&mut self) {
+        self.watch_retry = None;
+        self.watch_failures = 0;
+    }
+    /// A change subscription that ended or could not start is never the
+    /// person's error. A lease that ended waits for the project to reconnect
+    /// and rebind this copy; anything else subscribes again later.
+    fn watch_failed(&mut self, error: &workspace::Error, ctx: &Wake) {
+        self.watch = None;
+        let retry = (error.kind != workspace::ErrorKind::StaleLease).then(|| {
+            let delay = WATCH_RETRIES[self.watch_failures.min(WATCH_RETRIES.len() - 1)];
+            self.watch_failures += 1;
+            delay
+        });
+        self.watch_retry = retry.map(|delay| Instant::now() + delay);
+        if let Some(delay) = retry {
+            ctx.after(delay);
+        }
+        crate::platform::diagnostics::warn(
+            "[cloud-recovery] document watch ended",
+            serde_json::json!({
+                "kind": format!("{:?}", error.kind),
+                "retry_ms": retry.map(|d| d.as_millis() as u64),
+            }),
+        );
+    }
+    /// A background read (a re-read after a change, a rebind) that failed:
+    /// a lease that ended or a fault in transit says nothing (the project
+    /// reconnects, the next change or retry reads again); what needs the
+    /// person, such as a file that is gone, is said.
+    fn background_failed(&mut self, what: &str, error: workspace::Error) -> bool {
+        let quiet = matches!(
+            error.kind,
+            workspace::ErrorKind::StaleLease | workspace::ErrorKind::Io
+        );
+        if quiet {
+            crate::platform::diagnostics::warn(
+                "[cloud-recovery] background read failed",
+                serde_json::json!({ "read": what, "kind": format!("{:?}", error.kind) }),
+            );
+        } else {
+            self.error = Some(error.to_string());
+        }
+        quiet
+    }
     pub(crate) fn ensure_session(&mut self, ctx: &Wake) {
         if let Some(doc) = &self.document {
             if self.session.as_ref().is_none_or(|s| s.id != doc.id) {
@@ -635,6 +692,7 @@ impl WorkingCopy {
                     .is_some_and(|ws| ws.local_root().is_none());
                 self.session = Some(session);
                 self.clear_observation_retry();
+                self.clear_watch_retry();
                 self.auto_save.cancel();
                 self.drafts.reset();
                 self.saving_since = None;
@@ -649,11 +707,13 @@ impl WorkingCopy {
             }
         } else {
             self.session = None;
-            self.clear_observation_retry();
             self.auto_save.cancel();
             self.drafts.reset();
             self.autosave_request = None;
+            // A preview keeps its own re-read and subscription retries.
             if self.resource.is_none() {
+                self.clear_observation_retry();
+                self.clear_watch_retry();
                 self.watch = None;
                 self.resource_observing = None;
                 self.observation_pending = false;
@@ -677,7 +737,7 @@ impl WorkingCopy {
             };
             match subscription {
                 Ok(watch) => self.watch = Some(watch),
-                Err(error) => self.error = Some(error.to_string()),
+                Err(error) => self.watch_failed(&error, ctx),
             }
         }
     }
@@ -695,6 +755,7 @@ impl WorkingCopy {
 
     pub fn pause_watch(&mut self) {
         self.clear_observation_retry();
+        self.clear_watch_retry();
         self.watch = None;
         self.observing = None;
         self.resource_observing = None;
@@ -755,6 +816,7 @@ impl WorkingCopy {
         self.workspace = Some(ws.clone());
         self.provider_epoch += 1;
         self.clear_observation_retry();
+        self.clear_watch_retry();
         self.resource_observing = None;
         self.watch = None;
         self.observing = None;
@@ -1479,6 +1541,7 @@ impl WorkingCopy {
                 };
                 self.phase = Phase::Working;
                 self.status = "Reading file…".into();
+                self.reading = Some(path.clone());
                 let tx = self.copy_tx.clone();
                 let wake = ctx.clone();
                 let admission_ceiling = read_budget(&path.to_string_lossy(), &ws)
@@ -2000,6 +2063,9 @@ impl WorkingCopy {
         if let Some(retry_at) = self.observation_retry {
             ctx.after(retry_at.saturating_duration_since(now));
         }
+        if let Some(retry_at) = self.watch_retry {
+            ctx.after(retry_at.saturating_duration_since(now));
+        }
         if let Some(delay) = self.drafts.delay(now) {
             ctx.after(delay);
         }
@@ -2078,18 +2144,19 @@ impl WorkingCopy {
         )
     }
 
-    fn consume_watch(&mut self) {
+    fn consume_watch(&mut self, ctx: &Wake) {
         if let Some(event) = self.watch.as_ref().and_then(workspace::Subscription::next) {
             match event {
                 workspace::ports::WatchEvent::Invalidated => self.revalidate(),
                 workspace::ports::WatchEvent::Changed(paths) => {
+                    self.watch_failures = 0;
                     if self.opened().is_some_and(|(_, current)| {
                         paths.iter().any(|p| current.starts_with(p.as_path()))
                     }) {
                         self.revalidate();
                     }
                 }
-                workspace::ports::WatchEvent::Failed(error) => self.error = Some(error.to_string()),
+                workspace::ports::WatchEvent::Failed(error) => self.watch_failed(&error, ctx),
             }
         }
     }
@@ -2112,7 +2179,7 @@ impl WorkingCopy {
             self.save_announced = true;
         }
         self.ensure_session(ctx);
-        self.consume_watch();
+        self.consume_watch(ctx);
         if matches!(
             &self.phase,
             Phase::Snapshot { since, .. } if now.saturating_duration_since(*since) >= SNAPSHOT_TIMEOUT
@@ -2144,6 +2211,9 @@ impl WorkingCopy {
                 | CopyCompleted::Resource {
                     result: Err(error), ..
                 } => {
+                    if error.kind == workspace::ErrorKind::StaleLease {
+                        self.lease_refused = self.reading.take();
+                    }
                     self.fail(error.to_string());
                 }
                 CopyCompleted::Resource {
@@ -2360,15 +2430,25 @@ impl WorkingCopy {
                         continue;
                     }
                     let result = match result {
+                        // Lost in transit: the text stays and it reads again,
+                        // soon at first, then every 30 seconds while it is open.
                         Err(error)
-                            if (error.kind == workspace::ErrorKind::Io
+                            if error.kind == workspace::ErrorKind::Io
                                 || error.detail
                                     == crate::localization::t(
                                         "native.workspace.changedWhileReading",
-                                    ))
-                                && self.observation_failures < OBSERVATION_RETRIES.len() =>
+                                    ) =>
                         {
-                            let delay = OBSERVATION_RETRIES[self.observation_failures];
+                            let delay = OBSERVATION_RETRIES
+                                .get(self.observation_failures)
+                                .copied()
+                                .unwrap_or(OBSERVATION_QUIET_RETRY);
+                            if self.observation_failures == OBSERVATION_RETRIES.len() {
+                                crate::platform::diagnostics::warn(
+                                    "[cloud-recovery] document re-read keeps failing",
+                                    serde_json::json!({ "detail": error.detail }),
+                                );
+                            }
                             self.observation_failures += 1;
                             self.observation_retry = Some(now + delay);
                             ctx.after(delay);
@@ -2421,7 +2501,9 @@ impl WorkingCopy {
                                 }
                             }
                         }
-                        Err(error) => self.error = Some(error.to_string()),
+                        Err(error) => {
+                            self.background_failed("observation", error);
+                        }
                     }
                 }
                 CopyCompleted::Rebound {
@@ -2476,7 +2558,13 @@ impl WorkingCopy {
                                 }
                             }
                         }
-                        Err(error) => self.error = Some(error.to_string()),
+                        // The new lease reads it again like any change.
+                        Err(error) => {
+                            if self.background_failed("rebind", error) {
+                                self.revalidate();
+                                self.start_watch(ctx);
+                            }
+                        }
                     }
                 }
                 CopyCompleted::ResourceRebound {
@@ -2498,7 +2586,12 @@ impl WorkingCopy {
                                 self.start_watch(ctx);
                                 self.revalidate();
                             }
-                            Err(error) => self.error = Some(error.to_string()),
+                            Err(error) => {
+                                if self.background_failed("resource rebind", error) {
+                                    self.revalidate();
+                                    self.start_watch(ctx);
+                                }
+                            }
                         }
                     }
                 }
@@ -2524,8 +2617,21 @@ impl WorkingCopy {
                             let path = self.resource.as_ref().unwrap().relative.clone();
                             self.rebind_resource(path, preview);
                             self.error = None;
+                            self.observation_failures = 0;
                         }
-                        Err(error) => self.error = Some(error.to_string()),
+                        // The committed preview stays; it refreshes again on
+                        // its own, as a document's re-read does.
+                        Err(error) => {
+                            if self.background_failed("resource observation", error) {
+                                let delay = OBSERVATION_RETRIES
+                                    .get(self.observation_failures)
+                                    .copied()
+                                    .unwrap_or(OBSERVATION_QUIET_RETRY);
+                                self.observation_failures += 1;
+                                self.observation_retry = Some(now + delay);
+                                ctx.after(delay);
+                            }
+                        }
                     }
                 }
                 CopyCompleted::ConflictCopy { id, result } => {
@@ -2552,6 +2658,13 @@ impl WorkingCopy {
         if self.observation_retry.is_some_and(|at| now >= at) {
             self.observation_retry = None;
             self.observation_pending = true;
+        }
+        if self.watch_retry.is_some_and(|at| now >= at) {
+            self.watch_retry = None;
+            if self.watch.is_none() {
+                self.revalidate();
+                self.start_watch(ctx);
+            }
         }
         self.pump_with(ctx, &mut open_folder);
         if self.allow_quit {
@@ -2641,7 +2754,14 @@ impl WorkingCopy {
                             wake.notify();
                             return;
                         }
-                        let result = ws.observe(&doc);
+                        // A copy kept from an earlier lease of the same storage
+                        // (its rebind read was superseded) reads afresh here.
+                        let result = match ws.observe(&doc) {
+                            Err(error) if error.kind == workspace::ErrorKind::ForeignResource => {
+                                ws.adopt(&doc)
+                            }
+                            result => result,
+                        };
                         drop(lease);
                         let _ = tx.send(CopyCompleted::Observed {
                             id: doc_id,

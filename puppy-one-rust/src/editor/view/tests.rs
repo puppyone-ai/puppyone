@@ -686,3 +686,41 @@ fn a_bounded_history_keeps_its_newest_steps_and_redo_through_a_new_view(cx: &mut
         assert_eq!(view.text().len(), 220 - MAX_STEPS);
     });
 }
+
+/// Resizing the window wraps every paragraph again and estimates again the
+/// blocks above the viewport that were never laid out: the text at the
+/// viewport top stays where it is, through any number of resizes.
+#[gpui::test]
+fn resizing_the_window_keeps_the_text_at_the_viewport_top(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, &long_document(400, 120));
+    cx.simulate_resize(size(px(900.), px(700.)));
+    settle(cx);
+    view.update(cx, |v, cx| {
+        v.scroll_y = 20_013.;
+        cx.notify();
+    });
+    settle(cx);
+    let row_of = |view: &Entity<EditorView>, cx: &mut VisualTestContext, offset: usize| {
+        view.read_with(cx, |v, _| {
+            let l = v.caches.layout.as_ref().unwrap();
+            f32::from(l.caret(offset, false).row_top - l.bounds.top())
+        })
+    };
+    let offset = view.read_with(cx, |v, _| {
+        let l = v.caches.layout.as_ref().unwrap();
+        l.offset_at(point(l.bounds.left() + px(200.), l.bounds.top() + px(2.)))
+            .0
+    });
+    let row = row_of(&view, cx, offset);
+    for width in [700., 560., 480., 640., 820., 900.].repeat(3) {
+        cx.simulate_resize(size(px(width), px(700.)));
+        settle(cx);
+        let now = row_of(&view, cx, offset);
+        // Scroll snaps to device pixels (2x here).
+        assert!(
+            (now - row).abs() <= 0.5,
+            "at {width}px the top text moved {}",
+            now - row
+        );
+    }
+}

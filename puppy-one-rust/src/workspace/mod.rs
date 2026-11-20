@@ -241,6 +241,12 @@ impl Workspace {
     pub fn capabilities(&self) -> contracts::Capabilities {
         self.descriptor.capabilities
     }
+    /// The provider ended this handle's authority while it was in use (a
+    /// Cloud workspace replaced or retired by the service); a handle this app
+    /// revoked itself is not lost.
+    pub fn lost(&self) -> bool {
+        self.lease.live.load(Ordering::Acquire) && self.provider.check_authority().is_err()
+    }
     pub fn revoke(&self) {
         self.lease.live.store(false, Ordering::Release);
         self.provider.revoke();

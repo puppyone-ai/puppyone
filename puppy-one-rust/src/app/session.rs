@@ -126,6 +126,15 @@ impl DocumentSession {
     ) {
         self.files.open_cloud(broker, binding, project, &self.wake);
     }
+    pub fn recover_cloud(
+        &mut self,
+        broker: std::sync::Arc<crate::cloud::auth::Broker>,
+        binding: crate::cloud::auth::model::Binding,
+        project: String,
+    ) {
+        self.files
+            .recover_cloud(broker, binding, project, &self.wake);
+    }
 }
 
 pub(super) struct WindowSession {

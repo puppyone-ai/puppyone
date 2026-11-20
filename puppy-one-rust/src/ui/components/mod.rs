@@ -22,6 +22,7 @@ mod settings;
 mod sidebar;
 mod space_mark;
 mod spinner;
+mod stepper;
 mod surface;
 mod switch;
 
@@ -38,14 +39,15 @@ pub use resize_handle::ResizeHandle;
 pub use segmented::{Segment, SegmentLayout, SegmentedControl};
 pub use select::{Select, SelectOption};
 pub use settings::{
-    MutedRow, SettingRow, SettingsCategory, SettingsCategoryList, SettingsList, SettingsSection,
-    SettingsSubsection, ValueRow,
+    MutedRow, SettingRow, SettingsCategory, SettingsCategoryList, SettingsChange, SettingsList,
+    SettingsNote, SettingsSection, SettingsSubsection, ValueRow,
 };
 pub use sidebar::{
     RowActionButton, RowVariant, SectionHeader, SidebarGroup, SidebarRow, selected_gradient,
 };
-pub use space_mark::{SpaceMark, SpaceMarkSize, SpacePlanBadge};
+pub use space_mark::{PersonMark, SpaceMark, SpaceMarkSize, SpacePlanBadge};
 pub use spinner::Spinner;
+pub use stepper::Stepper;
 pub use surface::{
     SurfaceCorners, SurfaceElevation, SurfaceFrame, SurfaceStyledExt, SurfaceVariant, inner_radius,
 };

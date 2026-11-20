@@ -167,6 +167,11 @@ pub struct EditorView {
     pub(super) pointer: PointerState,
     pub(super) ime: ImeState,
     pub(super) scroll_y: f32,
+    /// The anchor a frame held at the viewport top, with the scroll and
+    /// revision it held it at: kept while neither changes, so a run of
+    /// relayouts (a window resize) holds one text still instead of
+    /// choosing again from each new row structure.
+    pub(super) held_anchor: Option<(super::layout::ScrollAnchor, f32, u64)>,
     pub(super) bounds: Option<Bounds<Pixels>>,
     blur: Option<Subscription>,
     pub(super) focused_before: bool,
@@ -249,6 +254,7 @@ impl EditorView {
             pointer: PointerState::default(),
             ime: ImeState::default(),
             scroll_y,
+            held_anchor: None,
             bounds: None,
             blur: None,
             focused_before: false,
@@ -326,6 +332,21 @@ impl EditorView {
 
     /// Document top and bottom of the block holding `offset`, as the last
     /// frame's height plan has them (laid out or estimated).
+    /// The text at the viewport top, from the last frame's layout, while
+    /// that layout is of the current document.
+    pub(super) fn scroll_anchor(&self) -> Option<super::layout::ScrollAnchor> {
+        if let Some((anchor, scroll, revision)) = self.held_anchor
+            && scroll == self.scroll_y
+            && revision == self.state.revision
+        {
+            return Some(anchor);
+        }
+        let layout = self.caches.layout.as_ref()?;
+        (layout.revision == self.state.revision)
+            .then(|| layout.anchor(self.scroll_y))
+            .flatten()
+    }
+
     pub(super) fn estimated_block_of(&self, offset: usize) -> Option<(f32, f32)> {
         let layered = &self.caches.decorations;
         let line = self.state.doc.line_index(offset);

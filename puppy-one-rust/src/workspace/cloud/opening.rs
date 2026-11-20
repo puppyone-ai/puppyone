@@ -274,6 +274,77 @@ fn deadline(row: &model::Runtime) -> Result<Instant, Failure> {
     Ok(Instant::now() + duration)
 }
 
+/// How waking the open Workspace ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Woken {
+    /// It runs again and is the same Workspace: send the request again.
+    Running,
+    /// Another Workspace, or none, stands for the Project now: reopen it.
+    Replaced,
+    /// It could not be woken now; the request that found it asleep fails as
+    /// a passing fault and its caller tries again later.
+    Failed,
+}
+/// Wakes the Workspace a live request found asleep (`workbench_not_running`):
+/// what opening does, one POST and then waiting reads, but only for the same
+/// Workspace. Its failed requests are recorded like an opening's.
+pub(super) fn wake(
+    broker: &Broker,
+    binding: &Binding,
+    cancel: &Cancellation,
+    runtime: &model::Runtime,
+) -> Woken {
+    let project = runtime.project_id.as_str();
+    let same = |row: &model::Runtime| row.id == runtime.id && row.generation == runtime.generation;
+    let read = |method: Method, wait: bool| request(broker, binding, cancel, project, method, wait);
+    let workspace = |mut value: serde_json::Value| {
+        if value["workspace"].is_null() {
+            Err(Woken::Replaced)
+        } else {
+            decode(value["workspace"].take(), project).map_err(|_| Woken::Failed)
+        }
+    };
+    let run = || -> Result<Woken, Woken> {
+        // Another request may have woken it already.
+        let row = workspace(read(Method::GET, false).map_err(|_| Woken::Failed)?)?;
+        if !same(&row) {
+            return Ok(Woken::Replaced);
+        }
+        if state(&row).unwrap_or(false) {
+            return Ok(Woken::Running);
+        }
+        let mut row = decode(
+            read(Method::POST, false).map_err(|_| Woken::Failed)?,
+            project,
+        )
+        .map_err(|_| Woken::Failed)?;
+        let deadline = deadline(&row).map_err(|_| Woken::Failed)?;
+        loop {
+            if !same(&row) {
+                return Ok(Woken::Replaced);
+            }
+            if state(&row).map_err(|_| Woken::Failed)? {
+                return Ok(Woken::Running);
+            }
+            if cancel.check().is_err() || Instant::now() >= deadline {
+                return Ok(Woken::Failed);
+            }
+            let started = Instant::now();
+            row = workspace(read(Method::GET, true).map_err(|_| Woken::Failed)?)?;
+            if !state(&row).unwrap_or(false) {
+                // Older servers may ignore wait_seconds: at most once a second.
+                while started.elapsed() < Duration::from_secs(1)
+                    && Instant::now() < deadline
+                    && cancel.check().is_ok()
+                {
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+            }
+        }
+    };
+    run().unwrap_or_else(|woken| woken)
+}
+
 /// Run on a worker. The UI passes a distinct, cancellable navigation intent;
 /// it must still validate that intent before consuming the one-use handoff.
 /// A workspace that moved while it was opening is opened again once before

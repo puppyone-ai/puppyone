@@ -77,6 +77,85 @@ impl RenderOnce for SettingsSection {
     }
 }
 
+/// `SettingsNote`: one line in the meta size at the rows' inset, under the
+/// rows it qualifies: the rule they follow, a warning, or what went wrong.
+#[derive(IntoElement)]
+pub struct SettingsNote {
+    text: AnyElement,
+    tone: NoteTone,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NoteTone {
+    Plain,
+    Warning,
+    Danger,
+}
+impl SettingsNote {
+    pub fn new(text: impl IntoElement) -> Self {
+        Self {
+            text: text.into_any_element(),
+            tone: NoteTone::Plain,
+        }
+    }
+    pub fn warning(mut self) -> Self {
+        self.tone = NoteTone::Warning;
+        self
+    }
+    pub fn danger(mut self) -> Self {
+        self.tone = NoteTone::Danger;
+        self
+    }
+}
+impl RenderOnce for SettingsNote {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let t = cx.palette();
+        let meta = theme::ty().ui.meta;
+        div()
+            .px(px(10.))
+            .text_size(px(meta))
+            .line_height(px(meta * 1.5))
+            .text_color(match self.tone {
+                NoteTone::Plain => t.subtle,
+                NoteTone::Warning => t.warning,
+                NoteTone::Danger => t.danger,
+            })
+            .child(self.text)
+    }
+}
+
+/// `SettingsChange`: the rows of one change being confirmed (what changes,
+/// its price, when it applies, and the choice), grouped on the rows' hover
+/// tint so they read as one decision.
+#[derive(IntoElement, Default)]
+pub struct SettingsChange {
+    children: Vec<AnyElement>,
+}
+impl SettingsChange {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+impl ParentElement for SettingsChange {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+impl RenderOnce for SettingsChange {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let t = cx.palette();
+        div()
+            .flex()
+            .flex_col()
+            .w_full()
+            .min_w_0()
+            .gap(px(2.))
+            .py(px(2.))
+            .rounded(px(metric::CONTROL_RADIUS))
+            .bg(theme::fade(t.text, 0.03))
+            .children(self.children)
+    }
+}
+
 /// `.desktop-settings-list`: rows 2px apart. A lead list gives its first
 /// row the lead rhythm.
 #[derive(IntoElement, Default)]

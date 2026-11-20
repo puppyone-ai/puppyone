@@ -63,6 +63,9 @@ pub(super) struct WindowProject {
     pub entries: u64,
     /// `workspaceSurfaceError`: the workspace's change subscription failed.
     pub notice: Option<String>,
+    /// The hosted Project shown is reconnecting on its own after its lease
+    /// ended (a quiet notice, no Retry).
+    pub reconnecting: bool,
     /// The visual fixture project shows (captures and tests start on it).
     pub fixture: bool,
 }
@@ -109,7 +112,16 @@ pub(super) struct ProjectLifecycle {
     /// `useHostFolderRestore`: the launch restored nothing else, so the
     /// other computer's folder this account last had open may reopen, once.
     pub device_restore: bool,
+    /// The hosted Project's last quiet reopen, so one that keeps losing its
+    /// lease asks the person instead of reopening in a loop.
+    reopened_at: Option<std::time::Instant>,
+    /// It lost its lease again too soon: the notice's Retry is the person's.
+    reopen_declined: bool,
 }
+
+/// A hosted Project that loses its lease again within this long of a quiet
+/// reopen is not reopened again on its own.
+const QUIET_REOPEN_INTERVAL: std::time::Duration = std::time::Duration::from_secs(120);
 impl EventEmitter<ProjectEvent> for ProjectLifecycle {}
 
 impl ProjectLifecycle {
@@ -142,6 +154,8 @@ impl ProjectLifecycle {
             home: false,
             file_window: false,
             device_restore: false,
+            reopened_at: None,
+            reopen_declined: false,
         }
     }
     fn files<'a>(&self, cx: &'a App) -> &'a crate::editor::workbench::runtime::Runtime {
@@ -216,12 +230,16 @@ impl ProjectLifecycle {
         if pumped.close_refused {
             self.docs.update(cx, |d, _| d.error = None);
         }
+        let reopened = self.reopened(cx);
         if let Some(nodes) = self.docs.update(cx, |d, _| d.tree_update.take()) {
             let ws = self.files(cx).workspace.clone().unwrap();
             self.record.name = ws.name().to_owned();
-            self.record.entries += 1;
-            self.record.fixture = false;
-            self.home = false;
+            // A quiet reopen rebinds what shows; nothing was entered.
+            if !reopened {
+                self.record.entries += 1;
+                self.record.fixture = false;
+                self.home = false;
+            }
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
@@ -275,7 +293,80 @@ impl ProjectLifecycle {
         {
             self.docs.update(cx, |d, _| d.begin(Intent::OpenFile(path)));
         }
+        self.reopen_lost(cx);
         pumped
+    }
+    /// How a quiet reopen ended: `true` when it rebound the Project shown.
+    fn reopened(&mut self, cx: &mut Context<Self>) -> bool {
+        let Some(outcome) = self.docs.update(cx, |d, _| d.take_recovery()) else {
+            return false;
+        };
+        self.record.reconnecting = false;
+        let fields = match &outcome {
+            Ok(()) => vec![("outcome", "rebound")],
+            Err(error) => vec![("outcome", "failed"), ("error", error.as_str())],
+        };
+        crate::platform::diagnostics::note("[cloud-recovery] quiet reopen ended", &fields);
+        match outcome {
+            Ok(()) => {
+                self.record.notice = None;
+                true
+            }
+            Err(_) => {
+                self.reopen_declined = true;
+                self.record.notice =
+                    Some(crate::localization::t("native.cloud.reconnectFailed").into());
+                false
+            }
+        }
+    }
+    /// The service ended the lease of the hosted Project shown (it was
+    /// replaced or retired while open): it reopens quietly, its documents
+    /// rebound with their drafts. One that loses it again within
+    /// [`QUIET_REOPEN_INTERVAL`] asks the person (the notice's Retry); a
+    /// signed-out or other account's window is the account's to close.
+    pub fn reopen_lost(&mut self, cx: &mut Context<Self>) {
+        if !self.files(cx).lease_lost() {
+            self.reopen_declined = false;
+            return;
+        }
+        if self.files(cx).recovering() || self.reopen_declined || self.opening(cx) {
+            return;
+        }
+        let Some(project) = self.hosted(cx) else {
+            return;
+        };
+        let account = super::cloud_authority::account_key(cx);
+        if account.is_none() || account != self.record.authority {
+            return;
+        }
+        let Some((broker, binding)) = crate::features::cloud::account::broker_and_binding(cx)
+        else {
+            return;
+        };
+        let now = std::time::Instant::now();
+        if self
+            .reopened_at
+            .is_some_and(|at| now.duration_since(at) < QUIET_REOPEN_INTERVAL)
+        {
+            self.reopen_declined = true;
+            self.record.reconnecting = false;
+            self.record.notice =
+                Some(crate::localization::t("native.cloud.reconnectFailed").into());
+            crate::platform::diagnostics::note(
+                "[cloud-recovery] lease lost again; asking the person",
+                &[],
+            );
+            cx.notify();
+            return;
+        }
+        self.reopened_at = Some(now);
+        self.record.reconnecting = true;
+        self.record.notice = None;
+        crate::platform::diagnostics::note("[cloud-recovery] lease lost; reopening quietly", &[]);
+        self.docs
+            .update(cx, |d, _| d.recover_cloud(broker, binding, project));
+        cx.notify();
     }
     /// Switch to a remembered project (`onSelectProject`): the one shown
     /// leaves the Homepage; another starts opening.
