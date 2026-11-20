@@ -2,7 +2,9 @@
 //! fixture account with three spaces: Personal (just the account), Acme
 //! Research (a team it owns, on Team) and Studio Lab (a team another person
 //! owns, where it is a member). `<space>` is `me`, `acme` or `studio`;
-//! `<page>` is `account`, `members`, `plan` or `space`.
+//! `<page>` is `account`, `members`, `plan`, `space`, or one of This Mac's
+//! (`general`, `appearance`, `typography`, `create-new`, `privacy`,
+//! `experimental`, `local-agents`, `models`).
 use crate::app::*;
 use serde_json::json;
 
@@ -96,6 +98,14 @@ impl Shell {
             "account" => Page::Account,
             "plan" => Page::Plan,
             "space" => Page::SpaceSettings,
+            "general" => Page::General,
+            "appearance" => Page::Appearance,
+            "typography" => Page::Typography,
+            "create-new" => Page::CreateNew,
+            "privacy" => Page::Privacy,
+            "experimental" => Page::Experimental,
+            "local-agents" => Page::LocalAgents,
+            "models" => Page::ModelConnections,
             _ => Page::Space,
         };
         let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder());

@@ -486,7 +486,7 @@
         "src/features/settings/main/plan/format.rs",
         "src/workspace/cloud/pricing.rs"
       ],
-      "remaining": "Plan follows the 2026-11-19 redesign rather than v0.4.4: one card with the plan, its price and renewal and two 40-cell meters (agent hours with running agents half-lit, storage), the add-ons as a list, and the other plans as rows that each say what they add, a change confirmed in its own row. Account is Personal's identity and AI balance cards; its plan row moved to Plan beside it. Native over scripted billing; not pixel-compared with v0.4.4 by design (AC-2).",
+      "remaining": "Plan follows the 2026-11-19 redesign rather than v0.4.4, drawn in the Settings row grammar (2026-11-21): the plan with its price and renewal, then two rows of 40-cell meters (agent hours with running agents half-lit, storage), the add-ons and the other plans as rows that each say what they add, a change confirmed in a group of rows under what it changes. Account is Personal's rows: who is signed in, the service, and the AI balance with its top-ups; its plan row moved to Plan beside it. Native over scripted billing; not pixel-compared with v0.4.4 by design (AC-2).",
       "evidence": [
         "test:offers_three_plans_with_one_price_each_and_the_same_allowances",
         "test:bills_a_team_per_person_and_names_a_legacy_plan_by_its_new_name",
@@ -540,7 +540,7 @@
         "test:creating_a_space_from_settings_opens_the_windows_dialog",
         "test:removing_a_member_waits_for_its_confirmation"
       ],
-      "remaining": "Settings is scoped as Vercel scopes a dashboard (2026-11-20): a switcher heads the sidebar (Personal, the team spaces with role and plan, Create space); Personal is Account and Plan, a team space Members, Plan and, for its owner, Space settings. Members is an invitation card over a list with roles in place and removal confirmed on its row; Space settings holds the name and the owner. Native over scripted organization APIs; a failure says one fixed sentence rather than the server's words; acceptance on hosted qubits is pending (AC)."
+      "remaining": "Settings is scoped as Vercel scopes a dashboard (2026-11-20): a switcher heads the sidebar (Personal, the team spaces with role and plan, Create space); Personal is Account and Plan, a team space Members, Plan and, for its owner, Space settings. Members, Space settings and Account are drawn as every Settings page is (rows, 2026-11-21): Members is the owner's invitation row over the people, with roles in place and removal confirmed under its row; Space settings is the name, the owner and the transfer. Native over scripted organization APIs; a failure says one fixed sentence rather than the server's words; acceptance on hosted qubits is pending (AC)."
     },
     {
       "name": "Local Agents settings and inventory",

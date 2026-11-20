@@ -17,14 +17,11 @@ fn by_scale(values: [f32; 3]) -> f32 {
     }
 }
 
-/// `.desktop-settings-section` with its page title, an optional action and
-/// an optional lede under the title (whose page this is: a space's mark and
-/// name, and a fact).
+/// `.desktop-settings-section` with its page title and an optional action.
 #[derive(IntoElement)]
 pub struct SettingsSection {
     title: SharedString,
     action: Option<AnyElement>,
-    lede: Option<AnyElement>,
     children: Vec<AnyElement>,
 }
 impl SettingsSection {
@@ -32,17 +29,11 @@ impl SettingsSection {
         Self {
             title: title.into(),
             action: None,
-            lede: None,
             children: vec![],
         }
     }
     pub fn action(mut self, action: impl IntoElement) -> Self {
         self.action = Some(action.into_any_element());
-        self
-    }
-    /// One line under the title, in the label size and muted ink.
-    pub fn lede(mut self, lede: impl IntoElement) -> Self {
-        self.lede = Some(lede.into_any_element());
         self
     }
 }
@@ -55,23 +46,6 @@ impl RenderOnce for SettingsSection {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let t = cx.palette();
         let size = theme::ty().ui.page_title;
-        let label = theme::ty().ui.label;
-        let title = div()
-            .flex()
-            .items_center()
-            .w_full()
-            .min_w_0()
-            .justify_between()
-            .gap(px(12.))
-            .child(
-                div()
-                    .text_size(px(size))
-                    .line_height(px(size * 1.25))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(t.text)
-                    .child(self.title),
-            )
-            .children(self.action);
         div()
             .flex()
             .flex_col()
@@ -82,202 +56,103 @@ impl RenderOnce for SettingsSection {
             .child(
                 div()
                     .flex()
-                    .flex_col()
+                    .items_center()
                     .w_full()
                     .min_w_0()
-                    .gap(px(4.))
                     .mb(px(by_scale([10., 12., 14.])))
+                    .justify_between()
+                    .gap(px(12.))
                     .px(px(10.))
-                    .child(title)
-                    .children(self.lede.map(|lede| {
+                    .child(
                         div()
-                            .flex()
-                            .items_center()
-                            .gap(px(6.))
-                            .min_w_0()
-                            .text_size(px(label))
-                            .line_height(px(label * 1.5))
-                            .text_color(t.muted)
-                            .child(lede)
-                    })),
+                            .text_size(px(size))
+                            .line_height(px(size * 1.25))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.text)
+                            .child(self.title),
+                    )
+                    .children(self.action),
             )
             .children(self.children)
     }
 }
 
-/// One setting as a card (Vercel's settings): its title and what it does,
-/// its control, then a footer that states the rule beside the action. The
-/// title and body are the interface label size, the rule the meta size.
-#[derive(IntoElement, Default)]
-pub struct SettingsCard {
-    id: Option<ElementId>,
-    title: Option<SharedString>,
-    description: Option<SharedString>,
-    note: Option<AnyElement>,
-    actions: Vec<AnyElement>,
-    flush: bool,
-    children: Vec<AnyElement>,
+/// `SettingsNote`: one line in the meta size at the rows' inset, under the
+/// rows it qualifies: the rule they follow, a warning, or what went wrong.
+#[derive(IntoElement)]
+pub struct SettingsNote {
+    text: AnyElement,
+    tone: NoteTone,
 }
-impl SettingsCard {
-    pub fn new() -> Self {
-        Self::default()
-    }
-    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
-        self.id = Some(id.into());
-        self
-    }
-    pub fn title(mut self, title: impl Into<SharedString>) -> Self {
-        self.title = Some(title.into());
-        self
-    }
-    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
-        self.description = Some(description.into());
-        self
-    }
-    /// The footer's rule, at its start.
-    pub fn note(mut self, note: impl IntoElement) -> Self {
-        self.note = Some(note.into_any_element());
-        self
-    }
-    /// The footer's actions, at its end.
-    pub fn action(mut self, action: impl IntoElement) -> Self {
-        self.actions.push(action.into_any_element());
-        self
-    }
-    /// The body is a list whose rows draw their own insets and hairlines.
-    pub fn flush(mut self, flush: bool) -> Self {
-        self.flush = flush;
-        self
-    }
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NoteTone {
+    Plain,
+    Warning,
+    Danger,
 }
-impl ParentElement for SettingsCard {
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
-        self.children.extend(elements);
-    }
-}
-impl RenderOnce for SettingsCard {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let t = cx.palette();
-        let ui = theme::ty().ui;
-        let headed = self.title.is_some() || self.description.is_some();
-        let footed = self.note.is_some() || !self.actions.is_empty();
-        // A flush body (a list drawing its own rows) sits on the card's
-        // edges; otherwise the body shares the header's 20px inset.
-        let (inset, flush) = if self.flush {
-            (vec![], self.children)
-        } else {
-            (self.children, vec![])
-        };
-        let header =
-            (headed || !inset.is_empty()).then(|| {
-                div()
-                    .flex()
-                    .flex_col()
-                    .w_full()
-                    .min_w_0()
-                    .p(px(20.))
-                    .gap(px(14.))
-                    .when(headed, |d| {
-                        d.child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap(px(2.))
-                                .children(self.title.map(|title| {
-                                    div().font_weight(FontWeight::MEDIUM).child(title)
-                                }))
-                                .children(self.description.map(|description| {
-                                    div().text_color(t.muted).child(description)
-                                })),
-                        )
-                    })
-                    .children(inset)
-            });
-        let card = div()
-            .flex()
-            .flex_col()
-            .w_full()
-            .min_w_0()
-            .overflow_hidden()
-            .border_1()
-            .border_color(t.divider)
-            .rounded(px(metric::CARD_RADIUS))
-            .bg(theme::fade(t.text, 0.015))
-            .text_size(px(ui.label))
-            .line_height(px(ui.label * 1.5))
-            .text_color(t.text)
-            .children(header)
-            .when(!flush.is_empty(), |d| {
-                d.child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .w_full()
-                        .min_w_0()
-                        .when(headed, |d| d.border_t_1().border_color(t.divider))
-                        .children(flush),
-                )
-            });
-        let card = card.when(footed, |d| {
-            d.child(CardFooter {
-                note: self.note,
-                actions: self.actions,
-            })
-        });
-        match self.id {
-            Some(id) => card.id(id).into_any_element(),
-            None => card.into_any_element(),
+impl SettingsNote {
+    pub fn new(text: impl IntoElement) -> Self {
+        Self {
+            text: text.into_any_element(),
+            tone: NoteTone::Plain,
         }
     }
-}
-
-/// A card's footer: under a hairline, on a faint band, the rule that
-/// governs its change in the meta size at the start and the change's actions
-/// at the end. `SettingsCard` draws one; a list that confirms a change in
-/// place (Plan) ends its row with one.
-#[derive(IntoElement, Default)]
-pub struct CardFooter {
-    note: Option<AnyElement>,
-    actions: Vec<AnyElement>,
-}
-impl CardFooter {
-    pub fn new() -> Self {
-        Self::default()
-    }
-    pub fn note(mut self, note: impl IntoElement) -> Self {
-        self.note = Some(note.into_any_element());
+    pub fn warning(mut self) -> Self {
+        self.tone = NoteTone::Warning;
         self
     }
-    pub fn action(mut self, action: impl IntoElement) -> Self {
-        self.actions.push(action.into_any_element());
+    pub fn danger(mut self) -> Self {
+        self.tone = NoteTone::Danger;
         self
     }
 }
-impl RenderOnce for CardFooter {
+impl RenderOnce for SettingsNote {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let t = cx.palette();
         let meta = theme::ty().ui.meta;
         div()
+            .px(px(10.))
+            .text_size(px(meta))
+            .line_height(px(meta * 1.5))
+            .text_color(match self.tone {
+                NoteTone::Plain => t.subtle,
+                NoteTone::Warning => t.warning,
+                NoteTone::Danger => t.danger,
+            })
+            .child(self.text)
+    }
+}
+
+/// `SettingsChange`: the rows of one change being confirmed (what changes,
+/// its price, when it applies, and the choice), grouped on the rows' hover
+/// tint so they read as one decision.
+#[derive(IntoElement, Default)]
+pub struct SettingsChange {
+    children: Vec<AnyElement>,
+}
+impl SettingsChange {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+impl ParentElement for SettingsChange {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+impl RenderOnce for SettingsChange {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let t = cx.palette();
+        div()
             .flex()
-            .items_center()
+            .flex_col()
             .w_full()
             .min_w_0()
-            .gap(px(12.))
-            .px(px(20.))
-            .py(px(12.))
-            .border_t_1()
-            .border_color(t.divider)
-            .bg(theme::fade(t.text, 0.025))
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .text_size(px(meta))
-                    .line_height(px(meta * 1.5))
-                    .text_color(t.subtle)
-                    .children(self.note),
-            )
-            .children(self.actions)
+            .gap(px(2.))
+            .py(px(2.))
+            .rounded(px(metric::CONTROL_RADIUS))
+            .bg(theme::fade(t.text, 0.03))
+            .children(self.children)
     }
 }
 

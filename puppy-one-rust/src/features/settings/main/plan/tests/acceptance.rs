@@ -386,8 +386,12 @@ fn failed_signed_in_read_offers_retry_and_prices_without_inventing_current_plan(
 fn actual_current_plan_meters_hours_and_storage_and_warns_only_when_storage_needs_it() {
     for (percent, used, notice) in [
         (30, 12, None),
-        (85, 34, Some(("85% · almost full", "Free up space"))),
-        (100, 40, Some(("100% · full", "Free up space"))),
+        (
+            85,
+            34,
+            Some(("85%", "Storage: almost full · Free up space")),
+        ),
+        (100, 40, Some(("100%", "Storage: full · Free up space"))),
     ] {
         let mut f = Fixture::mount(
             Content::Current(holding()),
@@ -428,27 +432,35 @@ fn actual_usage_text_distinguishes_reserved_legacy_empty_and_missing_readings() 
     let legacy = |used, total, available, reserved| {
         serde_json::from_value(json!({"runtime":{"org_id":"o1","granted_units":total,"consumed_units":used,"available_units":available,"reserved_units":reserved,"postpaid_available_units":0,"postpaid_consumed_units":0,"buckets":[]},"storage":{"logical_bytes":0,"limit_bytes":1000000000}})).unwrap()
     };
-    for (reading, value, left, cells, percent) in [
+    // The share used sits beside the meter; what running agents hold is
+    // the note under the rows.
+    for (reading, value, left, note, cells, percent) in [
         (
             Some(usage(1200, 2400, 60, 1000000000)),
             "20/40 h",
-            "50% · 1 h in progress",
+            "50%",
+            Some("Agent hours: 1 h in progress"),
             (20, 1),
             Some(50.),
         ),
-        (Some(legacy(0, 0, 0, 0)), "0/— h", "—", (0, 0), None),
+        (Some(legacy(0, 0, 0, 0)), "0/— h", "—", None, (0, 0), None),
         (
             Some(legacy(120, 300, 150, 30)),
             "2/5 h",
-            "40% · 0.5 h in progress",
+            "40%",
+            Some("Agent hours: 0.5 h in progress"),
             (16, 4),
             Some(40.),
         ),
-        (None, "—/— h", "—", (0, 0), None),
+        (None, "—/— h", "—", None, (0, 0), None),
     ] {
         let mut f = Fixture::mount(Content::Current(holding()), reading, false, false, false);
         f.contains(value);
         f.contains(left);
+        match note {
+            Some(note) => f.contains(note),
+            None => f.excludes("in progress"),
+        }
         f.cells("plan-hours-meter", cells.0, cells.1);
         let meters: Vec<_> = f
             .meters()

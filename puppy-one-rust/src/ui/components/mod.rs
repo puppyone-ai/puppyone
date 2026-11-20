@@ -39,8 +39,8 @@ pub use resize_handle::ResizeHandle;
 pub use segmented::{Segment, SegmentLayout, SegmentedControl};
 pub use select::{Select, SelectOption};
 pub use settings::{
-    CardFooter, MutedRow, SettingRow, SettingsCard, SettingsCategory, SettingsCategoryList,
-    SettingsList, SettingsSection, SettingsSubsection, ValueRow,
+    MutedRow, SettingRow, SettingsCategory, SettingsCategoryList, SettingsChange, SettingsList,
+    SettingsNote, SettingsSection, SettingsSubsection, ValueRow,
 };
 pub use sidebar::{
     RowActionButton, RowVariant, SectionHeader, SidebarGroup, SidebarRow, selected_gradient,

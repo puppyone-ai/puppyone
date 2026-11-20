@@ -187,6 +187,7 @@
       "native.plan.reopenPayment": "Reopen payment page",
       "native.plan.confirming": "Waiting for the payment service to confirm your change.",
       "native.plan.quoting": "Getting the price…",
+      "native.account.signedInAs": "Signed in as",
       "native.plan.monthlyTotal": "Monthly total",
       "native.plan.chargedNow": "Starts now. The rest of this period is charged today.",
       "native.plan.addOnNext": "Applies from your next bill.",
@@ -205,9 +206,10 @@
       "native.space.removeFrom": "Remove from {space}",
       "native.space.removeConfirm": "Remove {name} from {space}?",
       "native.space.nameDescription": "Shown to everyone in this space.",
-      "native.space.nameRule": "Up to {count} characters.",
+      "native.space.nameRule": "Names can be up to {count} characters.",
       "native.space.ownerDescription": "The owner manages members, the plan and these settings.",
-      "native.space.transferRule": "Transferring makes you a member of {space}."
+      "native.space.transferRule": "Transferring makes you a member of {space}.",
+      "native.space.transferAction": "Transfer"
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -395,6 +397,7 @@
       "native.plan.reopenPayment": "重新打开付款页",
       "native.plan.confirming": "正在等待付款服务确认变更。",
       "native.plan.quoting": "正在获取价格…",
+      "native.account.signedInAs": "当前登录",
       "native.plan.monthlyTotal": "每月合计",
       "native.plan.chargedNow": "立即生效，本期剩余部分今天扣款。",
       "native.plan.addOnNext": "从下一期账单起生效。",
@@ -413,9 +416,10 @@
       "native.space.removeFrom": "从 {space} 移除",
       "native.space.removeConfirm": "把 {name} 从 {space} 移除？",
       "native.space.nameDescription": "空间里的所有人都能看到这个名称。",
-      "native.space.nameRule": "最多 {count} 个字符。",
+      "native.space.nameRule": "名称最多 {count} 个字符。",
       "native.space.ownerDescription": "所有者管理成员、套餐和这些设置。",
-      "native.space.transferRule": "转让后，你会成为 {space} 的成员。"
+      "native.space.transferRule": "转让后，你会成为 {space} 的成员。",
+      "native.space.transferAction": "转让"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -603,6 +607,7 @@
       "native.plan.reopenPayment": "支払いページをもう一度開く",
       "native.plan.confirming": "決済サービスによる変更の確認を待っています。",
       "native.plan.quoting": "価格を取得しています…",
+      "native.account.signedInAs": "ログイン中",
       "native.plan.monthlyTotal": "月額合計",
       "native.plan.chargedNow": "すぐに適用され、今期の残り分は本日請求されます。",
       "native.plan.addOnNext": "次回の請求から適用されます。",
@@ -621,9 +626,10 @@
       "native.space.removeFrom": "{space} から削除",
       "native.space.removeConfirm": "{name} を {space} から削除しますか？",
       "native.space.nameDescription": "このスペースの全員に表示されます。",
-      "native.space.nameRule": "{count} 文字まで。",
+      "native.space.nameRule": "名前は {count} 文字までです。",
       "native.space.ownerDescription": "オーナーはメンバー、プラン、これらの設定を管理します。",
-      "native.space.transferRule": "譲渡すると、あなたは {space} のメンバーになります。"
+      "native.space.transferRule": "譲渡すると、あなたは {space} のメンバーになります。",
+      "native.space.transferAction": "譲渡"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -811,6 +817,7 @@
       "native.plan.reopenPayment": "결제 페이지 다시 열기",
       "native.plan.confirming": "결제 서비스가 변경을 확인하기를 기다리는 중입니다.",
       "native.plan.quoting": "가격을 가져오는 중…",
+      "native.account.signedInAs": "로그인 계정",
       "native.plan.monthlyTotal": "월 합계",
       "native.plan.chargedNow": "지금 바로 적용되며, 이번 기간의 남은 금액은 오늘 청구됩니다.",
       "native.plan.addOnNext": "다음 청구서부터 적용됩니다.",
@@ -829,9 +836,10 @@
       "native.space.removeFrom": "{space}에서 제거",
       "native.space.removeConfirm": "{name}을(를) {space}에서 제거할까요?",
       "native.space.nameDescription": "이 스페이스의 모든 사람에게 표시됩니다.",
-      "native.space.nameRule": "최대 {count}자.",
+      "native.space.nameRule": "이름은 최대 {count}자입니다.",
       "native.space.ownerDescription": "소유자는 멤버, 플랜, 이 설정을 관리합니다.",
-      "native.space.transferRule": "이전하면 내가 {space}의 멤버가 됩니다."
+      "native.space.transferRule": "이전하면 내가 {space}의 멤버가 됩니다.",
+      "native.space.transferAction": "이전"
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -1019,6 +1027,7 @@
       "native.plan.reopenPayment": "Volver a abrir la página de pago",
       "native.plan.confirming": "Esperando a que el servicio de pago confirme tu cambio.",
       "native.plan.quoting": "Obteniendo el precio…",
+      "native.account.signedInAs": "Sesión iniciada como",
       "native.plan.monthlyTotal": "Total mensual",
       "native.plan.chargedNow": "Se aplica ahora. El resto de este periodo se cobra hoy.",
       "native.plan.addOnNext": "Se aplica a partir de tu próxima factura.",
@@ -1037,9 +1046,10 @@
       "native.space.removeFrom": "Quitar de {space}",
       "native.space.removeConfirm": "¿Quitar a {name} de {space}?",
       "native.space.nameDescription": "Lo ve todo el que esté en este espacio.",
-      "native.space.nameRule": "Hasta {count} caracteres.",
+      "native.space.nameRule": "Los nombres pueden tener hasta {count} caracteres.",
       "native.space.ownerDescription": "El propietario gestiona los miembros, el plan y estos ajustes.",
-      "native.space.transferRule": "Al transferirlo pasas a ser miembro de {space}."
+      "native.space.transferRule": "Al transferirlo pasas a ser miembro de {space}.",
+      "native.space.transferAction": "Transferir"
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -1227,6 +1237,7 @@
       "native.plan.reopenPayment": "Reabrir página de pagamento",
       "native.plan.confirming": "Aguardando o serviço de pagamento confirmar sua alteração.",
       "native.plan.quoting": "Obtendo o preço…",
+      "native.account.signedInAs": "Conectado como",
       "native.plan.monthlyTotal": "Total mensal",
       "native.plan.chargedNow": "Vale a partir de agora. O restante deste período é cobrado hoje.",
       "native.plan.addOnNext": "Vale a partir da sua próxima fatura.",
@@ -1245,9 +1256,10 @@
       "native.space.removeFrom": "Remover de {space}",
       "native.space.removeConfirm": "Remover {name} de {space}?",
       "native.space.nameDescription": "Visível para todos neste espaço.",
-      "native.space.nameRule": "Até {count} caracteres.",
+      "native.space.nameRule": "Os nomes podem ter até {count} caracteres.",
       "native.space.ownerDescription": "O proprietário gerencia os membros, o plano e estas configurações.",
-      "native.space.transferRule": "Ao transferir, você passa a ser membro de {space}."
+      "native.space.transferRule": "Ao transferir, você passa a ser membro de {space}.",
+      "native.space.transferAction": "Transferir"
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -1435,6 +1447,7 @@
       "native.plan.reopenPayment": "Rouvrir la page de paiement",
       "native.plan.confirming": "En attente de la confirmation du service de paiement.",
       "native.plan.quoting": "Obtention du prix…",
+      "native.account.signedInAs": "Connecté en tant que",
       "native.plan.monthlyTotal": "Total mensuel",
       "native.plan.chargedNow": "S’applique dès maintenant. Le reste de cette période est facturé aujourd’hui.",
       "native.plan.addOnNext": "S’applique à partir de votre prochaine facture.",
@@ -1453,9 +1466,10 @@
       "native.space.removeFrom": "Retirer de {space}",
       "native.space.removeConfirm": "Retirer {name} de {space} ?",
       "native.space.nameDescription": "Visible par tous dans cet espace.",
-      "native.space.nameRule": "{count} caractères au maximum.",
+      "native.space.nameRule": "Les noms peuvent comporter jusqu’à {count} caractères.",
       "native.space.ownerDescription": "Le propriétaire gère les membres, la formule et ces réglages.",
-      "native.space.transferRule": "Après le transfert, vous devenez membre de {space}."
+      "native.space.transferRule": "Après le transfert, vous devenez membre de {space}.",
+      "native.space.transferAction": "Transférer"
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1643,6 +1657,7 @@
       "native.plan.reopenPayment": "Zahlungsseite erneut öffnen",
       "native.plan.confirming": "Warten, bis der Zahlungsdienst deine Änderung bestätigt.",
       "native.plan.quoting": "Preis wird abgerufen…",
+      "native.account.signedInAs": "Angemeldet als",
       "native.plan.monthlyTotal": "Monatlich gesamt",
       "native.plan.chargedNow": "Gilt ab sofort. Der Rest dieses Zeitraums wird heute berechnet.",
       "native.plan.addOnNext": "Gilt ab Ihrer nächsten Rechnung.",
@@ -1661,9 +1676,10 @@
       "native.space.removeFrom": "Aus {space} entfernen",
       "native.space.removeConfirm": "{name} aus {space} entfernen?",
       "native.space.nameDescription": "Für alle in diesem Space sichtbar.",
-      "native.space.nameRule": "Bis zu {count} Zeichen.",
+      "native.space.nameRule": "Namen können bis zu {count} Zeichen lang sein.",
       "native.space.ownerDescription": "Der Eigentümer verwaltet Mitglieder, den Tarif und diese Einstellungen.",
-      "native.space.transferRule": "Nach der Übertragung bist du Mitglied von {space}."
+      "native.space.transferRule": "Nach der Übertragung bist du Mitglied von {space}.",
+      "native.space.transferAction": "Übertragen"
     }
   }
 }

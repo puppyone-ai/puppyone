@@ -1,13 +1,17 @@
 //! Account is a projection of the app-owned native broker, never a credential
 //! or browser protocol owner. It is Personal's first page and the person's
-//! own: who is signed in, one card, and their AI balance, another. A space's
-//! plan is on Plan, beside it.
+//! own, drawn as every Settings page is: who is signed in and the service,
+//! one row each, then their AI balance with its top-ups. A space's plan is
+//! on Plan, beside it.
 use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::components::{Button, ButtonVariant, PersonMark, SettingsCard, SettingsSection},
+    ui::components::{
+        Button, ButtonVariant, PersonMark, SettingRow, SettingsList, SettingsNote, SettingsSection,
+        SettingsSubsection,
+    },
     workspace::cloud::spaces::{mark_initial, mark_tone},
 };
 use gpui::{prelude::*, *};
@@ -35,38 +39,28 @@ impl SettingsWorkspaceSurface {
             Status::Refreshing => "settings.account.status.refreshing",
             Status::SigningOut => "settings.account.status.signingOut",
         });
-        // The person: their circle (an empty one until someone signs in),
-        // their email and where the session stands.
+        // The person: their circle and email, and where the session stands
+        // when that is more than signed in.
         let identity = h_flex()
-            .gap(px(12.))
+            .gap(px(10.))
             .min_w_0()
-            .child(match account {
-                Some(account) => PersonMark::new(
+            .children(account.map(|account| {
+                PersonMark::new(
                     mark_tone(&account.email) as usize,
                     mark_initial(&account.email),
                 )
-                .side(28.)
-                .into_any_element(),
-                None => div()
-                    .size(px(28.))
-                    .flex_shrink_0()
-                    .rounded_full()
-                    .bg(t.control)
-                    .into_any_element(),
-            })
+                .side(20.)
+            }))
             .child(
-                v_flex()
+                div()
                     .min_w_0()
-                    .child(
-                        div()
-                            .min_w_0()
-                            .truncate()
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(t.text)
-                            .child(title),
-                    )
-                    .child(div().text_color(t.muted).child(detail)),
-            );
+                    .truncate()
+                    .text_color(if account.is_some() { t.text } else { t.subtle })
+                    .child(title),
+            )
+            .when(status != Status::Authenticated, |d| {
+                d.child(div().text_color(t.subtle).whitespace_nowrap().child(detail))
+            });
         let busy = closing
             || matches!(
                 status,
@@ -124,8 +118,7 @@ impl SettingsWorkspaceSurface {
                     })),
             );
         }
-        let mut session_details = v_flex().gap(px(2.)).min_w_0();
-        if let Some(snapshot) = &snapshot {
+        let service = snapshot.as_ref().map(|snapshot| {
             let (label, service) = account.map_or(
                 (
                     "settings.account.desktopService",
@@ -138,28 +131,51 @@ impl SettingsWorkspaceSurface {
                     )
                 },
             );
-            session_details = session_details.child(format!("{}: {}", tr(label), service));
-        }
-        if let Some(error) = unavailable.or_else(|| snapshot.as_ref().and_then(|s| s.error)) {
-            session_details =
-                session_details.child(div().text_color(t.danger).child(error.to_string()));
-        }
+            SettingRow::new(tr(label)).control(
+                div()
+                    .font_family(theme::MONO)
+                    .text_size(px(theme::ty().ui.meta))
+                    .text_color(t.subtle)
+                    .child(service.to_string()),
+            )
+        });
+        let error = unavailable
+            .or_else(|| snapshot.as_ref().and_then(|s| s.error))
+            .map(|error| SettingsNote::new(error.to_string()).danger());
         let payments = crate::features::flags::payments_enabled(&self.preferences, cx);
         // The balance belongs to the account, so it is topped up here, the
         // page the account entry in every Header opens.
         let credits = (payments && account.is_some() && status == Status::Authenticated)
             .then(|| self.compute_credits(true, t, cx));
-        let personal = self.settings_space(cx).filter(|s| s.is_default);
-        let identity = SettingsCard::new()
-            .id("account-identity")
-            .child(identity)
-            .when(self.cloud.is_some(), |card| card.note(session_details))
-            .action(sign_in);
-        let mut section = SettingsSection::new(tr(Page::Account.title()));
-        if let Some(space) = &personal {
-            section = section.lede(self.scope_lede(space, None, t, cx));
-        }
-        section.child(identity).children(credits).into_any_element()
+        SettingsSection::new(tr(Page::Account.title()))
+            .child(
+                v_flex()
+                    .gap(px(6.))
+                    .child(
+                        div().id("account-identity").child(
+                            SettingsList::new()
+                                .lead(true)
+                                .child(
+                                    SettingRow::new(tr(if account.is_some() {
+                                        "native.account.signedInAs"
+                                    } else {
+                                        "settings.account.statusLabel"
+                                    }))
+                                    .control(
+                                        h_flex()
+                                            .gap(px(8.))
+                                            .min_w_0()
+                                            .child(identity)
+                                            .child(sign_in),
+                                    ),
+                                )
+                                .children(service),
+                        ),
+                    )
+                    .children(error),
+            )
+            .children(credits)
+            .into_any_element()
     }
     /// `AccountAICredits`: the available balance and the top-up packs.
     fn compute_credits(&self, top_up: bool, t: Theme, cx: &mut Context<Self>) -> AnyElement {
@@ -178,13 +194,12 @@ impl SettingsWorkspaceSurface {
             .map(|c| c.packs.clone())
             .unwrap_or_default();
         let failed = state.failed;
-        let mut actions = h_flex().gap(px(6.));
+        let mut actions = h_flex().gap(px(8.));
         if top_up {
             for (index, pack) in packs.into_iter().enumerate() {
                 let id = pack.id.clone();
                 actions = actions.child(
                     Button::new(("compute-top-up", index))
-                        .variant(ButtonVariant::Solid)
                         .label(tf(
                             "agent.compute.topUp",
                             &[("amount", money(pack.price_cents * 10_000).into())],
@@ -205,28 +220,30 @@ impl SettingsWorkspaceSurface {
                     })),
             );
         }
-        let ui = theme::ty().ui;
-        let mut card = SettingsCard::new()
+        v_flex()
             .id("account-balance")
-            .title(tr("agent.compute.availableBalance"))
+            .gap(px(6.))
             .child(
-                div()
-                    .font_family(theme::MONO)
-                    .text_size(px(ui.page_title))
-                    .line_height(px(ui.page_title * 1.4))
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(value),
-            );
-        if failed {
-            card = card.note(
-                div()
-                    .text_color(t.danger)
-                    .child(tr("agent.compute.paymentUnavailable")),
-            );
-        }
-        if top_up {
-            card = card.action(actions);
-        }
-        card.into_any_element()
+                SettingsSubsection::new()
+                    .title(tr("settings.account.balanceTitle"))
+                    .child(
+                        SettingRow::new(tr("agent.compute.availableBalance")).control(
+                            h_flex()
+                                .gap(px(8.))
+                                .child(
+                                    div()
+                                        .font_family(theme::MONO)
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(t.text)
+                                        .child(value),
+                                )
+                                .when(top_up, |d| d.child(actions)),
+                        ),
+                    ),
+            )
+            .when(failed, |d| {
+                d.child(SettingsNote::new(tr("agent.compute.paymentUnavailable")).danger())
+            })
+            .into_any_element()
     }
 }

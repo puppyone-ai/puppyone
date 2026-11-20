@@ -1,16 +1,17 @@
 //! Settings › Members and Space settings, on the owner-authorized
-//! organization API. Members: who is in the space, each with a role its
-//! owner changes in place and a menu for removing them, under an invitation
-//! card. Space settings (a team space's owner only): its name and its
-//! owner, one card each. Membership never starts a hidden purchase. A
-//! failure says so in one fixed sentence; the server's own wording is not
-//! shown.
+//! organization API, drawn as every Settings page is: rows with the label
+//! at the start and the control at the end. Members: the owner's invitation
+//! row, then who is in the space, each with a role its owner changes in
+//! place and a menu for removing them, confirmed on the row under it. Space
+//! settings (a team space's owner only): its name, its owner and handing it
+//! on. Membership never starts a hidden purchase. A failure says so in one
+//! fixed sentence; the server's own wording is not shown.
 use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use crate::localization::{Arg, t as tr, tf};
 use crate::theme::{self, Theme};
 use crate::ui::components::{
     Button, ButtonVariant, PersonMark, PopoverMenu, RowActionButton, Select, SelectOption,
-    SettingsCard, SettingsSection,
+    SettingRow, SettingsChange, SettingsList, SettingsNote, SettingsSection, SettingsSubsection,
 };
 use crate::ui::form_input::TextInput;
 use crate::workspace::cloud::services::{self, Member, MemberRole, SPACE_NAME_MAX};
@@ -330,64 +331,31 @@ impl SettingsWorkspaceSurface {
             .focus_handle(cx)
             .is_focused(window)
     }
-    /// Under a space page's title: its mark and name, and one fact.
-    pub(in crate::features::settings) fn scope_lede(
-        &self,
-        space: &Space,
-        fact: Option<String>,
-        t: Theme,
-        cx: &App,
-    ) -> AnyElement {
-        let email = crate::features::cloud::account::snapshot(cx)
-            .and_then(|s| s.account)
-            .map(|a| a.email);
-        h_flex()
-            .gap(px(6.))
-            .min_w_0()
-            .child(super::super::sidebar::settings_sidebar::scope_mark(
-                space,
-                email.as_deref(),
-            ))
-            .child(
-                div()
-                    .min_w_0()
-                    .truncate()
-                    .child(crate::features::cloud::space_name(space)),
-            )
-            .children(fact.map(|fact| div().text_color(t.subtle).child(format!("· {fact}"))))
-            .into_any_element()
-    }
     /// What Members and Space settings show before there is a space to
     /// manage: restoring, signed out, or none chosen.
     fn space_unavailable(
         &self,
         section: SettingsSection,
-        t: Theme,
         cx: &mut Context<Self>,
     ) -> Result<(Space, String), AnyElement> {
         use crate::features::cloud::account::Status;
-        let note = |text: &str| {
-            div()
-                .px(px(10.))
-                .text_size(px(theme::ty().ui.meta))
-                .line_height(px(theme::ty().ui.meta * 1.5))
-                .text_color(t.subtle)
-                .child(text.to_owned())
-        };
         if crate::features::cloud::account::status(cx) == Some(Status::Restoring) {
             return Err(section
-                .child(note(tr("settings.account.status.restoring")))
+                .child(SettingsNote::new(tr("settings.account.status.restoring")))
                 .into_any_element());
         }
         let Some((_, binding)) = crate::features::cloud::account::broker_and_binding(cx) else {
             return Err(section
                 .child(
-                    h_flex().px(px(10.)).child(
-                        Button::new("space-sign-in")
-                            .label(tr("settings.account.signInWithBrowser"))
-                            .on_click(cx.listener(|s, _, _, cx| {
-                                s.select_page(crate::features::settings::Page::Account, cx)
-                            })),
+                    SettingsList::new().lead(true).child(
+                        SettingRow::new(tr("settings.account.statusLabel")).control(
+                            Button::new("space-sign-in")
+                                .variant(ButtonVariant::OutlinePrimary)
+                                .label(tr("settings.account.signInWithBrowser"))
+                                .on_click(cx.listener(|s, _, _, cx| {
+                                    s.select_page(crate::features::settings::Page::Account, cx)
+                                })),
+                        ),
                     ),
                 )
                 .into_any_element());
@@ -395,28 +363,25 @@ impl SettingsWorkspaceSurface {
         match self.settings_space(cx) {
             Some(space) => Ok((space, binding.user.clone())),
             None => Err(section
-                .child(note(tr("settings.space.choose")))
+                .child(SettingsNote::new(tr("settings.space.choose")))
                 .into_any_element()),
         }
     }
-    fn failure(&self, t: Theme) -> Option<Div> {
-        self.space_page.failed.then(|| {
-            div()
-                .px(px(10.))
-                .text_size(px(theme::ty().ui.meta))
-                .text_color(t.danger)
-                .child(tr("native.space.failed"))
-        })
+    fn failure(&self) -> Option<SettingsNote> {
+        self.space_page
+            .failed
+            .then(|| SettingsNote::new(tr("native.space.failed")).danger())
     }
 
-    /// Settings › Members.
+    /// Settings › Members: for its owner, the invitation first; then who is
+    /// in the space, one row each.
     pub(in crate::features::settings) fn members(
         &self,
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let section = SettingsSection::new(tr("settings.space.membersAndSettings"));
-        let (space, me) = match self.space_unavailable(section, t, cx) {
+        let (space, me) = match self.space_unavailable(section, cx) {
             Ok(found) => found,
             Err(page) => return page,
         };
@@ -428,72 +393,48 @@ impl SettingsWorkspaceSurface {
             .iter()
             .find(|m| m.role == "owner")
             .map(|m| m.label().to_owned());
-        let count = tf(
-            "settings.plan.peopleUnit",
-            &[("count", Arg::Number(page.members.len() as i64))],
-        );
-        // The count heads the list; the lede says only who owns a space the
-        // reader does not.
-        let fact = (!page.owner)
-            .then(|| owner_name.clone())
-            .flatten()
-            .map(|owner| tf("native.space.ownedBy", &[("name", owner.into())]));
-        let mut section = SettingsSection::new(tr("settings.space.membersAndSettings"))
-            .lede(self.scope_lede(&space, fact, t, cx));
-        if page.owner {
-            section = section.child(self.invite_card(&name, disabled, t, cx));
-        }
+        let count = if page.loading && page.members.is_empty() {
+            tr("settings.plan.loading").to_owned()
+        } else {
+            tf(
+                "settings.plan.peopleUnit",
+                &[("count", Arg::Number(page.members.len() as i64))],
+            )
+        };
         let rows: Vec<AnyElement> = page
             .members
             .iter()
-            .enumerate()
-            .map(|(index, member)| self.member_row(member, index, &me, &name, disabled, t, cx))
+            .map(|member| self.member_row(member, &me, &name, disabled, t, cx))
             .collect();
-        let list_label = div()
-            .px(px(10.))
-            .mb(px(-8.))
-            .text_size(px(theme::ty().ui.meta))
-            .line_height(px(18.))
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(t.subtle)
-            .child(if page.loading && page.members.is_empty() {
-                tr("settings.plan.loading").to_owned()
-            } else {
-                count
-            });
+        let mut section = SettingsSection::new(tr("settings.space.membersAndSettings"));
+        if page.owner {
+            section = section.child(self.invitation(disabled, t, cx));
+        }
         section
-            .child(list_label)
-            .when(!rows.is_empty(), |d| {
-                d.child(
-                    SettingsCard::new()
-                        .id("space-members")
-                        .flush(true)
-                        .children(rows),
-                )
-            })
-            .when(!page.owner && !page.loading, |d| {
-                d.children(owner_name.map(|owner| {
-                    div()
-                        .px(px(10.))
-                        .text_size(px(theme::ty().ui.meta))
-                        .line_height(px(theme::ty().ui.meta * 1.5))
-                        .text_color(t.subtle)
-                        .child(tf("native.space.onlyOwner", &[("name", owner.into())]))
-                }))
-            })
-            .children(self.failure(t))
+            .child(
+                v_flex()
+                    .gap(px(6.))
+                    .child(
+                        div()
+                            .id("space-members")
+                            .child(SettingsSubsection::new().title(count).children(rows)),
+                    )
+                    .when(!page.owner && !page.loading, |d| {
+                        d.children(owner_name.map(|owner| {
+                            SettingsNote::new(tf(
+                                "native.space.onlyOwner",
+                                &[("name", owner.into())],
+                            ))
+                        }))
+                    })
+                    .children(self.failure()),
+            )
             .into_any_element()
     }
 
-    /// The owner's invitation: an email and a role, the rule about seats,
-    /// and the link the last invitation made.
-    fn invite_card(
-        &self,
-        space: &str,
-        disabled: bool,
-        t: Theme,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
+    /// The owner's invitation: an email and a role in one row, the link
+    /// the last invitation made, and the rule about seats.
+    fn invitation(&self, disabled: bool, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let page = &self.space_page;
         let email = page.email.read(cx).text().trim().to_owned();
         let role = page.role;
@@ -506,98 +447,89 @@ impl SettingsWorkspaceSurface {
                 let copy_key: SharedString = "space-invite-url".into();
                 let copied = self.is_copied(&copy_key);
                 let url_to_copy = url.clone();
-                h_flex()
-                    .gap(px(10.))
-                    .min_w_0()
-                    .child(
-                        div()
-                            .flex_none()
-                            .text_color(t.muted)
-                            .child(tr("settings.space.invitationLink")),
-                    )
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .truncate()
-                            .font_family(theme::MONO)
-                            .text_color(t.muted)
-                            .child(url),
-                    )
-                    .child(
-                        Button::new("space-copy-invite")
-                            .debug_selector(|| "space-copy-invite".into())
-                            .icon("copy")
-                            .label(tr(if copied {
-                                "common.action.copied"
-                            } else {
-                                "common.action.copy"
-                            }))
-                            .on_click(cx.listener(move |s, _, _, cx| {
-                                s.copy(copy_key.clone(), url_to_copy.clone(), cx)
-                            })),
-                    )
-            });
-        SettingsCard::new()
-            .id("space-invite-card")
-            .title(tr("native.space.inviteTitle"))
-            .description(tf(
-                "native.space.inviteDescription",
-                &[("space", space.to_owned().into())],
-            ))
-            .child(
-                h_flex()
-                    .gap(px(8.))
-                    .child(div().flex_1().min_w_0().child(page.email.clone()))
-                    .child(
-                        Select::new(
-                            "space-invite-role",
-                            tr(&format!("settings.space.role.{}", role.key())),
-                            move |_| {
-                                [MemberRole::Viewer, MemberRole::Member]
-                                    .into_iter()
-                                    .map(|choice| {
-                                        let entity = entity.clone();
-                                        SelectOption::new(tr(&format!(
-                                            "settings.space.role.{}",
-                                            choice.key()
-                                        )))
-                                        .selected(choice == role)
-                                        .on_select(
-                                            move |_, cx| {
-                                                entity.update(cx, |s, cx| {
-                                                    s.space_page.role = choice;
-                                                    cx.notify();
-                                                })
-                                            },
-                                        )
-                                    })
-                                    .collect()
-                            },
+                SettingRow::new(tr("settings.space.invitationLink")).control(
+                    h_flex()
+                        .gap(px(8.))
+                        .min_w_0()
+                        .child(
+                            div()
+                                .max_w(px(300.))
+                                .min_w_0()
+                                .truncate()
+                                .font_family(theme::MONO)
+                                .text_size(px(theme::ty().ui.meta))
+                                .text_color(t.subtle)
+                                .child(url),
                         )
-                        .disabled(disabled),
-                    ),
+                        .child(
+                            Button::new("space-copy-invite")
+                                .debug_selector(|| "space-copy-invite".into())
+                                .icon("copy")
+                                .label(tr(if copied {
+                                    "common.action.copied"
+                                } else {
+                                    "common.action.copy"
+                                }))
+                                .on_click(cx.listener(move |s, _, _, cx| {
+                                    s.copy(copy_key.clone(), url_to_copy.clone(), cx)
+                                })),
+                        ),
+                )
+            });
+        let role_select = Select::new(
+            "space-invite-role",
+            tr(&format!("settings.space.role.{}", role.key())),
+            move |_| {
+                [MemberRole::Viewer, MemberRole::Member]
+                    .into_iter()
+                    .map(|choice| {
+                        let entity = entity.clone();
+                        SelectOption::new(tr(&format!("settings.space.role.{}", choice.key())))
+                            .selected(choice == role)
+                            .on_select(move |_, cx| {
+                                entity.update(cx, |s, cx| {
+                                    s.space_page.role = choice;
+                                    cx.notify();
+                                })
+                            })
+                    })
+                    .collect()
+            },
+        )
+        .disabled(disabled);
+        v_flex()
+            .gap(px(6.))
+            .child(
+                SettingsList::new()
+                    .lead(true)
+                    .child(
+                        SettingRow::new(tr("native.space.inviteTitle")).control(
+                            h_flex()
+                                .gap(px(8.))
+                                .child(div().w(px(220.)).child(page.email.clone()))
+                                .child(role_select)
+                                .child(
+                                    Button::new("space-invite")
+                                        .label(tr("settings.space.invite"))
+                                        .disabled(disabled || email.is_empty())
+                                        .on_click(
+                                            cx.listener(|s, _, _, cx| s.submit_space_invite(cx)),
+                                        ),
+                                ),
+                        ),
+                    )
+                    .children(link),
             )
-            .children(link)
-            .note(tr("native.space.seatNote"))
-            .action(
-                Button::new("space-invite")
-                    .variant(ButtonVariant::Solid)
-                    .label(tr("settings.space.invite"))
-                    .disabled(disabled || email.is_empty())
-                    .on_click(cx.listener(|s, _, _, cx| s.submit_space_invite(cx))),
-            )
+            .child(SettingsNote::new(tr("native.space.seatNote")))
             .into_any_element()
     }
 
     /// One person: their circle, name and email, and their role; the owner
     /// changes another's role in place and removes them from the row's menu,
-    /// confirming on the line under it.
-    #[allow(clippy::too_many_arguments)]
+    /// confirming on the row under it.
     fn member_row(
         &self,
         member: &Member,
-        index: usize,
         me: &str,
         space: &str,
         disabled: bool,
@@ -630,7 +562,6 @@ impl SettingsWorkspaceSurface {
             let role_user = user.clone();
             let menu_user = user.clone();
             h_flex()
-                .flex_none()
                 .gap(px(4.))
                 .child(
                     Select::new(
@@ -708,98 +639,91 @@ impl SettingsWorkspaceSurface {
                 .into_any_element()
         } else {
             div()
-                .flex_none()
-                .px(px(10.))
-                .text_color(t.muted)
+                .text_color(t.subtle)
                 .child(short_role)
                 .into_any_element()
         };
-        let confirming = page.removing.as_deref() == Some(user.as_str());
-        let removed = user.clone();
-        v_flex()
-            .id(SharedString::from(format!("space-member-{user}")))
-            .when(index > 0, |d| d.border_t_1().border_color(t.divider))
+        let person = h_flex()
+            .gap(px(10.))
+            .min_w_0()
+            .child(PersonMark::new(mark_tone(&key) as usize, mark_initial(&name)).side(20.))
             .child(
-                h_flex()
-                    .gap(px(12.))
-                    .px(px(16.))
-                    .py(px(12.))
-                    .child(PersonMark::new(mark_tone(&key) as usize, mark_initial(&name)).side(28.))
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .child(
-                                h_flex()
-                                    .gap(px(6.))
-                                    .min_w_0()
-                                    .child(div().min_w_0().truncate().child(name.clone()))
-                                    .when(mine, |d| {
-                                        d.child(
-                                            div()
-                                                .flex_none()
-                                                .text_color(t.subtle)
-                                                .child(format!("· {}", tr("native.space.you"))),
-                                        )
-                                    }),
-                            )
-                            .children(email.map(|email| {
-                                div().min_w_0().truncate().text_color(t.subtle).child(email)
-                            })),
-                    )
-                    .child(right),
+                div()
+                    .text_color(t.text)
+                    .whitespace_nowrap()
+                    .child(name.clone()),
             )
-            .when(confirming, |d| {
+            .when(mine, |d| {
                 d.child(
-                    h_flex()
-                        .gap(px(8.))
-                        .px(px(16.))
-                        .pb(px(12.))
-                        .child(div().flex_1().min_w_0().text_color(t.muted).child(tf(
-                            "native.space.removeConfirm",
-                            &[
-                                ("name", name.clone().into()),
-                                ("space", space.to_owned().into()),
-                            ],
-                        )))
-                        .child(
-                            Button::new("space-remove-cancel")
-                                .label(tr("common.action.cancel"))
-                                .disabled(disabled)
-                                .on_click(cx.listener(|s, _, _, cx| {
-                                    s.space_page.removing = None;
-                                    cx.notify();
-                                })),
-                        )
-                        .child(
-                            Button::new(SharedString::from(format!("space-remove-{removed}")))
-                                .variant(ButtonVariant::OutlineDanger)
-                                .label(tr("settings.space.remove"))
-                                .disabled(disabled)
-                                .on_click(cx.listener(move |s, _, _, cx| {
-                                    let user = removed.clone();
-                                    s.space_page.removing = None;
-                                    s.change_space(
-                                        move |client, org| {
-                                            client.remove_member(org, &user).map(|_| None)
-                                        },
-                                        cx,
-                                    )
-                                })),
-                        ),
+                    div()
+                        .text_color(t.subtle)
+                        .whitespace_nowrap()
+                        .child(format!("· {}", tr("native.space.you"))),
                 )
             })
+            .children(
+                email.map(|email| div().min_w_0().truncate().text_color(t.subtle).child(email)),
+            );
+        let row = div()
+            .id(SharedString::from(format!("space-member-{user}")))
+            .child(SettingRow::new("").label_element(person).control(right));
+        if page.removing.as_deref() != Some(user.as_str()) {
+            return row.into_any_element();
+        }
+        let removed = user.clone();
+        SettingsChange::new()
+            .child(row)
+            .child(
+                SettingRow::new("")
+                    .label_element(div().text_color(t.muted).child(tf(
+                        "native.space.removeConfirm",
+                        &[
+                            ("name", name.clone().into()),
+                            ("space", space.to_owned().into()),
+                        ],
+                    )))
+                    .control(
+                        h_flex()
+                            .gap(px(8.))
+                            .child(
+                                Button::new("space-remove-cancel")
+                                    .label(tr("common.action.cancel"))
+                                    .disabled(disabled)
+                                    .on_click(cx.listener(|s, _, _, cx| {
+                                        s.space_page.removing = None;
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(
+                                Button::new(SharedString::from(format!("space-remove-{removed}")))
+                                    .variant(ButtonVariant::OutlineDanger)
+                                    .label(tr("settings.space.remove"))
+                                    .disabled(disabled)
+                                    .on_click(cx.listener(move |s, _, _, cx| {
+                                        let user = removed.clone();
+                                        s.space_page.removing = None;
+                                        s.change_space(
+                                            move |client, org| {
+                                                client.remove_member(org, &user).map(|_| None)
+                                            },
+                                            cx,
+                                        )
+                                    })),
+                            ),
+                    ),
+            )
             .into_any_element()
     }
 
-    /// Settings › Space settings: a team space's name and its owner.
+    /// Settings › Space settings: a team space's name, its owner, and
+    /// handing it to someone else.
     pub(in crate::features::settings) fn space_details(
         &self,
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let section = SettingsSection::new(tr("settings.space.settings"));
-        let (space, me) = match self.space_unavailable(section, t, cx) {
+        let (space, me) = match self.space_unavailable(section, cx) {
             Ok(found) => found,
             Err(page) => return page,
         };
@@ -808,21 +732,24 @@ impl SettingsWorkspaceSurface {
         let name = crate::features::cloud::space_name(&space);
         let typed = page.name.read(cx).text().trim().to_owned();
         let renamable = page.owner && !space.is_default;
-        let name_card = SettingsCard::new()
-            .id("space-name-card")
-            .title(tr("settings.space.name"))
-            .description(tr("native.space.nameDescription"))
-            .child(page.name.clone())
-            .note(tf(
-                "native.space.nameRule",
-                &[("count", Arg::Number(SPACE_NAME_MAX as i64))],
-            ))
-            .action(
-                Button::new("space-rename")
-                    .label(tr("settings.space.save"))
-                    .disabled(disabled || !renamable || typed.is_empty() || typed == name)
-                    .on_click(cx.listener(|s, _, _, cx| s.submit_space_rename(cx))),
-            );
+        let save = Button::new("space-rename")
+            .label(tr("settings.space.save"))
+            .disabled(disabled || !renamable || typed.is_empty() || typed == name)
+            .on_click(cx.listener(|s, _, _, cx| s.submit_space_rename(cx)));
+        let owner = page.members.iter().find(|m| m.role == "owner").map(|m| {
+            let key = m.email.clone().unwrap_or_else(|| m.user_id.clone());
+            h_flex()
+                .gap(px(10.))
+                .child(PersonMark::new(mark_tone(&key) as usize, mark_initial(m.label())).side(20.))
+                .child(div().text_color(t.text).child(m.label().to_owned()))
+                .when(m.user_id == me, |d| {
+                    d.child(
+                        div()
+                            .text_color(t.subtle)
+                            .child(format!("· {}", tr("native.space.you"))),
+                    )
+                })
+        });
         let others: Vec<Member> = page
             .members
             .iter()
@@ -843,54 +770,74 @@ impl SettingsWorkspaceSurface {
         let entity = cx.entity();
         let choices = others.clone();
         let target = chosen.clone();
-        let owner_card = SettingsCard::new()
-            .id("space-owner-card")
-            .title(tr("settings.space.role.owner"))
-            .description(tr("native.space.ownerDescription"))
-            .child(
-                Select::new("space-transfer", label, move |_| {
-                    choices
-                        .iter()
-                        .map(|member| {
-                            let entity = entity.clone();
-                            let id = member.user_id.clone();
-                            SelectOption::new(member.label().to_owned())
-                                .selected(target.as_ref() == Some(&id))
-                                .on_select(move |_, cx| {
-                                    let id = id.clone();
-                                    entity.update(cx, |s, cx| {
-                                        s.space_page.transfer_to = Some(id);
-                                        cx.notify();
-                                    })
-                                })
+        let transfer = Select::new("space-transfer", label, move |_| {
+            choices
+                .iter()
+                .map(|member| {
+                    let entity = entity.clone();
+                    let id = member.user_id.clone();
+                    SelectOption::new(member.label().to_owned())
+                        .selected(target.as_ref() == Some(&id))
+                        .on_select(move |_, cx| {
+                            let id = id.clone();
+                            entity.update(cx, |s, cx| {
+                                s.space_page.transfer_to = Some(id);
+                                cx.notify();
+                            })
                         })
-                        .collect()
                 })
-                .disabled(disabled || others.is_empty()),
-            )
-            .note(tf(
-                "native.space.transferRule",
-                &[("space", name.clone().into())],
-            ))
-            .action(
-                Button::new("space-transfer-confirm")
-                    .variant(ButtonVariant::OutlineDanger)
-                    .label(tr("settings.space.confirmTransfer"))
-                    .disabled(disabled || chosen.is_none())
-                    .on_click(cx.listener(move |s, _, _, cx| {
-                        let Some(user) = chosen.clone() else { return };
-                        s.space_page.transfer_to = None;
-                        s.change_space(
-                            move |client, org| client.transfer_ownership(org, &user).map(|_| None),
-                            cx,
-                        )
-                    })),
-            );
+                .collect()
+        })
+        .width_range(ROLE_WIDTH, ROLE_WIDTH)
+        .disabled(disabled || others.is_empty());
+        let confirm = Button::new("space-transfer-confirm")
+            .variant(ButtonVariant::OutlineDanger)
+            .label(tr("native.space.transferAction"))
+            .disabled(disabled || chosen.is_none())
+            .on_click(cx.listener(move |s, _, _, cx| {
+                let Some(user) = chosen.clone() else { return };
+                s.space_page.transfer_to = None;
+                s.change_space(
+                    move |client, org| client.transfer_ownership(org, &user).map(|_| None),
+                    cx,
+                )
+            }));
         SettingsSection::new(tr("settings.space.settings"))
-            .lede(self.scope_lede(&space, None, t, cx))
-            .child(name_card)
-            .child(owner_card)
-            .children(self.failure(t))
+            .child(
+                v_flex()
+                    .gap(px(6.))
+                    .child(
+                        SettingsList::new()
+                            .lead(true)
+                            .child(
+                                SettingRow::new(tr("settings.space.name")).control(
+                                    h_flex()
+                                        .gap(px(8.))
+                                        .child(div().w(px(220.)).child(page.name.clone()))
+                                        .child(save),
+                                ),
+                            )
+                            .children(owner.map(|owner| {
+                                SettingRow::new(tr("settings.space.role.owner")).control(owner)
+                            }))
+                            .child(
+                                SettingRow::new(tr("settings.space.transfer"))
+                                    .control(h_flex().gap(px(8.)).child(transfer).child(confirm)),
+                            ),
+                    )
+                    .child(SettingsNote::new(format!(
+                        "{} {}",
+                        tf(
+                            "native.space.nameRule",
+                            &[("count", Arg::Number(SPACE_NAME_MAX as i64))],
+                        ),
+                        tf(
+                            "native.space.transferRule",
+                            &[("space", name.clone().into())]
+                        ),
+                    )))
+                    .children(self.failure()),
+            )
             .into_any_element()
     }
 }
