@@ -39637,6 +39637,190 @@
           "test": "editor::markdown::features::html::embed::tests::only_a_lone_https_iframe_is_an_embed"
         }
       ]
+    },
+    {
+      "id": "editor-scoped-resource-operations",
+      "acceptance": "A rename, move, copy or delete first saves the affected open documents and keeps their working copies: a close queued against a moving document cannot retire it and the moved document keeps its identity at the new address; copies take the saved source; a failed pre-operation save cancels the mutation and leaves every document as it was; an operation with an unknown outcome is never repeated, blocks only overlapping paths and is reconciled from the file system (a completed move is adopted); operations on overlapping resources wait while unrelated ones run.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/resources/documentResourceOperations.test.ts",
+          "sha256": "8ee1f38f33a4ac0eb26ed0ea281e461b00da5506ce30a4034e9db91dd9a86cda",
+          "cases": [
+            {
+              "index": 0,
+              "name": "scoped document operations > does not retire a moved model through a close queued against its former address"
+            },
+            {
+              "index": 1,
+              "name": "scoped document operations > rejects an already queued operation when the preceding operation becomes uncertain"
+            },
+            {
+              "index": 2,
+              "name": "scoped document operations > copies the acknowledged source while retaining its editing model"
+            },
+            {
+              "index": 3,
+              "name": "scoped document operations > renames only after saving the affected document, preserving its model and undo"
+            },
+            {
+              "index": 4,
+              "name": "scoped document operations > keeps input and identity when the pre-operation save fails"
+            },
+            {
+              "index": 5,
+              "name": "scoped document operations > does not repeat a mutation with an unknown delivery result"
+            },
+            {
+              "index": 6,
+              "name": "scoped document operations > reconciles a completed readonly move after its transport acknowledgement is lost"
+            },
+            {
+              "index": 7,
+              "name": "scoped document operations > waits for overlapping ranges while allowing unrelated operations"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::resource_barrier_waits_for_composition_and_cannot_be_stolen_by_close"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::an_unreconciled_operation_refuses_overlapping_ones_only"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::copying_a_directory_flushes_hidden_working_copies_without_replacing_them"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::move_rebinds_its_original_project_even_if_another_project_is_active"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::failed_snapshot_cancels_the_mutation_and_thaws_every_affected_document"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::unknown_resource_result_blocks_its_paths_but_allows_unrelated_navigation"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::resource_operations::tests::lost_rename_receipt_is_reconciled_without_replaying_the_mutation"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::resource_operations::tests::mismatching_destination_keeps_the_receipt_for_later_reconciliation"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::file_operations_queue_by_resource_scope"
+        }
+      ]
+    },
+    {
+      "id": "editor-document-identity",
+      "acceptance": "Equal paths in different storages are different documents with independent writes and lifetimes.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/resources/documentIdentity.test.ts",
+          "sha256": "5ebb9bbd4b43e5f956b1964864a7abdc20687018ca74a6f3b60c503f5957bd3b",
+          "cases": [
+            {
+              "index": 2,
+              "name": "DocumentIdentity > keeps equal provider paths in different Workspace Folders as distinct fingerprints"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::runtime::tests::lifecycle::equal_paths_in_distinct_storages_keep_independent_writes_and_close_lifetimes"
+        }
+      ]
+    },
+    {
+      "id": "editor-input-revalidation",
+      "acceptance": "Only the first read opens a document: re-reading identical bytes shows nothing new and writes nothing, changed bytes land in the open document in place, and a change to another path is never read.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/resources/documentInputRevalidation.test.ts",
+          "sha256": "ef48e776ae25b951cd87b6a3cfc61fb0f4f37482a97343c45b50e93d5b78e698",
+          "cases": [
+            {
+              "index": 0,
+              "name": "document input revalidation > presents loading only for the first read"
+            },
+            {
+              "index": 1,
+              "name": "document input revalidation > re-reads identical bytes silently: no loading flash, no new content object, no notification"
+            },
+            {
+              "index": 2,
+              "name": "document input revalidation > publishes changed bytes with a new generation and never shows loading over shown content"
+            },
+            {
+              "index": 3,
+              "name": "document input revalidation > ignores changes to other paths without reading"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::an_identical_reread_shows_nothing_new_and_a_change_lands_in_place"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::clean_external_updates_reach_each_editable_surface_without_writes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::external_consistency::one_watcher_batch_updates_each_pane_from_its_own_document"
+        }
+      ]
+    },
+    {
+      "id": "editor-source-admission",
+      "acceptance": "Source admission counts UTF-8 bytes (a multi-byte character counts all its bytes) and refuses past the budget without opening a truncated editable fallback; budgets are whole numbers validated when the manifest is read; limits are shown as whole MB when exact.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/resources/editorSourceAdmission.test.ts",
+          "sha256": "e68e3c66ef2ff11bb5eb4c63dfbd6996c213cca99b81d5dc34d6b31a2694e24c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Editor source admission > counts UTF-8 bytes without allocating a second full-size buffer"
+            },
+            {
+              "index": 1,
+              "name": "Editor source admission > fails closed for invalid budgets"
+            },
+            {
+              "index": 2,
+              "name": "Editor source admission > formats manifest byte limits for the pane-local rejection state"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "documents::tests::source_admission_counts_utf8_bytes_and_never_opens_a_truncated_editable_fallback"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::manifest::tests::javascript_safe_integer_budgets_and_whole_number_json_notation_are_preserved"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::registry::tests::source_budgets_follow_the_product_manifest"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -46150,7 +46334,7 @@
     {
       "id": "cloud-previews-without-signed-urls",
       "kind": "out-of-scope",
-      "reason": "TS fetches Cloud previews through backend-signed endpoints and admits retained resources to Chromium's embedded PDF viewer, so it must refuse forged signed endpoints, reference-count identical signatures, keep PDF frames from navigating into other retained resources and refuse late signatures. The native app signs nothing: preview bytes come through the workspace's authenticated file API under the window's lease, and PDFs are rendered natively by PDFium from those bytes, so no signed URL, embedded PDF frame or navigation policy exists.",
+      "reason": "TS fetches Cloud previews through backend-signed endpoints and admits retained resources to Chromium's embedded PDF viewer, so it must refuse forged signed endpoints, reference-count identical signatures, keep PDF frames from navigating into other retained resources and refuse late signatures. The native app signs nothing: preview bytes come through the workspace's authenticated file API under the window's lease, and PDFs are rendered natively by PDFium from those bytes, so no signed URL, embedded PDF frame or navigation policy exists. Nor is a PDF or media URL preflighted (HEAD, or a bodiless GET for MIME and size, no retry on authentication failures or plain HTTP, a loopback development service) or re-signed on Retry with the old capability revoked after its replacement.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/pdf.md",
       "typescript": [
         {
@@ -46216,6 +46400,58 @@
             {
               "index": 2,
               "name": "live native previews > admits only retained live PDF blob capabilities, then revokes them"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/resources/pdfResourcePreflight.test.ts",
+          "sha256": "94efcf5c0598a396b897c9bb274d978bf70a857ccdfa1973fdbc63600757b540",
+          "cases": [
+            {
+              "index": 0,
+              "name": "PDF resource transport admission > uses HEAD when supported"
+            },
+            {
+              "index": 1,
+              "name": "PDF resource transport admission > preflights real Blob bytes without HEAD while preserving MIME and size checks"
+            },
+            {
+              "index": 2,
+              "name": "PDF resource transport admission > handles a GET-only Cloud preview with 'application/pdf' / '100' without buffering its body"
+            },
+            {
+              "index": 3,
+              "name": "PDF resource transport admission > handles a GET-only Cloud preview with 'text/html' / '100' without buffering its body"
+            },
+            {
+              "index": 4,
+              "name": "PDF resource transport admission > handles a GET-only Cloud preview with 'application/pdf' / '9999' without buffering its body"
+            },
+            {
+              "index": 5,
+              "name": "PDF resource transport admission > handles a GET-only Cloud preview with 'application/pdf' / '0' without buffering its body"
+            },
+            {
+              "index": 6,
+              "name": "PDF resource transport admission > does not retry authentication failures or arbitrary insecure HTTP endpoints"
+            },
+            {
+              "index": 7,
+              "name": "PDF resource transport admission > admits the same signed preview on a loopback development service"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/resources/documentInputRetry.test.ts",
+          "sha256": "b7b076b77ea2e4a817d08e2a40d5cc0f170d4d4750924074261d2f9a9b9e6e61",
+          "cases": [
+            {
+              "index": 0,
+              "name": "document resource Retry > does not reuse a retired runtime's capability still retained by another consumer"
+            },
+            {
+              "index": 1,
+              "name": "document resource Retry > re-signs a retained binary resource and revokes the old capability only after replacement"
             }
           ]
         }
@@ -50042,6 +50278,108 @@
             {
               "index": 2,
               "name": "preset viewer preload cache > never evaluates an isolated Viewer implementation in the shell renderer"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "editor-url-resource-pool",
+      "kind": "out-of-scope",
+      "reason": "TS hands viewers blob or capability URLs from a reference-counted pool (shared acquisitions, replacement published before the old URL is revoked, failed revocations retried, sibling cancellation isolated, admission closed during window retirement), retires native host surfaces through leases, and re-prepares a document when a tracked resource or directory dependency changes. The native editor decodes resources into one bounded cache keyed by content stamp with generation-guarded settles, holds native surfaces by ownership, and re-resolves references when the workspace changes, so there are no URLs to revoke, leases to retire or dependency index to keep.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/resource-operations.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/resources/editorResourceOwnership.test.ts",
+          "sha256": "b4f92509654b668a3b2a1c400fd15292a1f675c595b417fba3bdf0a3307e2f35",
+          "cases": [
+            {
+              "index": 0,
+              "name": "native editor host ownership > waits for a late allocation and releases it without publishing the cancelled surface"
+            },
+            {
+              "index": 1,
+              "name": "native editor host ownership > retains a failed native release for retry and leaves unrelated resources alive"
+            },
+            {
+              "index": 2,
+              "name": "editor resource ownership > blocks late allocations during window retirement and reopens admission after cancellation"
+            },
+            {
+              "index": 3,
+              "name": "editor resource ownership > shares one acquisition and releases only after the final consumer"
+            },
+            {
+              "index": 4,
+              "name": "editor resource ownership > publishes replacement URLs to every remaining subscriber before revoking the old URL"
+            },
+            {
+              "index": 5,
+              "name": "editor resource ownership > keeps failed capability revocation pending until a retry really succeeds"
+            },
+            {
+              "index": 6,
+              "name": "editor resource ownership > does not let one cancelled acquisition cancel a sibling consumer"
+            },
+            {
+              "index": 7,
+              "name": "editor dependency preparation > ignores matching entries already consumed from an accumulated notification"
+            },
+            {
+              "index": 8,
+              "name": "editor dependency preparation > keeps accepted dependencies while preparing and rejects a stale replacement"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ts-document-identity-strings",
+      "kind": "out-of-scope",
+      "reason": "TS keys a document by a string resource path, so it canonicalizes legacy provider paths (backslashes, `./`, doubled slashes) and keeps `puppyone-local://` Workspace Resource URIs whole. Native documents are keyed by their storage and a relative path inside an admitted root, so there is no string form to canonicalize.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/core/document-editing-session.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/resources/documentIdentity.test.ts",
+          "sha256": "5ebb9bbd4b43e5f956b1964864a7abdc20687018ca74a6f3b60c503f5957bd3b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "DocumentIdentity > retains legacy provider-path canonicalization"
+            },
+            {
+              "index": 1,
+              "name": "DocumentIdentity > preserves canonical Workspace Resource URIs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-preview-document-urls",
+      "kind": "out-of-scope",
+      "reason": "TS serves immutable preview snapshots through a main-process URL service: unguessable URLs, GET and HEAD only, forged paths and fragments refused, a UTF-8 budget per snapshot, 128 retained leases per owner and revocation only by the owning sender. A native HTML preview's web view is handed its page by the viewer that owns it, under the same opaque sandbox (scripts and forms, no same origin or top navigation; html_preview::tests::page_scripts_run_inside_the_sandbox_boundaries), so there are no URLs to forge, revoke or bound.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/README.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/resources/previewDocumentService.test.mjs",
+          "sha256": "39270d73b5b3fd8f573c82a401bf07fe17935643ddfcfc86476cadfd41d52554",
+          "cases": [
+            {
+              "index": 0,
+              "name": "provider-neutral immutable preview documents > serves exact snapshots with an opaque sandbox and no filesystem authority"
+            },
+            {
+              "index": 1,
+              "name": "provider-neutral immutable preview documents > permits page interaction in an opaque sandbox and restricts revocation to the owning sender"
+            },
+            {
+              "index": 2,
+              "name": "provider-neutral immutable preview documents > rejects forged paths, methods and unbounded UTF-8 allocations"
+            },
+            {
+              "index": 3,
+              "name": "provider-neutral immutable preview documents > bounds retained leases and releases capacity on owner close"
             }
           ]
         }

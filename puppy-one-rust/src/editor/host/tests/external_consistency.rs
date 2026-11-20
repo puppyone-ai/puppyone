@@ -883,3 +883,26 @@ fn a_pathless_change_notification_refreshes_the_open_document(cx: &mut TestAppCo
     assert_eq!(m.storage.reads.lock().unwrap().len(), 2);
     m.assert_no_writes();
 }
+
+/// `documentInputRevalidation.test.ts`: `re-reads identical bytes silently`
+/// (nothing new is shown or written) and `publishes changed bytes ... and
+/// never shows loading over shown content` (the open document takes the
+/// new text in place, never through a fresh open).
+#[gpui::test]
+fn an_identical_reread_shows_nothing_new_and_a_change_lands_in_place(cx: &mut TestAppContext) {
+    let markdown = native("matrix-note.md");
+    let mut m = Matrix::new(cx, markdown);
+    let shown = m.opened.len();
+    m.publish("alpha", "v1");
+    m.until(|m| m.storage.reads.lock().unwrap().len() == 2 && !m.docs.busy());
+    m.tick();
+    assert_eq!(
+        m.opened.len(),
+        shown,
+        "identical bytes reopened the document"
+    );
+    m.assert_shown("alpha");
+    m.adopt();
+    assert!(m.opened.len() > shown);
+    m.assert_no_writes();
+}
