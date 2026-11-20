@@ -8,6 +8,7 @@ mod across_windows;
 mod appearance_settings;
 mod autosave;
 mod brand_assets;
+mod bundled_modules;
 mod close_lifecycle;
 mod cloud_opening;
 mod cloud_publish_dialog;

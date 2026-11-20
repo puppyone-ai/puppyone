@@ -37733,6 +37733,818 @@
           "test": "editor::markdown::tests::lists_continue_and_tasks_toggle_with_history"
         }
       ]
+    },
+    {
+      "id": "office-preview-product-modules",
+      "acceptance": "The Office preview runs the product's own Word, spreadsheet, presentation and text-fallback viewers, package preflight, decompression validation and DOCX sanitizer, shipped byte-identical to the reviewed sources this suite exercises (worker lifetimes, cell kinds and formulas, hidden sheets, rows and columns, merged cells, payload and cell caps, keyboard selection, ZIP central-directory and OOXML checks, sanitized DOCX DOM, slide and layout geometry, font compatibility); the native page boots that bundle, serves the file through the private protocol and reads only typed messages.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/office/docxDomSanitizer.test.ts",
+          "sha256": "97ef7f76273a2cf1d16aa8d744a2d44140a9c410c8f5bb7891f11980401fdacb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "assertDocxDomWithinBudget > accepts a rendered tree within both budgets"
+            },
+            {
+              "index": 1,
+              "name": "assertDocxDomWithinBudget > rejects element and page explosions before attachment"
+            },
+            {
+              "index": 2,
+              "name": "classifyDocxLink > preserves only same-document fragments as directly navigable links"
+            },
+            {
+              "index": 3,
+              "name": "classifyDocxLink > turns http, https, and mailto links into normalized external actions"
+            },
+            {
+              "index": 4,
+              "name": "classifyDocxLink > strips active, local, relative, credentialed, and obfuscated URLs"
+            },
+            {
+              "index": 5,
+              "name": "isSafeDocxResourceUrl > allows only inert embedded resources and fragments"
+            },
+            {
+              "index": 6,
+              "name": "isSafeDocxResourceUrl > rejects network, scriptable data, application, and local-file resources"
+            },
+            {
+              "index": 7,
+              "name": "containsUnsafeDocxCss > accepts ordinary styles plus embedded and fragment resource URLs"
+            },
+            {
+              "index": 8,
+              "name": "containsUnsafeDocxCss > rejects network loads, imports, legacy script CSS, escapes, and malformed url tokens"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/office/officePackageValidation.test.ts",
+          "sha256": "1a81a8b020957a2435d6ad707bc4645367307a1b3add4907eff77070384c5203",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Office package decompression task > streams every entry, counts DOCX XML start tags, and returns the original buffer"
+            },
+            {
+              "index": 1,
+              "name": "Office package decompression task > rejects a stream whose actual output is larger than its forged declared size"
+            },
+            {
+              "index": 2,
+              "name": "Office package decompression task > rejects a stream whose actual output is smaller than its forged declared size"
+            },
+            {
+              "index": 3,
+              "name": "Office package decompression task > enforces the actual 'per-entry' decompression budget"
+            },
+            {
+              "index": 4,
+              "name": "Office package decompression task > enforces the actual 'aggregate' decompression budget"
+            },
+            {
+              "index": 5,
+              "name": "Office package decompression task > rejects a DOCX whose word XML exceeds the start-tag budget"
+            },
+            {
+              "index": 6,
+              "name": "Office package decompression task > serializes failures and transfers the input buffer back from the worker task"
+            },
+            {
+              "index": 7,
+              "name": "Office package decompression task > transfers the validated input buffer back from a successful worker task"
+            },
+            {
+              "index": 8,
+              "name": "Office package validation worker client > transfers the input in, accepts the validated buffer back, and terminates"
+            },
+            {
+              "index": 9,
+              "name": "Office package validation worker client > rehydrates a serialized validation error and terminates on an error result"
+            },
+            {
+              "index": 10,
+              "name": "Office package validation worker client > terminates the worker when its AbortSignal is cancelled"
+            },
+            {
+              "index": 11,
+              "name": "Office package validation worker client > terminates an unresponsive worker at the default hard timeout"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/office/officeResourceLoader.test.ts",
+          "sha256": "11ea5615dfc3fe87a9471dd125589ce784414e9a157f206db88db00597847623",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Office resource loading > range-probes local resources and rejects oversized files before the full fetch"
+            },
+            {
+              "index": 1,
+              "name": "Office resource loading > streams remote resources and stops once the byte budget is crossed"
+            },
+            {
+              "index": 2,
+              "name": "Office resource loading > returns the exact streamed bytes for an in-budget response"
+            },
+            {
+              "index": 3,
+              "name": "Office resource loading > rejects a declared oversized response without reading its body"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/office/officeTextFallback.test.ts",
+          "sha256": "002a686e2ddd50585f5e3baa36bd9f59eaef86be7fe83e61c51ba3c5b094a817",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Office text fallback task > extracts presentation text in slide order without inflating slides concurrently"
+            },
+            {
+              "index": 1,
+              "name": "Office text fallback task > caps presentation extraction at the configured slide count, never above 300"
+            },
+            {
+              "index": 2,
+              "name": "Office text fallback task > enforces the presentation 'per-slide XML' budget"
+            },
+            {
+              "index": 3,
+              "name": "Office text fallback task > enforces the presentation 'total XML' budget"
+            },
+            {
+              "index": 4,
+              "name": "Office text fallback task > enforces the presentation per-slide output line budget"
+            },
+            {
+              "index": 5,
+              "name": "Office text fallback task > enforces the presentation total output line budget"
+            },
+            {
+              "index": 6,
+              "name": "Office text fallback task > extracts OpenDocument paragraphs, decodes entities, and caps output lines"
+            },
+            {
+              "index": 7,
+              "name": "Office text fallback task > enforces the OpenDocument content.xml byte budget"
+            },
+            {
+              "index": 8,
+              "name": "Office text fallback task > rejects malformed XML instead of returning partial text"
+            },
+            {
+              "index": 9,
+              "name": "Office text fallback task > rejects undeclared XML entities outside selected text nodes"
+            },
+            {
+              "index": 10,
+              "name": "Office text fallback task > rejects malformed XML attributes"
+            },
+            {
+              "index": 11,
+              "name": "Office text fallback task > transfers the buffer back from the successful worker task"
+            },
+            {
+              "index": 12,
+              "name": "Office text fallback worker client > transfers input, accepts the result, and terminates the worker"
+            },
+            {
+              "index": 13,
+              "name": "Office text fallback worker client > terminates the worker when its AbortSignal is cancelled"
+            },
+            {
+              "index": 14,
+              "name": "Office text fallback worker client > rehydrates a task error and terminates on an error response"
+            },
+            {
+              "index": 15,
+              "name": "Office text fallback worker client > terminates an unresponsive worker at the default 10 second timeout"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/office/presentationPreview.test.ts",
+          "sha256": "08d1ce99c2cdd88ba276855c0a95b314f792b23f8c78e9ce76c601e62b689fed",
+          "cases": [
+            {
+              "index": 0,
+              "name": "PowerPoint preview fitting > uses the tighter of the available width and height"
+            },
+            {
+              "index": 1,
+              "name": "PowerPoint preview fitting > rejects unavailable geometry and respects renderer zoom bounds"
+            },
+            {
+              "index": 2,
+              "name": "PowerPoint preview navigation > supports familiar arrow, paging, and boundary keys"
+            },
+            {
+              "index": 3,
+              "name": "PowerPoint preview navigation > clamps navigation at the first and last slide"
+            },
+            {
+              "index": 4,
+              "name": "PowerPoint preview navigation > turns vertical wheel gestures into one slide change"
+            },
+            {
+              "index": 5,
+              "name": "PowerPoint preview navigation > accumulates trackpad movement and resets after the gesture becomes idle"
+            },
+            {
+              "index": 6,
+              "name": "PowerPoint preview navigation > ignores horizontal gestures and clamps wheel navigation at boundaries"
+            },
+            {
+              "index": 7,
+              "name": "PowerPoint preview font settling > waits for available fonts without holding the preview forever"
+            },
+            {
+              "index": 8,
+              "name": "PowerPoint preview font settling > honors preview cancellation while fonts are settling"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/office/spreadsheetPreview.test.ts",
+          "sha256": "dcbf3863407c67eef67631e1d6a10a0eb01ab16719ecab3afcf000907f3ec634",
+          "cases": [
+            {
+              "index": 0,
+              "name": "spreadsheet preview parsing > settles a waiting client when its owner retires the Worker"
+            },
+            {
+              "index": 1,
+              "name": "spreadsheet preview parsing > preserves native cell kinds for familiar worksheet alignment"
+            },
+            {
+              "index": 2,
+              "name": "spreadsheet preview parsing > parses xls files through the normalized preview path"
+            },
+            {
+              "index": 3,
+              "name": "spreadsheet preview parsing > parses xlsx files through the normalized preview path"
+            },
+            {
+              "index": 4,
+              "name": "spreadsheet preview parsing > parses xlsm files through the normalized preview path"
+            },
+            {
+              "index": 5,
+              "name": "spreadsheet preview parsing > parses xlsb files through the normalized preview path"
+            },
+            {
+              "index": 6,
+              "name": "spreadsheet preview parsing > parses ods files through the normalized preview path"
+            },
+            {
+              "index": 7,
+              "name": "spreadsheet preview parsing > shows formulas without cached values instead of a synthetic zero"
+            },
+            {
+              "index": 8,
+              "name": "spreadsheet preview parsing > preserves bounded OOXML presentation styles, view state, and formulas"
+            },
+            {
+              "index": 9,
+              "name": "spreadsheet preview parsing > charges cached formula text against the UTF-16 payload budget"
+            },
+            {
+              "index": 10,
+              "name": "spreadsheet preview parsing > returns explicit truncation metadata for more than 12 visible sheets"
+            },
+            {
+              "index": 11,
+              "name": "spreadsheet preview parsing > filters hidden and very-hidden sheets"
+            },
+            {
+              "index": 12,
+              "name": "spreadsheet preview parsing > omits hidden rows and columns while preserving physical row and column indices"
+            },
+            {
+              "index": 13,
+              "name": "spreadsheet preview parsing > re-anchors a merged cell that crosses the virtual row window"
+            },
+            {
+              "index": 14,
+              "name": "spreadsheet preview parsing > routes OTS templates through the ODS package preflight and parser"
+            },
+            {
+              "index": 15,
+              "name": "spreadsheet preview parsing > rejects malformed OOXML and incomplete ODS archives before SheetJS parsing"
+            },
+            {
+              "index": 16,
+              "name": "spreadsheet preview parsing > validates actual OOXML decompression output before SheetJS parsing"
+            },
+            {
+              "index": 17,
+              "name": "spreadsheet preview parsing > caps materialized cells globally and stops normalizing later sheets"
+            },
+            {
+              "index": 18,
+              "name": "spreadsheet preview parsing > caps high-text workbooks by conservative UTF-16 payload before constructing later rows"
+            },
+            {
+              "index": 19,
+              "name": "spreadsheet preview interaction geometry > virtualizes variable row heights without drifting"
+            },
+            {
+              "index": 20,
+              "name": "spreadsheet preview interaction geometry > supports familiar read-only worksheet keyboard selection"
+            },
+            {
+              "index": 21,
+              "name": "spreadsheet preview worker client > terminates the worker when its AbortSignal is cancelled"
+            },
+            {
+              "index": 22,
+              "name": "spreadsheet preview worker client > terminates an unresponsive worker at the default hard timeout"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/office/wordPreviewLayout.test.ts",
+          "sha256": "2a20089676059bcfa96e5abaa63fa32c065ba82384b8b4e28673ad4533c8891f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Word preview layout > fits wide pages without enlarging narrow pages"
+            },
+            {
+              "index": 1,
+              "name": "Word preview layout > clamps explicit zoom and steps from the effective fit scale"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/office/zipCentralDirectoryPreflight.test.ts",
+          "sha256": "bdadac15ba8892fe89b59edfd59283df264c6b446933666575a5af937614949b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "preflightZipCentralDirectory > accepts the committed Word and Excel OOXML fixtures"
+            },
+            {
+              "index": 1,
+              "name": "preflightZipCentralDirectory > accepts a conventional bounded ZIP and reports central-directory totals"
+            },
+            {
+              "index": 2,
+              "name": "preflightZipCentralDirectory > rejects archives over the entry-count limit before parsing entries"
+            },
+            {
+              "index": 3,
+              "name": "preflightZipCentralDirectory > rejects an entry whose declared expanded size exceeds its limit"
+            },
+            {
+              "index": 4,
+              "name": "preflightZipCentralDirectory > rejects an archive whose total expanded size exceeds its limit"
+            },
+            {
+              "index": 5,
+              "name": "preflightZipCentralDirectory > rejects excessive per-entry and overall compression ratios"
+            },
+            {
+              "index": 6,
+              "name": "preflightZipCentralDirectory > rejects encrypted, unsupported-method, duplicate, and unsafe-path entries"
+            },
+            {
+              "index": 7,
+              "name": "preflightZipCentralDirectory > rejects malformed central-directory and local-header metadata"
+            },
+            {
+              "index": 8,
+              "name": "preflightZipCentralDirectory > rejects ZIP64 sentinel metadata and ZIP64 extra fields"
+            },
+            {
+              "index": 9,
+              "name": "preflightZipCentralDirectory > rejects multi-disk metadata and archives with trailing bytes"
+            },
+            {
+              "index": 10,
+              "name": "preflightZipCentralDirectory > requires OPC package markers for the OOXML wrapper"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/office/officeFontCompatibility.test.ts",
+          "sha256": "34e851d341b6c0f7d7c3fdec6bdaebf6ff772671c463d55d4dc0cce0116c970d",
+          "cases": [
+            {
+              "index": 0,
+              "name": "local Office font compatibility > installs common Windows and Chinese aliases once"
+            },
+            {
+              "index": 1,
+              "name": "local Office font compatibility > keeps the authored font first and only appends a CJK fallback when needed"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::bundled_modules::bundles_ship_the_reviewed_product_modules"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::tests::the_page_boots_the_product_bundle_and_reads_only_typed_messages"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::office_private_protocol_serves_exact_bytes_ranges_and_retires_all_resources_with_the_lease"
+        }
+      ]
+    },
+    {
+      "id": "context-map-product-modules",
+      "acceptance": "The Context Map runs the product's own document, filter, graph, layout, routing and wheel navigation modules, shipped byte-identical to the reviewed sources this suite exercises; the native page carries the document, lists the workspace and drives the pane menu.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/context-map/contextMapDocument.test.ts",
+          "sha256": "9998560d964b7f616c69ea3d660c39e8e2d311527f2a50c589cb4f97f5004d3c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "context map document > creates and parses a stable portable descriptor"
+            },
+            {
+              "index": 1,
+              "name": "context map document > normalizes shared layout state deterministically"
+            },
+            {
+              "index": 2,
+              "name": "context map document > rejects absolute, escaping, unsupported, and unbounded state"
+            },
+            {
+              "index": 3,
+              "name": "context map document > maps persisted relative paths to the containing folder"
+            },
+            {
+              "index": 4,
+              "name": "context map document > recognizes the product file extension case-insensitively"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/context-map/contextMapFilters.test.ts",
+          "sha256": "70d3d5db5e62a4704dc4c375e48fc44f13a01aeb1ac80a80ff9b7e490075aa9a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Context Map line filters > shows every line category by default"
+            },
+            {
+              "index": 1,
+              "name": "Context Map line filters > filters one-way and bidirectional references independently"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/context-map/contextMapGraph.test.ts",
+          "sha256": "b2feefa85f8d3af61575d96a483f16808bb7d4c993ac5d2f007ba59c5a866707",
+          "cases": [
+            {
+              "index": 0,
+              "name": "aggregateFolderRelationshipEdges > collapses document backlinks into one direct edge between visible folders"
+            },
+            {
+              "index": 1,
+              "name": "aggregateFolderRelationshipEdges > keeps one-way cross-folder links and ignores links inside one folder"
+            },
+            {
+              "index": 2,
+              "name": "aggregateFolderRelationshipEdges > preserves a one-way relationship whose source sorts after its target"
+            },
+            {
+              "index": 3,
+              "name": "buildFolderRelationshipProjection > keeps the root context while moving links onto an expanded folder's children"
+            },
+            {
+              "index": 4,
+              "name": "loadFolderRelationshipGraph > scans a workspace-root scope and never includes Context Map documents in their own graph"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/context-map/contextMapLayout.test.ts",
+          "sha256": "57889fbe6b30ff3e7e282aa9d5698d0f5a4a13ccca1af27f5bbd0b8fbd09e536",
+          "cases": [
+            {
+              "index": 0,
+              "name": "folder relationship layout > keeps folders stable, orders linked files by folder affinity, and isolates unlinked files"
+            },
+            {
+              "index": 1,
+              "name": "folder relationship layout > places the strongest hub in the center when no folders are visible"
+            },
+            {
+              "index": 2,
+              "name": "folder relationship layout > produces stable offsets"
+            },
+            {
+              "index": 3,
+              "name": "folder relationship layout > sizes expanded folders by their contents without stretching sparse groups"
+            },
+            {
+              "index": 4,
+              "name": "folder relationship layout > clamps manually dragged nodes to their visible layout boundary"
+            },
+            {
+              "index": 5,
+              "name": "folder relationship layout > leaves root-canvas dragging unbounded"
+            },
+            {
+              "index": 6,
+              "name": "folder relationship layout > zooms around the pointer while respecting graph scale limits"
+            },
+            {
+              "index": 7,
+              "name": "folder relationship layout > builds a deterministic bounded macro layout and keeps root documents in a rail"
+            },
+            {
+              "index": 8,
+              "name": "folder relationship layout > preserves pinned manual anchors when disclosure changes"
+            },
+            {
+              "index": 9,
+              "name": "folder relationship layout > places the visible file hierarchy on deterministic concentric rings"
+            },
+            {
+              "index": 10,
+              "name": "folder relationship layout > keeps collapsed folder descendants out of the radial scene"
+            },
+            {
+              "index": 11,
+              "name": "folder relationship layout > places visible hierarchy depth on y and subtree width on x"
+            },
+            {
+              "index": 12,
+              "name": "folder relationship layout > keeps collapsed descendants out of the layered tree"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/context-map/contextMapRouting.test.ts",
+          "sha256": "5ccbbbbfd7a48856e28a294e82661ec8d562964cf832ebaf58bd0329be19a8f0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "folder relationship straight-line routing > connects the facing glyph edges without a gap"
+            },
+            {
+              "index": 1,
+              "name": "folder relationship straight-line routing > uses a single direct segment for diagonal relationships"
+            },
+            {
+              "index": 2,
+              "name": "folder relationship radial hierarchy routing > routes parent-child edges as radial, concentric arc, radial"
+            },
+            {
+              "index": 3,
+              "name": "folder relationship radial hierarchy routing > keeps center-to-first-ring edges radial"
+            },
+            {
+              "index": 4,
+              "name": "folder relationship layered hierarchy routing > routes parent-child edges down, across, and down"
+            },
+            {
+              "index": 5,
+              "name": "folder relationship layered hierarchy routing > keeps vertically aligned parent-child edges straight"
+            },
+            {
+              "index": 6,
+              "name": "folder relationship reference routing > leaves room for radial reference arrowheads outside the endpoint glyphs"
+            },
+            {
+              "index": 7,
+              "name": "folder relationship reference routing > leaves room for layered reference arrowheads outside the endpoint glyphs"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/context-map/contextMapWheelNavigation.test.ts",
+          "sha256": "cc2bce89f929c1bbb50cd1a700355f74f7282b50ad4aacdafed311598ad8063f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Context Map wheel gesture intent > pans with two-axis high-resolution trackpad scrolling"
+            },
+            {
+              "index": 1,
+              "name": "Context Map wheel gesture intent > locks a continuing trackpad gesture to pan during a fast swipe"
+            },
+            {
+              "index": 2,
+              "name": "Context Map wheel gesture intent > zooms a discrete mouse wheel instead of panning it"
+            },
+            {
+              "index": 3,
+              "name": "Context Map wheel gesture intent > uses a more sensitive focal zoom for trackpad pinch gestures"
+            },
+            {
+              "index": 4,
+              "name": "Context Map wheel gesture intent > maps shift-wheel to horizontal panning"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::bundled_modules::bundles_ship_the_reviewed_product_modules"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::structured::tests::the_page_carries_the_document_and_serves_the_agent_marks"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::structured::tests::the_context_map_lists_the_workspace_and_drives_the_pane_menu"
+        }
+      ]
+    },
+    {
+      "id": "app-preview-product-modules",
+      "acceptance": "The App Preview viewer runs the product's own setup, state, frame and session views and creation and manifest modules, shipped byte-identical to the reviewed sources this suite exercises; natively the manifest follows the product contract, the frame admits only the running app and the runtime trusts, runs and replaces apps as the product does.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/app-preview/appPreviewCreation.test.ts",
+          "sha256": "207263eb01db0d2ee9aaec8fb4f6e31f88e6eb50dcf28ee5c5ecc0a38c74f16f",
+          "cases": [
+            {
+              "index": 0,
+              "name": "App Preview creation > detects runnable projects and ranks the current project first"
+            },
+            {
+              "index": 1,
+              "name": "App Preview creation > uses framework-specific host flags for Next.js"
+            },
+            {
+              "index": 2,
+              "name": "App Preview creation > parses a command into argv without invoking a shell"
+            },
+            {
+              "index": 3,
+              "name": "App Preview creation > creates a strict, workspace-scoped manifest"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/app-preview/appPreviewManifest.test.mjs",
+          "sha256": "5474cdc97be583d1114a6e9bf2929d4f5368a76e94161d92574a7b08d341b487",
+          "cases": [
+            {
+              "index": 0,
+              "name": "App Preview manifest contract > treats a newly created app as a valid, unconfigured document"
+            },
+            {
+              "index": 1,
+              "name": "App Preview manifest contract > normalizes static HTML and existing URL launch definitions"
+            },
+            {
+              "index": 2,
+              "name": "App Preview manifest contract > normalizes the versioned manifest and interpolates only declared variables"
+            },
+            {
+              "index": 3,
+              "name": "App Preview manifest contract > rejects unknown fields, workspace escapes and undeclared templates"
+            },
+            {
+              "index": 4,
+              "name": "App Preview manifest contract > returns stable display fallback while preserving structured parse failures"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/app-preview/appPreviewIframe.test.tsx",
+          "sha256": "265d44c9d37c8a58c42fc5a140920a230115f38121e8e5661cf8f51f43fd16b6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "App Preview iframe > renders the runtime as an actual editor-owned sandboxed iframe"
+            },
+            {
+              "index": 1,
+              "name": "App Preview iframe > rejects same-origin, credentialed and non-web URLs"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/app-preview/appPreviewOnboarding.test.tsx",
+          "sha256": "6551c9ad36c64f25985ae6b279d1cd171407d26f5f5cc32015566a4ed2e1d8bc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "App Preview onboarding > detects read-only and starts a detected project without forcing the method chooser"
+            },
+            {
+              "index": 1,
+              "name": "App Preview onboarding > reveals the alternate methods only after the user requests them"
+            },
+            {
+              "index": 2,
+              "name": "App Preview onboarding > identifies an empty detection result before suggesting alternate methods"
+            },
+            {
+              "index": 3,
+              "name": "App Preview onboarding > distinguishes unavailable detection from a successful empty result"
+            },
+            {
+              "index": 4,
+              "name": "App Preview onboarding > opens Settings on the active launch method and preserves its values"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/app-preview/appPreviewRuntimeLifecycle.test.tsx",
+          "sha256": "664858223a255a941f16adcaebbaf3938baed2c09262eaee9313d0a0bce1573e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "App Preview runtime lifecycle > does not invoke runtime capabilities while an App is unconfigured"
+            },
+            {
+              "index": 1,
+              "name": "App Preview runtime lifecycle > starts the process without any native bounds or attachment contract"
+            },
+            {
+              "index": 2,
+              "name": "App Preview runtime lifecycle > ignores stale generations and out-of-order runtime snapshots"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::bundled_modules::bundles_ship_the_reviewed_product_modules"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_preview::manifest::tests::manifests_follow_the_product_contract"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::app_preview::tests::requests_are_typed_and_the_frame_admits_only_the_running_app"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::app_preview::runtime::tests::static_files_and_local_servers_run_once_trusted"
+        }
+      ]
+    },
+    {
+      "id": "render-service-performance-modules",
+      "acceptance": "The diagram render service measures its work with the product's own renderer performance tracker, shipped byte-identical to the reviewed sources this suite exercises.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/rendererPerformanceCompletion.test.ts",
+          "sha256": "f747d34d8be9ff87dce0c77d60d0b0b5f07eae68eeecb1f63c8cbf46d80c84b8",
+          "cases": [
+            {
+              "index": 0,
+              "name": "renderer performance completion boundaries > keeps the first timing when editing repeats readiness after a completed open"
+            },
+            {
+              "index": 1,
+              "name": "renderer performance completion boundaries > still rejects a previously unseen stage after completion"
+            },
+            {
+              "index": 2,
+              "name": "renderer performance completion boundaries > still rejects cancelled, unknown and wrong-document observations"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/runtime/rendererPerformanceTracker.test.ts",
+          "sha256": "365b29c095f7f7e0ea28097776a122a193cb6fafec3b9060de7f9a64c5c6fb23",
+          "cases": [
+            {
+              "index": 0,
+              "name": "bounded renderer performance telemetry > retains fixed-size metric samples and operation names"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::bundled_modules::bundles_ship_the_reviewed_product_modules"
+        },
+        {
+          "package": "po-editor",
+          "test": "render_service::tests::what_is_drawn_names_the_cache_entry"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -47324,6 +48136,28 @@
             {
               "index": 11,
               "name": "Markdown list editing through one structural model > keeps a lazy continuation's literal number visible"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-ipc-error-wrapper",
+      "kind": "out-of-scope",
+      "reason": "TS strips Electron's `Error invoking remote method '<channel>': Error:` wrapper from IPC failures before showing them. The native app has no Electron IPC; its host errors reach the views as typed messages without that wrapper.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/README.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/runtime/ipcErrorMessage.test.ts",
+          "sha256": "458a697b4bc70fd18631d4a76733d0f7cff5e79e9ef86bda958003e1355d3c70",
+          "cases": [
+            {
+              "index": 0,
+              "name": "IPC error messages shown to users > drops Electron's channel wrapper and the nested Error prefix"
+            },
+            {
+              "index": 1,
+              "name": "IPC error messages shown to users > leaves ordinary messages untouched"
             }
           ]
         }
