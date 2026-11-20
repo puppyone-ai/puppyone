@@ -282,11 +282,14 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_card_settings_tab_and_live_
         assert!(settings.page_available(Page::CloudComputer, cx));
     });
 
-    // A computer with a desktop offers the screen's card pinned at the top of
-    // the left sidebar, even with its stream turned off (the screen then offers to turn it on).
+    // A computer with a desktop offers the screen's card on the bottom edge
+    // of the left sidebar, even with its stream turned off (the screen then
+    // offers to turn it on).
     sync_sandbox(&view, cx, &sandbox_json(true, true, false));
     let thumb = cx.debug_bounds("cloud-screen-card").unwrap();
-    assert!(f32::from(thumb.origin.y) < 110.);
+    let height = cx.update(|w, _| f32::from(w.viewport_size().height));
+    let gap = height - crate::theme::footer() - f32::from(thumb.bottom());
+    assert!((0. ..=12.).contains(&gap), "{gap}px above the bottom edge");
 
     // Clicking the sidebar card opens the Cloud Computer screen in the main area
     // and gates the underlying editor area.
