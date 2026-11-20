@@ -47673,6 +47673,784 @@
           "test": "app::tests::appearance_settings::appearance_preferences_apply_to_the_open_window"
         }
       ]
+    },
+    {
+      "id": "settings-dialog-and-account-plan-loading",
+      "acceptance": "Settings hosts a dismissible two-column dialog scoped to the Space it was opened on; Account and Plan views reuse fresh readings without repeating requests, keep expired readings visible across refresh/failure, allow explicit Retry and Refresh, isolate spaces and account/login generations, show readable pricing when sales are disabled, make no billing requests when payments are disabled or signed out, and guard local-mode plan comparison.",
+      "typescript": [
+        {
+          "path": "tests/component/settings/dialog/settingsDialog.test.tsx",
+          "sha256": "1b9a9e395fba5ef1ec1ad7460a749c9f7e3c19122d5b108ca99a8410ec23267c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "SettingsDialog > manages only the Space it was opened on and offers no way to switch"
+            },
+            {
+              "index": 1,
+              "name": "SettingsDialog > hosts Settings in a dismissible, two-column dialog"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/feature-flags/accountPlanLoading.test.tsx",
+          "sha256": "d790cc7e4e592e1ecbd1b20ea0ad4ce0a6dbbc5b000900f2ba250e08bfc9b280",
+          "cases": [
+            {
+              "index": 0,
+              "name": "starts loading on the first render and publishes one complete snapshot after slow reads"
+            },
+            {
+              "index": 1,
+              "name": "paints a cached reading synchronously on return without repeating fresh reads"
+            },
+            {
+              "index": 2,
+              "name": "coalesces Strict Mode and simultaneous Account/Plan readers"
+            },
+            {
+              "index": 3,
+              "name": "does not restart reads when only the session object is recreated"
+            },
+            {
+              "index": 4,
+              "name": "revalidates stale readings on focus without blanking the page"
+            },
+            {
+              "index": 5,
+              "name": "keeps expired readings visible while revalidating in the background"
+            },
+            {
+              "index": 6,
+              "name": "does not carry one space's usage into a newly selected space"
+            },
+            {
+              "index": 7,
+              "name": "isolates new accounts and login generations before effects run"
+            },
+            {
+              "index": 8,
+              "name": "ignores a late response for a previous space"
+            },
+            {
+              "index": 9,
+              "name": "preserves the last successful readings after a failed refresh"
+            },
+            {
+              "index": 10,
+              "name": "reports an unknown plan after an initial failure, and allows a forced retry"
+            },
+            {
+              "index": 11,
+              "name": "ends a stalled read, starts a new request on retry, and ignores the late old response"
+            },
+            {
+              "index": 12,
+              "name": "forces fresh readings when Refresh is pressed inside the cache freshness window"
+            },
+            {
+              "index": 13,
+              "name": "does not let a cache notification downgrade a manual Refresh in the same turn"
+            },
+            {
+              "index": 14,
+              "name": "retries failed usage without depending on operation history"
+            },
+            {
+              "index": 15,
+              "name": "shows the real plan and balance when the service disables only its sales catalog"
+            },
+            {
+              "index": 16,
+              "name": "shows a readable price catalog and balance without enabling non-purchasable offers"
+            },
+            {
+              "index": 17,
+              "name": "keeps an unavailable catalog distinct from an unknown current holding"
+            },
+            {
+              "index": 18,
+              "name": "invalidates snapshots after a billing mutation and never caches a mismatched space"
+            },
+            {
+              "index": 19,
+              "name": "makes no requests when payments are disabled"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/feature-flags/currentSpaceBilling.test.tsx",
+          "sha256": "b95b4822d7919f971247a15d6c49ee3a5df9f2ed7c63958288e3a790a5444ffd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "ignores a delayed old-Space bill after navigation has loaded the new Space"
+            },
+            {
+              "index": 1,
+              "name": "clears money and owner authority when signed out or payments are disabled"
+            },
+            {
+              "index": 2,
+              "name": "does not choose another Space's bill when the window is in local mode"
+            },
+            {
+              "index": 3,
+              "name": "rejects mismatched billing and authority responses"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/feature-flags/spacePlanPages.test.tsx",
+          "sha256": "27ef5ace018fc4233200d0afaee5fa885ce68f3aaca2f4c91e067639a8169369",
+          "cases": [
+            {
+              "index": 0,
+              "name": "uses the standard Plan header without duplicate context or operation-history notices"
+            },
+            {
+              "index": 1,
+              "name": "keeps Space settings available with payments off and makes no billing reads"
+            },
+            {
+              "index": 2,
+              "name": "shows plan comparison in local mode without reading or charging another Space"
+            },
+            {
+              "index": 3,
+              "name": "keeps sign-in and the payment opt-out behavior on the restored Plan page"
+            },
+            {
+              "index": 4,
+              "name": "restores the Account plan reading and shortcut while following the current Space"
+            },
+            {
+              "index": 5,
+              "name": "loads only the bill of the Space Settings was opened on and clears old amounts while loading"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/preferences/accountAICredits.test.tsx",
+          "sha256": "2df3f3f32c88b0ac737aa2a2a9b47921f4f269fe8e5f9c22deadab6d3d0107ca",
+          "cases": [
+            {
+              "index": 0,
+              "name": "shows only the available balance, and sells only where selling happens"
+            },
+            {
+              "index": 1,
+              "name": "hides billing after logout even if the managed snapshot is still signed in: false"
+            },
+            {
+              "index": 2,
+              "name": "hides billing after logout even if the managed snapshot is still signed in: true"
+            },
+            {
+              "index": 3,
+              "name": "does not ask a signed-in account to log in again while its wallet is loading"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/preferences/accountIdentity.test.tsx",
+          "sha256": "0d7689afb0182a27409965af9318f61566389e442048dda3cacbfe1344f4809c",
+          "cases": [
+            {
+              "index": 0,
+              "name": "states the identity once, without a status row restating it"
+            },
+            {
+              "index": 1,
+              "name": "keeps signing out quiet rather than making it the loudest control"
+            },
+            {
+              "index": 2,
+              "name": "offers no sign-out to sign out of when signed out"
+            },
+            {
+              "index": 3,
+              "name": "states the identity and nothing the page says again below it"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/settings/feature-flags/featureFlags.test.ts",
+          "sha256": "508f4115211beced020d3fba74f772988348ca93bbc1ed77e2ac9cf2fa2e445b",
+          "cases": [
+            {
+              "index": 0,
+              "name": "feature flag release gates > keeps the Cloud billing control plane unavailable unless a build opts in"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::spaces::tests::settings_manage_the_named_space_else_the_open_projects_else_the_own"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::billing::tests::fresh_readings_are_reused_until_forced"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::billing::tests::a_failed_read_keeps_the_last_reading_and_switched_off_billing_is_a_state"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::billing::tests::usage_for_another_space_is_refused"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::managed_compute::tests::the_wallet_reads_like_the_product"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::account::tests::public_account_projection_observes_restore_and_logout_without_a_native_vault"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::sidebar::settings_sidebar_model::tests::plan_navigation_keeps_price_reachable_without_a_project_and_follows_cloud"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::sidebar::settings_sidebar_model::tests::account_follows_the_build_and_the_space_group_follows_cloud"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::signed_out_plan_renders_comparable_prices_and_routes_every_offer_to_account"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::signed_in_and_restoring_pages_keep_loading_without_offering_sign_in_or_free"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::failed_signed_in_read_offers_retry_and_prices_without_inventing_current_plan"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::actual_current_plan_keeps_one_meter_and_shows_only_relevant_storage_warnings"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::replacing_the_account_discards_pending_reads_quotes_and_checkout_effects"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::plan::view::acceptance_tests::controller_tests::a_reopened_controller_stops_foreign_responses_until_explicit_refresh"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::window_chrome::native_buttons_toggle_slots_and_open_settings"
+        }
+      ]
+    },
+    {
+      "id": "settings-experiments-and-feature-flags",
+      "acceptance": "Experimental settings list only supported native switches, keep Cloud, Other Computers, and import experiments off by default until opted in, ignore retired switches (Agent Chat, Share, Automation, Project Reach, Multi-Root, Viewer Plugins, Heading Outline) without changing other experiments, gate Other Computers behind its release gate, and keep payments opt-out/account gating consistent.",
+      "typescript": [
+        {
+          "path": "tests/component/settings/feature-flags/experimentalSettings.test.tsx",
+          "sha256": "2bba55255a6e7b00e55d757f9e87287e3425dee1feba2fb8d04d6eb1dda7c721",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Experimental settings > persists exclusive project switcher and chat placement choices independently and restores the original defaults"
+            },
+            {
+              "index": 2,
+              "name": "Experimental settings > offers one default-off import experiment"
+            },
+            {
+              "index": 3,
+              "name": "Experimental settings > keeps Cloud experimental while Built-in Agent is publicly available"
+            },
+            {
+              "index": 4,
+              "name": "Experimental settings > uses the Cloud switch for hosting and sharing"
+            },
+            {
+              "index": 5,
+              "name": "Experimental settings > has no switch to revive the retired project sharing flow"
+            },
+            {
+              "index": 6,
+              "name": "Experimental settings > offers Header menu / Sidebar project switching choices and preserves the saved position"
+            },
+            {
+              "index": 8,
+              "name": "Experimental settings > offers Once / Repeat onboarding hints without disabling hints"
+            },
+            {
+              "index": 9,
+              "name": "Experimental settings > does not offer Automation as an experiment"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/feature-flags/otherComputersExperience.test.tsx",
+          "sha256": "229e3579aea1d7c610cc97698b9ce1f48a2949272babd6df43e19961ede547ee",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Other computers experiment > hides the experiment and ignores an old enabled preference outside the rollout"
+            },
+            {
+              "index": 1,
+              "name": "Other computers experiment > is off by default, switches immediately without Cloud, and restores both saved choices"
+            },
+            {
+              "index": 2,
+              "name": "Other computers experiment > uses the old environment flag only until the user saves a choice"
+            },
+            {
+              "index": 3,
+              "name": "Other computers experiment > does not offer or activate account features in a build without accounts"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/feature-flags/paymentsExperience.test.tsx",
+          "sha256": "13b67bd53bc27213aaf0ff56df11a87e740462957c2efe6af54d2f642ec41b1a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "payments experiment > needs an account, not Cloud: the Payments switch and paid route stay with Cloud off"
+            },
+            {
+              "index": 1,
+              "name": "payments experiment > offers one switch, on by default once Cloud is on, that can still be turned off"
+            },
+            {
+              "index": 2,
+              "name": "payments experiment > gives every render entry the same decision through the single consumption point"
+            },
+            {
+              "index": 3,
+              "name": "payments experiment > keeps Settings on account sign-in alone and never reads the wallet"
+            },
+            {
+              "index": 4,
+              "name": "payments experiment > asks a signed-in account to top up only while the experiment is on"
+            },
+            {
+              "index": 5,
+              "name": "payments experiment > drops paid compute out of Chat and points at the user's own connection instead"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/settings/preferences/preferences.test.ts",
+          "sha256": "7ee72ae1c7b009ecbf7cdbfa2d5bb2d34062fbb1381ca6fb80f4345901e51e2c",
+          "cases": [
+            {
+              "index": 6,
+              "name": "appearance preferences > drops the retired standalone History header action"
+            },
+            {
+              "index": 8,
+              "name": "appearance preferences > accepts only curated appearance values"
+            },
+            {
+              "index": 13,
+              "name": "experimental preferences > ignores retired Agent Chat preferences set to true without changing other experiments"
+            },
+            {
+              "index": 14,
+              "name": "experimental preferences > ignores retired Agent Chat preferences set to false without changing other experiments"
+            },
+            {
+              "index": 16,
+              "name": "experimental preferences > keeps the project reach experience off for existing installations (null)"
+            },
+            {
+              "index": 17,
+              "name": "experimental preferences > keeps the project reach experience off for existing installations (not-json)"
+            },
+            {
+              "index": 18,
+              "name": "experimental preferences > keeps the project reach experience off for existing installations ({})"
+            },
+            {
+              "index": 19,
+              "name": "experimental preferences > keeps the project reach experience off for existing installations ({\"enableProjectReach\":\"true\"})"
+            },
+            {
+              "index": 20,
+              "name": "experimental preferences > keeps the project reach experience off for existing installations ({\"enableProjectReach\":1})"
+            },
+            {
+              "index": 23,
+              "name": "experimental preferences > forgets the retired Share preference (true) without changing other experiments"
+            },
+            {
+              "index": 24,
+              "name": "experimental preferences > forgets the retired Share preference (false) without changing other experiments"
+            },
+            {
+              "index": 28,
+              "name": "experimental preferences > keeps multi-project workspaces off unless the user explicitly opts in"
+            },
+            {
+              "index": 35,
+              "name": "experimental preferences > keeps the Markdown heading outline hidden unless the user explicitly opts in"
+            },
+            {
+              "index": 37,
+              "name": "experimental preferences > keeps Viewer Plugins off unless the user explicitly opts in"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::experimental_settings_view::tests::experimental_groups_list_only_supported_native_settings"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::main::experimental_settings_view::tests::the_other_computers_switch_shows_only_past_the_release_gate"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preference_types::tests::retired_experimental_fields_in_stored_preferences_are_ignored"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::supported_experiments_remain_off_until_opted_in_and_retired_keys_cannot_restore_features"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::import_experiments_restore_legacy_opt_ins_without_turning_on_unrelated_features"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::sidebar::settings_sidebar_model::tests::project_and_import_pages_follow_visibility"
+        }
+      ]
+    },
+    {
+      "id": "settings-local-agents-availability-and-rows",
+      "acceptance": "Local Agent settings keep stable registry order, retain failed discovery evidence without upgrading it to found, render detected local agents as simple rows with hook/visibility toggles, and persist only sorted hidden IDs.",
+      "typescript": [
+        {
+          "path": "tests/component/settings/local-agents/local-agent-setup.test.tsx",
+          "sha256": "fd61a0afde0aeeba9f4a09fbfdc8773088ac229a0350c6f20e3749a344500685",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Local Agent activation interaction > registers every detected desktop as a simple row without recommendation cards or negative credential copy"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/settings/local-agents/localAgentInstallationAvailability.test.ts",
+          "sha256": "9dba4cbaf6bdc04584c4c1239fd34bc9de5e45a7763ae77cd9594b3476561c61",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Local Agent installation availability > restores stable registry order while preserving per-product outcomes"
+            },
+            {
+              "index": 1,
+              "name": "Local Agent installation availability > rejects unknown ids, malformed timestamps, and inconsistent availability"
+            },
+            {
+              "index": 2,
+              "name": "Local Agent installation availability > normalizes path-free progress and rejects impossible counts"
+            },
+            {
+              "index": 3,
+              "name": "Local Agent installation availability > accepts Main's retained failed evidence without upgrading it to found"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::settings::tests::detected_agents_list_with_their_hooks_and_only_hidden_ids_persist"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::settings::discovery_tests::native_settings_share_initial_work_and_reopened_windows_reuse_cache_while_refreshes_coalesce"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::settings::discovery_tests::native_windows_settle_a_panicking_discovery_factory_without_inventing_absence"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::local_agents::discovery::tests::disconnected_host_events_settle_scanning_as_failed"
+        }
+      ]
+    },
+    {
+      "id": "settings-create-new-menu-and-preference-store",
+      "acceptance": "Create New settings preserve the main/submenu/hidden hierarchy and keep experimental entries intact; PreferencesStore notifies only subscribers whose selected slice changed, coalesces concurrent saves, preserves in-memory edits and retries after write failures, migrates legacy Electron/agent/appearance keys cleanly, persists hidden file icons and pointer cursors, and recovers safely from malformed preference files.",
+      "typescript": [
+        {
+          "path": "tests/component/settings/preferences/createNewSettings.test.tsx",
+          "sha256": "092a052862bc6efaa5f973d59a528d32acb6601c26c124ce35d6404c6ed24ba0",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Create New settings > renders one connected hierarchy with a nested submenu and a Not shown group"
+            },
+            {
+              "index": 1,
+              "name": "Create New settings > reorders the Custom files node by dragging without move buttons"
+            },
+            {
+              "index": 2,
+              "name": "Create New settings > moves an item from the main menu to Not shown by dragging"
+            },
+            {
+              "index": 3,
+              "name": "Create New settings > drags an item directly from Not shown into the Custom files submenu"
+            },
+            {
+              "index": 4,
+              "name": "Create New settings > keeps unavailable experimental types visible in the hierarchy"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/preferences/desktopPreferenceConsumers.test.tsx",
+          "sha256": "964ce0235bf48e8b63a474570c36bbfa0014a2b17ed495eae6d70eab4d77b986",
+          "cases": [
+            {
+              "index": 0,
+              "name": "mounted desktop preference consumers > does not render the production Account section when unrelated preferences change"
+            },
+            {
+              "index": 1,
+              "name": "mounted desktop preference consumers > updates pointer cursors from real settings without notifying unrelated layout/editor/agent selectors"
+            },
+            {
+              "index": 2,
+              "name": "mounted desktop preference consumers > hides file icons from the real setting without notifying unrelated layout/editor/agent selectors"
+            },
+            {
+              "index": 3,
+              "name": "mounted desktop preference consumers > keeps the production appearance controls ordered"
+            },
+            {
+              "index": 4,
+              "name": "mounted desktop preference consumers > offers no loading style choice while only the rounded style is offered"
+            },
+            {
+              "index": 5,
+              "name": "mounted desktop preference consumers > preserves icon selection when switching root themes and hides fixed color-mode controls"
+            },
+            {
+              "index": 6,
+              "name": "mounted desktop preference consumers > updates the mounted titlebar directly from the Header controls and retains action callbacks"
+            },
+            {
+              "index": 7,
+              "name": "mounted desktop preference consumers > updates file visibility in its control and notifies the workspace refresh owner"
+            },
+            {
+              "index": 8,
+              "name": "mounted desktop preference consumers > wires the real Sub Theme picker to per-root persisted preferences"
+            },
+            {
+              "index": 9,
+              "name": "mounted desktop preference consumers > updates only the requested experiment from mounted settings and persists after remount"
+            },
+            {
+              "index": 10,
+              "name": "mounted desktop preference consumers > retains expanded preference width while the shell track is collapsed and observes live resize/icon changes"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/preferences/desktopPreferenceEffects.test.tsx",
+          "sha256": "8eafa1656ce9367957ec4afdbb13ccc2d7c1b93bb7ab1ca886d7cc0730d11c26",
+          "cases": [
+            {
+              "index": 2,
+              "name": "desktop preference effects and subscriptions > only notifies selected fields, including stable empty routes and shallow appearance inputs"
+            },
+            {
+              "index": 3,
+              "name": "desktop preference effects and subscriptions > synchronizes only the legacy cross-window channels and resets menu/agents on clear"
+            },
+            {
+              "index": 4,
+              "name": "desktop preference effects and subscriptions > hydrates main-owned consent, sends opt-in, excludes it from storage and ignores late snapshots after cleanup"
+            },
+            {
+              "index": 5,
+              "name": "desktop preference effects and subscriptions > keeps in-memory edits usable and legacy routing inputs recoverable after failed writes"
+            },
+            {
+              "index": 6,
+              "name": "desktop preference effects and subscriptions > does not overwrite unreadable preference data with fallback defaults"
+            },
+            {
+              "index": 7,
+              "name": "desktop preference effects and subscriptions > survives a denied localStorage getter and denied writes/removals"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/preferences/desktopPreferenceIcons.test.tsx",
+          "sha256": "e5bcbc6a0b8783444441fb431946e475c390c1903d82361b985507bf5ba890cf",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop icon preference consumers > updates Git history glyphs without new parent props"
+            },
+            {
+              "index": 1,
+              "name": "desktop icon preference consumers > updates the create menu glyphs from their own subscription"
+            },
+            {
+              "index": 2,
+              "name": "desktop icon preference consumers > updates the real rename dialog's experimental file types without parent preference props"
+            },
+            {
+              "index": 3,
+              "name": "desktop icon preference consumers > updates the standalone shared-UI preview through the memoized desktop adapter"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/preferences/desktopPreferencesCompatibility.test.tsx",
+          "sha256": "7e2c230cb469a2e1536974849a7908d21ff5f552106b6fdad6f6ed9f3920fbb5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop preference wire compatibility (locked before the store migration) > writes every default using the original key and wire format"
+            },
+            {
+              "index": 1,
+              "name": "desktop preference wire compatibility (locked before the store migration) > normalizes corrupt persisted values without changing default output"
+            },
+            {
+              "index": 2,
+              "name": "desktop preference wire compatibility (locked before the store migration) > migrates legacy agent routes, menu, tools and experiments"
+            },
+            {
+              "index": 3,
+              "name": "desktop preference wire compatibility (locked before the store migration) > retains functional updater actions and round-trips all six domains"
+            },
+            {
+              "index": 4,
+              "name": "desktop preference wire compatibility (locked before the store migration) > remembers the agent a project was last connected to, and writes nothing before there is one"
+            },
+            {
+              "index": 5,
+              "name": "desktop preference wire compatibility (locked before the store migration) > persists hidden file icons and falls back to shown for missing or corrupt values"
+            },
+            {
+              "index": 6,
+              "name": "desktop preference wire compatibility (locked before the store migration) > keeps defaults usable if storage reads are unavailable"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::create_new::create_entry_menu_registry::tests::move_preserves_exactly_one_owner_and_fixed_entries"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::create_menu_defaults_and_legacy_default_layouts_keep_the_complete_hierarchy"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::parity_tests::create_menu_migrates_legacy_enabled_and_placement_without_losing_hidden_choices"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::a_slice_hears_only_changes_to_what_it_selects"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::preference_changes_coalesce_while_write_is_in_flight_and_quit_waits"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::failed_preferences_keep_changes_and_retry_the_latest_revision"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::a_malformed_preferences_file_loads_the_defaults_and_reports_it"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::preferences_roundtrip_preserves_menu_placement_and_defaults_new_fields"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preference_types::tests::hidden_file_icons_survive_preference_reload"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preference_types::tests::stored_pane_widths_are_whole_pixels_within_the_minimum"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::agent_routing_preferences::tests::parses_versions_and_migrates_only_the_legacy_route"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::electron_preferences::tests::legacy_keys_flags_and_unknown_values_follow_the_product_parsers"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::appearance_preferences_apply_to_the_open_window"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::appearance_settings::hidden_file_icons_keep_the_slot_and_leave_folder_disclosures"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -50264,6 +51042,16 @@
             {
               "index": 11,
               "name": "Explorer action changes > refreshes everything when an action reports a bare provider path"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/feature-flags/experimentalSettings.test.tsx",
+          "sha256": "2bba55255a6e7b00e55d757f9e87287e3425dee1feba2fb8d04d6eb1dda7c721",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Experimental settings > offers an off-by-default multi-project Workspace opt-in"
             }
           ]
         }
@@ -56484,6 +57272,20 @@
               "name": "tabular viewport geometry changes > keeps RTL geometry in logical scroll coordinates as the table grows"
             }
           ]
+        },
+        {
+          "path": "tests/component/settings/preferences/settingsPrimitives.test.tsx",
+          "sha256": "c942a6eeb995c8ca7cb54a2d0c60e4bd5b1684c2363fb999853ed165c0443bd7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Settings primitives > keeps headings semantic and Arabic values direction-aware in RTL"
+            },
+            {
+              "index": 2,
+              "name": "Settings primitives > pins monospace technical values to LTR"
+            }
+          ]
         }
       ]
     },
@@ -57194,6 +57996,20 @@
             {
               "index": 0,
               "name": "CSV table: expanding from the corner > does not automatically hint the focused expansion-picker cell"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/settings/preferences/settingsPrimitives.test.tsx",
+          "sha256": "c942a6eeb995c8ca7cb54a2d0c60e4bd5b1684c2363fb999853ed165c0443bd7",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Settings primitives > does not create an unnamed section landmark for an untitled flat group"
+            },
+            {
+              "index": 3,
+              "name": "Settings primitives > keeps accessibility descriptions separate from opt-in tooltips"
             }
           ]
         }
@@ -59958,6 +60774,16 @@
               "name": "project template selection > keeps one default-location request under StrictMode and always creates the guide"
             }
           ]
+        },
+        {
+          "path": "tests/component/settings/preferences/desktopPreferenceEffects.test.tsx",
+          "sha256": "8eafa1656ce9367957ec4afdbb13ccc2d7c1b93bb7ab1ca886d7cc0730d11c26",
+          "cases": [
+            {
+              "index": 1,
+              "name": "desktop preference effects and subscriptions > responds to OS color mode and agent indicators with StrictMode cleanup"
+            }
+          ]
         }
       ]
     },
@@ -62276,6 +63102,16 @@
               "name": "native appearance IPC > does not touch a destroyed sender window"
             }
           ]
+        },
+        {
+          "path": "tests/component/settings/preferences/desktopPreferenceEffects.test.tsx",
+          "sha256": "8eafa1656ce9367957ec4afdbb13ccc2d7c1b93bb7ab1ca886d7cc0730d11c26",
+          "cases": [
+            {
+              "index": 0,
+              "name": "desktop preference effects and subscriptions > applies the generated native first paint, titlebar color and chrome profile for each theme"
+            }
+          ]
         }
       ]
     },
@@ -62516,6 +63352,60 @@
             {
               "index": 2,
               "name": "selection focus presentation > never writes focus decorations inside CodeMirror-managed content"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "project-reach-experiment-retired",
+      "kind": "out-of-scope",
+      "reason": "Project Reach (enableProjectReach, incoming change receipts, and reach sidebar wording) is a retired TS experiment explicitly stripped in Rust Preferences::from_stored (preference_types.rs:retired_experimental_fields_in_stored_preferences_are_ignored).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/settings/experiments.md",
+      "typescript": [
+        {
+          "path": "tests/component/settings/feature-flags/projectReachExperience.test.tsx",
+          "sha256": "39882b7d9da71e5f74fb06887764451d6fc92059755f0bcf54d7b7c3b9cc7da7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "project reach experiment > offers one default-off switch in Header settings and keeps every other experiment where it was"
+            },
+            {
+              "index": 1,
+              "name": "project reach experiment > restores explicit consent from the existing experimental key without a migration"
+            },
+            {
+              "index": 2,
+              "name": "project reach experiment > gives every render entry the same decision through the single consumption point"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/settings/preferences/preferences.test.ts",
+          "sha256": "7ee72ae1c7b009ecbf7cdbfa2d5bb2d34062fbb1381ca6fb80f4345901e51e2c",
+          "cases": [
+            {
+              "index": 21,
+              "name": "experimental preferences > restores explicit project reach consent without moving another experiment"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "workbench-header-tabs-experiment-retired",
+      "kind": "out-of-scope",
+      "reason": "Moving workbench file navigation tabs into the Header (workbench_tabs_in_header) is a retired TS experiment explicitly stripped in Rust Preferences::from_stored (preference_types.rs:retired_experimental_fields_in_stored_preferences_are_ignored).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/settings/experiments.md",
+      "typescript": [
+        {
+          "path": "tests/component/settings/feature-flags/experimentalSettings.test.tsx",
+          "sha256": "2bba55255a6e7b00e55d757f9e87287e3425dee1feba2fb8d04d6eb1dda7c721",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Experimental settings > keeps file navigation last in Header settings and preserves its pane/Header choice"
             }
           ]
         }
