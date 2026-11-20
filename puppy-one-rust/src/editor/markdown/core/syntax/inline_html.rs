@@ -179,6 +179,14 @@ fn pair_container(
                 .find(|(n, _)| n == name)
                 .map(|(_, v)| v.as_str())
         };
+        // An anchor whose target the URL policy refuses stays source
+        // (`compileInlineHtmlRenderPlan`: unsupported).
+        if opening.name == "a"
+            && attribute("href")
+                .is_some_and(|h| crate::editor::markdown::navigation::safe_href(h).is_none())
+        {
+            continue;
+        }
         let style = attribute("style").unwrap_or_default();
         let html = InlineTag {
             href: (opening.name == "a")

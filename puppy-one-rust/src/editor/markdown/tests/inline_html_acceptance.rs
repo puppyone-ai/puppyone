@@ -491,3 +491,29 @@ fn inline_html_compiles_safe_marks_and_drops_unsafe_attributes() {
         assert_eq!(&source[html.content.clone().unwrap()], "text");
     }
 }
+
+/// `markdownUrlPolicy.test.ts`: `compiles unsafe HTML anchors to unsupported
+/// visible source`; `compiles safe HTML anchors without a live href
+/// attribute` (activation goes through the URL policy, to the canonical
+/// URL).
+#[test]
+fn an_anchor_the_url_policy_refuses_stays_source() {
+    let unsafe_anchor = parse("<a href=\"java&#10;script:alert(1)\">x</a>");
+    assert!(
+        unsafe_anchor
+            .elements
+            .iter()
+            .all(|e| e.kind != Kind::InlineHtml)
+    );
+    let safe = parse("<a href=\"https://example.com\">x</a>");
+    let anchor = safe
+        .elements
+        .iter()
+        .find(|e| e.kind == Kind::InlineHtml)
+        .unwrap();
+    let href = anchor.href.as_deref().unwrap();
+    assert_eq!(
+        crate::editor::markdown::navigation::safe_href(href).as_deref(),
+        Some("https://example.com/")
+    );
+}

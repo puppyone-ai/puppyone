@@ -167,6 +167,34 @@ fn lists_continue_and_tasks_toggle_with_history(cx: &mut TestAppContext) {
     view.update(cx, |v, _| assert_eq!(v.text(), "- [ ] one\n- [ ] **two**"));
 }
 
+/// `markdownFormatHotkeys.test.ts` and the macOS half of
+/// `markdownFormatShortcuts.electron.test.mjs`: ⌘B, ⌘I, ⌘U, ⌘D and ⌘⇧X format
+/// the selection in a focused Markdown editor; ⌘⇧B, ⌥ or Control chords do
+/// not, and nothing formats an editor without focus.
+#[gpui::test]
+fn format_shortcuts_follow_the_product_contract(cx: &mut TestAppContext) {
+    for (chord, formatted) in [
+        ("cmd-b", "**word**"),
+        ("cmd-i", "*word*"),
+        ("cmd-u", "<u>word</u>"),
+        ("cmd-d", "~~word~~"),
+        ("cmd-shift-x", "~~word~~"),
+        ("cmd-shift-b", "word"),
+        ("cmd-alt-i", "word"),
+        ("ctrl-i", "word"),
+        ("cmd-ctrl-i", "word"),
+    ] {
+        let (view, cx) = setup(cx, "word");
+        view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
+        cx.simulate_keystrokes(chord);
+        view.update(cx, |v, _| assert_eq!(v.text(), formatted, "{chord}"));
+    }
+    let (view, cx) = setup_with_focus(cx, "word", false);
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
+    cx.simulate_keystrokes("cmd-i");
+    view.update(cx, |v, _| assert_eq!(v.text(), "word"));
+}
+
 /// The lines each block of the frame shows, widgets as their line ranges.
 fn blocks(view: &Entity<EditorView>, cx: &mut VisualTestContext) -> Vec<std::ops::Range<usize>> {
     cx.update(|w, cx| {

@@ -39427,6 +39427,142 @@
           "test": "editor::markdown::features::table::layout::tests::tracks_match_the_product_at_every_reading_width"
         }
       ]
+    },
+    {
+      "id": "markdown-url-policy",
+      "acceptance": "Link targets with raw, entity-encoded or percent-encoded control characters, `javascript:` behind an entity colon, `vbscript:` and `data:` schemes, scheme-relative URLs and credentials never open; https, relative paths and fragments open, a URL in its canonical form. An inline `<a>` whose href the policy refuses stays visible source, and a safe one is followed only through the policy to its canonical URL.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/markdownUrlPolicy.test.ts",
+          "sha256": "893fee626965362e08baac0973b9fc9008d6878d2a422073a3468213f5187ebb",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown URL policy (P0 scheme bypass) > rejects control-character obfuscated javascript: schemes"
+            },
+            {
+              "index": 1,
+              "name": "Markdown URL policy (P0 scheme bypass) > rejects HTML-entity obfuscated javascript: schemes after decode"
+            },
+            {
+              "index": 2,
+              "name": "Markdown URL policy (P0 scheme bypass) > rejects vbscript and data schemes"
+            },
+            {
+              "index": 3,
+              "name": "Markdown URL policy (P0 scheme bypass) > rejects scheme-relative URLs, encoded controls, and credentials"
+            },
+            {
+              "index": 4,
+              "name": "Markdown URL policy (P0 scheme bypass) > allows https and relative paths"
+            },
+            {
+              "index": 5,
+              "name": "Markdown URL policy (P0 scheme bypass) > compiles unsafe HTML anchors to unsupported visible source"
+            },
+            {
+              "index": 6,
+              "name": "Markdown URL policy (P0 scheme bypass) > compiles safe HTML anchors without a live href attribute"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::navigation::tests::the_url_policy_refuses_obfuscated_and_unsafe_targets"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::an_anchor_the_url_policy_refuses_stays_source"
+        }
+      ]
+    },
+    {
+      "id": "markdown-link-interaction",
+      "acceptance": "A link navigates only to an executable target: a heading of this document, a workspace file or a safe external URL (canonical), never while its source is being edited; a missing heading or wiki target, an unsafe href, or a workspace link without a workspace leads nowhere. Heading fragments cover ATX, setext, Unicode and numbered duplicates and stay exact across incremental edits. A link opens on a stationary click that keeps the selection; leaving the drag threshold cancels it.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/links/markdownLinkInteraction.test.ts",
+          "sha256": "fcedb9a2ac51d0b6bcff493d9ef020410d6d98331ada1aadaf6a696696997fc2",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown link interaction policy > classifies only executable destinations as navigation"
+            },
+            {
+              "index": 1,
+              "name": "Markdown link interaction policy > fails closed for missing targets, unsafe hrefs, and absent host commands"
+            },
+            {
+              "index": 2,
+              "name": "Markdown link interaction policy > indexes ATX, setext, Unicode, and duplicate heading fragments"
+            },
+            {
+              "index": 3,
+              "name": "Markdown link interaction policy > keeps the pane-local heading index exact across incremental edits"
+            },
+            {
+              "index": 4,
+              "name": "Markdown link pointer gesture > activates only a stationary click that starts and ends without a range selection"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::navigation::tests::links_navigate_only_to_executable_targets_and_headings_stay_exact"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::navigation::tests::markdown_navigation_uses_syntax_and_reveal_state"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::view::tests::markdown_link_pointer_gesture_preserves_selection_and_cancels_drag"
+        }
+      ]
+    },
+    {
+      "id": "markdown-format-shortcuts",
+      "acceptance": "In a focused Markdown editor ⌘B, ⌘I, ⌘U, ⌘D and ⌘⇧X format the selection (strong, emphasis, underline, strike); ⌘⇧B, Option or Control chords on macOS do not, and an editor without focus is never formatted.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatHotkeys.test.ts",
+          "sha256": "571ba478bd9d2469145a332a7ff69d3c1b3a3f4c0c8bea89a50eba053efa8f58",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown format hotkeys > matches the product inline-format shortcut contract"
+            },
+            {
+              "index": 1,
+              "name": "Markdown format hotkeys > ignores shifted letter shortcuts other than strikethrough"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatShortcuts.electron.test.mjs",
+          "sha256": "e51b314e73668eeec13d0a33c5782e6d9c049597cff6fc054701b5de83f11e48",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown format window shortcuts > matches the complete macOS format shortcut set"
+            },
+            {
+              "index": 4,
+              "name": "Markdown format window shortcuts > prevents default and forwards only from a focused Markdown editor on darwin"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::format_shortcuts_follow_the_product_contract"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -39648,7 +39784,7 @@
     {
       "id": "windows-and-cross-platform-release",
       "kind": "out-of-scope",
-      "reason": "Only macOS is in scope for the native frontend: Windows NSIS releases and updater delivery, Windows identity and Authenticode checks, combined macOS+Windows release sets, Windows CLI resolution and non-macOS icon tooling are not built or verified, and Linux secure-storage backends (Electron safeStorage's basic_text fallback) do not apply; Windows Agent process termination and Windows workspace path semantics are not built or verified either.",
+      "reason": "Only macOS is in scope for the native frontend: Windows NSIS releases and updater delivery, Windows identity and Authenticode checks, combined macOS+Windows release sets, Windows CLI resolution and non-macOS icon tooling are not built or verified, and Linux secure-storage backends (Electron safeStorage's basic_text fallback) do not apply; Windows Agent process termination and Windows workspace path semantics are not built or verified either. Control-based Markdown format shortcuts on Windows and Linux are likewise not built.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
       "typescript": [
         {
@@ -39954,6 +40090,28 @@
             {
               "index": 2,
               "name": "Agent event workspace path policy > supports native Windows workspace paths without weakening containment"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatShortcuts.electron.test.mjs",
+          "sha256": "e51b314e73668eeec13d0a33c5782e6d9c049597cff6fc054701b5de83f11e48",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown format window shortcuts > uses Control instead of Command on win32"
+            },
+            {
+              "index": 2,
+              "name": "Markdown format window shortcuts > uses Control instead of Command on linux"
+            },
+            {
+              "index": 5,
+              "name": "Markdown format window shortcuts > prevents default and forwards only from a focused Markdown editor on win32"
+            },
+            {
+              "index": 6,
+              "name": "Markdown format window shortcuts > prevents default and forwards only from a focused Markdown editor on linux"
             }
           ]
         }
@@ -49454,7 +49612,7 @@
     {
       "id": "dom-inline-preview-fragments",
       "kind": "out-of-scope",
-      "reason": "TS renders isolated inline previews (table cells, MDX tab titles, HTML runs) by building DOM fragments and degrades a source over 32 KiB to one plain text node to bound that DOM. The native editor shapes those cells through the same text pipeline as every document line, so there is no separate fragment renderer or fragment budget.",
+      "reason": "TS renders isolated inline previews (table cells, MDX tab titles, HTML runs) by building DOM fragments and degrades a source over 32 KiB to one plain text node to bound that DOM. The native editor shapes those cells through the same text pipeline as every document line, so there is no separate fragment renderer or fragment budget. Nor is there the link-dependency identity that decides when such a fragment is rebuilt: native cells re-decorate with the document whenever the workspace's references change.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/plans-and-decorations.md",
       "typescript": [
         {
@@ -49464,6 +49622,44 @@
             {
               "index": 2,
               "name": "Markdown inline complexity bounds > degrades over-budget isolated inline previews to exact plain text"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/markdown/links/inlinePreviewLinkIdentity.test.ts",
+          "sha256": "a003ca528a011a7f6379745ee9ecfa066796d51943edf7312b3c7cd59ddf9299",
+          "cases": [
+            {
+              "index": 0,
+              "name": "isolated inline preview link dependencies > ignores unrelated files for plain text, line breaks and ordinary anchors"
+            },
+            {
+              "index": 1,
+              "name": "isolated inline preview link dependencies > retains resolved wiki links and wiki media when only unrelated files change"
+            },
+            {
+              "index": 2,
+              "name": "isolated inline preview link dependencies > invalidates when a missing wiki target appears or disappears"
+            },
+            {
+              "index": 3,
+              "name": "isolated inline preview link dependencies > invalidates when a target becomes ambiguous"
+            },
+            {
+              "index": 4,
+              "name": "isolated inline preview link dependencies > considers fragments outside the currently mounted viewport"
+            },
+            {
+              "index": 5,
+              "name": "isolated inline preview link dependencies > resolves dependencies in the owning document's directory"
+            },
+            {
+              "index": 6,
+              "name": "isolated inline preview link dependencies > ignores escaped wiki syntax"
+            },
+            {
+              "index": 7,
+              "name": "isolated inline preview link dependencies > conservatively refreshes HTML with entity-decoded link candidates"
             }
           ]
         }
@@ -49602,6 +49798,98 @@
             {
               "index": 4,
               "name": "Markdown table column layout persistence > restores only the matching document revision and column count"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-link-index-worker",
+      "kind": "out-of-scope",
+      "reason": "TS builds a serializable Markdown link index in a Web Worker (one document read at a time, superseded builds cancelled, saved documents re-indexed) holding path resolution and backlinks with bounded excerpts and snapshot sizes. Backlinks have no product surface, and native link resolution reads the Explorer's file metadata when a link is decorated or followed, so there is no index, worker or backlink snapshot.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/workspace-links.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/links/markdownLinkIndex.test.ts",
+          "sha256": "fc2c1cefad795307577592ea05064a79514f08dc030065d4f22fa0ec5a296c41",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown link index boundary > reconstructs the same path resolution and backlinks from a serializable index"
+            },
+            {
+              "index": 1,
+              "name": "Markdown link index boundary > cancels a superseded worker build and commits only the latest revision"
+            },
+            {
+              "index": 2,
+              "name": "Markdown link index boundary > rejects deterministically when the production Worker fails"
+            },
+            {
+              "index": 3,
+              "name": "Markdown link index boundary > streams one document at a time and can update a saved document incrementally"
+            },
+            {
+              "index": 4,
+              "name": "Markdown link index boundary > keeps backlink excerpts bounded for a link on a very long line"
+            },
+            {
+              "index": 5,
+              "name": "Markdown link index boundary > bounds the serializable backlink snapshot and reports source truncation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom-paired-click-suppression",
+      "kind": "out-of-scope",
+      "reason": "A browser fires a click after the pointer release TS already handled, so TS must swallow exactly that paired click. GPUI delivers one mouse-up and no synthetic click after it, so there is nothing to suppress.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/link-activation.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/links/markdownLinkInteraction.test.ts",
+          "sha256": "fcedb9a2ac51d0b6bcff493d9ef020410d6d98331ada1aadaf6a696696997fc2",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Markdown link pointer gesture > suppresses only the browser click paired with a handled pointer release"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-format-shortcut-repeat",
+      "kind": "gap",
+      "reason": "GPUI dispatches a held keystroke to its action again on every key repeat, so holding ⌘B toggles bold on and off natively; the product ignores auto-repeated format shortcuts (and Option, Control-on-macOS and released inputs, which the native key bindings also ignore).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/editing-commands.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatShortcuts.electron.test.mjs",
+          "sha256": "e51b314e73668eeec13d0a33c5782e6d9c049597cff6fc054701b5de83f11e48",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown format window shortcuts > rejects repeated, modified, released, and cross-platform modifier inputs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electron-format-shortcut-forwarding",
+      "kind": "out-of-scope",
+      "reason": "Electron's main process sees keys before the renderer, so TS tracks which window has a focused Markdown editor over trusted IPC and forwards format shortcuts to it. The native editor binds its shortcuts in its own key context, which is active only while it has focus.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/editing-commands.md",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatShortcuts.electron.test.mjs",
+          "sha256": "e51b314e73668eeec13d0a33c5782e6d9c049597cff6fc054701b5de83f11e48",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Markdown format window shortcuts > updates the focused editor from trusted IPC"
             }
           ]
         }

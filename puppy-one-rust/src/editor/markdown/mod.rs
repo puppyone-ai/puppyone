@@ -390,6 +390,7 @@ impl EditorExtension for MarkdownExtension {
             KeyBinding::new("secondary-b", ToggleBold, c),
             KeyBinding::new("secondary-i", ToggleItalic, c),
             KeyBinding::new("secondary-shift-x", ToggleStrike, c),
+            KeyBinding::new("secondary-d", ToggleStrike, c),
             KeyBinding::new("secondary-e", ToggleCode, c),
             KeyBinding::new("secondary-u", ToggleUnderline, c),
             KeyBinding::new("secondary-k", InsertLink, c),
