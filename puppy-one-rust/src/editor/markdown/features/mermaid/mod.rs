@@ -4,6 +4,9 @@
 //! deferred render activation live in a feature-owned [`MermaidState`] slot
 //! inside `FeatureStateStore`, mapped via [`Anchor`] across edits and undo/redo.
 mod controls;
+#[cfg(test)]
+pub(crate) mod widget;
+#[cfg(not(test))]
 mod widget;
 
 use crate::editor::{
@@ -184,7 +187,15 @@ impl MarkdownFeature for MermaidFeature {
             }
             Action::Done { at } => {
                 let block = block_at(cx, *at)?;
-                Some(Transaction::select(Selection::cursor(block.range.end)))
+                let doc_len = cx.state.doc.len();
+                let target = if block.range.end < doc_len {
+                    (block.range.end + 1).min(doc_len)
+                } else if block.range.start > 0 {
+                    block.range.start - 1
+                } else {
+                    block.range.end
+                };
+                Some(Transaction::select(Selection::cursor(target)))
             }
             _ => None,
         }

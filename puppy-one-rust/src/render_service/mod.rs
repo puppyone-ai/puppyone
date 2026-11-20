@@ -753,6 +753,23 @@ fn finish(window_id: WindowId, key: u64, state: State, bytes: usize, cx: &mut Ap
 }
 
 #[cfg(test)]
+pub(crate) fn seed_ready_for_tests(request: &Request, rendered: Rendered) {
+    let k = key(request);
+    let size = rendered.image.size(0);
+    let bytes = (size.width.0.max(1) as usize) * (size.height.0.max(1) as usize) * 4;
+    SERVICE.with(|s| s.borrow_mut().settle_key(k, State::Ready(rendered), bytes));
+}
+
+#[cfg(test)]
+pub(crate) fn has_in_flight_for_tests(request: &Request) -> bool {
+    let k = key(request);
+    SERVICE.with(|s| {
+        let s = s.borrow();
+        s.has_in_flight(k) || matches!(s.cache.get(&k).map(|c| &c.state), Some(State::Pending))
+    })
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use core::prelude::v1::test;

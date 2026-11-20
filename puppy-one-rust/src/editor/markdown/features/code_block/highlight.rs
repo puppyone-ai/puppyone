@@ -12,7 +12,8 @@ use std::{cell::RefCell, collections::HashMap, ops::Range, sync::Arc};
 /// `MARKDOWN_CODE_HIGHLIGHT_SOURCE_BYTE_LIMIT` / `_LINE_UNIT_LIMIT`.
 const SOURCE_BYTE_LIMIT: usize = 16 * 1024;
 const LINE_UNIT_LIMIT: usize = 4 * 1024;
-/// `MARKDOWN_CODE_HIGHLIGHT_DOM_NODE_LIMIT`: segments (≈ two nodes each).
+/// `MARKDOWN_CODE_HIGHLIGHT_DOM_NODE_LIMIT`: coloured tokens (≈ two DOM nodes
+/// each when paired with their unstyled gaps).
 const SEGMENT_LIMIT: usize = 2048 / 2;
 
 /// `resolveCodeLanguageKey(language, "")` → the Kit grammar for it, or
@@ -53,6 +54,9 @@ pub fn highlight(code: &str, language: &str, colors: &SyntaxColors) -> Highlight
     highlighter.update(None, &Rope::from(code), None);
     let roles = Roles(colors.clone());
     let mut styles = highlighter.styles(&(0..code.len()), &roles);
+    // Drop uncoloured captures (`HighlightStyle::default()`) so the budget
+    // counts actual coloured tokens, matching TS's `highlightTree` segments.
+    styles.retain(|(range, style)| !range.is_empty() && style.color.is_some());
     // Over the DOM budget the product shows the plain textarea.
     if styles.len() > SEGMENT_LIMIT {
         styles.clear();
