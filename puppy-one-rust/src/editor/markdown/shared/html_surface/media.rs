@@ -29,11 +29,7 @@ impl Surface<'_, '_, '_, '_> {
         } else {
             MediaKind::Audio
         };
-        let number = |name: &str| {
-            e.attribute(name)
-                .and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok())
-                .filter(|v| *v > 0.)
-        };
+        let number = |name: &str| e.attribute(name).and_then(dimension);
         if let Some(rendered) = self.port.render_media(
             kind,
             path.as_deref(),
@@ -82,11 +78,7 @@ impl Surface<'_, '_, '_, '_> {
                 e,
             ),
         };
-        let number = |name: &str| {
-            attrs
-                .attribute(name)
-                .and_then(|v| v.trim().trim_end_matches("px").parse::<f32>().ok())
-        };
+        let number = |name: &str| attrs.attribute(name).and_then(dimension);
         let resolved = if e.tag == "svg" {
             Ok(MediaSource::Data(serialize(e).into_bytes()))
         } else {
@@ -160,6 +152,17 @@ pub fn best_candidate(srcset: &str) -> Option<String> {
 }
 
 /// Serializes an inline `<svg>` subtree to XML markup with bounded depth (`MAX_HTML_DEPTH`).
+/// An authored pixel dimension (`200` or `200px`); a percentage or an
+/// expression is not one and is left out.
+fn dimension(value: &str) -> Option<f32> {
+    value
+        .trim()
+        .trim_end_matches("px")
+        .parse::<f32>()
+        .ok()
+        .filter(|v| v.is_finite() && *v > 0.)
+}
+
 pub fn serialize(e: &Element) -> String {
     serialize_depth(e, 0)
 }
@@ -195,6 +198,17 @@ fn serialize_depth(e: &Element, depth: usize) -> String {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    /// `markdownHtmlRun.test.ts`: `keeps img width pixels`; `omits an
+    /// invalid value for an img width expression`.
+    #[test]
+    fn pixel_dimensions_apply_and_expressions_are_left_out() {
+        assert_eq!(dimension("200px"), Some(200.));
+        assert_eq!(dimension(" 196 "), Some(196.));
+        for invalid in ["calc(1px)", "50%", "-3", "0", "NaN", "inf"] {
+            assert_eq!(dimension(invalid), None, "{invalid}");
+        }
+    }
 
     #[test]
     fn media_sources_pick_what_a_browser_shows() {

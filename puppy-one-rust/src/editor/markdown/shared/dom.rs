@@ -1,7 +1,8 @@
 //! Sanitized HTML block DOM tree (`htmlTagTokenizer.ts`, `htmlBlockStructure.ts`):
 //! a block renders only when its tags nest strictly as authored — anything a
 //! browser would repair stays visible source. Executable and embedding tags
-//! (`BLOCKED_TAGS`) are dropped in open/close, void, and self-closing forms,
+//! (`BLOCKED_TAGS`) are dropped in open/close, void, and self-closing forms
+//! (a `form` wrapper keeps its content, payload tags drop theirs),
 //! `on*` event attributes are stripped, and nesting deeper than
 //! `MAX_HTML_DEPTH` is refused (`TA-51`).
 use std::hash::{Hash, Hasher};
@@ -50,6 +51,11 @@ const CLOSES_P: &[&str] = &[
     "table",
     "ul",
 ];
+
+/// `BLOCKED_TAGS_DROPPED_WITH_CONTENT`: their payload never surfaces as
+/// text. The other blocked tags (a `form` wrapper) are unwrapped: the
+/// element goes and its content stays.
+const DROPPED_WITH_CONTENT: &[&str] = &["embed", "iframe", "object", "script", "style", "template"];
 
 pub fn is_blocked_tag(tag: &str) -> bool {
     BLOCKED_TAGS.contains(&tag.to_ascii_lowercase().as_str())
@@ -416,12 +422,11 @@ pub fn parse(source: &str) -> Parsed {
                     return Parsed::Malformed;
                 }
                 let element = stack.pop().unwrap();
+                let parent = &mut stack.last_mut().unwrap().children;
                 if !BLOCKED_TAGS.contains(&element.tag.as_str()) {
-                    stack
-                        .last_mut()
-                        .unwrap()
-                        .children
-                        .push(Node::Element(element));
+                    parent.push(Node::Element(element));
+                } else if !DROPPED_WITH_CONTENT.contains(&element.tag.as_str()) {
+                    parent.extend(element.children);
                 }
             }
         }

@@ -40588,6 +40588,146 @@
           "test": "editor::viewers::app_preview::tests::configure_saves_only_a_setup_whose_package_script_exists"
         }
       ]
+    },
+    {
+      "id": "markdown-html-text-marks-and-blocks",
+      "acceptance": "Text-only inline HTML (kbd, ins, samp, strike, tt, var) stays editable marks with its tags hidden, also inside a task item; an image alone in its block and a centered picture render as HTML blocks; a blocked root, an incomplete or mismatched run and an anchor with an unsafe link stay visible source.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 16,
+              "name": "Markdown HTML run projection > leaves an image alone in its block to the HTML block widget"
+            },
+            {
+              "index": 17,
+              "name": "Markdown HTML run projection > keeps editable inline marks for text-only HTML"
+            },
+            {
+              "index": 19,
+              "name": "Markdown HTML run projection > renders a text mark inside a task item"
+            },
+            {
+              "index": 30,
+              "name": "Markdown HTML run source fallbacks > keeps a blocked root visible"
+            },
+            {
+              "index": 31,
+              "name": "Markdown HTML run source fallbacks > keeps an incomplete run visible"
+            },
+            {
+              "index": 32,
+              "name": "Markdown HTML run source fallbacks > keeps a mismatched run visible"
+            },
+            {
+              "index": 33,
+              "name": "Markdown HTML run source fallbacks > keeps an unsafe link visible"
+            },
+            {
+              "index": 50,
+              "name": "Markdown theme-aware picture media > renders a picture block through the shared block widget"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::text_only_inline_html_stays_marks_also_inside_a_task"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::an_image_alone_and_a_centered_picture_are_html_blocks"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::unsupported_inline_html_is_visible_and_block_ownership_comes_from_the_parser"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::incomplete_and_mismatched_inline_html_never_become_reveal_targets"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_acceptance::an_anchor_the_url_policy_refuses_stays_source"
+        }
+      ]
+    },
+    {
+      "id": "markdown-html-block-reduction",
+      "acceptance": "An HTML block keeps its safe content while unsafe parts are reduced: an unknown tag, a marquee and a form wrapper are reduced to their text, script and style payloads and event handlers are removed, a table loses its column group but keeps its cells, an ordered list keeps a valid start (an invalid one falls back to 1), a pixel image width applies while an expression or a percentage is left out, and the block survives its reductions (the product's reduction diagnostics are inspection data, not shown); native audio and video are user-controlled players that never autoplay.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 51,
+              "name": "Markdown HTML reduction > reduces only an unknown tag"
+            },
+            {
+              "index": 52,
+              "name": "Markdown HTML reduction > reduces only a marquee"
+            },
+            {
+              "index": 53,
+              "name": "Markdown HTML reduction > reduces only a form wrapper"
+            },
+            {
+              "index": 54,
+              "name": "Markdown HTML reduction > reduces only a script payload"
+            },
+            {
+              "index": 55,
+              "name": "Markdown HTML reduction > reduces only a style payload"
+            },
+            {
+              "index": 56,
+              "name": "Markdown HTML reduction > keeps a table whose unknown column group is dropped"
+            },
+            {
+              "index": 58,
+              "name": "Markdown HTML reduction > keeps img width pixels"
+            },
+            {
+              "index": 64,
+              "name": "Markdown HTML reduction > keeps list start"
+            },
+            {
+              "index": 67,
+              "name": "Markdown HTML reduction > omits an invalid value for an img width expression"
+            },
+            {
+              "index": 70,
+              "name": "Markdown HTML reduction > omits an invalid value for a list start"
+            },
+            {
+              "index": 74,
+              "name": "Markdown HTML reduction > records a reduction diagnostic without losing the block"
+            },
+            {
+              "index": 84,
+              "name": "Markdown inline SVG and audio > gives audio user controls and defers its source to the broker"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_acceptance::html_blocks_reduce_unsafe_parts_and_keep_the_rest"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::shared::html_surface::media::tests::pixel_dimensions_apply_and_expressions_are_left_out"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::embed::media::tests::media_page_and_clip_enforce_single_file_and_protocol"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -50409,7 +50549,7 @@
     {
       "id": "markdown-asset-broker-architecture",
       "kind": "out-of-scope",
-      "reason": "TS resolves Markdown assets through an AssetBroker that hands features capability URLs (including provider-resolved loopback URLs) under host leases it revokes, validates sinks and purposes, and runs trusted local HTML in revocable execution sessions. The native editor reads asset bytes itself through the workspace or provider after the same policy (no URLs, leases or capability purposes), and never executes HTML in Markdown (executable HTML is removed from the native flow), so its features are given no HTML trust mode. The rest of that embed runtime is likewise TS's own: embedded edit sessions that commit a draft against a base revision (native widget commands re-derive their edit from the current source, so no draft can go stale), widget sessions disposed by DOM node, web embeds bound to a capability principal and revision with single-flight native view creation (a native embed is keyed by its view, block and URL, and a loading one takes no second click), principal-scoped render deduplication (the native render service shares one job per drawing), and explicit grants for local active HTML.",
+      "reason": "TS resolves Markdown assets through an AssetBroker that hands features capability URLs (including provider-resolved loopback URLs) under host leases it revokes, validates sinks and purposes, and runs trusted local HTML in revocable execution sessions. The native editor reads asset bytes itself through the workspace or provider after the same policy (no URLs, leases or capability purposes), and never executes HTML in Markdown (executable HTML is removed from the native flow), so its features are given no HTML trust mode. The rest of that embed runtime is likewise TS's own: embedded edit sessions that commit a draft against a base revision (native widget commands re-derive their edit from the current source, so no draft can go stale), widget sessions disposed by DOM node, web embeds bound to a capability principal and revision with single-flight native view creation (a native embed is keyed by its view, block and URL, and a loading one takes no second click), principal-scoped render deduplication (the native render service shares one job per drawing), and explicit grants for local active HTML. No authored source URL ever reaches a live browser sink either, because the native surface hands images bytes, not URLs.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/assets.md",
       "typescript": [
         {
@@ -50501,6 +50641,16 @@
               "name": "Markdown embed runtime foundations > requires an explicit grant for local active HTML (independent of revision)"
             }
           ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 49,
+              "name": "Markdown theme-aware picture media > never leaves an authored source URL on a live browser sink"
+            }
+          ]
         }
       ]
     },
@@ -50583,7 +50733,7 @@
     {
       "id": "markdown-html-id-fragment-targets",
       "kind": "gap",
-      "reason": "Fragment links resolve only to headings natively. Controlled inline HTML ids (`<a id>`, `<span id>`) are not fragment targets, so explicit ids, their case-preserving lookup and precedence over heading slugs, their incremental rescans and the empty anchor as one deletion unit do not exist.",
+      "reason": "Fragment links resolve only to headings natively. Controlled inline HTML ids (`<a id>`, `<span id>`) are not fragment targets, so explicit ids, their case-preserving lookup and precedence over heading slugs, their incremental rescans and the empty anchor as one deletion unit do not exist. Nor does a legacy named anchor (`<a name>`) become a target or yield to an explicit id; an empty one stays visible source.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/link-activation.md",
       "typescript": [
         {
@@ -50653,6 +50803,24 @@
             {
               "index": 15,
               "name": "Markdown source fragment targets > treats an empty anchor as one hidden deletion unit"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 29,
+              "name": "Markdown HTML run projection > treats a legacy named anchor as an in-page target"
+            },
+            {
+              "index": 66,
+              "name": "Markdown HTML reduction > keeps anchor name"
+            },
+            {
+              "index": 73,
+              "name": "Markdown HTML reduction > prefers an explicit id over a legacy anchor name"
             }
           ]
         }
@@ -51507,6 +51675,308 @@
             {
               "index": 2,
               "name": "embedded frame relay > does nothing without a frame"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-inline-html-runs",
+      "kind": "gap",
+      "reason": "Natively HTML renders only as its own block. Inline HTML runs stay visible source: images, linked images and theme pictures inside a paragraph, list item, task, heading, quote or table cell (README badge and download-card lines), passive elements such as font, big, dfn, nobr, meter or an inline center, Markdown inside an inline run, an HTML block on the same line as a list or quote marker, empty elements that the product hides, and inline audio. With no runs there is also no run reveal on caret entry, fold on caret exit, selection spanning a run, nested blocked element reduction inside a run or isolated table-cell run preview.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/syntax/inline-html.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown HTML run projection > renders the linked theme-aware download cards of a README list item"
+            },
+            {
+              "index": 1,
+              "name": "Markdown HTML run projection > keeps the list continuation indent out of the replaced range"
+            },
+            {
+              "index": 2,
+              "name": "Markdown HTML run projection > renders a linked image without exposing tags"
+            },
+            {
+              "index": 3,
+              "name": "Markdown HTML run projection > renders two images on one line without exposing tags"
+            },
+            {
+              "index": 4,
+              "name": "Markdown HTML run projection > renders a span around an image without exposing tags"
+            },
+            {
+              "index": 5,
+              "name": "Markdown HTML run projection > renders a heading image without exposing tags"
+            },
+            {
+              "index": 6,
+              "name": "Markdown HTML run projection > renders a list marker image without exposing tags"
+            },
+            {
+              "index": 7,
+              "name": "Markdown HTML run projection > renders a quote marker image without exposing tags"
+            },
+            {
+              "index": 8,
+              "name": "Markdown HTML run projection > renders a theme picture without exposing tags"
+            },
+            {
+              "index": 9,
+              "name": "Markdown HTML run projection > keeps the text around a run as ordinary document text"
+            },
+            {
+              "index": 10,
+              "name": "Markdown HTML run projection > renders Markdown inside an inline run but never re-reads escaped text as HTML"
+            },
+            {
+              "index": 11,
+              "name": "Markdown HTML run projection > projects an HTML block sharing its line with a list marker"
+            },
+            {
+              "index": 12,
+              "name": "Markdown HTML run projection > projects an HTML block sharing its line with an ordered list marker"
+            },
+            {
+              "index": 13,
+              "name": "Markdown HTML run projection > projects an HTML block sharing its line with a quote marker"
+            },
+            {
+              "index": 14,
+              "name": "Markdown HTML run projection > keeps one classification however a range query slices a multi-line run"
+            },
+            {
+              "index": 15,
+              "name": "Markdown HTML run projection > strips quote prefixes from the source of a multi-line run"
+            },
+            {
+              "index": 18,
+              "name": "Markdown HTML run projection > renders an image inside a task item"
+            },
+            {
+              "index": 20,
+              "name": "Markdown HTML run projection > renders a multi-line HTML block that starts after a quote marker"
+            },
+            {
+              "index": 21,
+              "name": "Markdown HTML run projection > gives an image on its own line between text lines one run"
+            },
+            {
+              "index": 22,
+              "name": "Markdown HTML run projection > renders the passive font element"
+            },
+            {
+              "index": 23,
+              "name": "Markdown HTML run projection > renders the passive big element"
+            },
+            {
+              "index": 24,
+              "name": "Markdown HTML run projection > renders the passive dfn element"
+            },
+            {
+              "index": 25,
+              "name": "Markdown HTML run projection > renders the passive nobr element"
+            },
+            {
+              "index": 26,
+              "name": "Markdown HTML run projection > renders the passive center element"
+            },
+            {
+              "index": 27,
+              "name": "Markdown HTML run projection > renders the passive meter element"
+            },
+            {
+              "index": 28,
+              "name": "Markdown HTML run projection > hides an empty element while keeping its source"
+            },
+            {
+              "index": 34,
+              "name": "Markdown HTML run source fallbacks > removes a nested blocked element and keeps the rest of the run"
+            },
+            {
+              "index": 35,
+              "name": "Markdown HTML run source fallbacks > does not render media on a surface without an asset broker"
+            },
+            {
+              "index": 36,
+              "name": "Markdown HTML run editing > shows the exact source for a caret at its opening edge"
+            },
+            {
+              "index": 37,
+              "name": "Markdown HTML run editing > shows the exact source for a caret at its closing edge"
+            },
+            {
+              "index": 38,
+              "name": "Markdown HTML run editing > shows the exact source for a caret at its interior"
+            },
+            {
+              "index": 39,
+              "name": "Markdown HTML run editing > folds the run again when the caret leaves, without touching the document"
+            },
+            {
+              "index": 40,
+              "name": "Markdown HTML run editing > does not let Markdown nested in a revealed run steal the reveal"
+            },
+            {
+              "index": 41,
+              "name": "Markdown HTML run editing > never reveals on a read-only surface"
+            },
+            {
+              "index": 42,
+              "name": "Markdown HTML run editing > keeps a selection across the run in one projection"
+            },
+            {
+              "index": 43,
+              "name": "Markdown HTML run editing > deletes source text one character at a time at the run edges"
+            },
+            {
+              "index": 44,
+              "name": "Markdown HTML run editing > reports the run as the reveal element for a caret on either edge"
+            },
+            {
+              "index": 45,
+              "name": "Markdown HTML run editing > lets links and disclosure controls keep their pointer gestures"
+            },
+            {
+              "index": 85,
+              "name": "Markdown inline SVG and audio > resolves audio through the broker as audio"
+            },
+            {
+              "index": 86,
+              "name": "Markdown HTML in isolated table-cell previews > hydrates a picture through the same media path"
+            },
+            {
+              "index": 87,
+              "name": "Markdown HTML in isolated table-cell previews > renders a linked image inside a table cell"
+            },
+            {
+              "index": 88,
+              "name": "Markdown HTML in isolated table-cell previews > keeps the whole label of a badge link"
+            },
+            {
+              "index": 89,
+              "name": "Markdown HTML in isolated table-cell previews > keeps media as visible source without an asset broker"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-html-presentational-attributes",
+      "kind": "gap",
+      "reason": "The native HTML surface applies block alignment, ordered list starts and pixel image sizes, but not percentage image widths, image placement (align left/right), table alignment and width, cell width and vertical alignment or ordered list types, so their valid and invalid values are not distinguished either; and a picture always shows its fallback image, never a candidate chosen by its source's media condition (no dark-mode picture).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/html-block.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 46,
+              "name": "Markdown theme-aware picture media > waits for picture candidates before giving the fallback image a URL"
+            },
+            {
+              "index": 47,
+              "name": "Markdown theme-aware picture media > removes an unauthorized candidate so the fallback image still shows"
+            },
+            {
+              "index": 48,
+              "name": "Markdown theme-aware picture media > falls back to alt text when no picture candidate is authorized"
+            },
+            {
+              "index": 57,
+              "name": "Markdown HTML reduction > keeps img width percent"
+            },
+            {
+              "index": 59,
+              "name": "Markdown HTML reduction > keeps img placement"
+            },
+            {
+              "index": 60,
+              "name": "Markdown HTML reduction > keeps table alignment"
+            },
+            {
+              "index": 61,
+              "name": "Markdown HTML reduction > keeps table width"
+            },
+            {
+              "index": 62,
+              "name": "Markdown HTML reduction > keeps cell width"
+            },
+            {
+              "index": 63,
+              "name": "Markdown HTML reduction > keeps cell vertical alignment"
+            },
+            {
+              "index": 65,
+              "name": "Markdown HTML reduction > keeps list type"
+            },
+            {
+              "index": 68,
+              "name": "Markdown HTML reduction > omits an invalid value for an img placement"
+            },
+            {
+              "index": 69,
+              "name": "Markdown HTML reduction > omits an invalid value for a cell alignment"
+            },
+            {
+              "index": 71,
+              "name": "Markdown HTML reduction > omits an invalid value for a list type"
+            },
+            {
+              "index": 72,
+              "name": "Markdown HTML reduction > omits an invalid value for a source condition"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "native-svg-raster-is-passive",
+      "kind": "out-of-scope",
+      "reason": "TS puts inline SVG into the live DOM, so it must remove scripts, foreign content, animation, linked uses, event handlers and remote paint or style references and prefix local ids. The native surface rasterizes a drawing into a passive image: nothing in it runs, animates or fetches, and its ids never meet the document's.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/html-block.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 76,
+              "name": "Markdown inline SVG and audio > keeps a passive drawing and scopes its local paint references"
+            },
+            {
+              "index": 77,
+              "name": "Markdown inline SVG and audio > removes script from a drawing"
+            },
+            {
+              "index": 78,
+              "name": "Markdown inline SVG and audio > removes foreign content from a drawing"
+            },
+            {
+              "index": 79,
+              "name": "Markdown inline SVG and audio > removes animation from a drawing"
+            },
+            {
+              "index": 80,
+              "name": "Markdown inline SVG and audio > removes a linked use from a drawing"
+            },
+            {
+              "index": 81,
+              "name": "Markdown inline SVG and audio > removes an event handler attribute"
+            },
+            {
+              "index": 82,
+              "name": "Markdown inline SVG and audio > removes a remote paint attribute"
+            },
+            {
+              "index": 83,
+              "name": "Markdown inline SVG and audio > removes a linked style attribute"
             }
           ]
         }

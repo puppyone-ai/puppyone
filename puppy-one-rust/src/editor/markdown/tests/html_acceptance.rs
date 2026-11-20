@@ -399,3 +399,90 @@ fn html_reference_plans_refresh_after_definition_edits_and_keep_first_definition
         }
     }
 }
+
+fn find<'a>(nodes: &'a [Node], tag: &str) -> Option<&'a Element> {
+    nodes.iter().find_map(|node| match node {
+        Node::Element(e) if e.tag == tag => Some(e),
+        Node::Element(e) => find(&e.children, tag),
+        Node::Text(_) => None,
+    })
+}
+
+/// `markdownHtmlRun.test.ts`: `keeps editable inline marks for text-only
+/// HTML` and `renders a text mark inside a task item`: text-only inline
+/// HTML stays editable marks with its tags hidden, also inside a task.
+#[gpui::test]
+fn text_only_inline_html_stays_marks_also_inside_a_task(cx: &mut TestAppContext) {
+    for (source, shown) in [
+        (
+            "<kbd>K</kbd> <ins>a</ins> <samp>b</samp> <strike>c</strike> <tt>d</tt> <var>e</var>",
+            "K a b c d e",
+        ),
+        ("- [x] <kbd>K</kbd>", "K"),
+    ] {
+        let (view, cx) = setup_with_focus(cx, source, false);
+        draw(cx);
+        let rows = view.read_with(cx, |v, _| {
+            v.layout()
+                .unwrap()
+                .leaves
+                .iter()
+                .map(|l| l.entry.text.text.to_string())
+                .collect::<Vec<_>>()
+        });
+        assert!(
+            rows.iter().any(|r| r.ends_with(shown)),
+            "{source}: {rows:?}"
+        );
+        assert!(rows.iter().all(|r| !r.contains('<')), "{source}: {rows:?}");
+    }
+}
+
+/// `leaves an image alone in its block to the HTML block widget`; `renders
+/// a picture block through the shared block widget`.
+#[test]
+fn an_image_alone_and_a_centered_picture_are_html_blocks() {
+    let picture = r#"<picture><source media="(prefers-color-scheme: dark)" srcset="assets/dark.svg"><img src="assets/light.svg" alt="Download" width="196"></picture>"#;
+    for source in [
+        r#"<img src="a.png" alt="i">"#.to_owned(),
+        format!("<div align=\"center\">\n  {picture}\n</div>"),
+    ] {
+        html_block(&source);
+    }
+}
+
+/// `Markdown HTML reduction`: an unknown tag, a marquee and a form wrapper
+/// are reduced to their text, script and style payloads (and event
+/// handlers) are removed, a table loses its column group but keeps its
+/// cells, and an ordered list keeps a valid start (an invalid one falls
+/// back to 1, as an omitted attribute does).
+#[test]
+fn html_blocks_reduce_unsafe_parts_and_keep_the_rest() {
+    for source in [
+        "<div><foo>hello</foo></div>",
+        "<div><marquee>hello</marquee></div>",
+        "<div><form>hello</form></div>",
+        "<div onclick=\"evil()\"><script>alert(1)</script>hello</div>",
+        "<div><style>p{color:red}</style>hello</div>",
+    ] {
+        let nodes = parsed(source);
+        let div = find(&nodes, "div").unwrap();
+        assert_eq!(div.text(), "hello", "{source}");
+        assert!(div.attribute("onclick").is_none());
+        for removed in ["script", "style", "form"] {
+            assert!(find(&nodes, removed).is_none(), "{source}");
+        }
+    }
+    let nodes = parsed("<table><colgroup><col width=\"50\"></colgroup><tr><td>c</td></tr></table>");
+    assert_eq!(find(&nodes, "td").unwrap().text(), "c");
+    let start = |html: &str| {
+        let nodes = parsed(html);
+        find(&nodes, "ol")
+            .unwrap()
+            .attribute("start")
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(1)
+    };
+    assert_eq!(start("<ol start=\"3\"><li>x</li></ol>"), 3);
+    assert_eq!(start("<ol start=\"1e9\"><li>x</li></ol>"), 1);
+}
