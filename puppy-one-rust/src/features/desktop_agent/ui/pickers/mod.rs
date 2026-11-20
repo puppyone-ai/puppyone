@@ -99,6 +99,7 @@ impl SessionPickers {
                     AgentSessionControlId::Model => "agent.model.placeholder",
                     AgentSessionControlId::Effort => "agent.effort.placeholder",
                     AgentSessionControlId::Mode => "agent.mode.placeholder",
+                    AgentSessionControlId::Source => "agent.compute.title",
                 })
                 .to_string()
             });
@@ -165,13 +166,29 @@ impl SessionPickers {
         let t_ = cx.palette();
         let m = theme::ty();
         let id = control.id;
-        let width = if id == AgentSessionControlId::Model {
-            248.
-        } else {
-            148.
+        let width = match id {
+            AgentSessionControlId::Model => 248.,
+            AgentSessionControlId::Source => 232.,
+            _ => 148.,
         };
         let searchable = control.options.len() > 6;
         let query = self.query.read(cx).text().trim().to_lowercase();
+        let decoration = |value: &str| {
+            control
+                .options
+                .iter()
+                .find(|o| o.value == value)
+                .map(|o| {
+                    (
+                        o.icon,
+                        o.mark,
+                        o.description
+                            .clone()
+                            .filter(|_| id == AgentSessionControlId::Source),
+                    )
+                })
+                .unwrap_or_default()
+        };
         let matched: Vec<(String, String, bool)> = control
             .options
             .iter()
@@ -260,6 +277,7 @@ impl SessionPickers {
         for (index, (label, value, selected)) in shown.into_iter().enumerate() {
             let highlighted = selected || self.active == Some(index);
             let host = host.clone();
+            let (icon, mark, detail) = decoration(&value);
             let mut item = MenuItem::new(label)
                 .id(("agent-panel-picker-option", index))
                 .selected(highlighted)
@@ -272,6 +290,19 @@ impl SessionPickers {
                         s.close(cx);
                     });
                 });
+            if let Some(mark) = mark {
+                item = item.icon_element(crate::ui::provider_marks::provider_mark(
+                    Some(mark),
+                    false,
+                    16.,
+                    t_.text,
+                ));
+            } else if let Some(icon) = icon {
+                item = item.icon(icon);
+            }
+            if let Some(detail) = detail {
+                item = item.detail_below(detail);
+            }
             if selected {
                 item = item.trailing(
                     Icon::new("check")

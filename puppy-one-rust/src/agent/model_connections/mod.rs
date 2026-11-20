@@ -1,4 +1,7 @@
 pub mod configuration;
+pub mod credentials;
+pub mod oauth;
+pub mod providers;
 pub mod schema;
 
 /// The account PuppyOne compute bills: the app's signed-in Cloud account

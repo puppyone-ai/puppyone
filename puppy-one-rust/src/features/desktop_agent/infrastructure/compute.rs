@@ -21,9 +21,22 @@ pub(crate) struct ManagedCompute {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct ComputeSnapshot {
     pub revision: String,
-    /// Each ready connection's source kind (`managed`, `api` or `local`).
+    /// Each ready connection's source kind (`managed`, `oauth`, `api` or `local`).
     pub sources: HashMap<String, &'static str>,
+    /// Each ready connection's brand mark under `assets/providers/` and
+    /// whether it is one colour (`providers::Provider::mark`).
+    pub marks: HashMap<String, (&'static str, bool)>,
     pub managed: Option<ManagedCompute>,
+}
+
+/// PuppyOne compute for Settings: `(signed in, credit available)`, or
+/// `None` while Payments is off and compute is not offered (blocking: the
+/// account's cached directory).
+pub fn read_managed_status() -> Option<(bool, bool)> {
+    let account = super::host::agent_host_global::CloudCompute;
+    let signed_in = account.current().is_some();
+    let available = signed_in && !configuration::managed(&account).is_empty();
+    Some((signed_in, available))
 }
 
 /// Reads the connections (blocking: the configuration file and PuppyOne
@@ -46,10 +59,22 @@ pub(crate) fn read_compute_snapshot() -> ComputeSnapshot {
             .map(|c| {
                 let kind = if c.managed {
                     "managed"
+                } else if c.auth == configuration::Auth::Oauth {
+                    "oauth"
                 } else {
                     c.source_kind.key()
                 };
                 (product_connection_id(&c.id), kind)
+            })
+            .collect(),
+        marks: connections
+            .iter()
+            .filter_map(|c| {
+                let provider = c.provider()?;
+                Some((
+                    product_connection_id(&c.id),
+                    (provider.mark?, provider.monochrome),
+                ))
             })
             .collect(),
         managed: Some(ManagedCompute {

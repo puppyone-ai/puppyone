@@ -9,6 +9,9 @@ pub enum AgentSessionControlId {
     Model,
     Effort,
     Mode,
+    /// The Built-in Agent's compute source (`BuiltInAgentCompute`): Chat
+    /// switches between ready sources; Settings configures them.
+    Source,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -17,6 +20,11 @@ pub struct AgentSessionControlOption {
     pub label: String,
     pub description: Option<String>,
     pub keywords: Option<String>,
+    /// A Lucide icon drawn before the label.
+    pub icon: Option<&'static str>,
+    /// A brand mark (`assets/providers/<file>`, one colour or not) drawn
+    /// before the label instead of `icon`.
+    pub mark: Option<(&'static str, bool)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -58,6 +66,8 @@ pub fn derive_agent_session_controls(
                     value: model.model.clone(),
                     label: model.display_name.clone(),
                     description: non_empty(&model.description),
+                    icon: None,
+                    mark: None,
                     keywords: Some(format!(
                         "{} {} {}",
                         model.id,
@@ -101,6 +111,8 @@ pub fn derive_agent_session_controls(
                     label: mode.display_name.clone(),
                     description: non_empty(&mode.description),
                     keywords: Some(format!("{} {}", mode.id, mode.display_name)),
+                    icon: None,
+                    mark: None,
                 })
                 .collect(),
         });

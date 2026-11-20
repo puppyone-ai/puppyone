@@ -1,0 +1,396 @@
+//! Model-connection credentials: the Keychain items behind `credential_id`
+//! and what they hold. An API key is stored as the key itself (as every
+//! earlier release wrote it); an OAuth sign-in as a typed JSON envelope with
+//! its refresh token. Values live only here and in the Keychain: never in
+//! `model-connections.json`, URLs, logs, errors or a worker's arguments.
+use super::oauth::{self, OauthProvider};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+
+/// The Keychain service every model-connection item is filed under.
+pub const SERVICE: &str = "PuppyOne GPUI Model Connections";
+/// The longest API key accepted (`MODEL_CONNECTION_LIMITS.keyBytes`).
+pub const KEY_LIMIT: usize = 8192;
+/// The largest stored OAuth envelope.
+const OAUTH_LIMIT: usize = 32 * 1024;
+/// Access tokens are refreshed this long before they expire.
+pub const REFRESH_MARGIN_MS: i64 = 5 * 60 * 1000;
+
+/// What a Keychain item holds.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Credential {
+    /// A key the user pasted, or one an OAuth exchange issued (OpenRouter).
+    ApiKey { key: String },
+    /// An OAuth token set.
+    Oauth {
+        access: String,
+        #[serde(default)]
+        refresh: String,
+        /// Unix milliseconds; `0` when the provider gave no expiry.
+        #[serde(default)]
+        expires: i64,
+        /// The provider's account (ChatGPT's `chatgpt_account_id`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        account_id: Option<String>,
+        /// The signed-in account's label shown in Settings (an email).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<String>,
+    },
+}
+
+/// Never print a credential, even in a debug build or a panic message.
+impl std::fmt::Debug for Credential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ApiKey { .. } => f.write_str("Credential::ApiKey(<redacted>)"),
+            Self::Oauth { expires, .. } => {
+                write!(f, "Credential::Oauth(<redacted>, expires: {expires})")
+            }
+        }
+    }
+}
+
+impl Credential {
+    /// Reads an item's bytes: a JSON envelope, else (any earlier release) a
+    /// bare key.
+    pub fn parse(bytes: &[u8]) -> Result<Self, String> {
+        let text = std::str::from_utf8(bytes)
+            .map_err(|_| crate::localization::t("native.modelConnections.credentialInvalid"))?;
+        if text.starts_with('{')
+            && let Ok(credential) = serde_json::from_str::<Credential>(text)
+        {
+            return Ok(credential);
+        }
+        Ok(Self::ApiKey {
+            key: text.to_owned(),
+        })
+    }
+    /// The bytes the item stores: a key as itself, OAuth as JSON.
+    pub fn encode(&self) -> Result<Vec<u8>, String> {
+        match self {
+            Self::ApiKey { key } => Ok(key.as_bytes().to_vec()),
+            Self::Oauth { .. } => {
+                let bytes = serde_json::to_vec(self).map_err(|e| e.to_string())?;
+                if bytes.len() > OAUTH_LIMIT {
+                    return Err("CREDENTIAL_TOO_LARGE".into());
+                }
+                Ok(bytes)
+            }
+        }
+    }
+    /// The bearer token requests carry.
+    pub fn bearer(&self) -> &str {
+        match self {
+            Self::ApiKey { key } => key,
+            Self::Oauth { access, .. } => access,
+        }
+    }
+    pub fn account_id(&self) -> Option<&str> {
+        match self {
+            Self::Oauth { account_id, .. } => account_id.as_deref(),
+            Self::ApiKey { .. } => None,
+        }
+    }
+    pub fn label(&self) -> Option<&str> {
+        match self {
+            Self::Oauth { label, .. } => label.as_deref(),
+            Self::ApiKey { .. } => None,
+        }
+    }
+    /// An OAuth access token due for refresh at `now` (Unix ms).
+    pub fn needs_refresh(&self, now: i64) -> bool {
+        match self {
+            Self::Oauth {
+                expires, refresh, ..
+            } => *expires > 0 && !refresh.is_empty() && now + REFRESH_MARGIN_MS >= *expires,
+            Self::ApiKey { .. } => false,
+        }
+    }
+}
+
+/// `parseConnectionCommand`'s key check: `8..=8192` UTF-16 units on one line.
+pub fn validate_key(key: &str) -> Result<(), String> {
+    if !(8..=KEY_LIMIT).contains(&crate::text::len16(key)) || key.contains(['\r', '\n', '\0']) {
+        return Err(crate::localization::t("native.modelConnections.invalidKey").into());
+    }
+    Ok(())
+}
+
+/// Where items are kept. The app uses the macOS Keychain; tests swap in
+/// memory with [`use_memory_store`].
+trait Store: Send + Sync {
+    fn get(&self, id: &str) -> Result<Vec<u8>, String>;
+    fn set(&self, id: &str, value: &[u8]) -> Result<(), String>;
+    fn delete(&self, id: &str);
+}
+
+struct Keychain;
+impl Store for Keychain {
+    fn get(&self, id: &str) -> Result<Vec<u8>, String> {
+        #[cfg(target_os = "macos")]
+        {
+            security_framework::passwords::get_generic_password(SERVICE, id).map_err(|_| {
+                crate::localization::t("native.modelConnections.credentialUnavailable").into()
+            })
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = id;
+            Err(crate::localization::t("native.modelConnections.noCredentialStorage").into())
+        }
+    }
+    fn set(&self, id: &str, value: &[u8]) -> Result<(), String> {
+        #[cfg(target_os = "macos")]
+        {
+            security_framework::passwords::set_generic_password(SERVICE, id, value).map_err(|_| {
+                crate::localization::t("native.modelConnections.keychainSaveFailed").into()
+            })
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (id, value);
+            Err(crate::localization::t("native.modelConnections.noCredentialStorage").into())
+        }
+    }
+    fn delete(&self, id: &str) {
+        #[cfg(target_os = "macos")]
+        let _ = security_framework::passwords::delete_generic_password(SERVICE, id);
+        #[cfg(not(target_os = "macos"))]
+        let _ = id;
+    }
+}
+
+#[derive(Default)]
+struct Memory(Mutex<HashMap<String, Vec<u8>>>);
+impl Store for Memory {
+    fn get(&self, id: &str) -> Result<Vec<u8>, String> {
+        self.0
+            .lock()
+            .map_err(|e| e.to_string())?
+            .get(id)
+            .cloned()
+            .ok_or_else(|| "CREDENTIAL_UNAVAILABLE".into())
+    }
+    fn set(&self, id: &str, value: &[u8]) -> Result<(), String> {
+        self.0
+            .lock()
+            .map_err(|e| e.to_string())?
+            .insert(id.into(), value.to_vec());
+        Ok(())
+    }
+    fn delete(&self, id: &str) {
+        if let Ok(mut items) = self.0.lock() {
+            items.remove(id);
+        }
+    }
+}
+
+static STORE: LazyLock<Mutex<Box<dyn Store>>> = LazyLock::new(|| Mutex::new(Box::new(Keychain)));
+/// Decoded items by `credential_id`, so a turn does not read the Keychain
+/// again; every write and delete updates it.
+static CACHE: LazyLock<Mutex<HashMap<String, Credential>>> = LazyLock::new(Default::default);
+
+/// Tests only: keep items in memory instead of the Keychain.
+pub fn use_memory_store() {
+    if let Ok(mut store) = STORE.lock() {
+        *store = Box::new(Memory::default());
+    }
+    if let Ok(mut cache) = CACHE.lock() {
+        cache.clear();
+    }
+}
+
+fn with_store<T>(f: impl FnOnce(&dyn Store) -> T) -> Result<T, String> {
+    let store = STORE
+        .lock()
+        .map_err(|_| crate::localization::t("native.modelConnections.lockFailed"))?;
+    Ok(f(store.as_ref()))
+}
+
+/// The credential stored as `id`.
+pub fn read(id: &str) -> Result<Credential, String> {
+    if let Some(hit) = CACHE.lock().ok().and_then(|c| c.get(id).cloned()) {
+        return Ok(hit);
+    }
+    let credential = Credential::parse(&with_store(|s| s.get(id))??)?;
+    if let Ok(mut cache) = CACHE.lock() {
+        cache.insert(id.to_owned(), credential.clone());
+    }
+    Ok(credential)
+}
+
+/// Store `credential` as `id`.
+pub fn write(id: &str, credential: &Credential) -> Result<(), String> {
+    let bytes = credential.encode()?;
+    with_store(|s| s.set(id, &bytes))??;
+    if let Ok(mut cache) = CACHE.lock() {
+        cache.insert(id.to_owned(), credential.clone());
+    }
+    Ok(())
+}
+
+/// Remove item `id`.
+pub fn delete(id: &str) {
+    let _ = with_store(|s| s.delete(id));
+    if let Ok(mut cache) = CACHE.lock() {
+        cache.remove(id);
+    }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or_default()
+}
+
+/// What a request authenticates with.
+#[derive(Clone)]
+pub struct Resolved {
+    pub bearer: String,
+    pub account_id: Option<String>,
+}
+
+/// The credential a connection's requests carry, refreshed first when an
+/// OAuth access token is about to expire. A refresh the provider refuses is
+/// `OAUTH_REAUTH_REQUIRED`: the user signs in again; nothing falls back to
+/// another route.
+pub async fn resolve(id: &str, provider: Option<OauthProvider>) -> Result<Resolved, String> {
+    let credential = read(id)?;
+    let credential = match (provider, credential.needs_refresh(now_ms())) {
+        (Some(provider), true) => {
+            let Credential::Oauth {
+                refresh,
+                account_id,
+                label,
+                ..
+            } = &credential
+            else {
+                unreachable!("only OAuth credentials need a refresh")
+            };
+            let fresh = oauth::refresh(provider, refresh)
+                .await
+                .map_err(|_| "OAUTH_REAUTH_REQUIRED".to_owned())?;
+            // A provider that does not rotate the refresh token, or omits
+            // the account, keeps the ones it issued at sign-in.
+            let fresh = match fresh {
+                Credential::Oauth {
+                    access,
+                    refresh: next,
+                    expires,
+                    account_id: next_account,
+                    label: next_label,
+                } => Credential::Oauth {
+                    access,
+                    refresh: if next.is_empty() {
+                        refresh.clone()
+                    } else {
+                        next
+                    },
+                    expires,
+                    account_id: next_account.or_else(|| account_id.clone()),
+                    label: next_label.or_else(|| label.clone()),
+                },
+                other => other,
+            };
+            write(id, &fresh)?;
+            fresh
+        }
+        _ => credential,
+    };
+    Ok(Resolved {
+        bearer: credential.bearer().to_owned(),
+        account_id: credential.account_id().map(str::to_owned),
+    })
+}
+
+#[cfg(test)]
+pub(crate) static TEST_STORE: Mutex<()> = Mutex::new(());
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keys_from_earlier_releases_read_as_api_keys_and_oauth_round_trips() {
+        assert_eq!(
+            Credential::parse(b"sk-legacy-key").unwrap(),
+            Credential::ApiKey {
+                key: "sk-legacy-key".into()
+            }
+        );
+        // A key that happens to start with `{` but is no envelope stays a key.
+        assert_eq!(
+            Credential::parse(b"{not-json-key").unwrap().bearer(),
+            "{not-json-key"
+        );
+        let oauth = Credential::Oauth {
+            access: "access-token".into(),
+            refresh: "refresh-token".into(),
+            expires: 10,
+            account_id: Some("acct".into()),
+            label: Some("me@example.test".into()),
+        };
+        let bytes = oauth.encode().unwrap();
+        assert_eq!(Credential::parse(&bytes).unwrap(), oauth);
+        // A pasted key is stored exactly as typed, as before.
+        assert_eq!(
+            Credential::ApiKey { key: "k".repeat(9) }.encode().unwrap(),
+            b"kkkkkkkkk"
+        );
+    }
+
+    #[test]
+    fn credentials_never_print_their_secrets() {
+        let oauth = Credential::Oauth {
+            access: "secret-access".into(),
+            refresh: "secret-refresh".into(),
+            expires: 1,
+            account_id: None,
+            label: None,
+        };
+        let key = Credential::ApiKey {
+            key: "sk-secret-value".into(),
+        };
+        for printed in [format!("{oauth:?}"), format!("{key:?}")] {
+            assert!(!printed.contains("secret"), "{printed}");
+        }
+    }
+
+    #[test]
+    fn access_tokens_refresh_shortly_before_they_expire() {
+        let token = |expires, refresh: &str| Credential::Oauth {
+            access: "a".into(),
+            refresh: refresh.into(),
+            expires,
+            account_id: None,
+            label: None,
+        };
+        let now = 1_000_000;
+        assert!(token(now + REFRESH_MARGIN_MS - 1, "r").needs_refresh(now));
+        assert!(!token(now + REFRESH_MARGIN_MS + 1, "r").needs_refresh(now));
+        // No expiry or no refresh token: used until the provider rejects it.
+        assert!(!token(0, "r").needs_refresh(now));
+        assert!(!token(1, "").needs_refresh(now));
+        assert!(!Credential::ApiKey { key: "k".into() }.needs_refresh(now));
+    }
+
+    #[test]
+    fn the_store_round_trips_and_forgets_deleted_items() {
+        let _guard = TEST_STORE.lock().unwrap_or_else(|e| e.into_inner());
+        use_memory_store();
+        let id = uuid::Uuid::new_v4().to_string();
+        let key = Credential::ApiKey {
+            key: "private-test-key".into(),
+        };
+        write(&id, &key).unwrap();
+        assert_eq!(read(&id).unwrap(), key);
+        delete(&id);
+        assert!(read(&id).is_err());
+        assert!(validate_key("short").is_err());
+        assert!(validate_key("line\nbreak-key").is_err());
+        assert!(validate_key("!echo-not-executed").is_ok());
+    }
+}

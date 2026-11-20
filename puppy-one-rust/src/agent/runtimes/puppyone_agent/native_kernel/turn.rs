@@ -178,14 +178,13 @@ pub fn chat_context(cwd: &std::path::Path, messages: &[Value]) -> Vec<Value> {
 }
 
 fn usage(completion: &Completion) -> Value {
-    let input = completion.usage["prompt_tokens"].as_u64().unwrap_or(0);
-    let output = completion.usage["completion_tokens"].as_u64().unwrap_or(0);
+    let usage = completion.usage;
     json!({
-        "input": input,
-        "output": output,
-        "cacheRead": 0,
-        "cacheWrite": 0,
-        "totalTokens": input + output,
+        "input": usage.input,
+        "output": usage.output,
+        "cacheRead": usage.cache_read,
+        "cacheWrite": usage.cache_write,
+        "totalTokens": usage.input + usage.output,
         "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0 },
     })
 }

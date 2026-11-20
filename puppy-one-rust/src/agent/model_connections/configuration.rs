@@ -3,26 +3,47 @@
 //! its driver, base URL, authentication and optional model and context
 //! overrides; the Agent serves the models it names ([`ModelConnection::members`]).
 //! Credentials live in the OS keychain, never JSON or command arguments.
+use super::credentials::Credential;
 use super::schema;
 use serde::{Deserialize, Serialize};
 use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
 };
-/// `MODEL_CONNECTION_DRIVERS`.
+/// `MODEL_CONNECTION_DRIVERS`: the service a connection calls. Each local
+/// service has its own driver (its catalog and discovery differ); remote
+/// providers are told apart by the protocol they speak.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Driver {
     Ollama,
     LmStudio,
     Unsloth,
+    Mlx,
+    LlamaCpp,
+    Vllm,
+    Jan,
+    LocalAi,
     #[default]
     OpenaiCompatible,
+    /// Anthropic Messages (Anthropic, Kimi Code).
+    Anthropic,
+    /// OpenAI Responses (xAI sign-in).
+    OpenaiResponses,
+    /// ChatGPT's Codex backend (ChatGPT sign-in).
+    Chatgpt,
 }
 impl Driver {
-    pub const ALL: [Driver; 4] = [
+    /// Every local service, in the local form's order (the form offers all
+    /// but `OpenaiCompatible`, which `Bring your API` adds).
+    pub const ALL: [Driver; 9] = [
         Driver::Ollama,
         Driver::LmStudio,
+        Driver::Mlx,
+        Driver::LlamaCpp,
+        Driver::Vllm,
+        Driver::Jan,
+        Driver::LocalAi,
         Driver::Unsloth,
         Driver::OpenaiCompatible,
     ];
@@ -30,10 +51,13 @@ impl Driver {
     /// default base URL.
     pub fn defaults(self) -> (&'static str, &'static str) {
         match self {
-            Self::Ollama => ("Ollama", "http://127.0.0.1:11434/v1"),
-            Self::LmStudio => ("LM Studio", "http://127.0.0.1:1234/v1"),
-            Self::Unsloth => ("Unsloth", "http://127.0.0.1:8000/v1"),
             Self::OpenaiCompatible => ("API", ""),
+            Self::Anthropic => ("Anthropic", "https://api.anthropic.com"),
+            Self::OpenaiResponses => ("xAI", "https://api.x.ai/v1"),
+            Self::Chatgpt => ("ChatGPT", "https://chatgpt.com/backend-api"),
+            local => super::providers::local_for(local)
+                .map(|p| (p.name, p.base_url))
+                .unwrap_or(("API", "")),
         }
     }
     pub fn key(self) -> &'static str {
@@ -41,15 +65,47 @@ impl Driver {
             Self::Ollama => "ollama",
             Self::LmStudio => "lm-studio",
             Self::Unsloth => "unsloth",
+            Self::Mlx => "mlx",
+            Self::LlamaCpp => "llama-cpp",
+            Self::Vllm => "vllm",
+            Self::Jan => "jan",
+            Self::LocalAi => "local-ai",
             Self::OpenaiCompatible => "openai-compatible",
+            Self::Anthropic => "anthropic",
+            Self::OpenaiResponses => "openai-responses",
+            Self::Chatgpt => "chatgpt",
         }
     }
     /// The authentication a new connection of this service starts with.
     pub fn default_auth(self) -> Auth {
         match self {
-            Self::Unsloth | Self::OpenaiCompatible => Auth::Bearer,
-            Self::Ollama | Self::LmStudio => Auth::None,
+            Self::Unsloth | Self::OpenaiCompatible | Self::Anthropic | Self::OpenaiResponses => {
+                Auth::Bearer
+            }
+            Self::Chatgpt => Auth::Oauth,
+            Self::Ollama
+            | Self::LmStudio
+            | Self::Mlx
+            | Self::LlamaCpp
+            | Self::Vllm
+            | Self::Jan
+            | Self::LocalAi => Auth::None,
         }
+    }
+    /// The protocol the Built-in Agent speaks to this service.
+    pub fn protocol(self) -> super::providers::Protocol {
+        use super::providers::Protocol;
+        match self {
+            Self::Anthropic => Protocol::AnthropicMessages,
+            Self::OpenaiResponses => Protocol::OpenaiResponses,
+            Self::Chatgpt => Protocol::CodexResponses,
+            _ => Protocol::OpenaiChat,
+        }
+    }
+    /// The endpoint is used as written: the protocol appends its own path
+    /// (`/v1/messages`, `/codex/responses`), so no `/v1` is added.
+    pub fn exact_endpoint(self) -> bool {
+        matches!(self, Self::Anthropic | Self::Chatgpt)
     }
 }
 /// The user-facing category (`sourceKind`), not proof of where inference runs.
@@ -74,17 +130,18 @@ pub enum Auth {
     #[default]
     None,
     Bearer,
+    /// A provider sign-in: the Keychain item holds its OAuth credential.
+    Oauth,
 }
 impl Auth {
     pub fn key(self) -> &'static str {
         match self {
             Self::None => "none",
             Self::Bearer => "bearer",
+            Self::Oauth => "oauth",
         }
     }
 }
-/// `MODEL_CONNECTION_LIMITS.keyBytes`.
-const KEY_LIMIT: usize = 8192;
 /// The context a connection saved before context budgets were configurable
 /// was served with.
 pub const LEGACY_CONTEXT_WINDOW: u64 = 128_000;
@@ -112,6 +169,13 @@ pub struct ModelConnection {
     /// Unsloth only: the user started it with `--disable-tools`.
     #[serde(default)]
     pub server_tools_disabled: bool,
+    /// The registered provider (`providers::get`), when the connection was
+    /// made from a preset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// The sign-in an `Auth::Oauth` connection was made with.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oauth_provider: Option<super::oauth::OauthProvider>,
     /// The model one Agent member of this connection serves; never stored.
     #[serde(skip)]
     pub model: String,
@@ -136,6 +200,12 @@ pub fn is_loopback_host(host: &str) -> bool {
 /// HTTP only on loopback; `localhost` pinned to `127.0.0.1`; one `/v1`
 /// suffix and no trailing slash.
 pub fn normalize_base_url(value: &str) -> Result<String, String> {
+    normalize_endpoint(value, Driver::OpenaiCompatible)
+}
+/// [`normalize_base_url`] for `driver`: a path that already ends in an API
+/// version (`/v4`, `/v1beta/openai`) keeps it, and drivers that append their
+/// own path ([`Driver::exact_endpoint`]) keep the URL as written.
+pub fn normalize_endpoint(value: &str, driver: Driver) -> Result<String, String> {
     let invalid = || crate::localization::t("native.modelConnections.invalidUrl").to_owned();
     if value.len() > 2048 || value.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(invalid());
@@ -159,7 +229,13 @@ pub fn normalize_base_url(value: &str) -> Result<String, String> {
     url.set_query(None);
     url.set_fragment(None);
     let path = url.path().trim_end_matches('/').to_owned();
-    url.set_path(&if path.ends_with("/v1") {
+    let last = path.rsplit('/').next().unwrap_or_default();
+    let versioned = last == "openai"
+        || last.strip_prefix('v').is_some_and(|rest| {
+            rest.starts_with(|c: char| c.is_ascii_digit())
+                && rest.chars().all(|c| c.is_ascii_alphanumeric())
+        });
+    url.set_path(&if driver.exact_endpoint() || versioned {
         path
     } else {
         format!("{path}/v1")
@@ -182,7 +258,10 @@ impl ModelConnection {
         uuid::Uuid::parse_str(&self.id)
             .map_err(|_| crate::localization::t("native.modelConnections.invalidIdentity"))?;
         schema::text(&self.name, 120).map_err(|_| "INVALID_CONFIGURATION".to_owned())?;
-        normalize_base_url(&self.endpoint)?;
+        normalize_endpoint(&self.endpoint, self.driver)?;
+        if (self.auth == Auth::Oauth) != self.oauth_provider.is_some() {
+            return Err("INVALID_CONFIGURATION".into());
+        }
         model_id(self.default_model_id.as_deref())?;
         model_id(self.manual_model_id.as_deref())?;
         if self
@@ -223,6 +302,21 @@ impl ModelConnection {
             })
             .collect()
     }
+    /// The credential this connection's requests carry (`None` without
+    /// authentication), an OAuth token refreshed first when it is about to
+    /// expire.
+    pub async fn resolve_credential(&self) -> Result<Option<super::credentials::Resolved>, String> {
+        if self.auth == Auth::None {
+            return Ok(None);
+        }
+        let Some(reference) = self.credential_id.as_deref() else {
+            return Err("CREDENTIAL_REQUIRED".into());
+        };
+        super::credentials::resolve(reference, self.oauth_provider)
+            .await
+            .map(Some)
+    }
+    /// The bearer token, without refreshing (catalog reads).
     pub fn credential(&self) -> Result<Option<String>, String> {
         if self.auth == Auth::None {
             return Ok(None);
@@ -230,22 +324,21 @@ impl ModelConnection {
         let Some(reference) = self.credential_id.as_deref() else {
             return Err("CREDENTIAL_REQUIRED".into());
         };
-        #[cfg(target_os = "macos")]
-        {
-            let value = security_framework::passwords::get_generic_password(
-                "PuppyOne GPUI Model Connections",
-                reference,
-            )
-            .map_err(|_| crate::localization::t("native.modelConnections.credentialUnavailable"))?;
-            String::from_utf8(value).map(Some).map_err(|_| {
-                crate::localization::t("native.modelConnections.credentialInvalid").into()
-            })
+        super::credentials::read(reference).map(|c| Some(c.bearer().to_owned()))
+    }
+    /// The signed-in account's label (OAuth), for Settings.
+    pub fn account_label(&self) -> Option<String> {
+        if self.auth != Auth::Oauth {
+            return None;
         }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = reference;
-            Err(crate::localization::t("native.modelConnections.noCredentialStorage").into())
-        }
+        super::credentials::read(self.credential_id.as_deref()?)
+            .ok()?
+            .label()
+            .map(str::to_owned)
+    }
+    /// The provider this connection was made from, if registered.
+    pub fn provider(&self) -> Option<&'static super::providers::Provider> {
+        super::providers::of(self.provider.as_deref(), self.oauth_provider, self.driver)
     }
 }
 /// The managed connection (`withManagedConnection`): one PuppyOne entry per
@@ -451,12 +544,43 @@ fn migrate(mut value: serde_json::Value) -> serde_json::Value {
     entry.insert("manual_context_window".into(), json!(LEGACY_CONTEXT_WINDOW));
     value
 }
+/// The last parse of `model-connections.json`, keyed by its path, length and
+/// modification time: every turn resolves its connection, and an unchanged
+/// file is not read and validated again.
+type Snapshot = (
+    PathBuf,
+    u64,
+    Option<std::time::SystemTime>,
+    Vec<ModelConnection>,
+);
+static SNAPSHOT: std::sync::Mutex<Option<Snapshot>> = std::sync::Mutex::new(None);
+/// Forget the cached parse (after this process writes the file).
+pub fn invalidate_snapshot() {
+    if let Ok(mut snapshot) = SNAPSHOT.lock() {
+        *snapshot = None;
+    }
+}
 pub fn load() -> Result<Vec<ModelConnection>, String> {
     let path = data_dir().join("model-connections.json");
-    if !path.exists() {
+    let Ok(meta) = std::fs::metadata(&path) else {
         return Ok(vec![]);
+    };
+    let (len, modified) = (meta.len(), meta.modified().ok());
+    if let Some(hit) = SNAPSHOT.lock().ok().and_then(|s| {
+        s.as_ref()
+            .filter(|(p, l, m, _)| *p == path && *l == len && *m == modified && modified.is_some())
+            .map(|(.., c)| c.clone())
+    }) {
+        return Ok(hit);
     }
-    let stored: Vec<serde_json::Value> = read_json(&path, 256 * 1024)?;
+    let connections = load_from(&path)?;
+    if let Ok(mut snapshot) = SNAPSHOT.lock() {
+        *snapshot = Some((path, len, modified, connections.clone()));
+    }
+    Ok(connections)
+}
+fn load_from(path: &Path) -> Result<Vec<ModelConnection>, String> {
+    let stored: Vec<serde_json::Value> = read_json(path, 256 * 1024)?;
     if stored.len() > 32 {
         return Err(crate::localization::t("native.modelConnections.tooMany").into());
     }
@@ -497,38 +621,52 @@ fn check_generation(existing: Option<&ModelConnection>, generation: &str) -> Res
     }
 }
 /// `parseConnectionCommand("save")` and `save`'s key rules over `previous`:
-/// the configuration as it is stored, and the key to secure, if any.
+/// the configuration as it is stored, and the credential to secure, if any.
 fn parse_save(
     mut connection: ModelConnection,
-    secret: Option<String>,
+    secret: Option<Credential>,
     previous: Option<&ModelConnection>,
-) -> Result<(ModelConnection, Option<String>), String> {
-    if secret.as_deref().is_some_and(|key| {
-        !(8..=KEY_LIMIT).contains(&crate::text::len16(key)) || key.contains(['\r', '\n', '\0'])
-    }) {
-        return Err(crate::localization::t("native.modelConnections.invalidKey").into());
+) -> Result<(ModelConnection, Option<Credential>), String> {
+    match (&secret, connection.auth) {
+        (Some(Credential::ApiKey { key }), Auth::Bearer) => super::credentials::validate_key(key)?,
+        (Some(Credential::Oauth { .. }), Auth::Bearer) => {
+            return Err("INVALID_CONFIGURATION".into());
+        }
+        _ => {}
     }
     connection.name =
         schema::text(&connection.name, 120).map_err(|_| "INVALID_CONFIGURATION".to_owned())?;
-    connection.endpoint = normalize_base_url(&connection.endpoint)?;
+    connection.endpoint = normalize_endpoint(&connection.endpoint, connection.driver)?;
     connection.default_model_id = model_id(connection.default_model_id.as_deref())?;
     connection.manual_model_id = model_id(connection.manual_model_id.as_deref())?;
+    if connection.auth != Auth::Oauth {
+        connection.oauth_provider = None;
+    }
     connection.validate()?;
-    if connection.auth == Auth::Bearer
+    if connection.auth != Auth::None
         && secret.is_none()
-        && previous.is_some_and(|p| p.credential_id.is_some() && p.endpoint != connection.endpoint)
+        && previous.is_some_and(|p| {
+            p.credential_id.is_some()
+                && (p.endpoint != connection.endpoint || p.auth != connection.auth)
+        })
     {
         return Err("KEY_CONFIRMATION_REQUIRED".into());
     }
+    if connection.auth == Auth::Oauth
+        && secret.is_none()
+        && previous.is_none_or(|p| p.credential_id.is_none())
+    {
+        return Err("CREDENTIAL_REQUIRED".into());
+    }
     // The caller cannot select an arbitrary Keychain item. Keep only the persisted
-    // reference, or allocate a fresh one when a key is entered.
+    // reference, or allocate a fresh one when a credential is entered.
     connection.credential_id = match connection.auth {
         Auth::None => None,
-        Auth::Bearer => previous.and_then(|p| p.credential_id.clone()),
+        Auth::Bearer | Auth::Oauth => previous.and_then(|p| p.credential_id.clone()),
     };
     connection.model = String::new();
     connection.managed = false;
-    let secret = secret.filter(|_| connection.auth == Auth::Bearer);
+    let secret = secret.filter(|_| connection.auth != Auth::None);
     Ok((connection, secret))
 }
 fn retired_credential<'a>(
@@ -542,15 +680,18 @@ fn retired_credential<'a>(
     .then_some(reference)
 }
 fn delete_credential(id: &str) {
-    #[cfg(target_os = "macos")]
-    let _ = security_framework::passwords::delete_generic_password(
-        "PuppyOne GPUI Model Connections",
-        id,
-    );
-    #[cfg(not(target_os = "macos"))]
-    let _ = id;
+    super::credentials::delete(id);
 }
+/// Save `connection` with an API key typed into Settings (`None` keeps the
+/// stored one).
 pub fn save(connection: ModelConnection, secret: Option<String>) -> Result<(), String> {
+    save_credential(connection, secret.map(|key| Credential::ApiKey { key }))
+}
+/// Save `connection` with a new credential (an API key or an OAuth sign-in).
+pub fn save_credential(
+    connection: ModelConnection,
+    secret: Option<Credential>,
+) -> Result<(), String> {
     let _guard = WRITES
         .lock()
         .map_err(|_| crate::localization::t("native.modelConnections.lockFailed"))?;
@@ -564,15 +705,7 @@ pub fn save(connection: ModelConnection, secret: Option<String>) -> Result<(), S
     let mut staged_credential: Option<String> = None;
     if let Some(secret) = secret {
         let credential_id = uuid::Uuid::new_v4().to_string();
-        #[cfg(target_os = "macos")]
-        security_framework::passwords::set_generic_password(
-            "PuppyOne GPUI Model Connections",
-            &credential_id,
-            secret.as_bytes(),
-        )
-        .map_err(|_| crate::localization::t("native.modelConnections.keychainSaveFailed"))?;
-        #[cfg(not(target_os = "macos"))]
-        return Err(crate::localization::t("native.modelConnections.noCredentialStorage").into());
+        super::credentials::write(&credential_id, &secret)?;
         connection.credential_id = Some(credential_id.clone());
         staged_credential = Some(credential_id);
     }
@@ -580,6 +713,7 @@ pub fn save(connection: ModelConnection, secret: Option<String>) -> Result<(), S
     connections.retain(|c| c.id != connection.id);
     connections.push(connection);
     let result = write_json(&data_dir().join("model-connections.json"), &connections);
+    invalidate_snapshot();
     if result.is_err() {
         if let Some(id) = staged_credential {
             delete_credential(&id);
@@ -603,7 +737,9 @@ pub fn remove(id: &str, generation: &str) -> Result<(), String> {
         return Err(crate::localization::t("native.modelConnections.changedBeforeRemove").into());
     }
     let connection = connections.remove(index);
-    write_json(&data_dir().join("model-connections.json"), &connections)?;
+    let written = write_json(&data_dir().join("model-connections.json"), &connections);
+    invalidate_snapshot();
+    written?;
     if let Some(id) = retired_credential(Some(&connection), &connections) {
         delete_credential(id);
     }
@@ -612,6 +748,9 @@ pub fn remove(id: &str, generation: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn key_of(key: &str) -> Credential {
+        Credential::ApiKey { key: key.into() }
+    }
     fn local() -> ModelConnection {
         ModelConnection {
             id: uuid::Uuid::new_v4().to_string(),
@@ -720,10 +859,11 @@ mod tests {
             auth: Auth::Bearer,
             ..local()
         };
-        let (_, key) = parse_save(bearer.clone(), Some("!echo-not-executed".into()), None).unwrap();
-        assert_eq!(key.as_deref(), Some("!echo-not-executed"));
+        let (_, key) =
+            parse_save(bearer.clone(), Some(key_of("!echo-not-executed")), None).unwrap();
+        assert_eq!(key, Some(key_of("!echo-not-executed")));
         for key in ["short", "line\nbreak-key"] {
-            assert!(parse_save(bearer.clone(), Some(key.into()), None).is_err());
+            assert!(parse_save(bearer.clone(), Some(key_of(key)), None).is_err());
         }
         // An edit keeps the stored key; another endpoint needs it again.
         let previous = ModelConnection {
@@ -741,10 +881,10 @@ mod tests {
             parse_save(moved.clone(), None, Some(&previous)).unwrap_err(),
             "KEY_CONFIRMATION_REQUIRED"
         );
-        assert!(parse_save(moved, Some("private-test-key".into()), Some(&previous)).is_ok());
+        assert!(parse_save(moved, Some(key_of("private-test-key")), Some(&previous)).is_ok());
         // No authentication drops the stored key and any key entered with it.
         let (none, key) =
-            parse_save(local(), Some("private-test-key".into()), Some(&previous)).unwrap();
+            parse_save(local(), Some(key_of("private-test-key")), Some(&previous)).unwrap();
         assert_eq!((none.credential_id, key), (None, None));
     }
     #[test]

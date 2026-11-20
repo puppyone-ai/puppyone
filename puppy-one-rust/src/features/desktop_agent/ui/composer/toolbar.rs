@@ -30,6 +30,7 @@ impl ComposerView {
                 AgentSessionControlId::Model => 148f32.min(viewport * 0.34),
                 AgentSessionControlId::Effort => 72f32.min(viewport * 0.2),
                 AgentSessionControlId::Mode => 88f32.min(viewport * 0.22),
+                AgentSessionControlId::Source => 160f32.min(viewport * 0.3),
             };
             let disabled = view.configuration_disabled;
             let picker = self
