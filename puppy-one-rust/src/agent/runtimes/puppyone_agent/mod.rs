@@ -217,6 +217,7 @@ mod verify_tests {
             expires: 0,
             account_id: Some(ACCOUNT.into()),
             label: None,
+            endpoint: None,
         }
     }
 
@@ -382,6 +383,7 @@ mod verify_tests {
                 expires: 0,
                 account_id: None,
                 label: None,
+                endpoint: None,
             },
         );
         assert_eq!(run(&connection).unwrap_err(), "CREDENTIAL_REQUIRED");

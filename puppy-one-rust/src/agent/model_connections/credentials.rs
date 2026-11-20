@@ -37,6 +37,9 @@ pub enum Credential {
         /// The signed-in account's label shown in Settings (an email).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         label: Option<String>,
+        /// The API endpoint the sign-in assigned (Qwen's `resource_url`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        endpoint: Option<String>,
     },
 }
 
@@ -96,6 +99,13 @@ impl Credential {
     pub fn label(&self) -> Option<&str> {
         match self {
             Self::Oauth { label, .. } => label.as_deref(),
+            Self::ApiKey { .. } => None,
+        }
+    }
+    /// The API endpoint the sign-in assigned, if any.
+    pub fn endpoint(&self) -> Option<&str> {
+        match self {
+            Self::Oauth { endpoint, .. } => endpoint.as_deref(),
             Self::ApiKey { .. } => None,
         }
     }
@@ -265,6 +275,7 @@ pub async fn resolve(id: &str, provider: Option<OauthProvider>) -> Result<Resolv
                 refresh,
                 account_id,
                 label,
+                endpoint,
                 ..
             } = &credential
             else {
@@ -282,6 +293,7 @@ pub async fn resolve(id: &str, provider: Option<OauthProvider>) -> Result<Resolv
                     expires,
                     account_id: next_account,
                     label: next_label,
+                    endpoint: next_endpoint,
                 } => Credential::Oauth {
                     access,
                     refresh: if next.is_empty() {
@@ -292,6 +304,7 @@ pub async fn resolve(id: &str, provider: Option<OauthProvider>) -> Result<Resolv
                     expires,
                     account_id: next_account.or_else(|| account_id.clone()),
                     label: next_label.or_else(|| label.clone()),
+                    endpoint: next_endpoint.or_else(|| endpoint.clone()),
                 },
                 other => other,
             };
@@ -332,6 +345,7 @@ mod tests {
             expires: 10,
             account_id: Some("acct".into()),
             label: Some("me@example.test".into()),
+            endpoint: None,
         };
         let bytes = oauth.encode().unwrap();
         assert_eq!(Credential::parse(&bytes).unwrap(), oauth);
@@ -350,6 +364,7 @@ mod tests {
             expires: 1,
             account_id: None,
             label: None,
+            endpoint: None,
         };
         let key = Credential::ApiKey {
             key: "sk-secret-value".into(),
@@ -367,6 +382,7 @@ mod tests {
             expires,
             account_id: None,
             label: None,
+            endpoint: None,
         };
         let now = 1_000_000;
         assert!(token(now + REFRESH_MARGIN_MS - 1, "r").needs_refresh(now));

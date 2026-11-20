@@ -136,6 +136,7 @@ impl SessionPickers {
                         cx.notify();
                     }))
             })
+            .gap(px(3.))
             .child(
                 div()
                     .min_w_0()
@@ -143,6 +144,14 @@ impl SessionPickers {
                     .text_size(px(theme::ty().left.content))
                     .line_height(px(theme::ty().left.line_height))
                     .child(label),
+            )
+            // The picker's affordance: it switches between choices.
+            .child(
+                Icon::new("chevrons-up-down")
+                    .with_size(px(11.))
+                    .stroke(1.8)
+                    .color(a.text_subtle)
+                    .flex_none(),
             );
         let mut root = div().relative().flex_shrink(1.).min_w_0().child(trigger);
         if open {

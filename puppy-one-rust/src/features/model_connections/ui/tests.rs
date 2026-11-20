@@ -50,6 +50,7 @@ fn a_new_connection_starts_from_its_category_and_service(cx: &mut TestAppContext
         driver: Driver::LmStudio,
         name: "LM Studio".into(),
         endpoint: "http://127.0.0.1:1234/v1".into(),
+        ..Default::default()
     };
     view.update(cx, |s, cx| {
         s.navigate(PageState::Add(SourceKind::Local, Some(candidate), None), cx);
@@ -150,6 +151,7 @@ fn discovery_results_replace_stopped_services_once_started(cx: &mut TestAppConte
             stopped: vec![client::Installed {
                 driver: Driver::Ollama,
                 name: "Ollama",
+                models: vec![],
             }],
         };
         tx.send(client::Discovery {
@@ -157,6 +159,7 @@ fn discovery_results_replace_stopped_services_once_started(cx: &mut TestAppConte
                 driver: Driver::Ollama,
                 name: "Ollama".into(),
                 endpoint: "http://127.0.0.1:11434/v1".into(),
+                ..Default::default()
             }],
             stopped: vec![],
         })
@@ -178,6 +181,8 @@ fn known_errors_read_as_sentences() {
         "OAUTH_REAUTH_REQUIRED",
         "NO_USABLE_MODEL",
         "START_FAILED",
+        "LOCAL_KEY_REQUIRED",
+        "START_IN_APP:oMLX",
     ] {
         assert!(!ModelConnections::error_text(code).contains(code), "{code}");
     }

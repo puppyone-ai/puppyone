@@ -15,6 +15,7 @@ mod kimi;
 mod loopback;
 mod openrouter;
 pub mod pkce;
+mod qwen;
 mod xai;
 
 use super::credentials::Credential;
@@ -34,11 +35,14 @@ pub enum OauthProvider {
     KimiCode,
     /// SuperGrok / X Premium.
     Xai,
+    /// Qwen Code (Qwen's own sign-in, a free personal quota).
+    QwenCode,
 }
 
 impl OauthProvider {
-    pub const ALL: [OauthProvider; 4] = [
+    pub const ALL: [OauthProvider; 5] = [
         OauthProvider::Chatgpt,
+        OauthProvider::QwenCode,
         OauthProvider::Openrouter,
         OauthProvider::KimiCode,
         OauthProvider::Xai,
@@ -49,6 +53,7 @@ impl OauthProvider {
             Self::Openrouter => "openrouter",
             Self::KimiCode => "kimi-code",
             Self::Xai => "xai",
+            Self::QwenCode => "qwen-code",
         }
     }
     /// The flow opens a browser and waits on a loopback callback (else it is
@@ -148,6 +153,7 @@ fn token_credential(body: &serde_json::Value, require_refresh: bool) -> Result<C
         expires,
         account_id: None,
         label: None,
+        endpoint: None,
     })
 }
 
@@ -171,6 +177,9 @@ pub async fn login(
                 kimi::login(&kimi::Endpoints::default(), progress, &cancel).await
             }
             OauthProvider::Xai => xai::login(&xai::Endpoints::default(), progress, &cancel).await,
+            OauthProvider::QwenCode => {
+                qwen::login(&qwen::Endpoints::default(), progress, &cancel).await
+            }
         }
     };
     tokio::time::timeout(LOGIN_TIMEOUT, flow)
@@ -188,6 +197,7 @@ pub async fn refresh(provider: OauthProvider, refresh_token: &str) -> Result<Cre
         OauthProvider::Openrouter => Err("OAUTH_REAUTH_REQUIRED".into()),
         OauthProvider::KimiCode => kimi::refresh(&kimi::Endpoints::default(), refresh_token).await,
         OauthProvider::Xai => xai::refresh(&xai::Endpoints::default(), refresh_token).await,
+        OauthProvider::QwenCode => qwen::refresh(&qwen::Endpoints::default(), refresh_token).await,
     }
 }
 

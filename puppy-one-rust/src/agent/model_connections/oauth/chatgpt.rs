@@ -90,6 +90,7 @@ pub fn credential(body: &serde_json::Value, require_refresh: bool) -> Result<Cre
         expires,
         account_id: Some(account_id),
         label,
+        endpoint: None,
     })
 }
 

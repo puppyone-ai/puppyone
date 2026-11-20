@@ -27,6 +27,9 @@ impl ModelConnections {
         categories.push(self.accounts_category(t, cx));
         categories.push(self.api_category(t, cx));
         categories.push(self.local_category(t, cx));
+        if self.loaded {
+            categories.push(self.guide_category(t, cx));
+        }
         SettingsCategoryList::new()
             .children(categories)
             .when(!self.loaded, |list| {
@@ -217,169 +220,8 @@ impl ModelConnections {
             .body(table(t, rows))
     }
 
-    /// Saved local services, services discovery found (`Connect` binds in
-    /// one step) and installed services that are not running (`Start`).
-    fn local_category(&self, t: Theme, cx: &mut Context<Self>) -> SettingsCategory {
-        let mut rows: Vec<AnyElement> = self
-            .items
-            .iter()
-            .filter(|c| c.source_kind == SourceKind::Local)
-            .enumerate()
-            .map(|(index, item)| self.connection_row(item, ("connection-local", index), t, cx))
-            .collect();
-        let candidates: Vec<_> = self
-            .discovery
-            .candidates
-            .iter()
-            .filter(|c| !self.items.iter().any(|i| i.endpoint == c.endpoint))
-            .cloned()
-            .collect();
-        if rows.is_empty()
-            && candidates.is_empty()
-            && self.discovery.stopped.is_empty()
-            && self.loaded
-        {
-            rows.push(
-                table_row(t)
-                    .text_color(t.subtle)
-                    .child(tr(if self.discover_rx.is_some() {
-                        "settings.modelConnections.discovering"
-                    } else {
-                        "settings.modelConnections.empty.local"
-                    }))
-                    .into_any_element(),
-            );
-        }
-        for (index, candidate) in candidates.into_iter().enumerate() {
-            let connecting = self.connecting.as_deref() == Some(candidate.endpoint.as_str());
-            let provider = registry::local_for(candidate.driver);
-            let customize = candidate.clone();
-            let connect = candidate.clone();
-            rows.push(
-                table_row(t)
-                    .id(("candidate", index))
-                    .child(super::mark(provider, SourceKind::Local, 18., t.text.into()))
-                    .child(identity(
-                        t,
-                        candidate.name.clone().into(),
-                        tf(
-                            "native.modelConnections.found",
-                            &[("endpoint", candidate.endpoint.clone().into())],
-                        )
-                        .into(),
-                    ))
-                    .child(
-                        text_action(
-                            t,
-                            ("customize-candidate", index),
-                            "settings",
-                            12.,
-                            tr("native.modelConnections.customize").into(),
-                        )
-                        .on_click(cx.listener(move |s, _, _, cx| {
-                            s.navigate(
-                                PageState::Add(SourceKind::Local, Some(customize.clone()), None),
-                                cx,
-                            )
-                        })),
-                    )
-                    .child(
-                        Button::new(("connect-candidate", index))
-                            .variant(ButtonVariant::OutlinePrimary)
-                            .label(tr(if connecting {
-                                "native.modelConnections.connecting"
-                            } else {
-                                "settings.modelConnections.connect"
-                            }))
-                            .disabled(self.busy)
-                            .on_click(
-                                cx.listener(move |s, _, _, cx| {
-                                    s.quick_connect(connect.clone(), cx)
-                                }),
-                            ),
-                    )
-                    .into_any_element(),
-            );
-        }
-        for (index, stopped) in self.discovery.stopped.clone().into_iter().enumerate() {
-            let starting = self
-                .starting
-                .as_ref()
-                .is_some_and(|(d, _)| *d == stopped.driver);
-            rows.push(
-                table_row(t)
-                    .id(("stopped", index))
-                    .child(super::mark(
-                        registry::local_for(stopped.driver),
-                        SourceKind::Local,
-                        18.,
-                        t.text.into(),
-                    ))
-                    .child(identity(
-                        t,
-                        stopped.name.into(),
-                        tr("native.modelConnections.installed").into(),
-                    ))
-                    .child(
-                        Button::new(("start-service", index))
-                            .icon(if starting { "loader-circle" } else { "play" })
-                            .label(tr(if starting {
-                                "native.modelConnections.starting"
-                            } else {
-                                "native.modelConnections.start"
-                            }))
-                            .disabled(self.starting.is_some())
-                            .on_click(
-                                cx.listener(move |s, _, _, cx| s.start_service(stopped.driver, cx)),
-                            ),
-                    )
-                    .into_any_element(),
-            );
-        }
-        rows.extend(self.inline_error(ErrorAt::Local, t));
-        let discovering = self.discover_rx.is_some();
-        let actions = h_flex()
-            .gap(px(8.))
-            .child(
-                text_action(
-                    t,
-                    "discover-local-models",
-                    if discovering {
-                        "loader-circle"
-                    } else {
-                        "refresh-cw"
-                    },
-                    12.,
-                    tr(if discovering {
-                        "settings.modelConnections.discovering"
-                    } else {
-                        "settings.modelConnections.discover"
-                    })
-                    .into(),
-                )
-                .tooltip(tooltip(tr("settings.modelConnections.discoveryHelp")))
-                .on_click(cx.listener(|s, _, _, cx| s.discover(cx))),
-            )
-            .child(
-                text_action(
-                    t,
-                    "add-local",
-                    "plus",
-                    14.,
-                    tr("settings.modelConnections.add").into(),
-                )
-                .tooltip(tooltip(tr("settings.modelConnections.add.local")))
-                .on_click(cx.listener(|s, _, _, cx| {
-                    s.navigate(PageState::Add(SourceKind::Local, None, None), cx)
-                })),
-            );
-        SettingsCategory::new(tr("settings.modelConnections.source.local"))
-            .action(actions)
-            .body(table(t, rows))
-    }
-
     /// A saved connection: its mark, name, endpoint and catalog status.
-    fn connection_row(
+    pub(super) fn connection_row(
         &self,
         item: &ModelConnection,
         id: (&'static str, usize),

@@ -185,6 +185,7 @@ pub async fn list_models(
         }
         Driver::Unsloth
         | Driver::Mlx
+        | Driver::Omlx
         | Driver::Vllm
         | Driver::Jan
         | Driver::LocalAi

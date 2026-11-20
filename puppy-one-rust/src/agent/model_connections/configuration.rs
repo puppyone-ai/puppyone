@@ -20,6 +20,8 @@ pub enum Driver {
     LmStudio,
     Unsloth,
     Mlx,
+    /// oMLX (`jundot/omlx`): an MLX server managed from the menu bar.
+    Omlx,
     LlamaCpp,
     Vllm,
     Jan,
@@ -36,9 +38,10 @@ pub enum Driver {
 impl Driver {
     /// Every local service, in the local form's order (the form offers all
     /// but `OpenaiCompatible`, which `Bring your API` adds).
-    pub const ALL: [Driver; 9] = [
+    pub const ALL: [Driver; 10] = [
         Driver::Ollama,
         Driver::LmStudio,
+        Driver::Omlx,
         Driver::Mlx,
         Driver::LlamaCpp,
         Driver::Vllm,
@@ -66,6 +69,7 @@ impl Driver {
             Self::LmStudio => "lm-studio",
             Self::Unsloth => "unsloth",
             Self::Mlx => "mlx",
+            Self::Omlx => "omlx",
             Self::LlamaCpp => "llama-cpp",
             Self::Vllm => "vllm",
             Self::Jan => "jan",
@@ -79,9 +83,11 @@ impl Driver {
     /// The authentication a new connection of this service starts with.
     pub fn default_auth(self) -> Auth {
         match self {
-            Self::Unsloth | Self::OpenaiCompatible | Self::Anthropic | Self::OpenaiResponses => {
-                Auth::Bearer
-            }
+            Self::Unsloth
+            | Self::Omlx
+            | Self::OpenaiCompatible
+            | Self::Anthropic
+            | Self::OpenaiResponses => Auth::Bearer,
             Self::Chatgpt => Auth::Oauth,
             Self::Ollama
             | Self::LmStudio

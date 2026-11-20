@@ -308,6 +308,25 @@ pub const ACCOUNT_PROVIDERS: &[Provider] = &[
         recommended: &["kimi-for-coding"],
         known: &[known("kimi-for-coding", 262_144)],
     },
+    Provider {
+        id: "qwen-code",
+        name: "Qwen Code",
+        mark: Some("qwen-color.svg"),
+        monochrome: false,
+        source: SourceKind::Api,
+        driver: Driver::OpenaiCompatible,
+        // The sign-in names the account's endpoint (`resource_url`).
+        base_url: "https://portal.qwen.ai/v1",
+        context: 262_144,
+        api_key: false,
+        oauth: Some((
+            OauthProvider::QwenCode,
+            Driver::OpenaiCompatible,
+            "https://portal.qwen.ai/v1",
+        )),
+        recommended: &["coder-model"],
+        known: &[known("coder-model", 262_144)],
+    },
 ];
 
 /// Local model services, in discovery order.
@@ -327,6 +346,14 @@ pub const LOCAL_PROVIDERS: &[Provider] = &[
         true,
         Driver::LmStudio,
         "http://127.0.0.1:1234/v1",
+    ),
+    local(
+        "omlx",
+        "oMLX",
+        Some("omlx.svg"),
+        false,
+        Driver::Omlx,
+        "http://127.0.0.1:8000/v1",
     ),
     local(
         "mlx",

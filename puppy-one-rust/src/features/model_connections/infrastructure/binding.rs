@@ -96,11 +96,24 @@ pub fn local_connection(candidate: &Candidate) -> ModelConnection {
     }
 }
 
-/// `Connect` on a discovered service: catalog, default model, save.
-pub async fn quick_connect(candidate: Candidate) -> Result<(), String> {
+/// `Connect` on a discovered service: its key (read from the service's own
+/// settings when it requires one), catalog, default model, save.
+pub async fn quick_connect(candidate: Candidate, model: Option<String>) -> Result<(), String> {
     let mut connection = local_connection(&candidate);
-    complete_binding(&mut connection, None).await?;
-    tokio::task::spawn_blocking(move || configuration::save(connection, None))
+    let driver = candidate.driver;
+    let key = if candidate.needs_key {
+        let key = tokio::task::spawn_blocking(move || super::discovery::local_key(driver))
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or("LOCAL_KEY_REQUIRED")?;
+        connection.auth = Auth::Bearer;
+        Some(key)
+    } else {
+        None
+    };
+    connection.default_model_id = model;
+    complete_binding(&mut connection, key.as_deref()).await?;
+    tokio::task::spawn_blocking(move || configuration::save(connection, key))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -188,6 +201,10 @@ pub async fn sign_in(
     )
     .await?;
     let mut connection = signed_in_connection(provider, existing.as_ref())?;
+    // A sign-in that assigns its own endpoint (Qwen Code) is served there.
+    if let Some(endpoint) = credential.endpoint() {
+        connection.endpoint = endpoint.to_owned();
+    }
     // Re-signing in with the same connection replaces its credential.
     let bearer = credential.bearer().to_owned();
     if connection.default_model_id.is_none() {
@@ -253,6 +270,7 @@ mod tests {
             driver: Driver::Ollama,
             name: "Ollama".into(),
             endpoint: "http://127.0.0.1:11434/v1".into(),
+            ..Default::default()
         };
         let connection = local_connection(&candidate);
         assert_eq!(
@@ -330,6 +348,7 @@ mod tests {
             driver: Driver::Vllm,
             name: "vLLM".into(),
             endpoint: format!("http://127.0.0.1:{port}/v1"),
+            ..Default::default()
         });
         tokio::runtime::Builder::new_current_thread()
             .enable_all()

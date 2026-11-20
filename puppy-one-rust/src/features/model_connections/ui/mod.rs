@@ -14,6 +14,7 @@
 mod detail;
 mod form;
 mod list;
+mod local;
 mod providers;
 mod rows;
 
@@ -113,8 +114,12 @@ pub struct ModelConnections {
     discover_rx: Option<Receiver<Discovery>>,
     /// A service being started at the user's request.
     starting: Option<(Driver, Receiver<Discovery>)>,
-    /// The discovered endpoint `Connect` is binding.
+    /// The discovered endpoint (or `endpoint#model`) being bound.
     connecting: Option<String>,
+    /// The discovered endpoint whose whole model list is shown.
+    expanded: Option<String>,
+    /// The install guide is open while local models exist.
+    guide_open: bool,
     signing_in: Option<SigningIn>,
     /// PuppyOne compute: `(signed in, credit available)`; `None` while it is
     /// not offered.
@@ -185,6 +190,8 @@ impl ModelConnections {
             discover_rx: None,
             starting: None,
             connecting: None,
+            expanded: None,
+            guide_open: false,
             signing_in: None,
             managed: None,
             managed_rx: None,
@@ -227,9 +234,10 @@ impl ModelConnections {
             self.discovery = found;
             cx.notify();
         }
-        if let Some((_, rx)) = &self.starting
+        if let Some((driver, rx)) = &self.starting
             && let Ok(found) = rx.try_recv()
         {
+            let driver = *driver;
             self.starting = None;
             if !found.candidates.is_empty() {
                 self.discovery.candidates = found.candidates;
@@ -239,7 +247,17 @@ impl ModelConnections {
                     .stopped
                     .retain(|s| !running.contains(&s.driver));
             } else {
-                self.error = Some("START_FAILED".into());
+                // A menu-bar app (oMLX, Jan, LM Studio) opens without serving
+                // until the user starts its server there.
+                self.error = Some(match driver {
+                    Driver::Omlx | Driver::Jan | Driver::LmStudio => format!(
+                        "START_IN_APP:{}",
+                        registry::local_for(driver)
+                            .map(|p| p.name)
+                            .unwrap_or_default()
+                    ),
+                    _ => "START_FAILED".into(),
+                });
                 self.error_at = ErrorAt::Local;
             }
             cx.notify();
@@ -364,14 +382,22 @@ impl ModelConnections {
     }
 
     /// `Connect`: bind a discovered service in one step.
-    fn quick_connect(&mut self, candidate: Candidate, cx: &mut Context<Self>) {
+    fn quick_connect(
+        &mut self,
+        candidate: Candidate,
+        model: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
         if self.busy {
             return;
         }
         self.error = None;
         self.error_at = ErrorAt::Local;
-        self.connecting = Some(candidate.endpoint.clone());
-        self.rx = client::quick_connect(candidate, self.wake.clone());
+        self.connecting = Some(match &model {
+            Some(model) => format!("{}#{model}", candidate.endpoint),
+            None => candidate.endpoint.clone(),
+        });
+        self.rx = client::quick_connect(candidate, model, self.wake.clone());
         self.busy = true;
         cx.notify();
     }
@@ -478,6 +504,12 @@ impl ModelConnections {
     /// The error line: a known code in words, anything else as the
     /// connection error code.
     fn error_text(code: &str) -> String {
+        if let Some(app) = code.strip_prefix("START_IN_APP:") {
+            return tf(
+                "native.modelConnections.error.startInApp",
+                &[("app", app.to_owned().into())],
+            );
+        }
         let key = match code {
             "OAUTH_DENIED" => "native.modelConnections.error.denied",
             "OAUTH_EXPIRED" | "OAUTH_TIMEOUT" => "native.modelConnections.error.expired",
@@ -486,6 +518,7 @@ impl ModelConnections {
             "NO_USABLE_MODEL" => "native.modelConnections.error.noModel",
             "START_FAILED" => "native.modelConnections.error.startFailed",
             "ENDPOINT_UNAVAILABLE" => "native.modelConnections.error.unreachable",
+            "LOCAL_KEY_REQUIRED" => "native.modelConnections.error.localKey",
             _ => {
                 return tf(
                     "settings.modelConnections.error",

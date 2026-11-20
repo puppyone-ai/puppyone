@@ -113,8 +113,7 @@ pub fn discover(wake: Wake) -> Receiver<Discovery> {
     run(
         wake,
         async {
-            let ports = discovery::ports(std::env::var("OLLAMA_HOST").ok().as_deref());
-            let candidates = discovery::discover_ports(&ports).await;
+            let candidates = discovery::running().await;
             let stopped = tokio::task::spawn_blocking(discovery::installed)
                 .await
                 .unwrap_or_default()
@@ -136,13 +135,13 @@ pub fn start_service(driver: Driver, wake: Wake) -> Receiver<Discovery> {
         wake,
         async move {
             if discovery::start(driver).is_ok() {
-                for _ in 0..20 {
-                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                    let ports = discovery::ports(std::env::var("OLLAMA_HOST").ok().as_deref());
-                    let candidates = discovery::discover_ports(&ports).await;
-                    if candidates.iter().any(|c| c.driver == driver) {
+                // Checks the service's own ports only, for at most 15 s.
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+                while std::time::Instant::now() < deadline {
+                    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+                    if discovery::serving(driver).await {
                         return Discovery {
-                            candidates,
+                            candidates: discovery::running().await,
                             stopped: vec![],
                         };
                     }
@@ -154,9 +153,14 @@ pub fn start_service(driver: Driver, wake: Wake) -> Receiver<Discovery> {
     )
 }
 
-/// `Connect`: bind a discovered service without the form.
-pub fn quick_connect(candidate: Candidate, wake: Wake) -> Receiver<Connections> {
-    change(wake, binding::quick_connect(candidate))
+/// `Connect` / `Add`: bind a discovered service without the form, with
+/// `model` as its default when the user picked one.
+pub fn quick_connect(
+    candidate: Candidate,
+    model: Option<String>,
+    wake: Wake,
+) -> Receiver<Connections> {
+    change(wake, binding::quick_connect(candidate, model))
 }
 
 /// A running sign-in's updates.

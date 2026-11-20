@@ -244,13 +244,15 @@ impl AgentChatTabPanel {
                         AgentSessionControlOption {
                             value: kind.to_owned(),
                             label: t(label).to_string(),
-                            description: Some(match model {
+                            // A source without a ready model opens Settings
+                            // (`管理模型连接…` says so once, below).
+                            description: match model {
                                 Some(_) if kind == "managed" => {
-                                    t("agent.compute.managedBalance").to_string()
+                                    Some(t("agent.compute.managedBalance").to_string())
                                 }
-                                Some(model) => model.display_name.clone(),
-                                None => t("native.agent.compute.setUp").to_string(),
-                            }),
+                                Some(model) => Some(model.display_name.clone()),
+                                None => None,
+                            },
                             keywords: None,
                             icon: Some(icon),
                             mark: None,
@@ -320,9 +322,7 @@ impl AgentChatTabPanel {
                 let picker = self
                     .pickers
                     .update(cx, |p, cx| p.picker(&control, 220., disabled, cx));
-                summary = summary
-                    .child(div().text_color(a.text_subtle).child("·"))
-                    .child(picker);
+                summary = summary.child(picker);
             }
             section = section.child(summary);
         }
