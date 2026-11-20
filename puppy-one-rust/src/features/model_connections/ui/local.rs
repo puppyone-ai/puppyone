@@ -9,7 +9,7 @@ use crate::agent::model_connections::providers as registry;
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::components::{Button, ButtonVariant, SettingsCategory, tooltip},
+    ui::components::{Button, ButtonVariant, Icon, SettingsCategory, tooltip},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex};
@@ -24,8 +24,18 @@ const GUIDES: [(&str, &str); 6] = [
     ("llama-cpp", "https://github.com/ggml-org/llama.cpp"),
     ("jan", "https://jan.ai/download"),
 ];
-/// The model the guide suggests first, pulled with Ollama.
-const STARTER: &str = "ollama pull qwen3.5:9b";
+/// The guide's first model, one paste in the shell: install Ollama with
+/// its official script when missing, wait for its server, then
+/// `ollama run` (which downloads the model first).
+#[cfg(target_os = "macos")]
+const STARTER: &str = "command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh; ollama list >/dev/null 2>&1 || { open -a Ollama --args hidden; for i in $(seq 30); do ollama list >/dev/null 2>&1 && break; sleep 1; done; }; ollama run qwen3.5:9b";
+#[cfg(target_os = "windows")]
+const STARTER: &str = "if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) { irm https://ollama.com/install.ps1 | iex; $env:Path += \";$env:LOCALAPPDATA\\Programs\\Ollama\" }; if (-not (ollama list 2>$null)) { Start-Process ollama -ArgumentList serve -WindowStyle Hidden; Start-Sleep 3 }; ollama run qwen3.5:9b";
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const STARTER: &str = "command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh; ollama list >/dev/null 2>&1 || { (ollama serve >/dev/null 2>&1 &); for i in $(seq 30); do ollama list >/dev/null 2>&1 && break; sleep 1; done; }; ollama run qwen3.5:9b";
+/// Where the user pastes [`STARTER`].
+#[cfg(target_os = "windows")]
+const SHELL: &str = "PowerShell";
 /// Models a discovered service shows before `Show all`.
 const SHOWN_MODELS: usize = 4;
 
@@ -303,7 +313,11 @@ impl ModelConnections {
                 .child(identity(t, stopped.name.into(), detail))
                 .child(
                     Button::new(("start-service", index))
-                        .icon(if starting { "loader-circle" } else { "play" })
+                        .icon(if starting {
+                            Icon::new("loader-circle").spinning(("start-spin", index))
+                        } else {
+                            Icon::new("play")
+                        })
                         .label(tr(if starting {
                             "native.modelConnections.starting"
                         } else {
@@ -370,11 +384,17 @@ impl ModelConnections {
         if !open {
             return category;
         }
+        #[cfg(target_os = "windows")]
+        let shell: crate::localization::Arg = SHELL.into();
+        #[cfg(not(target_os = "windows"))]
+        let shell: crate::localization::Arg = tr("native.modelConnections.guide.terminal")
+            .to_string()
+            .into();
         let mut rows: Vec<AnyElement> = vec![
             table_row(t)
                 .id("guide-starter")
                 .child(
-                    crate::ui::components::Icon::new("sparkles")
+                    Icon::new("sparkles")
                         .with_size(px(18.))
                         .stroke(1.75)
                         .color(t.muted),
@@ -384,18 +404,16 @@ impl ModelConnections {
                     tr("native.modelConnections.guide.starter").into(),
                     tf(
                         "native.modelConnections.guide.starterDetail",
-                        &[("command", STARTER.into())],
+                        &[("shell", shell)],
                     )
                     .into(),
                 ))
-                .child(
-                    Button::new("copy-starter")
-                        .icon("copy")
-                        .label(tr("native.modelConnections.guide.copyCommand"))
-                        .on_click(|_, _, cx| {
-                            cx.write_to_clipboard(ClipboardItem::new_string(STARTER.into()))
-                        }),
-                )
+                .child(self.copy_button(
+                    "copy-starter",
+                    "starter",
+                    "native.modelConnections.guide.copyCommand",
+                    STARTER.into(),
+                ))
                 .into_any_element(),
         ];
         for (index, (id, page)) in GUIDES.into_iter().enumerate() {

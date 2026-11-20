@@ -13,7 +13,7 @@ use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
     ui::components::{
-        Button, ButtonVariant, MutedRow, Select, SelectOption, SettingRow, SettingsSection,
+        Button, ButtonVariant, Icon, MutedRow, Select, SelectOption, SettingRow, SettingsSection,
         SettingsSubsection, Switch, ValueRow,
     },
 };
@@ -26,9 +26,9 @@ impl SettingsWorkspaceSurface {
         let loading = self.repository.read(cx).loading;
         Button::new("refresh-repository")
             .icon(if loading {
-                "loader-circle"
+                Icon::new("loader-circle").spinning("refresh-repository-spin")
             } else {
-                "refresh-cw"
+                Icon::new("refresh-cw")
             })
             .label(tr("common.action.refresh"))
             .disabled(loading)

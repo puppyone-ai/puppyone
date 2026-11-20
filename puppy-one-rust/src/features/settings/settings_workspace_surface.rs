@@ -85,6 +85,10 @@ pub struct SettingsWorkspaceSurface {
 impl EventEmitter<SettingsEvent> for SettingsWorkspaceSurface {}
 impl SettingsWorkspaceSurface {
     pub fn select_page(&mut self, page: Page, cx: &mut Context<Self>) {
+        // Another page opens at its top, not at the last one's offset.
+        if self.page != page {
+            self.content_scroll.set_offset(point(px(0.), px(0.)));
+        }
         self.page = page;
         if matches!(page, Page::Git | Page::Host) {
             self.repository.update(cx, |r, cx| r.refresh(cx));
@@ -262,6 +266,14 @@ impl SettingsWorkspaceSurface {
             &models,
             |s, _, _: &crate::features::model_connections::OpenAccount, cx| {
                 s.select_page(Page::Account, cx);
+                cx.notify();
+            },
+        )
+        .detach();
+        cx.subscribe(
+            &models,
+            |s, _, _: &crate::features::model_connections::PageChanged, cx| {
+                s.content_scroll.set_offset(point(px(0.), px(0.)));
                 cx.notify();
             },
         )

@@ -6,7 +6,7 @@ use super::{ModelConnections, PageState};
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::components::{Button, ButtonVariant, MutedRow, SettingsCategory, ValueRow},
+    ui::components::{Button, ButtonVariant, Icon, MutedRow, SettingsCategory, ValueRow},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex, v_flex};
@@ -181,9 +181,9 @@ impl ModelConnections {
             };
         let refresh = Button::new("refresh-models")
             .icon(if self.catalog_rx.is_some() {
-                "loader-circle"
+                Icon::new("loader-circle").spinning("refresh-models-spin")
             } else {
-                "refresh-cw"
+                Icon::new("refresh-cw")
             })
             .label(tr("settings.modelConnections.refresh"))
             .disabled(self.busy)

@@ -222,7 +222,7 @@
       "native.modelConnections.guide.show": "Install guide",
       "native.modelConnections.guide.hide": "Hide",
       "native.modelConnections.guide.starter": "Start with Qwen3.5 9B",
-      "native.modelConnections.guide.starterDetail": "About 6.6 GB, calls tools · with Ollama: {command}",
+      "native.modelConnections.guide.starterDetail": "About 6.6 GB, calls tools · paste into {shell}: installs Ollama if missing, then gets and runs the model",
       "native.modelConnections.guide.copyCommand": "Copy command",
       "native.modelConnections.guide.get": "Get",
       "native.modelConnections.guide.after": "Once it is installed and running, scan again above and its models appear here.",
@@ -233,7 +233,8 @@
       "native.modelConnections.guide.llama-cpp": "Open-source GGUF server by ggml-org, run with llama-server",
       "native.modelConnections.guide.jan": "Open-source chat app by the Jan team (janhq) with a built-in server",
       "native.modelConnections.foundEmpty": "Running at {endpoint} · no models yet",
-      "native.modelConnections.error.startInApp": "{app} is open but not serving yet. Start its server in {app}, then scan again."
+      "native.modelConnections.error.startInApp": "{app} is open but not serving yet. Start its server in {app}, then scan again.",
+      "native.modelConnections.guide.terminal": "Terminal"
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -456,7 +457,7 @@
       "native.modelConnections.guide.show": "安装指南",
       "native.modelConnections.guide.hide": "收起",
       "native.modelConnections.guide.starter": "推荐起步：Qwen3.5 9B",
-      "native.modelConnections.guide.starterDetail": "约 6.6 GB，支持工具调用 · 装好 Ollama 后运行 {command}",
+      "native.modelConnections.guide.starterDetail": "约 6.6 GB，支持工具调用 · 复制后粘贴到{shell}运行：没有 Ollama 会先装好，再下载并运行模型",
       "native.modelConnections.guide.copyCommand": "复制命令",
       "native.modelConnections.guide.get": "前往下载",
       "native.modelConnections.guide.after": "安装并启动后，点上方“发现本地服务”，它的模型就会出现在这里。",
@@ -467,7 +468,8 @@
       "native.modelConnections.guide.llama-cpp": "ggml-org 出品的开源 GGUF 推理服务，命令行运行 llama-server",
       "native.modelConnections.guide.jan": "Jan 团队（janhq）出品的开源聊天应用，内置推理服务",
       "native.modelConnections.foundEmpty": "运行于 {endpoint} · 还没有模型",
-      "native.modelConnections.error.startInApp": "已打开 {app}，但它的服务还没启动。请在 {app} 里启动服务，再点“发现本地服务”。"
+      "native.modelConnections.error.startInApp": "已打开 {app}，但它的服务还没启动。请在 {app} 里启动服务，再点“发现本地服务”。",
+      "native.modelConnections.guide.terminal": "终端"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -690,7 +692,7 @@
       "native.modelConnections.guide.show": "インストールガイド",
       "native.modelConnections.guide.hide": "閉じる",
       "native.modelConnections.guide.starter": "おすすめ：Qwen3.5 9B",
-      "native.modelConnections.guide.starterDetail": "約 6.6 GB、ツール呼び出し対応 · Ollama で {command}",
+      "native.modelConnections.guide.starterDetail": "約 6.6 GB、ツール呼び出し対応 · {shell} に貼り付けて実行：Ollama がなければ入れてから、モデルを取得して実行",
       "native.modelConnections.guide.copyCommand": "コマンドをコピー",
       "native.modelConnections.guide.get": "入手",
       "native.modelConnections.guide.after": "インストールして起動したら、上の「ローカルサービスを検索」を選ぶとモデルがここに表示されます。",
@@ -701,7 +703,8 @@
       "native.modelConnections.guide.llama-cpp": "ggml-org 製のオープンソース GGUF サーバー（llama-server で実行）",
       "native.modelConnections.guide.jan": "Jan チーム（janhq）製のオープンソースチャットアプリ（サーバー内蔵）",
       "native.modelConnections.foundEmpty": "{endpoint} で実行中 · モデルがまだありません",
-      "native.modelConnections.error.startInApp": "{app} を開きましたが、サーバーはまだ起動していません。{app} でサーバーを起動してから「ローカルサービスを検索」を選んでください。"
+      "native.modelConnections.error.startInApp": "{app} を開きましたが、サーバーはまだ起動していません。{app} でサーバーを起動してから「ローカルサービスを検索」を選んでください。",
+      "native.modelConnections.guide.terminal": "ターミナル"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -924,7 +927,7 @@
       "native.modelConnections.guide.show": "설치 안내",
       "native.modelConnections.guide.hide": "접기",
       "native.modelConnections.guide.starter": "추천 시작 모델: Qwen3.5 9B",
-      "native.modelConnections.guide.starterDetail": "약 6.6GB, 도구 호출 지원 · Ollama에서 {command}",
+      "native.modelConnections.guide.starterDetail": "약 6.6GB, 도구 호출 지원 · {shell}에 붙여넣어 실행: Ollama가 없으면 설치한 뒤 모델을 받아 실행",
       "native.modelConnections.guide.copyCommand": "명령 복사",
       "native.modelConnections.guide.get": "받기",
       "native.modelConnections.guide.after": "설치하고 실행한 뒤 위의 ‘로컬 서비스 찾기’를 누르면 모델이 여기에 표시됩니다.",
@@ -935,7 +938,8 @@
       "native.modelConnections.guide.llama-cpp": "ggml-org가 만든 오픈 소스 GGUF 서버, llama-server로 실행",
       "native.modelConnections.guide.jan": "Jan 팀(janhq)이 만든 오픈 소스 채팅 앱, 서버 내장",
       "native.modelConnections.foundEmpty": "{endpoint}에서 실행 중 · 아직 모델 없음",
-      "native.modelConnections.error.startInApp": "{app}을(를) 열었지만 서버가 아직 시작되지 않았습니다. {app}에서 서버를 시작한 뒤 ‘로컬 서비스 찾기’를 누르세요."
+      "native.modelConnections.error.startInApp": "{app}을(를) 열었지만 서버가 아직 시작되지 않았습니다. {app}에서 서버를 시작한 뒤 ‘로컬 서비스 찾기’를 누르세요.",
+      "native.modelConnections.guide.terminal": "터미널"
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -1158,7 +1162,7 @@
       "native.modelConnections.guide.show": "Guía de instalación",
       "native.modelConnections.guide.hide": "Ocultar",
       "native.modelConnections.guide.starter": "Para empezar: Qwen3.5 9B",
-      "native.modelConnections.guide.starterDetail": "Unos 6,6 GB, usa herramientas · con Ollama: {command}",
+      "native.modelConnections.guide.starterDetail": "Unos 6,6 GB, usa herramientas · pégalo en {shell}: instala Ollama si falta y luego obtiene y ejecuta el modelo",
       "native.modelConnections.guide.copyCommand": "Copiar comando",
       "native.modelConnections.guide.get": "Obtener",
       "native.modelConnections.guide.after": "Cuando esté instalado y en ejecución, vuelve a buscar arriba y sus modelos aparecerán aquí.",
@@ -1169,7 +1173,8 @@
       "native.modelConnections.guide.llama-cpp": "Servidor GGUF de código abierto de ggml-org, con llama-server",
       "native.modelConnections.guide.jan": "App de chat de código abierto del equipo de Jan (janhq) con servidor integrado",
       "native.modelConnections.foundEmpty": "En ejecución en {endpoint} · aún sin modelos",
-      "native.modelConnections.error.startInApp": "{app} está abierto pero aún no sirve modelos. Inicia su servidor en {app} y vuelve a buscar."
+      "native.modelConnections.error.startInApp": "{app} está abierto pero aún no sirve modelos. Inicia su servidor en {app} y vuelve a buscar.",
+      "native.modelConnections.guide.terminal": "Terminal"
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -1392,7 +1397,7 @@
       "native.modelConnections.guide.show": "Guia de instalação",
       "native.modelConnections.guide.hide": "Ocultar",
       "native.modelConnections.guide.starter": "Para começar: Qwen3.5 9B",
-      "native.modelConnections.guide.starterDetail": "Cerca de 6,6 GB, usa ferramentas · com o Ollama: {command}",
+      "native.modelConnections.guide.starterDetail": "Cerca de 6,6 GB, usa ferramentas · cole no {shell}: instala o Ollama se faltar e depois obtém e executa o modelo",
       "native.modelConnections.guide.copyCommand": "Copiar comando",
       "native.modelConnections.guide.get": "Obter",
       "native.modelConnections.guide.after": "Depois de instalar e executar, escolha Encontrar serviços locais acima e os modelos aparecerão aqui.",
@@ -1403,7 +1408,8 @@
       "native.modelConnections.guide.llama-cpp": "Servidor GGUF de código aberto da ggml-org, com o llama-server",
       "native.modelConnections.guide.jan": "App de chat de código aberto da equipe Jan (janhq) com servidor integrado",
       "native.modelConnections.foundEmpty": "Em execução em {endpoint} · ainda sem modelos",
-      "native.modelConnections.error.startInApp": "{app} está aberto, mas ainda não está servindo. Inicie o servidor no {app} e escolha Encontrar serviços locais."
+      "native.modelConnections.error.startInApp": "{app} está aberto, mas ainda não está servindo. Inicie o servidor no {app} e escolha Encontrar serviços locais.",
+      "native.modelConnections.guide.terminal": "Terminal"
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -1626,7 +1632,7 @@
       "native.modelConnections.guide.show": "Guide d’installation",
       "native.modelConnections.guide.hide": "Masquer",
       "native.modelConnections.guide.starter": "Pour commencer : Qwen3.5 9B",
-      "native.modelConnections.guide.starterDetail": "Environ 6,6 Go, appelle des outils · avec Ollama : {command}",
+      "native.modelConnections.guide.starterDetail": "Environ 6,6 Go, appelle des outils · à coller dans {shell} : installe Ollama si besoin, puis récupère et lance le modèle",
       "native.modelConnections.guide.copyCommand": "Copier la commande",
       "native.modelConnections.guide.get": "Obtenir",
       "native.modelConnections.guide.after": "Une fois installé et lancé, choisissez Rechercher des services locaux ci-dessus : ses modèles s’afficheront ici.",
@@ -1637,7 +1643,8 @@
       "native.modelConnections.guide.llama-cpp": "Serveur GGUF open source de ggml-org, avec llama-server",
       "native.modelConnections.guide.jan": "App de chat open source de l’équipe Jan (janhq) avec serveur intégré",
       "native.modelConnections.foundEmpty": "En cours sur {endpoint} · aucun modèle pour l’instant",
-      "native.modelConnections.error.startInApp": "{app} est ouvert mais ne sert pas encore. Démarrez son serveur dans {app}, puis choisissez Rechercher des services locaux."
+      "native.modelConnections.error.startInApp": "{app} est ouvert mais ne sert pas encore. Démarrez son serveur dans {app}, puis choisissez Rechercher des services locaux.",
+      "native.modelConnections.guide.terminal": "Terminal"
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1860,7 +1867,7 @@
       "native.modelConnections.guide.show": "Installationsanleitung",
       "native.modelConnections.guide.hide": "Ausblenden",
       "native.modelConnections.guide.starter": "Zum Einstieg: Qwen3.5 9B",
-      "native.modelConnections.guide.starterDetail": "Etwa 6,6 GB, ruft Werkzeuge auf · mit Ollama: {command}",
+      "native.modelConnections.guide.starterDetail": "Etwa 6,6 GB, ruft Werkzeuge auf · in {shell} einfügen: installiert Ollama bei Bedarf, holt dann das Modell und startet es",
       "native.modelConnections.guide.copyCommand": "Befehl kopieren",
       "native.modelConnections.guide.get": "Laden",
       "native.modelConnections.guide.after": "Nach Installation und Start oben „Lokale Dienste suchen“ wählen – die Modelle erscheinen dann hier.",
@@ -1871,7 +1878,8 @@
       "native.modelConnections.guide.llama-cpp": "Open-Source-GGUF-Server von ggml-org, gestartet mit llama-server",
       "native.modelConnections.guide.jan": "Open-Source-Chat-App des Jan-Teams (janhq) mit eingebautem Server",
       "native.modelConnections.foundEmpty": "Läuft unter {endpoint} · noch keine Modelle",
-      "native.modelConnections.error.startInApp": "{app} ist geöffnet, stellt aber noch nichts bereit. Starten Sie den Server in {app} und wählen Sie dann „Lokale Dienste suchen“."
+      "native.modelConnections.error.startInApp": "{app} ist geöffnet, stellt aber noch nichts bereit. Starten Sie den Server in {app} und wählen Sie dann „Lokale Dienste suchen“.",
+      "native.modelConnections.guide.terminal": "Terminal"
     }
   }
 }

@@ -155,15 +155,26 @@ impl TranscriptView {
                 })
                 .to_string()
             });
-        let mut body = h_flex().flex_wrap().items_baseline().gap_y(px(2.));
+        // Every layer is held to the panel's width so the prompt wraps
+        // inside the bubble at any panel width.
+        let mut body = h_flex()
+            .w_full()
+            .min_w_0()
+            .flex_wrap()
+            .items_baseline()
+            .gap_y(px(2.));
         for segment in split_agent_prompt_mentions(&text, &mentions) {
             body = match segment {
-                PromptPart::Text(text) => body.child(div().whitespace_normal().child(text)),
+                PromptPart::Text(text) => {
+                    body.child(div().min_w_0().max_w_full().whitespace_normal().child(text))
+                }
                 PromptPart::Mention { text, .. } => body.child(mention_chip(a, text, false)),
             };
         }
         v_flex()
             .w_full()
+            .min_w_0()
+            .overflow_hidden()
             .px(px(12.))
             .py(px(8.))
             .rounded(px(8.))
@@ -191,6 +202,8 @@ impl TranscriptView {
             .when(!text.is_empty(), |d| {
                 d.child(
                     div()
+                        .w_full()
+                        .min_w_0()
                         .text_size(px(m.left.content))
                         .line_height(px(m.left.content * 1.6))
                         .text_color(a.text)

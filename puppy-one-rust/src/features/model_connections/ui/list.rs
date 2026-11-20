@@ -170,14 +170,12 @@ impl ModelConnections {
                             .child(code),
                     ),
             )
-            .child(
-                Button::new(("copy-device-code", index))
-                    .icon("copy")
-                    .label(tr("native.modelConnections.copyCode"))
-                    .on_click(move |_, _, cx| {
-                        cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()))
-                    }),
-            )
+            .child(self.copy_button(
+                ("copy-device-code", index),
+                "device-code",
+                "native.modelConnections.copyCode",
+                copy,
+            ))
             .child(
                 Button::new(("open-device-page", index))
                     .icon("external-link")

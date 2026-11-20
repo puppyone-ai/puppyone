@@ -61,6 +61,15 @@ pub(super) fn text_action(
     size: f32,
     label: SharedString,
 ) -> Stateful<Div> {
+    let id: ElementId = id.into();
+    // A pending action's loader turns (`.is-spinning`).
+    let mut glyph = Icon::new(icon)
+        .with_size(px(size))
+        .stroke(2.)
+        .color(t.subtle);
+    if icon == "loader-circle" {
+        glyph = glyph.spinning(id.clone());
+    }
     div()
         .id(id)
         .h(px(theme::control_micro()))
@@ -73,12 +82,7 @@ pub(super) fn text_action(
         .text_color(t.subtle)
         .cursor(theme::clickable_cursor())
         .hover(move |s| s.bg(t.hover).text_color(t.text))
-        .child(
-            Icon::new(icon)
-                .with_size(px(size))
-                .stroke(2.)
-                .color(t.subtle),
-        )
+        .child(glyph)
         .child(label)
 }
 /// A caption status at a row's end.

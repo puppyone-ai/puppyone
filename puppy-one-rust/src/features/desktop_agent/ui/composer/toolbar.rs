@@ -98,6 +98,7 @@ impl ComposerView {
             Icon::new("loader-circle")
                 .with_size(px(15.))
                 .color(glyph_color)
+                .spinning("composer-send-busy")
                 .into_any_element()
         } else if running {
             div()

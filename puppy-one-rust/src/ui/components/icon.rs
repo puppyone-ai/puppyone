@@ -24,6 +24,8 @@ pub struct Icon {
     group_hover: Option<(SharedString, Hsla)>,
     spin: Option<ElementId>,
     rotation: f32,
+    /// A copy button's key: `copy`, flipping to `check` after a copy.
+    copy: Option<SharedString>,
     style: StyleRefinement,
 }
 impl Icon {
@@ -37,11 +39,19 @@ impl Icon {
             group_hover: None,
             spin: None,
             rotation: 0.,
+            copy: None,
             style: StyleRefinement::default(),
         }
     }
     pub fn product(meaning: ProductIcon) -> Self {
         Self::new(SharedString::from(format!("product-{}", meaning.id())))
+    }
+    /// A copy button's glyph (`ui::copy_feedback`): after `key` copies it
+    /// flips over to `check`, holds, then flips back.
+    pub fn copy(key: impl Into<SharedString>) -> Self {
+        let mut icon = Self::new("copy");
+        icon.copy = Some(key.into());
+        icon
     }
     /// Turned clockwise by `radians` about its centre.
     pub fn rotate(mut self, radians: f32) -> Self {
@@ -116,15 +126,40 @@ impl RenderOnce for Icon {
                 svg.group_hover(group, move |s| s.text_color(color))
             })
             .refine_style(&self.style);
-        let icon = match self.spin {
-            Some(id) => icon
+        let copied = self
+            .copy
+            .as_ref()
+            .and_then(|key| crate::ui::copy_feedback::started(key).map(|at| (key.clone(), at)));
+        let stroke = self.stroke;
+        let icon = match (self.spin, copied) {
+            (_, Some((key, at))) => {
+                let path = move |name: &str| -> SharedString {
+                    match stroke {
+                        Some(stroke) => format!("icons/{name}@{stroke}.svg").into(),
+                        None => format!("icons/{name}.svg").into(),
+                    }
+                };
+                // Keyed by the copy's start, so a new copy flips again.
+                let id = SharedString::from(format!("{key}@{:?}", at));
+                icon.with_animation(
+                    ElementId::Name(id),
+                    Animation::new(crate::ui::copy_feedback::SHOWN_FOR),
+                    move |svg, delta| {
+                        let (name, scale) = crate::ui::copy_feedback::flip(delta);
+                        svg.path(path(name))
+                            .with_transformation(Transformation::scale(size(scale, 1.)))
+                    },
+                )
+                .into_any_element()
+            }
+            (Some(id), None) => icon
                 .with_animation(
                     id,
                     Animation::new(std::time::Duration::from_millis(900)).repeat(),
                     |svg, delta| svg.with_transformation(Transformation::rotate(percentage(delta))),
                 )
                 .into_any_element(),
-            None => icon.into_any_element(),
+            (None, None) => icon.into_any_element(),
         };
         if disclosure {
             div()

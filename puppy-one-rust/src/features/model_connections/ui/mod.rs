@@ -41,6 +41,9 @@ use std::sync::mpsc::Receiver;
 pub struct Saved;
 /// The PuppyOne row asks Settings to show the Account page.
 pub struct OpenAccount;
+/// The page moved to another view (a form, details, the list): Settings
+/// shows it from the top.
+pub struct PageChanged;
 
 #[derive(Clone, PartialEq)]
 enum PageState {
@@ -137,6 +140,7 @@ pub struct ModelConnections {
 }
 impl EventEmitter<Saved> for ModelConnections {}
 impl EventEmitter<OpenAccount> for ModelConnections {}
+impl EventEmitter<PageChanged> for ModelConnections {}
 
 impl ModelConnections {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -369,6 +373,9 @@ impl ModelConnections {
             PageState::List => self.discover(cx),
             PageState::ChooseProvider => {}
         }
+        if self.page != page {
+            cx.emit(PageChanged);
+        }
         self.page = page;
         cx.notify();
     }
@@ -400,6 +407,28 @@ impl ModelConnections {
         self.rx = client::quick_connect(candidate, model, self.wake.clone());
         self.busy = true;
         cx.notify();
+    }
+
+    /// A copy button: `copy` and `label`, then `check` and `Copied`
+    /// (`ui::copy_feedback`).
+    pub(super) fn copy_button(
+        &self,
+        id: impl Into<ElementId>,
+        key: &'static str,
+        label: &'static str,
+        text: String,
+    ) -> Button {
+        let copied = crate::ui::copy_feedback::copied(key);
+        Button::new(id)
+            .icon(crate::ui::components::Icon::copy(key))
+            .label(tr(if copied {
+                "common.action.copied"
+            } else {
+                label
+            }))
+            .on_click(move |_, window, cx| {
+                crate::ui::copy_feedback::copy(key, text.clone(), window, cx)
+            })
     }
 
     /// `Start`: launch an installed service the user chose.
