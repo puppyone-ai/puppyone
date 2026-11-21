@@ -42,6 +42,7 @@ jobs:
           rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools-preview
           rustup override set 1.97.1
           npm ci --prefix ../../puppyone-qubits
+          npm ci --prefix ../../puppyone-baseline-5e87974ef
           cargo fetch --locked
           cargo fetch --locked --manifest-path tools/source-index/Cargo.toml
           cargo install cargo-llvm-cov --version 0.9.1 --locked
