@@ -208,7 +208,9 @@ mod tests {
         git(root, &["commit", "-qm", "initial"], None, &cancel).unwrap();
         let index = root.join(".git/index");
         let before = std::fs::read(&index).unwrap();
-        std::fs::File::open(&file)
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&file)
             .unwrap()
             .set_modified(std::time::UNIX_EPOCH + Duration::from_secs(1_000))
             .unwrap();

@@ -92,7 +92,8 @@ fn discovers_only_the_bundled_exact_version_sdk_worker() {
             readiness["profilePath"],
             user_data
                 .path()
-                .join("agent-runtime/puppyone-agent")
+                .join("agent-runtime")
+                .join("puppyone-agent")
                 .to_string_lossy()
                 .as_ref()
         );

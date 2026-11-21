@@ -402,8 +402,12 @@ fn the_managed_helper_round_trips_the_secret_and_restores_the_previous_config() 
     let temp = repository();
     let root = temp.path();
     let store = temp.path().join("credentials");
+    let store_arg = format!(
+        "store --file={}",
+        store.to_string_lossy().replace('\\', "/")
+    );
     let cli = Cli {
-        helper: Some(format!("store --file={}", store.display())),
+        helper: Some(store_arg.clone()),
     };
     std::process::Command::new(crate::platform::git::git_executable())
         .args([
@@ -418,7 +422,7 @@ fn the_managed_helper_round_trips_the_secret_and_restores_the_previous_config() 
         .unwrap();
     let mut config = cli.prepare_credential_config(root, URL, "op").unwrap();
     assert_eq!(config.previous_helpers, vec!["cache".to_owned()]);
-    config.helper = format!("store --file={}", store.display());
+    config.helper = store_arg;
     let commit = cli.source_commit(root, "main").unwrap();
     let mut record = super::initial_record(&request(root), "fingerprint", &commit);
     record.project_id = Some("project-a".into());
@@ -1153,8 +1157,8 @@ fn a_reviewed_detach_keeps_history_content_and_unrelated_remotes() {
     let temp = fixture();
     let root = temp.path();
     let repoint = format!(
-        "!f() {{ cd {} && git remote set-url puppyone https://api.puppyone.ai/git/new-project.git; }}; f",
-        root.display()
+        "!f() {{ cd '{}' && git remote set-url puppyone https://api.puppyone.ai/git/new-project.git; }}; f",
+        root.to_string_lossy().replace('\\', "/")
     );
     let config = journal::CredentialConfig {
         version: 1,

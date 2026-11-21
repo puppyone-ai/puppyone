@@ -57,7 +57,10 @@ fn pending(root: &Path, store: &Path) -> Record {
     let mut config = cli
         .prepare_credential_config(root, REMOTE, OPERATION)
         .unwrap();
-    config.helper = format!("store --file={}", store.display());
+    config.helper = format!(
+        "store --file={}",
+        store.to_string_lossy().replace('\\', "/")
+    );
     record.credential_config_snapshot = Some(config);
     record
 }
@@ -235,8 +238,23 @@ fn shell_and_path_helpers_never_receive_the_secret() {
             .prepare_credential_config(root, REMOTE, OPERATION)
             .unwrap();
         assert_eq!(snapshot.helper, "osxkeychain");
+    } else if crate::platform::os::Os::current().is_windows() {
+        // Git for Windows may ship a system-configured allowlisted helper
+        // (e.g. `manager`); otherwise it fails closed. Either way, shell/path
+        // helpers must never be chosen.
+        match (Cli { helper: None }).prepare_credential_config(root, REMOTE, OPERATION) {
+            Ok(snapshot) => assert!(
+                matches!(
+                    snapshot.helper.as_str(),
+                    "manager" | "manager-core" | "wincred"
+                ),
+                "unexpected helper: {}",
+                snapshot.helper
+            ),
+            Err(err) => assert_eq!(err.code, Code::RemoteConfigFailed),
+        }
     } else {
-        // Without a configured allowlisted helper, non-macOS fails closed
+        // Without a configured allowlisted helper, Linux fails closed
         // rather than accepting shell or arbitrary path helpers.
         let err = Cli { helper: None }
             .prepare_credential_config(root, REMOTE, OPERATION)

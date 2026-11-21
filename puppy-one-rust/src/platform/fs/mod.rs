@@ -90,7 +90,11 @@ pub fn exclusive_rename(from: &Dir, name: &Path, to: &Dir, next: &Path) -> io::R
     {
         unix::exclusive_rename(from, name, to, next)
     }
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(target_os = "windows")]
+    {
+        windows::exclusive_rename(from, name, to, next)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         match to.symlink_metadata(next) {
             Ok(_) => return Err(io::ErrorKind::AlreadyExists.into()),
@@ -98,6 +102,63 @@ pub fn exclusive_rename(from: &Dir, name: &Path, to: &Dir, next: &Path) -> io::R
             Err(error) => return Err(error),
         }
         rename_with_retry(from, name, to, next)
+    }
+}
+
+/// Stable `(device/volume, inode/file_index)` identity of an open file.
+pub fn file_identity(file: &File) -> Option<(u64, u64)> {
+    #[cfg(unix)]
+    {
+        use cap_std::fs::MetadataExt;
+        let meta = file.metadata().ok()?;
+        Some((meta.dev(), meta.ino()))
+    }
+    #[cfg(windows)]
+    {
+        windows::file_identity(file)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = file;
+        None
+    }
+}
+
+/// Stable `(device/volume, inode/file_index)` identity of `name` inside `dir`.
+pub fn dir_entry_identity(dir: &Dir, name: &Path) -> Option<(u64, u64)> {
+    #[cfg(unix)]
+    {
+        use cap_std::fs::MetadataExt;
+        let meta = dir.symlink_metadata(name).ok()?;
+        Some((meta.dev(), meta.ino()))
+    }
+    #[cfg(windows)]
+    {
+        windows::dir_entry_identity(dir, name)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (dir, name);
+        None
+    }
+}
+
+/// Stable `(device/volume, inode/file_index)` identity of a filesystem path.
+pub fn path_identity(path: &Path) -> Option<(u64, u64)> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let meta = std::fs::symlink_metadata(path).ok()?;
+        Some((meta.dev(), meta.ino()))
+    }
+    #[cfg(windows)]
+    {
+        windows::path_identity(path)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = path;
+        None
     }
 }
 

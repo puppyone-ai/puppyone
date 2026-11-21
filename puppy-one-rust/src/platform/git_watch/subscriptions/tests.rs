@@ -35,10 +35,8 @@ fn subscriptions_share_one_repository_worker_and_retire_only_their_own_tokens() 
     let current = subscribe(&nested, new_count.clone());
     assert_ne!(old.client.id, current.client.id);
     let owner = Arc::downgrade(&old.client.owner.lock().unwrap());
-    assert!(Weak::ptr_eq(
-        &owner,
-        &Arc::downgrade(&current.client.owner.lock().unwrap())
-    ));
+    let current_owner = Arc::downgrade(&current.client.owner.lock().unwrap());
+    assert!(Weak::ptr_eq(&owner, &current_owner));
     assert_eq!(invalidate_working_tree(&nested), 2);
     assert_eq!(old_count.load(Ordering::SeqCst), 1);
     assert_eq!(new_count.load(Ordering::SeqCst), 1);
@@ -106,10 +104,8 @@ fn a_new_subscription_after_git_init_reuses_the_pending_repository_owner() {
     let owner = Arc::downgrade(&first.client.owner.lock().unwrap());
     init(directory.path());
     let second = subscribe(directory.path(), Arc::new(AtomicUsize::new(0)));
-    assert!(Weak::ptr_eq(
-        &owner,
-        &Arc::downgrade(&second.client.owner.lock().unwrap())
-    ));
+    let second_owner = Arc::downgrade(&second.client.owner.lock().unwrap());
+    assert!(Weak::ptr_eq(&owner, &second_owner));
     assert_eq!(invalidate_working_tree(directory.path()), 2);
     drop(first);
     assert_eq!(invalidate_working_tree(directory.path()), 1);

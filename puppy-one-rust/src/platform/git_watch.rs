@@ -47,7 +47,10 @@ fn identity(root: &Path) -> Result<Identity, String> {
         &AtomicBool::new(false),
     )?;
     let text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
-    let mut paths = text.lines().map(PathBuf::from);
+    let mut paths = text
+        .lines()
+        .map(PathBuf::from)
+        .map(|p| std::fs::canonicalize(&p).unwrap_or(p));
     let result = Identity {
         top_level: paths.next().ok_or("no worktree root")?,
         git_dir: paths.next().ok_or("no Git directory")?,

@@ -1156,6 +1156,7 @@ mod tests {
             ("user.name", "Merge fixture"),
             ("user.email", "fixture@example.invalid"),
             ("commit.gpgsign", "false"),
+            ("core.autocrlf", "false"),
         ] {
             run(&["config", k, v]).unwrap();
         }
@@ -1413,7 +1414,8 @@ mod tests {
             &cancel,
         )
         .unwrap();
-        std::fs::write(root.join("a\n-b"), "one\n").unwrap();
+        let filename = if cfg!(windows) { "a -b" } else { "a\n-b" };
+        std::fs::write(root.join(filename), "one\n").unwrap();
         let s = status(root, &cancel).unwrap();
         let s = operate(root, &Operation::Stage(s.changes[0].clone()), &cancel).unwrap();
         assert!(s.changes[0].staged());
@@ -1421,7 +1423,7 @@ mod tests {
         assert!(s.changes[0].untracked());
         operate(root, &Operation::Stage(s.changes[0].clone()), &cancel).unwrap();
         operate(root, &Operation::Commit("Initial".into()), &cancel).unwrap();
-        std::fs::write(root.join("a\n-b"), "two\n").unwrap();
+        std::fs::write(root.join(filename), "two\n").unwrap();
         let s = status(root, &cancel).unwrap();
         let files = super::super::git_diff::file_diff(
             root,

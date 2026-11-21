@@ -344,7 +344,12 @@ impl Fixture {
                 cli: Cli {
                     helper: Some(format!(
                         "store --file={}",
-                        self.server.root.path().join("credentials").display()
+                        self.server
+                            .root
+                            .path()
+                            .join("credentials")
+                            .to_string_lossy()
+                            .replace('\\', "/")
                     )),
                 },
                 world: self.world.clone(),

@@ -960,9 +960,11 @@ fn successful_repository_entry(
                         "only the transport URL is redirected to the local fixture"
                     );
                     assert!(!target.exists(), "publication has not happened");
+                    let source_arg = source.to_string_lossy();
+                    let source_arg = source_arg.strip_prefix(r"\\?\").unwrap_or(&source_arg);
                     crate::platform::process::run(
                         crate::platform::git::git_executable(),
-                        &["clone", "--quiet", "--", source.to_str().unwrap(), "."],
+                        &["clone", "--quiet", "--", source_arg, "."],
                         staging,
                         None,
                         std::time::Duration::from_secs(10),
@@ -984,7 +986,9 @@ fn successful_repository_entry(
         });
     }
     crate::app::tests::settle_cloud(&shell, cx, "published imported project opened", &|s, cx| {
-        s.workspace_root(cx).as_deref() == Some(target.as_path())
+        s.workspace_root(cx)
+            .and_then(|root| root.canonicalize().ok())
+            == target.canonicalize().ok()
             && s.home.read(cx).import.is_none()
             && s.prefs.store.read(cx).drained()
     });

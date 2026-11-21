@@ -224,7 +224,12 @@ fn configured(root: &Path, server: &Server) -> (Cli, Record) {
     // receives this deliberately fake secret.
     let helper = format!(
         "store --file={}",
-        server.root.path().join("credentials").display()
+        server
+            .root
+            .path()
+            .join("credentials")
+            .to_string_lossy()
+            .replace('\\', "/")
     );
     let cli = Cli {
         helper: Some(helper),

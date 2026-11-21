@@ -136,10 +136,14 @@ pub fn seatbelt_profile(
     let mut allow: Vec<PathBuf> = vec![real_or_self(root)];
     allow.extend(temp.iter().map(|p| real_or_self(p)));
     allow.extend(writable.iter().map(|p| real_or_self(p)));
-    allow.extend(CACHE_HOME_PATHS.iter().map(|p| home.join(p)));
+    allow.extend(
+        CACHE_HOME_PATHS
+            .iter()
+            .map(|p| crate::platform::paths::resolve(home, p)),
+    );
     let protected: Vec<PathBuf> = PROTECTED_HOME_PATHS
         .iter()
-        .map(|p| home.join(p))
+        .map(|p| crate::platform::paths::resolve(home, p))
         .chain(app_data.iter().cloned())
         .map(|p| real_or_self(&p))
         .collect();
@@ -638,7 +642,7 @@ mod tests {
             &[PathBuf::from(
                 "/Users/someone/Library/Application Support/PuppyOne GPUI",
             )],
-            &[home.join(".codex")],
+            &[PathBuf::from("/Users/someone/.codex")],
             &[PathBuf::from("/tmp")],
         )
         .unwrap();
