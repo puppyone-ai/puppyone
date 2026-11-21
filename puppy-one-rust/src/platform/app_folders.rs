@@ -237,10 +237,12 @@ fn typora_with(places: &Places, macos: bool, executable: &Path, timeout: Duratio
     let path = plist
         .to_str()
         .ok_or_else(|| Read::Failed("Invalid preferences path.".into()))?;
-    // Extract one key: unrelated date/data values need not be converted to JSON.
+    // Extract one key as XML plist: on macOS 15, `plutil -extract <key> json`
+    // rejects plists containing unrelated `<date>`/`<data>` values when the
+    // requested key is absent ("invalid object in plist for destination format").
     let output = super::process::run_output(
         executable,
-        &["-extract", "recentFolder", "json", "-o", "-", path],
+        &["-extract", "recentFolder", "xml1", "-o", "-", path],
         plist.parent().unwrap(),
         None,
         timeout,
@@ -255,12 +257,31 @@ fn typora_with(places: &Places, macos: bool, executable: &Path, timeout: Duratio
         Err(error) if error.contains("No value at that key path") => return Ok(vec![]),
         Err(error) => return Err(Read::Failed(error)),
     };
-    let folders = json(&String::from_utf8_lossy(&output.stdout))?;
-    Ok(folders
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|folder| folder.as_str().map(|p| (p.to_owned(), None)))
+    parse_plist_recent_folders(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn parse_plist_recent_folders(xml: &str) -> Candidates {
+    let options = roxmltree::ParsingOptions {
+        allow_dtd: true,
+        nodes_limit: 65_536,
+        ..Default::default()
+    };
+    let document = roxmltree::Document::parse_with_options(xml, options)
+        .map_err(|error| Read::Failed(format!("Invalid plist XML: {error}")))?;
+    let plist = document.root_element();
+    if !plist.has_tag_name("plist") {
+        return Err(Read::Failed("Unexpected plist root element.".into()));
+    }
+    let Some(value) = plist.children().find(|node| node.is_element()) else {
+        return Ok(vec![]);
+    };
+    if !value.has_tag_name("array") {
+        return Ok(vec![]);
+    }
+    Ok(value
+        .children()
+        .filter(|node| node.is_element() && node.has_tag_name("string"))
+        .map(|node| (node.text().unwrap_or_default().to_owned(), None))
         .collect())
 }
 

@@ -20,7 +20,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 mod archive;
@@ -307,23 +307,24 @@ impl Lease {
         let (renew, stopping, lost) = (path.clone(), stop.clone(), compromised.clone());
         std::thread::spawn(move || {
             let step = Duration::from_millis(100);
-            let mut waited = Duration::ZERO;
+            let mut next_renew = Instant::now() + LEASE_UPDATE;
             while !stopping.load(Ordering::Relaxed) {
-                std::thread::sleep(step);
-                waited += step;
-                if waited >= LEASE_UPDATE {
-                    waited = Duration::ZERO;
-                    let mut stamp = renewed_stamp.lock().unwrap();
-                    if !stamp.matches(&renew) || !touch(&renew) {
+                let remaining = next_renew.saturating_duration_since(Instant::now());
+                if !remaining.is_zero() {
+                    std::thread::sleep(remaining.min(step));
+                    continue;
+                }
+                next_renew = Instant::now() + LEASE_UPDATE;
+                let mut stamp = renewed_stamp.lock().unwrap();
+                if !stamp.matches(&renew) || !touch(&renew) {
+                    lost.store(true, Ordering::Relaxed);
+                    break;
+                }
+                match LeaseStamp::read(&renew) {
+                    Ok(next) if stamp.same_file(&next) => *stamp = next,
+                    _ => {
                         lost.store(true, Ordering::Relaxed);
                         break;
-                    }
-                    match LeaseStamp::read(&renew) {
-                        Ok(next) if stamp.same_file(&next) => *stamp = next,
-                        _ => {
-                            lost.store(true, Ordering::Relaxed);
-                            break;
-                        }
                     }
                 }
             }
