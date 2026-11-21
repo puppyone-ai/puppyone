@@ -131,7 +131,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("secondary-z", Undo, c),
         KeyBinding::new("secondary-shift-z", Redo, c),
     ]);
-    if crate::platform::os::Os::current().is_macos() {
+    if crate::platform::conventions::Conventions::current().emacs_line_bindings {
         cx.bind_keys([
             KeyBinding::new("ctrl-a", MoveLineStart, c),
             KeyBinding::new("ctrl-e", MoveLineEnd, c),

@@ -285,8 +285,9 @@ impl TerminalView {
         }
         let key = &event.keystroke.key;
         let m = event.keystroke.modifiers;
-        let is_macos = crate::platform::os::Os::current().is_macos();
-        if is_macos && m.platform {
+        let use_platform_clipboard = crate::platform::conventions::Conventions::current()
+            .terminal_clipboard_uses_platform_modifier;
+        if use_platform_clipboard && m.platform {
             match key.as_str() {
                 "v" => self.paste(cx),
                 "c" => self.copy(cx),
@@ -296,7 +297,7 @@ impl TerminalView {
             cx.stop_propagation();
             return;
         }
-        if !is_macos && m.control && !m.alt && !m.platform {
+        if !use_platform_clipboard && m.control && !m.alt && !m.platform {
             if m.shift {
                 match key.as_str() {
                     "v" => {

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cross-platform boundary guard (puppyone#130).
 
-Enforces Rules P1-P4 across `src/` and workspace `Cargo.toml` manifests against
+Enforces Rules P1-P5 across `src/` and workspace `Cargo.toml` manifests against
 the shrink-only baseline in `tools/platform-boundary-baseline.json`:
   - P1: No `target_os`, `cfg(windows)`, or `cfg(unix)` outside `src/platform/`
         and `src/web_host/backend/` (production code).
@@ -10,8 +10,12 @@ the shrink-only baseline in `tools/platform-boundary-baseline.json`:
         `src/web_host/backend/` (production code).
   - P3: No OS crate dependencies in `Cargo.toml` outside `crates/po-platform/Cargo.toml`
         (except `wry` / Apple WebKit crates in `crates/po-editor/Cargo.toml`).
-  - P4: No hardcoded `"cmd-..."` keybindings anywhere in `src/` (production or tests);
-        use GPUI's cross-platform `"secondary-..."` modifier.
+  - P4: No hardcoded `"cmd-..."` (literal or `format!("{...}-...")` with `"cmd"`)
+        keybindings anywhere in `src/` (production or tests); use GPUI's
+        cross-platform `"secondary-..."` modifier.
+  - P5: No runtime OS branching (`Os::current(` or `.os.is_*`) outside
+        `src/platform/`, `src/web_host/backend/`, and `P5_ALLOWLIST` (production code);
+        express UI and behavior differences via named `Conventions` or capabilities.
 
 Usage:
   python3 tools/check-platform-boundaries.py
@@ -39,6 +43,22 @@ OS_API_RE = re.compile(
     r'|\bwindows\s*::\s*(?:Win32|core|Wdk|UI|Foundation|System|Storage|Security|Graphics|Networking)\b'
 )
 HARDCODED_CMD_RE = re.compile(r'"[^"]*\bcmd-[^"]*"')
+FORMAT_DASH_RE = re.compile(r'format!\s*\(\s*"[^"]*\{[^}]+\}-')
+RUNTIME_OS_RE = re.compile(r"\bOs::current\s*\(|\.os\.is_\w+")
+# Explicit production allowlist for P5 (empty by default: prefer named fields
+# on `platform::conventions::Conventions` or `po-platform` capabilities).
+P5_ALLOWLIST: set[str] = set()
+
+
+def has_dynamic_cmd_keybinding(no_comments: str) -> bool:
+    if '"cmd"' not in no_comments or "format!" not in no_comments:
+        return False
+    for m in FORMAT_DASH_RE.finditer(no_comments):
+        window_start = max(0, m.start() - 400)
+        window_end = min(len(no_comments), m.end() + 120)
+        if '"cmd"' in no_comments[window_start:window_end]:
+            return True
+    return False
 MANIFEST_OS_DEPS = {
     "objc2",
     "objc2-app-kit",
@@ -184,9 +204,11 @@ def scan_repository(root: Path) -> list[Violation]:
             rel = path.relative_to(root).as_posix()
             raw = path.read_text(encoding="utf-8")
 
-            # P4: hardcoded "cmd-" keybindings forbidden everywhere (production and tests).
+            # P4: hardcoded "cmd-" keybindings (literal or format!) forbidden everywhere.
             no_comments = re.sub(r"//[^\n]*", "", raw)
-            if HARDCODED_CMD_RE.search(no_comments):
+            if HARDCODED_CMD_RE.search(no_comments) or has_dynamic_cmd_keybinding(
+                no_comments
+            ):
                 record(
                     "P4",
                     f"P4 {rel}",
@@ -208,6 +230,12 @@ def scan_repository(root: Path) -> list[Violation]:
                     "P2",
                     f"P2 {rel}",
                     f"[P2] {rel}: direct OS FFI/SDK import outside src/platform/",
+                )
+            if rel not in P5_ALLOWLIST and RUNTIME_OS_RE.search(prod):
+                record(
+                    "P5",
+                    f"P5 {rel}",
+                    f"[P5] {rel}: runtime OS check (`Os::current()` / `.os.is_*`) outside src/platform/; use a named Conventions/capability field",
                 )
 
     for v in scan_manifests(root):
@@ -265,6 +293,29 @@ def run_self_tests() -> None:
             },
             {"P4"},
         ),
+        (
+            "P4-format",
+            {
+                "src/ui/bad_fmt.rs": (
+                    "fn bind() {\n"
+                    "    for m in [\"cmd\", \"ctrl\"] {\n"
+                    "        let _ = format!(\"{m}-a\");\n"
+                    "    }\n"
+                    "}\n"
+                ),
+            },
+            {"P4"},
+        ),
+        (
+            "P5",
+            {
+                "src/platform/good.rs": "fn f() -> bool { Os::current().is_macos() }\n",
+                "src/app/good_conv.rs": "fn f() -> bool { Conventions::current().emacs_line_bindings }\n",
+                "src/editor/bad_os_current.rs": "fn f() -> bool { crate::platform::os::Os::current().is_macos() }\n",
+                "src/app/bad_dot_os.rs": "fn g(c: Conventions) -> bool { c.os.is_windows() }\n",
+            },
+            {"P5"},
+        ),
     ]
     for label, files, expected in cases:
         with tempfile.TemporaryDirectory() as tmp:
@@ -279,7 +330,7 @@ def run_self_tests() -> None:
                 raise AssertionError(
                     f"Self-test {label} expected {expected}, got {got}: {[v.key for v in found]}"
                 )
-    print(f"Platform boundary self-tests passed ({len(cases)} scenarios covering P1-P4).")
+    print(f"Platform boundary self-tests passed ({len(cases)} scenarios covering P1-P5).")
 
 
 def main() -> None:
@@ -371,7 +422,7 @@ def main() -> None:
         sys.exit("\n".join(errors))
 
     print(
-        f"Platform boundary verified: P1-P4 checked, {len(current_set)} baseline exemption(s)"
+        f"Platform boundary verified: P1-P5 checked, {len(current_set)} baseline exemption(s)"
     )
 
 

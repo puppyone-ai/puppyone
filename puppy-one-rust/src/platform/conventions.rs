@@ -13,6 +13,24 @@ pub enum WindowControlsSide {
     Trailing,
 }
 
+/// Native start-at-login mechanism supported by this OS.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartAtLoginMechanism {
+    /// macOS `~/Library/LaunchAgents/<label>.plist`.
+    LaunchAgent,
+    /// No native start-at-login registration implemented on this OS.
+    Unsupported,
+}
+
+/// Default non-sandboxed shell family for local host execution fixtures.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HostShellKind {
+    /// POSIX `/bin/sh -c`.
+    PosixSh,
+    /// Windows `cmd.exe /C`.
+    CmdExe,
+}
+
 /// Pure UI convention table for one operating system.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Conventions {
@@ -43,12 +61,33 @@ pub struct Conventions {
     /// Whether the app renders custom minimize/maximize/close window controls
     /// inside the client title bar.
     pub uses_custom_titlebar_controls: bool,
+    /// Whether the platform window should request explicit client-side window
+    /// decorations from GPUI.
+    pub uses_client_window_decorations: bool,
     /// Whether closing the last window terminates the application.
     pub last_window_close_quits: bool,
     /// Whether the sidebar reserves bottom footer space for non-macOS navigation.
     pub sidebar_footer_visible: bool,
+    /// Whether text editors install Emacs-style `Ctrl+A`/`Ctrl+E`/`Ctrl+D` line
+    /// navigation bindings (standard on macOS, where `Ctrl` is separate from `Cmd`).
+    pub emacs_line_bindings: bool,
+    /// Whether terminal clipboard shortcuts use the platform modifier (`Cmd+C/V/A`
+    /// on macOS) instead of `Ctrl+Shift+C/V/A` (Windows/Linux).
+    pub terminal_clipboard_uses_platform_modifier: bool,
+    /// Whether shell keybindings include macOS app-visibility shortcuts (`Hide`,
+    /// `Hide Others`, `Minimize`, `Ctrl+Cmd+F`) instead of `F11` fullscreen.
+    pub has_macos_app_visibility_shortcuts: bool,
+    /// Whether the sans-serif UI font stack appends OS CJK fallback families
+    /// explicitly (needed on Windows/Linux; macOS CoreText cascades system UI).
+    pub append_ui_font_fallbacks: bool,
     /// Ordered OS-native UI + CJK fallback font families.
     pub ui_font_fallbacks: &'static [&'static str],
+    /// Default built-in Git credential helper when no explicit helper is configured.
+    pub default_git_credential_helper: Option<&'static str>,
+    /// Native mechanism for starting the local host daemon at login.
+    pub start_at_login_mechanism: StartAtLoginMechanism,
+    /// Default non-sandboxed shell family for local host execution fixtures.
+    pub host_shell_kind: HostShellKind,
 }
 
 impl Conventions {
@@ -74,9 +113,17 @@ impl Conventions {
                 window_controls_side: WindowControlsSide::Leading,
                 uses_system_menu_bar: true,
                 uses_custom_titlebar_controls: false,
+                uses_client_window_decorations: false,
                 last_window_close_quits: false,
                 sidebar_footer_visible: false,
+                emacs_line_bindings: true,
+                terminal_clipboard_uses_platform_modifier: true,
+                has_macos_app_visibility_shortcuts: true,
+                append_ui_font_fallbacks: false,
                 ui_font_fallbacks: &["PingFang SC", "Hiragino Sans GB"],
+                default_git_credential_helper: Some("osxkeychain"),
+                start_at_login_mechanism: StartAtLoginMechanism::LaunchAgent,
+                host_shell_kind: HostShellKind::PosixSh,
             },
             Os::Windows => Self {
                 os,
@@ -92,9 +139,17 @@ impl Conventions {
                 window_controls_side: WindowControlsSide::Trailing,
                 uses_system_menu_bar: false,
                 uses_custom_titlebar_controls: true,
+                uses_client_window_decorations: true,
                 last_window_close_quits: true,
                 sidebar_footer_visible: true,
+                emacs_line_bindings: false,
+                terminal_clipboard_uses_platform_modifier: false,
+                has_macos_app_visibility_shortcuts: false,
+                append_ui_font_fallbacks: true,
                 ui_font_fallbacks: &["Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei"],
+                default_git_credential_helper: None,
+                start_at_login_mechanism: StartAtLoginMechanism::Unsupported,
+                host_shell_kind: HostShellKind::CmdExe,
             },
             Os::Linux | Os::Other => Self {
                 os,
@@ -110,9 +165,17 @@ impl Conventions {
                 window_controls_side: WindowControlsSide::Trailing,
                 uses_system_menu_bar: false,
                 uses_custom_titlebar_controls: true,
+                uses_client_window_decorations: false,
                 last_window_close_quits: true,
                 sidebar_footer_visible: true,
+                emacs_line_bindings: false,
+                terminal_clipboard_uses_platform_modifier: false,
+                has_macos_app_visibility_shortcuts: false,
+                append_ui_font_fallbacks: true,
                 ui_font_fallbacks: &["Noto Sans CJK SC", "Noto Sans", "DejaVu Sans"],
+                default_git_credential_helper: None,
+                start_at_login_mechanism: StartAtLoginMechanism::Unsupported,
+                host_shell_kind: HostShellKind::PosixSh,
             },
         }
     }

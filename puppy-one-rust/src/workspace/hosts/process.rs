@@ -121,11 +121,16 @@ pub struct Autostart {
 }
 impl Autostart {
     pub fn new(home: &Path, program: &Path) -> Self {
-        Self {
-            entry: crate::platform::os::Os::current().is_macos().then(|| {
+        use crate::platform::conventions::{Conventions, StartAtLoginMechanism};
+        let entry = match Conventions::current().start_at_login_mechanism {
+            StartAtLoginMechanism::LaunchAgent => Some(
                 home.join("Library/LaunchAgents")
-                    .join(format!("{LAUNCH_AGENT_LABEL}.plist"))
-            }),
+                    .join(format!("{LAUNCH_AGENT_LABEL}.plist")),
+            ),
+            StartAtLoginMechanism::Unsupported => None,
+        };
+        Self {
+            entry,
             contents: launch_agent(program),
         }
     }

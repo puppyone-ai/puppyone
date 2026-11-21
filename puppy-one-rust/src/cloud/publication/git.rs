@@ -717,9 +717,9 @@ impl GitOps for Cli {
                     .find(|h| secure_helper(h))
                     .map(|h| h.trim().to_lowercase())
                     .or_else(|| {
-                        crate::platform::os::Os::current()
-                            .is_macos()
-                            .then(|| "osxkeychain".into())
+                        crate::platform::conventions::Conventions::current()
+                            .default_git_credential_helper
+                            .map(str::to_owned)
                     })
                     .ok_or_else(|| {
                         PublishError::new(

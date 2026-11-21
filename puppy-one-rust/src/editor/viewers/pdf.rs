@@ -54,14 +54,12 @@ const MAX_TILE_LRU: usize = 64;
 const OUTLINE_PREFIX: &str = "pdf-outline-";
 
 pub fn bind_keys(cx: &mut App) {
-    for modifier in ["cmd", "ctrl"] {
-        cx.bind_keys([
-            KeyBinding::new(&format!("{modifier}-="), ZoomIn, Some(CONTEXT)),
-            KeyBinding::new(&format!("{modifier}-+"), ZoomIn, Some(CONTEXT)),
-            KeyBinding::new(&format!("{modifier}--"), ZoomOut, Some(CONTEXT)),
-            KeyBinding::new(&format!("{modifier}-0"), ZoomReset, Some(CONTEXT)),
-        ]);
-    }
+    cx.bind_keys([
+        KeyBinding::new("secondary-=", ZoomIn, Some(CONTEXT)),
+        KeyBinding::new("secondary-+", ZoomIn, Some(CONTEXT)),
+        KeyBinding::new("secondary--", ZoomOut, Some(CONTEXT)),
+        KeyBinding::new("secondary-0", ZoomReset, Some(CONTEXT)),
+    ]);
 }
 
 fn intern_id(id: &str) -> &'static str {

@@ -46,7 +46,9 @@ impl super::exec::Execution for Plain {
         _: &std::path::Path,
         run: &super::exec::Run,
     ) -> Result<super::exec::Prepared, &'static str> {
-        if crate::platform::os::Os::current() == crate::platform::os::Os::Windows {
+        if crate::platform::conventions::Conventions::current().host_shell_kind
+            == crate::platform::conventions::HostShellKind::CmdExe
+        {
             let args = match run {
                 super::exec::Run::Command(command) => vec!["/C".into(), command.clone()],
                 super::exec::Run::Shell => Vec::new(),

@@ -18,18 +18,22 @@ pub fn dock_menu() -> Vec<MenuItem> {
 
 /// The application menu model for the host OS (`createApplicationMenuTemplate`).
 pub fn app_menus() -> Vec<Menu> {
-    app_menus_for_os(Os::current())
+    app_menus_for_conventions(Conventions::current())
 }
 
 /// Builds the application menu model for `os`.
+pub fn app_menus_for_os(os: Os) -> Vec<Menu> {
+    app_menus_for_conventions(Conventions::for_os(os))
+}
+
+/// Builds the application menu model for `conventions`.
 ///
 /// On macOS (`uses_system_menu_bar == true`) this includes the AppKit-standard
 /// application menu (`Services`, `Hide`, `Hide Others`, `Show All`). On Windows
 /// and Linux, those macOS-only items are omitted while keeping Settings, Check
 /// for Updates, About, and Quit reachable under File / Help.
-pub fn app_menus_for_os(os: Os) -> Vec<Menu> {
+pub fn app_menus_for_conventions(conventions: Conventions) -> Vec<Menu> {
     let app = crate::app::windows::application_name();
-    let conventions = Conventions::for_os(os);
 
     if conventions.uses_system_menu_bar {
         return vec![

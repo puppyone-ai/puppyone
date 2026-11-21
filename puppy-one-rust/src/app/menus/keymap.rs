@@ -11,6 +11,14 @@ actions!(shell, [HideApp, HideOtherApps, ShowAllApps]);
 /// Registers all cross-platform global keybindings using GPUI's `secondary-`
 /// modifier (`Cmd` on macOS, `Ctrl` on Windows/Linux).
 pub fn bind_keys(cx: &mut App) {
+    bind_keys_for_conventions(crate::platform::conventions::Conventions::current(), cx);
+}
+
+/// Registers global keybindings for `conventions`.
+pub fn bind_keys_for_conventions(
+    conventions: crate::platform::conventions::Conventions,
+    cx: &mut App,
+) {
     crate::app::home::import_sources::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("secondary-,", OpenSettings, None),
@@ -26,7 +34,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-tab", NextEditor, None),
         KeyBinding::new("ctrl-shift-tab", PreviousEditor, None),
     ]);
-    if crate::platform::os::Os::current().is_macos() {
+    if conventions.has_macos_app_visibility_shortcuts {
         cx.bind_keys([
             KeyBinding::new("ctrl-secondary-f", ToggleFullScreen, None),
             KeyBinding::new("secondary-h", HideApp, None),

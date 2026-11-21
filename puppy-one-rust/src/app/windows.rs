@@ -243,11 +243,9 @@ pub fn window_options(bounds: Bounds<Pixels>, focus: bool) -> WindowOptions {
     let traffic_light_position = (conventions.window_controls_side
         == crate::platform::conventions::WindowControlsSide::Leading)
         .then_some(point(px(TRAFFIC_LIGHTS.0), px(TRAFFIC_LIGHTS.1)));
-    let window_decorations = if conventions.os.is_windows() {
-        Some(WindowDecorations::Client)
-    } else {
-        None
-    };
+    let window_decorations = conventions
+        .uses_client_window_decorations
+        .then_some(WindowDecorations::Client);
     WindowOptions {
         focus,
         window_bounds: Some(WindowBounds::Windowed(bounds)),
