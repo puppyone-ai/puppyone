@@ -1,11 +1,11 @@
 //! `application/AgentSessionLifecycle.ts`: owns one tab's live connection;
 //! durable locator indexing remains Main-owned.
 use super::agent_client_port::{AgentClient as _, AgentClientProvider};
-use super::agent_controller_state::{AgentControllerPhase, AgentSessionPreparation, StatePatch};
-use super::agent_error::{create_agent_error, format_agent_error};
-use super::agent_session_controller::{AgentControllerStore, ApplySnapshot, CreateSessionFn};
+use super::agent_controller_state::StatePatch;
+use super::agent_error::format_agent_error;
+use super::agent_session_controller::AgentControllerStore;
 use crate::agent::agent_error::AgentResult;
-use crate::agent::contract::dto::{AgentProjection, Receipt};
+use crate::agent::contract::dto::Receipt;
 use crate::agent::contract::protocol::{AgentOperation, CloseSession};
 use futures_util::future::LocalBoxFuture;
 use std::rc::Rc;
@@ -30,9 +30,6 @@ pub struct AgentSessionLifecycleOptions {
     pub workspace_root: String,
     pub bridge_provider: AgentClientProvider,
     pub store: Rc<AgentControllerStore>,
-    pub create_session: CreateSessionFn,
-    pub apply_snapshot: ApplySnapshot,
-    pub delete_session_ui: Rc<dyn Fn(&str)>,
 }
 
 #[derive(Clone)]
@@ -41,59 +38,6 @@ pub struct AgentSessionLifecycle(Rc<AgentSessionLifecycleOptions>);
 impl AgentSessionLifecycle {
     pub fn new(options: AgentSessionLifecycleOptions) -> Self {
         Self(Rc::new(options))
-    }
-
-    pub fn new_session(&self) -> LocalBoxFuture<'static, ()> {
-        let options = self.0.clone();
-        let (running, previous_session_id) = options.store.read(|state| {
-            (
-                state.running_turn_id().is_some(),
-                state.session_id().map(str::to_string),
-            )
-        });
-        if running {
-            options
-                .store
-                .patch(StatePatch::new().error(Some(create_agent_error("active-turn", None))));
-            return Box::pin(async {});
-        }
-        let close = self.close_active_session(false);
-        Box::pin(async move {
-            let result: AgentResult<()> = async {
-                close.await?;
-                if let Some(previous) = previous_session_id.as_deref() {
-                    (options.delete_session_ui)(previous);
-                }
-                options.store.patch(
-                    StatePatch::new()
-                        .phase(AgentControllerPhase::Creating)
-                        .session(None)
-                        .projection(AgentProjection::default())
-                        .error(None)
-                        .pending_prompt(None)
-                        .pending_intent(None)
-                        .session_preparation(AgentSessionPreparation::Preparing)
-                        .submitting(false)
-                        .references(Vec::new())
-                        .draft_mentions(Vec::new()),
-                );
-                let snapshot = (options.create_session)().await?;
-                (options.apply_snapshot)(snapshot).await?;
-                options
-                    .store
-                    .patch(StatePatch::new().phase(AgentControllerPhase::Ready));
-                Ok(())
-            }
-            .await;
-            if let Err(error) = result {
-                options.store.patch(
-                    StatePatch::new()
-                        .phase(AgentControllerPhase::Failed)
-                        .error(Some(format_agent_error(&error)))
-                        .session_preparation(AgentSessionPreparation::Failed),
-                );
-            }
-        })
     }
 
     /// The termination receipt (`ItemCloseResult`), closed once the

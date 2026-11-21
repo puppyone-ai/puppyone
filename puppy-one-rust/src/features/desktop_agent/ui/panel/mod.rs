@@ -97,7 +97,6 @@ pub struct AgentChatTabPanel {
     diagnostics_open: bool,
     recovery_details_open: bool,
     /// `pendingConnectionModel`.
-    pending_connection_model: Option<String>,
     /// `AgentApprovalDock` and `AgentQuestionDock`.
     docks: Entity<DocksView>,
     /// `AgentEmptyState` and `AgentProviderActivities`.
@@ -208,7 +207,6 @@ impl AgentChatTabPanel {
             transcript,
             diagnostics_open: false,
             recovery_details_open: false,
-            pending_connection_model: None,
             docks,
             empty_state: cx.new(|_| EmptyStateView::default()),
             notices: cx.new(|_| ProviderNoticesView::default()),
@@ -280,7 +278,6 @@ impl AgentChatTabPanel {
             &view_model::ChatPolicy {
                 hidden_runtime_ids: &self.hidden_runtime_ids,
                 presented: self.presented,
-                pending_connection_model: self.pending_connection_model.clone(),
                 compute: self.compute.as_ref(),
                 payments: self.payments,
                 compute_access_prompt: self.compute_access_prompt,
@@ -470,16 +467,6 @@ impl AgentChatTabPanel {
     ) {
         if id == AgentSessionControlId::Source {
             self.select_compute_source(value, cx);
-            return;
-        }
-        if id == AgentSessionControlId::Model
-            && self
-                .controller
-                .requires_new_model_connection_session(Some(&value))
-        {
-            self.pending_connection_model = Some(value);
-            self.refresh_views();
-            cx.notify();
             return;
         }
         self.select_routed_control(id, value, cx);

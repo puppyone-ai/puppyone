@@ -194,6 +194,16 @@ impl WorkbenchLauncher {
         self.shown_root()
             .is_some_and(|root| self.chats.capture_prompt(root, text, cx))
     }
+    /// Dev captures: the first chat selects the model matching `text`.
+    pub(crate) fn capture_agent_model(&self, text: &str, cx: &App) -> bool {
+        self.shown_root()
+            .is_some_and(|root| self.chats.capture_model(root, text, cx))
+    }
+    /// Dev captures: the first chat has `count` settled turns.
+    pub(crate) fn capture_agent_turns(&self, count: usize, cx: &App) -> bool {
+        self.shown_root()
+            .is_some_and(|root| self.chats.capture_turns(root, count, cx))
+    }
     /// Dev captures: the first chat's turn has settled.
     pub(crate) fn capture_agent_idle(&self, cx: &App) -> bool {
         self.shown_root()

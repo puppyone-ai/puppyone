@@ -206,6 +206,79 @@ fn confirms_the_optimistic_prompt_by_native_identity_and_preserves_same_turn_fol
 }
 
 #[test]
+fn marks_a_turn_sent_to_another_model_than_the_turn_before() {
+    let projection = Fixture::new().apply_all(&[
+        event(
+            1,
+            "turn.started",
+            json!({"prompt": "One", "model": "kimi/k3", "modelName": "Kimi K3"}),
+            Some("turn-1"),
+            None,
+        ),
+        event(
+            2,
+            "turn.completed",
+            json!({"status": "completed"}),
+            Some("turn-1"),
+            None,
+        ),
+        event(
+            3,
+            "turn.started",
+            json!({"prompt": "Two", "model": "kimi/k3", "modelName": "Kimi K3"}),
+            Some("turn-2"),
+            None,
+        ),
+        event(
+            4,
+            "turn.completed",
+            json!({"status": "completed"}),
+            Some("turn-2"),
+            None,
+        ),
+        event(
+            5,
+            "turn.started",
+            json!({"prompt": "Three", "model": "xai/grok", "modelName": "Grok 5"}),
+            Some("turn-3"),
+            None,
+        ),
+        event(
+            6,
+            "turn.completed",
+            json!({"status": "completed"}),
+            Some("turn-3"),
+            None,
+        ),
+        event(
+            7,
+            "turn.started",
+            json!({"prompt": "Four", "model": "local/mlx"}),
+            Some("turn-4"),
+            None,
+        ),
+    ]);
+    let users = of(&projection.display.messages, "role", "user");
+    assert_eq!(users.len(), 4);
+    assert!(users[0].get("switchedToModel").is_none());
+    assert!(users[1].get("switchedToModel").is_none());
+    assert_match!(*users[1], json!({"model": "kimi/k3"}));
+    assert_match!(
+        *users[2],
+        json!({"model": "xai/grok", "switchedToModel": "Grok 5"})
+    );
+    // A model without a display name is shown by its route.
+    assert_match!(*users[3], json!({"switchedToModel": "local/mlx"}));
+    let part = projection
+        .display
+        .parts
+        .iter()
+        .find(|part| part["id"] == users[2]["id"])
+        .unwrap();
+    assert_eq!(part["switchedToModel"], "Grok 5");
+}
+
+#[test]
 fn does_not_interpret_a_recoverable_content_diagnostic_as_live_connection_state() {
     let projection = Fixture::new().apply_all(&[
         event(

@@ -14,7 +14,6 @@ use crate::features::desktop_agent::application::agent_controller_state::AgentCo
 pub(super) struct ChatPolicy<'a> {
     pub hidden_runtime_ids: &'a [String],
     pub presented: bool,
-    pub pending_connection_model: Option<String>,
     pub compute: Option<&'a ComputeSnapshot>,
     pub payments: bool,
     pub compute_access_prompt: bool,
@@ -40,7 +39,6 @@ pub(super) fn chat_view_model(
         runtime,
         &AgentChatViewOptions {
             presented: policy.presented,
-            pending_connection_model: policy.pending_connection_model.clone(),
             compute_ready: compute.ready,
             compute_access_required: compute.access_required.map(str::to_string),
             preferences_ready,
@@ -59,7 +57,6 @@ pub fn default_chat_view_model(
         &ChatPolicy {
             hidden_runtime_ids: &[],
             presented,
-            pending_connection_model: None,
             compute: None,
             payments: false,
             compute_access_prompt: false,

@@ -36,6 +36,10 @@ pub struct TranscriptMessage {
     pub text: String,
     pub references: Option<Vec<ReferenceDisplay>>,
     pub prompt_mentions: Option<Vec<PromptMention>>,
+    /// A user turn sent to another model than the turn before it: that
+    /// model's name.
+    #[serde(default, deserialize_with = "super::lenient::optional_text")]
+    pub switched_to_model: Option<String>,
     #[serde(deserialize_with = "super::lenient::flag")]
     pub streaming: bool,
     #[serde(default, deserialize_with = "super::lenient::optional_text")]
@@ -274,6 +278,8 @@ pub struct Part {
     pub delivery_status: Option<String>,
     pub references: Option<Vec<ReferenceDisplay>>,
     pub prompt_mentions: Option<Vec<PromptMention>>,
+    #[serde(default, deserialize_with = "super::lenient::optional_text")]
+    pub switched_to_model: Option<String>,
     #[serde(deserialize_with = "super::lenient::flag")]
     pub streaming: bool,
     #[serde(default, deserialize_with = "super::lenient::optional_text")]
@@ -340,6 +346,7 @@ impl Part {
             delivery_status: message.delivery_status.clone(),
             references: message.references.clone(),
             prompt_mentions: message.prompt_mentions.clone(),
+            switched_to_model: message.switched_to_model.clone(),
             streaming: message.streaming,
             terminal_state: message.terminal_state.clone(),
             truncated: message.truncated,

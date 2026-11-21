@@ -53,61 +53,6 @@ impl AgentChatTabPanel {
                     .child(t("settings.modelConnections.readOnly")),
             );
         }
-        if let Some(model) = self.pending_connection_model.clone() {
-            dock = dock.child(
-                v_flex()
-                    .gap(px(8.))
-                    .px(px(12.))
-                    .py(px(10.))
-                    .rounded(px(8.))
-                    .border_1()
-                    .border_color(a.blocking_border)
-                    .bg(a.blocking_surface)
-                    .child(
-                        div()
-                            .whitespace_normal()
-                            .child(t("settings.modelConnections.switchWarning")),
-                    )
-                    .child(
-                        h_flex()
-                            .justify_end()
-                            .gap(px(4.))
-                            .child(
-                                agent_button(
-                                    "agent-connection-cancel",
-                                    t("common.action.cancel").into(),
-                                    ButtonTone::Quiet,
-                                    false,
-                                    &a,
-                                )
-                                .on_click(cx.listener(
-                                    |s, _, _, cx| {
-                                        s.pending_connection_model = None;
-                                        s.refresh_views();
-                                        cx.notify();
-                                    },
-                                )),
-                            )
-                            .child(
-                                agent_button(
-                                    "agent-connection-new",
-                                    t("settings.modelConnections.newConversation").into(),
-                                    ButtonTone::Primary,
-                                    false,
-                                    &a,
-                                )
-                                .on_click(cx.listener(
-                                    move |s, _, _, cx| {
-                                        s.pending_connection_model = None;
-                                        s.refresh_views();
-                                        drop(s.controller.start_new_model_connection(&model));
-                                        cx.notify();
-                                    },
-                                )),
-                            ),
-                    ),
-            );
-        }
         if view.approval.is_some() || view.question.is_some() {
             dock = dock.child(self.docks.clone());
         }

@@ -78,16 +78,23 @@ fn call(id: &str, name: &str, arguments: Value) -> Completion {
 struct Model {
     steps: RefCell<VecDeque<Step>>,
     contexts: RefCell<Vec<Vec<Value>>>,
+    /// The leased connection each round was sent to.
+    connections: RefCell<Vec<Value>>,
 }
 
 fn scripted(steps: Vec<Step>) -> (Rc<Model>, Complete) {
     let model = Rc::new(Model {
         steps: RefCell::new(steps.into()),
         contexts: RefCell::default(),
+        connections: RefCell::default(),
     });
     let script = model.clone();
     let complete: Complete = Rc::new(move |request: CompleteRequest| {
         script.contexts.borrow_mut().push(request.context.clone());
+        script
+            .connections
+            .borrow_mut()
+            .push(request.configuration["connectionId"].clone());
         let step = script.steps.borrow_mut().pop_front();
         Box::pin(async move {
             match step {
@@ -121,6 +128,16 @@ fn adapter_reporting(
     generation: Rc<RefCell<String>>,
     persisted: Events,
 ) -> (PuppyOneAgentAdapter, Events) {
+    adapter_on(workspace, data, complete, port(generation), persisted)
+}
+
+fn adapter_on(
+    workspace: &Path,
+    data: &Path,
+    complete: Complete,
+    port: Rc<dyn ModelConnectionPort>,
+    persisted: Events,
+) -> (PuppyOneAgentAdapter, Events) {
     let events: Events = Rc::default();
     let readiness = native_kernel_readiness(&data.to_string_lossy(), "/bin/sh").unwrap();
     let mut options = PiAdapterOptions::new(
@@ -137,7 +154,7 @@ fn adapter_reporting(
         persisted.borrow_mut().push(identity)
     }));
     (
-        PuppyOneAgentAdapter::new(options, Some(port(generation))).unwrap(),
+        PuppyOneAgentAdapter::new(options, Some(port)).unwrap(),
         events,
     )
 }
@@ -434,6 +451,132 @@ fn a_saved_session_reopens_with_its_history_and_a_missing_one_is_unavailable() {
             "{missing:?}"
         );
         third.dispose().await.unwrap();
+    });
+}
+
+const OTHER: &str = "00000000-0000-4000-8000-000000000002";
+
+/// The local connection and a second one (`grok`) with a smaller window.
+fn two_connections() -> Rc<dyn ModelConnectionPort> {
+    Rc::new(NativeModelConnectionPort::new(Rc::new(|| {
+        let other = ModelConnection {
+            id: OTHER.into(),
+            name: "Other".into(),
+            endpoint: "https://api.example/v1".into(),
+            model: "grok".into(),
+            generation: "o1".into(),
+            ..Default::default()
+        };
+        Box::pin(async move { Ok(vec![connection("g1"), other]) })
+    })))
+}
+
+async fn completed_turns(events: &Events, count: usize) {
+    for _ in 0..1_000 {
+        if events
+            .borrow()
+            .iter()
+            .filter(|e| e["type"] == "turn.completed")
+            .count()
+            >= count
+        {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
+    panic!(
+        "fewer than {count} completed turns; saw {:?}",
+        kinds(events)
+    );
+}
+
+#[test]
+fn a_turn_on_another_connection_continues_the_same_session_with_its_history() {
+    let (workspace, data) = directories();
+    let project = root(&workspace);
+    run_local(async move {
+        let other_route = format!("{}/grok", product_connection_id(OTHER));
+        let mut first = call("functions.ls:0", "ls", json!({ "path": "." }));
+        first.reasoning = "Look at the root first.".into();
+        let (model, complete) = scripted(vec![
+            Step::Reply(vec![("reasoning", "Look at the root first.")], first),
+            Step::Reply(vec![("text", "Done")], text("Done")),
+            Step::Reply(vec![("text", "Still here")], text("Still here")),
+            Step::Reply(vec![("text", "Back")], text("Back")),
+        ]);
+        let (adapter, events) = adapter_on(
+            &project,
+            data.path(),
+            complete,
+            two_connections(),
+            Rc::default(),
+        );
+        let session = adapter
+            .create_session(json!({ "model": route() }))
+            .await
+            .unwrap();
+        adapter
+            .start_turn(json!({ "prompt": "List files", "model": route() }))
+            .await
+            .unwrap();
+        completed_turns(&events, 1).await;
+        adapter
+            .start_turn(json!({ "prompt": "What did you find?", "model": other_route }))
+            .await
+            .unwrap();
+        completed_turns(&events, 2).await;
+        // And back again: the first connection sees the other's answer.
+        adapter
+            .start_turn(json!({ "prompt": "Thanks", "model": route() }))
+            .await
+            .unwrap();
+        completed_turns(&events, 3).await;
+
+        let connections = model.connections.borrow().clone();
+        let local = Value::from(product_connection_id(CONNECTION));
+        let other = Value::from(product_connection_id(OTHER));
+        assert_eq!(
+            connections,
+            vec![local.clone(), local.clone(), other, local]
+        );
+        let contexts = model.contexts.borrow().clone();
+        let switched = &contexts[2];
+        let roles: Vec<&str> = switched.iter().filter_map(|m| m["role"].as_str()).collect();
+        assert_eq!(
+            roles,
+            ["system", "user", "assistant", "tool", "assistant", "user"]
+        );
+        assert_eq!(switched[1]["content"], "List files");
+        assert_eq!(switched[4]["content"], "Done");
+        assert_eq!(switched[5]["content"], "What did you find?");
+        // The other model gets no thinking it did not produce and an id it
+        // accepts, with the result still answering it.
+        assert!(switched[2].get("reasoning_content").is_none());
+        let id = switched[2]["tool_calls"][0]["id"].as_str().unwrap();
+        assert!(!id.contains(['.', ':']));
+        assert_eq!(switched[3]["tool_call_id"], id);
+        // Back on the first connection its own thinking and id return.
+        let back = &contexts[3];
+        assert_eq!(back[2]["reasoning_content"], "Look at the root first.");
+        assert_eq!(back[2]["tool_calls"][0]["id"], "functions.ls:0");
+        assert_eq!(back[6]["content"], "Still here");
+        assert_eq!(back.last().unwrap()["content"], "Thanks");
+
+        // One session throughout, its turns marked with their models.
+        let history = adapter.read_history_result().await.unwrap();
+        let started: Vec<Value> = history["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["type"] == "turn.started")
+            .cloned()
+            .collect();
+        assert_eq!(started.len(), 3);
+        assert!(history["events"].as_array().unwrap().iter().all(|e| {
+            e["providerSessionId"].is_null()
+                || e["providerSessionId"] == session["providerSessionId"]
+        }));
+        adapter.dispose().await.unwrap();
     });
 }
 

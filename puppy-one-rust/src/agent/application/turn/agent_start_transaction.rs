@@ -42,6 +42,19 @@ fn user_message_id(session: &SessionRef, command_id: &str) -> Value {
     })
 }
 
+/// The display name of the session's `model`, for the turn record.
+fn model_name(session: &SessionRef, model: Option<&str>) -> Option<String> {
+    let model = model?;
+    session
+        .state()
+        .models
+        .iter()
+        .find(|candidate| candidate["model"] == model)
+        .and_then(|candidate| candidate["displayName"].as_str())
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+}
+
 /// `executeAgentStartTransaction(context, { runtimeSession, emit, persistSoon, attachmentStore, onSettled })`.
 pub async fn execute_agent_start_transaction(
     context: StartContext,
@@ -124,6 +137,7 @@ pub async fn execute_agent_start_transaction(
                             .set("userMessageId", user_message_id(&session, &command_id))
                             .set("submissionId", command_id.as_str())
                             .set("model", model.clone())
+                            .opt("modelName", model_name(&session, model.as_deref()))
                             .set("effort", effort.clone())
                             .set("mode", mode.clone())
                             .set("referenceDisplays", prepared.reference_displays.clone())

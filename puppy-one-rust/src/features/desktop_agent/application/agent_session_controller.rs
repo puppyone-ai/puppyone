@@ -361,16 +361,6 @@ impl AgentSessionController {
                 workspace_root: workspace_root.to_string(),
                 bridge_provider: bridge_provider.clone(),
                 store: store.clone(),
-                create_session: create_session.clone(),
-                apply_snapshot: apply_snapshot.clone(),
-                delete_session_ui: {
-                    let weak = weak.clone();
-                    Rc::new(move |session_id| {
-                        if let Some(inner) = weak.upgrade() {
-                            inner.session_ui.borrow_mut().delete(session_id);
-                        }
-                    })
-                },
             });
             let session_preparer = AgentSessionPreparer::new(AgentSessionPreparerOptions {
                 workspace_root: workspace_root.to_string(),
@@ -517,14 +507,6 @@ impl AgentSessionController {
         self.0.select_model(model);
     }
 
-    pub fn requires_new_model_connection_session(&self, model: Option<&str>) -> bool {
-        self.0.requires_new_model_connection_session(model)
-    }
-
-    pub fn start_new_model_connection(&self, model: &str) -> Task<()> {
-        self.0.start_new_model_connection(model)
-    }
-
     pub fn select_effort(&self, effort: Option<&str>) {
         self.0.select_effort(effort);
     }
@@ -623,11 +605,6 @@ impl AgentSessionController {
     pub fn read_viewport(&self) -> SessionUiState {
         let key = self.0.ui_key();
         self.0.session_ui.borrow_mut().read(&key)
-    }
-
-    #[cfg(test)]
-    pub fn new_session(&self) -> Task<()> {
-        self.0.new_session()
     }
 
     pub fn close_tab_session(&self) -> Task<CloseOutcome> {
@@ -1223,10 +1200,9 @@ impl Inner {
         let entry = model
             .filter(|m| !m.is_empty())
             .and_then(|model| find_model(state.inspection.as_ref(), Some(model)));
+        // A model on another connection continues this conversation: the
+        // next turn carries the whole history to it.
         let selected_model = entry.as_ref().map(|e| e.model.clone());
-        if self.requires_new_model_connection_session(model) {
-            return;
-        }
         let preserve_effort = if selected_model == state.selected_model {
             state.selected_effort.clone()
         } else {
@@ -1249,72 +1225,6 @@ impl Inner {
             patch = patch.session_preparation(AgentSessionPreparation::Idle);
         }
         self.patch(patch);
-    }
-
-    fn requires_new_model_connection_session(&self, model: Option<&str>) -> bool {
-        self.read(|state| {
-            let Some(model) = model.filter(|m| !m.is_empty()) else {
-                return false;
-            };
-            if state.session.is_none() || !state.capability(Capability::ModelConnections) {
-                return false;
-            }
-            let session_model = state
-                .session
-                .as_ref()
-                .and_then(|s| s.selected_model.clone())
-                .or_else(|| state.selected_model.clone());
-            session_model
-                .as_deref()
-                .and_then(agent_provider_id_for_selection)
-                != agent_provider_id_for_selection(model)
-        })
-    }
-
-    fn start_new_model_connection(self: &Rc<Self>, model: &str) -> Task<()> {
-        let state = self.store.snapshot();
-        if state.running_turn_id().is_some()
-            || state
-                .pending_prompt
-                .as_deref()
-                .is_some_and(|p| !p.is_empty())
-            || state.submitting
-        {
-            return resolved(());
-        }
-        let Some(connection_id) = find_model(state.inspection.as_ref(), Some(model))
-            .and_then(|entry| entry.connection_id.filter(|id| !id.is_empty()))
-        else {
-            return resolved(());
-        };
-        // This is called only after the explicit new-conversation
-        // confirmation.
-        let previous_session_id = state.session_id().map(str::to_string);
-        self.patch(
-            StatePatch::new()
-                .selected_model(Some(model.to_string()))
-                .selected_provider_id(Some(connection_id))
-                .selected_effort(None)
-                .draft(String::new())
-                .draft_mentions(Vec::new())
-                .submitting(true),
-        );
-        let new_session = self.new_session();
-        let inner = self.clone();
-        start(&self.runtime, async move {
-            new_session.await;
-            if previous_session_id.is_some()
-                && inner.read(|state| state.session_id().map(str::to_string)) == previous_session_id
-            {
-                inner.patch(
-                    StatePatch::new()
-                        .selected_model(state.selected_model.clone())
-                        .selected_provider_id(state.selected_provider_id.clone())
-                        .selected_effort(state.selected_effort.clone()),
-                );
-            }
-            inner.patch(StatePatch::new().submitting(false));
-        })
     }
 
     fn select_effort(&self, effort: Option<&str>) {
@@ -1393,25 +1303,6 @@ impl Inner {
             (draft, state.draft_mentions.clone())
         });
         self.set_draft_document(&draft, &mentions);
-    }
-
-    fn new_session(self: &Rc<Self>) -> Task<()> {
-        if self.read(|state| state.running_turn_id().is_some()) {
-            return start(&self.runtime, self.session_lifecycle.new_session());
-        }
-        let pending = self.read(pending_references);
-        self.submission.invalidate();
-        let references = self.read(|state| {
-            let mut references = state.references.clone();
-            references.extend(pending);
-            references
-        });
-        let reset = self.reference_drafts.reset(references);
-        let inner = self.clone();
-        start(&self.runtime, async move {
-            reset.await;
-            inner.session_lifecycle.new_session().await;
-        })
     }
 
     fn close_tab_session(self: &Rc<Self>) -> Task<CloseOutcome> {
