@@ -262,11 +262,7 @@ pub(super) fn save_private(file: &Path, bytes: &[u8]) -> Result<(), String> {
     }
     let temp = file.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
     let written = (|| {
-        let mut options = std::fs::OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        let mut out = options.open(&temp)?;
+        let mut out = crate::platform::fs::open_private_create_new(&temp)?;
         out.write_all(bytes)?;
         out.sync_all()?;
         std::fs::rename(&temp, file)

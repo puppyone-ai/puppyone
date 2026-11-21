@@ -1174,6 +1174,7 @@ fn read_regular(path: &Path, max_bytes: u64) -> Result<Vec<u8>, String> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use super::*;
 
     #[cfg(unix)]

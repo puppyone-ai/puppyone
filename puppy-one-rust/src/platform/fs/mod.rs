@@ -129,6 +129,46 @@ pub fn set_private_file_permissions(path: &Path) -> io::Result<()> {
     }
 }
 
+/// Sets owner-only directory permissions (`0o700` on Unix; no-op on Windows).
+pub fn set_private_dir_permissions(path: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(())
+    }
+}
+
+/// Returns `true` when `metadata` does not expose group/other permissions on Unix.
+pub fn is_private_metadata(metadata: &std::fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o077 == 0
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        true
+    }
+}
+
+/// Atomically creates a new owner-only file (`O_CREAT | O_EXCL`, `0o600` on Unix).
+pub fn open_private_create_new(path: &Path) -> io::Result<std::fs::File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
+}
+
 /// Returns `true` if `component` is a Windows reserved DOS device name
 /// (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, with or without an extension)
 /// or ends with a trailing dot or space.

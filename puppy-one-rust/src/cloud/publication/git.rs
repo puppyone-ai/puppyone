@@ -716,7 +716,11 @@ impl GitOps for Cli {
                     .chain(general)
                     .find(|h| secure_helper(h))
                     .map(|h| h.trim().to_lowercase())
-                    .or_else(|| cfg!(target_os = "macos").then(|| "osxkeychain".into()))
+                    .or_else(|| {
+                        crate::platform::os::Os::current()
+                            .is_macos()
+                            .then(|| "osxkeychain".into())
+                    })
                     .ok_or_else(|| {
                         PublishError::new(
                             Code::RemoteConfigFailed,

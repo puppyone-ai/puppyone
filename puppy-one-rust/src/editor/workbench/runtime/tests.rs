@@ -1,8 +1,7 @@
 use super::*;
-use crate::{
-    editor::text::buffer::Buffer,
-    platform::{draft_journal::DraftJournal, editor_state_storage::Storage},
-};
+#[cfg(unix)]
+use crate::platform::draft_journal::DraftJournal;
+use crate::{editor::text::buffer::Buffer, platform::editor_state_storage::Storage};
 use std::time::{Duration, Instant};
 #[path = "lifecycle_tests.rs"]
 mod lifecycle;

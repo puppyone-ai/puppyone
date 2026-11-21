@@ -122,7 +122,7 @@ pub struct Autostart {
 impl Autostart {
     pub fn new(home: &Path, program: &Path) -> Self {
         Self {
-            entry: cfg!(target_os = "macos").then(|| {
+            entry: crate::platform::os::Os::current().is_macos().then(|| {
                 home.join("Library/LaunchAgents")
                     .join(format!("{LAUNCH_AGENT_LABEL}.plist"))
             }),

@@ -157,6 +157,7 @@ pub async fn run_bounded_process_probe(
     if let Some(env) = options.env.as_ref() {
         command.env_clear().envs(env);
     }
+    #[cfg_attr(not(unix), allow(unused_variables))]
     let grouped = options.isolated_process_group && options.platform != "win32";
     #[cfg(unix)]
     if grouped {
@@ -175,6 +176,7 @@ pub async fn run_bounded_process_probe(
         let _ = error;
         failure("could not start.")
     })?;
+    #[cfg_attr(not(unix), allow(unused_variables))]
     let pid = child.id();
     let kill = |child: &mut tokio::process::Child| {
         #[cfg(unix)]

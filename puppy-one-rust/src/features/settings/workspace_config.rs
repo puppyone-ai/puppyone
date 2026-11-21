@@ -319,24 +319,13 @@ pub fn write(root: &Path, config: &WorkspaceConfig) -> Result<WorkspaceConfig, S
         uuid::Uuid::new_v4().simple()
     ));
     let result = (|| -> std::io::Result<()> {
-        let mut options = fs::OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let mut file = options.open(&temp)?;
+        let mut file = crate::platform::fs::open_private_create_new(&temp)?;
         let mut text = serde_json::to_string_pretty(&config.to_json())?;
         text.push('\n');
         file.write_all(text.as_bytes())?;
         file.sync_all()?;
         fs::rename(&temp, &path)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
-        }
+        let _ = crate::platform::fs::set_private_file_permissions(&path);
         Ok(())
     })();
     let _ = fs::remove_file(&temp);

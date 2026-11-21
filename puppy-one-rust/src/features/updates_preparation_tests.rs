@@ -190,7 +190,7 @@ fn superseded_preparation_cannot_offer_or_install_its_old_payload(cx: &mut gpui:
         assert_eq!(u.waiting.len(), 1);
         assert_eq!(titlebar(&u.state), None);
         assert!(
-            !u.prepared.as_mut().unwrap().install_on_exit(false),
+            !u.installer.as_mut().unwrap().install_on_exit(false),
             "superseded readiness was revoked"
         );
     });

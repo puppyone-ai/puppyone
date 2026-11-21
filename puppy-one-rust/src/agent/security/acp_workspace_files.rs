@@ -246,6 +246,7 @@ fn ensure_canonical_parent(root: &Path, parent: &Path) -> AgentResult<()> {
         let metadata = match std::fs::symlink_metadata(&current) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                #[cfg_attr(not(unix), allow(unused_mut))]
                 let mut builder = std::fs::DirBuilder::new();
                 #[cfg(unix)]
                 {

@@ -1,5 +1,8 @@
+#[cfg(unix)]
 use super::super::docx_redline;
+#[cfg(unix)]
 use super::*;
+#[cfg(unix)]
 use std::sync::atomic::Ordering;
 
 #[cfg(unix)]

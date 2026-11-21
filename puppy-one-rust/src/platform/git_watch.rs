@@ -10,7 +10,7 @@ use std::{
 mod snapshot;
 mod subscriptions;
 mod worker;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use snapshot::snapshot;
 pub use subscriptions::{GitWatch, invalidate_working_tree};
 

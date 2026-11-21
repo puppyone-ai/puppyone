@@ -297,13 +297,7 @@ impl Journal {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(_) => return Err(io_failed("inspect")),
         };
-        #[cfg(unix)]
-        let private = {
-            use std::os::unix::fs::PermissionsExt;
-            metadata.permissions().mode() & 0o077 == 0
-        };
-        #[cfg(not(unix))]
-        let private = true;
+        let private = crate::platform::fs::is_private_metadata(&metadata);
         if !metadata.is_file()
             || metadata.file_type().is_symlink()
             || metadata.len() > MAX_BYTES
@@ -378,12 +372,7 @@ impl Journal {
         if !metadata.is_dir() || metadata.file_type().is_symlink() {
             return Err(io_failed("directory"));
         }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ =
-                std::fs::set_permissions(&self.directory, std::fs::Permissions::from_mode(0o700));
-        }
+        let _ = crate::platform::fs::set_private_dir_permissions(&self.directory);
         Ok(())
     }
     fn locked<T>(
@@ -474,14 +463,7 @@ fn write_atomic(path: &Path, record: &Record) -> Result<(), PublishError> {
     let temporary = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4()));
     let write = || -> std::io::Result<()> {
         use std::io::Write as _;
-        let mut options = std::fs::OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let mut file = options.open(&temporary)?;
+        let mut file = crate::platform::fs::open_private_create_new(&temporary)?;
         file.write_all(&bytes)?;
         file.sync_all()?;
         std::fs::rename(&temporary, path)

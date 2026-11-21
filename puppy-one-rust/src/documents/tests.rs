@@ -643,6 +643,7 @@ fn files_their_viewer_reads_itself_open_as_resources_without_reading_text() {
 }
 #[test]
 fn resources_outside_the_workspace_or_through_symlinks_are_refused() {
+    #[cfg_attr(not(unix), allow(unused_variables))]
     let (temp, mut d, ctx) = setup();
     let outside = tempfile::tempdir().unwrap();
     std::fs::write(outside.path().join("secret.png"), b"x").unwrap();

@@ -536,6 +536,7 @@ mod tests {
     /// that its screen does not read stops at its writes instead of
     /// filling memory, reading again lets it finish, and closing the
     /// session ends one that is still waiting.
+    #[cfg(unix)]
     #[test]
     fn a_noisy_process_waits_for_its_screen_and_closing_ends_it() {
         let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -809,6 +810,7 @@ mod tests {
         assert!(output.contains(expected), "{output}");
         assert!(!dir.path().join("must-not-exist").exists());
     }
+    #[cfg(unix)]
     #[test]
     #[ignore = "real PTY integration; run explicitly on a desktop host"]
     fn real_pty_input_resize_and_cleanup() {

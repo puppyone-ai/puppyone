@@ -498,6 +498,7 @@ fn routes_pi_extension_dialogs_through_the_shared_structured_question_contract()
 
 // ------------------------------------------------------------------ discovery
 
+#[cfg(unix)]
 fn pi_executable(directory: &std::path::Path, help: &str) -> String {
     let path = directory.join("pi");
     crate::agent::application::tests_support::installed_shell_fixture(
@@ -512,6 +513,7 @@ fn pi_executable(directory: &std::path::Path, help: &str) -> String {
         .into_owned()
 }
 
+#[cfg(unix)]
 fn discovery_options(configured: Option<String>) -> PiDiscoveryOptions {
     PiDiscoveryOptions {
         env: Some(EnvMap::from([("PATH".to_string(), String::new())])),
@@ -532,6 +534,7 @@ fn discovery_options(configured: Option<String>) -> PiDiscoveryOptions {
     }
 }
 
+#[cfg(unix)]
 #[test]
 fn requires_the_installed_executable_to_expose_the_official_rpc_mode() {
     run_local(async {
@@ -571,6 +574,7 @@ fn requires_the_installed_executable_to_expose_the_official_rpc_mode() {
     });
 }
 
+#[cfg(unix)]
 #[test]
 fn distinguishes_a_missing_runtime_from_an_installed_runtime_without_rpc_support() {
     run_local(async {
