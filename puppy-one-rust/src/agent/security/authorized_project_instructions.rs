@@ -21,14 +21,7 @@ static INSTRUCTION_NAME: LazyLock<Regex> =
 
 /// `open(path, O_RDONLY | O_NOFOLLOW)`.
 pub(crate) fn open_no_follow(path: &Path) -> std::io::Result<std::fs::File> {
-    let mut options = std::fs::OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW);
-    }
-    options.open(path)
+    crate::platform::fs::open_path_nofollow_read(path)
 }
 
 /// `loadAuthorizedProjectInstructions(workspaceRoot, { instructionNames })`:

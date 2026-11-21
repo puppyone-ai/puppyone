@@ -217,11 +217,9 @@ fn scene(p: Option<f32>, agent: &str, t: Theme) -> Div {
         .line_height(px(18.))
         .font_weight(FontWeight::SEMIBOLD)
         .opacity(f.key)
-        .child(tr(if cfg!(target_os = "macos") {
-            "cloud.share.agent.invite.scene.pasteMac"
-        } else {
-            "cloud.share.agent.invite.scene.pasteOther"
-        }));
+        .child(tr(
+            crate::platform::conventions::Conventions::current().paste_shortcut_key
+        ));
     div()
         .relative()
         .w(px(WIDTH))

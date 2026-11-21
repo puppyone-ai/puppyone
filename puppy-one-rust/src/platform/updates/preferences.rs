@@ -120,10 +120,31 @@ pub fn write_automatic_download(data: &Path, enabled: bool) -> io::Result<()> {
     )?;
     temporary.write_all(b"\n")?;
     temporary.as_file().sync_all()?;
-    temporary
-        .persist(data.join(NAME))
-        .map_err(|error| error.error)?;
-    Ok(())
+    let target = data.join(NAME);
+    #[cfg(windows)]
+    {
+        let mut file = temporary;
+        for attempt in 0..25 {
+            match file.persist(&target) {
+                Ok(_) => return Ok(()),
+                Err(error)
+                    if attempt < 24
+                        && (error.error.kind() == io::ErrorKind::PermissionDenied
+                            || error.error.raw_os_error() == Some(32)) =>
+                {
+                    file = error.file;
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Err(error) => return Err(error.error),
+            }
+        }
+        unreachable!()
+    }
+    #[cfg(not(windows))]
+    {
+        temporary.persist(&target).map_err(|error| error.error)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

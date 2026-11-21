@@ -18,10 +18,15 @@ struct Feed {
 
 impl Feed {
     fn new(response: Vec<u8>, hold_open: bool) -> Self {
-        Self::at("/feed/dev-mac.yml", response, hold_open)
+        let path = format!(
+            "/feed/{}",
+            platform_feed_filename("dev", crate::platform::os::Os::current())
+        );
+        Self::at(path, response, hold_open)
     }
 
-    fn at(path: &'static str, response: Vec<u8>, hold_open: bool) -> Self {
+    fn at(path: impl Into<String>, response: Vec<u8>, hold_open: bool) -> Self {
+        let path = path.into();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let address = listener.local_addr().unwrap();
@@ -103,10 +108,21 @@ impl Drop for Feed {
     }
 }
 
+fn test_payload_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "puppyone-0.4.5-dev.gb-win-x64-setup.exe"
+    } else if cfg!(target_os = "linux") {
+        "puppyone-0.4.5-dev.gb-linux-x64.AppImage"
+    } else {
+        "update.zip"
+    }
+}
+
 fn metadata() -> Vec<u8> {
     let digest = base64::engine::general_purpose::STANDARD.encode([1; 64]);
+    let name = test_payload_name();
     format!(
-        "version: 0.4.5-dev.gb\nfiles:\n  - url: update.zip\n    sha512: {digest}\n    size: 9\npath: update.zip\nsha512: {digest}\nreleaseDate: '2026-11-17T00:00:00Z'\n# 中文\n"
+        "version: 0.4.5-dev.gb\nfiles:\n  - url: {name}\n    sha512: {digest}\n    size: 9\npath: {name}\nsha512: {digest}\nreleaseDate: '2026-11-17T00:00:00Z'\n# 中文\n"
     ).into_bytes()
 }
 
@@ -149,7 +165,7 @@ fn metadata_at_the_exact_byte_limit_accepts_chunked_utf8_and_resolves_the_payloa
             .feed
             .as_ref()
             .unwrap()
-            .join("feed/update.zip")
+            .join(&format!("feed/{}", test_payload_name()))
             .unwrap()
     );
 }
@@ -237,6 +253,39 @@ fn entries(directory: &Path) -> Vec<String> {
         .collect();
     entries.sort();
     entries
+}
+
+#[test]
+fn download_preserves_windows_exe_and_linux_appimage_extensions() {
+    let directory = tempfile::tempdir().unwrap();
+    let cancel = AtomicBool::new(false);
+    for (filename, expected_ext) in [
+        ("puppyone-0.4.5-win-x64-setup.exe", "exe"),
+        ("puppyone-0.4.5-linux-x64.AppImage", "AppImage"),
+    ] {
+        let bytes = b"payload-bytes";
+        let feed = Feed::at(format!("/feed/{filename}"), complete_response(bytes), false);
+        use sha2::Digest as _;
+        let candidate = Candidate {
+            version: "0.4.5".into(),
+            url: feed
+                .config
+                .feed
+                .as_ref()
+                .unwrap()
+                .join(&format!("feed/{filename}"))
+                .unwrap(),
+            size: bytes.len() as u64,
+            sha512: base64::engine::general_purpose::STANDARD.encode(sha2::Sha512::digest(bytes)),
+        };
+        let path = download(&feed.config, &candidate, directory.path(), |_| {}, &cancel).unwrap();
+        assert_eq!(
+            path.extension().and_then(|e| e.to_str()),
+            Some(expected_ext),
+            "{filename} -> {}",
+            path.display()
+        );
+    }
 }
 
 #[test]

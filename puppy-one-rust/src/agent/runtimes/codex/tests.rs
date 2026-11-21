@@ -1253,6 +1253,7 @@ fn keeps_the_newest_whole_turns_when_a_long_thread_exceeds_the_event_budget() {
 // `tests/unit/agent/runtimes/discovery/electron.agent-discovery.test.mjs`,
 // with real executables in a temporary directory.
 
+#[cfg(unix)]
 mod discovery {
     use super::super::codex_discovery::{
         CodexDiscoveryOptions, MIN_SUPPORTED_CODEX_VERSION, discover_codex_executable,

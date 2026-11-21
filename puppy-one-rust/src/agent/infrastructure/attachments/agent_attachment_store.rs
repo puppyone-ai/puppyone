@@ -63,13 +63,7 @@ impl FileSnapshot {
             .ok()
             .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
             .map_or(0, |duration| duration.as_nanos() as i128);
-        #[cfg(unix)]
-        let (ino, dev) = {
-            use std::os::unix::fs::MetadataExt;
-            (metadata.ino(), metadata.dev())
-        };
-        #[cfg(not(unix))]
-        let (ino, dev) = (0, 0);
+        let (dev, ino) = crate::platform::fs::metadata_device_inode(metadata);
         Self {
             is_file: metadata.is_file(),
             size: metadata.len(),
@@ -403,16 +397,7 @@ impl AgentAttachmentStore {
                 return Err(error("An attachment exceeds the 25 MB safety limit."));
             }
             let group_key = format!("{owner_id}\0{workspace_root}\0{epoch}");
-            let mut destination = {
-                let mut options = std::fs::OpenOptions::new();
-                options.write(true).create_new(true);
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::OpenOptionsExt;
-                    options.mode(0o600);
-                }
-                options.open(&snapshot_path)?
-            };
+            let mut destination = crate::platform::fs::open_private_create_new(&snapshot_path)?;
             let mut hash = Sha256::new();
             let mut header: Vec<u8> = Vec::new();
             let mut buffer = vec![0u8; COPY_CHUNK_BYTES];
@@ -801,17 +786,7 @@ impl AgentAttachmentStore {
 }
 
 fn create_private_directory(path: &Path) -> AgentResult<()> {
-    let mut builder = std::fs::DirBuilder::new();
-    builder.recursive(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
-        builder.mode(0o700);
-        builder.create(path)?;
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
-    }
-    #[cfg(not(unix))]
-    builder.create(path)?;
+    crate::platform::fs::create_private_dir_all(path)?;
     Ok(())
 }
 

@@ -36,7 +36,7 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
     });
     // Home lands on the heading's visible start (after its hidden marker);
     // then select the title and replace it.
-    cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
+    cx.simulate_keystrokes("secondary-right secondary-left secondary-shift-right");
     cx.simulate_input("Native 中🐶");
     let settle = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
@@ -194,7 +194,7 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
                 .to_owned(),
         )
     });
-    cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
+    cx.simulate_keystrokes("secondary-right secondary-left secondary-shift-right");
     cx.simulate_input("Retained");
     settle(&view, cx, &|s, cx| !s.files(cx).saving());
     assert_eq!(
@@ -320,7 +320,7 @@ fn a_hibernated_tab_keeps_its_undo_history_when_it_comes_back(cx: &mut TestAppCo
             s.editor.read(cx).front.downgrade(),
         )
     });
-    cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
+    cx.simulate_keystrokes("secondary-right secondary-left secondary-shift-right");
     cx.simulate_input("Retained");
     settle(&view, cx, &|s, cx| {
         !s.files(cx).saving() && !s.files(cx).dirty
@@ -595,7 +595,7 @@ fn a_failing_save_keeps_its_edit_and_failure_across_switching_files(cx: &mut Tes
         std::fs::metadata(temp.path()).unwrap().permissions(),
     );
     std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
-    cx.simulate_keystrokes("cmd-down");
+    cx.simulate_keystrokes("secondary-down");
     cx.simulate_input(" changed");
     settle(&view, cx, &|s, cx| s.files(cx).save_error.is_some());
     assert_eq!(shown(&view, cx).as_deref(), Some("alpha changed"));
@@ -660,7 +660,7 @@ fn a_local_html_source_edit_persists_to_the_file(cx: &mut TestAppContext) {
     // The menu keeps focus for its keyboard; the person then clicks the text.
     host.update_in(cx, |h, w, cx| h.focus_document(w, cx));
     settle(&view, cx, &|_, _| true);
-    cx.simulate_keystrokes("cmd-down");
+    cx.simulate_keystrokes("secondary-down");
     cx.simulate_input("<!-- After -->");
     settle(&view, cx, &|s, cx| {
         !s.files(cx).saving() && !s.files(cx).dirty
@@ -732,7 +732,7 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
             s.files(cx).document.as_ref().unwrap().id.clone(),
         )
     });
-    cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
+    cx.simulate_keystrokes("secondary-right secondary-left secondary-shift-right");
     cx.simulate_input("Edited");
     settle(cx, &|s, cx| !s.files(cx).saving());
     assert_eq!(

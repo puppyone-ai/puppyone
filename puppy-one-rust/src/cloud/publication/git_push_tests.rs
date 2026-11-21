@@ -16,7 +16,7 @@ use std::{
 pub(super) fn git(root: &Path, args: &[&str]) -> String {
     String::from_utf8(
         process::run(
-            Path::new("/usr/bin/git"),
+            crate::platform::git::git_executable(),
             args,
             root,
             None,
@@ -141,7 +141,7 @@ impl Server {
                     ("GIT_PROTOCOL", protocol),
                 ];
                 let response = process::run_output_with(
-                    Path::new("/usr/bin/git"),
+                    crate::platform::git::git_executable(),
                     &["http-backend"],
                     &project_root,
                     Some(&body),
@@ -224,7 +224,12 @@ fn configured(root: &Path, server: &Server) -> (Cli, Record) {
     // receives this deliberately fake secret.
     let helper = format!(
         "store --file={}",
-        server.root.path().join("credentials").display()
+        server
+            .root
+            .path()
+            .join("credentials")
+            .to_string_lossy()
+            .replace('\\', "/")
     );
     let cli = Cli {
         helper: Some(helper),

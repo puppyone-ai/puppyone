@@ -67,13 +67,7 @@ pub fn default_probe_runner() -> ProbeRunner {
 
 /// `process.platform`.
 pub fn node_platform() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "darwin"
-    } else if cfg!(windows) {
-        "win32"
-    } else {
-        "linux"
-    }
+    crate::platform::process::node_platform()
 }
 
 fn validate_launch(executable_path: &str, args: &[String]) -> AgentResult<()> {
@@ -158,14 +152,10 @@ pub async fn run_bounded_process_probe(
         command.env_clear().envs(env);
     }
     let grouped = options.isolated_process_group && options.platform != "win32";
-    #[cfg(unix)]
     if grouped {
-        command.process_group(0);
-    }
-    #[cfg(windows)]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
+        crate::platform::process::isolate_tokio(&mut command);
+    } else {
+        crate::platform::process::hide_console_window(&mut command);
     }
     let mut child = command.spawn().map_err(|error| {
         #[cfg(test)]
@@ -177,12 +167,11 @@ pub async fn run_bounded_process_probe(
     })?;
     let pid = child.id();
     let kill = |child: &mut tokio::process::Child| {
-        #[cfg(unix)]
-        if grouped && let Some(pid) = pid.filter(|p| *p > 0) {
-            // Only the probe's own process group, never the app's.
-            if unsafe { libc::kill(-(pid as i32), libc::SIGKILL) } == 0 {
-                return;
-            }
+        if grouped
+            && let Some(pid) = pid.filter(|p| *p > 0)
+            && crate::platform::process::terminate_pid(pid, true, true)
+        {
+            return;
         }
         let _ = child.start_kill();
     };
@@ -255,11 +244,7 @@ pub async fn run_bounded_process_probe(
             return Err(failure("timed out."));
         }
     };
-    #[cfg(unix)]
-    let signal = std::os::unix::process::ExitStatusExt::signal(&status)
-        .map(crate::agent::transports::managed_agent_process::signal_name);
-    #[cfg(not(unix))]
-    let signal: Option<String> = None;
+    let signal = crate::platform::process::exit_signal_name(&status);
     let result = ProbeResult {
         stdout: String::from_utf8_lossy(&stdout).into_owned(),
         stderr: String::from_utf8_lossy(&stderr).into_owned(),

@@ -357,7 +357,7 @@ fn a_new_launcher_cancels_pending_layout_restore_and_keeps_late_results_from_rep
         let saved = StoredProject {
             version: 1,
             layout: Layout::default(),
-            items: HashMap::new(),
+            items: std::collections::BTreeMap::new(),
         }
         .to_saved()
         .unwrap();
@@ -698,6 +698,8 @@ fn plus_adds_independent_blank_tabs_and_an_item_fills_the_one_it_was_chosen_in(
 ) {
     cx.executor().allow_parking();
     cx.update(gpui_kit::init);
+    // Keep the `+` button stationary between synthetic mouse-down and mouse-up.
+    cx.update(|cx| cx.set_reduce_motion(true));
     let root = tempfile::tempdir().unwrap();
     let (view, cx) = cx.add_window_view(Workbench::new);
     view.update(cx, |s, cx| {

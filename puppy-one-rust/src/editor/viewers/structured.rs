@@ -12,7 +12,10 @@
 //! (`contextMapEnvironment`: folder listings and Markdown sources, read off
 //! the main thread) and its layout and line filters are the pane menu's
 //! (`EditorPaneMenuContribution`).
-use super::{html_visual::script_json, web::WebFrame};
+use super::{
+    html_visual::script_json,
+    web::{WebFallbackAction, WebFrame},
+};
 use crate::{
     editor::{
         registry::{
@@ -224,6 +227,12 @@ impl StructuredView {
         self.pane.clear();
         let weak = cx.weak_entity();
         let dark = self.dark;
+        let local_file = self
+            .workspace
+            .as_ref()
+            .and_then(|w| w.local_root())
+            .map(|root| root.join(&self.name))
+            .filter(|p| p.is_file());
         self.frame = Some(cx.new(|_| {
             let mut f = WebFrame::new(Some(content), dark);
             f.set_on_recreated(Some(std::rc::Rc::new(move |cx| {
@@ -231,6 +240,9 @@ impl StructuredView {
                     view.ready = false;
                 });
             })));
+            if let Some(path) = local_file {
+                f.set_fallback_actions(vec![WebFallbackAction::open_local_file(path)]);
+            }
             f
         }));
         self._inbox = Some(cx.spawn(async move |this, cx| {
@@ -562,7 +574,8 @@ fn content(entry: String, ipc: Ipc) -> Content {
 
 /// The native acceptance process boots the same page, bundle and protocol as
 /// the viewer; `workspace` stands for a workspace the process answers itself.
-#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+#[cfg(feature = "dev-capture")]
+#[allow(dead_code)]
 pub(crate) fn probe_content(kind: &'static str, name: &str, text: &str, ipc: Ipc) -> Content {
     let view = StructuredView {
         kind,

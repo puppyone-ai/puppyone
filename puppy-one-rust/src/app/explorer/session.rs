@@ -221,7 +221,7 @@ impl ExplorerSession {
                 for node in nodes {
                     if !node.folder {
                         out.push(Document {
-                            path: node.path.to_string_lossy().into_owned(),
+                            path: node.path.to_string_lossy().replace('\\', "/"),
                             name: node.name.clone(),
                         });
                     }
@@ -238,7 +238,7 @@ impl ExplorerSession {
                 .insert(owner.clone(), (tree.revision, index));
         }
         Some(ReferenceContext {
-            source: path.to_string_lossy().into_owned(),
+            source: path.to_string_lossy().replace('\\', "/"),
             index: self.references[&owner].1.clone(),
         })
     }

@@ -10726,7 +10726,7 @@
         },
         {
           "package": "po-editor",
-          "test": "web_host::protocol_tests::wry_adapter_emits_exact_range_head_cors_and_security_headers"
+          "test": "web_host::backend::protocol_tests::wry_adapter_emits_exact_range_head_cors_and_security_headers"
         },
         {
           "package": "po-platform",
@@ -20255,7 +20255,7 @@
         },
         {
           "package": "po-platform",
-          "test": "platform::drag_out::tests::only_absolute_bounded_file_lists_start"
+          "test": "platform::clipboard::tests::only_absolute_bounded_file_lists_start"
         }
       ],
       "environment": "local temporary folders; GPUI terminal drop handling"

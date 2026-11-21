@@ -58,8 +58,8 @@ actions!(csv_table, [Undo, Redo]);
 
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
-        KeyBinding::new("cmd-z", Undo, Some("CsvTable")),
-        KeyBinding::new("cmd-shift-z", Redo, Some("CsvTable")),
+        KeyBinding::new("secondary-z", Undo, Some("CsvTable")),
+        KeyBinding::new("secondary-shift-z", Redo, Some("CsvTable")),
         KeyBinding::new(
             "alt-enter",
             InsertSoftNewline,

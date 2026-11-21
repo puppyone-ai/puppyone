@@ -199,7 +199,7 @@ pub fn sidebar_stride() -> f32 {
 /// reserves no footer space. Elsewhere `--desktop-sidebar-navigation-height`
 /// follows the text-size preset (control + outer and inner padding).
 pub fn footer() -> f32 {
-    if cfg!(target_os = "macos") {
+    if !crate::platform::conventions::Conventions::current().sidebar_footer_visible {
         0.
     } else {
         control()

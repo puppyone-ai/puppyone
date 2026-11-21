@@ -152,12 +152,8 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
     if !local.is_empty() && inputs.computers.is_none() {
         let mut group = Group::new(
             GroupId::LocalOnly,
-            tr(if cfg!(target_os = "macos") {
-                "onboarding.sharing.thisMac"
-            } else {
-                "onboarding.sharing.localOnly"
-            })
-            .to_owned(),
+            tr(crate::platform::conventions::Conventions::current().onboarding_local_only_key)
+                .to_owned(),
         );
         group.mark = Some(Mark::Computer);
         group.items = local.clone();
@@ -232,11 +228,8 @@ pub(in crate::app) fn groups(inputs: Inputs) -> Vec<Group> {
         if !computers.is_empty() || !plain.is_empty() {
             let mut group = Group::new(
                 GroupId::LocalComputers,
-                tr(if cfg!(target_os = "macos") {
-                    "onboarding.computerMode.thisMacTitle"
-                } else {
-                    "onboarding.computerMode.thisComputerTitle"
-                })
+                tr(crate::platform::conventions::Conventions::current()
+                    .onboarding_computer_mode_title_key)
                 .to_owned(),
             );
             group.mark = Some(Mark::Computers);

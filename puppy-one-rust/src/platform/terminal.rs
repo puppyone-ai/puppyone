@@ -64,7 +64,9 @@ pub struct Terminal {
     tx: SyncSender<Request>,
     pub events: Receiver<Event>,
     stop: Arc<AtomicBool>,
+    #[cfg_attr(not(unix), allow(dead_code))]
     pid: Arc<AtomicI32>,
+    #[cfg_attr(not(unix), allow(dead_code))]
     foreground: Arc<AtomicI32>,
 }
 impl Terminal {
@@ -254,12 +256,26 @@ impl Terminal {
                     &root,
                     &activity_owner,
                 );
-                let pair = native_pty_system().openpty(PtySize {
+                // Drain any resize/input requests queued before the PTY opened
+                // so the shell starts with the caller's dimensions rather than
+                // racing `24x80` against fast non-interactive startup.
+                let mut initial_size = PtySize {
                     rows: 24,
                     cols: 80,
                     pixel_width: 0,
                     pixel_height: 0,
-                })?;
+                };
+                let mut early_inputs: Vec<Vec<u8>> = Vec::new();
+                while let Ok(request) = rx.try_recv() {
+                    match request {
+                        Request::Resize(rows, cols) => {
+                            initial_size.rows = rows;
+                            initial_size.cols = cols;
+                        }
+                        Request::Input(bytes) => early_inputs.push(bytes),
+                    }
+                }
+                let pair = native_pty_system().openpty(initial_size)?;
                 let shell = launch.is_none();
                 let executable = launch
                     .as_ref()
@@ -341,6 +357,10 @@ impl Terminal {
                 });
                 if let Some(bootstrap) = prepared.bootstrap {
                     bootstrap_writer(&mut writer, &bootstrap).map_err(anyhow::Error::msg)?;
+                }
+                for bytes in early_inputs {
+                    writer.write_all(&bytes)?;
+                    writer.flush()?;
                 }
                 loop {
                     #[cfg(unix)]
@@ -516,6 +536,7 @@ mod tests {
     /// that its screen does not read stops at its writes instead of
     /// filling memory, reading again lets it finish, and closing the
     /// session ends one that is still waiting.
+    #[cfg(unix)]
     #[test]
     fn a_noisy_process_waits_for_its_screen_and_closing_ends_it() {
         let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -582,6 +603,7 @@ mod tests {
     }
     /// Sessions started together each run in their own folder at their own
     /// size, sharing nothing but the folder they were given.
+    #[cfg(unix)]
     #[test]
     fn sessions_started_together_run_in_their_folder_at_their_size() {
         let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -628,7 +650,10 @@ mod tests {
                     Event::Exit(_) => break,
                 }
             }
-            let lines: Vec<&str> = output.lines().map(str::trim).collect();
+            let lines: Vec<&str> = output
+                .lines()
+                .map(|l| l.trim().trim_start_matches("$ ").trim())
+                .collect();
             assert!(
                 lines.contains(&folder.to_string_lossy().as_ref()),
                 "{output}"
@@ -639,6 +664,7 @@ mod tests {
     /// `queues early input until the session connection is ready without
     /// retrying it`: what is typed while the session is still being
     /// prepared waits for its process, which reads it exactly once.
+    #[cfg(unix)]
     #[test]
     fn input_typed_before_the_process_starts_reaches_it_once() {
         let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -742,6 +768,7 @@ mod tests {
             "a late resolution started a command after its terminal closed"
         );
     }
+    #[cfg(unix)]
     #[test]
     fn verified_cli_arguments_and_environment_reach_the_real_pty_without_shell_interpolation() {
         let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -786,6 +813,7 @@ mod tests {
         assert!(output.contains(expected), "{output}");
         assert!(!dir.path().join("must-not-exist").exists());
     }
+    #[cfg(unix)]
     #[test]
     #[ignore = "real PTY integration; run explicitly on a desktop host"]
     fn real_pty_input_resize_and_cleanup() {

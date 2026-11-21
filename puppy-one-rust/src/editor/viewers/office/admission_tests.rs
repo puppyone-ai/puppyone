@@ -184,6 +184,7 @@ fn office_private_protocol_serves_exact_bytes_ranges_and_retires_all_resources_w
             );
         }
     }
+    drop(content);
     view.update(cx, |v, cx| v.set_dark(true, cx));
     view.read_with(cx, |v, _| {
         assert!(v.root.is_none() && v.frame.is_none() && v._served.is_none())

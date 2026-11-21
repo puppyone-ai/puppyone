@@ -99,23 +99,11 @@ impl Session {
         }
         let path = file(profile, &self.cwd, &self.id);
         let parent = path.parent().ok_or("The session folder is unavailable.")?;
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700));
-        }
+        crate::platform::fs::create_private_dir_all(parent).map_err(|e| e.to_string())?;
         let temp = parent.join(format!(".{}.tmp", uuid::Uuid::new_v4()));
         let written = (|| -> std::io::Result<()> {
             use std::io::Write;
-            let mut options = std::fs::OpenOptions::new();
-            options.write(true).create_new(true);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::OpenOptionsExt;
-                options.mode(0o600);
-            }
-            let mut handle = options.open(&temp)?;
+            let mut handle = crate::platform::fs::open_private_create_new(&temp)?;
             handle.write_all(&bytes)?;
             handle.sync_all()?;
             std::fs::rename(&temp, &path)

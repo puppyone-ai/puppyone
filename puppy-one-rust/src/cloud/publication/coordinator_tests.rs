@@ -297,7 +297,7 @@ struct Fixture {
     head: String,
 }
 fn run_git(root: &Path, args: &[&str]) -> Result<String, String> {
-    let out = std::process::Command::new("/usr/bin/git")
+    let out = std::process::Command::new(crate::platform::git::git_executable())
         .args(args)
         .current_dir(root)
         .output()
@@ -344,7 +344,12 @@ impl Fixture {
                 cli: Cli {
                     helper: Some(format!(
                         "store --file={}",
-                        self.server.root.path().join("credentials").display()
+                        self.server
+                            .root
+                            .path()
+                            .join("credentials")
+                            .to_string_lossy()
+                            .replace('\\', "/")
                     )),
                 },
                 world: self.world.clone(),

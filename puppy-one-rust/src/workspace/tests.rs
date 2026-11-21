@@ -31,6 +31,7 @@ fn identity_is_stable_but_open_grants_are_not_interchangeable() {
 /// `deduplicates a symlink alias of the same physical workspace`: a folder
 /// opened through a link is its physical folder, which is what the project
 /// list remembers.
+#[cfg(unix)]
 #[test]
 fn a_folder_opened_through_a_link_is_its_physical_folder() {
     let dir = tempfile::tempdir().unwrap();

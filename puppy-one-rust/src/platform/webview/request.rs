@@ -132,7 +132,17 @@ fn request_path(uri: &str, local: bool) -> Option<&str> {
     } else {
         super::SCHEME
     };
-    let rest = uri.strip_prefix(scheme)?.strip_prefix("://local")?;
+    // Accept both canonical `<scheme>://local/<path>` (WKWebView) and
+    // WebView2's synthetic `http://<scheme>.local/<path>`, strictly rejecting
+    // userinfo, port, query strings, or lookalike hosts.
+    let rest = uri
+        .strip_prefix(scheme)
+        .and_then(|s| s.strip_prefix("://local"))
+        .or_else(|| {
+            uri.strip_prefix("http://")
+                .and_then(|s| s.strip_prefix(scheme))
+                .and_then(|s| s.strip_prefix(".local"))
+        })?;
     // Exact authority, no user-info, port, query or lookalike host/scheme.
     // Fragments are viewer state, as in the Electron capability handler.
     let path = rest.split_once('#').map_or(rest, |(p, _)| p);
