@@ -1695,9 +1695,12 @@
         "test:the_same_cloud_target_joins_its_pending_opening",
         "test:a_new_lease_of_the_same_storage_rebinds_the_working_copy_and_keeps_saving",
         "test:a_rebind_holds_newer_remote_text_back_under_unsaved_input",
-        "test:a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host"
+        "test:a_project_that_keeps_losing_its_lease_reopens_once_then_offers_retry",
+        "test:a_replaced_workspace_reopens_quietly_and_keeps_its_document",
+        "test:a_file_asked_for_while_reconnecting_opens_once_the_project_is_back",
+        "test:a_change_subscription_that_ends_says_nothing_and_subscribes_again"
       ],
-      "remaining": "The hosted shell reuses the native Explorer, editor and viewers; authority changes revoke the selection, reopening rebinds retained Working Copies, and a failed subscription shows the workspace notice with Retry. Cloud preview resources (Office/database temp files, HTML data-URL projection), Scope targets and real-backend acceptance remain; the floating notices are not pixel-compared."
+      "remaining": "The hosted shell reuses the native Explorer, editor and viewers; authority changes revoke the selection, reopening rebinds retained Working Copies, transient subscription drops resubscribe silently, and an ended lease quietly reopens once out of sight before showing the workspace notice with Retry if it keeps losing its lease. Cloud preview resources (Office/database temp files, HTML data-URL projection), Scope targets and real-backend acceptance remain; the floating notices are not pixel-compared."
     },
     {
       "name": "Cloud first publication",

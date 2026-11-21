@@ -754,44 +754,45 @@ impl WebHost {
     /// Creates a standalone WebView hidden (e.g. `render_service`, inline embeds);
     /// it shows once its element paints and is not part of `WebFrame`'s LRU pool.
     pub fn new(window: &gpui::Window, content: Content, dark: bool) -> Result<Self, String> {
-        Self::new_child(window, window_key(window), content, dark)
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        {
+            Self::new_child(window, window_key(window), content, dark)
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        {
+            let _ = (window, content, dark);
+            Err("Web content is not available on this platform yet.".into())
+        }
     }
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     fn new_child(
-        window: &gpui::Window,
+        window: &impl wry::raw_window_handle::HasWindowHandle,
         key: u64,
         content: Content,
         dark: bool,
     ) -> Result<Self, String> {
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        {
-            let _ = (window, key, content, dark);
-            Err("Web content is not available on this platform yet.".into())
-        }
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        {
-            let engine = HostEngine::Native(Box::new(build_native_webview(window, content, dark)?));
-            let state = Rc::new(HostState {
-                window: key,
-                painted: Cell::new(false),
-                engine,
-                visible: Cell::new(false),
-                bounds: Cell::new((0., 0., 0., 0.)),
-                cutouts: RefCell::new(Cut::default()),
-                #[cfg(target_os = "macos")]
-                clip: RefCell::new(None),
-                #[cfg(target_os = "macos")]
-                shown: Cell::new((0., 0., 0., 0.)),
-            });
-            HOSTS.with(|h| h.borrow_mut().push(Rc::downgrade(&state)));
-            let slot = Rc::new(HostSlot {
-                window: key,
-                pinned: Cell::new(true),
-                last_used: Cell::new(next_use_tick()),
-                rendered_frame: Cell::new(current_window_seq(key)),
-                state: RefCell::new(Some(state)),
-            });
-            Ok(Self { slot })
-        }
+        let engine = HostEngine::Native(Box::new(build_native_webview(window, content, dark)?));
+        let state = Rc::new(HostState {
+            window: key,
+            painted: Cell::new(false),
+            engine,
+            visible: Cell::new(false),
+            bounds: Cell::new((0., 0., 0., 0.)),
+            cutouts: RefCell::new(Cut::default()),
+            #[cfg(target_os = "macos")]
+            clip: RefCell::new(None),
+            #[cfg(target_os = "macos")]
+            shown: Cell::new((0., 0., 0., 0.)),
+        });
+        HOSTS.with(|h| h.borrow_mut().push(Rc::downgrade(&state)));
+        let slot = Rc::new(HostSlot {
+            window: key,
+            pinned: Cell::new(true),
+            last_used: Cell::new(next_use_tick()),
+            rendered_frame: Cell::new(current_window_seq(key)),
+            state: RefCell::new(Some(state)),
+        });
+        Ok(Self { slot })
     }
 
     /// Creates a `WebFrame`-managed WebView subject to the per-window LRU cap

@@ -60,11 +60,12 @@ jobs:
           python3 -B -m unittest discover -s tools -p 'test_*.py'
           node tools/reference-test-parity.mjs --check
       - name: Collect exact cases from the pinned TS product
+        id: collect
         run: node tools/collect-test-cases.mjs
       - name: Verify production coverage and actual native dependencies
         run: python3 -B tools/verify-coverage.py
       - name: Verify reviewed TS acceptance criteria
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.collect.outcome == 'success' }}
         run: python3 -B tools/verify-test-parity.py
       - name: Check all production and test targets
         if: ${{ !cancelled() }}
