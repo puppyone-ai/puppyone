@@ -580,6 +580,135 @@ fn a_turn_on_another_connection_continues_the_same_session_with_its_history() {
     });
 }
 
+/// Live: two connections to a local OpenAI-compatible server
+/// (`PUPPYONE_LIVE_LOCAL_ENDPOINT`, `PUPPYONE_LIVE_LOCAL_MODEL`) through the
+/// real model client; the second connection answers from the first's
+/// history and the first answers again after it.
+#[test]
+#[ignore = "needs a local model server; set PUPPYONE_LIVE_LOCAL_ENDPOINT and PUPPYONE_LIVE_LOCAL_MODEL"]
+fn live_local_connections_continue_one_conversation() {
+    let endpoint = std::env::var("PUPPYONE_LIVE_LOCAL_ENDPOINT").expect("endpoint");
+    let model = std::env::var("PUPPYONE_LIVE_LOCAL_MODEL").expect("model");
+    let (workspace, data) = directories();
+    let project = root(&workspace);
+    std::fs::write(project.join("notes.txt"), "hello").unwrap();
+    let local = |id: &str, name: &str| ModelConnection {
+        id: id.into(),
+        name: name.into(),
+        endpoint: endpoint.clone(),
+        model: model.clone(),
+        generation: "live".into(),
+        ..Default::default()
+    };
+    let connections = vec![local(CONNECTION, "Local A"), local(OTHER, "Local B")];
+    let listed = connections.clone();
+    let port: Rc<dyn ModelConnectionPort> =
+        Rc::new(NativeModelConnectionPort::new(Rc::new(move || {
+            let listed = listed.clone();
+            Box::pin(async move { Ok(listed) })
+        })));
+    let sent: Rc<RefCell<Vec<(Value, Vec<Value>)>>> = Rc::default();
+    let record = sent.clone();
+    let complete: Complete = Rc::new(move |request: CompleteRequest| {
+        record.borrow_mut().push((
+            request.configuration["connectionId"].clone(),
+            request.context.clone(),
+        ));
+        let connection = super::super::native_model_connections::resolve_leased_connection(
+            &request.configuration,
+            &request.model_id,
+            &connections,
+        );
+        Box::pin(async move {
+            let connection = connection.map_err(|error| error.message)?;
+            let delta = request.delta.clone();
+            super::super::model_client::complete(
+                &connection,
+                &crate::agent::model_connections::NoComputeAccount,
+                &request.context,
+                request.tools,
+                |kind, text| delta(kind, text),
+            )
+            .await
+        })
+    });
+    run_local(async move {
+        let first = format!("{}/{model}", product_connection_id(CONNECTION));
+        let second = format!("{}/{model}", product_connection_id(OTHER));
+        let (adapter, events) = adapter_on(&project, data.path(), complete, port, Rc::default());
+        let session = adapter
+            .create_session(json!({ "model": first }))
+            .await
+            .unwrap();
+        let prompts = [
+            (
+                &first,
+                "Remember the code word PELICAN-42. Reply only with OK.",
+            ),
+            (
+                &second,
+                "What is the code word I gave you? Reply with just the word.",
+            ),
+            (
+                &second,
+                "Use the ls tool once to list this project, then name its files.",
+            ),
+            (
+                &first,
+                "Without tools: which file did you find, and what is the code word?",
+            ),
+        ];
+        for (index, (route, prompt)) in prompts.iter().enumerate() {
+            adapter
+                .start_turn(json!({ "prompt": prompt, "model": route }))
+                .await
+                .unwrap();
+            for _ in 0..36_000 {
+                let settled = events
+                    .borrow()
+                    .iter()
+                    .filter(|e| {
+                        matches!(e["type"].as_str(), Some("turn.completed" | "turn.failed"))
+                    })
+                    .count();
+                if settled > index {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        }
+        let answers: Vec<String> = events
+            .borrow()
+            .iter()
+            .filter(|e| e["type"] == "assistant.completed")
+            .filter_map(|e| e["payload"]["text"].as_str().map(str::to_string))
+            .collect();
+        let failures: Vec<Value> = events
+            .borrow()
+            .iter()
+            .filter(|e| e["type"] == "turn.failed")
+            .cloned()
+            .collect();
+        eprintln!("answers: {answers:#?}");
+        assert!(failures.is_empty(), "{failures:#?}");
+        let sent = sent.borrow();
+        let local = Value::from(product_connection_id(CONNECTION));
+        let other = Value::from(product_connection_id(OTHER));
+        assert_eq!(sent.first().unwrap().0, local);
+        assert!(sent.iter().any(|(connection, _)| *connection == other));
+        assert_eq!(sent.last().unwrap().0, local);
+        let joined = answers.join("\n");
+        assert!(joined.contains("PELICAN-42"), "{joined}");
+        assert!(answers.last().unwrap().contains("notes.txt"), "{joined}");
+        let history = adapter.read_history_result().await.unwrap();
+        assert!(history["events"].as_array().unwrap().iter().all(|e| {
+            e["providerSessionId"].is_null()
+                || e["providerSessionId"] == session["providerSessionId"]
+        }));
+        adapter.dispose().await.unwrap();
+    });
+}
+
 #[test]
 fn the_catalog_groups_compute_models_and_a_changed_connection_revokes_its_lease() {
     let compute = |model: &str| ModelConnection {
