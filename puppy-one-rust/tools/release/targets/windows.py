@@ -241,15 +241,21 @@ def package(args):
         out_installer=installer,
     )
     artifacts = []
+    feed_artifacts = []
     makensis = shutil.which('makensis')
     if makensis:
         subprocess.run([makensis, '/V2', str(nsi_script)], check=True)
         if signing['release']:
             sign_binary(installer, signing['signing'])
         artifacts.append(installer)
+        feed_artifacts.append(installer)
     artifacts.append(portable)
 
-    metadata = feed.write(out, args.channel, release['version'], artifacts, released=release['builtAt'], target_os=TARGET_OS)
-    feed.parse(metadata.read_text(encoding='utf-8'), target_os=TARGET_OS)
-    for artifact in (*artifacts, metadata):
-        print(f'Packaged {artifact}')
+    if feed_artifacts:
+        metadata = feed.write(out, args.channel, release['version'], feed_artifacts, released=release['builtAt'], target_os=TARGET_OS)
+        feed.parse(metadata.read_text(encoding='utf-8'), target_os=TARGET_OS)
+        for artifact in (*artifacts, metadata):
+            print(f'Packaged {artifact}')
+    else:
+        for artifact in artifacts:
+            print(f'Packaged {artifact} (makensis unavailable; skipped Windows update feed)')

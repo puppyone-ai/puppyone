@@ -125,6 +125,8 @@ def build_environment(release, feed=None, target_os='mac'):
     }
     if os_key == 'mac':
         stamps['MACOSX_DEPLOYMENT_TARGET'] = MINIMUM_SYSTEM_VERSION
+    if os_key == 'linux' and release['channel'] != 'dev':
+        stamps['PUPPYONE_LINUX_RELEASE_MARKER'] = f'release:{release["channel"]}:{release["version"]}'
     effective_feed = platform_feed(release['channel'], os_key) if feed is None else feed
     if effective_feed and release['channel'] != 'dev':
         stamps['PUPPYONE_UPDATE_FEED_URL'] = update_feed(effective_feed)

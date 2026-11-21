@@ -21,7 +21,7 @@ TARGET_ALIASES = {
 }
 PAYLOAD_RULES = {
     'mac': (re.compile(r'\.zip(?:$|[?#])', re.I), 'macOS updater metadata must include a ZIP payload'),
-    'win': (re.compile(r'\.(?:exe|zip)(?:$|[?#])', re.I), 'Windows updater metadata must include an EXE or ZIP payload'),
+    'win': (re.compile(r'\.exe(?:$|[?#])', re.I), 'Windows updater metadata must include an EXE installer payload'),
     'linux': (re.compile(r'\.(?:appimage|deb|zip)(?:$|[?#])', re.I), 'Linux updater metadata must include an AppImage, DEB, or ZIP payload'),
 }
 

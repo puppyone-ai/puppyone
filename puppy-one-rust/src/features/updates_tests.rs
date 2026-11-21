@@ -47,9 +47,9 @@ fn feed_path(channel: &str) -> String {
 
 fn feed_for(version: &str, archive: &[u8]) -> Vec<u8> {
     let digest = base64::engine::general_purpose::STANDARD.encode(sha2::Sha512::digest(archive));
-    let arch = build_identity::node_architecture();
+    let name = archive_name(version);
     format!(
-        "version: {version}\nfiles:\n  - url: puppyone-gpui-{version}-{arch}.zip\n    sha512: {digest}\n    size: {}\npath: puppyone-gpui-{version}-{arch}.zip\nsha512: {digest}\nreleaseDate: '2026-11-15T00:00:00.000Z'\n",
+        "version: {version}\nfiles:\n  - url: {name}\n    sha512: {digest}\n    size: {}\npath: {name}\nsha512: {digest}\nreleaseDate: '2026-11-15T00:00:00.000Z'\n",
         archive.len()
     )
     .into_bytes()
@@ -500,10 +500,14 @@ fn cancelled_restarts_keep_the_prepared_app_and_ordinary_quit_installs_without_r
 }
 
 fn archive_name(version: &str) -> String {
-    format!(
-        "puppyone-gpui-{version}-{}.zip",
-        build_identity::node_architecture()
-    )
+    let arch = build_identity::node_architecture();
+    match crate::platform::os::Os::current() {
+        crate::platform::os::Os::Windows => format!("puppyone-{version}-win-{arch}-setup.exe"),
+        crate::platform::os::Os::Linux | crate::platform::os::Os::Other => {
+            format!("puppyone-{version}-linux-{arch}.AppImage")
+        }
+        crate::platform::os::Os::Macos => format!("puppyone-gpui-{version}-{arch}.zip"),
+    }
 }
 
 #[gpui::test]

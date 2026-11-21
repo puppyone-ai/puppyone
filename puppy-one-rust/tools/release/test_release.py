@@ -243,6 +243,9 @@ class CrossPlatformFeedAndIdentityTest(unittest.TestCase):
         linux_env = identity.build_environment(release, target_os='linux')
         self.assertNotIn('MACOSX_DEPLOYMENT_TARGET', linux_env)
         self.assertEqual(linux_env['PUPPYONE_UPDATE_FEED_URL'], 'https://updates.puppyone.ai/desktop/stable/linux/latest')
+        self.assertEqual(linux_env['PUPPYONE_LINUX_RELEASE_MARKER'], 'release:stable:0.4.5')
+        dev_release = identity.release_identity('0.4.5', 'dev', COMMIT, built_at='2026-11-20T00:00:00.000Z')
+        self.assertNotIn('PUPPYONE_LINUX_RELEASE_MARKER', identity.build_environment(dev_release, target_os='linux'))
 
     def test_windows_and_linux_feeds_roundtrip_and_validate_payloads(self):
         with tempfile.TemporaryDirectory() as out:
@@ -254,7 +257,9 @@ class CrossPlatformFeedAndIdentityTest(unittest.TestCase):
             self.assertEqual(win_meta_path.name, 'stable-win.yml')
             win_meta = feed.parse(win_meta_path.read_text(encoding='utf-8'), target_os='win')
             self.assertEqual(win_meta['path'], installer.name)
-            with self.assertRaisesRegex(ValueError, 'EXE or ZIP'):
+            with self.assertRaisesRegex(ValueError, 'EXE installer payload'):
+                feed.parse(win_meta_path.read_text(encoding='utf-8').replace('.exe', '.zip'), target_os='win')
+            with self.assertRaisesRegex(ValueError, 'EXE installer payload'):
                 feed.parse(win_meta_path.read_text(encoding='utf-8').replace('.exe', '.dmg'), target_os='win')
 
             appimage = Path(out) / 'puppyone-0.4.5-linux-x64.AppImage'

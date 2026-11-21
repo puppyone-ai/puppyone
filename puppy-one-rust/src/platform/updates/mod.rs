@@ -162,18 +162,38 @@ pub fn disabled_reason(
     if !packaged && !config.force_dev {
         return Some("Auto updates are disabled outside a packaged release build.".into());
     }
-    if cfg!(target_os = "macos") && !config.force_dev {
+    if !config.force_dev {
         let reason = match signature() {
             Signature::Release => None,
-            Signature::AdHoc => Some("Auto updates are disabled because this macOS build is ad-hoc signed.".into()),
-            Signature::Unsigned => Some("Auto updates are disabled because this macOS build is not code signed.".into()),
-            Signature::OtherCertificate => Some(
+            Signature::AdHoc => Some(if cfg!(target_os = "macos") {
+                "Auto updates are disabled because this macOS build is ad-hoc signed.".into()
+            } else {
+                "Auto updates are disabled because this build is ad-hoc signed.".into()
+            }),
+            Signature::Unsigned => Some(if cfg!(target_os = "macos") {
+                "Auto updates are disabled because this macOS build is not code signed.".into()
+            } else if cfg!(target_os = "linux") {
+                "Auto updates are disabled because this Linux build is not a signed release build."
+                    .into()
+            } else {
+                "Auto updates are disabled because this Windows build is not code signed.".into()
+            }),
+            Signature::OtherCertificate => Some(if cfg!(target_os = "macos") {
                 "Auto updates are disabled because this macOS build is not signed with a release certificate."
-                    .into(),
-            ),
-            Signature::Unreadable(error) => Some(format!(
-                "Auto updates are disabled because the macOS code signature could not be inspected: {error}"
-            )),
+                    .into()
+            } else {
+                "Auto updates are disabled because this build is not signed with a trusted release certificate."
+                    .into()
+            }),
+            Signature::Unreadable(error) => Some(if cfg!(target_os = "macos") {
+                format!(
+                    "Auto updates are disabled because the macOS code signature could not be inspected: {error}"
+                )
+            } else {
+                format!(
+                    "Auto updates are disabled because the build signature could not be verified: {error}"
+                )
+            }),
         };
         if reason.is_some() {
             return reason;
@@ -274,6 +294,21 @@ pub fn check(config: &Configuration) -> Result<Candidate, String> {
     })
 }
 
+fn payload_temp_suffix(url: &url::Url) -> &'static str {
+    let lower = url.path().to_ascii_lowercase();
+    if lower.ends_with(".exe") {
+        ".exe"
+    } else if lower.ends_with(".appimage") {
+        ".AppImage"
+    } else if lower.ends_with(".deb") {
+        ".deb"
+    } else if lower.ends_with(".zip") {
+        ".zip"
+    } else {
+        ".bin"
+    }
+}
+
 /// Downloads the candidate's archive into `directory`, checking its size
 /// and SHA-512 as it arrives; `progress` sees every chunk. The returned
 /// owner removes this archive when preparation finishes or is abandoned.
@@ -298,7 +333,7 @@ pub fn download(
     std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     let mut file = tempfile::Builder::new()
         .prefix("update-")
-        .suffix(".zip")
+        .suffix(payload_temp_suffix(&candidate.url))
         .tempfile_in(directory)
         .map_err(|e| e.to_string())?;
     let mut hasher = sha2::Sha512::new();
