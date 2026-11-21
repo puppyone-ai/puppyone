@@ -26,7 +26,7 @@ thread_local! {
     static HOLES: RefCell<HashMap<usize, Vec<[f32; 4]>>> = RefCell::new(Default::default());
 }
 
-pub(super) struct BackendHost {
+pub(in crate::web_host) struct BackendHost {
     pub(super) view: wry::WebView,
     resources: PreparedContent,
     pub(super) protocol: macos_stream::Owner,

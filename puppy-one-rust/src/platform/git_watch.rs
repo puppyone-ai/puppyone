@@ -61,7 +61,7 @@ fn identity(root: &Path) -> Result<Identity, String> {
     }
     Ok(result)
 }
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn directories(root: &Path) -> Result<(PathBuf, PathBuf), String> {
     identity(root).map(|i| (i.git_dir, i.common_dir))
 }

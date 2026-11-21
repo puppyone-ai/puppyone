@@ -100,17 +100,17 @@ fn surface(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> HtmlS
             actions.push(super::web::WebFallbackAction::open_local_in_browser(path));
         }
         let mode_src = mode.clone();
-        let split_src = split.clone();
-        let interact_src = interact.clone();
-        let source_src = source.clone();
+        let split_weak = split.as_ref().map(|s| s.downgrade());
+        let source_weak = Rc::downgrade(&source);
         actions.push(super::web::WebFallbackAction::view_source(
             move |window, cx| {
                 mode_src.set(Mode::Source);
-                if let Some(split) = &split_src {
+                if let Some(split) = split_weak.as_ref().and_then(|s| s.upgrade()) {
                     split.update(cx, |_, cx| cx.notify());
                 }
-                interact_src.redraw(cx);
-                if let Some(focus) = source_src.focus_handle(cx) {
+                if let Some(source) = source_weak.upgrade()
+                    && let Some(focus) = source.focus_handle(cx)
+                {
                     focus.focus(window, cx);
                 }
                 window.refresh();

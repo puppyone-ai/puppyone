@@ -31,7 +31,7 @@ const TREES: [&str; 4] = ["refs", "rebase-merge", "rebase-apply", "sequencer"];
 /// file contents, object database, logs or work tree. A directory counts by
 /// its identity and its (bounded, sorted) children; a file by identity,
 /// mode, size and times. `None` when it exceeds its budget.
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(super) fn snapshot(top_level: &Path, git_dir: &Path, common: &Path) -> Option<String> {
     snapshot_with(
         top_level,

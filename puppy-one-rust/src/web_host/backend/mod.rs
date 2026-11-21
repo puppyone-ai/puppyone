@@ -111,11 +111,6 @@ impl NativeBackend {
     ) {
         self.0.capture_png(crop, viewport, done);
     }
-
-    #[cfg(all(target_os = "macos", feature = "dev-capture"))]
-    pub(crate) fn macos_host(&self) -> &macos::BackendHost {
-        &self.0
-    }
 }
 
 #[cfg(all(target_os = "macos", feature = "dev-capture"))]
