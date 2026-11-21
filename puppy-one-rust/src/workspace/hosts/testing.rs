@@ -46,6 +46,21 @@ impl super::exec::Execution for Plain {
         _: &std::path::Path,
         run: &super::exec::Run,
     ) -> Result<super::exec::Prepared, &'static str> {
+        if crate::platform::os::Os::current() == crate::platform::os::Os::Windows {
+            let args = match run {
+                super::exec::Run::Command(command) => vec!["/C".into(), command.clone()],
+                super::exec::Run::Shell => Vec::new(),
+                super::exec::Run::Agent(_) => return Err("launcher_unavailable"),
+            };
+            let program = std::env::var_os("COMSPEC")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows\System32\cmd.exe"));
+            let env = ["SystemRoot", "COMSPEC", "PATH", "TEMP", "TMP"]
+                .into_iter()
+                .filter_map(|key| std::env::var(key).ok().map(|v| (key.to_owned(), v)))
+                .collect();
+            return Ok(super::exec::Prepared { program, args, env });
+        }
         let args = match run {
             super::exec::Run::Command(command) => vec!["-c".into(), command.clone()],
             super::exec::Run::Shell => Vec::new(),

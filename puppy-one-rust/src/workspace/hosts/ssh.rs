@@ -921,7 +921,9 @@ mod tests {
     }
 
     /// Runs without a sandbox, for the bridge alone.
+    #[cfg(unix)]
     struct Plain;
+    #[cfg(unix)]
     impl super::super::exec::Execution for Plain {
         fn prepare(
             &self,
@@ -940,6 +942,7 @@ mod tests {
             })
         }
     }
+    #[cfg(unix)]
     async fn collect(mut channel: Channel<russh::client::Msg>) -> (String, String, Option<u32>) {
         let (mut out, mut err, mut status) = (Vec::new(), Vec::new(), None);
         while let Some(message) = channel.wait().await {
@@ -1163,6 +1166,7 @@ mod tests {
 
     /// A command and a terminal run in the folder over the session: output,
     /// errors and the exit status come back; an unknown launcher is told why.
+    #[cfg(unix)]
     #[tokio::test]
     async fn commands_and_terminals_run_in_the_folder() {
         let temp = tempfile::tempdir().unwrap();
