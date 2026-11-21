@@ -1433,9 +1433,17 @@ mod tests {
         // A local server asks once per manifest and runs in its own group.
         std::fs::write(
             root.join("server.puppyoneapp"),
-            r#"{"type":"puppyone.app","version":1,"launch":{"kind":"local-server",
-                "command":["python3","-m","http.server","${port}","--bind","127.0.0.1"],"cwd":"site",
-                "url":"http://127.0.0.1:${port}/"}}"#,
+            serde_json::json!({
+                "type": "puppyone.app",
+                "version": 1,
+                "launch": {
+                    "kind": "local-server",
+                    "command": ["python3", "-c", LOOPBACK_HTTP_SERVER, "${port}"],
+                    "cwd": "site",
+                    "url": "http://127.0.0.1:${port}/"
+                }
+            })
+            .to_string(),
         )
         .unwrap();
         let asked = Arc::new(AtomicU64::new(0));
@@ -1504,12 +1512,30 @@ mod tests {
             && get(url.as_str()).0 == 200
     }
 
+    // Run Python's stdlib `http.server` on loopback without `HTTPServer.server_bind`'s
+    // `socket.getfqdn("127.0.0.1")` reverse-DNS call, which can stall >15s on macOS CI.
+    const LOOPBACK_HTTP_SERVER: &str = "\
+import http.server, socketserver, sys
+class S(http.server.ThreadingHTTPServer):
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = '127.0.0.1', self.server_address[1]
+S(('127.0.0.1', int(sys.argv[1])), http.server.SimpleHTTPRequestHandler).serve_forever()
+";
+
     fn local_server(name: &str) -> String {
-        format!(
-            r#"{{"type":"puppyone.app","version":1,"name":"{name}","launch":{{"kind":"local-server",
-                "command":["python3","-m","http.server","${{port}}","--bind","127.0.0.1"],"cwd":"site",
-                "url":"http://127.0.0.1:${{port}}/"}}}}"#
-        )
+        serde_json::json!({
+            "type": "puppyone.app",
+            "version": 1,
+            "name": name,
+            "launch": {
+                "kind": "local-server",
+                "command": ["python3", "-c", LOOPBACK_HTTP_SERVER, "${port}"],
+                "cwd": "site",
+                "url": "http://127.0.0.1:${port}/"
+            }
+        })
+        .to_string()
     }
 
     #[test]

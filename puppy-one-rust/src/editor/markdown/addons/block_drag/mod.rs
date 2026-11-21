@@ -529,6 +529,7 @@ mod tests {
         assert!(addon.begin_drag_for_tests(&state.doc, state.revision, 0, 2));
         assert!(addon.on_blur(&state));
         assert!(!addon.is_dragging());
+        block_move::set_enabled(false);
     }
 
     #[test]

@@ -42,6 +42,7 @@ jobs:
           rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools-preview
           rustup override set 1.97.1
           npm ci --prefix ../../puppyone-qubits
+          npm ci --prefix ../../puppyone-baseline-5e87974ef
           cargo fetch --locked
           cargo fetch --locked --manifest-path tools/source-index/Cargo.toml
           cargo install cargo-llvm-cov --version 0.9.1 --locked
@@ -51,6 +52,7 @@ jobs:
       - name: Install the pinned native engines
         run: |
           python3 tools/fetch-pdfium.py
+          python3 tools/release/package-excalidraw-pack.py
       - name: Check source and oracle contracts
         run: |
           cargo fmt --all --check
@@ -60,11 +62,12 @@ jobs:
           python3 -B -m unittest discover -s tools -p 'test_*.py'
           node tools/reference-test-parity.mjs --check
       - name: Collect exact cases from the pinned TS product
+        id: collect
         run: node tools/collect-test-cases.mjs
       - name: Verify production coverage and actual native dependencies
         run: python3 -B tools/verify-coverage.py
       - name: Verify reviewed TS acceptance criteria
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.collect.outcome == 'success' }}
         run: python3 -B tools/verify-test-parity.py
       - name: Check all production and test targets
         if: ${{ !cancelled() }}
