@@ -62,8 +62,13 @@ fn semantic(version: &str) -> bool {
                     .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')))
 }
 
-/// `parseDesktopUpdaterMetadata` (macOS): every problem is reported.
+/// `parseDesktopUpdaterMetadata` (macOS default): every problem is reported.
 pub fn parse(source: &str) -> Result<Metadata, Vec<String>> {
+    parse_for_os(source, crate::platform::os::Os::Macos)
+}
+
+/// Parses updater feed YAML for `os` (`<channel>-mac.yml`, `-win.yml`, `-linux.yml`).
+pub fn parse_for_os(source: &str, os: crate::platform::os::Os) -> Result<Metadata, Vec<String>> {
     if source.trim().is_empty() {
         return Err(vec!["Desktop updater metadata is empty.".into()]);
     }
@@ -142,8 +147,18 @@ pub fn parse(source: &str) -> Result<Metadata, Vec<String>> {
             None => errors.push(format!("{label} must declare a positive byte size")),
         }
     }
-    if !files.iter().any(|(url, ..)| zip_url(url)) {
-        errors.push("macOS updater metadata must include a ZIP payload".to_owned());
+    if !files.iter().any(|(url, ..)| payload_matches_os(url, os)) {
+        errors.push(match os {
+            crate::platform::os::Os::Macos => {
+                "macOS updater metadata must include a ZIP payload".to_owned()
+            }
+            crate::platform::os::Os::Windows => {
+                "Windows updater metadata must include an EXE or ZIP payload".to_owned()
+            }
+            crate::platform::os::Os::Linux | crate::platform::os::Os::Other => {
+                "Linux updater metadata must include an AppImage, DEB, or ZIP payload".to_owned()
+            }
+        });
     }
     let path = path.unwrap_or_default();
     let sha512 = sha512.unwrap_or_default();
@@ -177,20 +192,55 @@ pub fn parse(source: &str) -> Result<Metadata, Vec<String>> {
     })
 }
 
-fn zip_url(url: &str) -> bool {
+fn url_has_ext(url: &str, ext: &str) -> bool {
     let end = url.find(['?', '#']).unwrap_or(url.len());
-    url[..end].to_ascii_lowercase().ends_with(".zip")
+    url[..end].to_ascii_lowercase().ends_with(ext)
 }
 
-/// The archive for this processor: a ZIP named for it (`-arm64.zip`,
+fn payload_matches_os(url: &str, os: crate::platform::os::Os) -> bool {
+    match os {
+        crate::platform::os::Os::Macos => url_has_ext(url, ".zip"),
+        crate::platform::os::Os::Windows => url_has_ext(url, ".exe") || url_has_ext(url, ".zip"),
+        crate::platform::os::Os::Linux | crate::platform::os::Os::Other => {
+            url_has_ext(url, ".appimage") || url_has_ext(url, ".deb") || url_has_ext(url, ".zip")
+        }
+    }
+}
+
+/// The archive for this processor on macOS: a ZIP named for it (`-arm64.zip`,
 /// `-x64.zip`), else the one ZIP when there is only one.
 pub fn payload<'a>(metadata: &'a Metadata, arch: &str) -> Option<&'a File> {
-    let zips: Vec<&File> = metadata.files.iter().filter(|f| zip_url(&f.url)).collect();
-    let suffix = format!("-{arch}.zip");
-    zips.iter()
-        .find(|f| f.url.to_ascii_lowercase().ends_with(&suffix))
-        .copied()
-        .or_else(|| (zips.len() == 1).then(|| zips[0]))
+    payload_for_os(metadata, arch, crate::platform::os::Os::Macos)
+}
+
+/// Selects the update payload for `(arch, os)`.
+pub fn payload_for_os<'a>(
+    metadata: &'a Metadata,
+    arch: &str,
+    os: crate::platform::os::Os,
+) -> Option<&'a File> {
+    let eligible: Vec<&File> = metadata
+        .files
+        .iter()
+        .filter(|f| payload_matches_os(&f.url, os))
+        .collect();
+    let preferred_exts: &[&str] = match os {
+        crate::platform::os::Os::Macos => &[".zip"],
+        crate::platform::os::Os::Windows => &[".exe", ".zip"],
+        crate::platform::os::Os::Linux | crate::platform::os::Os::Other => {
+            &[".appimage", ".deb", ".zip"]
+        }
+    };
+    for ext in preferred_exts {
+        let suffix = format!("-{arch}{ext}");
+        if let Some(found) = eligible
+            .iter()
+            .find(|f| f.url.to_ascii_lowercase().ends_with(&suffix))
+        {
+            return Some(found);
+        }
+    }
+    (eligible.len() == 1).then(|| eligible[0])
 }
 
 /// `resolveFeedPayloadUrl`: relative to the feed, never leaving its origin

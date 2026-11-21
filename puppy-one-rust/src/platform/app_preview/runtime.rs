@@ -880,6 +880,7 @@ fn terminate(session: &Shared, reason: &str) {
     s.exited = true;
     s.pid = None;
 }
+#[cfg_attr(not(unix), allow(dead_code))]
 fn wait_exit(session: &Shared, timeout: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {

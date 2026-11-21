@@ -64,7 +64,9 @@ pub struct Terminal {
     tx: SyncSender<Request>,
     pub events: Receiver<Event>,
     stop: Arc<AtomicBool>,
+    #[cfg_attr(not(unix), allow(dead_code))]
     pid: Arc<AtomicI32>,
+    #[cfg_attr(not(unix), allow(dead_code))]
     foreground: Arc<AtomicI32>,
 }
 impl Terminal {

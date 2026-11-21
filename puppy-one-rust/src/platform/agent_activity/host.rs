@@ -21,6 +21,7 @@ use std::{
 pub type Event = (String, PublicEvent);
 pub struct Host {
     registration: Registration,
+    #[cfg_attr(not(unix), allow(dead_code))]
     runtime_dir: PathBuf,
     auth: Arc<Mutex<Auth>>,
     service: Arc<Mutex<Service>>,
@@ -214,6 +215,7 @@ fn handle(service: &Mutex<Service>, envelope: Envelope) -> bool {
     service.lock().unwrap().ingest(event, targets)
 }
 /// The two-minute lease, checked every second while the service lives.
+#[cfg_attr(not(unix), allow(dead_code))]
 fn expire_leases(service: Weak<Mutex<Service>>) {
     let _ = std::thread::Builder::new()
         .name("agent-activity-leases".into())

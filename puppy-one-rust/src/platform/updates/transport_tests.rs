@@ -18,10 +18,15 @@ struct Feed {
 
 impl Feed {
     fn new(response: Vec<u8>, hold_open: bool) -> Self {
-        Self::at("/feed/dev-mac.yml", response, hold_open)
+        let path = format!(
+            "/feed/{}",
+            platform_feed_filename("dev", crate::platform::os::Os::current())
+        );
+        Self::at(path, response, hold_open)
     }
 
-    fn at(path: &'static str, response: Vec<u8>, hold_open: bool) -> Self {
+    fn at(path: impl Into<String>, response: Vec<u8>, hold_open: bool) -> Self {
+        let path = path.into();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let address = listener.local_addr().unwrap();

@@ -19,8 +19,7 @@ pub struct Updates {
     state: UpdateState,
     config: Configuration,
     candidate: Option<Candidate>,
-    #[cfg(target_os = "macos")]
-    prepared: Option<updates::prepared::PreparedUpdate>,
+    installer: Option<updates::installer::UpdateInstaller>,
     /// `runExclusive`: one operation at a time.
     busy: bool,
     /// Callers waiting for the operation in flight (the menu's check).
@@ -63,47 +62,14 @@ pub fn init(quit: fn(&mut App), cx: &mut App) {
     let config = updates::configuration(&identity, |k| std::env::var(k).ok());
     let data = crate::platform::data_dir();
     let automatic = updates::read_automatic_download(&data);
-    let exe = std::env::current_exe().ok();
-    #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
-    let app_bundle = exe
-        .as_ref()
-        .and_then(|e| e.ancestors().nth(3))
-        .map(std::path::Path::to_path_buf);
-    let mut reason = updates::disabled_reason(&config, identity.packaged, || {
-        #[cfg(target_os = "macos")]
-        if let Some(app) = &app_bundle {
-            return updates::signature(app);
-        }
-        updates::Signature::Unsigned
-    });
-    #[cfg(target_os = "macos")]
-    let prepared = match (&reason, &app_bundle) {
-        (None, Some(app)) => {
-            match updates::prepared::PreparedUpdate::new(
-                app.clone(),
-                updates::cache_path("prepared-update"),
-            ) {
-                Ok(prepared) => Some(prepared),
-                Err(why) => {
-                    reason = Some(format!("Auto updates are unavailable here: {why}"));
-                    None
-                }
-            }
-        }
-        _ => None,
-    };
-    #[cfg(not(target_os = "macos"))]
-    if reason.is_none() {
-        reason = Some("Auto updates are available on macOS only.".into());
-    }
+    let (installer, reason) = updates::installer::UpdateInstaller::open(&config, identity.packaged);
     let state = UpdateState::new(identity.channel, identity.version, reason, automatic);
     let entity = cx.new(|cx| {
         let mut service = Updates {
             state,
             config,
             candidate: None,
-            #[cfg(target_os = "macos")]
-            prepared,
+            installer,
             busy: false,
             waiting: Vec::new(),
             restart_requested: false,
@@ -381,39 +347,31 @@ impl Updates {
             );
             return;
         };
-        #[cfg(target_os = "macos")]
-        {
-            let Some(mut prepared) = self.prepared.take() else {
-                self.preparation_finished(
-                    Err("This installation cannot be updated in place.".into()),
-                    cx,
-                );
-                return;
-            };
-            let task = cx.background_executor().spawn(async move {
-                let result = prepared.prepare(&archive, &version);
-                drop(archive);
-                (prepared, result)
+        let Some(mut installer) = self.installer.take() else {
+            self.preparation_finished(
+                Err("This installation cannot be updated in place.".into()),
+                cx,
+            );
+            return;
+        };
+        let task = cx.background_executor().spawn(async move {
+            let result = installer.prepare(&archive, &version);
+            drop(archive);
+            (installer, result)
+        });
+        cx.spawn(async move |this, cx| {
+            let (mut installer, result) = task.await;
+            let _ = this.update(cx, |s, cx| {
+                if !s.owns_download(&candidate) {
+                    installer.discard();
+                    s.installer.get_or_insert(installer);
+                    return;
+                }
+                s.installer = Some(installer);
+                s.preparation_finished(result, cx);
             });
-            cx.spawn(async move |this, cx| {
-                let (mut prepared, result) = task.await;
-                let _ = this.update(cx, |s, cx| {
-                    if !s.owns_download(&candidate) {
-                        prepared.discard();
-                        s.prepared.get_or_insert(prepared);
-                        return;
-                    }
-                    s.prepared = Some(prepared);
-                    s.preparation_finished(result, cx);
-                });
-            })
-            .detach();
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = (archive, version, candidate);
-            self.preparation_finished(Err("Auto updates are available on macOS only.".into()), cx);
-        }
+        })
+        .detach();
     }
 
     fn owns_download(&self, candidate: &Candidate) -> bool {
@@ -494,11 +452,10 @@ impl Updates {
     /// `installOnQuit`: a prepared update goes in as the app exits, and the
     /// app reopens when the person asked to restart.
     fn install_on_exit(&mut self) {
-        if matches!(self.state.status, Status::Downloaded | Status::Installing) {
-            #[cfg(target_os = "macos")]
-            if let Some(prepared) = &mut self.prepared {
-                prepared.install_on_exit(self.restart_requested);
-            }
+        if matches!(self.state.status, Status::Downloaded | Status::Installing)
+            && let Some(installer) = &mut self.installer
+        {
+            installer.install_on_exit(self.restart_requested);
         }
     }
 

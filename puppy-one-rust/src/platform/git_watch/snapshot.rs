@@ -5,6 +5,7 @@ use std::{
 
 /// `GIT_METADATA_SNAPSHOT_MAX_ENTRIES`.
 pub(super) const MAX_ENTRIES: usize = 10_000;
+#[cfg_attr(not(unix), allow(dead_code))]
 const FILES: [&str; 16] = [
     "HEAD",
     "index",
@@ -23,6 +24,7 @@ const FILES: [&str; 16] = [
     "commondir",
     "gitdir",
 ];
+#[cfg_attr(not(unix), allow(dead_code))]
 const TREES: [&str; 4] = ["refs", "rebase-merge", "rebase-apply", "sequencer"];
 
 /// `readGitMetadataSnapshot`: a digest of Git-resolved metadata only — no
@@ -199,6 +201,7 @@ mod tests {
         std::fs::write(root.path().join(".git/refs/heads/main"), "b".repeat(40)).unwrap();
         assert_ne!(read(root.path()).unwrap(), original);
     }
+    #[cfg(unix)]
     #[test]
     fn snapshot_never_follows_metadata_symlinks() {
         let root = fixture();

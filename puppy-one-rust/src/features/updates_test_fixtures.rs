@@ -150,8 +150,7 @@ impl Fixture {
                 force_dev: true,
             },
             candidate: None,
-            #[cfg(target_os = "macos")]
-            prepared: None,
+            installer: None,
             busy: false,
             waiting: Vec::new(),
             restart_requested: false,
@@ -189,7 +188,9 @@ impl Fixture {
         let prepared =
             updates::prepared::PreparedUpdate::new(installed, self.root.path().join("staging"))
                 .unwrap();
-        self.update(cx, |u, _| u.prepared = Some(prepared));
+        self.update(cx, |u, _| {
+            u.installer = Some(updates::installer::UpdateInstaller::from_prepared(prepared))
+        });
         std::fs::read(archive).unwrap()
     }
     #[cfg(target_os = "macos")]

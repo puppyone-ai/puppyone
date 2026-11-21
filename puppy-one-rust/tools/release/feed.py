@@ -11,6 +11,31 @@ from pathlib import Path
 
 VERSION = re.compile(r'^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$')
 SHA512_BASE64 = re.compile(r'^[A-Za-z0-9+/]+={0,2}$')
+TARGET_ALIASES = {
+    'mac': 'mac',
+    'macos': 'mac',
+    'darwin': 'mac',
+    'win': 'win',
+    'windows': 'win',
+    'linux': 'linux',
+}
+PAYLOAD_RULES = {
+    'mac': (re.compile(r'\.zip(?:$|[?#])', re.I), 'macOS updater metadata must include a ZIP payload'),
+    'win': (re.compile(r'\.(?:exe|zip)(?:$|[?#])', re.I), 'Windows updater metadata must include an EXE or ZIP payload'),
+    'linux': (re.compile(r'\.(?:appimage|deb|zip)(?:$|[?#])', re.I), 'Linux updater metadata must include an AppImage, DEB, or ZIP payload'),
+}
+
+
+def _target_key(target_os='mac'):
+    key = TARGET_ALIASES.get((target_os or '').strip().lower())
+    if not key:
+        raise ValueError(f'Unsupported feed target OS: {target_os}')
+    return key
+
+
+def filename(channel, target_os='mac'):
+    """The platform-specific feed metadata filename (`<channel>-{mac,win,linux}.yml`)."""
+    return f'{channel}-{_target_key(target_os)}.yml'
 
 
 def sha512(path):
@@ -21,16 +46,16 @@ def sha512(path):
     return base64.b64encode(digest.digest()).decode()
 
 
-def write(directory, channel, version, archives, released=None):
-    """`<channel>-mac.yml` beside `archives` (paths in `directory`)."""
+def write(directory, channel, version, archives, released=None, target_os='mac'):
+    """`<channel>-{mac,win,linux}.yml` beside `archives` (paths in `directory`)."""
     released = released or datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
     files = [(Path(a).name, sha512(a), Path(a).stat().st_size) for a in archives]
     lines = [f'version: {version}', 'files:']
     for name, digest, size in files:
         lines += [f'  - url: {name}', f'    sha512: {digest}', f'    size: {size}']
     lines += [f'path: {files[0][0]}', f'sha512: {files[0][1]}', f"releaseDate: '{released}'"]
-    target = Path(directory) / f'{channel}-mac.yml'
-    target.write_text('\n'.join(lines) + '\n')
+    target = Path(directory) / filename(channel, target_os)
+    target.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     return target
 
 
@@ -51,8 +76,9 @@ def _sha512(value):
     return len(raw) == 64 and base64.b64encode(raw).decode() == value
 
 
-def parse(source):
-    """`parseDesktopUpdaterMetadata` (macOS); raises with every problem."""
+def parse(source, target_os='mac'):
+    """`parseDesktopUpdaterMetadata` (macOS / Windows / Linux); raises with every problem."""
+    os_key = _target_key(target_os)
     if not source.strip():
         raise ValueError('Desktop updater metadata is empty.')
     meta = {'version': None, 'files': [], 'path': None, 'sha512': None, 'releaseDate': None}
@@ -103,8 +129,9 @@ def parse(source):
             errors.append(f'{label} must declare a base64 SHA-512 digest')
         if not isinstance(file['size'], int) or file['size'] <= 0:
             errors.append(f'{label} must declare a positive byte size')
-    if not any(re.search(r'\.zip(?:$|[?#])', f['url'] or '', re.I) for f in meta['files']):
-        errors.append('macOS updater metadata must include a ZIP payload')
+    payload_pattern, payload_error = PAYLOAD_RULES[os_key]
+    if not any(payload_pattern.search(f['url'] or '') for f in meta['files']):
+        errors.append(payload_error)
     primary = next((f for f in meta['files'] if f['url'] == meta['path']), None)
     if not meta['path'] or primary is None:
         errors.append('path must identify one declared update file')

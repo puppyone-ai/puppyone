@@ -381,9 +381,12 @@ impl FileService {
                 if !metadata.is_file() {
                     return Err("unsupported_file");
                 }
-                use cap_std::fs::MetadataExt;
-                if metadata.nlink() != 1 {
-                    return Err("unsupported_file");
+                #[cfg(unix)]
+                {
+                    use cap_std::fs::MetadataExt;
+                    if metadata.nlink() != 1 {
+                        return Err("unsupported_file");
+                    }
                 }
                 if revision(&Self::read_bytes(&dir, &name)?.0) != expected {
                     return Err("conflict");
@@ -667,6 +670,11 @@ mod tests {
                 std::fs::create_dir_all(path.parent().unwrap()).unwrap();
                 std::fs::write(path, body.as_str().unwrap()).unwrap();
             }
+            #[cfg(not(unix))]
+            if case["symlinks"].as_object().is_some_and(|m| !m.is_empty()) {
+                continue;
+            }
+            #[cfg(unix)]
             for (path, target) in case["symlinks"].as_object().into_iter().flatten() {
                 std::os::unix::fs::symlink(target.as_str().unwrap(), root.join(path)).unwrap();
             }
@@ -825,6 +833,7 @@ mod tests {
     /// links; nothing outside it, nor another folder, is reached. A missing
     /// name inside it is not_found, but a name behind a link says nothing
     /// (invalid_path).
+    #[cfg(unix)]
     #[test]
     fn a_root_is_read_without_git_or_links_and_names_behind_a_link_say_nothing() {
         let temp = tempfile::tempdir().unwrap();
@@ -1011,6 +1020,7 @@ mod tests {
     /// A directory swapped for a link to outside the folder between its
     /// check and its use is never read, listed, removed, written or made
     /// into through.
+    #[cfg(unix)]
     #[test]
     fn a_directory_swapped_for_a_link_after_its_check_is_never_used() {
         let racing = |operation: &dyn Fn(&FileService) -> Outcome| {

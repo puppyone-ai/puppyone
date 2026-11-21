@@ -25,7 +25,6 @@
     "P1 src/editor/viewers/structured.rs",
     "P1 src/editor/viewers/whiteboard.rs",
     "P1 src/features/settings/workspace_config.rs",
-    "P1 src/features/updates.rs",
     "P1 src/workspace/hosts/control.rs",
     "P1 src/workspace/hosts/exec.rs",
     "P1 src/workspace/hosts/files.rs",

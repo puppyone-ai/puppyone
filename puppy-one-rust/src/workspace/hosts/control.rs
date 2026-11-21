@@ -17,9 +17,12 @@ use std::{
     },
     time::Duration,
 };
+#[cfg(not(unix))]
+use tokio::net::{TcpListener, TcpStream};
+#[cfg(unix)]
+use tokio::net::{UnixListener, UnixStream};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::{UnixListener, UnixStream},
+    io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader},
     sync::{mpsc, oneshot},
 };
 
@@ -87,14 +90,17 @@ impl Peer {
 }
 
 /// Runs the RPC over `stream` after the hello; `rest` is what followed it.
-fn run_peer(
-    stream: UnixStream,
+fn run_peer<S>(
+    stream: S,
     rest: Vec<u8>,
     handler: Handler,
     events: Events,
     on_close: impl FnOnce() + Send + 'static,
-) -> Peer {
-    let (read, mut write) = stream.into_split();
+) -> Peer
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let (read, mut write) = tokio::io::split(stream);
     let (send, mut lines) = mpsc::unbounded_channel::<String>();
     let peer = Peer {
         send,
@@ -220,12 +226,20 @@ pub async fn serve(
         std::fs::create_dir_all(parent)?;
     }
     let _ = std::fs::remove_file(&socket);
-    let listener = UnixListener::bind(&socket)?;
     #[cfg(unix)]
-    {
+    let listener = {
+        let listener = UnixListener::bind(&socket)?;
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600));
-    }
+        listener
+    };
+    #[cfg(not(unix))]
+    let listener = {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
+        let port = listener.local_addr()?.port();
+        write_private(&socket, &port.to_string())?;
+        listener
+    };
     let peers: Arc<Mutex<Vec<Peer>>> = Arc::default();
     {
         let peers = peers.clone();
@@ -307,6 +321,20 @@ pub async fn serve(
     }
 }
 
+#[cfg(unix)]
+async fn connect_raw(socket: &Path) -> std::io::Result<UnixStream> {
+    UnixStream::connect(socket).await
+}
+
+#[cfg(not(unix))]
+async fn connect_raw(socket: &Path) -> std::io::Result<TcpStream> {
+    let port_text = std::fs::read_to_string(socket)?;
+    let port: u16 = port_text.trim().parse().map_err(|_| {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid control port")
+    })?;
+    TcpStream::connect(("127.0.0.1", port)).await
+}
+
 /// Connects as the App (or another local client); fails when no host listens.
 pub async fn connect(
     dir: &Path,
@@ -317,9 +345,7 @@ pub async fn connect(
 ) -> Result<Peer, String> {
     let (socket, token_file) = paths(dir);
     let token = std::fs::read_to_string(&token_file).map_err(|e| e.to_string())?;
-    let mut stream = UnixStream::connect(&socket)
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut stream = connect_raw(&socket).await.map_err(|e| e.to_string())?;
     let hello = json!({"type": "hello", "token": token.trim(), "role": role});
     stream
         .write_all(format!("{hello}\n").as_bytes())
@@ -383,12 +409,13 @@ mod tests {
             let (stop, mut stopped) = mpsc::unbounded_channel();
             tokio::spawn(serve(dir.clone(), host.clone(), stop));
             let mut tries = 0;
-            while !paths(&dir).1.exists() || UnixStream::connect(paths(&dir).0).await.is_err() {
+            while !paths(&dir).1.exists() || connect_raw(&paths(&dir).0).await.is_err() {
                 tries += 1;
                 assert!(tries < 200);
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
             // Only this user reaches the directory, the socket and the token.
+            #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
                 let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;

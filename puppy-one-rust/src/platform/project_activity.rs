@@ -281,6 +281,7 @@ mod tests {
             .unwrap();
         fs::create_dir(temp.path().join(".puppyone")).unwrap();
         fs::write(temp.path().join(".puppyone/state.json"), "{}").unwrap();
+        #[cfg(unix)]
         std::os::unix::fs::symlink(std::env::temp_dir(), temp.path().join("outside")).unwrap();
         assert_eq!(last_modified(temp.path()), Some(old));
     }

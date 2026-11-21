@@ -10,6 +10,7 @@
 //! point at a local feed with `PUPPYONE_DESKTOP_DEV_UPDATE_URL` and
 //! `PUPPYONE_DESKTOP_FORCE_DEV_UPDATE_CONFIG=1`, as the product's may.
 pub mod feed;
+pub mod installer;
 pub mod policy;
 mod preferences;
 pub use preferences::{read_automatic_download, write_automatic_download};
@@ -219,12 +220,25 @@ fn client(
         .map_err(|e| e.to_string())
 }
 
-/// Reads `<feed>/<channel>-mac.yml` and picks this processor's archive.
+/// Returns the per-OS updater metadata filename (`<channel>-mac.yml`,
+/// `<channel>-win.yml`, or `<channel>-linux.yml`).
+pub fn platform_feed_filename(channel: &str, os: super::os::Os) -> String {
+    let suffix = match os {
+        super::os::Os::Macos => "mac",
+        super::os::Os::Windows => "win",
+        super::os::Os::Linux | super::os::Os::Other => "linux",
+    };
+    format!("{channel}-{suffix}.yml")
+}
+
+/// Reads `<feed>/<channel>-<os>.yml` and picks this processor's payload.
 pub fn check(config: &Configuration) -> Result<Candidate, String> {
     let (Some(feed), Some(channel)) = (&config.feed, config.update_channel) else {
         return Err("No update feed is configured.".into());
     };
-    let metadata_url = feed::payload_url(feed, &format!("{channel}-mac.yml"), config.force_dev)?;
+    let os = super::os::Os::current();
+    let filename = platform_feed_filename(channel, os);
+    let metadata_url = feed::payload_url(feed, &filename, config.force_dev)?;
     let source = runtime()?.block_on(async {
         let mut response = client(config, &metadata_url, Duration::from_secs(30))?
             .get(metadata_url.clone())
@@ -249,8 +263,8 @@ pub fn check(config: &Configuration) -> Result<Candidate, String> {
         }
         String::from_utf8(bytes).map_err(|_| "The update metadata is not text.".into())
     })?;
-    let metadata = feed::parse(&source).map_err(|errors| errors.join("; "))?;
-    let file = feed::payload(&metadata, super::build_identity::node_architecture())
+    let metadata = feed::parse_for_os(&source, os).map_err(|errors| errors.join("; "))?;
+    let file = feed::payload_for_os(&metadata, super::build_identity::node_architecture(), os)
         .ok_or("The update has no archive for this computer.")?;
     Ok(Candidate {
         version: metadata.version.clone(),

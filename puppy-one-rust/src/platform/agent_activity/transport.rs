@@ -155,6 +155,7 @@ pub struct Server {
     pub endpoint: PathBuf,
     stop: Arc<std::sync::atomic::AtomicBool>,
 }
+#[cfg_attr(not(unix), allow(dead_code))]
 const MAX_CONNECTIONS: usize = 16;
 impl Server {
     /// `start`: a private directory (0700), a fresh socket (0600) and an
@@ -218,6 +219,7 @@ impl Drop for Server {
 }
 
 /// One frame: bytes up to the first newline, at most 64 KiB in total.
+#[cfg_attr(not(unix), allow(dead_code))]
 fn read_frame(mut stream: impl Read) -> Option<String> {
     let mut buffer = Vec::new();
     let mut chunk = [0u8; 8192];

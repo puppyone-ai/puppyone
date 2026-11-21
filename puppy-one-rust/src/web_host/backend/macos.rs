@@ -27,7 +27,7 @@ thread_local! {
 }
 
 pub(super) struct BackendHost {
-    view: wry::WebView,
+    pub(super) view: wry::WebView,
     resources: PreparedContent,
     pub(super) protocol: macos_stream::Owner,
     clip: RefCell<Option<Retained<AnyObject>>>,
