@@ -203,6 +203,10 @@ def wait_for_file(path: Path, *, should_exist: bool, timeout_s: float = 45.0) ->
 def main() -> None:
     if sys.platform != "win32":
         raise SystemExit("smoke_windows_nsis.py must run on Windows")
+    if not shutil.which("makensis"):
+        raise SystemExit("makensis is required on PATH before running Windows NSIS smoke test")
+    if not (shutil.which("signtool") or shutil.which("signtool.exe")):
+        raise SystemExit("signtool.exe is required on PATH before running Windows NSIS smoke test")
 
     work = Path(tempfile.mkdtemp(prefix="puppyone-nsis-smoke-"))
     pfx_path = work / "ci-signing.pfx"
