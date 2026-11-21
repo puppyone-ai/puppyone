@@ -459,7 +459,12 @@ pub async fn bridge(
                 None => {}
             },
             code = status.recv() => {
-                while let Ok((stderr, bytes)) = outputs.try_recv() {
+                while let Ok(Some((stderr, bytes))) = tokio::time::timeout(
+                    std::time::Duration::from_millis(250),
+                    outputs.recv(),
+                )
+                .await
+                {
                     let _ = if stderr {
                         write.extended_data_bytes(1, bytes).await
                     } else {

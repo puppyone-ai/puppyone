@@ -85,6 +85,7 @@ jobs:
         run: |
           cargo fmt --all --check
           python3 -B tools/check-ui-boundaries.py
+          python3 -B -m unittest discover -s tools/release -p 'test_*.py'
       - name: Check workspace compilation (all targets)
         run: |
           cargo check --locked --workspace --all-targets
@@ -98,4 +99,4 @@ jobs:
         env:
           PUPPYONE_PRODUCT_ROOT: ${{ github.workspace }}/puppyone-baseline-5e87974ef
         run: |
-          cargo test --locked --workspace
+          cargo test --locked --workspace --no-fail-fast

@@ -204,7 +204,7 @@ impl JsonlRpcConnection {
     /// Launches the native process and starts reading its output.
     pub fn spawn(options: ConnectionOptions) -> AgentResult<Self> {
         let executable = options.executable_path.to_string_lossy().into_owned();
-        if !options.executable_path.is_absolute() || !valid_argument(&executable) {
+        if !crate::platform::paths::is_absolute(&executable) || !valid_argument(&executable) {
             return Err(
                 AgentError::new("An absolute JSONL-RPC executable path is required.")
                     .with_name("TypeError"),
@@ -220,7 +220,7 @@ impl JsonlRpcConnection {
             );
         }
         let cwd = options.cwd.to_string_lossy().into_owned();
-        if !options.cwd.is_absolute() || cwd.contains(['\r', '\n', '\0']) {
+        if !crate::platform::paths::is_absolute(&cwd) || cwd.contains(['\r', '\n', '\0']) {
             return Err(
                 AgentError::new("An absolute JSONL-RPC working directory is required.")
                     .with_name("TypeError"),

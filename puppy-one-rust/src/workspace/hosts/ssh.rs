@@ -1211,7 +1211,10 @@ mod tests {
         // As a view drives it: input as bytes, a resize, and how it ended.
         let mut session = access.session("shell", 80, 24).await.unwrap();
         session.resize(100, 40).await;
-        session.input("stty size; exit 5\n".as_bytes()).await;
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        session
+            .input("for _ in 1 2 3 4 5; do s=$(stty size); echo \"$s\"; [ \"$s\" = \"40 100\" ] && break; sleep 0.1; done; exit 5\n".as_bytes())
+            .await;
         let mut out = Vec::new();
         let status = loop {
             match session.next().await {

@@ -1,7 +1,6 @@
 use super::*;
 use core::prelude::v1::test;
 
-#[cfg(unix)]
 #[test]
 fn resolves_and_relates_like_node_posix() {
     assert_eq!(resolve("/a/b", "../c/./d"), PathBuf::from("/a/c/d"));
@@ -14,6 +13,8 @@ fn resolves_and_relates_like_node_posix() {
     assert!(is_same_or_inside("/w", "/w"));
     assert!(!is_same_or_inside("/w", "/wx"));
     assert!(!is_same_or_inside("/w", "/"));
+    assert!(is_absolute("/workspace"));
+    assert!(!is_absolute("relative/path"));
     assert_eq!(file_name("/usr/bin/codex"), "codex");
 }
 

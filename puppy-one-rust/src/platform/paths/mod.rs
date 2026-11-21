@@ -112,9 +112,37 @@ pub fn home() -> PathBuf {
     home_dir()
 }
 
+fn is_posix_rooted(path: &Path) -> bool {
+    path.to_str()
+        .is_some_and(|s| s.starts_with('/') && !s.starts_with("//"))
+}
+
+fn normalize_posix(raw: &str) -> PathBuf {
+    let mut parts: Vec<&str> = Vec::new();
+    for segment in raw.split(['/', '\\']) {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            other => parts.push(other),
+        }
+    }
+    if parts.is_empty() {
+        PathBuf::from("/")
+    } else {
+        PathBuf::from(format!("/{}", parts.join("/")))
+    }
+}
+
 /// The absolute `path` with `.` dropped and `..` folded (Node `path.normalize`):
 /// drops `.` and folds `..` without walking above the root.
 pub fn normalize(path: &Path) -> PathBuf {
+    if is_posix_rooted(path)
+        && let Some(raw) = path.to_str()
+    {
+        return normalize_posix(raw);
+    }
     let mut normalized = PathBuf::new();
     for component in path.components() {
         match component {
@@ -140,10 +168,20 @@ pub fn absolute(input: impl AsRef<Path>) -> PathBuf {
 /// `input` made absolute against `base` (Node `path.resolve(base, input)`).
 pub fn resolve(base: impl AsRef<Path>, input: impl AsRef<Path>) -> PathBuf {
     let input = input.as_ref();
+    if is_posix_rooted(input)
+        && let Some(raw) = input.to_str()
+    {
+        return normalize_posix(raw);
+    }
     if input.is_absolute() {
         return normalize(input);
     }
     let base = base.as_ref();
+    if is_posix_rooted(base)
+        && let (Some(base_raw), Some(input_raw)) = (base.to_str(), input.to_str())
+    {
+        return normalize_posix(&format!("{base_raw}/{input_raw}"));
+    }
     let base = if base.is_absolute() {
         base.to_path_buf()
     } else {
@@ -166,8 +204,11 @@ fn same_component(left: &Component<'_>, right: &Component<'_>) -> bool {
 /// leave `from`, and `to` itself across Windows drives (Node
 /// `path.relative`).
 pub fn relative(from: impl AsRef<Path>, to: impl AsRef<Path>) -> String {
-    let from = absolute(from);
-    let to = absolute(to);
+    let from_ref = from.as_ref();
+    let to_ref = to.as_ref();
+    let both_posix = is_posix_rooted(from_ref) && is_posix_rooted(to_ref);
+    let from = absolute(from_ref);
+    let to = absolute(to_ref);
     let from: Vec<Component<'_>> = from.components().collect();
     let target: Vec<Component<'_>> = to.components().collect();
     let common = from
@@ -184,12 +225,13 @@ pub fn relative(from: impl AsRef<Path>, to: impl AsRef<Path>) -> String {
             .iter()
             .map(|component| component.as_os_str().to_string_lossy().into_owned()),
     );
-    parts.join(MAIN_SEPARATOR_STR)
+    parts.join(if both_posix { "/" } else { MAIN_SEPARATOR_STR })
 }
 
-/// Whether `value` is an absolute path on this host.
+/// Whether `value` is an absolute path (matching Node `path.isAbsolute`:
+/// accepts native drive/UNC roots on Windows as well as POSIX `/` roots).
 pub fn is_absolute(value: &str) -> bool {
-    Path::new(value).is_absolute()
+    Path::new(value).is_absolute() || value.starts_with('/')
 }
 
 /// The last component of `value`, or `""`.

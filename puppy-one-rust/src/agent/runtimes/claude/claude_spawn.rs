@@ -303,7 +303,7 @@ impl ClaudeSpawn {
             .filter(|d| paths::is_absolute(d))
         {
             for name in names {
-                candidates.push(Path::new(directory).join(name));
+                candidates.push(paths::resolve(directory, name));
             }
         }
         let exec_path = options
