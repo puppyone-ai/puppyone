@@ -414,3 +414,30 @@ fn plist_conversion_has_bounded_time_output_and_an_owned_child_lifetime() {
     .unwrap();
     assert!(matches!(typora_with(&p, true, &executable, PLIST_TIMEOUT), Ok(v) if v.is_empty()));
 }
+
+#[test]
+fn xml_plist_extraction_parses_string_arrays_and_rejects_malformed_xml() {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+    <string>/Users/test/Notes &amp; Docs</string>
+    <integer>42</integer>
+    <string>/Users/test/Other</string>
+</array>
+</plist>"#;
+    let parsed = parse_plist_recent_folders(xml).ok().unwrap();
+    assert_eq!(
+        parsed,
+        vec![
+            ("/Users/test/Notes & Docs".to_owned(), None),
+            ("/Users/test/Other".to_owned(), None),
+        ]
+    );
+    let non_array = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>a</key><string>b</string></dict></plist>"#;
+    assert_eq!(parse_plist_recent_folders(non_array).ok(), Some(vec![]));
+    assert!(parse_plist_recent_folders("<not-xml").is_err());
+    assert!(parse_plist_recent_folders("<other/>").is_err());
+}
