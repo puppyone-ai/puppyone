@@ -1634,3 +1634,278 @@ fn resizing_keeps_the_markdown_at_the_viewport_top(cx: &mut TestAppContext) {
         );
     }
 }
+
+/// Deferred suffix tail splitting (`Parsed::tail`) and deferred inline
+/// decoration byte shifting (`Decorations::deferred`) must stay bit-for-bit
+/// equivalent to a full fresh parse + compile + decorate across repeated
+/// typing, IME composition, newline edits, forward/backward jumps, unclosed
+/// fences, and full materialisation (`TA-81`).
+#[test]
+fn deferred_tail_and_deferred_byte_shift_match_full_pipeline_across_edits() {
+    use crate::editor::{
+        markdown::{
+            composition::FEATURES,
+            core::{
+                decorations::{self, DecorateCx},
+                plans,
+                presentation::block_rhythm,
+                state::PreviewState,
+                syntax::Syntax,
+            },
+            style::MarkdownTheme,
+        },
+        text::{
+            change::ChangeSet,
+            state::{EditorState, Transaction, UserEvent},
+        },
+        view::{
+            decoration::{Block, LayeredDecorations},
+            extension::{DecorateInput, EditorExtension},
+        },
+    };
+
+    let text: String = (0..40)
+        .map(|i| {
+            format!(
+                "## Section {i}\n\nParagraph {i} with **bold**, *italic*, `code`, and [link](https://example.com/{i}) text.\n\n- item one {i}\n- [x] task {i}\n\n```rust\nfn s_{i}() {{}}\n```\n\n| A | B |\n| - | - |\n| {i} | val |\n"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let mut ext = MarkdownExtension::new(true, Scale::Medium);
+    let mut state = EditorState::new(&text);
+    let theme = MarkdownTheme::resolve(true, Scale::Medium);
+
+    let assert_equivalent = |ext: &MarkdownExtension, state: &EditorState, label: &str| {
+        let doc_rc = ext.decorate_document(state, true);
+        let rev_rc = ext.decorate_reveal(
+            &DecorateInput {
+                state,
+                focused: true,
+                pointer_selecting: false,
+                dark: true,
+            },
+            &doc_rc,
+        );
+        let layered = LayeredDecorations::new(doc_rc, rev_rc);
+
+        // Fresh ground-truth full parse -> compile -> decorate.
+        let full_syntax = Syntax::parse_with(&state.doc, FEATURES);
+        let full_plans = plans::compile(&state.doc, &full_syntax, &ext.preview.features, FEATURES);
+        let full_rhythm = block_rhythm(&state.doc, &full_syntax, None);
+        let full_doc = decorations::decorate(&DecorateCx {
+            doc: &state.doc,
+            syntax: &full_syntax,
+            plans: &full_plans,
+            rhythm: &full_rhythm,
+            theme: &theme,
+            preview: &PreviewState::document_only(ext.preview.features.clone()),
+            live: true,
+            features: FEATURES,
+            assets: None,
+            references: None,
+        });
+        let full_rev = decorations::decorate_reveal(
+            &full_doc,
+            &DecorateCx {
+                doc: &state.doc,
+                syntax: &full_syntax,
+                plans: &full_plans,
+                rhythm: &[],
+                theme: &theme,
+                preview: &ext.preview,
+                live: true,
+                features: FEATURES,
+                assets: None,
+                references: None,
+            },
+            state.revision,
+        );
+        let full_layered =
+            LayeredDecorations::new(std::rc::Rc::new(full_doc), std::rc::Rc::new(full_rev));
+
+        // Check viewport-style range queries spanning prefix, edited window, and shifted suffix.
+        for probe_line in [
+            0,
+            5,
+            100,
+            200,
+            state.doc.line_count() / 2,
+            state.doc.line_count() - 2,
+        ] {
+            let r = state
+                .doc
+                .line_range(probe_line.min(state.doc.line_count() - 1));
+            assert_eq!(
+                layered.marks_in(&r).as_ref(),
+                full_layered.marks_in(&r).as_ref(),
+                "{label}: marks_in mismatch at line {probe_line}"
+            );
+            assert_eq!(
+                layered.hidden_in(&r).as_ref(),
+                full_layered.hidden_in(&r).as_ref(),
+                "{label}: hidden_in mismatch at line {probe_line}"
+            );
+            let a_iw: Vec<_> = layered
+                .inline_widgets_in(&r)
+                .iter()
+                .map(|w| (w.range.clone(), w.display_text().clone()))
+                .collect();
+            let b_iw: Vec<_> = full_layered
+                .inline_widgets_in(&r)
+                .iter()
+                .map(|w| (w.range.clone(), w.display_text().clone()))
+                .collect();
+            assert_eq!(
+                a_iw, b_iw,
+                "{label}: inline_widgets_in mismatch at line {probe_line}"
+            );
+            let mid_pos = (r.start + r.end) / 2;
+            assert_eq!(
+                layered.atomic_containing(mid_pos),
+                full_layered.atomic_containing(mid_pos),
+                "{label}: atomic_containing mismatch at line {probe_line}"
+            );
+        }
+
+        // Check full materialised decorations match ground truth 100%.
+        let mat = layered.as_decorations();
+        let exp = full_layered.as_decorations();
+        assert_eq!(mat.blocks.len(), exp.blocks.len(), "{label}: block count");
+        for (i, (a, b)) in mat.blocks.iter().zip(&exp.blocks).enumerate() {
+            assert_eq!(a.lines(), b.lines(), "{label}: block[{i}] lines");
+            assert_eq!(
+                matches!(a, Block::Widget { .. }),
+                matches!(b, Block::Widget { .. }),
+                "{label}: block[{i}] kind"
+            );
+        }
+        assert_eq!(mat.marks, exp.marks, "{label}: full marks");
+        assert_eq!(mat.hidden, exp.hidden, "{label}: full hidden");
+        assert_eq!(mat.atomic, exp.atomic, "{label}: full atomic");
+        assert_eq!(mat.underlines, exp.underlines, "{label}: full underlines");
+    };
+
+    // Initial full build.
+    let _ = ext.decorate_document(&state, true);
+
+    let apply_edit = |ext: &mut MarkdownExtension,
+                      state: &mut EditorState,
+                      range: std::ops::Range<usize>,
+                      insert: &str,
+                      event: UserEvent| {
+        let caret = range.start + insert.len();
+        let applied = state
+            .apply(Transaction::edit(
+                ChangeSet::replace(range, insert),
+                Some(Selection::cursor(caret)),
+                event,
+            ))
+            .unwrap();
+        ext.prepare_applied(&applied, state);
+        let _ = ext.normalize_selection(state);
+        ext.applied(&applied, state, true);
+    };
+
+    // 1. Typing & IME cycle in Section 15 (middle): detaches tail and defers byte shift.
+    let mut pos = state.doc.as_str().find("Paragraph 15 with").unwrap() + "Paragraph 15 ".len();
+    for ch in ["a", "b", "c"] {
+        apply_edit(&mut ext, &mut state, pos..pos, ch, UserEvent::Input);
+        pos += ch.len();
+        let doc_rc = ext.decorate_document(&state, true);
+        assert!(
+            doc_rc.has_deferred_shift(),
+            "typing must use deferred suffix byte shift"
+        );
+        drop(doc_rc);
+    }
+    assert!(
+        ext.cache.borrow().parsed.as_ref().unwrap().tail.is_some(),
+        "repeated middle edits must retain detached suffix tail"
+    );
+    // IME preedit -> multi-byte CJK commit.
+    let ime_start = pos;
+    let mut ime_end = pos;
+    for s in ["n", "ni", "nihao", "你好"] {
+        apply_edit(
+            &mut ext,
+            &mut state,
+            ime_start..ime_end,
+            s,
+            UserEvent::Compose,
+        );
+        ime_end = ime_start + s.len();
+        assert_equivalent(&ext, &state, &format!("ime-{s}"));
+    }
+
+    // 2. Insert and delete a newline in Section 15 (tests line_delta != 0 with detached tail).
+    apply_edit(
+        &mut ext,
+        &mut state,
+        ime_end..ime_end,
+        "\nSecond line",
+        UserEvent::Input,
+    );
+    assert_equivalent(&ext, &state, "newline-insert");
+    apply_edit(
+        &mut ext,
+        &mut state,
+        ime_end..ime_end + "\nSecond line".len(),
+        "",
+        UserEvent::Delete,
+    );
+    assert_equivalent(&ext, &state, "newline-delete");
+
+    // 3. Jump forward into the detached tail (Section 30) and edit.
+    let fwd = state.doc.as_str().find("Paragraph 30 with").unwrap() + "Paragraph 30 ".len();
+    apply_edit(&mut ext, &mut state, fwd..fwd, "FORWARD ", UserEvent::Input);
+    assert_equivalent(&ext, &state, "jump-forward");
+
+    // 4. Jump backward before the deferred split (Section 3) and edit.
+    let bwd = state.doc.as_str().find("Paragraph 3 with").unwrap() + "Paragraph 3 ".len();
+    apply_edit(&mut ext, &mut state, bwd..bwd, "BACK ", UserEvent::Input);
+    assert_equivalent(&ext, &state, "jump-backward");
+
+    // 5. Type an unclosed fence inside prefix (must gracefully materialise tail, never duplicate it).
+    let fence_pos = state.doc.as_str().find("Paragraph 5 with").unwrap();
+    apply_edit(
+        &mut ext,
+        &mut state,
+        fence_pos..fence_pos,
+        "```rust\n",
+        UserEvent::Input,
+    );
+    assert_equivalent(&ext, &state, "unclosed-fence");
+    apply_edit(
+        &mut ext,
+        &mut state,
+        fence_pos..fence_pos + "```rust\n".len(),
+        "",
+        UserEvent::Delete,
+    );
+    assert_equivalent(&ext, &state, "remove-unclosed-fence");
+
+    // 6. Full syntax & plans equivalence after materialisation via `parse()`.
+    let (syn, pl) = ext.parse(&state);
+    let expected_syn = Syntax::parse_with(&state.doc, FEATURES);
+    let expected_pl = plans::compile(&state.doc, &expected_syn, &ext.preview.features, FEATURES);
+    assert_eq!(
+        *syn, expected_syn,
+        "materialised Syntax must equal fresh parse"
+    );
+    assert_eq!(pl.len(), expected_pl.len(), "materialised Plan count");
+    let mut refreshed_pl = (*pl).clone();
+    plans::refresh_shifted_block_plans(
+        &state.doc,
+        &syn,
+        &ext.preview.features,
+        FEATURES,
+        &mut refreshed_pl,
+        0..state.doc.len(),
+    );
+    assert_eq!(
+        refreshed_pl, expected_pl,
+        "materialised Plans after shifted-block refresh must equal fresh compile"
+    );
+}

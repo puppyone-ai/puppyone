@@ -147,6 +147,18 @@ struct PendingAsyncParse {
     optimistic_decos: Option<(bool, u64, Rc<Decorations>)>,
 }
 
+struct DeferredTail {
+    split_byte: usize,
+    split_line: usize,
+    byte_delta: isize,
+    line_delta: isize,
+    elem_delta: isize,
+    list_delta: isize,
+    item_delta: isize,
+    syntax: Syntax,
+    plans: Vec<Plan>,
+}
+
 struct Parsed {
     revision: u64,
     len: usize,
@@ -156,6 +168,81 @@ struct Parsed {
     plans: Rc<Vec<Plan>>,
     headings: OnceCell<navigation::Headings>,
     last_splice: Option<(u64, SyntaxSplice)>,
+    tail: Option<DeferredTail>,
+}
+
+impl Parsed {
+    fn materialize_tail(&mut self) {
+        let Some(tail) = self.tail.take() else {
+            return;
+        };
+        Rc::make_mut(&mut self.syntax).append_shifted_tail(
+            tail.syntax,
+            tail.byte_delta,
+            tail.line_delta,
+            tail.list_delta,
+            tail.item_delta,
+        );
+        plans::append_shifted_tail(
+            Rc::make_mut(&mut self.plans),
+            tail.plans,
+            tail.byte_delta,
+            tail.elem_delta,
+        );
+        self.plan_cache.rebuild_index(&self.plans);
+    }
+
+    /// Detach the untouched suffix starting `+4` top-level blocks past
+    /// `splice_new_end` so subsequent edits in the prefix shift only a small
+    /// guard window instead of the entire remainder of the document (`TA-81`).
+    fn maybe_detach_tail(&mut self, doc: &Buffer, splice_new_end: usize) {
+        if self.tail.is_some()
+            || self.syntax.top_blocks.len() < 16
+            || !self.syntax.link_defs.is_empty()
+            || !self.syntax.footnotes.is_empty()
+            || !self.syntax.block_delimiters.is_empty()
+        {
+            return;
+        }
+        let edit_end_block = self
+            .syntax
+            .top_blocks
+            .partition_point(|b| b.start < splice_new_end);
+        let split_block = edit_end_block + 4;
+        if split_block + 8 > self.syntax.top_blocks.len() {
+            return;
+        }
+        let split_byte = self.syntax.top_blocks[split_block].start;
+        if split_byte >= doc.len() {
+            return;
+        }
+        let split_line = doc.line_index(split_byte);
+        if doc.line_range(split_line).start != split_byte {
+            return;
+        }
+        if self.plan_cache.any_straddles(&self.plans, split_byte) {
+            return;
+        }
+        let p_idx = self.plans.partition_point(|p| p.source.start < split_byte);
+        let Some(tail_syntax) =
+            Rc::make_mut(&mut self.syntax).split_off_tail(split_byte, split_line)
+        else {
+            return;
+        };
+        let tail_plans = Rc::make_mut(&mut self.plans).split_off(p_idx);
+        self.plan_cache.truncate_at(split_byte);
+        self.tail = Some(DeferredTail {
+            split_byte,
+            split_line,
+            byte_delta: 0,
+            line_delta: 0,
+            elem_delta: 0,
+            list_delta: 0,
+            item_delta: 0,
+            syntax: tail_syntax,
+            plans: tail_plans,
+        });
+    }
 }
 
 struct CachedDocDecos {
@@ -293,21 +380,21 @@ impl MarkdownExtension {
         };
         cache.pending_async = None;
         let syntax = Rc::new(syntax_val);
-        let plans = Rc::new(plans::compile(
-            &state.doc,
-            &syntax,
-            &self.preview.features,
-            self.features(),
-        ));
+        let plans_vec =
+            plans::compile(&state.doc, &syntax, &self.preview.features, self.features());
+        let mut plan_cache = PlanCache::default();
+        plan_cache.rebuild_index(&plans_vec);
+        let plans = Rc::new(plans_vec);
         cache.parsed = Some(Parsed {
             revision: state.revision,
             len: state.doc.len(),
             syntax,
             folds: self.preview.features.clone(),
-            plan_cache: PlanCache::default(),
+            plan_cache,
             plans,
             headings: OnceCell::new(),
             last_splice: None,
+            tail: None,
         });
         cache.doc_decos = None;
         true
@@ -318,20 +405,38 @@ impl MarkdownExtension {
         cache: &mut PipelineCache,
         state: &EditorState,
     ) -> (Rc<Syntax>, Rc<Vec<Plan>>) {
+        self.ensure_parsed_covering(cache, state, None)
+    }
+
+    /// Ensure `cache.parsed` matches `state` and covers `required_byte_end`
+    /// (`None` means the entire document, materialising any deferred suffix tail).
+    fn ensure_parsed_covering(
+        &self,
+        cache: &mut PipelineCache,
+        state: &EditorState,
+        required_byte_end: Option<usize>,
+    ) -> (Rc<Syntax>, Rc<Vec<Plan>>) {
         let _ = self.adopt_pending_async(cache, state, true);
         let folds = &self.preview.features;
         if let Some(p) = cache.parsed.as_mut()
             && p.revision == state.revision
             && p.len == state.doc.len()
         {
+            if let Some(tail) = &p.tail {
+                let needs_tail = match required_byte_end {
+                    None => true,
+                    Some(end) => end >= tail.split_byte,
+                };
+                if needs_tail {
+                    p.materialize_tail();
+                }
+            }
             if p.folds != *folds {
-                p.plans = Rc::new(plans::compile(
-                    &state.doc,
-                    &p.syntax,
-                    folds,
-                    self.features(),
-                ));
+                p.materialize_tail();
+                let compiled = plans::compile(&state.doc, &p.syntax, folds, self.features());
                 p.plan_cache = PlanCache::default();
+                p.plan_cache.rebuild_index(&compiled);
+                p.plans = Rc::new(compiled);
                 p.folds = folds.clone();
                 p.last_splice = None;
                 cache.doc_decos = None;
@@ -340,16 +445,20 @@ impl MarkdownExtension {
         }
 
         let syntax = Rc::new(Syntax::parse_with(&state.doc, self.features()));
-        let plans = Rc::new(plans::compile(&state.doc, &syntax, folds, self.features()));
+        let compiled = plans::compile(&state.doc, &syntax, folds, self.features());
+        let mut plan_cache = PlanCache::default();
+        plan_cache.rebuild_index(&compiled);
+        let plans = Rc::new(compiled);
         cache.parsed = Some(Parsed {
             revision: state.revision,
             len: state.doc.len(),
             syntax: Rc::clone(&syntax),
             folds: folds.clone(),
-            plan_cache: PlanCache::default(),
+            plan_cache,
             plans: Rc::clone(&plans),
             headings: OnceCell::new(),
             last_splice: None,
+            tail: None,
         });
         (syntax, plans)
     }
@@ -471,11 +580,12 @@ impl EditorExtension for MarkdownExtension {
         let provider: BoundaryProvider = Rc::new(move |doc, revision| {
             let live = live_flag.get();
             if let Some(rc) = cache.upgrade()
-                && let Ok(borrow) = rc.try_borrow()
-                && let Some(p) = borrow.parsed.as_ref()
+                && let Ok(mut borrow) = rc.try_borrow_mut()
+                && let Some(p) = borrow.parsed.as_mut()
                 && p.revision == revision
                 && p.len == doc.len()
             {
+                p.materialize_tail();
                 return BlockBoundaries::of(&p.syntax, revision, live);
             }
             let syntax = Syntax::parse_with(doc, features);
@@ -639,7 +749,6 @@ impl EditorExtension for MarkdownExtension {
         }
 
         let theme = self.resolved_theme(&state.doc, dark, &mut cache);
-        let (syntax, plans) = self.ensure_parsed_in(&mut cache, state);
         let doc_preview = PreviewState::document_only(self.preview.features.clone());
 
         let incremental_splice = cache
@@ -648,23 +757,55 @@ impl EditorExtension for MarkdownExtension {
             .and_then(|p| (p.revision == state.revision).then_some(p.last_splice.clone()))
             .flatten();
 
-        let prev_decos_rc = cache
-            .doc_decos
-            .as_ref()
-            .filter(|prev| prev.doc_key == doc_key && prev.dark == dark)
-            .map(|prev| (prev.revision, Rc::clone(&prev.decorations)));
+        let can_incremental = incremental_splice.as_ref().is_some_and(|(from_rev, _)| {
+            self.live
+                && cache.doc_decos.as_ref().is_some_and(|prev| {
+                    prev.revision == *from_rev && prev.doc_key == doc_key && prev.dark == dark
+                })
+        });
 
-        let next_rc = if let (Some((from_rev, splice)), Some((prev_rev, prev_rc))) =
-            (incremental_splice, prev_decos_rc)
-            && from_rev == prev_rev
-            && self.live
+        let next_rc = if can_incremental
+            && let Some((_, splice)) = incremental_splice
+            && let Some(prev_cached) = cache.doc_decos.take()
         {
+            // Ensure `parsed` covers the exact block-aligned window
+            // `decorate_incremental_in_place` will decorate without
+            // materialising an untouched deferred suffix tail.
+            let new_total = state.doc.line_count();
+            let line_delta: isize = (splice.new_lines.end as isize
+                - splice.new_lines.start as isize)
+                - (splice.old_lines.end as isize - splice.old_lines.start as isize);
+            let old_total = ((new_total as isize) - line_delta).max(0) as usize;
+            let raw_old_end = (splice.old_lines.end + 1).min(old_total);
+            let b_end = prev_cached
+                .decorations
+                .blocks
+                .partition_point(|b| b.lines().start < raw_old_end);
+            let aligned_old_end = b_end.checked_sub(1).map_or(raw_old_end, |i| {
+                prev_cached.decorations.blocks[i]
+                    .lines()
+                    .end
+                    .max(raw_old_end)
+            });
+            let aligned_new_end =
+                ((aligned_old_end as isize) + line_delta).clamp(0, new_total as isize) as usize;
+            let guard_line = (aligned_new_end + 1).min(new_total);
+            let required_byte = if guard_line < new_total {
+                Some(state.doc.line_range(guard_line).start)
+            } else {
+                None
+            };
+            let (syntax, plans) = self.ensure_parsed_covering(&mut cache, state, required_byte);
             let PipelineCache {
+                parsed,
                 registry,
                 prev_widgets,
                 lazy_env_slot,
                 ..
             } = &mut *cache;
+            let source_fallbacks = parsed
+                .as_ref()
+                .and_then(|p| p.plan_cache.source_fallbacks());
             let cx = DecorateCx {
                 doc: &state.doc,
                 syntax: &syntax,
@@ -677,26 +818,30 @@ impl EditorExtension for MarkdownExtension {
                 assets: self.assets.as_ref(),
                 references: self.references.as_ref(),
             };
-            let built = decorations::decorate_incremental(
-                &prev_rc,
+            let owned_prev = Rc::unwrap_or_clone(prev_cached.decorations);
+            let built = decorations::decorate_incremental_in_place(
+                owned_prev,
                 &splice,
                 &cx,
                 registry,
                 state.revision,
                 prev_widgets,
                 lazy_env_slot,
+                source_fallbacks,
             );
             if let Some(ref sp) = built.splice {
+                for dead in &sp.removed_widget_ids {
+                    prev_widgets.remove(dead);
+                }
                 for b in &built.blocks[sp.new_blocks.clone()] {
                     if let Block::Widget { id, widget, .. } = b {
                         prev_widgets.insert(*id, Rc::clone(widget));
                     }
                 }
             }
-            let rc = Rc::new(built);
-            drop(prev_rc);
-            rc
+            Rc::new(built)
         } else {
+            let (syntax, plans) = self.ensure_parsed_in(&mut cache, state);
             let rhythm = if self.live {
                 block_rhythm(&state.doc, &syntax, None)
             } else {
@@ -741,7 +886,42 @@ impl EditorExtension for MarkdownExtension {
         let mut cache = self.cache.borrow_mut();
         let state = input.state;
         let theme = self.resolved_theme(&state.doc, input.dark, &mut cache);
-        let (syntax, plans) = self.ensure_parsed_in(&mut cache, state);
+        let mut max_line = 0usize;
+        let total = state.doc.line_count();
+        for r in [&self.preview.reveal, &self.preview.revealed_source]
+            .into_iter()
+            .flatten()
+        {
+            let clamped = state.doc.clamp_range(r.clone());
+            max_line = max_line.max(
+                state
+                    .doc
+                    .line_index(clamped.end.saturating_sub(1).max(clamped.start)),
+            );
+        }
+        if let Some(comp) = self.preview.composing {
+            max_line = max_line.max(state.doc.line_index(state.doc.clamp(comp)));
+        }
+        if let Some(ct) = self.preview.callout_title {
+            max_line = max_line.max(state.doc.line_index(state.doc.clamp(ct)));
+        }
+        let b_last = doc_layer
+            .blocks
+            .partition_point(|b| b.lines().start < (max_line + 1).min(total));
+        let expanded_end_line = b_last
+            .checked_sub(1)
+            .map_or(max_line + 1, |i| doc_layer.blocks[i].lines().end)
+            .max(max_line + 1);
+        let required_byte = if expanded_end_line + 1 < total {
+            Some(state.doc.line_range(expanded_end_line + 1).start)
+        } else {
+            None
+        };
+        let (syntax, plans) = self.ensure_parsed_covering(&mut cache, state, required_byte);
+        let source_fallbacks = cache
+            .parsed
+            .as_ref()
+            .and_then(|p| p.plan_cache.source_fallbacks());
         let cx = DecorateCx {
             doc: &state.doc,
             syntax: &syntax,
@@ -754,7 +934,12 @@ impl EditorExtension for MarkdownExtension {
             assets: self.assets.as_ref(),
             references: self.references.as_ref(),
         };
-        Rc::new(decorations::decorate_reveal(doc_layer, &cx, state.revision))
+        Rc::new(decorations::decorate_reveal_with_fallbacks(
+            doc_layer,
+            &cx,
+            state.revision,
+            source_fallbacks,
+        ))
     }
 
     fn decorate(&mut self, input: &DecorateInput) -> Decorations {
@@ -762,6 +947,7 @@ impl EditorExtension for MarkdownExtension {
         let reveal_layer = self.decorate_reveal(input, &doc_layer);
         if reveal_layer.is_empty() {
             let mut plain = (*doc_layer).clone();
+            plain.materialize();
             plain.splice = None;
             return plain;
         }
@@ -796,35 +982,88 @@ impl EditorExtension for MarkdownExtension {
         if let Some(mut prev) = cache.parsed.take()
             && prev.len == applied.before_doc.len()
         {
-            let prev_element_count = prev.syntax.elements.len();
-            if let Some(splice) = Syntax::try_parse_incremental_in_place(
-                Rc::make_mut(&mut prev.syntax),
-                &state.doc,
-                &applied.before_doc,
-                &applied.changes,
-                self.features(),
-            ) {
-                let mut plan_cache = prev.plan_cache;
+            // Keep a detached tail only when the edit lies strictly inside the
+            // prefix with at least two guard top-level blocks before the split.
+            if let Some(tail) = &prev.tail {
+                let max_old = applied.changes.changes().last().map_or(0, |c| c.range.end);
+                let fits_head = prev.syntax.top_blocks.len() >= 6
+                    && max_old < prev.syntax.top_blocks[prev.syntax.top_blocks.len() - 2].start
+                    && max_old < tail.split_byte;
+                if !fits_head {
+                    prev.materialize_tail();
+                }
+            }
+
+            let run_incremental = |prev: &mut Parsed, allow_eof: bool| -> Option<SyntaxSplice> {
+                let prev_elems = prev.syntax.elements.len();
+                let prev_lists = prev.syntax.lists.len();
+                let prev_items = prev.syntax.items.len();
+                let splice = Syntax::try_parse_incremental_in_place_bounded(
+                    Rc::make_mut(&mut prev.syntax),
+                    &state.doc,
+                    &applied.before_doc,
+                    &applied.changes,
+                    self.features(),
+                    allow_eof,
+                )?;
+                let new_elems = prev.syntax.elements.len();
+                let new_lists = prev.syntax.lists.len();
+                let new_items = prev.syntax.items.len();
                 plans::compile_incremental_in_place(
                     &state.doc,
                     &prev.syntax,
                     Rc::make_mut(&mut prev.plans),
-                    prev_element_count,
+                    prev_elems,
                     &splice,
                     &self.preview.features,
                     self.features(),
-                    &mut plan_cache,
+                    &mut prev.plan_cache,
                 );
-                cache.parsed = Some(Parsed {
+                if let Some(tail) = &mut prev.tail {
+                    tail.split_byte = ((tail.split_byte as isize) + splice.byte_delta) as usize;
+                    tail.split_line = ((tail.split_line as isize) + splice.line_delta) as usize;
+                    tail.byte_delta += splice.byte_delta;
+                    tail.line_delta += splice.line_delta;
+                    tail.elem_delta += new_elems as isize - prev_elems as isize;
+                    tail.list_delta += new_lists as isize - prev_lists as isize;
+                    tail.item_delta += new_items as isize - prev_items as isize;
+                }
+                Some(splice)
+            };
+
+            let had_tail = prev.tail.is_some();
+            let splice_opt = run_incremental(&mut prev, !had_tail).or_else(|| {
+                if prev.tail.is_some() {
+                    prev.materialize_tail();
+                    run_incremental(&mut prev, true)
+                } else {
+                    None
+                }
+            });
+
+            if let Some(splice) = splice_opt {
+                // If an edit introduced a multi-block delimiter inside `head`,
+                // materialise `tail` so whole-document delimiter pairing stays exact.
+                if prev.tail.is_some() && !prev.syntax.block_delimiters.is_empty() {
+                    prev.materialize_tail();
+                }
+                let prev_rev = prev.revision;
+                let splice_new_end = splice.new_bytes.end;
+                let mut next = Parsed {
                     revision: state.revision,
                     len: state.doc.len(),
                     syntax: prev.syntax,
                     folds: self.preview.features.clone(),
-                    plan_cache,
+                    plan_cache: prev.plan_cache,
                     plans: prev.plans,
                     headings: OnceCell::new(),
-                    last_splice: Some((prev.revision, splice)),
-                });
+                    last_splice: Some((prev_rev, splice)),
+                    tail: prev.tail,
+                };
+                if next.tail.is_none() {
+                    next.maybe_detach_tail(&state.doc, splice_new_end);
+                }
+                cache.parsed = Some(next);
                 return;
             }
 
@@ -855,21 +1094,20 @@ impl EditorExtension for MarkdownExtension {
         }
 
         let syntax = Rc::new(Syntax::parse_with(&state.doc, self.features()));
-        let plans = Rc::new(plans::compile(
-            &state.doc,
-            &syntax,
-            &self.preview.features,
-            self.features(),
-        ));
+        let compiled = plans::compile(&state.doc, &syntax, &self.preview.features, self.features());
+        let mut plan_cache = PlanCache::default();
+        plan_cache.rebuild_index(&compiled);
+        let plans = Rc::new(compiled);
         cache.parsed = Some(Parsed {
             revision: state.revision,
             len: state.doc.len(),
             syntax,
             folds: self.preview.features.clone(),
-            plan_cache: PlanCache::default(),
+            plan_cache,
             plans,
             headings: OnceCell::new(),
             last_splice: None,
+            tail: None,
         });
     }
 
@@ -881,14 +1119,27 @@ impl EditorExtension for MarkdownExtension {
             {
                 return;
             }
-            self.ensure_parsed_in(&mut cache, state).0
+            let head_line = state.doc.line_index(state.selection.head);
+            let mut req = state.doc.line_range(head_line).end.saturating_add(1);
+            if let Some(r) = &self.preview.reveal {
+                let mapped_end = applied
+                    .changes
+                    .map(r.end, crate::editor::text::change::Assoc::After);
+                req = req.max(mapped_end.saturating_add(1));
+            }
+            self.ensure_parsed_covering(&mut cache, state, Some(req)).0
         };
         self.preview
             .applied(applied, state, &syntax, focused, self.read_only);
     }
 
     fn selection_changed(&mut self, state: &EditorState, focused: bool, pointer_selecting: bool) {
-        let (syntax, _) = self.parse(state);
+        let head_line = state.doc.line_index(state.selection.head);
+        let req = state.doc.line_range(head_line).end.saturating_add(1);
+        let syntax = {
+            let mut cache = self.cache.borrow_mut();
+            self.ensure_parsed_covering(&mut cache, state, Some(req)).0
+        };
         self.preview
             .selection_changed(state, &syntax, focused, pointer_selecting, self.read_only);
     }
@@ -903,7 +1154,9 @@ impl EditorExtension for MarkdownExtension {
             {
                 return None;
             }
-            self.ensure_parsed_in(&mut cache, state).0
+            let head_line = state.doc.line_index(state.selection.head);
+            let req = state.doc.line_range(head_line).end.saturating_add(1);
+            self.ensure_parsed_covering(&mut cache, state, Some(req)).0
         };
         self.preview.normalize(&state.doc, &syntax, state.selection)
     }
