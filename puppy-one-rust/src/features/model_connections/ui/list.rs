@@ -127,6 +127,14 @@ impl ModelConnections {
                     ),
             };
             rows.push(row.into_any_element());
+            // A browser sign-in whose page could not reach the app shows a
+            // code ("copy this code to finish signing in"): paste it here.
+            if let Some(signing) = signing
+                && provider.uses_browser_callback()
+                && !matches!(signing.step, Some(Progress::Exchanging))
+            {
+                rows.push(self.paste_row(index, t, cx));
+            }
             if let Some(Progress::DeviceCode {
                 user_code,
                 verification_uri,
@@ -137,6 +145,58 @@ impl ModelConnections {
         }
         rows.extend(self.inline_error(ErrorAt::Accounts, t));
         SettingsCategory::new(tr("native.modelConnections.source.oauth")).body(table(t, rows))
+    }
+
+    /// The paste field of a browser sign-in: the code the provider's page
+    /// shows, or the final address it opened.
+    fn paste_row(&self, index: usize, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+        let m = theme::ty();
+        self.paste.update(cx, |i, _| {
+            i.appearance = false;
+            i.prompt_text = Some((m.ui.meta, 17.));
+            i.placeholder_color = Some(|t| t.subtle);
+            i.min_height = 17.;
+        });
+        v_flex()
+            .id(("paste-code", index))
+            .w_full()
+            .min_w_0()
+            .px(px(36.))
+            .pb(px(8.))
+            .gap(px(6.))
+            .child(
+                div()
+                    .text_size(px(m.ui.caption))
+                    .text_color(t.subtle)
+                    .child(tr("native.modelConnections.pasteHint")),
+            )
+            .child(
+                h_flex()
+                    .w_full()
+                    .gap(px(8.))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .h(px(theme::control_compact()))
+                            .pl(px(8.))
+                            .pr(px(5.))
+                            .flex()
+                            .items_center()
+                            .border_1()
+                            .border_color(t.divider)
+                            .rounded(px(6.))
+                            .bg(t.input)
+                            .child(div().w_full().child(self.paste.clone())),
+                    )
+                    .child(
+                        Button::new(("paste-continue", index))
+                            .variant(ButtonVariant::OutlinePrimary)
+                            .label(tr("native.modelConnections.pasteContinue"))
+                            .on_click(cx.listener(|s, _, _, cx| s.paste_code(cx))),
+                    ),
+            )
+            .into_any_element()
     }
 
     /// The code the user types on the provider's page.

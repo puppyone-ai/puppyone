@@ -273,6 +273,46 @@ pub const API_PROVIDERS: &[Provider] = &[
 /// the provider's own OAuth (ported from Pi Coding Agent).
 pub const ACCOUNT_PROVIDERS: &[Provider] = &[
     Provider {
+        id: "openai-api",
+        name: "OpenAI",
+        mark: Some("openai.svg"),
+        monochrome: true,
+        source: SourceKind::Api,
+        // "Sign in with ChatGPT" for agents: the token calls the OpenAI API
+        // (Responses) directly; `/models` lists what it may use.
+        driver: Driver::OpenaiResponses,
+        base_url: "https://api.openai.com/v1",
+        context: 400_000,
+        api_key: false,
+        oauth: Some((
+            OauthProvider::OpenaiApi,
+            Driver::OpenaiResponses,
+            "https://api.openai.com/v1",
+        )),
+        recommended: &[],
+        known: &[],
+    },
+    Provider {
+        id: "meta",
+        name: "Meta",
+        mark: Some("meta-color.svg"),
+        monochrome: false,
+        source: SourceKind::Api,
+        // Meta Model API (Responses), Pi `providers/meta.ts`; models.dev
+        // lists the Muse family with a 1M window.
+        driver: Driver::OpenaiResponses,
+        base_url: "https://api.meta.ai/v1",
+        context: 1_048_576,
+        api_key: false,
+        oauth: Some((
+            OauthProvider::Meta,
+            Driver::OpenaiResponses,
+            "https://api.meta.ai/v1",
+        )),
+        recommended: &["muse-spark-1.3"],
+        known: &[known("muse-spark-1.3", 1_048_576)],
+    },
+    Provider {
         id: "chatgpt",
         name: "ChatGPT",
         mark: Some("openai.svg"),

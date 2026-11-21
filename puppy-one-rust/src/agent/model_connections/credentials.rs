@@ -307,7 +307,7 @@ async fn resolve_with(
             else {
                 unreachable!("only OAuth credentials need a refresh")
             };
-            let fresh = oauth::refresh(provider, refresh)
+            let fresh = oauth::refresh(provider, refresh, account_id.as_deref())
                 .await
                 .map_err(|_| "OAUTH_REAUTH_REQUIRED".to_owned())?;
             // A provider that does not rotate the refresh token, or omits

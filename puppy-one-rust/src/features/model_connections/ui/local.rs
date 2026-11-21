@@ -15,15 +15,34 @@ use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex};
 use gpui_kit::component::Sizable as _;
 
-/// Model apps to install, with where to get them: `(provider, page)`.
-const GUIDES: [(&str, &str); 6] = [
-    ("ollama", "https://ollama.com/download"),
-    ("lm-studio", "https://lmstudio.ai/download"),
-    ("omlx", "https://github.com/jundot/omlx/releases"),
-    ("mlx", "https://github.com/ml-explore/mlx-lm"),
-    ("llama-cpp", "https://github.com/ggml-org/llama.cpp"),
-    ("jan", "https://jan.ai/download"),
+/// Model apps to install, with where to get them and their GitHub stars
+/// (`gh api repos/<repo>`, 2026-11-21; LM Studio's app is not open
+/// source, so it shows none): `(provider, page, stars)`.
+const GUIDES: [(&str, &str, Option<u32>); 6] = [
+    ("ollama", "https://ollama.com/download", Some(187_820)),
+    ("lm-studio", "https://lmstudio.ai/download", None),
+    (
+        "omlx",
+        "https://github.com/jundot/omlx/releases",
+        Some(23_793),
+    ),
+    ("mlx", "https://github.com/ml-explore/mlx-lm", Some(7_719)),
+    (
+        "llama-cpp",
+        "https://github.com/ggml-org/llama.cpp",
+        Some(135_924),
+    ),
+    ("jan", "https://jan.ai/download", Some(45_984)),
 ];
+
+/// `★ 188k`, `★ 7.7k`, `★ 950`.
+fn stars(count: u32) -> String {
+    match count {
+        0..1_000 => format!("★ {count}"),
+        1_000..10_000 => format!("★ {:.1}k", f64::from(count) / 1000.),
+        _ => format!("★ {}k", (f64::from(count) / 1000.).round()),
+    }
+}
 /// The guide's first model, one paste in the shell: install Ollama with
 /// its official script when missing, wait for its server, then
 /// `ollama run` (which downloads the model first).
@@ -416,7 +435,7 @@ impl ModelConnections {
                 ))
                 .into_any_element(),
         ];
-        for (index, (id, page)) in GUIDES.into_iter().enumerate() {
+        for (index, (id, page, star_count)) in GUIDES.into_iter().enumerate() {
             let provider = registry::get(id);
             rows.push(
                 table_row(t)
@@ -425,7 +444,15 @@ impl ModelConnections {
                     .child(identity(
                         t,
                         provider.map(|p| p.name).unwrap_or(id).into(),
-                        tr(&format!("native.modelConnections.guide.{id}")).into(),
+                        match star_count {
+                            Some(count) => format!(
+                                "{} · {}",
+                                tr(&format!("native.modelConnections.guide.{id}")),
+                                stars(count)
+                            ),
+                            None => tr(&format!("native.modelConnections.guide.{id}")).to_string(),
+                        }
+                        .into(),
                     ))
                     .child(
                         text_action(
@@ -450,5 +477,15 @@ impl ModelConnections {
                 .into_any_element(),
         );
         category.body(table(t, rows))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn star_counts_read_compactly() {
+        assert_eq!(super::stars(187_820), "★ 188k");
+        assert_eq!(super::stars(7_719), "★ 7.7k");
+        assert_eq!(super::stars(950), "★ 950");
     }
 }

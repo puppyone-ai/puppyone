@@ -19,6 +19,9 @@ pub struct Callback {
 pub struct Authorization {
     pub code: String,
     pub state: Option<String>,
+    /// The client the provider registered for this sign-in (OpenAI's
+    /// dynamic client), when the callback names one.
+    pub client_id: Option<String>,
 }
 
 impl Callback {
@@ -73,6 +76,10 @@ impl Callback {
             if Instant::now() >= deadline {
                 return Err("OAUTH_TIMEOUT".into());
             }
+            // The user pasted the page's code or the callback URL.
+            if let Some(text) = cancel.take_pasted() {
+                return pasted(&text, path, state);
+            }
             let mut idle = true;
             for listener in &self.listeners {
                 match listener.accept() {
@@ -96,7 +103,24 @@ impl Callback {
 const SUCCESS: &str = "PuppyOne is signed in. You can close this tab and return to the app.";
 const FAILURE: &str = "PuppyOne could not finish signing in. Return to the app and try again.";
 
-fn page(stream: &mut TcpStream, status: &str, message: &str) {
+/// The provider pages that read the callback's answer from a script
+/// (xAI's sign-in calls the loopback with `fetch` and shows "copy this
+/// code" when it cannot read the reply), as xAI's own Grok CLI clients do.
+const PAGE_ORIGINS: [&str; 2] = ["https://auth.x.ai", "https://accounts.x.ai"];
+
+/// CORS for an allowed provider page, including Chrome's Private Network
+/// Access; nothing for any other origin.
+fn cors(origin: Option<&str>) -> String {
+    match origin.filter(|o| PAGE_ORIGINS.contains(o)) {
+        Some(origin) => format!(
+            "access-control-allow-origin: {origin}\r\naccess-control-allow-methods: GET, OPTIONS\r\n\
+             access-control-allow-headers: content-type\r\naccess-control-allow-private-network: true\r\nvary: origin\r\n"
+        ),
+        None => String::new(),
+    }
+}
+
+fn page(stream: &mut TcpStream, status: &str, message: &str, origin: Option<&str>) {
     let body = format!(
         "<!doctype html><meta charset=utf-8><title>PuppyOne</title>\
          <body style=\"font:15px -apple-system,system-ui,sans-serif;margin:64px auto;max-width:420px;color:#222\">\
@@ -105,7 +129,8 @@ fn page(stream: &mut TcpStream, status: &str, message: &str) {
     let _ = write!(
         stream,
         "HTTP/1.1 {status}\r\ncontent-type: text/html; charset=utf-8\r\ncache-control: no-store\r\n\
-         content-length: {}\r\nconnection: close\r\n\r\n{body}",
+         {}content-length: {}\r\nconnection: close\r\n\r\n{body}",
+        cors(origin),
         body.len()
     );
     let _ = stream.flush();
@@ -119,14 +144,39 @@ fn answer(
 ) -> Option<Result<Authorization, String>> {
     let _ = stream.set_nonblocking(false);
     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+    let mut reader = BufReader::new(stream.try_clone().ok()?);
     let mut line = String::new();
-    if BufReader::new(&stream).take_line(&mut line).is_err() {
+    if (&mut reader).take_line(&mut line).is_err() {
         return None;
     }
+    // The headers, for the page's `Origin` (bounded).
+    let mut origin: Option<String> = None;
+    for _ in 0..64 {
+        let mut header = String::new();
+        if (&mut reader).take_line(&mut header).is_err() || header.trim().is_empty() {
+            break;
+        }
+        if let Some((name, value)) = header.split_once(':')
+            && name.trim().eq_ignore_ascii_case("origin")
+        {
+            origin = Some(value.trim().to_owned());
+        }
+    }
+    let origin = origin.as_deref();
     let target = line.split_whitespace().nth(1).unwrap_or_default();
     let url = url::Url::parse(&format!("http://127.0.0.1{target}")).ok()?;
+    // A script's preflight: allowed, nothing is decided yet.
+    if line.starts_with("OPTIONS ") && url.path() == path {
+        let _ = write!(
+            stream,
+            "HTTP/1.1 204 No Content\r\n{}content-length: 0\r\nconnection: close\r\n\r\n",
+            cors(origin)
+        );
+        let _ = stream.flush();
+        return None;
+    }
     if !line.starts_with("GET ") || url.path() != path {
-        page(&mut stream, "404 Not Found", FAILURE);
+        page(&mut stream, "404 Not Found", FAILURE, origin);
         return None;
     }
     let query = |key: &str| {
@@ -135,25 +185,76 @@ fn answer(
             .map(|(_, v)| v.into_owned())
     };
     if query("error").is_some() {
-        page(&mut stream, "400 Bad Request", FAILURE);
+        page(&mut stream, "400 Bad Request", FAILURE, origin);
         return Some(Err("OAUTH_DENIED".into()));
     }
     let returned = query("state");
     if let Some(expected) = state
         && returned.as_deref() != Some(expected)
     {
-        page(&mut stream, "400 Bad Request", FAILURE);
+        page(&mut stream, "400 Bad Request", FAILURE, origin);
         return Some(Err("OAUTH_STATE_MISMATCH".into()));
     }
     let Some(code) = query("code").filter(|c| !c.is_empty()) else {
-        page(&mut stream, "400 Bad Request", FAILURE);
+        page(&mut stream, "400 Bad Request", FAILURE, origin);
         return Some(Err("OAUTH_INVALID_RESPONSE".into()));
     };
-    page(&mut stream, "200 OK", SUCCESS);
+    page(&mut stream, "200 OK", SUCCESS, origin);
     Some(Ok(Authorization {
         code,
         state: returned,
+        client_id: query("client_id").filter(|c| !c.is_empty()),
     }))
+}
+
+/// What the user pasted: the final callback URL (checked like the callback
+/// itself) or the bare code a provider's page shows ("copy this code to
+/// finish signing in").
+pub fn pasted(text: &str, path: &str, state: Option<&str>) -> Result<Authorization, String> {
+    let text = text.trim();
+    if let Ok(url) = url::Url::parse(text) {
+        let query = |key: &str| {
+            url.query_pairs()
+                .find(|(k, _)| k == key)
+                .map(|(_, v)| v.into_owned())
+        };
+        let loopback = url
+            .host_str()
+            .is_some_and(|h| matches!(h, "127.0.0.1" | "localhost" | "[::1]" | "::1"));
+        if !loopback || url.path() != path {
+            return Err("OAUTH_PASTE_INVALID".into());
+        }
+        if query("error").is_some() {
+            return Err("OAUTH_DENIED".into());
+        }
+        let returned = query("state");
+        if let Some(expected) = state
+            && returned.as_deref() != Some(expected)
+        {
+            return Err("OAUTH_STATE_MISMATCH".into());
+        }
+        let code = query("code")
+            .filter(|c| !c.is_empty())
+            .ok_or("OAUTH_PASTE_INVALID")?;
+        return Ok(Authorization {
+            code,
+            state: returned,
+            client_id: query("client_id").filter(|c| !c.is_empty()),
+        });
+    }
+    // A bare code: one token of URL-safe characters.
+    let plausible = (8..=4096).contains(&text.len())
+        && text
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_.~".contains(c));
+    if !plausible {
+        return Err("OAUTH_PASTE_INVALID".into());
+    }
+    Ok(Authorization {
+        code: text.to_owned(),
+        state: None,
+        client_id: None,
+    })
 }
 
 /// One request line, bounded.
@@ -212,7 +313,8 @@ mod tests {
             result.unwrap(),
             Authorization {
                 code: "abc".into(),
-                state: Some("s1".into())
+                state: Some("s1".into()),
+                client_id: None,
             }
         );
     }
@@ -278,5 +380,92 @@ mod tests {
                 .unwrap();
             assert_eq!(got.code, "c6");
         }
+    }
+
+    #[test]
+    fn a_pasted_code_or_callback_url_finishes_the_wait() {
+        // A bare code, as xAI's "copy this code" page shows it.
+        let got = pasted("emxx9CrrsAIvpPfvLpJuiC8_6vr-5C2u", "/callback", Some("st")).unwrap();
+        assert_eq!(
+            (got.code.as_str(), got.state),
+            ("emxx9CrrsAIvpPfvLpJuiC8_6vr-5C2u", None)
+        );
+        // The final callback URL is checked like the callback.
+        let url = "http://127.0.0.1:56121/callback?code=c1&state=st&client_id=app_9";
+        let got = pasted(url, "/callback", Some("st")).unwrap();
+        assert_eq!(
+            (got.code.as_str(), got.client_id.as_deref()),
+            ("c1", Some("app_9"))
+        );
+        assert_eq!(
+            pasted(
+                "http://127.0.0.1:56121/callback?code=c1&state=other",
+                "/callback",
+                Some("st")
+            )
+            .unwrap_err(),
+            "OAUTH_STATE_MISMATCH"
+        );
+        for bad in [
+            "https://evil.test/callback?code=x&state=st",
+            "two words",
+            "abc",
+        ] {
+            assert_eq!(
+                pasted(bad, "/callback", Some("st")).unwrap_err(),
+                "OAUTH_PASTE_INVALID",
+                "{bad}"
+            );
+        }
+        // Pasting ends a running wait without any browser.
+        let callback = Callback::bind(0).unwrap();
+        let cancel = Cancel::default();
+        cancel.paste("pasted-code-123".into());
+        let got = callback
+            .wait_blocking("/callback", Some("st"), &cancel, Duration::from_secs(2))
+            .unwrap();
+        assert_eq!(got.code, "pasted-code-123");
+    }
+
+    #[test]
+    fn xais_page_reads_the_answer_after_its_preflight() {
+        use std::io::{Read, Write};
+        let callback = Callback::bind(0).unwrap();
+        let port = callback.port;
+        let exchange = |request: &'static str| {
+            std::thread::spawn(move || {
+                let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+                s.write_all(request.as_bytes()).unwrap();
+                let mut reply = String::new();
+                let _ = s.read_to_string(&mut reply);
+                reply
+            })
+        };
+        let preflight = exchange(
+            "OPTIONS /callback?code=c&state=st HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: https://auth.x.ai\r\nAccess-Control-Request-Private-Network: true\r\n\r\n",
+        );
+        std::thread::sleep(Duration::from_millis(150));
+        let get = exchange(
+            "GET /callback?code=c&state=st HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: https://auth.x.ai\r\n\r\n",
+        );
+        let got = callback
+            .wait_blocking(
+                "/callback",
+                Some("st"),
+                &Cancel::default(),
+                Duration::from_secs(5),
+            )
+            .unwrap();
+        assert_eq!(got.code, "c");
+        let preflight = preflight.join().unwrap();
+        assert!(preflight.starts_with("HTTP/1.1 204"), "{preflight}");
+        assert!(preflight.contains("access-control-allow-private-network: true"));
+        let get = get.join().unwrap();
+        assert!(
+            get.contains("access-control-allow-origin: https://auth.x.ai"),
+            "{get}"
+        );
+        // Another site gets no CORS.
+        assert!(cors(Some("https://evil.test")).is_empty());
     }
 }

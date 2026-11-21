@@ -90,17 +90,13 @@ pub fn use_as_default(
     })
 }
 
-/// Offer `model` in Chat, or stop offering it (the default always is).
-pub fn set_chat_model(
+/// The models a connection offers in Chat besides its default.
+pub fn set_chat_models(
     mut connection: ModelConnection,
-    model: String,
-    offered: bool,
+    models: Vec<String>,
     wake: Wake,
 ) -> Receiver<Connections> {
-    connection.chat_models.retain(|m| m != &model);
-    if offered {
-        connection.chat_models.push(model);
-    }
+    connection.chat_models = models;
     change(wake, async move {
         tokio::task::spawn_blocking(move || configuration::save(connection, None))
             .await

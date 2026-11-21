@@ -234,38 +234,88 @@ impl AgentChatTabPanel {
                     })
                     .copied()
             };
-            // The source switcher: every source, its ready model or the
-            // way to set it up, then Settings.
+            // The source switcher, in levels as Cursor's model picker:
+            // source → provider (each signed-in plan, API or local service)
+            // → its models; a source without a ready model opens Settings.
+            let snapshot = self.compute.as_ref();
+            let name_of = |id: &str| {
+                snapshot
+                    .and_then(|s| s.names.get(id).cloned())
+                    .unwrap_or_default()
+            };
+            let mark_of = |id: &str| snapshot.and_then(|s| s.marks.get(id).copied());
             let mut sources: Vec<AgentSessionControlOption> =
                 compute_sources(self.compute.as_ref(), &compute.offered, self.payments)
                     .into_iter()
                     .map(|(kind, model)| {
                         let (icon, label) = source_presentation(kind);
+                        // Its providers, in the order their models come.
+                        let mut providers: Vec<(String, Vec<&Model>)> = vec![];
+                        if kind != "managed" {
+                            for m in compute
+                                .offered
+                                .iter()
+                                .filter(|m| source_of(m) == Some(kind))
+                            {
+                                let id = m.connection_id.clone().unwrap_or_default();
+                                match providers.iter_mut().find(|(p, _)| *p == id) {
+                                    Some((_, models)) => models.push(m),
+                                    None => providers.push((id, vec![m])),
+                                }
+                            }
+                        }
+                        let children: Vec<AgentSessionControlOption> = providers
+                            .into_iter()
+                            .map(|(id, models)| {
+                                let current = models
+                                    .iter()
+                                    .any(|m| compute.ready && selected == Some(m.model.as_str()));
+                                AgentSessionControlOption {
+                                    value: format!("provider:{id}"),
+                                    label: name_of(&id),
+                                    description: None,
+                                    keywords: None,
+                                    icon: Some(icon),
+                                    mark: mark_of(&id),
+                                    current,
+                                    sets: None,
+                                    children: models
+                                        .iter()
+                                        .map(|m| AgentSessionControlOption {
+                                            value: m.model.clone(),
+                                            label: m.display_name.clone(),
+                                            current: compute.ready
+                                                && selected == Some(m.model.as_str()),
+                                            sets: Some(AgentSessionControlId::Model),
+                                            ..Default::default()
+                                        })
+                                        .collect(),
+                                }
+                            })
+                            .collect();
                         AgentSessionControlOption {
                             value: kind.to_owned(),
                             label: t(label).to_string(),
-                            // A source without a ready model opens Settings
-                            // (`管理模型连接…` says so once, below).
                             description: match model {
                                 Some(_) if kind == "managed" => {
                                     Some(t("agent.compute.managedBalance").to_string())
                                 }
-                                Some(model) => Some(model.display_name.clone()),
-                                None => None,
+                                _ => None,
                             },
                             keywords: None,
                             icon: Some(icon),
                             mark: None,
+                            current: !compute.own_compute_only && compute.source == kind,
+                            sets: None,
+                            children,
                         }
                     })
                     .collect();
             sources.push(AgentSessionControlOption {
                 value: "manage".into(),
                 label: t("native.agent.compute.manage").to_string(),
-                description: None,
-                keywords: None,
                 icon: Some("settings"),
-                mark: None,
+                ..Default::default()
             });
             let source_control = AgentSessionControl {
                 id: AgentSessionControlId::Source,
@@ -291,10 +341,18 @@ impl AgentChatTabPanel {
                     .color(a.text_subtle),
                 )
                 .child(source_picker);
+            // The quick switch beside it: the current provider's models
+            // (another provider is one level in, in the source picker).
+            let provider = compute
+                .offered
+                .iter()
+                .find(|m| selected == Some(m.model.as_str()))
+                .and_then(|m| m.connection_id.clone());
             let in_source: Vec<&Model> = compute
                 .offered
                 .iter()
                 .filter(|m| source_of(m) == Some(compute.source))
+                .filter(|m| provider.is_none() || m.connection_id == provider)
                 .collect();
             if compute.show_picker && !in_source.is_empty() {
                 let control = AgentSessionControl {
@@ -329,6 +387,7 @@ impl AgentChatTabPanel {
                                     .get(model.connection_id.as_deref().unwrap_or_default())
                                     .copied()
                             }),
+                            ..Default::default()
                         })
                         .collect(),
                 };

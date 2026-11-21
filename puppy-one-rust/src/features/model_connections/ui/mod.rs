@@ -93,6 +93,9 @@ struct SigningIn {
     step: Option<Progress>,
 }
 
+/// A connection's catalog, or why it could not be read.
+type CatalogResult = Result<Vec<client::CatalogModel>, String>;
+
 pub struct ModelConnections {
     items: Vec<ModelConnection>,
     loaded: bool,
@@ -105,6 +108,8 @@ pub struct ModelConnections {
     manual_model: Entity<TextInput>,
     default_model: Entity<TextInput>,
     context: Entity<TextInput>,
+    /// What the user pastes when a browser sign-in cannot reach the app.
+    paste: Entity<TextInput>,
     form: Form,
     generation: String,
     confirm_remove: bool,
@@ -132,7 +137,8 @@ pub struct ModelConnections {
     payments: bool,
     /// The service catalog of the shown connection (`catalogs`).
     catalog: Option<(String, Result<Vec<client::CatalogModel>, String>)>,
-    catalog_rx: Option<Receiver<Result<Vec<client::CatalogModel>, String>>>,
+    /// A catalog being read, and whose.
+    catalog_rx: Option<(String, Receiver<CatalogResult>)>,
     /// Agent tool round trips that passed, by route; one in flight.
     /// Agent tool round trips by route: the result and when it arrived
     /// (the chip's entrance is keyed by it).
@@ -176,6 +182,7 @@ impl ModelConnections {
             manual_model: cx.new(|cx| TextInput::new("", false, 300, window, cx)),
             default_model: cx.new(|cx| TextInput::new("", false, 300, window, cx)),
             context: cx.new(|cx| TextInput::new("", false, 8, window, cx)),
+            paste: cx.new(|cx| TextInput::new("", false, 4096, window, cx)),
             form: Form {
                 editing: None,
                 source: SourceKind::Api,
@@ -273,10 +280,17 @@ impl ModelConnections {
             self.managed = status;
             cx.notify();
         }
-        if let Some(result) = self.catalog_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
+        if let Some((id, result)) = self
+            .catalog_rx
+            .as_ref()
+            .and_then(|(id, rx)| rx.try_recv().ok().map(|r| (id.clone(), r)))
+        {
             self.catalog_rx = None;
-            if let PageState::Detail(id) = &self.page {
-                self.catalog = Some((id.clone(), result));
+            if let Ok(models) = &result {
+                self.offer_all(&id, models);
+            }
+            if matches!(&self.page, PageState::Detail(shown) if *shown == id) {
+                self.catalog = Some((id, result));
             }
             cx.notify();
         }
@@ -312,10 +326,18 @@ impl ModelConnections {
         cx.notify();
         if let Some(result) = done {
             let cancelled = signing.cancel.cancelled();
+            let provider = signing.provider;
             self.signing_in = None;
             match result {
                 Err(code) if cancelled || code == "OAUTH_CANCELLED" => {}
-                result => self.apply(result, cx),
+                result => {
+                    let signed = result.is_ok();
+                    self.apply(result, cx);
+                    // The plan's models become choosable in Chat once read.
+                    if signed && let Some(item) = self.signed_in(provider).cloned() {
+                        self.read_catalog(item.id);
+                    }
+                }
             }
         }
     }
@@ -468,6 +490,20 @@ impl ModelConnections {
         cx.notify();
     }
 
+    /// Hand the running browser sign-in what the user pasted: the code a
+    /// provider's page shows, or the final callback URL.
+    fn paste_code(&mut self, cx: &mut Context<Self>) {
+        let text = self.paste.read(cx).text().trim().to_owned();
+        if text.is_empty() {
+            return;
+        }
+        if let Some(signing) = &self.signing_in {
+            signing.cancel.paste(text);
+            self.paste.update(cx, |input, cx| input.clear(cx));
+            cx.notify();
+        }
+    }
+
     fn cancel_sign_in(&mut self, cx: &mut Context<Self>) {
         if let Some(signing) = self.signing_in.take() {
             signing.cancel.cancel();
@@ -478,15 +514,41 @@ impl ModelConnections {
     /// Read the service's model catalog for `id`.
     fn read_catalog(&mut self, id: String) {
         if let Some(connection) = self.items.iter().find(|c| c.id == id).cloned() {
-            self.catalog = None;
-            self.catalog_rx = Some(client::catalog(connection, self.wake.clone()));
+            if matches!(&self.page, PageState::Detail(shown) if *shown == id) {
+                self.catalog = None;
+            }
+            self.catalog_rx = Some((id, client::catalog(connection, self.wake.clone())));
+        }
+    }
+
+    /// Every text model a connection's service lists is offered in Chat
+    /// (the provider's whole catalog, as Cursor's picker shows it); Ollama's
+    /// cloud models and models that refuse tools are not.
+    fn offer_all(&mut self, id: &str, models: &[client::CatalogModel]) {
+        let Some(item) = self.items.iter().find(|c| c.id == id).cloned() else {
+            return;
+        };
+        let offered: Vec<String> = models
+            .iter()
+            .filter(|m| !m.remote && m.tools != Some(false))
+            .map(|m| m.id.clone())
+            .filter(|m| item.default_model_id.as_deref() != Some(m.as_str()))
+            .take(64)
+            .collect();
+        if offered != item.chat_models && !self.busy {
+            self.rx = client::set_chat_models(item, offered, self.wake.clone());
+            self.busy = true;
         }
     }
 
     /// `catalog?.status ?? "unread"` of connection `id`.
     fn catalog_key(&self, id: &str) -> &'static str {
         match &self.catalog {
-            Some((shown, _)) if shown == id && self.catalog_rx.is_some() => "refreshing",
+            Some((shown, _))
+                if shown == id && self.catalog_rx.as_ref().is_some_and(|(r, _)| r == id) =>
+            {
+                "refreshing"
+            }
             Some((shown, Ok(_))) if shown == id => "ready",
             Some((shown, Err(_))) if shown == id => "failed",
             _ => "unread",
@@ -544,6 +606,8 @@ impl ModelConnections {
             "OAUTH_DENIED" => "native.modelConnections.error.denied",
             "OAUTH_EXPIRED" | "OAUTH_TIMEOUT" => "native.modelConnections.error.expired",
             "OAUTH_PORT_IN_USE" => "native.modelConnections.error.portInUse",
+            "OAUTH_PASTE_INVALID" => "native.modelConnections.error.pasteInvalid",
+            "OAUTH_SCOPE_DENIED" => "native.modelConnections.error.scopeDenied",
             "OAUTH_UNAVAILABLE" | "OAUTH_UNREACHABLE" => {
                 "native.modelConnections.error.signInUnavailable"
             }

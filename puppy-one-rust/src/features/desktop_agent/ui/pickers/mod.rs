@@ -4,7 +4,7 @@
 use super::agent_theme::AgentTheme;
 use super::elements::effort_label;
 use crate::features::desktop_agent::domain::agent_session_controls::{
-    AgentSessionControl, AgentSessionControlId,
+    AgentSessionControl, AgentSessionControlId, AgentSessionControlOption,
 };
 use crate::localization::{Arg, t, tf};
 use crate::theme;
@@ -284,6 +284,28 @@ impl SessionPickers {
             );
         }
         for (index, (label, value, selected)) in shown.into_iter().enumerate() {
+            // A level with options below it (source → provider → model).
+            if let Some(option) = control
+                .options
+                .iter()
+                .find(|o| o.value == value && !o.children.is_empty())
+            {
+                let item = level_item(
+                    option,
+                    id,
+                    host.clone(),
+                    ("agent-panel-picker-option", index).into(),
+                    self.active == Some(index),
+                    cx,
+                );
+                menu = menu.item(item);
+                continue;
+            }
+            let selected = selected
+                || control
+                    .options
+                    .iter()
+                    .any(|o| o.value == value && o.current && id == AgentSessionControlId::Source);
             let highlighted = selected || self.active == Some(index);
             let host = host.clone();
             let (icon, mark, detail) = decoration(&value);
@@ -355,4 +377,123 @@ impl SessionPickers {
         }
         menu
     }
+}
+
+/// An option with a next level: its row opens a submenu on hover (or on
+/// keyboard), whose rows are its children, recursively; a leaf sets its
+/// `sets` control (or `id`) and closes the picker.
+fn level_item(
+    option: &AgentSessionControlOption,
+    id: AgentSessionControlId,
+    host: WeakEntity<SessionPickers>,
+    key: ElementId,
+    active: bool,
+    cx: &mut Context<SessionPickers>,
+) -> MenuItem {
+    let t_ = cx.palette();
+    let mut item = MenuItem::new(option.label.clone())
+        .id(key)
+        .selected(option.current || active)
+        .trailing(
+            Icon::new("chevron-right")
+                .small()
+                .stroke(2.)
+                .color(t_.muted),
+        )
+        .open_submenu(active);
+    item = decorate(item, option, &t_);
+    item.submenu(level_menu(option, id, host))
+}
+
+/// A nested level inside a submenu (`level_item` without keyboard state).
+fn nested_level(
+    option: &AgentSessionControlOption,
+    id: AgentSessionControlId,
+    host: WeakEntity<SessionPickers>,
+    key: ElementId,
+    t_: &crate::theme::Theme,
+) -> MenuItem {
+    let item = MenuItem::new(option.label.clone())
+        .id(key)
+        .selected(option.current)
+        .trailing(
+            Icon::new("chevron-right")
+                .small()
+                .stroke(2.)
+                .color(t_.muted),
+        );
+    decorate(item, option, t_).submenu(level_menu(option, id, host))
+}
+
+/// The submenu of `option`'s children: leaves set their control and close
+/// the picker; children with their own children open another level.
+fn level_menu(
+    option: &AgentSessionControlOption,
+    id: AgentSessionControlId,
+    host: WeakEntity<SessionPickers>,
+) -> impl Fn(&mut Window, &mut App) -> Menu + 'static {
+    let children = option.children.clone();
+    let menu_id = SharedString::from(format!("agent-picker-level-{}", option.value));
+    move |_, cx| {
+        let t_ = cx.palette();
+        let mut menu = Menu::new(menu_id.clone())
+            .variant(MenuVariant::RightRail)
+            .min_w(px(200.))
+            .max_w(px(280.))
+            .max_h(px(PICKER_MAX_HEIGHT));
+        for (index, child) in children.iter().enumerate() {
+            let key: ElementId = (menu_id.clone(), index).into();
+            if !child.children.is_empty() {
+                menu = menu.item(nested_level(child, id, host.clone(), key, &t_));
+                continue;
+            }
+            let host = host.clone();
+            let (sets, value) = (child.sets.unwrap_or(id), child.value.clone());
+            let mut row = MenuItem::new(child.label.clone())
+                .id(key)
+                .selected(child.current)
+                .on_click(move |_, cx| {
+                    let _ = host.update(cx, |s, cx| {
+                        cx.emit(PickerEvent::Select {
+                            id: sets,
+                            value: value.clone(),
+                        });
+                        s.close(cx);
+                    });
+                });
+            row = decorate(row, child, &t_);
+            if child.current {
+                row = row.trailing(
+                    Icon::new("check")
+                        .with_size(px(14.))
+                        .stroke(2.)
+                        .color(t_.muted),
+                );
+            }
+            menu = menu.item(row);
+        }
+        menu
+    }
+}
+
+/// An option's brand mark or icon, and its second line.
+fn decorate(
+    mut item: MenuItem,
+    option: &AgentSessionControlOption,
+    t_: &crate::theme::Theme,
+) -> MenuItem {
+    if let Some(mark) = option.mark {
+        item = item.icon_element(crate::ui::provider_marks::provider_mark(
+            Some(mark),
+            false,
+            16.,
+            t_.text,
+        ));
+    } else if let Some(icon) = option.icon {
+        item = item.icon(icon);
+    }
+    if let Some(detail) = option.description.clone() {
+        item = item.detail_below(detail);
+    }
+    item
 }

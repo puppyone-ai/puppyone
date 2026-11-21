@@ -265,6 +265,7 @@ embedded! {
     "providers" / "llamacpp.svg",
     "providers" / "lmstudio.svg",
     "providers" / "localai.png",
+    "providers" / "meta-color.svg",
     "providers" / "mistral-color.svg",
     "providers" / "mlx.png",
     "providers" / "ollama.svg",

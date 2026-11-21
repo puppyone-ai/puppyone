@@ -25,6 +25,14 @@ pub struct AgentSessionControlOption {
     /// A brand mark (`assets/providers/<file>`, one colour or not) drawn
     /// before the label instead of `icon`.
     pub mark: Option<(&'static str, bool)>,
+    /// A next level, opened by hovering the option (source → provider →
+    /// model); the option itself is then not a choice.
+    pub children: Vec<AgentSessionControlOption>,
+    /// The control a choice in a next level sets (a model chosen from the
+    /// source picker); its own control when `None`.
+    pub sets: Option<AgentSessionControlId>,
+    /// Whether this option, or one below it, is the current choice.
+    pub current: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -68,6 +76,9 @@ pub fn derive_agent_session_controls(
                     description: non_empty(&model.description),
                     icon: None,
                     mark: None,
+                    children: vec![],
+                    sets: None,
+                    current: false,
                     keywords: Some(format!(
                         "{} {} {}",
                         model.id,
@@ -111,8 +122,7 @@ pub fn derive_agent_session_controls(
                     label: mode.display_name.clone(),
                     description: non_empty(&mode.description),
                     keywords: Some(format!("{} {}", mode.id, mode.display_name)),
-                    icon: None,
-                    mark: None,
+                    ..Default::default()
                 })
                 .collect(),
         });

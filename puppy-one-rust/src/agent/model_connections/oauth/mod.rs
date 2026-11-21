@@ -13,6 +13,8 @@ mod chatgpt;
 mod device;
 mod kimi;
 mod loopback;
+mod meta;
+mod openai_api;
 mod openrouter;
 pub mod pkce;
 mod qwen;
@@ -35,17 +37,25 @@ pub enum OauthProvider {
     KimiCode,
     /// SuperGrok / X Premium.
     Xai,
-    /// Qwen Code (Qwen's own sign-in, a free personal quota).
+    /// Qwen Code. Its current sign-in is a paid Qwen plan's and is not
+    /// offered; the variant keeps older saved sign-ins readable.
     QwenCode,
+    /// Meta Model API through Meta's sign-in (Pi `meta.ts`).
+    Meta,
+    /// The OpenAI API through "Sign in with ChatGPT" for agents (Pi
+    /// `openai-chatgpt.ts`): a client registered for this app. Not offered
+    /// in Settings (ChatGPT's own sign-in covers the plan).
+    OpenaiApi,
 }
 
 impl OauthProvider {
+    /// The sign-ins Settings offers, in order.
     pub const ALL: [OauthProvider; 5] = [
         OauthProvider::Chatgpt,
-        OauthProvider::QwenCode,
         OauthProvider::Openrouter,
         OauthProvider::KimiCode,
         OauthProvider::Xai,
+        OauthProvider::Meta,
     ];
     pub fn key(self) -> &'static str {
         match self {
@@ -54,12 +64,17 @@ impl OauthProvider {
             Self::KimiCode => "kimi-code",
             Self::Xai => "xai",
             Self::QwenCode => "qwen-code",
+            Self::Meta => "meta",
+            Self::OpenaiApi => "openai-api",
         }
     }
     /// The flow opens a browser and waits on a loopback callback (else it is
     /// a device-code flow the user completes on any device).
     pub fn uses_browser_callback(self) -> bool {
-        matches!(self, Self::Chatgpt | Self::Openrouter)
+        matches!(
+            self,
+            Self::Chatgpt | Self::Openrouter | Self::Xai | Self::OpenaiApi
+        )
     }
 }
 
@@ -77,15 +92,31 @@ pub enum Progress {
     Exchanging,
 }
 
-/// Cancels a running sign-in; cheap to clone.
+/// Controls a running sign-in from the UI: cancels it, or hands it what
+/// the user pasted when the browser could not reach the app (the code a
+/// provider's page shows, or the final callback URL; Pi's manual input).
+/// Cheap to clone.
 #[derive(Clone, Default)]
-pub struct Cancel(Arc<AtomicBool>);
+pub struct Cancel {
+    cancelled: Arc<AtomicBool>,
+    pasted: Arc<std::sync::Mutex<Option<String>>>,
+}
 impl Cancel {
     pub fn cancel(&self) {
-        self.0.store(true, Ordering::SeqCst);
+        self.cancelled.store(true, Ordering::SeqCst);
     }
     pub fn cancelled(&self) -> bool {
-        self.0.load(Ordering::SeqCst)
+        self.cancelled.load(Ordering::SeqCst)
+    }
+    /// What the user pasted; the browser flow takes it instead of waiting
+    /// for its callback.
+    pub fn paste(&self, text: String) {
+        if let Ok(mut pasted) = self.pasted.lock() {
+            *pasted = Some(text);
+        }
+    }
+    fn take_pasted(&self) -> Option<String> {
+        self.pasted.lock().ok()?.take()
     }
     fn check(&self) -> Result<(), String> {
         if self.cancelled() {
@@ -192,6 +223,12 @@ pub async fn login(
             OauthProvider::QwenCode => {
                 qwen::login(&qwen::Endpoints::default(), progress, &cancel).await
             }
+            OauthProvider::Meta => {
+                meta::login(&meta::Endpoints::default(), progress, &cancel).await
+            }
+            OauthProvider::OpenaiApi => {
+                openai_api::login(&openai_api::Endpoints::default(), progress, &cancel).await
+            }
         }
     };
     tokio::time::timeout(LOGIN_TIMEOUT, flow)
@@ -199,8 +236,13 @@ pub async fn login(
         .map_err(|_| "OAUTH_TIMEOUT".to_owned())?
 }
 
-/// A fresh access token for `refresh_token`.
-pub async fn refresh(provider: OauthProvider, refresh_token: &str) -> Result<Credential, String> {
+/// A fresh access token for `refresh_token`; `account_id` is what the
+/// sign-in stored beside it (OpenAI's issued client ID).
+pub async fn refresh(
+    provider: OauthProvider,
+    refresh_token: &str,
+    account_id: Option<&str>,
+) -> Result<Credential, String> {
     match provider {
         OauthProvider::Chatgpt => {
             chatgpt::refresh(&chatgpt::Endpoints::default(), refresh_token).await
@@ -210,6 +252,11 @@ pub async fn refresh(provider: OauthProvider, refresh_token: &str) -> Result<Cre
         OauthProvider::KimiCode => kimi::refresh(&kimi::Endpoints::default(), refresh_token).await,
         OauthProvider::Xai => xai::refresh(&xai::Endpoints::default(), refresh_token).await,
         OauthProvider::QwenCode => qwen::refresh(&qwen::Endpoints::default(), refresh_token).await,
+        OauthProvider::Meta => meta::refresh(&meta::Endpoints::default(), refresh_token).await,
+        OauthProvider::OpenaiApi => {
+            let client = account_id.ok_or("OAUTH_REAUTH_REQUIRED")?;
+            openai_api::refresh(&openai_api::Endpoints::default(), client, refresh_token).await
+        }
     }
 }
 

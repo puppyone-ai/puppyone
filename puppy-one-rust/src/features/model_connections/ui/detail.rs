@@ -6,7 +6,7 @@ use super::{ModelConnections, PageState};
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::components::{Button, ButtonVariant, Icon, MutedRow, SettingsCategory, Switch, ValueRow},
+    ui::components::{Button, ButtonVariant, Icon, MutedRow, SettingsCategory, ValueRow},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex, v_flex};
@@ -21,7 +21,11 @@ impl ModelConnections {
     }
     /// `catalog.status` of the shown connection, when not ready.
     fn catalog_status(&self, item: &ModelConnection) -> Option<String> {
-        if self.catalog_rx.is_some() {
+        if self
+            .catalog_rx
+            .as_ref()
+            .is_some_and(|(id, _)| *id == item.id)
+        {
             return Some(tr("settings.modelConnections.status.refreshing").to_string());
         }
         match &self.catalog {
@@ -67,10 +71,7 @@ impl ModelConnections {
             ));
         }
         let usable = !model.remote && model.tools != Some(false);
-        let offered = is_default || item.chat_models.contains(&model.id);
         let (target, chosen, context) = (item.clone(), model.id.clone(), model.context);
-        let page = cx.entity().downgrade();
-        let (switch_target, switch_model) = (item.clone(), model.id.clone());
         h_flex()
             .id(("model", index))
             .w_full()
@@ -122,33 +123,6 @@ impl ModelConnections {
             })
             .when(usable, |row| {
                 row.child(self.verify_control(item, model, index, t, cx))
-            })
-            // Whether Chat's model picker offers it (the default always is).
-            .when(usable, |row| {
-                row.child(
-                    Switch::new(
-                        ("offer-model", index),
-                        tr("native.modelConnections.offerInChat"),
-                    )
-                    .checked(offered)
-                    .disabled(is_default || self.busy)
-                    .tooltip(tr(if is_default {
-                        "native.modelConnections.offerDefault"
-                    } else {
-                        "native.modelConnections.offerInChat"
-                    }))
-                    .on_change(move |on, _, cx| {
-                        let (target, model) = (switch_target.clone(), switch_model.clone());
-                        page.update(cx, |s, cx| {
-                            if !s.busy {
-                                s.rx = client::set_chat_model(target, model, on, s.wake.clone());
-                                s.busy = true;
-                                cx.notify();
-                            }
-                        })
-                        .ok();
-                    }),
-                )
             })
             .into_any_element()
     }
