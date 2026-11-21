@@ -11,7 +11,7 @@
 use super::{
     html_visual::script_json,
     structured::{theme_css, theme_update_script},
-    web::WebFrame,
+    web::{WebFallbackAction, WebFrame},
     workspace_port,
 };
 use crate::{
@@ -73,6 +73,81 @@ enum Inbound {
         request: u64,
         path: String,
     },
+}
+
+/// `preflightAppPreviewLaunch` (`src/lib/localFiles.ts`): before a setup
+/// is saved, what it launches must exist — the page checks too, but the
+/// host never takes the page's word for it.
+fn preflight_launch(workspace: &Workspace, app_path: &str, content: &str) -> Result<(), String> {
+    use crate::platform::app_preview::manifest::{self, Launch};
+    let manifest = manifest::parse(content, app_path).map_err(|e| e.message)?;
+    let normalized = app_path.replace('\\', "/");
+    let directory = normalized
+        .trim_matches('/')
+        .rsplit_once('/')
+        .map(|(d, _)| d);
+    let join = |relative: &str| {
+        [directory, Some(relative)]
+            .into_iter()
+            .flatten()
+            .filter(|part| !part.is_empty() && *part != ".")
+            .collect::<Vec<_>>()
+            .join("/")
+    };
+    let (command, cwd) = match manifest.launch {
+        None | Some(Launch::ExistingUrl { .. }) => return Ok(()),
+        Some(Launch::StaticFile { path }) => {
+            return workspace
+                .read(Path::new(&join(&path)))
+                .map(|_| ())
+                .map_err(|_| format!("HTML file not found: {path}"));
+        }
+        Some(Launch::LocalServer { command, cwd, .. }) => (command, cwd),
+    };
+    let children = workspace
+        .list(Path::new(&join(&cwd)))
+        .map_err(|_| format!("Working folder not found: {cwd}"))?;
+    // Only the explicit `run` form is unambiguously a package script.
+    let executable = command
+        .first()
+        .and_then(|c| c.rsplit(['/', '\\']).next())
+        .map(|c| c.to_lowercase());
+    let executable = executable
+        .as_deref()
+        .map(|e| e.strip_suffix(".cmd").unwrap_or(e));
+    let script = (matches!(executable, Some("npm" | "pnpm" | "yarn" | "bun"))
+        && command.get(1).is_some_and(|c| c == "run"))
+    .then(|| {
+        command
+            .get(2)
+            .filter(|s| !s.is_empty() && !s.starts_with('-'))
+    })
+    .flatten();
+    let Some(script) = script else {
+        return Ok(());
+    };
+    let package = children
+        .iter()
+        .find(|node| !node.folder && node.name == "package.json")
+        .ok_or_else(|| format!("No package.json was found in {cwd}."))?;
+    let text = workspace
+        .read(&package.path)
+        .map_err(|error| error.to_string())?
+        .text;
+    let scripts = serde_json::from_str::<serde_json::Value>(&text)
+        .map_err(|_| format!("package.json in {cwd} is not valid JSON."))?
+        .get("scripts")
+        .cloned();
+    if scripts
+        .as_ref()
+        .and_then(|s| s.as_object())
+        .and_then(|s| s.get(script.as_str()))
+        .is_some_and(serde_json::Value::is_string)
+    {
+        Ok(())
+    } else {
+        Err(format!("Package script not found: {script}"))
+    }
 }
 
 pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
@@ -168,7 +243,9 @@ impl AppPreviewView {
         };
         self.ready = false;
         let weak = cx.weak_entity();
+        let weak_open = cx.weak_entity();
         let dark = self.dark;
+        let has_local_root = self.root().is_some();
         self.frame = Some(cx.new(|_| {
             let mut f = WebFrame::new(Some(content), dark);
             f.set_on_recreated(Some(std::rc::Rc::new(move |cx| {
@@ -176,6 +253,18 @@ impl AppPreviewView {
                     view.ready = false;
                 });
             })));
+            if has_local_root {
+                f.set_fallback_actions(vec![WebFallbackAction::custom(
+                    "web-fallback-app-preview-browser",
+                    "native.web.openInBrowser",
+                    move |_, cx| {
+                        let _ = weak_open.update(cx, |view, cx| {
+                            let path = view.name.clone();
+                            view.run(0, path, 4, cx);
+                        });
+                    },
+                )]);
+            }
             f
         }));
         self._inbox = Some(cx.spawn(async move |this, cx| {
@@ -355,13 +444,15 @@ impl AppPreviewView {
             } => {
                 let task = cx.background_executor().spawn(async move {
                     match workspace {
-                        Some(w) => workspace_port::write_expected(
-                            &w,
-                            &path,
-                            &expected,
-                            &content,
-                            "This App changed while setup was open. Review the latest version and try again.",
-                        ),
+                        Some(w) => preflight_launch(&w, &path, &content).and_then(|()| {
+                            workspace_port::write_expected(
+                                &w,
+                                &path,
+                                &expected,
+                                &content,
+                                "This App changed while setup was open. Review the latest version and try again.",
+                            )
+                        }),
                         None => unavailable(),
                     }
                 });
@@ -495,6 +586,67 @@ impl Render for AppPreviewView {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    /// `localFiles.appPreviewSetup.test.ts`: a setup whose package script is
+    /// missing is refused before anything is written; an advanced
+    /// package-manager command is not mistaken for a script; a setup whose
+    /// script exists is saved against the content the page read.
+    #[test]
+    fn configure_saves_only_a_setup_whose_package_script_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let empty = r#"{"type":"puppyone.app","version":1}"#;
+        std::fs::write(dir.path().join("demo.puppyoneapp"), empty).unwrap();
+        let workspace = Workspace::open(dir.path()).unwrap();
+        let setup = |command: &str| {
+            format!(
+                r#"{{"type":"puppyone.app","version":1,"name":"Demo","launch":{{"kind":"local-server","command":{command},"cwd":".","url":"http://127.0.0.1:${{port}}/"}}}}"#
+            )
+        };
+        let configure = |content: &str| {
+            preflight_launch(&workspace, "demo.puppyoneapp", content).and_then(|()| {
+                workspace_port::write_expected(
+                    &workspace,
+                    "demo.puppyoneapp",
+                    empty,
+                    content,
+                    "changed",
+                )
+            })
+        };
+        let run_dev = setup(r#"["npm","run","dev"]"#);
+        std::fs::write(dir.path().join("package.json"), r#"{"scripts":{}}"#).unwrap();
+        let refused = configure(&run_dev).unwrap_err();
+        assert!(
+            refused.contains("Package script not found: dev"),
+            "{refused}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("demo.puppyoneapp")).unwrap(),
+            empty
+        );
+
+        // An advanced package-manager command is not a script name.
+        let exec = setup(r#"["npm","exec","vite"]"#);
+        assert_eq!(configure(&exec).unwrap()["content"], exec.as_str());
+
+        std::fs::write(dir.path().join("demo.puppyoneapp"), empty).unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"scripts":{"dev":"vite"}}"#,
+        )
+        .unwrap();
+        let workspace = Workspace::open(dir.path()).unwrap();
+        preflight_launch(&workspace, "demo.puppyoneapp", &run_dev).unwrap();
+        let saved = workspace_port::write_expected(
+            &workspace,
+            "demo.puppyoneapp",
+            empty,
+            &run_dev,
+            "changed",
+        )
+        .unwrap();
+        assert!(saved["content"].as_str().unwrap().contains("local-server"));
+    }
 
     #[test]
     fn requests_are_typed_and_the_frame_admits_only_the_running_app() {

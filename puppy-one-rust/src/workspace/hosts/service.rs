@@ -780,6 +780,117 @@ mod tests {
         assert!(HostService::has_state(&temp.path().join("host")));
     }
 
+    /// A Cloud this computer cannot reach: the connection keeps trying.
+    struct Unreachable;
+    impl Gateway for Unreachable {
+        fn challenge(
+            &self,
+            _: &str,
+            _: Value,
+        ) -> futures_util::future::BoxFuture<'static, Result<Value, super::super::connector::Refused>>
+        {
+            Box::pin(async { Err(Default::default()) })
+        }
+        fn connect(
+            &self,
+            _: url::Url,
+        ) -> futures_util::future::BoxFuture<
+            'static,
+            Result<Box<dyn super::super::remote::Socket>, String>,
+        > {
+            Box::pin(async { Err("offline".into()) })
+        }
+        fn authorities(
+            &self,
+        ) -> futures_util::future::BoxFuture<'static, Result<Vec<String>, String>> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn deployment(&self) -> &str {
+            API
+        }
+    }
+
+    /// Sharing belongs to the host, not the App: it keeps going with the
+    /// App gone and resumes by itself after a restart. A pause stops it and
+    /// survives a restart, keeping every folder. Signing out here stops it
+    /// (the identity stays) across restarts; someone else signing in does
+    /// not resume it, and the owner does.
+    #[test]
+    fn sharing_outlives_the_app_and_follows_who_is_signed_in() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap().join("notes");
+        std::fs::create_dir(&root).unwrap();
+        let dir = temp.path().join("host");
+        let shared = Arc::new(MemoryKeys::default());
+        let host = || {
+            let shared = shared.clone();
+            let keys: Keys = Arc::new(move || {
+                struct Same(Arc<MemoryKeys>);
+                impl KeyStore for Same {
+                    fn put(&self, item: &str, secret: &[u8]) -> Result<(), String> {
+                        self.0.put(item, secret)
+                    }
+                    fn get(&self, item: &str) -> Result<Option<Vec<u8>>, String> {
+                        self.0.get(item)
+                    }
+                    fn delete(&self, item: &str) -> Result<(), String> {
+                        self.0.delete(item)
+                    }
+                }
+                Box::new(Same(shared.clone())) as Box<dyn KeyStore>
+            });
+            let gateways: Gateways = Arc::new(|_: &str| Arc::new(Unreachable) as Arc<dyn Gateway>);
+            HostService::new(dir.clone(), vec![], "0.4.0", Some(gateways), keys, None)
+        };
+        let state = |host: &Arc<HostService>| host.status()["state"].as_str().unwrap().to_owned();
+        let first = host();
+        first.configure(API).unwrap();
+        first.set_person(Some(Arc::new(App::default())));
+        let owner = first.identity_register("Mac", "darwin").unwrap();
+        first
+            .registry_register(DEVICE, &root, "notes", false)
+            .unwrap();
+        first.connect(&owner).unwrap();
+        assert_ne!(state(&first), "off");
+        // The App goes: sharing goes on.
+        first.set_person(None);
+        assert_ne!(state(&first), "off");
+        // A restart with nobody signed in resumes by itself.
+        first.dispose();
+        let second = host();
+        second.start();
+        assert_ne!(state(&second), "off");
+        assert_eq!(second.status()["active"]["deviceId"], DEVICE);
+        // A pause stops it, and outlives a restart with its folders.
+        second.set_paused(true).unwrap();
+        assert_eq!(state(&second), "off");
+        second.dispose();
+        let third = host();
+        third.start();
+        assert_eq!(third.status()["paused"], true);
+        assert_eq!(state(&third), "off");
+        assert_eq!(third.status()["folders"][0]["name"], "notes");
+        third.set_paused(false).unwrap();
+        assert_ne!(state(&third), "off");
+        // Signing out here stops it, across a restart.
+        third.stop_sharing().unwrap();
+        assert_eq!(state(&third), "off");
+        third.dispose();
+        let fourth = host();
+        fourth.start();
+        assert_eq!(state(&fourth), "off");
+        // Someone else signing in does not resume it; the owner does.
+        let stranger = Owner {
+            account_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd".into(),
+            device_id: DEVICE.into(),
+        };
+        fourth.connect(&stranger).unwrap();
+        assert_eq!(state(&fourth), "off");
+        fourth.connect(&owner).unwrap();
+        assert_ne!(state(&fourth), "off");
+        fourth.dispose();
+    }
+
     #[test]
     fn the_host_asks_the_app_only_for_its_own_routes() {
         let device = DEVICE;

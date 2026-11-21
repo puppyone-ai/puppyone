@@ -89,7 +89,7 @@ fn csv_table_cost() {
             h.editor = Some(view);
             cx.notify();
         });
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
         t_open.elapsed().as_secs_f64() * 1000.
     });
     let view = host.read_with(cx, |h, _| h.editor.clone().unwrap());
@@ -127,7 +127,7 @@ fn csv_table_cost() {
         let t = Instant::now();
         cx.simulate_input(CHARS[i % CHARS.len()]);
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         cell_type.0.push(t.elapsed().as_secs_f64() * 1000.);
     }
@@ -146,7 +146,7 @@ fn csv_table_cost() {
         let t = Instant::now();
         view.update_in(cx, |v, w, cx| v.apply_operation(op, mid_row, 0, w, cx));
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         structural.0.push(t.elapsed().as_secs_f64() * 1000.);
     }

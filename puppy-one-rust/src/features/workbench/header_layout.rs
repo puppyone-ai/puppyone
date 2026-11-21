@@ -193,8 +193,18 @@ struct Track {
 pub struct Motion {
     tracks: std::collections::HashMap<Part, Track>,
     last: Option<(Vec<(Part, Span)>, bool)>,
+    /// The rail's width at the last frame.
+    width: Option<f32>,
 }
 impl Motion {
+    /// The rail's width this frame, and whether it changed: a resized rail
+    /// fits at once (no motion), and motion resumes from there once the
+    /// width holds.
+    pub fn resized(&mut self, width: f32) -> bool {
+        let resized = self.width.is_some_and(|was| was != width);
+        self.width = Some(width);
+        resized
+    }
     /// The spans to draw now for `targets` (rail order); `true` while any
     /// element is still moving.
     pub fn frame(
@@ -353,6 +363,51 @@ mod tests {
         let (snapped, moving) = motion.frame(&one, false, t0 + LAYOUT_MOTION);
         assert_eq!((snapped, moving), (one.to_vec(), false));
         assert!((ease(0.5) - 0.5).abs() > 0.1 && ease(1.) > 0.999 && ease(0.) < 0.001);
+    }
+    /// `fits a resized container immediately and re-enables motion only
+    /// after measurement`, `retargets interrupted pixels together`: a
+    /// resize snaps the tabs to their new widths, even mid-motion, and the
+    /// next change animates again from where they are drawn.
+    #[test]
+    fn a_resized_rail_fits_at_once_and_moves_again_after() {
+        use std::time::{Duration, Instant};
+        let span = |x: f32, width: f32| Span { x, width };
+        let t0 = Instant::now();
+        let mut motion = Motion::default();
+        let wide = [
+            (Part::Tab(1), span(0., 144.)),
+            (Part::Create, span(147., 28.)),
+        ];
+        assert!(!motion.resized(420.));
+        motion.frame(&wide, true, t0);
+        // A new tab starts to grow, then the rail is resized mid-motion.
+        let two = [
+            (Part::Tab(1), span(0., 104.)),
+            (Part::Tab(2), span(107., 144.)),
+            (Part::Create, span(254., 28.)),
+        ];
+        assert!(motion.frame(&two, true, t0).1);
+        let narrow = [
+            (Part::Tab(1), span(0., 80.)),
+            (Part::Tab(2), span(83., 80.)),
+            (Part::Create, span(166., 28.)),
+        ];
+        let later = t0 + Duration::from_millis(50);
+        assert!(motion.resized(300.));
+        assert_eq!(
+            motion.frame(&narrow, false, later),
+            (narrow.to_vec(), false)
+        );
+        // The width holds: nothing moves until the layout changes again.
+        assert!(!motion.resized(300.));
+        assert_eq!(motion.frame(&narrow, true, later), (narrow.to_vec(), false));
+        let one = [
+            (Part::Tab(1), span(0., 144.)),
+            (Part::Create, span(147., 28.)),
+        ];
+        let (start, moving) = motion.frame(&one, true, later);
+        assert!(moving);
+        assert_eq!(start[0].1, span(0., 80.), "from where it is drawn");
     }
     fn widths(layout: &HeaderLayout) -> Vec<f32> {
         layout.tabs.iter().map(|t| t.width).collect()

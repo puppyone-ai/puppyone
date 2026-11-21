@@ -37,9 +37,23 @@ impl Drop for GitWatch {
         self.client.active.store(false, Ordering::Release);
         // A callback admitted before cancellation completes before stop
         // returns; a queued callback rechecks active while holding this lock.
-        drop(self.client.changed.lock().unwrap());
-        let owner = self.client.owner.lock().unwrap().clone();
-        owner.clients.lock().unwrap().remove(&self.client.id);
+        drop(
+            self.client
+                .changed
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()),
+        );
+        let owner = self
+            .client
+            .owner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        owner
+            .clients
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&self.client.id);
     }
 }
 

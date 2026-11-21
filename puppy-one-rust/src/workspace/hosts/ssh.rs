@@ -889,10 +889,41 @@ mod tests {
             .await;
             assert!(refused.is_err(), "{principal} {key_id}");
         }
+        // Refused too: a certificate with critical options, and a login for
+        // a folder other than the one the tunnel was admitted for.
+        let user = new_key();
+        let mut builder = ssh_key::certificate::Builder::new(
+            [8u8; 16],
+            user.public_key().key_data().clone(),
+            window.0,
+            window.1,
+        )
+        .unwrap();
+        builder.cert_type(CertType::User).unwrap();
+        builder.key_id(format!("user:{ACCOUNT}")).unwrap();
+        builder.valid_principal(DEVICE).unwrap();
+        builder.critical_option("force-command", "true").unwrap();
+        let forced = builder.sign(&ca).unwrap().to_openssh().unwrap();
+        assert!(connect(user, forced, public_line(&host_key)).await.is_err());
+        let user = new_key();
+        let (a, b) = tokio::io::duplex(256 * 1024);
+        let serving = host.clone();
+        tokio::spawn(async move { serving.serve(a, FOLDER.into()).await });
+        let elsewhere = Access::connect(
+            b,
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            user.clone(),
+            &certificate(&ca, &user, DEVICE, &format!("user:{ACCOUNT}"), window),
+            &public_line(&host_key),
+        )
+        .await;
+        assert!(elsewhere.is_err());
     }
 
     /// Runs without a sandbox, for the bridge alone.
+    #[cfg(unix)]
     struct Plain;
+    #[cfg(unix)]
     impl super::super::exec::Execution for Plain {
         fn prepare(
             &self,
@@ -911,6 +942,7 @@ mod tests {
             })
         }
     }
+    #[cfg(unix)]
     async fn collect(mut channel: Channel<russh::client::Msg>) -> (String, String, Option<u32>) {
         let (mut out, mut err, mut status) = (Vec::new(), Vec::new(), None);
         while let Some(message) = channel.wait().await {
@@ -929,8 +961,212 @@ mod tests {
         )
     }
 
+    /// The host against the real OpenSSH client, as an external Agent uses
+    /// it, with this computer's folder sandbox: OpenSSH without a terminal
+    /// sends EOF right after its exec request; output is binary safe with
+    /// its exit status; piped input arrives; writes stay in the folder and
+    /// the App's data is hidden; only this folder's certificate signs in;
+    /// no port forwarding and no SFTP.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_openssh_client_reaches_only_the_sandboxed_folder() {
+        use std::process::Command;
+        // macOS ships both; elsewhere a runner without them skips.
+        let tools = ["ssh", "ssh-keygen"].iter().all(|tool| {
+            Command::new("/usr/bin/which")
+                .arg(tool)
+                .output()
+                .is_ok_and(|o| o.status.success())
+        });
+        let mechanism = super::super::exec::Mechanism::detect();
+        assert!(
+            !cfg!(target_os = "macos") || (tools && mechanism.is_some()),
+            "macOS must provide OpenSSH and the folder sandbox"
+        );
+        let (true, Some(mechanism)) = (tools, mechanism) else {
+            return;
+        };
+        let temp = tempfile::tempdir().unwrap();
+        let work = temp.path().canonicalize().unwrap();
+        let root = work.join("Shared");
+        let app_data = work.join("AppData");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&app_data).unwrap();
+        std::fs::write(root.join("note.md"), "# note\n").unwrap();
+        std::fs::write(app_data.join("device-key"), "SECRET-DEVICE-KEY").unwrap();
+        let keygen = |args: &[&str]| {
+            assert!(
+                Command::new("ssh-keygen")
+                    .arg("-q")
+                    .args(args)
+                    .current_dir(&work)
+                    .status()
+                    .unwrap()
+                    .success()
+            )
+        };
+        keygen(&["-t", "ed25519", "-N", "", "-f", "ca"]);
+        keygen(&["-t", "ed25519", "-N", "", "-f", "user"]);
+        let identity = format!("user:{ACCOUNT}");
+        keygen(&[
+            "-s", "ca", "-I", &identity, "-n", DEVICE, "-V", "-1m:+5m", "user.pub",
+        ]);
+        let ca = PublicKey::from_openssh(&std::fs::read_to_string(work.join("ca.pub")).unwrap())
+            .unwrap();
+        let host_key = new_key();
+        let sandbox = super::super::exec::FolderSandbox {
+            mechanism: Some(mechanism),
+            home: work.clone(),
+            app_data: vec![app_data.clone()],
+            search_path: "/usr/bin:/bin".into(),
+            temp: vec![],
+        };
+        let host = HostSsh::new(
+            Arc::new(HostIdentity {
+                account: ACCOUNT.into(),
+                device: DEVICE.into(),
+                key: host_key.clone(),
+            }),
+            Arc::new(Ca(ca)),
+            Arc::new(Shared(root.clone(), Mutex::new(true))),
+            Some(Arc::new(sandbox)),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((socket, _)) = listener.accept().await {
+                let host = host.clone();
+                tokio::spawn(async move { host.serve(socket, FOLDER.into()).await });
+            }
+        });
+        std::fs::write(
+            work.join("known_hosts"),
+            format!("[127.0.0.1]:{port} {}\n", public_line(&host_key)),
+        )
+        .unwrap();
+        let ssh = |args: &[&str], input: Option<&'static [u8]>, user: &str| {
+            let mut command = tokio::process::Command::new("ssh");
+            command
+                .args([
+                    "-F",
+                    "/dev/null",
+                    "-p",
+                    &port.to_string(),
+                    "-o",
+                    "BatchMode=yes",
+                ])
+                .args([
+                    "-o",
+                    "IdentitiesOnly=yes",
+                    "-o",
+                    "StrictHostKeyChecking=yes",
+                ])
+                .arg("-o")
+                .arg(format!("IdentityFile={}", work.join("user").display()))
+                .arg("-o")
+                .arg(format!(
+                    "CertificateFile={}",
+                    work.join("user-cert.pub").display()
+                ))
+                .arg("-o")
+                .arg(format!(
+                    "UserKnownHostsFile={}",
+                    work.join("known_hosts").display()
+                ))
+                .args(["-o", "ConnectTimeout=10"])
+                .args(&args[..args.len() - 1])
+                .arg(format!("{user}@127.0.0.1"))
+                .arg(args[args.len() - 1])
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped());
+            async move {
+                use tokio::io::AsyncWriteExt as _;
+                let mut child = command.spawn().unwrap();
+                let mut stdin = child.stdin.take().unwrap();
+                if let Some(input) = input {
+                    stdin.write_all(input).await.unwrap();
+                }
+                drop(stdin);
+                let output =
+                    tokio::time::timeout(Duration::from_secs(60), child.wait_with_output())
+                        .await
+                        .expect("ssh finished")
+                        .unwrap();
+                (
+                    output.status.code(),
+                    output.stdout,
+                    String::from_utf8_lossy(&output.stderr).into_owned(),
+                )
+            }
+        };
+
+        let (status, out, err) = ssh(&["printf '\\000\\377\\n'; exit 7"], None, FOLDER).await;
+        assert_eq!(
+            (status, out.as_slice()),
+            (Some(7), &b"\0\xff\n"[..]),
+            "{err}"
+        );
+        // The host keeps serving after a command whose input closed at once.
+        let (_, out, err) = ssh(&["cat note.md"], None, FOLDER).await;
+        assert_eq!(String::from_utf8_lossy(&out), "# note\n", "{err}");
+
+        let (_, out, err) = ssh(
+            &["cat > piped.txt; pwd; wc -c < piped.txt"],
+            Some(b"piped-input\n"),
+            FOLDER,
+        )
+        .await;
+        let lines: Vec<String> = String::from_utf8_lossy(&out)
+            .lines()
+            .map(|line| line.trim().to_owned())
+            .collect();
+        assert_eq!(
+            lines,
+            [root.to_string_lossy().into_owned(), "12".into()],
+            "{err}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("piped.txt")).unwrap(),
+            "piped-input\n"
+        );
+
+        let outside = work.join(format!(".puppyone-sandbox-probe-{}", std::process::id()));
+        let probe = format!(
+            "touch '{}'; echo touch=$?; cat '{}'; echo cat=$?",
+            outside.display(),
+            app_data.join("device-key").display()
+        );
+        let (_, out, _) = ssh(&[probe.as_str()], None, FOLDER).await;
+        let out = String::from_utf8_lossy(&out);
+        assert!(!out.contains("touch=0") && out.contains("touch="), "{out}");
+        assert!(!out.contains("cat=0") && out.contains("cat="), "{out}");
+        assert!(!out.contains("SECRET-DEVICE-KEY"));
+        assert!(!outside.exists());
+
+        let (status, _, err) = ssh(&["true"], None, "dddddddd-dddd-4ddd-8ddd-dddddddddddd").await;
+        assert_eq!(status, Some(255));
+        assert!(err.contains("Permission denied"), "{err}");
+
+        let (status, _, _) = ssh(
+            &[
+                "-o",
+                "ExitOnForwardFailure=yes",
+                "-W",
+                "127.0.0.1:22",
+                "unused",
+            ],
+            None,
+            FOLDER,
+        )
+        .await;
+        assert_eq!(status, Some(255), "no port forwarding");
+        let (status, _, _) = ssh(&["-s", "sftp"], None, FOLDER).await;
+        assert_ne!(status, Some(0), "no SFTP");
+    }
+
     /// A command and a terminal run in the folder over the session: output,
     /// errors and the exit status come back; an unknown launcher is told why.
+    #[cfg(unix)]
     #[tokio::test]
     async fn commands_and_terminals_run_in_the_folder() {
         let temp = tempfile::tempdir().unwrap();
@@ -976,6 +1212,30 @@ mod tests {
         let (_, err, status) = collect(agent).await;
         assert!(err.contains("launcher_unavailable"), "{err}");
         assert_eq!(status, Some(126));
+        // As a view drives it: input as bytes, a resize, and how it ended.
+        let mut session = access.session("shell", 80, 24).await.unwrap();
+        session.resize(100, 40).await;
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        session
+            .input("for _ in 1 2 3 4 5; do s=$(stty size); echo \"$s\"; [ \"$s\" = \"40 100\" ] && break; sleep 0.1; done; exit 5\n".as_bytes())
+            .await;
+        let mut out = Vec::new();
+        let status = loop {
+            match session.next().await {
+                Output::Data(data) => out.extend(data),
+                Output::Exit(status) => break Some(status),
+                Output::Closed => break None,
+            }
+        };
+        assert_eq!(status, Some(5));
+        assert!(
+            String::from_utf8_lossy(&out).contains("40 100"),
+            "{}",
+            String::from_utf8_lossy(&out)
+        );
+        // Anything but a launcher is refused.
+        let refused = access.session("bash -c x", 80, 24).await.err().unwrap();
+        assert_eq!(refused.code, "not_allowed");
     }
 
     #[test]

@@ -10,6 +10,8 @@ use crate::editor::{
 use crate::typography::Scale;
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
+mod model_acceptance;
+
 const TABLE: &str = "| Name | Qty |\n| --- | --: |\n| apple | 3 |\n| pear | 5 |\n";
 
 fn setup(cx: &mut TestAppContext) -> (Entity<EditorView>, &mut VisualTestContext) {
@@ -29,7 +31,7 @@ fn setup(cx: &mut TestAppContext) -> (Entity<EditorView>, &mut VisualTestContext
     });
     view.update_in(cx, |v, w, cx| v.focus(w, cx));
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     (view, cx)
 }
@@ -45,7 +47,7 @@ fn run(
         v.run_command(&structure(0, op, row, column), w, cx)
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 
@@ -61,7 +63,7 @@ fn the_rails_and_menu_operations_rewrite_the_table(cx: &mut TestAppContext) {
         assert_eq!(&v.text()[..caret], "| Name  | Qty  |\n| ---   | ---: |\n| apple | 3    |\n| pear  | 5    |\n| ");
     });
     // One undo step restores the original source.
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     view.update(cx, |v, _| assert_eq!(v.text(), TABLE));
     // The add-column rail, then alignment from the menu.
     run(&view, cx, Operation::InsertColumnRight, 0, 1);

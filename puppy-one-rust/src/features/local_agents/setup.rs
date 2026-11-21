@@ -213,6 +213,14 @@ pub(crate) fn install(
     entity
 }
 impl Activation {
+    /// Tests: companion apps found as `values` by a completed inspection.
+    #[cfg(test)]
+    pub(crate) fn fixture_companions(&mut self, values: Vec<(&'static str, Presence)>) {
+        self.presence.cancel();
+        self.presence = companion::session::Session::default();
+        let scan = self.presence.discover(self.companion_generation).unwrap();
+        self.presence.complete(&scan, values);
+    }
     fn new(service: activation::Service, cx: &mut Context<Self>) -> Self {
         let mut store = Self {
             service,

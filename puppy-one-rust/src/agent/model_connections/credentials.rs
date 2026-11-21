@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
 /// The Keychain service every model-connection item is filed under.
-pub const SERVICE: &str = "PuppyOne GPUI Model Connections";
 /// The longest API key accepted (`MODEL_CONNECTION_LIMITS.keyBytes`).
 pub const KEY_LIMIT: usize = 8192;
 /// The largest stored OAuth envelope.
@@ -136,39 +135,37 @@ trait Store: Send + Sync {
     fn delete(&self, id: &str);
 }
 
+/// The system credential store (`platform::credentials`): the macOS
+/// Keychain, Windows Credential Manager or the Secret Service, under the
+/// same service name as before.
 struct Keychain;
 impl Store for Keychain {
     fn get(&self, id: &str) -> Result<Vec<u8>, String> {
-        #[cfg(target_os = "macos")]
-        {
-            security_framework::passwords::get_generic_password(SERVICE, id).map_err(|_| {
-                crate::localization::t("native.modelConnections.credentialUnavailable").into()
-            })
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = id;
-            Err(crate::localization::t("native.modelConnections.noCredentialStorage").into())
+        use crate::platform::credentials::{Error, Namespace, system};
+        match system().get(Namespace::ModelConnection, id) {
+            Ok(Some(bytes)) => Ok(bytes),
+            Err(Error::Unavailable(_)) => {
+                Err(crate::localization::t("native.modelConnections.noCredentialStorage").into())
+            }
+            Ok(None) | Err(_) => {
+                Err(crate::localization::t("native.modelConnections.credentialUnavailable").into())
+            }
         }
     }
     fn set(&self, id: &str, value: &[u8]) -> Result<(), String> {
-        #[cfg(target_os = "macos")]
-        {
-            security_framework::passwords::set_generic_password(SERVICE, id, value).map_err(|_| {
-                crate::localization::t("native.modelConnections.keychainSaveFailed").into()
+        use crate::platform::credentials::{Error, Namespace, system};
+        system()
+            .set(Namespace::ModelConnection, id, value)
+            .map_err(|err| match err {
+                Error::Unavailable(_) => {
+                    crate::localization::t("native.modelConnections.noCredentialStorage").into()
+                }
+                _ => crate::localization::t("native.modelConnections.keychainSaveFailed").into(),
             })
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = (id, value);
-            Err(crate::localization::t("native.modelConnections.noCredentialStorage").into())
-        }
     }
     fn delete(&self, id: &str) {
-        #[cfg(target_os = "macos")]
-        let _ = security_framework::passwords::delete_generic_password(SERVICE, id);
-        #[cfg(not(target_os = "macos"))]
-        let _ = id;
+        use crate::platform::credentials::{Namespace, system};
+        let _ = system().delete(Namespace::ModelConnection, id);
     }
 }
 

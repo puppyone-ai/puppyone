@@ -28,8 +28,11 @@ impl Surface<'_, '_, '_, '_> {
                 0.26,
             ));
         meta.apply(chip.style());
+        // Named by its subject (an image's alt), without the failure reason.
+        let shown = label.split(" · ").next().unwrap_or(label).to_owned();
         div()
             .flex()
+            .debug_selector(move || format!("md-html-chip:{shown}"))
             .child(chip.child(SharedString::from(label.to_owned())))
             .into_any_element()
     }

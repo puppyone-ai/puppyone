@@ -83,13 +83,34 @@ async fn get_json_as(
     if response.status().as_u16() == 404 {
         return Err("ENDPOINT_NOT_FOUND".to_owned());
     }
+    // A redirect is never followed with the key (`REDIRECT_REJECTED`).
+    if response.status().is_redirection() {
+        return Err("REDIRECT_REJECTED".to_owned());
+    }
     if !response.status().is_success() {
         return Err(format!("HTTP_{}", response.status().as_u16()));
     }
-    response
-        .json::<serde_json::Value>()
+    let body = response
+        .bytes()
         .await
-        .map_err(|_| "INVALID_RESPONSE".to_owned())
+        .map_err(|_| "INVALID_RESPONSE".to_owned())?;
+    // A catalog that echoes the key would show or keep it.
+    if let Some(key) = key.filter(|k| !k.is_empty())
+        && body.windows(key.len()).any(|w| w == key.as_bytes())
+    {
+        return Err("INVALID_RESPONSE".to_owned());
+    }
+    serde_json::from_slice(&body).map_err(|_| "INVALID_RESPONSE".to_owned())
+}
+/// The client catalogs are read with: no redirect, bounded in time.
+pub(super) fn metadata_client() -> Result<reqwest::Client, String> {
+    crate::platform::proxy::system(
+        reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
+    )
+    .redirect_policy(reqwest::redirect::Policy::none())
+    .timeout(std::time::Duration::from_secs(15))
+    .build()
+    .map_err(|e| e.to_string())
 }
 /// `openaiCompatibleDriver.list`: `/models`; a service without one still
 /// serves an explicitly configured model.
@@ -622,7 +643,49 @@ mod catalog_tests {
             .enable_all()
             .build()
             .unwrap()
-            .block_on(async { list_models(&reqwest::Client::new(), connection, key).await })
+            .block_on(async { list_models(&metadata_client()?, connection, key).await })
+    }
+
+    /// `rejects metadata that echoes a credential`, `does not follow a
+    /// metadata redirect with credentials`.
+    #[test]
+    fn a_catalog_echoing_the_key_or_redirecting_is_refused() {
+        let connection = |port: u16| ModelConnection {
+            endpoint: format!("http://127.0.0.1:{port}/v1"),
+            ..Default::default()
+        };
+        let (port, server) = serve("200 OK", r#"{"data":[{"id":"synthetic-private-key"}]}"#);
+        assert_eq!(
+            list(&connection(port), Some("synthetic-private-key")),
+            Err("INVALID_RESPONSE".into())
+        );
+        server.join().unwrap();
+        // The redirect's target is never contacted.
+        let target = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        target.set_nonblocking(true).unwrap();
+        let elsewhere = target.local_addr().unwrap().port();
+        let origin = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = origin.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let (mut stream, _) = origin.accept().unwrap();
+            let mut request = [0u8; 2048];
+            let _ = stream.read(&mut request).unwrap();
+            write!(
+                stream,
+                "HTTP/1.1 302 Found\r\nlocation: http://127.0.0.1:{elsewhere}/v1/models\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+            )
+            .unwrap();
+        });
+        assert_eq!(
+            list(&connection(port), Some("synthetic-private-key")),
+            Err("REDIRECT_REJECTED".into())
+        );
+        server.join().unwrap();
+        assert_eq!(
+            target.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
     }
 
     #[test]

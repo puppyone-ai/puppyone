@@ -155,6 +155,8 @@ pub(super) enum DialogEvent {
         project: String,
         sandbox: crate::workspace::cloud::sandbox::CloudSandbox,
     },
+    /// Settings' scope switcher asked for a new space.
+    CreateSpace,
 }
 
 pub(super) struct DialogLayer {
@@ -216,6 +218,12 @@ impl DialogLayer {
                         project: project.clone(),
                         sandbox: sandbox.clone(),
                     });
+                }
+                // The window's dialog makes the space; once made, Settings
+                // opens again on its Members.
+                SettingsEvent::CreateSpace => {
+                    s.close_tasks(cx);
+                    cx.emit(DialogEvent::CreateSpace);
                 }
             }
         })
@@ -451,6 +459,7 @@ impl Render for DialogLayer {
                     .simple_modal(
                         tr("native.quit.title"),
                         tr("native.quit.detail"),
+                        Command::CancelProcessQuit,
                         vec![
                             (
                                 tr("native.quit.cancel"),
@@ -470,6 +479,7 @@ impl Render for DialogLayer {
                     .simple_modal(
                         tr("native.documentClose.message"),
                         tr("native.documentClose.detail"),
+                        Command::KeepWindowOpen,
                         vec![
                             (
                                 tr("native.documentClose.closeAnyway"),

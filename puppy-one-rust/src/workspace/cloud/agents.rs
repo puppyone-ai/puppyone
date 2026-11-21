@@ -383,10 +383,30 @@ mod tests {
         assert!(one(Some(&[between])).active);
         let never = Session {
             last_command_at: None,
-            ..idle
+            ..idle.clone()
         };
         let fresh = one(Some(&[never]));
         assert!(!fresh.active && fresh.last_active_at.is_none());
+        // A lapsed lease is not at work, even with a command recorded as
+        // running.
+        let lapsed = Session {
+            commands_running: Some(1),
+            last_command_at: Some(at(3900)),
+            lease_until: at(3800),
+            ..idle.clone()
+        };
+        assert!(!one(Some(&[lapsed])).active);
+        // Closed, it remembers its last command, not when it opened or
+        // closed.
+        let closed_connection = Session {
+            state: "closed".into(),
+            closed_at: Some(at(60)),
+            last_command_at: Some(at(700)),
+            ..idle
+        };
+        let quiet = one(Some(&[closed_connection]));
+        assert!(!quiet.active);
+        assert_eq!(quiet.last_active_at, Some(at(700)));
     }
 
     #[test]

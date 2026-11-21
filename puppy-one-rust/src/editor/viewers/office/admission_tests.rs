@@ -184,6 +184,7 @@ fn office_private_protocol_serves_exact_bytes_ranges_and_retires_all_resources_w
             );
         }
     }
+    drop(content);
     view.update(cx, |v, cx| v.set_dark(true, cx));
     view.read_with(cx, |v, _| {
         assert!(v.root.is_none() && v.frame.is_none() && v._served.is_none())
@@ -263,7 +264,7 @@ fn office_revocation_shows_native_retry_and_a_fresh_provider_can_recover(cx: &mu
     });
     ws.revoke();
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
     let button = cx.debug_bounds("office-retry").unwrap();
     assert!(!folder.exists());

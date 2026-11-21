@@ -613,13 +613,17 @@ fn billing_keys_with_scopes_reach_the_server_and_blank_keys_never_leave() {
     let record = seen.clone();
     let server = Server::new(move |_| {
         Arc::new(move |_, _, headers, _| {
-            record.lock().unwrap().push(
+            let header = |name: &str| {
                 headers
                     .iter()
-                    .find(|(k, _)| k.eq_ignore_ascii_case("idempotency-key"))
+                    .find(|(k, _)| k.eq_ignore_ascii_case(name))
                     .map(|(_, v)| v.to_string())
-                    .unwrap_or_default(),
-            );
+                    .unwrap_or_default()
+            };
+            // Every API request names the repository contract it speaks
+            // (Cloud refuses Git credential routes without it).
+            assert_eq!(header("x-puppyone-repository-contract"), "2");
+            record.lock().unwrap().push(header("idempotency-key"));
             json(serde_json::json!({}))
         })
     });
@@ -781,4 +785,235 @@ fn a_host_tunnel_offers_the_token_as_a_subprotocol_and_carries_bytes() {
         )
         .unwrap()
     ));
+}
+
+fn api_session(env: &Environment) -> Session {
+    Session::from_reply(
+        env.clone(),
+        AuthReply {
+            user: Some(AuthUser {
+                id: Some("u".into()),
+                email: Some("u@example.test".into()),
+            }),
+            access_token: Secret("synthetic-access".into()),
+            refresh_token: Some(Secret("synthetic-refresh".into())),
+            expires_in: Some(3600.),
+            user_id: None,
+            user_email: None,
+        },
+    )
+    .unwrap()
+}
+fn get(path: &str) -> ApiRequest {
+    ApiRequest {
+        idempotency_key: None,
+        method: reqwest::Method::GET,
+        path: path.into(),
+        query: Vec::new(),
+        body: None,
+    }
+}
+/// `electron.cloud-api-client.test.mjs` (error transport), through the real
+/// adapter: a refusal keeps the server's allowlisted code, its retry decision
+/// and a plain request id, never an id that is not a token; a 409's safe
+/// `data.code` is kept rather than classified with every 409; a Cloud that
+/// cannot be reached is unavailable.
+#[test]
+fn api_refusals_keep_their_safe_code_retry_decision_and_plain_request_id() {
+    let server = Server::new(move |_| {
+        Arc::new(move |_, path, _, _| {
+            match path {
+            "/api/v1/projects/p/workbench" => Response {
+                status: 503,
+                body: serde_json::json!({"code": 5000, "message": "Request failed", "data": {"code": "workbench_connection_timeout", "retryable": true}}).to_string(),
+                extra: "X-Request-Id: req-123\r\n".into(),
+            },
+            "/api/v1/projects/p/initialization/abandon" => Response {
+                status: 409,
+                body: serde_json::json!({"message": "The Project already accepted its first push.", "data": {"code": "initialization_not_abandonable"}}).to_string(),
+                extra: String::new(),
+            },
+            _ => Response {
+                status: 500,
+                body: "{}".into(),
+                extra: "X-Request-Id: two words\r\n".into(),
+            },
+        }
+        })
+    });
+    let env = server.environment();
+    let session = api_session(&env);
+    let control = Control::new();
+    let http = Http::new().unwrap();
+    let Some(Error::Response(503, Some("workbench_connection_timeout"), diagnostic)) = http
+        .request(&session, &get("/projects/p/workbench"), &control.fence())
+        .err()
+    else {
+        panic!("expected the server's code");
+    };
+    assert_eq!(diagnostic.retryable, Some(true));
+    assert_eq!(
+        diagnostic.request_id.map(|id| id.as_str().to_owned()),
+        Some("req-123".into())
+    );
+    let Some(Error::Response(500, None, diagnostic)) = http
+        .request(&session, &get("/projects/p/other"), &control.fence())
+        .err()
+    else {
+        panic!("expected a plain server error");
+    };
+    assert!(diagnostic.request_id.is_none() && diagnostic.retryable.is_none());
+    let abandon = ApiRequest {
+        method: reqwest::Method::POST,
+        ..get("/projects/p/initialization/abandon")
+    };
+    assert!(matches!(
+        http.request(&session, &abandon, &control.fence()).err(),
+        Some(Error::Response(
+            409,
+            Some("initialization_not_abandonable"),
+            _
+        ))
+    ));
+    // Nothing listens on a port just given back: Cloud cannot be reached.
+    let closed = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let unreachable =
+        Environment::new(&format!("http://{closed}/api/v1"), "http://127.0.0.1:13000").unwrap();
+    assert_eq!(
+        http.request(
+            &api_session(&unreachable),
+            &get("/projects/p/workbench"),
+            &control.fence()
+        )
+        .err(),
+        Some(Error::Unavailable)
+    );
+}
+/// `electron.cloud-api-client.test.mjs`: "preserves timeout semantics when
+/// the response body aborts after headers" — a reply whose body stops after
+/// its headers times out like one that never answers (the 15 s budget).
+#[test]
+fn a_body_that_stalls_after_its_headers_times_out() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let flag = stop.clone();
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut bytes = [0u8; 4096];
+        let _ = stream.read(&mut bytes);
+        let _ = stream.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 64\r\n\r\n{\"data\":",
+        );
+        while !flag.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    });
+    let env = Environment::new(
+        &format!("http://{address}/api/v1"),
+        "http://127.0.0.1:13000",
+    )
+    .unwrap();
+    let control = Control::new();
+    let result = Http::new().unwrap().request(
+        &api_session(&env),
+        &get("/projects/p/repository-context"),
+        &control.fence(),
+    );
+    stop.store(true, Ordering::SeqCst);
+    server.join().unwrap();
+    assert_eq!(result.err(), Some(Error::Timeout));
+}
+/// `electron.cloud-auth-service.test.mjs`: "preserves the caller's
+/// cancellation signal on an authenticated wallet request" — cancelling a
+/// request that is still waiting for its answer ends it at once.
+#[test]
+fn a_caller_cancellation_ends_an_authenticated_request_at_once() {
+    let arrived = Arc::new(AtomicBool::new(false));
+    let observed = arrived.clone();
+    let server = Server::new(move |_| {
+        Arc::new(move |_, _, _, _| {
+            observed.store(true, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(1500));
+            json(serde_json::json!({"balance": 1}))
+        })
+    });
+    let env = server.environment();
+    let control = Control::new();
+    let cancel = super::Cancellation::default();
+    let mut fence = control.fence();
+    fence.cancel = Some(cancel.clone());
+    let session = api_session(&env);
+    let started = std::time::Instant::now();
+    let worker = std::thread::spawn(move || {
+        Http::new()
+            .unwrap()
+            .request(&session, &get("/ai/balance"), &fence)
+    });
+    wait(|| arrived.load(Ordering::SeqCst));
+    cancel.cancel();
+    assert_eq!(worker.join().unwrap().err(), Some(Error::Cancelled));
+    assert!(started.elapsed() < Duration::from_millis(1200));
+}
+/// `electron.cloud-auth-service.test.mjs`: "keeps Agent bearer auth in Main
+/// and aborts the open stream on sign-out" — the inference stream carries
+/// the bearer and its request id as idempotency key and request id, and a
+/// change of account ends the open stream.
+#[test]
+fn an_open_inference_stream_carries_its_ids_and_ends_when_the_account_changes() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let headers = Arc::new(Mutex::new(String::new()));
+    let seen = headers.clone();
+    let stop = Arc::new(AtomicBool::new(false));
+    let flag = stop.clone();
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut bytes = [0u8; 8192];
+        let n = stream.read(&mut bytes).unwrap();
+        *seen.lock().unwrap() = String::from_utf8_lossy(&bytes[..n]).into_owned();
+        let _ = stream.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\ndata: started\n\n",
+        );
+        while !flag.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    });
+    let env = Environment::new(
+        &format!("http://{address}/api/v1"),
+        "http://127.0.0.1:13000",
+    )
+    .unwrap();
+    let control = Control::new();
+    let fence = control.fence();
+    let session = api_session(&env);
+    let started = Arc::new(AtomicBool::new(false));
+    let opened = started.clone();
+    let worker = std::thread::spawn(move || {
+        Http::new().unwrap().completion(
+            &session,
+            &serde_json::json!({"model": "test/model"}),
+            "test-inference-001",
+            &fence,
+            &mut |event| {
+                if let super::StreamEvent::Data(_) = event {
+                    opened.store(true, Ordering::SeqCst);
+                }
+                Ok(())
+            },
+        )
+    });
+    wait(|| started.load(Ordering::SeqCst));
+    control.advance();
+    assert_eq!(worker.join().unwrap().err(), Some(Error::SessionChanged));
+    stop.store(true, Ordering::SeqCst);
+    server.join().unwrap();
+    let request = headers.lock().unwrap().to_ascii_lowercase();
+    assert!(request.starts_with("post /api/v1/ai/chat/completions "));
+    assert!(request.contains("authorization: bearer synthetic-access"));
+    assert!(request.contains("idempotency-key: test-inference-001"));
+    assert!(request.contains("x-request-id: test-inference-001"));
 }

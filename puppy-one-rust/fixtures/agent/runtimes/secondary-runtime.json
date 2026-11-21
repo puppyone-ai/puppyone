@@ -1,0 +1,69 @@
+{
+  "manifest": {
+    "schemaVersion": 1,
+    "id": "fixture-harness",
+    "displayName": "Fixture Harness",
+    "description": "Second runtime contract fixture",
+    "priority": 1,
+    "execution": {
+      "kind": "local-process",
+      "distribution": "user-installed",
+      "controller": "bundled-adapter"
+    },
+    "protocol": {
+      "kind": "rpc",
+      "transport": "stdio-json-rpc"
+    },
+    "integration": {
+      "kind": "specialized-native",
+      "adapter": "specialized"
+    },
+    "trust": {
+      "level": "first-party",
+      "publisher": "Fixture"
+    },
+    "ownership": {
+      "harness": "runtime",
+      "credentials": ["runtime"],
+      "models": "runtime",
+      "billing": ["runtime"],
+      "session": "runtime"
+    }
+  },
+  "descriptor": {
+    "id": "fixture-harness",
+    "displayName": "Fixture Harness",
+    "description": "Second runtime contract fixture",
+    "kind": "test",
+    "priority": 1
+  },
+  "inspection": {
+    "account": { "account": { "type": "fixture", "email": null, "planType": null }, "requiresOpenaiAuth": false },
+    "models": [{ "id": "fixture/model", "model": "fixture/model", "displayName": "Fixture Model", "description": "", "isDefault": true }],
+    "modes": [{ "id": "build", "displayName": "Build", "description": "", "isDefault": true }],
+    "commands": [],
+    "capabilities": {
+      "streamingText": true,
+      "structuredToolEvents": true,
+      "commandOutputStreaming": false,
+      "fileChangeEvents": false,
+      "manualApprovals": false,
+      "structuredQuestions": false,
+      "resume": true,
+      "fork": false,
+      "steer": false,
+      "queue": false,
+      "attachments": false,
+      "contextReferences": false,
+      "modelSelection": true,
+      "modeSelection": true,
+      "slashCommands": false,
+      "sessionHistory": true,
+      "usage": false,
+      "accountState": true,
+      "mcp": false,
+      "skills": false,
+      "compaction": false
+    }
+  }
+}

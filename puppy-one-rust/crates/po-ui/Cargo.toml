@@ -18,9 +18,6 @@ gpui-kit = { version = "=0.8.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 
-[target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "=0.6.4"
-
 [dev-dependencies]
 gpui-kit = { version = "=0.8.0", features = ["test-support"] }
 tempfile = "3"

@@ -701,4 +701,42 @@ mod tests {
         assert!(super::quote_paths(&[PathBuf::from("/tmp/a\nb")], "bash").is_err());
         assert!(super::quote_paths(&paths, "claude").is_err());
     }
+
+    /// Quoted paths reach a real shell as the same literal arguments,
+    /// whatever they contain, and nothing in them runs.
+    #[cfg(unix)]
+    #[test]
+    fn dropped_paths_round_trip_through_a_real_shell_without_executing() {
+        use std::path::PathBuf;
+        let paths = [
+            "/repo/中文 file.md",
+            "/repo/it's.md",
+            "/repo/$(echo injected)`echo nope`;$HOME.md",
+        ];
+        let quoted = super::quote_paths(&paths.map(PathBuf::from), "/bin/zsh").unwrap();
+        assert!(!quoted.contains('\n'));
+        let output = std::process::Command::new("/bin/sh")
+            .args(["-c", &format!("printf '%s\\0' {quoted}")])
+            .output()
+            .unwrap();
+        let echoed = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(
+            echoed
+                .split('\0')
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>(),
+            paths
+        );
+        // C0 and C1 terminal controls never reach the prompt.
+        for path in ["/repo/a\nb", "/repo/\u{1b}[31m", "/repo/\u{9b}31m"] {
+            assert!(
+                super::quote_paths(&[PathBuf::from(path)], "zsh").is_err(),
+                "{path:?}"
+            );
+        }
+        assert_eq!(
+            super::quote_paths(&[PathBuf::from("C:\\my files\\it's.md")], "pwsh.exe").unwrap(),
+            "'C:\\my files\\it''s.md'"
+        );
+    }
 }

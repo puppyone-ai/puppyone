@@ -1,6 +1,7 @@
 //! The Explorer as the window hosts it: menus, keys, selection, virtual rows, fades, motion.
 use super::*;
 use core::prelude::v1::test;
+use std::path::Path;
 
 #[gpui::test]
 fn explorer_row_menus_light_their_trigger_and_dismiss(cx: &mut TestAppContext) {
@@ -102,7 +103,7 @@ fn large_tree_uses_gpui_virtual_rows(cx: &mut TestAppContext) {
         cx.notify();
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     explorer.read_with(cx, |e, _| {
         assert!(e.painted_rows > 0);
@@ -145,7 +146,7 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
         cx.notify();
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let fade = |explorer: &Entity<ExplorerSession>, cx: &mut VisualTestContext| {
         explorer.read_with(cx, |e, _| {
@@ -162,7 +163,7 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
         cx.notify();
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     assert_eq!(fade(&explorer, cx), 0.);
 }
@@ -206,4 +207,524 @@ fn opening_a_folder_animates_its_rows_unless_motion_is_reduced(cx: &mut TestAppC
         assert_eq!(e.motion().disclosure(folder), None);
         assert_eq!(e.motion().row(folder + 1), Default::default());
     });
+}
+
+#[gpui::test]
+fn explorer_copy_path_and_copy_link_preserve_clipboard_and_targets(cx: &mut TestAppContext) {
+    use explorer::{FileClipboard, MenuAt, MenuKind, RowTrigger};
+    use std::sync::Arc;
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("docs")).unwrap();
+    std::fs::write(dir.path().join("docs/笔记 #1.md"), "# Note").unwrap();
+    std::fs::write(dir.path().join("photo.png"), b"\x89PNG").unwrap();
+    std::fs::write(dir.path().join("other.md"), "other").unwrap();
+    let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
+    let (view, cx) = setup(cx);
+    let explorer = explorer_of(&view, cx);
+    let session = session_of(&view, cx);
+    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen = events.clone();
+    let session_events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen_session = session_events.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&explorer, move |_, event: &explorer::ExplorerEvent, _| {
+            seen.borrow_mut().push(event.clone());
+        })
+        .detach();
+        cx.subscribe(&session, move |_, event: &explorer::SessionEvent, _| {
+            seen_session.borrow_mut().push(event.clone());
+        })
+        .detach();
+    });
+    session.update(cx, |s, cx| {
+        s.load_workspace(ws.clone(), ws.list(Path::new("")).unwrap(), cx);
+        let children = ws.list(Path::new("docs")).unwrap();
+        s.children_loaded(Path::new("docs"), Ok(children), cx);
+    });
+    draw(cx);
+    let idx = |path: &str, cx: &mut VisualTestContext| {
+        session.read_with(cx, |s, _| s.tree().index_of(Path::new(path)).unwrap())
+    };
+    // Nested selection collapses to the parent folder while retaining the clicked child as primary launcher.
+    session.update(cx, |s, cx| {
+        s.select(Path::new("docs"), false, false, cx);
+        s.select(Path::new("docs/笔记 #1.md"), true, false, cx);
+    });
+    let nested_idx = idx("docs/笔记 #1.md", cx);
+    explorer.update(cx, |e, cx| {
+        e.open_node_menu(
+            nested_idx,
+            MenuAt::Row("docs/笔记 #1.md".into(), RowTrigger::More),
+            cx,
+        );
+        let menu = e.menu().unwrap();
+        assert_eq!(
+            menu.row_trigger(Path::new("docs/笔记 #1.md")),
+            Some(RowTrigger::More)
+        );
+        assert_eq!(
+            menu.kind,
+            MenuKind::Node {
+                paths: vec![PathBuf::from("docs")],
+                primary: PathBuf::from("docs/笔记 #1.md"),
+            }
+        );
+    });
+    let copy_path_label = crate::localization::t("workspace.node.copyPath");
+    let copy_link_label = crate::localization::t("workspace.node.copyLink");
+    let paste_label = crate::localization::t("workspace.node.pasteIntoFolder");
+    // Local folder: Copy Path is first, Paste into folder is offered, Copy Link is absent.
+    let docs_idx = idx("docs", cx);
+    session.update(cx, |s, cx| s.select(Path::new("docs"), false, false, cx));
+    explorer.update(cx, |e, cx| {
+        e.open_node_menu(docs_idx, MenuAt::Pointer(point(px(80.), px(80.))), cx);
+        let labels = e.open_menu_labels(cx);
+        assert_eq!(labels.first().map(String::as_str), Some(copy_path_label));
+        assert!(!labels.iter().any(|l| l == copy_link_label));
+        assert!(labels.iter().any(|l| l == paste_label));
+    });
+    draw(cx);
+    let copy_selector: &'static str =
+        Box::leak(format!("menu-item:{copy_path_label}").into_boxed_str());
+    for target in ["docs", "docs/笔记 #1.md", "photo.png"] {
+        let row_idx = idx(target, cx);
+        session.update(cx, |s, cx| s.select(Path::new(target), false, false, cx));
+        explorer.update(cx, |e, cx| {
+            e.open_node_menu(row_idx, MenuAt::Pointer(point(px(80.), px(80.))), cx);
+        });
+        draw(cx);
+        let btn = cx.debug_bounds(copy_selector).unwrap();
+        cx.simulate_click(btn.center(), Modifiers::none());
+        draw(cx);
+        explorer.read_with(cx, |e, _| assert!(e.menu().is_none()));
+        let expected = ws
+            .absolute(Path::new(target))
+            .unwrap()
+            .display()
+            .to_string();
+        assert_eq!(
+            cx.read_from_clipboard().and_then(|c| c.text()),
+            Some(expected)
+        );
+    }
+    // Multi-selection Copy Path copies the clicked row's path without disturbing the file clipboard.
+    session.update(cx, |s, cx| {
+        s.set_clipboard(FileClipboard::Cut(vec!["other.md".into()]), cx);
+        s.select(Path::new("other.md"), false, false, cx);
+        s.select(Path::new("docs/笔记 #1.md"), true, false, cx);
+    });
+    let nested_idx = idx("docs/笔记 #1.md", cx);
+    explorer.update(cx, |e, cx| {
+        e.open_node_menu(nested_idx, MenuAt::Pointer(point(px(80.), px(80.))), cx);
+    });
+    draw(cx);
+    let btn = cx.debug_bounds(copy_selector).unwrap();
+    cx.simulate_click(btn.center(), Modifiers::none());
+    draw(cx);
+    assert_eq!(
+        cx.read_from_clipboard().and_then(|c| c.text()),
+        Some(
+            ws.absolute(Path::new("docs/笔记 #1.md"))
+                .unwrap()
+                .display()
+                .to_string()
+        )
+    );
+    session.read_with(cx, |s, _| {
+        assert_eq!(
+            s.clipboard(),
+            Some(&FileClipboard::Cut(vec!["other.md".into()]))
+        );
+    });
+    assert!(
+        !session_events
+            .borrow()
+            .iter()
+            .any(|e| matches!(e, explorer::SessionEvent::ResourceOperation(_)))
+    );
+    // Hosted (non-local) workspace offers Copy Link beside Copy Path and emits CopyLink.
+    let memory = Arc::new(crate::workspace::testing::Memory::new(
+        "memory://copy-link/project/",
+    ));
+    let hosted = crate::workspace::Workspace::from_provider(memory).unwrap();
+    session.update(cx, |s, cx| {
+        s.load_workspace(
+            hosted.clone(),
+            vec![crate::model::Node {
+                name: "docs".into(),
+                path: "docs".into(),
+                folder: true,
+                loaded: true,
+                ..Default::default()
+            }],
+            cx,
+        );
+    });
+    explorer.update(cx, |e, cx| {
+        e.open_node_menu(0, MenuAt::Pointer(point(px(80.), px(80.))), cx);
+        let labels = e.open_menu_labels(cx);
+        assert_eq!(labels[0], copy_path_label);
+        assert_eq!(labels[1], copy_link_label);
+    });
+    draw(cx);
+    let link_selector: &'static str =
+        Box::leak(format!("menu-item:{copy_link_label}").into_boxed_str());
+    let btn = cx.debug_bounds(link_selector).unwrap();
+    cx.simulate_click(btn.center(), Modifiers::none());
+    draw(cx);
+    assert!(events.borrow().iter().any(|e| {
+        *e == explorer::ExplorerEvent::CopyLink {
+            path: PathBuf::from("docs"),
+            folder: true,
+        }
+    }));
+}
+
+#[gpui::test]
+fn explorer_create_menu_follows_configured_order_submenu_and_divider_rules(
+    cx: &mut TestAppContext,
+) {
+    use crate::features::create_new::{Entry, MenuSettings};
+    use explorer::{ExplorerEvent, MenuAt, MenuKind, RowTrigger};
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("docs")).unwrap();
+    let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
+    let (view, cx) = setup(cx);
+    let explorer = explorer_of(&view, cx);
+    let session = session_of(&view, cx);
+    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen = events.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&explorer, move |_, event: &ExplorerEvent, _| {
+            seen.borrow_mut().push(event.clone());
+        })
+        .detach();
+    });
+    session.update(cx, |s, cx| {
+        s.load_workspace(ws.clone(), ws.list(Path::new("")).unwrap(), cx);
+    });
+    // Configured main-menu order with CustomFiles in the middle and custom submenu items.
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.state.create_new = MenuSettings {
+                main: vec![Entry::Html, Entry::CustomFiles, Entry::Markdown, Entry::Csv],
+                submenu: vec![Entry::ContextMap],
+                hidden: vec![
+                    Entry::Text,
+                    Entry::Json,
+                    Entry::Whiteboard,
+                    Entry::Slides,
+                    Entry::App,
+                    Entry::Puppyflow,
+                ],
+            };
+            cx.notify();
+        });
+    });
+    explorer.update(cx, |e, cx| {
+        e.open_create_menu(
+            "docs".into(),
+            MenuAt::Row("docs".into(), RowTrigger::Create),
+            cx,
+        );
+        assert_eq!(
+            e.menu().unwrap().row_trigger(Path::new("docs")),
+            Some(RowTrigger::Create)
+        );
+        let labels = e.open_menu_labels(cx);
+        assert_eq!(
+            labels,
+            vec![
+                crate::localization::t(Entry::Folder.label_key()),
+                crate::localization::t(Entry::Html.label_key()),
+                crate::localization::t("workspace.node.customFiles"),
+                crate::localization::t(Entry::Markdown.label_key()),
+                crate::localization::t(Entry::Csv.label_key()),
+            ]
+        );
+        assert_eq!(e.open_menu_separator_count(cx), 1);
+    });
+    // Click CSV from main menu -> ExplorerEvent::Create { entry: Csv, parent: "docs" }.
+    explorer.update(cx, |e, cx| {
+        e.open_create_menu("docs".into(), MenuAt::Pointer(point(px(60.), px(60.))), cx);
+    });
+    draw(cx);
+    let csv_sel: &'static str = Box::leak(
+        format!(
+            "menu-item:{}",
+            crate::localization::t(Entry::Csv.label_key())
+        )
+        .into_boxed_str(),
+    );
+    let btn = cx.debug_bounds(csv_sel).unwrap();
+    cx.simulate_click(btn.center(), Modifiers::none());
+    draw(cx);
+    assert!(events.borrow().iter().any(|e| {
+        *e == ExplorerEvent::Create {
+            entry: Entry::Csv,
+            parent: PathBuf::from("docs"),
+        }
+    }));
+    command(&view, cx, Command::Escape);
+    // Open Custom files submenu and pick Context Map.
+    explorer.update(cx, |e, cx| {
+        e.open_create_menu("docs".into(), MenuAt::Pointer(point(px(60.), px(60.))), cx);
+        e.set_menu_submenu_open(true, cx);
+    });
+    draw(cx);
+    draw(cx);
+    let cmap_sel: &'static str = Box::leak(
+        format!(
+            "menu-item:{}",
+            crate::localization::t(Entry::ContextMap.label_key())
+        )
+        .into_boxed_str(),
+    );
+    let btn = cx.debug_bounds(cmap_sel).unwrap();
+    cx.simulate_click(btn.center(), Modifiers::none());
+    draw(cx);
+    assert!(events.borrow().iter().any(|e| {
+        *e == ExplorerEvent::Create {
+            entry: Entry::ContextMap,
+            parent: PathBuf::from("docs"),
+        }
+    }));
+    command(&view, cx, Command::Escape);
+    // Submenu keeps only configured types without hidden defaults.
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.state.create_new = MenuSettings {
+                main: vec![Entry::Markdown, Entry::CustomFiles],
+                submenu: vec![Entry::Json],
+                hidden: vec![
+                    Entry::Csv,
+                    Entry::Html,
+                    Entry::Text,
+                    Entry::Whiteboard,
+                    Entry::ContextMap,
+                    Entry::Slides,
+                    Entry::App,
+                    Entry::Puppyflow,
+                ],
+            };
+            cx.notify();
+        });
+    });
+    explorer.update(cx, |e, cx| {
+        e.open_create_menu("docs".into(), MenuAt::Pointer(point(px(60.), px(60.))), cx);
+        e.set_menu_submenu_open(true, cx);
+        assert_eq!(
+            e.open_menu_labels(cx),
+            vec![
+                crate::localization::t(Entry::Folder.label_key()),
+                crate::localization::t(Entry::Markdown.label_key()),
+                crate::localization::t("workspace.node.customFiles"),
+            ]
+        );
+    });
+    draw(cx);
+    draw(cx);
+    let json_sel: &'static str = Box::leak(
+        format!(
+            "menu-item:{}",
+            crate::localization::t(Entry::Json.label_key())
+        )
+        .into_boxed_str(),
+    );
+    assert!(cx.debug_bounds(json_sel).is_some());
+    assert!(cx.debug_bounds(csv_sel).is_none());
+    // No divider when Folder is the only visible entry.
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.state.create_new = MenuSettings {
+                main: vec![],
+                submenu: vec![],
+                hidden: Entry::ITEMS.to_vec(),
+            };
+            cx.notify();
+        });
+    });
+    explorer.update(cx, |e, cx| {
+        e.open_create_menu(PathBuf::new(), MenuAt::NewRow, cx);
+        assert_eq!(
+            e.open_menu_labels(cx),
+            vec![crate::localization::t(Entry::Folder.label_key())]
+        );
+        assert_eq!(e.open_menu_separator_count(cx), 0);
+        assert_eq!(
+            e.menu().unwrap().kind,
+            MenuKind::Create {
+                parent: PathBuf::new()
+            }
+        );
+        assert_eq!(e.menu().unwrap().row_trigger(Path::new("docs")), None);
+    });
+}
+
+#[gpui::test]
+fn explorer_menu_handoff_switches_targets_and_resets_submenu_without_clearing_selection(
+    cx: &mut TestAppContext,
+) {
+    use explorer::{MenuAt, MenuKind, RowTrigger};
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("docs")).unwrap();
+    std::fs::create_dir(dir.path().join("notes")).unwrap();
+    let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
+    let (view, cx) = setup(cx);
+    let explorer = explorer_of(&view, cx);
+    let session = session_of(&view, cx);
+    session.update(cx, |s, cx| {
+        s.load_workspace(ws.clone(), ws.list(Path::new("")).unwrap(), cx);
+    });
+    let before = session.read_with(cx, |s, _| s.tree().selected.clone());
+    explorer.update(cx, |e, cx| {
+        // Open More on docs -> handoff to Create on docs -> handoff to More on notes.
+        e.open_node_menu(0, MenuAt::Row("docs".into(), RowTrigger::More), cx);
+        assert_eq!(
+            e.menu().unwrap().row_trigger(Path::new("docs")),
+            Some(RowTrigger::More)
+        );
+        e.open_create_menu(
+            "docs".into(),
+            MenuAt::Row("docs".into(), RowTrigger::Create),
+            cx,
+        );
+        e.set_menu_submenu_open(true, cx);
+        assert!(e.menu().unwrap().submenu_open);
+        assert_eq!(
+            e.menu().unwrap().row_trigger(Path::new("docs")),
+            Some(RowTrigger::Create)
+        );
+        // Switching to another creation target resets submenu_open without intermediate empty state.
+        e.open_create_menu(
+            "notes".into(),
+            MenuAt::Row("notes".into(), RowTrigger::Create),
+            cx,
+        );
+        assert!(!e.menu().unwrap().submenu_open);
+        assert_eq!(e.menu().unwrap().row_trigger(Path::new("docs")), None);
+        assert_eq!(
+            e.menu().unwrap().row_trigger(Path::new("notes")),
+            Some(RowTrigger::Create)
+        );
+        // Handoff to NewRow launcher and then dismiss.
+        e.open_create_menu(PathBuf::new(), MenuAt::NewRow, cx);
+        assert_eq!(
+            e.menu().unwrap().kind,
+            MenuKind::Create {
+                parent: PathBuf::new()
+            }
+        );
+        assert!(e.dismiss_menu(cx));
+        assert!(e.menu().is_none());
+    });
+    session.read_with(cx, |s, _| assert_eq!(s.tree().selected, before));
+}
+
+#[gpui::test]
+fn explorer_virtual_window_navigation_empty_root_and_move_import_routing(cx: &mut TestAppContext) {
+    use crate::editor::workbench::resource_operations::Operation as FileOp;
+    use explorer::SessionEvent;
+    let dir = tempfile::tempdir().unwrap();
+    let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
+    let (view, cx) = setup(cx);
+    let explorer = explorer_of(&view, cx);
+    let session = session_of(&view, cx);
+    // Empty listed root has 0 tree rows and still paints the list-end New launcher slot.
+    session.update(cx, |s, cx| {
+        s.load_workspace(ws.clone(), ws.list(Path::new("")).unwrap(), cx);
+    });
+    draw(cx);
+    session.read_with(cx, |s, _| assert!(s.tree().rows.is_empty()));
+    explorer.read_with(cx, |e, _| {
+        assert!(e.painted_rows > 0 && e.painted_rows < 10)
+    });
+    // Virtual row stride follows application typography scale.
+    let stride_default = crate::theme::sidebar_stride();
+    assert!(stride_default > 0.);
+    // 1,000 rows scrolled to offscreen row 900 keeps painted rows bounded.
+    session.update(cx, |s, cx| {
+        s.tree_mut().rows = (0..1_000)
+            .map(|i| crate::model::Row {
+                path: format!("document-{i}.md").into(),
+                name: format!("document-{i}.md"),
+                folder: false,
+                expanded: false,
+                depth: 0,
+                display: format!("document-{i}"),
+                extension: None,
+                error: None,
+                status: false,
+            })
+            .collect();
+        s.select(Path::new("document-900.md"), false, false, cx);
+        s.scroll().scroll_to_item(900, gpui::ScrollStrategy::Center);
+        cx.notify();
+    });
+    draw(cx);
+    explorer.read_with(cx, |e, _| {
+        assert!(e.painted_rows > 0 && e.painted_rows < 200);
+    });
+    // Enter activates selected file and emits ExplorerEvent::Open.
+    let opened = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen_open = opened.clone();
+    let session_events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen_session = session_events.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&explorer, move |_, event: &explorer::ExplorerEvent, _| {
+            seen_open.borrow_mut().push(event.clone());
+        })
+        .detach();
+        cx.subscribe(&session, move |_, event: &SessionEvent, _| {
+            seen_session.borrow_mut().push(event.clone());
+        })
+        .detach();
+    });
+    explorer.update_in(cx, |e, w, cx| e.focus_handle(cx).focus(w, cx));
+    draw(cx);
+    cx.simulate_keystrokes("enter");
+    assert!(
+        opened
+            .borrow()
+            .iter()
+            .any(|e| { *e == explorer::ExplorerEvent::Open(PathBuf::from("document-900.md")) })
+    );
+    // Nested file move back to its parent folder routes through ResourceOperation(FileOp::Move).
+    session.update(cx, |s, cx| {
+        s.move_into(
+            &[PathBuf::from("parent/child/drag-me.txt")],
+            Path::new("parent"),
+            cx,
+        );
+    });
+    assert!(session_events.borrow().iter().any(|e| {
+        *e == SessionEvent::ResourceOperation(FileOp::Move(
+            vec![PathBuf::from("parent/child/drag-me.txt")],
+            PathBuf::from("parent"),
+        ))
+    }));
+    // Complete op so external drop import can run once.
+    let owner =
+        crate::editor::workbench::catalog::resource_key(&ws.resource_id(Path::new("")).unwrap());
+    session.update(cx, |s, cx| {
+        s.finish_op(&owner, Default::default(), cx);
+    });
+    session_events.borrow_mut().clear();
+    let external = [PathBuf::from("/tmp/outside-note.md")];
+    explorer.update(cx, |e, cx| {
+        e.drop_external(&external, Path::new(""), cx);
+    });
+    assert_eq!(
+        session_events
+            .borrow()
+            .iter()
+            .filter(|e| {
+                **e == SessionEvent::ResourceOperation(FileOp::Import(
+                    vec![PathBuf::from("/tmp/outside-note.md")],
+                    PathBuf::new(),
+                ))
+            })
+            .count(),
+        1
+    );
 }

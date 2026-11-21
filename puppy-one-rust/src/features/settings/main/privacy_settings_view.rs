@@ -47,7 +47,7 @@ impl SettingsWorkspaceSurface {
                     .text_color(t.muted)
                     .underline()
                     .text_decoration_color(underline)
-                    .cursor(theme::clickable_cursor())
+                    .cursor(theme::navigation_cursor())
                     .hover(move |s| s.text_color(t.text).text_decoration_color(t.text))
                     .on_click(|_, _, cx| cx.open_url(DISCLOSURE_URL))
                     .child(tr("settings.privacy.productAnalyze.learnMore")),

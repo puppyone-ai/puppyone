@@ -458,7 +458,7 @@ fn cancellable_attempt(
 fn click_import_cancel(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let bounds = cx
         .debug_bounds("import-cancel")
@@ -571,7 +571,7 @@ fn show_url_dialog(
 fn draw_url_dialog(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 fn type_url(shell: &Entity<crate::app::Shell>, cx: &mut VisualTestContext, text: &str) {
@@ -586,7 +586,7 @@ fn type_url(shell: &Entity<crate::app::Shell>, cx: &mut VisualTestContext, text:
             .focus_handle(cx)
             .focus(w, cx);
     });
-    cx.simulate_keystrokes("cmd-a");
+    cx.simulate_keystrokes("secondary-a");
     cx.simulate_input(text);
     draw_url_dialog(cx);
 }
@@ -840,7 +840,7 @@ fn successful_repository_entry(
     }
     let git = |dir: &Path, args: &[&str]| {
         crate::platform::process::run(
-            Path::new("/usr/bin/git"),
+            crate::platform::git::git_executable(),
             args,
             dir,
             None,
@@ -960,9 +960,19 @@ fn successful_repository_entry(
                         "only the transport URL is redirected to the local fixture"
                     );
                     assert!(!target.exists(), "publication has not happened");
+                    let source_arg = source.to_string_lossy();
+                    let source_arg = source_arg.strip_prefix(r"\\?\").unwrap_or(&source_arg);
                     crate::platform::process::run(
-                        Path::new("/usr/bin/git"),
-                        &["clone", "--quiet", "--", source.to_str().unwrap(), "."],
+                        crate::platform::git::git_executable(),
+                        &[
+                            "-c",
+                            "core.autocrlf=false",
+                            "clone",
+                            "--quiet",
+                            "--",
+                            source_arg,
+                            ".",
+                        ],
                         staging,
                         None,
                         std::time::Duration::from_secs(10),
@@ -984,7 +994,9 @@ fn successful_repository_entry(
         });
     }
     crate::app::tests::settle_cloud(&shell, cx, "published imported project opened", &|s, cx| {
-        s.workspace_root(cx).as_deref() == Some(target.as_path())
+        s.workspace_root(cx)
+            .and_then(|root| root.canonicalize().ok())
+            == target.canonicalize().ok()
             && s.home.read(cx).import.is_none()
             && s.prefs.store.read(cx).drained()
     });

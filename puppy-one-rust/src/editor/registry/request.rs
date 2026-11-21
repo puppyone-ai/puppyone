@@ -7,13 +7,14 @@
 
 use super::contribution::SourceKind;
 use crate::{
-    editor::navigation::ReferenceContext,
+    editor::{document_session::models::ModelHandle, navigation::ReferenceContext},
     formats::FileFormat,
     platform::webview,
     typography::Scale,
     workspace::{PreviewResource, Workspace},
 };
 use std::{
+    borrow::Cow,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -28,6 +29,23 @@ pub struct DocumentAssets {
     pub workspace: String,
     pub document: PathBuf,
     pub read: AssetReader,
+}
+
+impl DocumentAssets {
+    /// Broker scope: preserve the host identity, or isolate standalone documents.
+    /// The raw workspace remains the authority for local filesystem containment.
+    pub fn workspace_identity(&self) -> Cow<'_, str> {
+        if !self.workspace.is_empty() {
+            return Cow::Borrowed(&self.workspace);
+        }
+        let document = self.document.to_string_lossy();
+        let document = document.trim();
+        if document.is_empty() {
+            Cow::Borrowed("workspace:anonymous")
+        } else {
+            Cow::Owned(format!("doc:{document}"))
+        }
+    }
 }
 
 impl std::fmt::Debug for DocumentAssets {
@@ -60,6 +78,8 @@ pub struct DocumentContext {
     pub source_kind: SourceKind,
     /// Sniffed format when extension/MIME resolved to `unknown` (`RG-01`).
     pub sniffed_format: Option<&'static FileFormat>,
+    /// The open document's retained models: its history outlives the view.
+    pub models: ModelHandle,
 }
 
 impl std::fmt::Debug for DocumentContext {
@@ -73,6 +93,7 @@ impl std::fmt::Debug for DocumentContext {
                 "sniffed_format",
                 &self.sniffed_format.map(|fmt| fmt.id.as_str()),
             )
+            .field("models", &self.models)
             .finish()
     }
 }
@@ -94,10 +115,12 @@ impl PartialEq for DocumentContext {
             && self.assets == other.assets
             && self.source_kind == other.source_kind
             && same_sniff
+            && self.models == other.models
     }
 }
 
 /// What the host hands a viewer to open (`PresetViewerRenderContext`, `RG-10`).
+#[derive(Clone)]
 pub struct SurfaceRequest<'a> {
     /// The document session id.
     pub id: &'a str,
@@ -125,6 +148,9 @@ pub struct SurfaceRequest<'a> {
     pub references: Option<ReferenceContext>,
     /// Real origin of the document (`RG-11`).
     pub source_kind: SourceKind,
+    /// Where the document's own view attaches its model (`DocumentModels`);
+    /// followers and previews leave it alone.
+    pub models: ModelHandle,
 }
 
 /// The viewer's input, as its manifest `source` asks.

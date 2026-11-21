@@ -62,6 +62,8 @@ pub(crate) struct WorkbenchLauncher {
     hidden_agents: Vec<String>,
     observations: Vec<crate::platform::local_agent_setup::Observation>,
     scanning: bool,
+    /// The running discovery refreshes evidence already shown.
+    refreshing: bool,
     /// When the running discovery began (`useDelayedDiscoveryFeedback`).
     scan_started: Option<std::time::Instant>,
     discovery: Entity<crate::features::local_agents::Installations>,
@@ -99,7 +101,10 @@ impl WorkbenchLauncher {
         cx.observe(&discovery, |s, _, cx| s.sync_inventory(cx))
             .detach();
         let found = discovery.read(cx).inventory();
-        let scanning = discovery.read(cx).scanning;
+        let (scanning, refreshing) = {
+            let discovery = discovery.read(cx);
+            (discovery.scanning, discovery.refreshing)
+        };
         cx.spawn_in(window, async move |this, cx| {
             while rx.recv().await.is_ok() {
                 if this.update_in(cx, |s, _, cx| s.woke(cx)).is_err() {
@@ -116,6 +121,7 @@ impl WorkbenchLauncher {
             hidden_agents: vec![],
             observations: found.observations,
             scanning,
+            refreshing,
             scan_started: Some(std::time::Instant::now()),
             discovery,
             discovery_override: false,
@@ -147,6 +153,7 @@ impl WorkbenchLauncher {
             self.scan_started = Some(std::time::Instant::now());
         }
         self.scanning = discovery.scanning;
+        self.refreshing = discovery.refreshing;
         let found = discovery.inventory();
         self.installations = found.installations;
         self.observations = found.observations;

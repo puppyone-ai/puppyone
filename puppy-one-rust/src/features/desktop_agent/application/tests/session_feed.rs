@@ -960,3 +960,202 @@ fn bounds_a_stalled_watermark_read_and_retries_attachment() {
         h.dispose().await;
     });
 }
+
+/// `holdRecovery`: a display repair whose `method` call reaches Main but
+/// whose receipt is held until `finish` fires.
+async fn hold_recovery(
+    h: &FeedHarness,
+    method: &'static str,
+) -> (
+    tokio::sync::oneshot::Sender<()>,
+    crate::features::desktop_agent::application::ui_runtime::Task<()>,
+) {
+    let invoke = h.bridge.implementation(method);
+    let (finish, late) = tokio::sync::oneshot::channel::<()>();
+    let late = futures_util::FutureExt::shared(late);
+    h.bridge.handle_once(method, move |request| {
+        let receipt = invoke(request);
+        let late = late.clone();
+        Box::pin(async move {
+            let receipt = receipt.await;
+            let _ = late.await;
+            receipt
+        })
+    });
+    h.corrupt_frames();
+    h.emit(
+        "assistant.delta",
+        json!({ "delta": "!" }),
+        Some("answer-1"),
+        "turn-1",
+    );
+    h.reset_transform();
+    let repair = h.controller.retry_display_recovery();
+    advance(0).await;
+    assert_ne!(replica_status(h), ReplicaStatus::Live);
+    (finish, repair)
+}
+
+/// `agentChatLifecycle`: closing a chat is accepted at once in every stage
+/// of its turn or of a display repair. The repair stops, a held receipt or
+/// a retry that lands later attaches nothing, and no turn, session close or
+/// approval answer is sent after it.
+#[test]
+fn closing_a_chat_in_any_stage_is_accepted_at_once_and_late_work_stays_inert() {
+    for stage in [
+        "streaming",
+        "provider-retrying",
+        "silent",
+        "reconnecting",
+        "degraded",
+        "paused",
+        "exhausted",
+        "ack-pending",
+        "approval",
+        "runtime-exited",
+        "completed",
+    ] {
+        run_paused(async move {
+            let h = FeedHarness::new().await;
+            h.initialize().await;
+            h.emit(
+                "turn.started",
+                json!({ "prompt": "First request" }),
+                None,
+                "turn-1",
+            );
+            h.emit(
+                "assistant.delta",
+                json!({ "delta": "First response" }),
+                Some("answer-1"),
+                "turn-1",
+            );
+            advance(0).await;
+            assert_eq!(
+                messages(&h).last(),
+                Some(&json!("First response")),
+                "{stage}"
+            );
+            let mut held = None;
+            match stage {
+                "silent" | "reconnecting" | "degraded" | "paused" | "ack-pending" => {
+                    let method = if stage == "ack-pending" {
+                        "acknowledgeAgentSession"
+                    } else {
+                        "attachAgentSession"
+                    };
+                    held = Some(hold_recovery(&h, method).await);
+                    match stage {
+                        "degraded" => advance(RECOVERY_DEGRADED_DELAY_MS).await,
+                        "reconnecting" => advance(RECOVERY_RECONNECTING_DELAY_MS).await,
+                        "paused" => h.controller.pause_display_recovery(),
+                        _ => {}
+                    }
+                    let expected = match stage {
+                        "silent" => Some(Stage::Silent),
+                        "reconnecting" => Some(Stage::Reconnecting),
+                        "degraded" => Some(Stage::Degraded),
+                        "paused" => Some(Stage::ActionRequired),
+                        _ => None,
+                    };
+                    if expected.is_some() {
+                        assert_eq!(
+                            h.controller
+                                .get_snapshot()
+                                .display_recovery
+                                .map(|r| r.stage),
+                            expected,
+                            "{stage}"
+                        );
+                    }
+                }
+                "exhausted" => {
+                    h.bridge.reject(
+                        "attachAgentSession",
+                        AgentError::new("Fixture feed unavailable"),
+                    );
+                    let repair = h.controller.retry_display_recovery();
+                    advance(300_000).await;
+                    repair.await;
+                    assert_eq!(
+                        h.controller
+                            .get_snapshot()
+                            .display_recovery
+                            .map(|r| r.policy),
+                        Some(Policy::Exhausted)
+                    );
+                }
+                "provider-retrying" => {
+                    h.emit(
+                        "provider.connection.updated",
+                        json!({ "state": "reconnecting", "attempt": 1, "maxAttempts": 3, "message": "Retrying model request" }),
+                        None,
+                        "turn-1",
+                    );
+                    advance(0).await;
+                    let state = h.controller.get_snapshot();
+                    assert_eq!(
+                        state
+                            .projection
+                            .connection_status
+                            .as_ref()
+                            .map(|s| s.state.as_str()),
+                        Some("reconnecting")
+                    );
+                }
+                "approval" => {
+                    h.emit(
+                        "approval.requested",
+                        json!({ "requestId": "approval-1", "type": "command", "title": "Run fixture command", "command": "fixture" }),
+                        Some("approval-1"),
+                        "turn-1",
+                    );
+                    advance(0).await;
+                    assert_eq!(h.controller.get_snapshot().projection.approvals.len(), 1);
+                }
+                "runtime-exited" => {
+                    h.main.adapter(0).exit(json!({ "reason": "fixture-exit" }));
+                    advance(0).await;
+                    assert_eq!(
+                        h.controller.get_snapshot().phase,
+                        AgentControllerPhase::RuntimeExited
+                    );
+                }
+                "completed" => {
+                    h.emit("turn.completed", json!({}), None, "turn-1");
+                    advance(0).await;
+                    assert_eq!(h.controller.get_snapshot().projection.running_turn_id, None);
+                }
+                _ => {}
+            }
+            h.bridge
+                .resolve("terminateAgentExecution", json!({ "kind": "released" }));
+            let attachments = h.bridge.count("attachAgentSession");
+            let closing = h.controller.close_tab_session();
+            assert_eq!(
+                h.controller.get_snapshot().display_recovery,
+                None,
+                "{stage}"
+            );
+            let closed = closing.await;
+            assert!(closed.closed(), "{stage}: {closed:?}");
+            if let Some((finish, repair)) = held {
+                let _ = finish.send(());
+                repair.await;
+            }
+            h.controller.retry_display_recovery().await;
+            advance(120_000).await;
+            assert_eq!(h.bridge.count("attachAgentSession"), attachments, "{stage}");
+            assert_eq!(
+                h.controller.get_snapshot().display_recovery,
+                None,
+                "{stage}"
+            );
+            assert_eq!(h.main_start_count(), 0, "{stage}");
+            assert_eq!(h.bridge.count("closeAgentSession"), 0, "{stage}");
+            assert_eq!(h.bridge.count("resolveAgentApproval"), 0, "{stage}");
+            assert_eq!(h.bridge.count("startAgentTurn"), 0, "{stage}");
+            h.dispose().await;
+        });
+    }
+}

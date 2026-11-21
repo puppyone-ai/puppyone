@@ -21,7 +21,7 @@ impl CellPaint {
         screen: &vt100::Screen,
         row: u16,
         col: u16,
-        selected: bool,
+        selection: Option<Rgba>,
         linked: bool,
     ) -> Option<Self> {
         let cell = screen.cell(row, col)?;
@@ -38,7 +38,7 @@ impl CellPaint {
         let fg = color(t, cell.fgcolor(), t.terminal_fg);
         let bg = color(t, cell.bgcolor(), t.terminal_bg);
         let (fg, bg) = if cell.inverse() { (bg, fg) } else { (fg, bg) };
-        let bg = if selected { t.selection } else { bg };
+        let bg = selection.unwrap_or(bg);
         let text = cell.contents();
         Some(Self {
             col,

@@ -1,10 +1,12 @@
 #![cfg(test)]
 use super::*;
+#[cfg(target_os = "macos")]
+use std::path::Path;
 use std::{
     collections::BTreeMap,
     io::{Read, Write},
     net::TcpListener,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Mutex,
     time::Duration,
 };
@@ -92,6 +94,12 @@ impl Feed {
     pub fn put(&self, name: &str, body: Vec<u8>) {
         self.replies.lock().unwrap().files.insert(name.into(), body);
     }
+    /// Whether the worker thread, which owns the listener, still holds its
+    /// state: `false` once the listener is closed.
+    pub fn listening(&self) -> impl Fn() -> bool + use<> {
+        let state = Arc::downgrade(&self.replies);
+        move || state.strong_count() > 0
+    }
 }
 impl Drop for Feed {
     fn drop(&mut self) {
@@ -142,8 +150,7 @@ impl Fixture {
                 force_dev: true,
             },
             candidate: None,
-            #[cfg(target_os = "macos")]
-            prepared: None,
+            installer: None,
             busy: false,
             waiting: Vec::new(),
             restart_requested: false,
@@ -181,7 +188,9 @@ impl Fixture {
         let prepared =
             updates::prepared::PreparedUpdate::new(installed, self.root.path().join("staging"))
                 .unwrap();
-        self.update(cx, |u, _| u.prepared = Some(prepared));
+        self.update(cx, |u, _| {
+            u.installer = Some(updates::installer::UpdateInstaller::from_prepared(prepared))
+        });
         std::fs::read(archive).unwrap()
     }
     #[cfg(target_os = "macos")]

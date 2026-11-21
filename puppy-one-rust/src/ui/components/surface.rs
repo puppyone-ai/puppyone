@@ -521,6 +521,45 @@ mod tests {
     use super::*;
     use core::prelude::v1::test;
 
+    /// `elevationArchitecture`: compact controls and popovers share two
+    /// levels, `--po-elevation-low` (`0 2px 4px -2px`, 32% / 28% dark) and
+    /// `--po-elevation-popover` (`0 3px 8px -4px`, 64% / 36% dark); menus
+    /// take the popover level, compact menus the low one, framed cards none.
+    #[test]
+    fn elevations_follow_the_two_level_shared_scale() {
+        for dark in [false, true] {
+            let t = Theme::new(dark);
+            let geometry = |s: &BoxShadow| {
+                (
+                    f32::from(s.offset.x),
+                    f32::from(s.offset.y),
+                    f32::from(s.blur_radius),
+                    f32::from(s.spread_radius),
+                    s.inset,
+                )
+            };
+            let strength = |s: &BoxShadow| Rgba::from(s.color).a / t.shadow.a;
+            let [low] = &SurfaceElevation::Low.shadows(t)[..] else {
+                panic!("one low shadow")
+            };
+            assert_eq!(geometry(low), (0., 2., 4., -2., false));
+            assert!((strength(low) - if dark { 0.28 } else { 0.32 }).abs() < 1e-3);
+            assert_eq!(*low, theme::elevation_low(&t));
+            let [popover] = &SurfaceElevation::Popover.shadows(t)[..] else {
+                panic!("one popover shadow")
+            };
+            assert_eq!(geometry(popover), (0., 3., 8., -4., false));
+            assert!((strength(popover) - if dark { 0.36 } else { 0.64 }).abs() < 1e-3);
+        }
+        assert_eq!(SurfaceVariant::Menu.elevation(), SurfaceElevation::Popover);
+        assert_eq!(
+            SurfaceVariant::CompactMenu.elevation(),
+            SurfaceElevation::Low
+        );
+        assert_eq!(SurfaceVariant::Card.elevation(), SurfaceElevation::None);
+        assert!(SurfaceElevation::None.shadows(Theme::new(false)).is_empty());
+    }
+
     #[test]
     fn inner_radius_stays_concentric_and_non_negative() {
         assert_eq!(inner_radius(14.), 13.);

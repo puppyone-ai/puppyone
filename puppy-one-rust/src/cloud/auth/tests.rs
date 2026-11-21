@@ -309,6 +309,112 @@ fn mutation_transport_errors_are_unknown_and_a_refused_one_is_replayed_once() {
     assert_eq!(remote.requests.load(Ordering::SeqCst), 3);
     assert_eq!(remote.refreshes.load(Ordering::SeqCst), 1);
 }
+/// `electron.cloud-auth-service.test.mjs`: a request under another account's
+/// lease, or an obsolete lease of the same account, is refused before it is
+/// sent and before any refresh.
+#[test]
+fn an_old_lease_is_refused_before_any_send_or_refresh() {
+    let (broker, remote, _) = setup();
+    login(&broker, "alice").unwrap();
+    let first = binding(&broker);
+    login(&broker, "alice").unwrap();
+    let obsolete_generation = first;
+    let previous = binding(&broker);
+    broker.sign_out();
+    wait(|| snapshot(&broker).status == Status::SignedOut);
+    login(&broker, "bob").unwrap();
+    let (requests, refreshes) = (
+        remote.requests.load(Ordering::SeqCst),
+        remote.refreshes.load(Ordering::SeqCst),
+    );
+    for old in [obsolete_generation, previous] {
+        assert_eq!(
+            broker.request(&old, &request(reqwest::Method::POST)).err(),
+            Some(Error::SessionChanged)
+        );
+    }
+    assert_eq!(remote.requests.load(Ordering::SeqCst), requests);
+    assert_eq!(remote.refreshes.load(Ordering::SeqCst), refreshes);
+}
+/// `electron.cloud-auth-service.test.mjs`: "clears a revoked refresh
+/// credential but does not refresh or clear on a 403 API response" — a 403
+/// is the account's answer, not a dead credential.
+#[test]
+fn a_forbidden_answer_neither_refreshes_nor_signs_out() {
+    let (broker, remote, store) = setup();
+    login(&broker, "alice").unwrap();
+    *remote.request_error.lock().unwrap() = Some(Error::Http(403));
+    let refreshes = remote.refreshes.load(Ordering::SeqCst);
+    assert_eq!(
+        broker
+            .request(&binding(&broker), &request(reqwest::Method::GET))
+            .err(),
+        Some(Error::Http(403))
+    );
+    assert_eq!(remote.refreshes.load(Ordering::SeqCst), refreshes);
+    assert!(store.load().unwrap().is_some());
+    assert_eq!(snapshot(&broker).status, Status::Authenticated);
+}
+/// `electron.cloud-auth-service.test.mjs` (Main-only template
+/// authorization): a template download goes as the account to the store
+/// URL it was given, once more with a renewed session if the store refuses
+/// the first, keeping the same lease; signed out, nothing is sent.
+#[test]
+fn template_downloads_go_as_the_account_and_once_more_after_a_refusal() {
+    let (broker, remote, _) = setup();
+    login(&broker, "alice").unwrap();
+    let lease = binding(&broker);
+    let url = url::Url::parse("https://www.puppyone.ai/api/templates/t-1/download").unwrap();
+    remote.template_refusals.store(1, Ordering::SeqCst);
+    let refreshes = remote.refreshes.load(Ordering::SeqCst);
+    assert_eq!(
+        broker
+            .template_download(&lease, &url, "r-1", &Default::default())
+            .unwrap(),
+        serde_json::json!({"schema_version": 1})
+    );
+    let sent = remote.templates.lock().unwrap().clone();
+    assert_eq!(sent.len(), 2);
+    assert!(sent.iter().all(|(to, _)| to == url.as_str()));
+    assert_ne!(
+        sent[0].1, sent[1].1,
+        "the second goes with the renewed session"
+    );
+    assert_eq!(remote.refreshes.load(Ordering::SeqCst), refreshes + 1);
+    assert_eq!(binding(&broker), lease);
+    broker.sign_out();
+    wait(|| snapshot(&broker).status == Status::SignedOut);
+    assert_eq!(
+        broker
+            .template_download(&lease, &url, "r-1", &Default::default())
+            .err(),
+        Some(Error::SessionChanged)
+    );
+    assert_eq!(remote.templates.lock().unwrap().len(), 2);
+}
+/// `electron.cloud-api-client.test.mjs`: "classifies transport failures
+/// without retrying the request" — a repository-context resolution that
+/// cannot reach Cloud, times out or is cancelled says so, after one send.
+#[test]
+fn transport_failures_of_a_context_resolution_are_classified_after_one_send() {
+    let (broker, remote, _) = setup();
+    login(&broker, "alice").unwrap();
+    let binding = binding(&broker);
+    let resolve = ApiRequest {
+        idempotency_key: None,
+        method: reqwest::Method::POST,
+        path: "/projects/p/repository-context".into(),
+        query: Vec::new(),
+        body: Some(serde_json::json!({})),
+    };
+    for failure in [Error::Unavailable, Error::Timeout, Error::Cancelled] {
+        *remote.request_error.lock().unwrap() = Some(failure);
+        let before = remote.requests.load(Ordering::SeqCst);
+        assert_eq!(broker.request(&binding, &resolve).err(), Some(failure));
+        assert_eq!(remote.requests.load(Ordering::SeqCst), before + 1);
+    }
+    broker.shutdown();
+}
 #[test]
 fn uncertain_response_is_not_replayed_and_success_recovers_offline_projection() {
     let (broker, remote, _) = setup();
@@ -421,6 +527,33 @@ fn expiry_finishes_the_public_attempt_and_retires_queued_browser_actions() {
     wait(|| snapshot(&broker).error == Some(Error::Expired));
     assert_eq!(snapshot(&broker).status, Status::SignedOut);
     assert!(!snapshot(&broker).can_reopen && !broker.browser_current(&event));
+    broker.shutdown();
+}
+/// `electron.cloud-auth-service.test.mjs`: "reopens the same pending sign-in
+/// page instead of waiting silently" — asking again shows the same page of
+/// the same attempt, which stays the one that can finish.
+#[test]
+fn reopening_a_pending_sign_in_shows_the_same_page_of_the_same_attempt() {
+    let remote = Arc::new(FakeRemote::default());
+    let (broker, browser) = Broker::new(env(), remote, Arc::new(MemoryStore::default()));
+    broker.sign_in_until(Instant::now() + Duration::from_secs(30));
+    let mut first = None;
+    wait(|| {
+        first = browser.try_recv().ok();
+        first.is_some()
+    });
+    let first = first.unwrap();
+    assert!(snapshot(&broker).can_reopen);
+    broker.reopen();
+    let mut again = None;
+    wait(|| {
+        again = browser.try_recv().ok();
+        again.is_some()
+    });
+    let again = again.unwrap();
+    assert_eq!(again.url, first.url);
+    assert!(broker.browser_current(&first) && broker.browser_current(&again));
+    assert_eq!(snapshot(&broker).status, Status::SigningIn);
     broker.shutdown();
 }
 #[test]
@@ -705,4 +838,67 @@ fn workbench_open_posts_preserve_structured_failures_while_file_writes_stay_unkn
         );
     }
     broker.shutdown();
+}
+
+/// `desktop credential store`: what the keychain item holds and how an
+/// unreadable one is set aside, over an in-memory item store.
+#[test]
+fn the_saved_sign_in_holds_only_the_refresh_credential_and_bad_records_are_set_aside() {
+    use super::store::{Items, load, save};
+    use std::collections::BTreeMap;
+    use std::sync::Mutex;
+    #[derive(Default)]
+    struct Memory(Mutex<BTreeMap<String, Vec<u8>>>);
+    impl Items for Memory {
+        fn get(&self, account: &str) -> super::model::Result<Option<Vec<u8>>> {
+            Ok(self.0.lock().unwrap().get(account).cloned())
+        }
+        fn set(&self, account: &str, bytes: &[u8]) -> super::model::Result<()> {
+            self.0
+                .lock()
+                .unwrap()
+                .insert(account.into(), bytes.to_vec());
+            Ok(())
+        }
+        fn delete(&self, account: &str) -> super::model::Result<()> {
+            self.0.lock().unwrap().remove(account);
+            Ok(())
+        }
+    }
+    let items = Memory::default();
+    let credential = Credential {
+        version: 1,
+        environment: Environment::new("https://api.puppyone.ai/api/v1", "https://www.puppyone.ai")
+            .unwrap(),
+        user: "user-1".into(),
+        email: "person@example.com".into(),
+        refresh: Secret("refresh-credential".into()),
+    };
+    save(&items, "session-v1/default", &credential).unwrap();
+    let stored: serde_json::Value =
+        serde_json::from_slice(&items.0.lock().unwrap()["session-v1/default"]).unwrap();
+    let mut keys: Vec<&str> = stored
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    keys.sort();
+    assert_eq!(keys, ["email", "environment", "refresh", "user", "version"]);
+    let restored = load(&items, "session-v1/default").unwrap().unwrap();
+    assert_eq!(
+        (restored.user.as_str(), restored.refresh.0.as_str()),
+        ("user-1", "refresh-credential")
+    );
+    // An unreadable record is set aside, and reads as signed out.
+    items.set("session-v1/default", b"{not-json").unwrap();
+    assert!(load(&items, "session-v1/default").unwrap().is_none());
+    let accounts: Vec<String> = items.0.lock().unwrap().keys().cloned().collect();
+    assert_eq!(accounts.len(), 1);
+    assert!(
+        accounts[0].starts_with("session-v1/default.corrupt."),
+        "{accounts:?}"
+    );
+    assert_eq!(items.0.lock().unwrap()[&accounts[0]], b"{not-json");
+    assert!(load(&items, "session-v1/default").unwrap().is_none());
 }

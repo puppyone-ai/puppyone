@@ -2,7 +2,7 @@
 //! profile): an opening tag the profile allows and its closing tag in the
 //! same paragraph style their content as the element would, and the tags
 //! hide like Markdown delimiters. Anything else stays source.
-use super::{Element, Kind, Span};
+use super::{Element, Kind, Span, Syntax};
 
 /// `INLINE_EDITABLE_TAGS` with content (`br` is the profile's one void).
 const TAGS: &[&str] = &[
@@ -108,14 +108,51 @@ fn style_value(style: &str, property: &str) -> Option<String> {
 /// `doc.flat` (`TA-01`).
 pub(super) fn elements_in_buffer(
     doc: &crate::editor::text::buffer::Buffer,
-    tags: &[Span],
+    syntax: &Syntax,
 ) -> Vec<Element> {
+    let tags = &syntax.inline_tags;
     if tags.is_empty() {
         return Vec::new();
     }
+    // The parser owns paragraph, heading and table-cell boundaries. Blank-line
+    // text heuristics cannot distinguish adjacent tight list items.
+    let mut containers: Vec<_> = syntax
+        .paragraphs
+        .iter()
+        .map(|p| p.range.clone())
+        .chain(
+            syntax
+                .elements
+                .iter()
+                .filter(|e| e.kind == Kind::Heading)
+                .map(|e| e.range.clone()),
+        )
+        .chain(syntax.table_cells.iter().cloned())
+        .collect();
+    containers.sort_by_key(|r| (r.start, r.end));
+    containers.dedup();
+    let mut out = Vec::new();
+    for container in containers {
+        let first = tags.partition_point(|r| r.start < container.start);
+        let last = tags.partition_point(|r| r.start < container.end);
+        if first < last {
+            out.extend(pair_container(doc, &tags[first..last], container.end));
+        }
+    }
+    out
+}
+
+fn pair_container(
+    doc: &crate::editor::text::buffer::Buffer,
+    tags: &[Span],
+    end: usize,
+) -> Vec<Element> {
     let mut open: Vec<Tag> = Vec::new();
     let mut out = Vec::new();
     for range in tags {
+        if range.end > end {
+            continue;
+        }
         let slice = doc.slice_cow(range.clone());
         let Some(mut t) = tag(&slice, 0..slice.len()) else {
             continue;
@@ -128,15 +165,13 @@ pub(super) fn elements_in_buffer(
             open.push(t);
             continue;
         }
-        let Some(at) = open.iter().rposition(|o| o.name == t.name) else {
-            continue;
-        };
-        let opening = open.remove(at);
-        open.truncate(at);
-        let content = opening.range.end..t.range.start;
-        if doc.slice_cow(content.clone()).contains("\n\n") {
+        // Only a matching stack top closes an element. A later unmatched
+        // opening invalidates all completed descendants in that same container.
+        if open.last().is_none_or(|o| o.name != t.name) {
             continue;
         }
+        let opening = open.pop().unwrap();
+        let content = opening.range.end..t.range.start;
         let attribute = |name: &str| {
             opening
                 .attributes
@@ -144,6 +179,14 @@ pub(super) fn elements_in_buffer(
                 .find(|(n, _)| n == name)
                 .map(|(_, v)| v.as_str())
         };
+        // An anchor whose target the URL policy refuses stays source
+        // (`compileInlineHtmlRenderPlan`: unsupported).
+        if opening.name == "a"
+            && attribute("href")
+                .is_some_and(|h| crate::editor::markdown::navigation::safe_href(h).is_none())
+        {
+            continue;
+        }
         let style = attribute("style").unwrap_or_default();
         let html = InlineTag {
             href: (opening.name == "a")
@@ -164,60 +207,8 @@ pub(super) fn elements_in_buffer(
         e.html = Some(Box::new(html));
         out.push(e);
     }
-    out
-}
-
-#[cfg(test)]
-pub(super) fn elements(source: &str, tags: &[Span]) -> Vec<Element> {
-    let mut open: Vec<Tag> = Vec::new();
-    let mut out = Vec::new();
-    for range in tags {
-        let Some(t) = tag(source, range.clone()) else {
-            continue;
-        };
-        if t.void || !TAGS.contains(&t.name.as_str()) {
-            continue;
-        }
-        if !t.closing {
-            open.push(t);
-            continue;
-        }
-        let Some(at) = open.iter().rposition(|o| o.name == t.name) else {
-            continue;
-        };
-        let opening = open.remove(at);
-        open.truncate(at);
-        let content = opening.range.end..t.range.start;
-        // One paragraph: no blank line between the tags.
-        if source[content.clone()].contains("\n\n") {
-            continue;
-        }
-        let attribute = |name: &str| {
-            opening
-                .attributes
-                .iter()
-                .find(|(n, _)| n == name)
-                .map(|(_, v)| v.as_str())
-        };
-        let style = attribute("style").unwrap_or_default();
-        let html = InlineTag {
-            href: (opening.name == "a")
-                .then(|| attribute("href").map(|h| h.trim().to_owned()))
-                .flatten()
-                .filter(|h| !h.is_empty()),
-            color: style_value(style, "color"),
-            background: style_value(style, "background-color"),
-            name: opening.name.clone(),
-        };
-        let mut e = Element::new(
-            Kind::InlineHtml,
-            opening.range.start..t.range.end,
-            vec![opening.range.clone(), t.range.clone()],
-            Some(content),
-        );
-        e.href = html.href.clone();
-        e.html = Some(Box::new(html));
-        out.push(e);
+    if let Some(unclosed) = open.first() {
+        out.retain(|e| e.range.start < unclosed.range.start);
     }
     out
 }
@@ -228,28 +219,30 @@ mod tests {
     use core::prelude::v1::test;
 
     #[test]
+    fn quoted_attribute_tokens_preserve_greater_than_and_unquoted_url_slashes() {
+        let source = "<span title=\"1 > 0\" data-url=https://example.com/a>";
+        let token = tag(source, 0..source.len()).unwrap();
+        assert_eq!(token.name, "span");
+        assert!(!token.closing);
+        assert!(!token.void);
+        assert_eq!(
+            token.attributes,
+            vec![
+                ("title".into(), "1 > 0".into()),
+                ("data-url".into(), "https://example.com/a".into())
+            ]
+        );
+    }
+
+    #[test]
     fn allowed_tags_pair_within_a_paragraph() {
         let source = "a <b>bold</b> <span style=\"color: red\">red</span> <a href=\"https://x.org\">x</a> <script>s</script> <i>open\n\n</i>";
-        let tags: Vec<Span> = [
-            "<b>",
-            "</b>",
-            "<span style=\"color: red\">",
-            "</span>",
-            "<a href=\"https://x.org\">",
-            "</a>",
-            "<script>",
-            "</script>",
-            "<i>",
-            "</i>",
-        ]
-        .iter()
-        .scan(0, |from, t| {
-            let at = *from + source[*from..].find(t).unwrap();
-            *from = at + t.len();
-            Some(at..at + t.len())
-        })
-        .collect();
-        let found = elements(source, &tags);
+        let syntax = Syntax::parse(&crate::editor::text::buffer::Buffer::new(source));
+        let found: Vec<_> = syntax
+            .elements
+            .iter()
+            .filter(|e| e.kind == Kind::InlineHtml)
+            .collect();
         let shown: Vec<_> = found
             .iter()
             .map(|e| {

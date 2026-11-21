@@ -864,18 +864,11 @@ fn terminate(session: &Shared, reason: &str) {
         s.append(&format!("[puppyone] Stopping app preview ({reason}).\n"));
         pid
     };
-    #[cfg(unix)]
-    {
-        let group = -(pid as i32);
-        // Only the group isolate() created, never the GUI's own.
-        unsafe { libc::kill(group, libc::SIGTERM) };
-        if !wait_exit(session, Duration::from_millis(1400)) {
-            unsafe { libc::kill(group, libc::SIGKILL) };
-            wait_exit(session, Duration::from_millis(500));
-        }
+    crate::platform::process::terminate_pid(pid, true, false);
+    if !wait_exit(session, Duration::from_millis(1400)) {
+        crate::platform::process::terminate_pid(pid, true, true);
+        wait_exit(session, Duration::from_millis(500));
     }
-    #[cfg(not(unix))]
-    let _ = pid;
     let mut s = session.lock().unwrap();
     s.exited = true;
     s.pid = None;
@@ -1340,6 +1333,67 @@ mod tests {
         (status, response)
     }
 
+    /// `appPreviewService.test.mjs`: one App's Start, Stop and window
+    /// release are serialized (a Stop or a release waits for an in-flight
+    /// lifecycle step of the same App), while another App starts at once.
+    #[test]
+    fn one_apps_lifecycle_steps_queue_and_other_apps_stay_independent() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        std::fs::create_dir_all(root.join("site")).unwrap();
+        std::fs::write(root.join("site/index.html"), "<h1>Hello</h1>").unwrap();
+        for name in ["one", "two"] {
+            std::fs::write(
+                root.join(format!("{name}.puppyoneapp")),
+                r#"{"type":"puppyone.app","version":1,"launch":{"kind":"static-file","path":"site/index.html"}}"#,
+            )
+            .unwrap();
+        }
+        let data = tempfile::tempdir().unwrap();
+        let runtime = Arc::new(Runtime::new(data.path().to_path_buf()));
+        let never: Confirm = Box::new(|_| panic!("a static file needs no confirmation"));
+        assert_eq!(
+            runtime
+                .start(1, &root, "one.puppyoneapp", &never)
+                .unwrap()
+                .status,
+            "running"
+        );
+        let wait = std::time::Duration::from_millis(150);
+        for step in ["stop", "release"] {
+            if step == "release" {
+                runtime.start(1, &root, "one.puppyoneapp", &never).unwrap();
+            }
+            let lifecycle = runtime.lifecycle(&session_key(&root, "one.puppyoneapp"));
+            let in_flight = lifecycle.lock().unwrap();
+            let (tx, rx) = std::sync::mpsc::channel();
+            let (shared, app_root) = (runtime.clone(), root.clone());
+            std::thread::spawn(move || {
+                if step == "stop" {
+                    shared.stop(1, &app_root, "one.puppyoneapp").unwrap();
+                } else {
+                    shared.release_owner(1);
+                }
+                tx.send(()).unwrap();
+            });
+            assert!(
+                rx.recv_timeout(wait).is_err(),
+                "{step} ran during the step in flight"
+            );
+            let other: Confirm = Box::new(|_| panic!("a static file needs no confirmation"));
+            assert_eq!(
+                runtime
+                    .start(2, &root, "two.puppyoneapp", &other)
+                    .unwrap()
+                    .status,
+                "running"
+            );
+            drop(in_flight);
+            rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        }
+        runtime.close_all();
+    }
+
     #[test]
     fn static_files_and_local_servers_run_once_trusted() {
         let dir = tempfile::tempdir().unwrap();
@@ -1379,9 +1433,17 @@ mod tests {
         // A local server asks once per manifest and runs in its own group.
         std::fs::write(
             root.join("server.puppyoneapp"),
-            r#"{"type":"puppyone.app","version":1,"launch":{"kind":"local-server",
-                "command":["python3","-m","http.server","${port}","--bind","127.0.0.1"],"cwd":"site",
-                "url":"http://127.0.0.1:${port}/"}}"#,
+            serde_json::json!({
+                "type": "puppyone.app",
+                "version": 1,
+                "launch": {
+                    "kind": "local-server",
+                    "command": ["python3", "-c", LOOPBACK_HTTP_SERVER, "${port}"],
+                    "cwd": "site",
+                    "url": "http://127.0.0.1:${port}/"
+                }
+            })
+            .to_string(),
         )
         .unwrap();
         let asked = Arc::new(AtomicU64::new(0));
@@ -1441,6 +1503,189 @@ mod tests {
         assert_eq!(
             package_script(&["pnpm".into(), "run".into(), "dev".into()]).as_deref(),
             Some("dev")
+        );
+    }
+
+    fn served(url: &str) -> bool {
+        let url = url::Url::parse(url).unwrap();
+        TcpStream::connect((url.host_str().unwrap(), url.port().unwrap())).is_ok()
+            && get(url.as_str()).0 == 200
+    }
+
+    // Run Python's stdlib `http.server` on loopback without `HTTPServer.server_bind`'s
+    // `socket.getfqdn("127.0.0.1")` reverse-DNS call, which can stall >15s on macOS CI.
+    const LOOPBACK_HTTP_SERVER: &str = "\
+import http.server, socketserver, sys
+class S(http.server.ThreadingHTTPServer):
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = '127.0.0.1', self.server_address[1]
+S(('127.0.0.1', int(sys.argv[1])), http.server.SimpleHTTPRequestHandler).serve_forever()
+";
+
+    fn local_server(name: &str) -> String {
+        serde_json::json!({
+            "type": "puppyone.app",
+            "version": 1,
+            "name": name,
+            "launch": {
+                "kind": "local-server",
+                "command": ["python3", "-c", LOOPBACK_HTTP_SERVER, "${port}"],
+                "cwd": "site",
+                "url": "http://127.0.0.1:${port}/"
+            }
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn an_existing_url_connects_without_a_command_or_a_prompt() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        std::fs::write(
+            root.join("connected.puppyoneapp"),
+            r#"{"type":"puppyone.app","version":1,"name":"Connected","launch":{"kind":"existing-url","url":"https://example.com/slides"}}"#,
+        )
+        .unwrap();
+        let data = tempfile::tempdir().unwrap();
+        let runtime = Runtime::new(data.path().to_path_buf());
+        let never: Confirm = Box::new(|_| panic!("a connected URL needs no confirmation"));
+        let started = runtime
+            .start(1, &root, "connected.puppyoneapp", &never)
+            .unwrap();
+        assert_eq!(started.status, "running");
+        assert_eq!(started.url.as_deref(), Some("https://example.com/slides"));
+        assert_eq!(
+            (started.command, started.cwd, started.port),
+            (None, None, None)
+        );
+        runtime.close_all();
+    }
+
+    #[test]
+    fn apps_run_side_by_side_and_a_changed_manifest_replaces_only_its_own() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        std::fs::create_dir_all(root.join("site")).unwrap();
+        std::fs::write(root.join("site/index.html"), "<h1>Hello</h1>").unwrap();
+        std::fs::write(root.join("first.puppyoneapp"), local_server("first")).unwrap();
+        std::fs::write(root.join("second.puppyoneapp"), local_server("second")).unwrap();
+        let data = tempfile::tempdir().unwrap();
+        let runtime = Runtime::new(data.path().to_path_buf());
+        let updates = runtime.subscribe();
+        let accept: Confirm = Box::new(|_| true);
+        let first = runtime
+            .start(1, &root, "first.puppyoneapp", &accept)
+            .unwrap();
+        let second = runtime
+            .start(1, &root, "second.puppyoneapp", &accept)
+            .unwrap();
+        assert_eq!((first.status, second.status), ("running", "running"));
+        assert_ne!(first.runtime_id, second.runtime_id);
+        let (first_url, second_url) = (first.url.unwrap(), second.url.unwrap());
+        assert!(served(&first_url) && served(&second_url));
+
+        // Stopping one app leaves the other running.
+        runtime.stop(1, &root, "first.puppyoneapp").unwrap();
+        assert!(!served(&first_url));
+        assert!(served(&second_url));
+
+        // A changed manifest is a new app: its old process stops first.
+        std::fs::write(root.join("second.puppyoneapp"), local_server("renamed")).unwrap();
+        let replaced = runtime
+            .start(1, &root, "second.puppyoneapp", &accept)
+            .unwrap();
+        assert_eq!(replaced.status, "running", "{}", replaced.logs);
+        assert_ne!(replaced.runtime_id, second.runtime_id);
+        assert_eq!(replaced.name, "renamed");
+        let stopped = std::iter::from_fn(|| updates.try_recv().ok())
+            .map(|update| update.result)
+            .find(|result| result.runtime_id == second.runtime_id && result.status == "stopped")
+            .expect("the replaced app reports that it stopped");
+        assert_eq!(stopped.message.as_deref(), Some("Stopped: restart"));
+        assert!(
+            stopped
+                .logs
+                .contains("[puppyone] Stopping app preview (restart).")
+        );
+        assert!(served(replaced.url.as_deref().unwrap()));
+        runtime.close_all();
+    }
+
+    #[test]
+    fn a_changed_package_script_needs_fresh_trust_behind_an_unchanged_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        std::fs::write(
+            root.join("package-app.puppyoneapp"),
+            r#"{"type":"puppyone.app","version":1,"name":"Package app","launch":{"kind":"local-server",
+                "command":["npm","run","dev"],"cwd":".","url":"http://127.0.0.1:${port}/"}}"#,
+        )
+        .unwrap();
+        let package = |script: &str| {
+            std::fs::write(
+                root.join("package.json"),
+                format!(r#"{{"scripts":{{"dev":"{script}"}}}}"#),
+            )
+            .unwrap()
+        };
+        package("vite --host 127.0.0.1");
+        let data = tempfile::tempdir().unwrap();
+        let runtime = Runtime::new(data.path().to_path_buf());
+        let asked = Arc::new(AtomicU64::new(0));
+        let count = asked.clone();
+        let accept: Confirm = Box::new(move |prompt| {
+            assert_eq!(prompt.command, "npm run dev");
+            count.fetch_add(1, Ordering::SeqCst);
+            true
+        });
+        let context = || load_context(&root, "package-app.puppyoneapp").unwrap();
+        runtime.ensure_trusted(&context(), &accept).unwrap();
+        runtime.ensure_trusted(&context(), &accept).unwrap();
+        assert_eq!(
+            asked.load(Ordering::SeqCst),
+            1,
+            "an unchanged script stays trusted"
+        );
+        package("node unexpected-server.mjs");
+        runtime.ensure_trusted(&context(), &accept).unwrap();
+        assert_eq!(
+            asked.load(Ordering::SeqCst),
+            2,
+            "a changed script asks again"
+        );
+        let decline: Confirm = Box::new(|_| false);
+        package("node another-server.mjs");
+        assert_eq!(
+            classify_failure(&runtime.ensure_trusted(&context(), &decline).unwrap_err()),
+            "cancelled"
+        );
+    }
+
+    #[test]
+    fn a_preview_inherits_only_the_development_tool_environment() {
+        let inherited = sanitize_environment(
+            [
+                ("PATH", "/bin"),
+                ("HOME", "/home/test"),
+                ("LC_ALL", "en_US.UTF-8"),
+                ("NVM_DIR", "/nvm"),
+                ("npm_config_prefix", "/unexpected"),
+                ("NODE_OPTIONS", "--require ./inject.cjs"),
+                ("GITHUB_TOKEN", "secret"),
+                ("OPENAI_API_KEY", "secret"),
+            ]
+            .map(|(key, value)| (key.to_owned(), value.to_owned())),
+        );
+        assert_eq!(
+            inherited.into_iter().collect::<Vec<_>>(),
+            [
+                ("HOME", "/home/test"),
+                ("LC_ALL", "en_US.UTF-8"),
+                ("NVM_DIR", "/nvm"),
+                ("PATH", "/bin"),
+            ]
+            .map(|(key, value)| (key.to_owned(), value.to_owned()))
         );
     }
 }

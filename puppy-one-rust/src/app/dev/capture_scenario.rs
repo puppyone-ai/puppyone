@@ -19,12 +19,12 @@
 //! `home-actions:<index>` (its actions menu), `pin:<path>` (a file pinned
 //! above the tree), `template` (a template
 //! link's card, with `PUPPYONE_TEMPLATE_LAB`), `agents-fixture` /
-//! `agents-fixture:<roster|empty|invite>` (the Cloud Header with fixture Agents,
+//! `agents-fixture:<roster|empty|invite|invite-connecting>` (the Cloud Header with fixture Agents,
 //! nobody asking to join, or nobody yet; `invite`: nobody until the message
 //! goes out, then Claude Code asks to join), `agents:<more|invite|agent id>` (their dialog), `agent-card:<id>`
 //! (the card under a Header face), `agents-copy` (the invite copied),
 //! `agents-allow` (the first asking Agent let in), `agents-lapse` (the
-//! message lapsed),
+//! message lapsed), `agents-overdue` (the Agent let in has not connected in time),
 //! `agent-chat:<runtime id>` (a new chat on a detected
 //! Agent), `agent-settled` (its session prepared or failed),
 //! `agent-prompt:<text>` (the chat sends it), `agent-idle` (no turn
@@ -89,6 +89,9 @@ enum Step {
     /// `plan-fixture:<state>`: Settings › Plan as `#cloud-plans-visual-smoke`
     /// shows it (`free`, `team`, `enterprise`, `scheduled`).
     PlanFixture(String),
+    /// `settings-fixture:<space>/<page>`: Settings by scope over a fixture
+    /// account's three spaces (`settings_lab`).
+    SettingsFixture(String),
     /// `cloud-offline`: an available account with Cloud on, nothing behind it.
     CloudOffline,
     /// `host-share:<absolute path>`: the sharing dialog for that folder.
@@ -112,6 +115,8 @@ enum Step {
     AgentsAllow,
     /// `agents-lapse`: the invite's message has lapsed.
     AgentsLapse,
+    /// `agents-overdue`: the Agent let in has not connected in time.
+    AgentsOverdue,
     FileMenu(crate::app::file_mode::FileMenu),
     FileEdit,
     Blur,
@@ -185,6 +190,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home-list" => Step::HomeList,
                 "hosts-fixture" => Step::HostsFixture,
                 "plan-fixture" => Step::PlanFixture(arg.to_string()),
+                "settings-fixture" => Step::SettingsFixture(arg.to_string()),
                 "cloud-offline" => Step::CloudOffline,
                 "updates-fixture" => Step::UpdatesFixture(arg.to_string()),
                 "host-share" => Step::HostShare(path()),
@@ -198,6 +204,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "agents-copy" => Step::AgentsCopy,
                 "agents-allow" => Step::AgentsAllow,
                 "agents-lapse" => Step::AgentsLapse,
+                "agents-overdue" => Step::AgentsOverdue,
                 "file-menu" => Step::FileMenu(match arg {
                     "settings" => crate::app::file_mode::FileMenu::Settings,
                     _ => crate::app::file_mode::FileMenu::View,
@@ -737,6 +744,10 @@ impl Shell {
                 let settings = self.dialogs.read(cx).settings.clone();
                 settings.update(cx, |s, cx| s.install_plan_lab(state, cx));
             }
+            Step::SettingsFixture(case) => {
+                let case = case.clone();
+                self.lab_settings(&case, cx);
+            }
             Step::HostShare(path) => {
                 let path = path.clone();
                 self.cloud
@@ -795,6 +806,13 @@ impl Shell {
             Step::AgentsLapse => {
                 let agents = self.cloud.read(cx).agents.clone();
                 agents.update(cx, |a, cx| a.capture_lapse(cx));
+            }
+            Step::AgentsOverdue => {
+                let agents = self.cloud.read(cx).agents.clone();
+                if agents.read(cx).joined().is_none() {
+                    return false;
+                }
+                agents.update(cx, |a, cx| a.capture_overdue(cx));
             }
             Step::FileMenu(menu) => {
                 if let Some(file) = &self.file {

@@ -105,8 +105,11 @@ impl SessionPickers {
             });
         let open = self.open == Some(id);
         let searchable = control.options.len() > 6;
+        let trigger_selector = format!("agent-picker-{id:?}");
+        let label_selector = format!("agent-picker-{id:?}:{label}");
         let trigger = div()
             .id(SharedString::from(format!("agent-picker-{id:?}")))
+            .debug_selector(move || trigger_selector)
             .h(px(theme::control_compact()))
             .px(px(6.))
             .flex()
@@ -139,6 +142,7 @@ impl SessionPickers {
             .gap(px(3.))
             .child(
                 div()
+                    .debug_selector(move || label_selector)
                     .min_w_0()
                     .truncate()
                     .text_size(px(theme::ty().left.content))
@@ -356,8 +360,17 @@ impl SessionPickers {
             );
         }
         if total > count {
+            let showing = tf(
+                "agent.picker.showing",
+                &[
+                    ("visible", Arg::Number(count as i64)),
+                    ("total", Arg::Number(total as i64)),
+                ],
+            );
+            let selector = format!("agent-picker-showing:{showing}");
             menu = menu.footer(
                 div()
+                    .debug_selector(move || selector)
                     .min_h(px(theme::control()))
                     .px(px(8.))
                     .flex()
@@ -366,13 +379,7 @@ impl SessionPickers {
                     .border_color(t_.divider)
                     .text_color(t_.muted)
                     .text_size(px(m.right.meta))
-                    .child(tf(
-                        "agent.picker.showing",
-                        &[
-                            ("visible", Arg::Number(count as i64)),
-                            ("total", Arg::Number(total as i64)),
-                        ],
-                    )),
+                    .child(showing),
             );
         }
         menu
@@ -497,3 +504,6 @@ fn decorate(
     }
     item
 }
+
+#[cfg(test)]
+mod tests;

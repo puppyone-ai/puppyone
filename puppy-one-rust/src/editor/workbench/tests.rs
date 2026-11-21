@@ -74,14 +74,54 @@ fn catalog_insertion_mru_reorder_and_close_are_independent_from_panes() {
         c.editors.iter().map(|i| i.id.as_str()).collect::<Vec<_>>(),
         ["a", "c", "b"]
     );
+    // Opening a known resource again reuses it, with its newer label.
+    c.open(Input {
+        id: "a".into(),
+        label: "A".into(),
+    });
+    assert_eq!(c.editors[0].label, "A");
+    assert_eq!(c.editors.len(), 3);
+    c.activate("c");
+    let mru = c.mru.clone();
     c.move_before("b", "a");
     assert_eq!(c.active.as_deref(), Some("c"));
+    assert_eq!(c.mru, mru, "moving changes no focus history");
+    let before = c.clone();
+    c.move_before("missing", "a");
+    assert_eq!(c, before);
     c.close("c");
     assert_eq!(c.active.as_deref(), Some("a"));
     c.close("a");
     assert_eq!(c.active.as_deref(), Some("b"));
     c.close("b");
     assert_eq!(c, Catalog::default());
+}
+/// `EditorGroupModel`: an editor's identity is its storage plus its path,
+/// so the same relative path in two projects is two editors, a doubled
+/// separator names the same file, and a `.`/`..` address is refused
+/// rather than rewritten.
+#[test]
+fn editor_identity_is_storage_and_path_and_odd_addresses_never_alias() {
+    use crate::workspace::contracts::{RelativePath, ResourceId, StorageId};
+    use std::path::Path;
+    let id = |root: &str, path: &str| ResourceId {
+        storage: StorageId::new(root).unwrap(),
+        path: RelativePath::new(Path::new(path)).unwrap(),
+    };
+    let a = id("file:///folder-a/", "src/App.tsx");
+    let b = id("file:///folder-b/", "src/App.tsx");
+    assert_ne!(resource_key(&a), resource_key(&b));
+    assert_eq!(
+        resource_key(&id("file:///folder-a/", "docs//a.md")),
+        resource_key(&id("file:///folder-a/", "docs/a.md"))
+    );
+    assert_eq!(
+        resource_key(&id("file:///p/", "Beta 项目/a b.md")),
+        "file:///p/Beta%20%E9%A1%B9%E7%9B%AE/a%20b.md"
+    );
+    for odd in ["./docs/a.md", "docs/../a.md", "/docs/a.md"] {
+        assert!(RelativePath::new(Path::new(odd)).is_err(), "{odd}");
+    }
 }
 #[test]
 fn splitting_is_empty_reopening_focuses_existing_resource_and_close_pane_keeps_reference() {
@@ -157,6 +197,26 @@ fn untrusted_layout_rejects_duplicate_node_ids_and_collapses_duplicate_visible_d
     assert_eq!(restored.root.panes(), [("editor-pane-2", Some("a"))]);
     v["root"]["second"]["id"] = "editor-pane-1".into();
     assert_eq!(Layout::parse(&v, &valid, None), Layout::default());
+    // A stored ratio is kept within 0.15..0.85, and a pane whose document
+    // is gone is restored empty.
+    let mut l = Layout::new(Some("a".into()));
+    l.split(
+        "editor-pane-1",
+        Direction::Horizontal,
+        Placement::Second,
+        Some("gone".into()),
+    );
+    for (stored, ratio) in [(7.0, 0.85), (-1.0, 0.15), (0.42, 0.42)] {
+        let mut v = serde_json::to_value(&l).unwrap();
+        v["root"]["ratio"] = stored.into();
+        let restored = Layout::parse(&v, &valid, None);
+        let v = serde_json::to_value(&restored).unwrap();
+        assert_eq!(v["root"]["ratio"].as_f64(), Some(ratio), "{stored}");
+        assert_eq!(
+            restored.root.panes(),
+            [("editor-pane-1", Some("a")), ("editor-pane-2", None)]
+        );
+    }
 }
 fn wait(runtime: &mut Runtime, wake: &Wake, done: impl Fn(&Runtime) -> bool) {
     let deadline = Instant::now() + Duration::from_secs(5);
@@ -362,4 +422,128 @@ fn window_blur_flushes_each_retained_project_once_without_activating_it() {
     assert_eq!(r.active_slot(), second);
     r.flush_pending_auto_save(&wake);
     assert!(r.take_outgoing().is_empty());
+}
+/// `EditorPaneLayoutModel`: splits nest right and down and focus the new
+/// pane; closing a pane folds its split and keeps the surviving focus; a
+/// dragged editor lands on the side asked for; moving a pane never copies
+/// its editor and keeps the split it reorders; dropping a pane back into
+/// its own slot changes nothing.
+#[test]
+fn panes_split_close_and_move_as_the_layout_model_says() {
+    let editors = |l: &Layout| {
+        l.root
+            .panes()
+            .into_iter()
+            .map(|(_, editor)| editor.map(str::to_owned))
+            .collect::<Vec<_>>()
+    };
+    let some = |s: &str| Some(s.to_owned());
+    let mut l = Layout::new(some("a.md"));
+    l.split(
+        "editor-pane-1",
+        Direction::Horizontal,
+        Placement::Second,
+        some("a.md"),
+    );
+    let second = l.active.clone();
+    l.assign(&second, some("b.md"));
+    l.split(
+        &second,
+        Direction::Vertical,
+        Placement::Second,
+        some("b.md"),
+    );
+    assert_eq!(editors(&l), [some("a.md"), some("b.md"), some("b.md")]);
+    assert_eq!(l.active, "editor-pane-3");
+    let value = serde_json::to_value(&l).unwrap();
+    assert_eq!(
+        (
+            &value["root"]["direction"],
+            &value["root"]["second"]["direction"]
+        ),
+        (&"horizontal".into(), &"vertical".into())
+    );
+    // Closing a pane folds its split; the surviving focus stays.
+    let mut l = Layout::new(some("a.md"));
+    l.split(
+        "editor-pane-1",
+        Direction::Horizontal,
+        Placement::Second,
+        some("b.md"),
+    );
+    l.focus("editor-pane-1");
+    l.close("editor-pane-2");
+    assert_eq!(
+        l.root,
+        super::layout::Node::Pane {
+            id: "editor-pane-1".into(),
+            editor: some("a.md")
+        }
+    );
+    assert_eq!(l.active, "editor-pane-1");
+    // A dragged editor lands first, and is focused.
+    let mut l = Layout::new(some("target.md"));
+    l.split(
+        "editor-pane-1",
+        Direction::Horizontal,
+        Placement::First,
+        some("dragged.md"),
+    );
+    assert_eq!(editors(&l), [some("dragged.md"), some("target.md")]);
+    assert_eq!(l.active_editor(), Some("dragged.md"));
+    // Moving a pane keeps its split and copies nothing.
+    let mut l = Layout::new(some("a.md"));
+    l.split(
+        "editor-pane-1",
+        Direction::Horizontal,
+        Placement::Second,
+        some("b.md"),
+    );
+    let split = l.root.id().to_owned();
+    l.move_pane(
+        "editor-pane-1",
+        "editor-pane-2",
+        Direction::Vertical,
+        Placement::Second,
+    );
+    assert_eq!(l.root.id(), split);
+    assert_eq!(
+        l.root.panes(),
+        [
+            ("editor-pane-2", Some("b.md")),
+            ("editor-pane-1", Some("a.md"))
+        ]
+    );
+    assert_eq!(l.active, "editor-pane-1");
+    // A sibling dropped back where it is changes nothing.
+    let mut l = Layout::new(some("a.md"));
+    l.split(
+        "editor-pane-1",
+        Direction::Horizontal,
+        Placement::Second,
+        some("b.md"),
+    );
+    let before = l.clone();
+    l.move_pane(
+        "editor-pane-2",
+        "editor-pane-1",
+        Direction::Horizontal,
+        Placement::Second,
+    );
+    assert_eq!(l, before);
+    // Reordering siblings keeps the split.
+    l.move_pane(
+        "editor-pane-2",
+        "editor-pane-1",
+        Direction::Horizontal,
+        Placement::First,
+    );
+    assert_eq!(l.root.id(), before.root.id());
+    assert_eq!(
+        l.root.panes(),
+        [
+            ("editor-pane-2", Some("b.md")),
+            ("editor-pane-1", Some("a.md"))
+        ]
+    );
 }

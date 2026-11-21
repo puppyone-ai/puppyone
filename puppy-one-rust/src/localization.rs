@@ -46,16 +46,132 @@ fn native() -> &'static Value {
     DATA.get_or_init(|| {
         let mut data: Value = serde_json::from_str(include_str!("../assets/native-locales.json"))
             .expect("native catalogs");
-        let extra: Value = serde_json::from_str(DOCUMENT_RECONCILE_MESSAGES)
-            .expect("document reconciliation catalogs");
-        for (locale, messages) in extra.as_object().unwrap() {
-            if let Some(target) = data["catalogs"][locale].as_object_mut() {
-                target.extend(messages.as_object().unwrap().clone());
+        for raw in [DOCUMENT_RECONCILE_MESSAGES, CROSS_PLATFORM_MESSAGES] {
+            let extra: Value = serde_json::from_str(raw).expect("native extension catalogs");
+            for (locale, messages) in extra.as_object().unwrap() {
+                if let Some(target) = data["catalogs"][locale].as_object_mut() {
+                    target.extend(messages.as_object().unwrap().clone());
+                }
             }
         }
         data
     })
 }
+
+const CROSS_PLATFORM_MESSAGES: &str = r#"{
+  "en": {
+    "native.desktop.showInExplorer": "Show in Explorer",
+    "native.desktop.showInFiles": "Show in Files",
+    "native.credentials.unavailable": "System credential storage is not available. Install or start a desktop keyring service (for example GNOME Keyring or KWallet) and try again.",
+    "native.credentials.locked": "System credential storage is locked. Unlock your desktop keyring and try again.",
+    "native.web.embeddedUnavailable": "Embedded web preview is not available on this platform.",
+    "native.web.openInBrowser": "Open in browser",
+    "native.web.openExternally": "Open with default app",
+    "native.web.viewSource": "View source",
+    "native.window.minimize": "Minimize",
+    "native.window.maximize": "Maximize",
+    "native.window.restore": "Restore",
+    "native.window.close": "Close"
+  },
+  "zh-Hans": {
+    "native.desktop.showInExplorer": "在资源管理器中显示",
+    "native.desktop.showInFiles": "在文件管理器中显示",
+    "native.credentials.unavailable": "系统凭据存储不可用。请安装或启动桌面密钥环服务（如 GNOME Keyring 或 KWallet）后重试。",
+    "native.credentials.locked": "系统凭据存储已锁定。请先解锁桌面密钥环后重试。",
+    "native.web.embeddedUnavailable": "当前平台暂不支持内嵌网页预览。",
+    "native.web.openInBrowser": "在浏览器中打开",
+    "native.web.openExternally": "使用默认应用打开",
+    "native.web.viewSource": "查看源码",
+    "native.window.minimize": "最小化",
+    "native.window.maximize": "最大化",
+    "native.window.restore": "还原",
+    "native.window.close": "关闭"
+  },
+  "ja": {
+    "native.desktop.showInExplorer": "エクスプローラーで表示",
+    "native.desktop.showInFiles": "ファイルマネージャーで表示",
+    "native.credentials.unavailable": "システムの資格情報ストレージを利用できません。デスクトップのキーリングサービスを起動してから再試行してください。",
+    "native.credentials.locked": "システムの資格情報ストレージがロックされています。ロックを解除してから再試行してください。",
+    "native.web.embeddedUnavailable": "このプラットフォームでは組み込み Web プレビューを利用できません。",
+    "native.web.openInBrowser": "ブラウザーで開く",
+    "native.web.openExternally": "既定のアプリで開く",
+    "native.web.viewSource": "ソースを表示",
+    "native.window.minimize": "最小化",
+    "native.window.maximize": "最大化",
+    "native.window.restore": "元に戻す",
+    "native.window.close": "閉じる"
+  },
+  "ko": {
+    "native.desktop.showInExplorer": "탐색기에서 표시",
+    "native.desktop.showInFiles": "파일 관리자에서 표시",
+    "native.credentials.unavailable": "시스템 자격 증명 저장소를 사용할 수 없습니다. 데스크톱 키링 서비스를 설치하거나 시작한 후 다시 시도하세요.",
+    "native.credentials.locked": "시스템 자격 증명 저장소가 잠겨 있습니다. 데스크톱 키링의 잠금을 해제한 후 다시 시도하세요.",
+    "native.web.embeddedUnavailable": "이 플랫폼에서는 내장 웹 미리 보기를 사용할 수 없습니다.",
+    "native.web.openInBrowser": "브라우저에서 열기",
+    "native.web.openExternally": "기본 앱으로 열기",
+    "native.web.viewSource": "소스 보기",
+    "native.window.minimize": "최소화",
+    "native.window.maximize": "최대화",
+    "native.window.restore": "복원",
+    "native.window.close": "닫기"
+  },
+  "es": {
+    "native.desktop.showInExplorer": "Mostrar en el Explorador",
+    "native.desktop.showInFiles": "Mostrar en Archivos",
+    "native.credentials.unavailable": "El almacenamiento de credenciales del sistema no está disponible. Inicia un servicio de llavero de escritorio e inténtalo de nuevo.",
+    "native.credentials.locked": "El almacenamiento de credenciales del sistema está bloqueado. Desbloquea tu llavero de escritorio e inténtalo de nuevo.",
+    "native.web.embeddedUnavailable": "La vista previa web integrada no está disponible en esta plataforma.",
+    "native.web.openInBrowser": "Abrir en el navegador",
+    "native.web.openExternally": "Abrir con la aplicación predeterminada",
+    "native.web.viewSource": "Ver código fuente",
+    "native.window.minimize": "Minimizar",
+    "native.window.maximize": "Maximizar",
+    "native.window.restore": "Restaurar",
+    "native.window.close": "Cerrar"
+  },
+  "pt-BR": {
+    "native.desktop.showInExplorer": "Mostrar no Explorador",
+    "native.desktop.showInFiles": "Mostrar em Arquivos",
+    "native.credentials.unavailable": "O armazenamento de credenciais do sistema não está disponível. Inicie um serviço de chaveiro da área de trabalho e tente novamente.",
+    "native.credentials.locked": "O armazenamento de credenciais do sistema está bloqueado. Desbloqueie seu chaveiro e tente novamente.",
+    "native.web.embeddedUnavailable": "A visualização da web incorporada não está disponível nesta plataforma.",
+    "native.web.openInBrowser": "Abrir no navegador",
+    "native.web.openExternally": "Abrir com o aplicativo padrão",
+    "native.web.viewSource": "Ver código-fonte",
+    "native.window.minimize": "Minimizar",
+    "native.window.maximize": "Maximizar",
+    "native.window.restore": "Restaurar",
+    "native.window.close": "Fechar"
+  },
+  "fr": {
+    "native.desktop.showInExplorer": "Afficher dans l’Explorateur",
+    "native.desktop.showInFiles": "Afficher dans Fichiers",
+    "native.credentials.unavailable": "Le stockage d’identifiants système n’est pas disponible. Démarrez un service de trousseau de bureau et réessayez.",
+    "native.credentials.locked": "Le stockage d’identifiants système est verrouillé. Déverrouillez votre trousseau et réessayez.",
+    "native.web.embeddedUnavailable": "L’aperçu web intégré n’est pas disponible sur cette plateforme.",
+    "native.web.openInBrowser": "Ouvrir dans le navigateur",
+    "native.web.openExternally": "Ouvrir avec l’application par défaut",
+    "native.web.viewSource": "Voir le code source",
+    "native.window.minimize": "Réduire",
+    "native.window.maximize": "Agrandir",
+    "native.window.restore": "Restaurer",
+    "native.window.close": "Fermer"
+  },
+  "de": {
+    "native.desktop.showInExplorer": "Im Explorer anzeigen",
+    "native.desktop.showInFiles": "In Dateien anzeigen",
+    "native.credentials.unavailable": "Der System-Anmeldeinformationsspeicher ist nicht verfügbar. Starten Sie einen Desktop-Schlüsselbunddienst und versuchen Sie es erneut.",
+    "native.credentials.locked": "Der System-Anmeldeinformationsspeicher ist gesperrt. Entsperren Sie Ihren Schlüsselbund und versuchen Sie es erneut.",
+    "native.web.embeddedUnavailable": "Die eingebettete Webvorschau ist auf dieser Plattform nicht verfügbar.",
+    "native.web.openInBrowser": "Im Browser öffnen",
+    "native.web.openExternally": "Mit Standard-App öffnen",
+    "native.web.viewSource": "Quelltext anzeigen",
+    "native.window.minimize": "Minimieren",
+    "native.window.maximize": "Maximieren",
+    "native.window.restore": "Wiederherstellen",
+    "native.window.close": "Schließen"
+  }
+}"#;
 
 const DOCUMENT_RECONCILE_MESSAGES: &str = r#"{
   "en": {
@@ -223,6 +339,9 @@ pub fn set_current(code: &str) {
 /// exact tag, script (`zh-Hans`), region-less language, else English.
 pub fn resolve_system(languages: &[String]) -> &'static str {
     let choices: Vec<&'static str> = Locale::choices().map(|(id, _)| id).collect();
+    resolve_among(&choices, languages)
+}
+fn resolve_among<'a>(choices: &[&'a str], languages: &[String]) -> &'a str {
     for tag in languages {
         let tag = tag.replace('_', "-");
         if let Some(found) = choices.iter().find(|c| c.eq_ignore_ascii_case(&tag)) {
@@ -248,6 +367,16 @@ pub fn resolve_system(languages: &[String]) -> &'static str {
         }
     }
     "en"
+}
+/// The manifest's `productionReady` locales: a locale whose release flag
+/// is off is neither offered nor chosen for the system.
+fn ready(manifest: &Value) -> impl Iterator<Item = (&str, &str)> {
+    manifest["locales"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|v| v["productionReady"].as_bool() == Some(true))
+        .map(|v| (v["locale"].as_str().unwrap(), v["label"].as_str().unwrap()))
 }
 /// Catalog id the OS language resolves to.
 pub fn system_locale() -> &'static str {
@@ -497,11 +626,7 @@ impl Default for Locale {
 }
 impl Locale {
     pub fn choices() -> impl Iterator<Item = (&'static str, &'static str)> {
-        data()["locales"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| (v["locale"].as_str().unwrap(), v["label"].as_str().unwrap()))
+        ready(data())
     }
     pub fn set(&mut self, code: &str) -> bool {
         if Self::choices().any(|(id, _)| id == code) && self.code != code {
@@ -770,31 +895,30 @@ pub fn relative_now() -> &'static str {
         _ => "now",
     }
 }
-/// `Intl.ListFormat(locale, { type: "conjunction" })` of one or two items
-/// ("3 files and 2 searches", "3 个文件和 2 次搜索").
+/// `Intl.ListFormat(locale, { type: "conjunction" })` ("3 files and 2
+/// searches", "A, B, and C", "A、B和C").
 pub fn and_list(items: &[String]) -> String {
     let code = CURRENT.with(|c| c.borrow().clone());
+    and_list_in(&code, items)
+}
+fn and_list_in(code: &str, items: &[String]) -> String {
+    // CLDR's standard list patterns: the separator between the items, the
+    // one before the last of three or more, and the one between two.
+    let (between, last, pair) = match code {
+        "zh-Hans" => ("、", "和", "和"),
+        "ja" => ("、", "、", "、"),
+        "ko" => (", ", " 및 ", " 및 "),
+        "de" => (", ", " und ", " und "),
+        "fr" => (", ", " et ", " et "),
+        "es" => (", ", " y ", " y "),
+        "pt-BR" => (", ", " e ", " e "),
+        _ => (", ", ", and ", " and "),
+    };
     match items {
         [] => String::new(),
         [one] => one.clone(),
-        [a, b] => {
-            let and = match code.as_str() {
-                "zh-Hans" => "和",
-                "ja" => "、",
-                "ko" => " 및 ",
-                "de" => " und ",
-                "fr" => " et ",
-                "es" => " y ",
-                "pt-BR" => " e ",
-                _ => " and ",
-            };
-            format!("{a}{and}{b}")
-        }
-        [rest @ .., last] => format!(
-            "{}, {}",
-            rest.join(", "),
-            and_list(&[String::new(), last.clone()]).trim_start()
-        ),
+        [a, b] => format!("{a}{pair}{b}"),
+        [rest @ .., end] => format!("{}{last}{end}", rest.join(between)),
     }
 }
 /// `Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(n, "day")`
@@ -909,6 +1033,28 @@ mod tests {
             "23 de out. de 2024"
         );
     }
+    /// `formatList`: Intl's conjunction, however many there are.
+    #[test]
+    fn lists_join_as_intl_list_format_does() {
+        let names = |n: usize| {
+            ["A", "B", "C", "D"][..n]
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(super::and_list_in("en", &names(0)), "");
+        assert_eq!(super::and_list_in("en", &names(1)), "A");
+        assert_eq!(super::and_list_in("en", &names(2)), "A and B");
+        assert_eq!(super::and_list_in("en", &names(4)), "A, B, C, and D");
+        assert_eq!(super::and_list_in("zh-Hans", &names(2)), "A和B");
+        assert_eq!(super::and_list_in("zh-Hans", &names(3)), "A、B和C");
+        assert_eq!(super::and_list_in("ja", &names(3)), "A、B、C");
+        assert_eq!(super::and_list_in("ko", &names(3)), "A, B 및 C");
+        assert_eq!(super::and_list_in("de", &names(3)), "A, B und C");
+        assert_eq!(super::and_list_in("fr", &names(3)), "A, B et C");
+        assert_eq!(super::and_list_in("es", &names(2)), "A y B");
+        assert_eq!(super::and_list_in("pt-BR", &names(3)), "A, B e C");
+    }
     #[test]
     fn relative_past_follows_intl_relative_time_format() {
         use super::{TimeUnit::*, relative_past_in};
@@ -920,6 +1066,161 @@ mod tests {
         assert_eq!(relative_past_in("ja", 5, Day), "5 日前");
     }
     use super::*;
+
+    /// `settingsVisualArchitecture`: every product locale carries the core
+    /// Settings, Typography, Privacy, Local Agents, Agent file activity,
+    /// Language and Local Project copy, and none the retired sidebar entries.
+    #[test]
+    fn core_settings_copy_is_complete_in_every_product_locale() {
+        let mut present: Vec<String> = [
+            "sidebar.localProject",
+            "sidebar.privacy",
+            "sidebar.projectInfo",
+            "sidebar.localAgents",
+            "sidebar.agents",
+            "sidebar.createNew",
+            "sidebar.typography",
+            "general.title",
+            "general.detail",
+            "localAgents.title",
+            "localAgents.detail",
+            "localAgents.activeChat.title",
+            "localAgents.toggle",
+            "localAgents.history.title",
+            "localAgents.history.detail",
+            "localAgents.history.toggle",
+            "localAgentHooks.title",
+            "localAgentHooks.manage",
+            "localAgentHooks.choose",
+            "localAgentHooks.status.installed",
+            "appearance.agentFileActivity.title",
+        ]
+        .map(String::from)
+        .into();
+        let groups: [(&str, &[&str]); 5] = [
+            (
+                "typography",
+                &[
+                    "title",
+                    "detail",
+                    "textSize.title",
+                    "textSize.ariaLabel",
+                    "textSize.scale.small",
+                    "textSize.scale.medium",
+                    "textSize.scale.large",
+                    "textSize.useScale",
+                    "preview.ariaLabel",
+                    "preview.leftSidebar",
+                    "preview.editor",
+                    "preview.rightSidebar",
+                    "preview.chat",
+                    "preview.message",
+                ],
+            ),
+            (
+                "privacy",
+                &[
+                    "title",
+                    "detail",
+                    "productAnalyze.title",
+                    "productAnalyze.detail",
+                    "productAnalyze.error",
+                    "productAnalyze.learnMore",
+                ],
+            ),
+            (
+                "appearance.agentFileActivity.permission",
+                &[
+                    "title",
+                    "detail",
+                    "accessTitle",
+                    "accessDetail",
+                    "localOnly",
+                    "enable",
+                    "enabling",
+                    "error",
+                ],
+            ),
+            (
+                "language",
+                &["selectorLabel", "system", "changing", "changeFailed"],
+            ),
+            (
+                "localProject",
+                &[
+                    "title",
+                    "detail",
+                    "name",
+                    "path",
+                    "mode",
+                    "modeLocal",
+                    "status",
+                    "protected",
+                    "recentWorkspace",
+                    "unlink.title",
+                    "unlink.action",
+                    "unlink.progress",
+                    "unlink.confirm",
+                ],
+            ),
+        ];
+        for (group, keys) in groups {
+            present.extend(keys.iter().map(|key| format!("{group}.{key}")));
+        }
+        let retired = [
+            "sidebar.language",
+            "sidebar.editor",
+            "sidebar.defaultApps",
+            "sidebar.localAgentHooks",
+        ];
+        let catalogs = data()["catalogs"].as_object().unwrap();
+        assert_eq!(catalogs.len(), 8);
+        for (locale, catalog) in catalogs {
+            for key in &present {
+                assert!(
+                    catalog[format!("settings.{key}")]
+                        .as_str()
+                        .is_some_and(|text| !text.is_empty()),
+                    "{locale}: settings.{key}"
+                );
+            }
+            for key in retired {
+                assert!(
+                    catalog[format!("settings.{key}")].is_null(),
+                    "{locale}: settings.{key}"
+                );
+            }
+        }
+    }
+    /// `DesktopLocaleService`: the system's first supported language is
+    /// chosen (regional tags fall back to their language), the OS is
+    /// followed only while the preference is System, an unsupported
+    /// preference is not kept, and a locale whose release flag is off is
+    /// neither offered nor resolved for the system.
+    #[test]
+    fn the_system_language_is_followed_only_while_the_preference_is_system() {
+        let langs = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(resolve_system(&langs(&["fr-CA", "en-US"])), "fr");
+        assert_eq!(
+            resolve_preference("system", &langs(&["zh-TW", "es-MX"])),
+            "es"
+        );
+        assert_eq!(resolve_preference("system", &langs(&["ja-JP"])), "ja");
+        assert_eq!(resolve_preference("ko", &langs(&["fr-FR"])), "ko");
+        assert_eq!(resolve_preference("it", &langs(&["de-DE"])), "de");
+        let fr = Locale { code: "fr".into() };
+        assert_eq!(fr.text("native.dock.newWindow"), "Nouvelle fenêtre");
+        assert_eq!(fr.text("native.menu.file"), "Fichier");
+        let mut manifest = data().clone();
+        for entry in manifest["locales"].as_array_mut().unwrap() {
+            if entry["locale"] == "es" {
+                entry["productionReady"] = false.into();
+            }
+        }
+        let choices: Vec<&str> = ready(&manifest).map(|(id, _)| id).collect();
+        assert!(!choices.contains(&"es") && choices.contains(&"fr"));
+        assert_eq!(resolve_among(&choices, &langs(&["es-MX", "en-US"])), "en");
+    }
     #[test]
     fn languages_come_from_product_and_invalid_updates_keep_previous_state() {
         let mut locale = Locale { code: "en".into() };
@@ -1120,6 +1421,39 @@ mod tests {
                 let value = locale.text(key);
                 assert_ne!(value, key, "{code} lacks {key}");
                 assert!(!value.trim().is_empty(), "{code} has empty {key}");
+            }
+        }
+    }
+    /// `cloudOpeningFailureClassification`: every message the opening table
+    /// names, and the diagnostic copy, exists in every product locale.
+    #[test]
+    fn cloud_opening_failure_copy_exists_in_every_product_locale() {
+        let keys = [
+            "message.workspace-start-timeout",
+            "message.workspace-preparing",
+            "message.workspace-connection-unavailable",
+            "message.workspace-open-failed",
+            "message.workspace-changed",
+            "message.workspace-disk-lost",
+            "message.workspace-recovery-required",
+            "message.workspace-plan-required",
+            "message.workspace-access-denied",
+            "message.project-unavailable",
+            "message.workspace-not-configured",
+            "opening.failedTitle",
+            "opening.diagnosticCode",
+            "opening.diagnosticRequest",
+            "opening.copyDiagnostic",
+            "opening.diagnosticCopied",
+        ];
+        let catalogs = data()["catalogs"].as_object().unwrap();
+        assert_eq!(catalogs.len(), 8);
+        for (locale, catalog) in catalogs {
+            for key in keys {
+                assert!(
+                    catalog[format!("cloud.{key}")].is_string(),
+                    "{locale}: cloud.{key}"
+                );
             }
         }
     }

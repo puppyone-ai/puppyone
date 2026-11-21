@@ -161,12 +161,12 @@ impl Workbench {
         let at_rest = crate::lab::settled();
         #[cfg(not(feature = "dev-capture"))]
         let at_rest = false;
-        let enabled = source.is_none() && insert.is_none() && !cx.reduce_motion() && !at_rest;
-        let (spans, moving) = self
-            .header_motion
-            .entry((root.clone(), group))
-            .or_default()
-            .frame(&targets, enabled, std::time::Instant::now());
+        let motion = self.header_motion.entry((root.clone(), group)).or_default();
+        // A resized rail fits at once.
+        let resized = motion.resized(available);
+        let enabled =
+            source.is_none() && insert.is_none() && !resized && !cx.reduce_motion() && !at_rest;
+        let (spans, moving) = motion.frame(&targets, enabled, std::time::Instant::now());
         if moving && !self.motion_frame {
             self.motion_frame = true;
             cx.spawn(async move |this, cx| {
@@ -251,7 +251,7 @@ impl Workbench {
                 .text_size(px(m.header.content))
                 .line_height(px(m.header.line_height))
                 .text_color(fg)
-                .cursor(theme::clickable_cursor())
+                .cursor(theme::navigation_cursor())
                 .when(active, |d| d.bg(t.control))
                 .when(!active, |d| {
                     d.group_hover(group_name.clone(), |s| {
@@ -309,6 +309,7 @@ impl Workbench {
                 );
             let close = (!compact).then(|| {
                 gpui_kit::base::Button::new(("close-tab", tab))
+                    .debug_selector(move || format!("workbench-close-{tab}"))
                     .accessibility_label(close_label.clone())
                     .absolute()
                     .right(px(1.))
@@ -338,6 +339,7 @@ impl Workbench {
             rail = rail.child(
                 div()
                     .id(("tab-frame", tab))
+                    .debug_selector(move || format!("workbench-tab-{tab}"))
                     .group(group_name.clone())
                     .absolute()
                     .left(px(drawn.x))
@@ -396,6 +398,7 @@ impl Workbench {
                 false,
             )
             .left(px(create_start))
+            .debug_selector(move || format!("workbench-new-tab-{group}"))
             .on_click(cx.listener(move |s, _, _, cx| s.add(group, cx))),
         );
         if g.tabs.is_empty() && self.project().unwrap().layout.groups.len() > 1 {

@@ -17,6 +17,7 @@ use sync_config::binding;
 pub mod coordinator;
 pub mod runner;
 pub mod sync_state;
+pub use runner::git_executable;
 use std::{
     path::{Component, Path},
     sync::atomic::AtomicBool,
@@ -649,8 +650,9 @@ fn synchronize(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
     }
     status_owned(root, cancel)
 }
-/// Continue (`-c core.editor=true <kind> --continue`, keeping Git's own
-/// message) or abort the operation in progress.
+/// Continue (`GIT_EDITOR=true` + `-c core.editor=true <kind> --continue`,
+/// keeping Git's own message even when `GIT_EDITOR` is set in the environment)
+/// or abort the operation in progress.
 fn resolve_operation(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
     let current = status_owned(root, cancel)?;
     let verb = op.label();
@@ -660,18 +662,34 @@ fn resolve_operation(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result
         ));
     };
     let kind = operation.command();
-    let args = if matches!(op, Operation::Continue) {
+    let (args, environment): (Vec<&str>, &[(&str, &str)]) = if matches!(op, Operation::Continue) {
         if current.changes.iter().any(Change::conflict) {
             return Err(
                 "Unable to continue Git operation: resolve and stage all conflicted files first."
                     .into(),
             );
         }
-        vec!["-c", "core.editor=true", kind, "--continue"]
+        (
+            vec!["-c", "core.editor=true", kind, "--continue"],
+            &[("GIT_EDITOR", "true"), ("GIT_SEQUENCE_EDITOR", "true")],
+        )
     } else {
-        vec![kind, "--abort"]
+        (vec![kind, "--abort"], &[])
     };
-    git(root, &args, None, cancel).map_err(|e| format!("Unable to {verb} {kind}: {e}"))?;
+    let full_args = runner::arguments(&args);
+    runner::execute_prepared(
+        root,
+        runner::Invocation {
+            program: git_executable(),
+            args: &full_args,
+            environment,
+        },
+        None,
+        cancel,
+        runner::Kind::Mutation,
+        runner::MAX_BUFFER,
+    )
+    .map_err(|e| format!("Unable to {verb} {kind}: {e}"))?;
     status_owned(root, cancel)
 }
 fn missing_upstream(message: &str) -> bool {
@@ -1138,6 +1156,7 @@ mod tests {
             ("user.name", "Merge fixture"),
             ("user.email", "fixture@example.invalid"),
             ("commit.gpgsign", "false"),
+            ("core.autocrlf", "false"),
         ] {
             run(&["config", k, v]).unwrap();
         }
@@ -1223,6 +1242,54 @@ mod tests {
         let s = status(root, &cancel).unwrap();
         assert_eq!(s.remotes, ["origin"]);
         assert!(!s.setup_required());
+    }
+    /// `localWorkspaceArchitecture`: a branch with incoming commits takes
+    /// them before it can push, and nothing is pushed or published while a
+    /// repository operation waits for its conflicts.
+    #[test]
+    fn a_diverged_or_interrupted_branch_cannot_push_or_publish() {
+        let target = |exists| {
+            Some(SyncTarget {
+                remote: "origin".into(),
+                branch: "main".into(),
+                exists,
+            })
+        };
+        let outgoing = Snapshot {
+            head: "abc123".into(),
+            branch: "main".into(),
+            ahead: 1,
+            target: target(true),
+            ..Default::default()
+        };
+        assert!(outgoing.can_push());
+        let diverged = Snapshot {
+            behind: 1,
+            ..outgoing.clone()
+        };
+        assert!(!diverged.can_push());
+        for operation in [
+            RepositoryOperation::Rebase,
+            RepositoryOperation::Merge,
+            RepositoryOperation::CherryPick,
+            RepositoryOperation::Revert,
+        ] {
+            let waiting = Snapshot {
+                operation: Some(operation),
+                ..outgoing.clone()
+            };
+            assert!(!waiting.can_push(), "{operation:?}");
+            let unpublished = Snapshot {
+                target: target(false),
+                ..waiting
+            };
+            assert!(!unpublished.can_publish(), "{operation:?}");
+        }
+        let unpublished = Snapshot {
+            target: target(false),
+            ..outgoing
+        };
+        assert!(unpublished.can_publish() && !unpublished.can_push());
     }
     #[test]
     fn empty_commits_take_the_product_default_message() {
@@ -1347,7 +1414,8 @@ mod tests {
             &cancel,
         )
         .unwrap();
-        std::fs::write(root.join("a\n-b"), "one\n").unwrap();
+        let filename = if cfg!(windows) { "a -b" } else { "a\n-b" };
+        std::fs::write(root.join(filename), "one\n").unwrap();
         let s = status(root, &cancel).unwrap();
         let s = operate(root, &Operation::Stage(s.changes[0].clone()), &cancel).unwrap();
         assert!(s.changes[0].staged());
@@ -1355,7 +1423,7 @@ mod tests {
         assert!(s.changes[0].untracked());
         operate(root, &Operation::Stage(s.changes[0].clone()), &cancel).unwrap();
         operate(root, &Operation::Commit("Initial".into()), &cancel).unwrap();
-        std::fs::write(root.join("a\n-b"), "two\n").unwrap();
+        std::fs::write(root.join(filename), "two\n").unwrap();
         let s = status(root, &cancel).unwrap();
         let files = super::super::git_diff::file_diff(
             root,

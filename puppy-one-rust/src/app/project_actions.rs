@@ -448,7 +448,8 @@ impl ProjectActions {
             return;
         }
         let name = rename.input.read(cx).text().trim().to_owned();
-        if name.is_empty() || name == rename.target.name() {
+        if !crate::features::settings::supported_project_name(&name) || name == rename.target.name()
+        {
             return;
         }
         match rename.target.clone() {
@@ -529,7 +530,8 @@ impl ProjectActions {
         let t = cx.palette();
         let host = self.weak.clone();
         let text = rename.input.read(cx).text().trim().to_owned();
-        let unchanged = text.is_empty() || text == rename.target.name();
+        let unchanged = !crate::features::settings::supported_project_name(&text)
+            || text == rename.target.name();
         let pending = rename.pending;
         Dialog::new("project-rename")
             .width(420.)

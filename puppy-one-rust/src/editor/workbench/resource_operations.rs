@@ -345,6 +345,42 @@ mod tests {
         }
         assert!(!root.path().join("from").exists());
     }
+    /// `rebases and closes a folder's complete editor subtree`: deleting a
+    /// folder removes every document under it, nested ones included, and
+    /// none beside it (a sibling whose name starts the same included).
+    #[test]
+    fn deleting_a_folder_removes_its_whole_document_subtree_only() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("docs/nested")).unwrap();
+        std::fs::create_dir(root.path().join("docs2")).unwrap();
+        for name in ["docs/a.md", "docs/nested/b.md", "docs2/c.md", "other.md"] {
+            std::fs::write(root.path().join(name), name).unwrap();
+        }
+        let ws = Workspace::open(root.path()).unwrap();
+        let bindings = vec![
+            binding(&ws, "docs/a.md", 1),
+            binding(&ws, "docs/nested/b.md", 2),
+            binding(&ws, "docs2/c.md", 3),
+            binding(&ws, "other.md", 4),
+        ];
+        let result = execute(
+            ws.clone(),
+            &Operation::Delete(vec!["docs".into()]),
+            &bindings,
+            None,
+        );
+        assert!(!result.uncertain && result.outcome.error.is_none());
+        let removed: Vec<u64> = result
+            .updates
+            .iter()
+            .map(|update| match update {
+                Update::Removed(slot) => *slot,
+                _ => panic!("a removal, not a rebinding"),
+            })
+            .collect();
+        assert_eq!(removed, [1, 2]);
+        assert!(root.path().join("docs2/c.md").exists());
+    }
     #[test]
     fn lost_rename_receipt_is_reconciled_without_replaying_the_mutation() {
         let root = tempfile::tempdir().unwrap();

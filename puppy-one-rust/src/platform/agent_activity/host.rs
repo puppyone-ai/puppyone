@@ -2,13 +2,15 @@
 //! `create-terminal-agent-activity-host.mjs`, `terminal-agent-activity-host.mjs`).
 //! A terminal is prepared only while its provider's Hook is enabled (any
 //! Hook for a plain shell); the socket starts with the first such terminal.
+#[cfg(unix)]
+use super::transport;
 use super::{
     Phase, PublicEvent,
     adapters::{self, Normalized},
     env, now_millis,
     registration::{Bridge, Enrollment, ProviderStatus, Registration},
     service::{Service, Session},
-    transport::{self, Auth, Envelope, Server},
+    transport::{Auth, Envelope, Server},
 };
 use std::{
     path::{Path, PathBuf},
@@ -19,6 +21,7 @@ use std::{
 pub type Event = (String, PublicEvent);
 pub struct Host {
     registration: Registration,
+    #[cfg_attr(not(unix), allow(dead_code))]
     runtime_dir: PathBuf,
     auth: Arc<Mutex<Auth>>,
     service: Arc<Mutex<Service>>,
@@ -148,6 +151,7 @@ impl Host {
         self.service.lock().unwrap().snapshot(owner)
     }
     fn start(&self) -> std::io::Result<PathBuf> {
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut server = self.server.lock().unwrap();
         if let Some(server) = server.as_ref() {
             return Ok(server.endpoint.clone());
@@ -175,6 +179,7 @@ impl Host {
     }
 }
 /// `handleEnvelope`: the provider's adapter, then the claim service.
+#[cfg_attr(not(unix), allow(dead_code))]
 fn handle(service: &Mutex<Service>, envelope: Envelope) -> bool {
     let Some(normalized) = adapters::normalize(
         &envelope.provider_id,
@@ -210,6 +215,7 @@ fn handle(service: &Mutex<Service>, envelope: Envelope) -> bool {
     service.lock().unwrap().ingest(event, targets)
 }
 /// The two-minute lease, checked every second while the service lives.
+#[cfg_attr(not(unix), allow(dead_code))]
 fn expire_leases(service: Weak<Mutex<Service>>) {
     let _ = std::thread::Builder::new()
         .name("agent-activity-leases".into())
@@ -260,6 +266,8 @@ mod tests {
                 .map(|(_, v)| v.clone())
         };
         assert!(lookup(env::PROVIDER).is_none());
+        assert_eq!(lookup(env::TERMINAL_SESSION_ID).as_deref(), Some("t1"));
+        assert!(lookup(env::ENDPOINT).is_some());
         let args = ["--provider".into(), "codex".into()];
         let input = br#"{"hook_event_name":"PreToolUse","tool_name":"Read","tool_use_id":"c1","tool_input":{"file_path":"src/a.rs"}}"#;
         let cwd = root.to_string_lossy();

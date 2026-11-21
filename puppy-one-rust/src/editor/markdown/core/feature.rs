@@ -15,7 +15,7 @@
 //! Note: this module is pure (`R10`: zero `gpui` references).
 use super::{
     classes::Class,
-    decorations::{BlockDecoration, LineDecoration},
+    decorations::{BlockDecoration, InlineDecoration, LineDecoration},
     plans::{BlockEmbed, Plan},
     state::{FeatureStateStore, PreviewState},
     syntax::{Element, Kind, Syntax},
@@ -91,9 +91,15 @@ pub trait MarkdownFeature: Sync {
     fn id(&self) -> &'static str;
 
     /// Line-level inline syntax extension (`TA-30`, `TA-40`), e.g. `$formula$`
-    /// in `features/math`. Called per non-code/non-table line; ranges are
+    /// in `features/math`. Called per non-code line or table cell; ranges are
     /// validated and clamped to `doc` boundaries (`TA-33`).
     fn recognize_inline(&self, _line_start: usize, _line_text: &str, _out: &mut Vec<Element>) {}
+
+    /// Whether a recognized feature uses a fully enclosed code span as its
+    /// own delimiter syntax. Other code intersections always suppress it.
+    fn owns_inline_code(&self, _element: &Element, _code: &Element) -> bool {
+        false
+    }
 
     /// Block-level syntax extension (`TA-30`, `TA-40`), returning line ranges
     /// owned by feature blocks that suppress inner line-level inline scanning.
@@ -115,6 +121,14 @@ pub trait MarkdownFeature: Sync {
         _code_lines: &[Range<usize>],
         _out: &mut Vec<usize>,
     ) {
+    }
+
+    /// Whether its block plans own every line they cover, as the product's
+    /// block parser consumes a component's lines before HTML sees them: a
+    /// block plan a feature composed after it compiles wholly inside one is
+    /// dropped.
+    fn owns_block_lines(&self) -> bool {
+        false
     }
 
     /// Semantic element kinds this feature compiles (`semanticKinds`).
@@ -158,6 +172,10 @@ pub trait MarkdownFeature: Sync {
     /// Decorations it adds to a line box (overlays, hotspots).
     fn decorate_line(&self, _cx: &mut LineDecoration) {}
 
+    /// Inline content inside a block widget (for example table cells).
+    /// This context cannot replace the owning block or decorate a line box.
+    fn decorate_inline_content(&self, _cx: &mut InlineDecoration) {}
+
     /// Declarative keymap contributions (`TA-40`).
     fn keybindings(&self) -> &'static [FeatureKeybinding] {
         &[]
@@ -193,7 +211,7 @@ pub const FEATURE_PANIC_EVENT: &str = "[markdown-editor] feature panicked";
 
 /// Isolates a `MarkdownFeature` callback (`recognize_inline`, `recognize_blocks`,
 /// `compile_element`, `compile_blocks`, `block_widget`, `inline_widget`,
-/// `decorate_block`, `decorate_line`, `view_command`, `command`, `TA-33`).
+/// `decorate_block`, `decorate_line`, `decorate_inline_content`, `view_command`, `command`, `TA-33`).
 /// On panic, discards partial output and logs one diagnostic per feature ID per
 /// process session.
 pub fn catch_feature_panic<T>(

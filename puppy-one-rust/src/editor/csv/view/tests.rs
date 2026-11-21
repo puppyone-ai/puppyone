@@ -77,15 +77,15 @@ fn typing_replaces_the_selected_value_and_history_belongs_to_the_table(cx: &mut 
         assert!(v.focus.is_focused(w));
     });
     // ⌘Z on the table undoes the entire cell session in one step!
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "id,name\n1,alice\n");
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "id,name\n1,bob\n");
     // ⌘Z inside an untouched active cell also delegates to the table history.
     view.update_in(cx, |v, w, cx| v.activate(1, 0, None, w, cx));
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "id,name\n1,alice\n");
 }
@@ -172,7 +172,7 @@ fn source_mode_edits_the_raw_text_and_returns_it_to_the_table(cx: &mut TestAppCo
     view.update_in(cx, |v, w, cx| v.toggle_mode(w, cx));
     cx.run_until_parked();
     view.update(cx, |v, _| assert!(!v.live && v.source.is_some()));
-    cx.simulate_keystrokes("cmd-down");
+    cx.simulate_keystrokes("secondary-down");
     cx.simulate_input("c,d\n");
     assert_eq!(text(&view, cx), "a,b\nc,d\n");
     view.update_in(cx, |v, w, cx| v.toggle_mode(w, cx));
@@ -657,7 +657,7 @@ fn an_ime_composition_in_a_cell_reaches_the_model_once(cx: &mut TestAppContext) 
         ("id,name\n1,alice你好\n", 1)
     );
     // One table history step for the whole composition.
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "id,name\n1,alice\n");
     assert_eq!(active(&view, cx), Some((1, 1, "alice".into())));
@@ -731,10 +731,10 @@ fn cell_session_undo_granularity_across_enter_tab_click_and_blur(cx: &mut TestAp
     assert_eq!(active(&view, cx), Some((1, 0, "hello world".into())));
     view.update(cx, |v, _| assert_eq!(v.model.undo_len(), 0));
     // Local ⌘Z undoes only the paste inside the cell!
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     cx.run_until_parked();
     assert_eq!(active(&view, cx), Some((1, 0, "hello".into())));
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     cx.run_until_parked();
     assert_eq!(active(&view, cx), Some((1, 0, "hello world".into())));
     // Tab commits 1 table-level undo step and moves to (1, 1).
@@ -1057,5 +1057,486 @@ fn escape_exits_cell_to_table_and_focusable_grips_open_menu_from_keyboard(cx: &m
     cx.run_until_parked();
     view.update(cx, |v, _| {
         assert_eq!(v.menu.as_ref().and_then(|m| m.source), Some((Axis::Row, 2)));
+    });
+}
+
+fn setup_doc<'a>(
+    cx: &'a mut TestAppContext,
+    doc_id: &str,
+    text: &str,
+) -> (
+    Entity<CsvEditor>,
+    Rc<RefCell<usize>>,
+    &'a mut VisualTestContext,
+) {
+    cx.update(|cx| {
+        if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+            gpui_kit::init(cx);
+        }
+        cx.text_system().add_fonts(style::font_bytes()).unwrap();
+        bind_keys(cx);
+        super::bind_keys(cx);
+    });
+    let doc_id = doc_id.to_owned();
+    let text = text.to_owned();
+    let (view, cx) = cx.add_window_view(move |_, cx| {
+        CsvEditor::new(&doc_id, "t.csv", &text, true, Scale::Medium, cx)
+    });
+    let changes = Rc::new(RefCell::new(0));
+    let counter = changes.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&view, move |_, event: &CsvEvent, _| {
+            if *event == CsvEvent::Changed {
+                *counter.borrow_mut() += 1;
+            }
+        })
+        .detach();
+    });
+    cx.update(|w, cx| {
+        w.activate_window();
+        w.draw(cx).clear(cx);
+    });
+    cx.run_until_parked();
+    (view, changes, cx)
+}
+
+#[gpui::test]
+fn csv_column_width_persists_across_remount_without_changing_content(cx: &mut TestAppContext) {
+    let source = "Name,Score\nAda,1\nLin,2\n";
+    let doc_id = "csv-parity-persist-width";
+    let (view, changes, visual) = setup_doc(cx, doc_id, source);
+    let expected_width = view.update(visual, |v, cx| {
+        let start = v.layout.widths[0];
+        v.start_resize(0, 100., cx);
+        v.drag_resize(240., cx);
+        v.end_resize(false, cx);
+        assert_eq!(v.layout.widths[0], start + 140.);
+        v.layout.widths[0]
+    });
+    assert_eq!(*changes.borrow(), 0);
+    assert_eq!(text(&view, visual), source);
+
+    let (remounted, _, visual2) = setup_doc(cx, doc_id, source);
+    remounted.read_with(visual2, |v, _| {
+        assert_eq!(v.layout.widths[0], expected_width);
+    });
+}
+
+#[gpui::test]
+fn csv_drag_and_resize_cancel_on_escape_and_window_blur(cx: &mut TestAppContext) {
+    let source = "h1,h2,h3\na,b,c\nd,e,f\n";
+    let (view, changes, visual) = setup_doc(cx, "csv-parity-cancel", source);
+    view.update_in(visual, |v, w, cx| {
+        v.header = true;
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(800., 600.);
+        v.focus.focus(w, cx);
+    });
+
+    // Escape cancels active column drag without changing CSV or opening a menu.
+    view.update_in(visual, |v, w, cx| {
+        v.pointer_moved(press_point(v, v.column_x(0) + 5., v.row_y(1) + 5.), cx);
+        let start = press_point(v, v.column_x(0) + 20., v.row_y(0));
+        v.start_structure_drag(Axis::Column, start, w, cx);
+        v.drag_structure(press_point(v, v.column_x(2) + 20., v.row_y(0)), cx);
+        assert!(v.gestures.drag.unwrap().moved);
+    });
+    visual.simulate_keystrokes("escape");
+    visual.run_until_parked();
+    view.read_with(visual, |v, _| {
+        assert!(v.gestures.drag.is_none());
+        assert!(v.menu.is_none());
+        assert_eq!(v.structure_outline(), None);
+    });
+    assert_eq!(text(&view, visual), source);
+    assert_eq!(*changes.borrow(), 0);
+
+    // Window blur cancels active drag and resize without editing or opening a menu.
+    view.update_in(visual, |v, w, cx| {
+        let start_w = v.layout.widths[1];
+        v.start_resize(1, 100., cx);
+        v.drag_resize(190., cx);
+        assert_eq!(v.layout.widths[1], start_w + 90.);
+        v.cancel_transient_gestures();
+        assert!(v.gestures.resizing.is_none());
+        assert_eq!(v.layout.widths[1], start_w);
+
+        v.pointer_moved(press_point(v, v.index_x() + 3., v.row_y(1) + 5.), cx);
+        let start = press_point(v, v.index_x(), v.row_y(1) + 12.);
+        v.start_structure_drag(Axis::Row, start, w, cx);
+        v.drag_structure(press_point(v, v.index_x(), v.row_y(2) + 20.), cx);
+        assert!(v.gestures.drag.is_some());
+        v.cancel_transient_gestures();
+        assert!(v.gestures.drag.is_none());
+        assert!(v.menu.is_none());
+        assert_eq!(v.structure_outline(), None);
+    });
+    assert_eq!(text(&view, visual), source);
+    assert_eq!(*changes.borrow(), 0);
+
+    // Clicking the row hover handle opens a row-scoped menu with row outline.
+    view.update_in(visual, |v, w, cx| {
+        v.pointer_moved(press_point(v, v.index_x() + 3., v.row_y(1) + 5.), cx);
+        let start = press_point(v, v.index_x(), v.row_y(1) + 12.);
+        v.start_structure_drag(Axis::Row, start, w, cx);
+        v.end_structure_drag(false, w, cx);
+        let menu = v.menu.as_ref().expect("row grip click opens menu");
+        assert_eq!(menu.source, Some((Axis::Row, 1)));
+        assert_eq!(v.structure_outline(), Some((Axis::Row, 1)));
+        assert_eq!(v.menu_sections(MenuKind::Row, 1, 0).len(), 1);
+    });
+}
+
+#[gpui::test]
+fn csv_menu_moves_keep_structural_selection_and_clear_on_escape_or_cell_click(
+    cx: &mut TestAppContext,
+) {
+    let (view, _, visual) = setup_doc(cx, "csv-parity-menu-moves", "Name,Score\nAda,1\nLin,2\n");
+    view.update_in(visual, |v, w, cx| {
+        v.header = true;
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(800., 600.);
+
+        // Move row 1 down -> row 2 structurally selected, no active cell.
+        let at = press_point(v, v.column_x(0) + 5., v.row_y(1) + 5.);
+        v.context_menu(at, w, cx);
+        v.menu_event(MenuEvent::Run("move-row-down"), w, cx);
+        v.close_menu(false, w, cx);
+        assert_eq!(v.gestures.structural, Some((Axis::Row, 2)));
+        assert_eq!(v.structure_outline(), Some((Axis::Row, 2)));
+        assert!(v.cell.is_none());
+
+        // Move row 2 up -> row 1 structurally selected.
+        let at = press_point(v, v.column_x(0) + 5., v.row_y(2) + 5.);
+        v.context_menu(at, w, cx);
+        v.menu_event(MenuEvent::Run("move-row-up"), w, cx);
+        v.close_menu(false, w, cx);
+        assert_eq!(v.gestures.structural, Some((Axis::Row, 1)));
+        assert!(v.cell.is_none());
+
+        // Move column 0 right -> column 1 structurally selected.
+        let at = press_point(v, v.column_x(0) + 5., v.row_y(0) + 5.);
+        v.context_menu(at, w, cx);
+        v.menu_event(MenuEvent::Run("move-column-right"), w, cx);
+        v.close_menu(false, w, cx);
+        assert_eq!(v.gestures.structural, Some((Axis::Column, 1)));
+        assert!(v.cell.is_none());
+
+        // Move column 1 left -> column 0 structurally selected.
+        let at = press_point(v, v.column_x(1) + 5., v.row_y(0) + 5.);
+        v.context_menu(at, w, cx);
+        v.menu_event(MenuEvent::Run("move-column-left"), w, cx);
+        v.close_menu(false, w, cx);
+        assert_eq!(v.gestures.structural, Some((Axis::Column, 0)));
+        assert!(v.cell.is_none());
+        v.focus.focus(w, cx);
+    });
+    assert_eq!(text(&view, visual), "Name,Score\nAda,1\nLin,2\n");
+    visual.simulate_keystrokes("escape");
+    visual.run_until_parked();
+    view.read_with(visual, |v, _| {
+        assert_eq!(v.gestures.structural, None);
+    });
+}
+
+#[gpui::test]
+fn csv_corner_expansion_grows_rows_columns_and_both_with_single_undo(cx: &mut TestAppContext) {
+    let source = "h1,h2\na,b\nc,d\n";
+    for (dx, dy, add_rows, add_cols, expected_rows, expected_cols) in [
+        (0., 93., 3usize, 0usize, 6usize, 2usize),
+        (288., 0., 0, 3, 3, 5),
+        (288., 93., 3, 3, 6, 5),
+    ] {
+        let (view, changes, visual) = setup_doc(cx, "csv-parity-expand-axes", source);
+        view.update_in(visual, |v, w, cx| {
+            v.header = true;
+            v.port.origin = Some(point(px(0.), px(0.)));
+            v.port.size = size(900., 600.);
+            let (tw, th) = v.table_size();
+            let corner = press_point(v, 32. + tw + 9., 32. + th + 9.);
+            v.start_expand(corner, w, cx);
+            v.drag_expand(point(corner.x + px(dx), corner.y + px(dy)), cx);
+            assert_eq!(
+                v.preview(),
+                Expansion {
+                    rows: add_rows,
+                    columns: add_cols
+                }
+            );
+            assert_eq!(
+                (v.total_rows(), v.total_columns()),
+                (expected_rows, expected_cols)
+            );
+            v.end_expand(false, w, cx);
+            assert_eq!((v.rows(), v.columns()), (expected_rows, expected_cols));
+            assert_eq!(v.model.undo_len(), 1);
+            v.undo(false, w, cx);
+        });
+        assert_eq!(*changes.borrow(), 2);
+        assert_eq!(text(&view, visual), source);
+        view.update_in(visual, |v, w, cx| {
+            v.undo(true, w, cx);
+            assert_eq!((v.rows(), v.columns()), (expected_rows, expected_cols));
+        });
+    }
+}
+
+#[gpui::test]
+fn csv_header_and_row_number_settings_persist_and_keep_edge_row_handle(cx: &mut TestAppContext) {
+    let source = "Name,Score\nAda,1\nLin,2\n";
+    let doc_id = "csv-parity-persist-settings";
+    let (view, changes, visual) = setup_doc(cx, doc_id, source);
+    view.update_in(visual, |v, w, cx| {
+        assert!(v.header);
+        assert!(v.row_numbers);
+        assert!(v.index_width() > 0.);
+        v.view_command("csv-header-row", w, cx);
+        assert!(!v.header);
+        assert_eq!(v.first_movable(), 0);
+        v.view_command("csv-row-numbers", w, cx);
+        assert!(!v.row_numbers);
+        assert_eq!(v.index_width(), 0.);
+    });
+    assert_eq!(*changes.borrow(), 0);
+    assert_eq!(text(&view, visual), source);
+
+    // Persisted preferences survive remount, and row handle stays reachable without gutter.
+    let (remounted, _, visual2) = setup_doc(cx, doc_id, source);
+    remounted.update_in(visual2, |v, w, cx| {
+        assert!(!v.header);
+        assert!(!v.row_numbers);
+        assert_eq!(v.index_width(), 0.);
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(800., 600.);
+        v.pointer_moved(press_point(v, v.column_x(0) + 5., v.row_y(1) + 5.), cx);
+        assert_eq!(v.row_grip_shown(), Some(1));
+        let (grip, docked) = v.row_grip(1);
+        assert!(!docked);
+        assert_eq!(grip.origin.x, v.column_x(0) - 12.);
+        let start = press_point(v, grip.origin.x + 12., grip.origin.y + 16.);
+        v.start_structure_drag(Axis::Row, start, w, cx);
+        v.end_structure_drag(false, w, cx);
+        assert_eq!(v.menu.as_ref().and_then(|m| m.source), Some((Axis::Row, 1)));
+    });
+}
+
+#[gpui::test]
+fn csv_ambiguous_all_text_defaults_to_data_and_3x3_template_has_header(cx: &mut TestAppContext) {
+    let (ambiguous, _, visual) = setup_doc(
+        cx,
+        "csv-parity-ambiguous",
+        "Name,City\nAda,London\nBob,Paris\n",
+    );
+    ambiguous.read_with(visual, |v, _| {
+        assert!(!v.header);
+        assert_eq!(v.first_movable(), 0);
+        assert_eq!((v.rows(), v.columns()), (3, 2));
+    });
+
+    let (template, _, visual2) =
+        setup_doc(cx, "csv-parity-3x3", "Column 1,Column 2,Column 3\n,,\n,,\n");
+    template.update_in(visual2, |v, w, cx| {
+        assert!(v.header);
+        assert_eq!((v.rows(), v.columns(), v.data_rows()), (3, 3, 2));
+        v.activate(1, 0, None, w, cx);
+    });
+    visual2.simulate_input("val");
+    visual2.simulate_keystrokes("enter");
+    visual2.run_until_parked();
+    assert_eq!(
+        text(&template, visual2),
+        "Column 1,Column 2,Column 3\nval,,\n,,\n"
+    );
+}
+
+#[gpui::test]
+fn csv_horizontal_edge_expansion_scrolls_stops_caps_and_cancels(cx: &mut TestAppContext) {
+    let source = "h1,h2\na,b\n";
+    let (view, changes, visual) = setup_doc(cx, "csv-parity-edge-expand", source);
+    view.update_in(visual, |v, w, cx| {
+        v.header = true;
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(300., 300.);
+        v.focus.focus(w, cx);
+        let (tw, th) = v.table_size();
+        let corner = press_point(v, 32. + tw + 9., 32. + th + 9.);
+        v.start_expand(corner, w, cx);
+        // Drag into the trailing edge zone and advance synthetic animation frames.
+        v.drag_expand(point(px(295.), corner.y), cx);
+        for _ in 0..45 {
+            if let Some(drag) = v.expansion.drag.as_mut() {
+                drag.last_frame = None;
+            }
+            assert!(v.advance_expand_scroll(cx));
+        }
+        assert!(v.preview().columns >= 4, "{:?}", v.preview());
+        assert!(v.port.scroll.x > 0., "scroll={}", v.port.scroll.x);
+
+        // Returning the pointer to the middle stops automatic growth.
+        v.drag_expand(point(px(150.), corner.y), cx);
+        assert!(!v.advance_expand_scroll(cx));
+    });
+
+    // Escape cancels edge expansion and restores scroll without editing.
+    visual.simulate_keystrokes("escape");
+    visual.run_until_parked();
+    view.read_with(visual, |v, _| {
+        assert!(v.expansion.drag.is_none());
+        assert_eq!(v.port.scroll.x, 0.);
+    });
+    assert_eq!(text(&view, visual), source);
+    assert_eq!(*changes.borrow(), 0);
+
+    // Blur also cancels and restores scroll without editing.
+    view.update_in(visual, |v, w, cx| {
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(300., 300.);
+        let (tw, th) = v.table_size();
+        let corner = press_point(v, 32. + tw + 9., 32. + th + 9.);
+        v.start_expand(corner, w, cx);
+        v.drag_expand(point(px(295.), corner.y), cx);
+        for _ in 0..20 {
+            if let Some(drag) = v.expansion.drag.as_mut() {
+                drag.last_frame = None;
+            }
+            v.advance_expand_scroll(cx);
+        }
+        assert!(v.port.scroll.x > 0.);
+        v.cancel_transient_gestures();
+        assert!(v.expansion.drag.is_none());
+        assert_eq!(v.port.scroll.x, 0.);
+    });
+    assert_eq!(text(&view, visual), source);
+    assert_eq!(*changes.borrow(), 0);
+
+    // Committing after edge expansion applies a single undoable edit.
+    let added = view.update_in(visual, |v, w, cx| {
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(300., 300.);
+        let (tw, th) = v.table_size();
+        let corner = press_point(v, 32. + tw + 9., 32. + th + 9.);
+        v.start_expand(corner, w, cx);
+        v.drag_expand(point(px(295.), corner.y), cx);
+        for _ in 0..45 {
+            if let Some(drag) = v.expansion.drag.as_mut() {
+                drag.last_frame = None;
+            }
+            v.advance_expand_scroll(cx);
+        }
+        let cols = v.preview().columns;
+        assert!(cols >= 4);
+        v.end_expand(false, w, cx);
+        assert_eq!(v.columns(), 2 + cols);
+        assert_eq!(v.model.undo_len(), 1);
+        cols
+    });
+    assert_eq!(*changes.borrow(), 1);
+    assert_eq!(
+        text(&view, visual)
+            .lines()
+            .next()
+            .unwrap()
+            .matches(',')
+            .count(),
+        1 + added
+    );
+
+    // Column safety limit (256): edge expansion stops cleanly at MAX_COLUMNS.
+    let header_254 = (0..254)
+        .map(|i| format!("c{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let row_254 = vec!["1"; 254].join(",");
+    let wide = format!("{header_254}\n{row_254}\n");
+    let (wide_view, _, visual2) = setup_doc(cx, "csv-parity-edge-cap", &wide);
+    wide_view.update_in(visual2, |v, w, cx| {
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(300., 300.);
+        let corner = point(px(260.), px(120.));
+        v.start_expand(corner, w, cx);
+        v.drag_expand(point(px(295.), corner.y), cx);
+        for _ in 0..40 {
+            if let Some(drag) = v.expansion.drag.as_mut() {
+                drag.last_frame = None;
+            }
+            if !v.advance_expand_scroll(cx) {
+                break;
+            }
+        }
+        assert_eq!(v.preview().columns, 2);
+        assert!(!v.advance_expand_scroll(cx));
+    });
+}
+
+#[gpui::test]
+fn csv_corner_picker_jitter_inward_cancel_viewport_clamp_and_column_cap(cx: &mut TestAppContext) {
+    let source = "h1,h2\na,b\n";
+    let (view, changes, visual) = setup_doc(cx, "csv-parity-picker", source);
+    view.update_in(visual, |v, w, cx| {
+        v.header = true;
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(800., 220.);
+
+        // Small jitter (< 8px) stays a click and opens the picker instead of dragging.
+        let (tw, th) = v.table_size();
+        let corner = press_point(v, 32. + tw + 9., 32. + th + 9.);
+        v.start_expand(corner, w, cx);
+        v.drag_expand(point(corner.x + px(4.), corner.y + px(3.)), cx);
+        assert_eq!(v.preview(), Expansion::default());
+        v.end_expand(false, w, cx);
+        assert!(v.expansion.picker.is_some());
+
+        // Picker expands 2x3 in one snapshot; undo restores the original table.
+        v.expand_to(v.data_rows() + 2, v.columns() + 3, w, cx);
+        assert_eq!((v.rows(), v.columns(), v.model.undo_len()), (4, 5, 1));
+        v.undo(false, w, cx);
+        assert_eq!((v.rows(), v.columns()), (2, 2));
+    });
+    assert_eq!(text(&view, visual), source);
+
+    // Outward preview followed by inward drag commits nothing; viewport bottom clamps rows;
+    // downward preview keeps existing column tracks and gutter alignment.
+    let changes_before = *changes.borrow();
+    view.update_in(visual, |v, w, cx| {
+        v.port.origin = Some(point(px(0.), px(0.)));
+        v.port.size = size(800., 220.);
+        v.layout.set_width(1, 180.);
+        let (tw, th) = v.table_size();
+        let corner = press_point(v, 32. + tw + 9., 32. + th + 9.);
+        v.start_expand(corner, w, cx);
+        let max_rows = v.expansion.drag.unwrap().max_rows;
+        assert!(max_rows > 0 && max_rows < 10);
+        // Dragging far beyond editor height clamps vertical preview to max_rows.
+        v.drag_expand(point(corner.x, corner.y + px(2000.)), cx);
+        assert_eq!(v.preview().rows, max_rows);
+        assert_eq!(v.column_width(1), 180.);
+        assert_eq!(v.index_width(), v.theme.index_width);
+        // Dragging inward returns preview to 0x0 and release is non-destructive.
+        v.drag_expand(point(corner.x - px(40.), corner.y - px(40.)), cx);
+        assert_eq!(v.preview(), Expansion::default());
+        v.end_expand(false, w, cx);
+        assert_eq!((v.rows(), v.columns()), (2, 2));
+
+        // Blur cancels an active expansion preview.
+        v.start_expand(corner, w, cx);
+        v.drag_expand(point(corner.x + px(120.), corner.y + px(60.)), cx);
+        assert_ne!(v.preview(), Expansion::default());
+        v.cancel_transient_gestures();
+        assert!(v.expansion.drag.is_none());
+        assert_eq!(v.preview(), Expansion::default());
+    });
+    assert_eq!(*changes.borrow(), changes_before);
+    assert_eq!(text(&view, visual), source);
+
+    // 254-column table keeps 6 picker rows and caps picker columns to remaining 2.
+    let header_254 = (0..254)
+        .map(|i| format!("c{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let row_254 = vec!["1"; 254].join(",");
+    let wide = format!("{header_254}\n{row_254}\n");
+    let (wide_view, _, visual2) = setup_doc(cx, "csv-parity-picker-cap", &wide);
+    wide_view.read_with(visual2, |v, _| {
+        assert_eq!(v.picker_size(), (6, 2));
     });
 }

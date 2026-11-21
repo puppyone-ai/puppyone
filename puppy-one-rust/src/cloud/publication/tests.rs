@@ -18,6 +18,10 @@
 //! | User signs out after link | `app::tests::cloud_opening::signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_project` |
 //! | Cleanup fails | `cleanup_deletes_only_the_empty_project_and_a_refusal_keeps_everything`, `workspace::cloud::publish` derivation |
 //! | Project deleted elsewhere | `detaching_a_missing_project_removes_only_the_reviewed_remote`, `app::tests::cloud_opening::a_vanished_cloud_projects_link_is_ended_from_its_notice` |
+#[path = "coordinator_tests.rs"]
+mod coordinator_tests;
+#[path = "credential_tests.rs"]
+mod credential_tests;
 #[path = "git_push_tests.rs"]
 mod git_push_tests;
 
@@ -333,7 +337,7 @@ fn repository() -> tempfile::TempDir {
     let temp = tempfile::tempdir().unwrap();
     let git = |args: &[&str]| {
         assert!(
-            std::process::Command::new("/usr/bin/git")
+            std::process::Command::new(crate::platform::git::git_executable())
                 .args(args)
                 .current_dir(temp.path())
                 .output()
@@ -375,7 +379,7 @@ fn the_cli_reads_remotes_sources_and_refuses_lfs_pointers() {
     )
     .unwrap();
     let git = |args: &[&str]| {
-        std::process::Command::new("/usr/bin/git")
+        std::process::Command::new(crate::platform::git::git_executable())
             .args(args)
             .current_dir(root)
             .output()
@@ -398,10 +402,14 @@ fn the_managed_helper_round_trips_the_secret_and_restores_the_previous_config() 
     let temp = repository();
     let root = temp.path();
     let store = temp.path().join("credentials");
+    let store_arg = format!(
+        "store --file={}",
+        store.to_string_lossy().replace('\\', "/")
+    );
     let cli = Cli {
-        helper: Some(format!("store --file={}", store.display())),
+        helper: Some(store_arg.clone()),
     };
-    std::process::Command::new("/usr/bin/git")
+    std::process::Command::new(crate::platform::git::git_executable())
         .args([
             "config",
             "--local",
@@ -414,7 +422,7 @@ fn the_managed_helper_round_trips_the_secret_and_restores_the_previous_config() 
         .unwrap();
     let mut config = cli.prepare_credential_config(root, URL, "op").unwrap();
     assert_eq!(config.previous_helpers, vec!["cache".to_owned()]);
-    config.helper = format!("store --file={}", store.display());
+    config.helper = store_arg;
     let commit = cli.source_commit(root, "main").unwrap();
     let mut record = super::initial_record(&request(root), "fingerprint", &commit);
     record.project_id = Some("project-a".into());
@@ -435,7 +443,7 @@ fn the_managed_helper_round_trips_the_secret_and_restores_the_previous_config() 
     // remote it created.
     cli.cleanup(root, &record).unwrap();
     assert_eq!(cli.remote(root).unwrap(), Remote::Missing);
-    let helpers = std::process::Command::new("/usr/bin/git")
+    let helpers = std::process::Command::new(crate::platform::git::git_executable())
         .args([
             "config",
             "--local",
@@ -517,23 +525,27 @@ fn issued_remotes_must_be_canonical_and_trusted() {
 fn detaching_a_missing_project_removes_only_the_reviewed_remote() {
     let temp = repository();
     let root = temp.path();
-    std::process::Command::new("/usr/bin/git")
+    std::process::Command::new(crate::platform::git::git_executable())
         .args(["remote", "add", "puppyone", URL])
         .current_dir(root)
         .output()
         .unwrap();
     // Someone changed it after review: nothing is touched.
     assert_eq!(
-        git::detach(root, "https://api.puppyone.ai/git/other.git")
-            .unwrap_err()
-            .code,
+        git::detach(
+            root,
+            "https://api.puppyone.ai/git/other.git",
+            &git::reviewed_remotes(root)
+        )
+        .unwrap_err()
+        .code,
         Code::RemoteConflict
     );
     assert_eq!(
         Cli { helper: None }.remote(root).unwrap(),
         Remote::Exact(URL.into())
     );
-    git::detach(root, URL).unwrap();
+    git::detach(root, URL, &git::reviewed_remotes(root)).unwrap();
     assert_eq!(Cli { helper: None }.remote(root).unwrap(), Remote::Missing);
 }
 
@@ -625,8 +637,27 @@ fn the_git_acceptance_contract_is_pinned_and_its_codes_are_recognized() {
         .map(|c| c.as_str().unwrap())
         .collect();
     assert_eq!(codes, git::LIMIT_CODES);
-    assert_eq!(contract["commit_graph"]["merge_commits"], "accepted");
+    assert_eq!(
+        contract["refusals"]["format"],
+        "<human reason> (puppyone-refusal=<code>)"
+    );
+    assert_eq!(contract["refusals"]["same_content_can_pass"], false);
+    // Desktop must not refuse what Cloud accepts, and refuses only what it
+    // cannot represent.
+    assert_eq!(
+        contract["commit_graph"],
+        serde_json::json!({
+            "merge_commits": "accepted",
+            "octopus_merges": "accepted",
+            "unrelated_histories": "accepted",
+            "server_rewrites_history": false,
+        })
+    );
     assert_eq!(contract["content"]["git_lfs"], "unsupported");
+    assert_eq!(
+        contract["limits"]["receive_pack_bytes"],
+        2u64 * 1024 * 1024 * 1024
+    );
     for code in git::LIMIT_CODES {
         let reason = format!("remote: error: refused (puppyone-refusal={code})");
         assert_eq!(git::refusal_code(&reason), Some(code));
@@ -658,13 +689,115 @@ fn the_git_acceptance_contract_is_pinned_and_its_codes_are_recognized() {
     ));
 }
 
+/// `electron.cloud-publish-git.test.mjs` ("classifies … after checking that
+/// the desired ref was not published"): each diagnostic Cloud or Git gives
+/// for a failed first push, with its refusal code first, then its words.
+#[test]
+fn every_first_push_diagnostic_has_its_publish_code() {
+    for (diagnostic, code) in [
+        ("connection timed out", Code::PushUncertain),
+        (
+            "remote: unpack invalid pack: reworded entirely (puppyone-refusal=git_object_count_limit)",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "! [remote rejected] main -> main (anything (puppyone-refusal=git_graph_limit))",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git pack temporary disk budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git pack metadata budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: something new (puppyone-refusal=git_future_thing)",
+            Code::PushFailed,
+        ),
+        (
+            "remote: unpack invalid pack: Git pack exceeds the 2147483648-byte limit for this operation",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: completed Git pack exceeds the storage processing budget",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git object count budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git single-object budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git temporary disk budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git output budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "! [remote rejected] main -> main (Git graph budget exceeded)",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "! [remote rejected] main -> main (published object count budget exceeded)",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "RPC failed; HTTP 413 curl 22 The requested URL returned error: 413\nfatal: the remote end hung up unexpectedly",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: Git request body exceeds max allowed 2147483648 bytes",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: incoming pack expansion budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: incoming expanded pack budget exceeded",
+            Code::PushLimitExceeded,
+        ),
+        (
+            "remote: unpack invalid pack: Git pack checksum mismatch",
+            Code::PushFailed,
+        ),
+    ] {
+        let error = git::push_failure(diagnostic);
+        assert_eq!(error.code, code, "{diagnostic}");
+        assert!(error.retryable, "{diagnostic}");
+    }
+    // An explicit size refusal names the single-push limit even when Cloud
+    // main could not be read afterwards.
+    let size = git::push_failure(
+        "RPC failed; HTTP 413 curl 22\nfatal: the remote end hung up unexpectedly",
+    );
+    assert_eq!(size.code, Code::PushLimitExceeded);
+    assert!(size.message.contains("2 GiB"));
+    // Git's progress before the error decides nothing.
+    let progress = "Enumerating objects: 42, done.\nCounting objects: 100% (42/42), done.\n\
+        Writing objects:  45% (19/42), 4.50 MiB | 1.02 MiB/s\r\
+        Writing objects: 100% (42/42), 11.45 MiB | 1.00 MiB/s, done.\n";
+    let after = git::push_failure(&format!(
+        "{progress}error: RPC failed; HTTP 413 curl 22 The requested URL returned error: 413\n"
+    ));
+    assert_eq!(after.code, Code::PushLimitExceeded);
+    assert_eq!(git::push_failure(progress).code, Code::PushFailed);
+}
+
 /// `electron.cloud-publish-repository-shapes`: Desktop must not refuse what
 /// the native Version Engine accepts. Every shape but Git LFS passes the
 /// preflight, and stock Git carries its history to a bare repository.
 #[test]
 fn every_repository_shape_but_lfs_passes_the_preflight() {
     fn git(root: &Path, args: &[&str]) -> String {
-        let out = std::process::Command::new("/usr/bin/git")
+        let out = std::process::Command::new(crate::platform::git::git_executable())
             .args(args)
             .current_dir(root)
             .env("GIT_AUTHOR_DATE", "2026-11-08T00:00:00Z")
@@ -829,4 +962,220 @@ fn a_merge_tip_send_an_earlier_release_refused_is_retried_into_the_same_project(
     );
     assert!(retry.ok, "{:?}", retry.error);
     assert_eq!(fake.with(|s| s.creates), 1);
+}
+
+/// `electron.cloud-initialization-journal`: the TypeScript legacy journals
+/// (copied as they are) migrate to schema v2, and the first read writes the
+/// migration in place.
+#[test]
+fn version_1_journals_migrate_and_persist_on_their_first_read() {
+    let legacy: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/cloud/publish/legacy-v1-remote-configured.json"
+    ))
+    .unwrap();
+    let migrated = Record::decode(legacy.clone()).unwrap();
+    assert_eq!(
+        (
+            migrated.version,
+            migrated.kind.as_str(),
+            migrated.checkpoint.as_str(),
+            migrated.project_state.as_str(),
+            migrated.push_state.as_str(),
+            migrated.cleanup_state.as_str(),
+        ),
+        (
+            2,
+            "puppyone-cloud-initialization",
+            "remote-configured",
+            "empty",
+            "idle",
+            "none"
+        )
+    );
+    assert_eq!(migrated.selected_source_branch, "feature/legacy");
+    assert_eq!(migrated.selected_source_ref, "refs/heads/feature/legacy");
+    assert_eq!(migrated.attempt_count, 1);
+    assert_eq!(migrated.attempt.attempt_id, legacy["operation_id"]);
+    assert_eq!(
+        migrated.attempt.commit_oid,
+        legacy["expected_head_commit_id"]
+    );
+    assert_eq!(migrated.attempt.state, "preparing");
+    let from = migrated.migrated_from.clone().unwrap();
+    assert_eq!(
+        (
+            from.version,
+            from.phase.as_str(),
+            from.migrated_at.as_str(),
+            from.persisted
+        ),
+        (
+            1,
+            "remote-configured",
+            legacy["updated_at"].as_str().unwrap(),
+            false
+        )
+    );
+    let text = serde_json::to_string(&migrated).unwrap();
+    assert!(!text.contains("expected_head_commit_id") && !text.contains("expected_branch"));
+
+    let cleanup: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/cloud/publish/legacy-v1-compensation-pending.json"
+    ))
+    .unwrap();
+    let cleanup = Record::decode(cleanup).unwrap();
+    assert_eq!(
+        (
+            cleanup.checkpoint.as_str(),
+            cleanup.project_state.as_str(),
+            cleanup.push_state.as_str(),
+            cleanup.cleanup_state.as_str()
+        ),
+        ("cleanup-requested", "deleting", "failed", "requested")
+    );
+    let from = cleanup.migrated_from.unwrap();
+    assert_eq!(
+        (from.phase.as_str(), from.persisted),
+        ("compensation-pending", false)
+    );
+
+    // The first read writes the migration back, one revision later.
+    let temp = tempfile::tempdir().unwrap();
+    let journal = Journal::in_git_dir(&temp.path().join(".git"));
+    std::fs::create_dir_all(&journal.directory).unwrap();
+    let path = journal.directory.join(journal::FILENAME);
+    std::fs::write(&path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let first = journal.read().unwrap().unwrap();
+    let persisted: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let second = journal.read().unwrap().unwrap();
+    assert_eq!(first.version, 2);
+    assert_eq!(first.revision, legacy["revision"].as_u64().unwrap() + 1);
+    assert!(first.migrated_from.as_ref().unwrap().persisted);
+    assert_eq!(persisted, serde_json::to_value(&first).unwrap());
+    assert_eq!(second, first);
+}
+
+/// `missingCloudProjectDetach`: ending a vanished Cloud project's link
+/// removes only the reviewed remote, and only while every remote is as it
+/// was reviewed, checked again after the credential is forgotten.
+#[test]
+fn a_reviewed_detach_keeps_history_content_and_unrelated_remotes() {
+    const OLD: &str = "http://api.puppyone.ai/git/project-1.git";
+    const GITHUB: &str = "https://github.com/fixture/project.git";
+    let sh = |root: &Path, args: &[&str]| {
+        let out = std::process::Command::new(crate::platform::git::git_executable())
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        (
+            out.status.success(),
+            String::from_utf8_lossy(&out.stdout).trim().to_owned(),
+        )
+    };
+    let fixture = || {
+        let temp = repository();
+        sh(temp.path(), &["remote", "add", "puppyone", OLD]);
+        sh(temp.path(), &["remote", "add", "origin", GITHUB]);
+        temp
+    };
+    let temp = fixture();
+    let root = temp.path();
+    let head = sh(root, &["rev-parse", "HEAD"]).1;
+    git::detach(root, OLD, &git::reviewed_remotes(root)).unwrap();
+    assert_eq!(
+        git::reviewed_remotes(root),
+        [("origin".to_owned(), GITHUB.to_owned(), GITHUB.to_owned())]
+    );
+    assert_eq!(sh(root, &["rev-parse", "HEAD"]).1, head);
+    assert_eq!(std::fs::read_to_string(root.join("a.md")).unwrap(), "# A\n");
+
+    // A link to another environment ends with the branch tracking it.
+    let temp = fixture();
+    let root = temp.path();
+    let other = "http://localhost:9090/git/01a0e7da-6575-7771-af76-48b47dde4ba6.git";
+    sh(root, &["remote", "set-url", "puppyone", other]);
+    sh(root, &["config", "branch.main.remote", "puppyone"]);
+    sh(root, &["config", "branch.main.merge", "refs/heads/main"]);
+    git::detach(root, other, &git::reviewed_remotes(root)).unwrap();
+    assert!(!sh(root, &["config", "--get", "branch.main.remote"]).0);
+    assert_eq!(git::reviewed_remotes(root).len(), 1);
+
+    // A changed fetch, push or other remote: nothing is touched.
+    for change in ["fetch", "push", "another"] {
+        let temp = fixture();
+        let root = temp.path();
+        let reviewed = git::reviewed_remotes(root);
+        match change {
+            "fetch" => sh(
+                root,
+                &[
+                    "remote",
+                    "set-url",
+                    "puppyone",
+                    "https://api.puppyone.ai/git/new-project.git",
+                ],
+            ),
+            "push" => sh(
+                root,
+                &[
+                    "remote",
+                    "set-url",
+                    "--push",
+                    "puppyone",
+                    "https://api.puppyone.ai/git/new-project.git",
+                ],
+            ),
+            _ => sh(
+                root,
+                &["remote", "add", "another", "https://example.com/new.git"],
+            ),
+        };
+        let config = std::fs::read_to_string(root.join(".git/config")).unwrap();
+        let url = if change == "fetch" {
+            "https://api.puppyone.ai/git/new-project.git"
+        } else {
+            OLD
+        };
+        let error = git::detach(root, url, &reviewed).unwrap_err();
+        assert_eq!(error.code, Code::RemoteConflict, "{change}");
+        assert_eq!(
+            std::fs::read_to_string(root.join(".git/config")).unwrap(),
+            config,
+            "{change}"
+        );
+    }
+
+    // A change while the credential is forgotten is caught before the
+    // remote goes: the forgetting helper itself repoints it here.
+    let temp = fixture();
+    let root = temp.path();
+    let repoint = format!(
+        "!f() {{ cd '{}' && git remote set-url puppyone https://api.puppyone.ai/git/new-project.git; }}; f",
+        root.to_string_lossy().replace('\\', "/")
+    );
+    let config = journal::CredentialConfig {
+        version: 1,
+        scope_url: OLD.into(),
+        helper: repoint,
+        previous_helpers: vec![],
+        previous_use_http_path: vec![],
+    };
+    Cli { helper: None }
+        .install(root, &config, "11111111-1111-4111-8111-111111111111")
+        .unwrap();
+    let reviewed = git::reviewed_remotes(root);
+    let error = git::detach(root, OLD, &reviewed).unwrap_err();
+    assert_eq!(error.code, Code::RemoteConflict);
+    assert_eq!(
+        sh(root, &["remote", "get-url", "puppyone"]).1,
+        "https://api.puppyone.ai/git/new-project.git"
+    );
+    assert_eq!(sh(root, &["remote", "get-url", "origin"]).1, GITHUB);
 }

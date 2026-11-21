@@ -499,3 +499,42 @@ fn late_steer_failure_cannot_replace_the_following_turns_attachment_ownership() 
         h.service.close_all().await.unwrap();
     });
 }
+
+/// `electron.agent-sidebar-contracts`: `returns the native confirmed outcome
+/// when the real start transaction loses its receipt`.
+#[test]
+fn a_lost_start_receipt_returns_the_native_confirmed_outcome() {
+    run(async {
+        let (h, owner, id) = setup(HarnessOptions::default()).await;
+        let emit = h.adapter(0).emitter();
+        h.adapter(0).once("startTurn", move |request| {
+            let user = request["clientUserMessageId"].clone();
+            emit(native(
+                "turn.started",
+                "fast",
+                json!({"userMessageId": user}),
+            ));
+            emit(native("turn.completed", "fast", json!({})));
+            Box::pin(async move { Err(AgentError::new("RPC receipt lost")) })
+        });
+        let receipt = h
+            .service
+            .start_turn(&owner, &request(&id, "once"), Some("/workspace"))
+            .await
+            .unwrap();
+        assert_eq!(receipt["turnId"], "fast");
+        let replay = snapshot(&h, &owner, &id);
+        let execution = &replay["control"]["execution"];
+        assert_eq!(execution["status"], "ended");
+        assert_eq!(execution["nativeOutcome"], "completed");
+        let users = replay["display"]["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["kind"] == "user")
+            .count();
+        assert_eq!(users, 1);
+        assert_eq!(h.adapter(0).calls("startTurn").len(), 1);
+        h.service.close_all().await.unwrap();
+    });
+}

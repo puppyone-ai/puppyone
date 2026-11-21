@@ -128,6 +128,8 @@ impl CloudPublish {
         self.selected = None;
         self.target = None;
         self.confirming_discard = false;
+        // A result belongs to the checkout and account it was for.
+        self.published = None;
         if let Some(root) = self.root.clone() {
             self.read_state(cx);
             self.read_head(root, cx);
@@ -318,9 +320,44 @@ impl CloudPublish {
         self.running = Some(Stage::Validating);
         cx.notify();
         let epoch = self.epoch;
+        // A first publication prepares the folder itself (`useCloudInitialization`):
+        // version history, a first snapshot signed by the account, a branch.
+        let prepare = matches!(action, Action::Initialize) && request.operation_id.is_none();
+        let author = crate::features::cloud::account::snapshot(cx)
+            .and_then(|s| s.account)
+            .map(|a| a.email);
         let (tx, rx) = async_channel::unbounded::<Result<Stage, Outcome>>();
         std::thread::spawn(move || {
             let progress_tx = tx.clone();
+            let mut request = request;
+            if prepare {
+                use crate::cloud::publication::preparation::{Step, prepare};
+                let prepared = prepare(&request.root, author.as_deref(), &mut |step| {
+                    let _ = progress_tx.send_blocking(Ok(match step {
+                        Step::EnablingVersionControl => Stage::EnablingVersionControl,
+                        Step::CreatingSnapshot => Stage::CreatingSnapshot,
+                        Step::CreatingBranch => Stage::CreatingBranch,
+                    }));
+                });
+                if let Err(code) = prepared {
+                    let error = crate::cloud::publication::PublishError::new(
+                        code,
+                        "The folder could not be prepared for publishing.",
+                        true,
+                    );
+                    let _ = tx.send_blocking(Err(Outcome {
+                        ok: false,
+                        state: None,
+                        record: None,
+                        error: Some(error),
+                        project: None,
+                    }));
+                    return;
+                }
+                if let Some(branch) = current_branch(&request.root) {
+                    request.source_branch = branch;
+                }
+            }
             let outcome = coordinator.start(&request, &mut |stage| {
                 let _ = progress_tx.send_blocking(Ok(stage));
             });
@@ -435,4 +472,222 @@ fn project_name(root: &Path) -> String {
 fn current_branch(root: &Path) -> Option<String> {
     use git::GitOps as _;
     git::Cli { helper: None }.status(root).ok()?.branch
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    use std::sync::Arc;
+
+    fn organizations(list: serde_json::Value) -> crate::cloud::auth::Responder {
+        Arc::new(move |request| {
+            assert_eq!(request.path, "/organizations/");
+            Ok(serde_json::json!({"code": 0, "data": list.clone()}))
+        })
+    }
+    fn settle(
+        cx: &mut gpui::TestAppContext,
+        mut done: impl FnMut(&mut gpui::TestAppContext) -> bool,
+    ) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
+        loop {
+            cx.run_until_parked();
+            if done(cx) {
+                return;
+            }
+            assert!(std::time::Instant::now() < deadline, "did not settle");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+    fn signed_in(cx: &mut gpui::TestAppContext, list: serde_json::Value) -> Entity<CloudPublish> {
+        cx.executor().allow_parking();
+        let (broker, browser) = crate::cloud::auth::responding_account_fixture(organizations(list));
+        cx.update(|cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+        settle(cx, |cx| {
+            cx.update(|cx| crate::features::cloud::account::has_account(cx))
+        });
+        cx.new(|_| CloudPublish::default())
+    }
+    fn ready(cx: &mut gpui::TestAppContext, publish: &Entity<CloudPublish>) {
+        publish.update(cx, |p, cx| p.load_organizations(cx));
+        settle(cx, |cx| {
+            publish.read_with(cx, |p, _| {
+                matches!(p.organizations, Organizations::Ready(_))
+            })
+        });
+    }
+
+    /// `useCloudOrganizationData`: several organizations need an explicit
+    /// choice and nothing is remembered from before; a single one is the
+    /// choice; a destination chosen before the page opened is kept only if
+    /// the account may still create projects there, never swapped.
+    #[gpui::test]
+    fn a_publication_asks_which_organization_unless_there_is_only_one(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let two = serde_json::json!([
+            {"id": "a", "name": "A", "can_create_projects": true},
+            {"id": "b", "name": "B", "can_create_projects": false}]);
+        let publish = signed_in(cx, two);
+        ready(cx, &publish);
+        publish.read_with(cx, |p, _| assert_eq!(p.selected, None));
+        publish.update(cx, |p, cx| p.select("a".into(), cx));
+        publish.read_with(cx, |p, _| assert_eq!(p.selected.as_deref(), Some("a")));
+        // A destination the account may not create in is not swapped for
+        // another: it cannot be used.
+        publish.update(cx, |p, cx| p.set_target(Some("b".into()), cx));
+        publish.read_with(cx, |p, _| {
+            assert_eq!(p.selected, None);
+            assert_eq!(p.destination(), Some(None));
+        });
+        publish.update(cx, |p, cx| p.select("a".into(), cx));
+        publish.read_with(cx, |p, _| assert_eq!(p.selected, None));
+        let one = signed_in(cx, serde_json::json!([{"id": "solo", "name": "Solo"}]));
+        ready(cx, &one);
+        one.read_with(cx, |p, _| assert_eq!(p.selected.as_deref(), Some("solo")));
+    }
+
+    /// `revokes a displayed result when the account or repository changes`,
+    /// `clears the signed-out body error when an authenticated identity
+    /// arrives`: another checkout or account starts from nothing.
+    #[gpui::test]
+    fn another_checkout_or_account_drops_the_shown_result_and_error(cx: &mut gpui::TestAppContext) {
+        use super::states::{Code, saved, state};
+        use crate::workspace::cloud::publish::{Action as A, Cleanup, Push};
+        let publish = signed_in(cx, serde_json::json!([]));
+        let (a, b) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        publish.update(cx, |p, cx| {
+            p.sync(Some(a.path()), true, cx);
+            p.published = Some("project-a".into());
+            p.outcome = Some(saved(
+                state(Push::Failed, Cleanup::None, &[A::RetryPush]),
+                Some((Code::SessionRequired, true)),
+            ));
+            p.sync(Some(b.path()), true, cx);
+            assert!(p.published.is_none() && p.outcome.is_none());
+            assert_eq!(p.header_status(), None);
+        });
+    }
+
+    /// `drops an old account response that completes after the active
+    /// account`: a list read for an earlier scope is not adopted.
+    #[gpui::test]
+    fn a_list_read_for_an_earlier_scope_is_dropped(cx: &mut gpui::TestAppContext) {
+        let publish = signed_in(cx, serde_json::json!([{"id": "a", "name": "A"}]));
+        publish.update(cx, |p, cx| {
+            p.load_organizations(cx);
+            // Another checkout or account: the scope's epoch moves on.
+            p.epoch += 1;
+        });
+        cx.run_until_parked();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        cx.run_until_parked();
+        publish.read_with(cx, |p, _| {
+            assert!(matches!(p.organizations, Organizations::Loading));
+            assert_eq!(p.selected, None);
+        });
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod states {
+    //! Saved publications in the states the dialog and Header draw.
+    use super::*;
+    pub(crate) use crate::cloud::publication::Code;
+    use crate::cloud::publication::{Outcome, PublishError, Request, initial_record};
+    use crate::workspace::cloud::publish::{
+        Action as A, Cleanup, Local, Project, Push, Session, State,
+    };
+
+    pub(crate) fn state(push: Push, cleanup: Cleanup, actions: &[A]) -> State {
+        State {
+            session: Session::SignedIn,
+            project: Project::Empty,
+            push,
+            local: Local::Dirty,
+            cleanup,
+            actions: actions.to_vec(),
+        }
+    }
+    /// A saved operation in `state`, with `error` if it stopped on one.
+    pub(crate) fn saved(state: State, error: Option<(Code, bool)>) -> Outcome {
+        let request = Request {
+            root: "/tmp/notes".into(),
+            api_base_url: "https://api.puppyone.ai/api/v1".into(),
+            user_id: "user-1".into(),
+            organization_id: "org-1".into(),
+            project_name: "Notes".into(),
+            source_branch: "topic".into(),
+            operation_id: None,
+            action: Action::Initialize,
+        };
+        Outcome {
+            ok: false,
+            state: Some(state),
+            record: Some(initial_record(&request, "fingerprint", &"a".repeat(40))),
+            error: error.map(|(code, retryable)| PublishError::new(code, "", retryable)),
+            project: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod header_tests {
+    use super::states::{Code, saved, state};
+    use super::*;
+    use crate::workspace::cloud::publish::{Action as A, Cleanup, Push};
+    use core::prelude::v1::test;
+
+    /// `CloudPublishHeaderStatus`: a run in flight spins; a saved unfinished
+    /// publication (after a restart too) is a warning that Retry continues,
+    /// and turns back into the spinner the moment a retry runs; an
+    /// unfinished discard is a discard, never a send to retry; a stop with
+    /// no retry asks for attention; a finished one is announced as done.
+    #[test]
+    fn the_header_states_the_publication_where_it_stands() {
+        let mut publish = CloudPublish::default();
+        assert_eq!(publish.header_status(), None);
+        publish.running = Some(Stage::Uploading);
+        assert_eq!(publish.header_status(), Some(HeaderStatus::Running));
+        publish.running = None;
+        publish.outcome = Some(saved(
+            state(Push::Failed, Cleanup::None, &[A::RetryPush]),
+            None,
+        ));
+        assert_eq!(publish.header_status(), Some(HeaderStatus::Paused));
+        assert_eq!(publish.push_action(), Action::RetryPush);
+        publish.running = Some(Stage::Validating);
+        assert_eq!(publish.header_status(), Some(HeaderStatus::Running));
+        publish.running = None;
+        publish.outcome = Some(saved(
+            state(Push::Failed, Cleanup::Failed, &[A::FinishCleanup]),
+            Some((Code::CleanupFailed, true)),
+        ));
+        assert_eq!(publish.header_status(), Some(HeaderStatus::DiscardPaused));
+        publish.outcome = Some(saved(
+            state(Push::Conflict, Cleanup::None, &[]),
+            Some((Code::RemoteConflict, false)),
+        ));
+        assert_eq!(publish.header_status(), Some(HeaderStatus::Attention));
+        publish.outcome = Some(saved(
+            state(Push::Uncertain, Cleanup::None, &[A::Reconcile]),
+            None,
+        ));
+        assert_eq!(publish.push_action(), Action::Reconcile);
+        publish.outcome = Some(saved(
+            state(Push::Failed, Cleanup::None, &[A::PushLatest]),
+            None,
+        ));
+        assert_eq!(publish.push_action(), Action::PushLatest);
+        publish.outcome = None;
+        publish.absorb(Outcome {
+            ok: true,
+            state: None,
+            record: None,
+            error: None,
+            project: Some("project-a".into()),
+        });
+        assert_eq!(publish.header_status(), Some(HeaderStatus::Completed));
+    }
 }

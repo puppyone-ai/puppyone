@@ -56,7 +56,8 @@ impl SettingsWorkspaceSurface {
             Page::Git => self.git(t, cx),
             Page::Files => self.files(t, cx),
             Page::Account => self.account(t, cx),
-            Page::Space => self.space_settings(t, cx),
+            Page::Space => self.members(t, cx),
+            Page::SpaceSettings => self.space_details(t, cx),
             Page::Plan => self.plan(t, cx),
         }
     }

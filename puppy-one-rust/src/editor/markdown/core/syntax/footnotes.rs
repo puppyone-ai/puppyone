@@ -4,7 +4,7 @@
 //! `doc.flat` (`TA-01`, `TA-31`).
 use super::{Element, Kind, Span, Syntax};
 use crate::editor::{markdown::core::links, text::buffer::Buffer};
-use std::{collections::HashMap, ops::Range};
+use std::collections::HashMap;
 
 /// `[^id]` at `at` in `text` (`/^\[\^([^\]\s]+)\]/`): the id's length.
 fn marker(text: &str, at: usize) -> Option<usize> {
@@ -21,14 +21,9 @@ pub struct Footnotes {
     pub first_references: HashMap<String, usize>,
 }
 
-/// Scan footnote definitions and references across `line_window` without
-/// materialising `doc.flat`.
-pub(super) fn add_in_lines(
-    doc: &Buffer,
-    line_window: Range<usize>,
-    blocks: &[Range<usize>],
-    syntax: &mut Syntax,
-) {
+/// Scan footnote definitions and references in eligible lines and table
+/// cells without materialising `doc.flat`.
+pub(super) fn add_in_ranges(doc: &Buffer, ranges: &[Span], syntax: &mut Syntax) {
     let mut starts: Vec<usize> = syntax.paragraphs.iter().map(|p| p.range.start).collect();
     starts.extend(syntax.note_definitions.iter().copied());
     starts.sort_unstable();
@@ -57,17 +52,9 @@ pub(super) fn add_in_lines(
         .map(|e| e.range.clone())
         .collect();
     let mut references: Vec<(String, Span)> = Vec::new();
-    let mut block = blocks.iter().peekable();
-    let end_limit = line_window.end.min(doc.line_count());
-    for line in line_window.start..end_limit {
-        while block.peek().is_some_and(|b| b.end <= line) {
-            block.next();
-        }
-        if block.peek().is_some_and(|b| b.contains(&line)) {
-            continue;
-        }
-        let base = doc.line_range(line).start;
-        let source_cow = doc.line_cow(line);
+    for region in ranges {
+        let base = region.start;
+        let source_cow = doc.slice_cow(region.clone());
         let source = source_cow.as_ref();
         let bytes = source.as_bytes();
         if !source.contains("[^") {

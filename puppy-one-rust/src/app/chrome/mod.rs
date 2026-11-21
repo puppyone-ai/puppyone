@@ -13,6 +13,7 @@ mod account;
 pub(super) mod navigation;
 mod project_menu;
 mod rail;
+pub(super) mod window_frame;
 
 use super::{
     Command,
@@ -92,6 +93,8 @@ pub(super) struct WindowChrome {
     copied_path: Option<(String, std::time::Instant)>,
     /// The project rail replaces the Header's project button.
     rail: bool,
+    /// The rail's projects in the slots they were first shown in.
+    rail_slots: std::cell::RefCell<Vec<std::path::PathBuf>>,
     weak: WeakEntity<Self>,
 }
 impl EventEmitter<ChromeEvent> for WindowChrome {}
@@ -137,6 +140,7 @@ impl WindowChrome {
             project_focus: cx.focus_handle(),
             copied_path: None,
             rail,
+            rail_slots: Default::default(),
             weak: cx.weak_entity(),
         }
     }
@@ -275,6 +279,7 @@ impl WindowChrome {
         if !o.panes.read(cx).explorer().open {
             bar = bar.leading(
                 IconButton::new("expand-explorer", "panel-left")
+                    .debug_selector(|| "expand-explorer".into())
                     .label(tr("shared-ui.explorer.expandSidebar"))
                     .w(px(theme::control()))
                     .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
@@ -339,6 +344,7 @@ impl WindowChrome {
                 let label = tr("source-control.history.title");
                 bar = bar.action(
                     Button::new("cloud-history")
+                        .debug_selector(|| "header-cloud-history".into())
                         .variant(ButtonVariant::Titlebar)
                         .icon(crate::ui::components::Icon::new("history").stroke(1.75))
                         .accessibility_label(label)

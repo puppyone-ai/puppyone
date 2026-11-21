@@ -282,13 +282,27 @@ impl BlockWidget for MathBlockWidget {
             ring::outline(size, c.radius, c.ring_width)
                 .group_hover("md-math-block", move |st| st.border_color(hover))
         };
+        let view = cx.render.view.clone();
+        let content_start = self.block.content.start;
+        let read_only = cx.state.read_only;
         let surface = div()
+            .id(cx.id("md-math-block"))
+            .debug_selector(|| "md-math-block".to_owned())
             .absolute()
             .left_0()
             .top_0()
             .w(px(width))
             .h(px(height))
             .group("md-math-block")
+            .on_mouse_down(MouseButton::Left, move |event, window, cx| {
+                if event.click_count >= 2 && !read_only {
+                    cx.stop_propagation();
+                    let _ = view.update(cx, |v, cx| {
+                        v.focus(window, cx);
+                        v.dispatch(Transaction::select(Selection::cursor(content_start)), cx);
+                    });
+                }
+            })
             .children(children)
             .child(frame);
         (

@@ -204,3 +204,22 @@ pub fn placeholder(
         .size_full(),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    /// `CloudWorkspaceLoadingState`: a loader is neutral — the muted ink,
+    /// never the accent — unless its owner gives it another tone.
+    #[gpui::test]
+    fn a_loader_is_neutral_unless_given_a_tone(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            let t = cx.palette();
+            assert!(matches!(LoadingMark::new("loading").tone, Tone::Neutral));
+            assert_eq!(Tone::default().color(cx), t.muted);
+            assert_ne!(Tone::Neutral.color(cx), t.accent);
+            assert_eq!(Tone::Danger.color(cx), t.danger);
+        });
+    }
+}

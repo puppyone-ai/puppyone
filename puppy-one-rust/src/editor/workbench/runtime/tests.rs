@@ -1,9 +1,10 @@
 use super::*;
-use crate::{
-    editor::text::buffer::Buffer,
-    platform::{draft_journal::DraftJournal, editor_state_storage::Storage},
-};
+#[cfg(unix)]
+use crate::platform::draft_journal::DraftJournal;
+use crate::{editor::text::buffer::Buffer, platform::editor_state_storage::Storage};
 use std::time::{Duration, Instant};
+#[path = "lifecycle_tests.rs"]
+mod lifecycle;
 fn wait(r: &mut Runtime, done: impl Fn(&Runtime) -> bool) {
     let wake = Wake::default();
     let deadline = Instant::now() + Duration::from_secs(5);
@@ -47,7 +48,9 @@ fn snapshots(r: &mut Runtime, content: impl Fn(&str) -> String) {
                     request,
                     id: document.id.clone(),
                     revision: 1,
-                    text: Buffer::new(content(document.relative.to_str().unwrap())),
+                    text: Buffer::new(content(
+                        &document.relative.to_string_lossy().replace('\\', "/"),
+                    )),
                 },
                 &Wake::default(),
             );
@@ -568,14 +571,44 @@ fn cancelling_a_window_close_thaws_all_retained_pending_snapshot_barriers() {
             .flat_map(|h| h.slots.values())
             .all(|s| !s.files.busy() && !s.files.allow_quit)
     );
+    let resumed = r.take_outgoing();
     assert_eq!(
-        r.take_outgoing()
+        resumed
             .iter()
             .filter(|(_, m)| matches!(m, HostMessage::Thaw))
             .count(),
         3
     );
+    // Thawed in place: nothing is shown again, so no editor remounts.
+    assert!(
+        resumed.iter().all(|(_, m)| matches!(m, HostMessage::Thaw)),
+        "{resumed:?}"
+    );
     assert!(!r.allow_quit);
+    // The documents' observers run again: a change on disk reaches the
+    // retained copy as an external update.
+    assert!(
+        r.hosts
+            .values()
+            .flat_map(|h| h.slots.values())
+            .all(|s| s.files.watching())
+    );
+    std::fs::write(
+        root.path().join("a.md"),
+        "changed after the cancelled close",
+    )
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        r.poll(&Wake::default());
+        if r.take_outgoing().iter().any(|(_, m)| {
+            matches!(m, HostMessage::Open { text, external: true, .. } if text == "changed after the cancelled close")
+        }) {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the observer did not resume");
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
 #[test]
 fn file_operations_queue_by_resource_scope() {
@@ -1129,4 +1162,64 @@ fn wb02_background_project_cap_and_explicit_close_unload_clean_hosts_and_protect
     assert!(!r.close_background_project(&p1_key, &wake));
     assert!(r.close_background_project(&p3_key, &wake));
     assert_eq!(r.background_host_keys(), vec![p1_key]);
+}
+/// `EditorWorkbenchPersistenceScheduler`: a burst of layout changes is
+/// written once, with its last state, after a quiet 200ms; a lifecycle
+/// boundary writes at once.
+#[test]
+fn layout_metadata_writes_once_after_a_burst_and_at_once_at_a_boundary() {
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("a.md"), "a").unwrap();
+    let mut r = Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        ..Default::default()
+    };
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    r.state_mut()
+        .unwrap()
+        .split(super::super::layout::Direction::Horizontal);
+    let settled = |r: &Runtime| {
+        r.metadata_inflight == 0 && r.hosts.values().all(|h| h.metadata_due.is_none())
+    };
+    wait(&mut r, settled);
+    let ws = workspace::Workspace::open(root.path()).unwrap();
+    let key = resource_key(&ws.resource_id(std::path::Path::new("")).unwrap());
+    let file = profile
+        .path()
+        .join(format!("{}.json", blake3::hash(key.as_bytes()).to_hex()));
+    let stored_ratio = || {
+        let value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        value["layout"]["root"]["ratio"].as_f64()
+    };
+    let wake = Wake::default();
+    for ratio in [0.3, 0.4, 0.6] {
+        r.state_mut()
+            .unwrap()
+            .layout
+            .resize("editor-split-1", ratio);
+        r.persist_metadata(&wake, false);
+        assert_eq!(
+            r.metadata_inflight, 0,
+            "nothing is written during the burst"
+        );
+    }
+    assert!(r.hosts.values().any(|h| h.metadata_due.is_some()));
+    wait(&mut r, settled);
+    assert_eq!(stored_ratio(), Some(0.6));
+    // A boundary writes at once.
+    r.state_mut().unwrap().layout.resize("editor-split-1", 0.7);
+    r.persist_metadata(&wake, true);
+    assert!(r.hosts.values().all(|h| h.metadata_due.is_none()));
+    wait(&mut r, settled);
+    assert_eq!(stored_ratio(), Some(0.7));
+    // Switching to another project still writes this one's last change.
+    r.state_mut().unwrap().layout.resize("editor-split-1", 0.25);
+    r.persist_metadata(&wake, false);
+    let other = tempfile::tempdir().unwrap();
+    open_root(&mut r, other.path());
+    wait(&mut r, settled);
+    assert_eq!(stored_ratio(), Some(0.25));
 }

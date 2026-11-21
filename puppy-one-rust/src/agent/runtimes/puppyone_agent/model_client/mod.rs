@@ -134,11 +134,14 @@ pub async fn complete(
         let detail = provider_message(response, &secrets).await;
         return Err(status_error(status, oauth, protocol, detail.as_deref()));
     }
+    let secret = credential.as_ref().map(|c| c.bearer.as_str());
     match protocol {
-        Protocol::OpenaiChat => read(response, openai_chat::Parser::default(), delta).await,
-        Protocol::AnthropicMessages => read(response, anthropic::Parser::default(), delta).await,
+        Protocol::OpenaiChat => read(response, openai_chat::Parser::default(), secret, delta).await,
+        Protocol::AnthropicMessages => {
+            read(response, anthropic::Parser::default(), secret, delta).await
+        }
         Protocol::OpenaiResponses | Protocol::CodexResponses => {
-            read(response, responses::Parser::default(), delta).await
+            read(response, responses::Parser::default(), secret, delta).await
         }
     }
 }
@@ -233,18 +236,66 @@ fn client() -> Result<reqwest::Client, String> {
 async fn read<P: Events>(
     response: reqwest::Response,
     parser: P,
+    secret: Option<&str>,
     delta: &mut dyn FnMut(&str, &str),
 ) -> Result<Completion, String> {
     let mut bytes = response.bytes_stream();
     let mut stream = Stream::new(parser);
+    let mut redactor = Redactor::new(secret);
+    let mut done = false;
     while let Some(chunk) = bytes.next().await {
         let chunk =
             chunk.map_err(|_| "Model stream was interrupted; the request was not replayed")?;
-        if stream.feed(&chunk, delta)? {
+        if stream.feed(&redactor.feed(&chunk), delta)? {
+            done = true;
             break;
         }
     }
+    if !done {
+        stream.feed(&redactor.finish(), delta)?;
+    }
     stream.finish()
+}
+
+/// `redactModelResponse`: the connection's own key, echoed by a provider,
+/// is replaced before the stream is parsed, shown or kept — also when the
+/// echo is split across network chunks. Bytes that could begin the key wait
+/// for the next chunk.
+struct Redactor {
+    secret: Vec<u8>,
+    held: Vec<u8>,
+}
+impl Redactor {
+    fn new(secret: Option<&str>) -> Self {
+        Self {
+            secret: secret.unwrap_or_default().as_bytes().to_vec(),
+            held: Vec::new(),
+        }
+    }
+    fn feed(&mut self, chunk: &[u8]) -> Vec<u8> {
+        if self.secret.is_empty() {
+            return chunk.to_vec();
+        }
+        self.held.extend_from_slice(chunk);
+        let mut out = Vec::with_capacity(self.held.len());
+        let mut at = 0;
+        while let Some(found) = self.held[at..]
+            .windows(self.secret.len())
+            .position(|w| w == self.secret.as_slice())
+        {
+            out.extend_from_slice(&self.held[at..at + found]);
+            out.extend_from_slice(b"[redacted]");
+            at += found + self.secret.len();
+        }
+        let keep = (self.secret.len() - 1).min(self.held.len() - at);
+        let end = self.held.len() - keep;
+        out.extend_from_slice(&self.held[at..end]);
+        self.held.drain(..end);
+        out
+    }
+    fn finish(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.held)
+    }
 }
 
 /// PuppyOne compute (`openAgentStream`): the signed-in account's broker
@@ -374,4 +425,34 @@ fn build_request(
                 ))
         }
     })
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use super::*;
+
+    /// `redacts split provider echoes before native persistence, preserving
+    /// Unicode`: one byte at a time, the key never reaches the parser.
+    #[test]
+    fn an_echoed_key_is_redacted_even_one_byte_at_a_time() {
+        let text = "data: {\"choices\":[{\"delta\":{\"content\":\"中文😀 synthetic-private-key done\"}}]}\n\ndata: [DONE]\n";
+        let mut redactor = Redactor::new(Some("synthetic-private-key"));
+        let mut out = Vec::new();
+        for byte in text.as_bytes() {
+            out.extend(redactor.feed(std::slice::from_ref(byte)));
+        }
+        out.extend(redactor.finish());
+        assert_eq!(
+            String::from_utf8(out.clone()).unwrap(),
+            text.replace("synthetic-private-key", "[redacted]")
+        );
+        let mut stream = Stream::new(openai_chat::Parser::default());
+        let mut shown = String::new();
+        let mut sink = |_: &str, text: &str| shown.push_str(text);
+        assert!(stream.feed(&out, &mut sink).unwrap());
+        assert_eq!(shown, "中文😀 [redacted] done");
+        assert_eq!(stream.finish().unwrap().text, "中文😀 [redacted] done");
+        // Without a key the stream passes through untouched.
+        assert_eq!(Redactor::new(None).feed(b"abc"), b"abc");
+    }
 }

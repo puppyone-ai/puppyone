@@ -24,21 +24,32 @@ impl WindowChrome {
             .items_center()
             .pt(px(12.))
             .gap(px(6.));
-        let recent = self
+        let recent: Vec<_> = self
             .owners
             .preferences
             .read(cx)
             .state
             .recent_projects
-            .clone();
-        for (index, project) in recent.iter().take(12).enumerate() {
+            .iter()
+            .take(12)
+            .cloned()
+            .collect();
+        // Opening a project makes it the most recent; the rail keeps every
+        // project where it was and moves only the active state.
+        let order = {
+            let mut slots = self.rail_slots.borrow_mut();
+            *slots = merge_slots(
+                &slots,
+                &recent.iter().map(|p| p.path.clone()).collect::<Vec<_>>(),
+            );
+            slots.clone()
+        };
+        let recent = order
+            .iter()
+            .filter_map(|path| recent.iter().find(|p| &p.path == path));
+        for (index, project) in recent.enumerate() {
             let active = current.as_ref() == Some(&project.path);
-            let initial = project
-                .name
-                .chars()
-                .next()
-                .map(|c| c.to_uppercase().to_string())
-                .unwrap_or_default();
+            let initial = initial(&project.name, &project.path);
             let path = project.path.clone();
             let target = super::super::project_actions::Target::Local {
                 path: path.clone(),
@@ -47,6 +58,10 @@ impl WindowChrome {
             let actions = self.project_actions.downgrade();
             rail = rail.child(
                 gpui_kit::base::Button::new(("rail-project", index))
+                    .debug_selector({
+                        let name = project.name.clone();
+                        move || format!("rail-project-{name}")
+                    })
                     .accessibility_label(crate::localization::tf(
                         "shell.workspaceSwitcher.projectTitle",
                         &[("project", project.name.clone().into())],
@@ -89,5 +104,61 @@ impl WindowChrome {
                 .size(px(theme::control()))
                 .on_click(self.listener(|s, _, _, cx| s.command(Command::CreateNew, cx))),
         )
+    }
+}
+
+/// `mergeProjectSwitcherRailOrder`: the projects shown now, those already
+/// in a slot kept where they were and new ones after them in `current`'s
+/// order.
+fn merge_slots(previous: &[PathBuf], current: &[PathBuf]) -> Vec<PathBuf> {
+    previous
+        .iter()
+        .filter(|path| current.contains(path))
+        .chain(current.iter().filter(|path| !previous.contains(path)))
+        .cloned()
+        .collect()
+}
+
+/// `getProjectSwitcherInitial`: the first grapheme of the Project's name,
+/// else of its folder, uppercased.
+fn initial(name: &str, path: &std::path::Path) -> String {
+    use unicode_segmentation::UnicodeSegmentation as _;
+    let folder = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    [name.trim(), folder.trim()]
+        .into_iter()
+        .find_map(|text| text.graphemes(true).next())
+        .map(str::to_uppercase)
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    /// `derives a stable Unicode grapheme from the Project identity`, and
+    /// `preserves existing slots when the active and recent Project order
+    /// changes`.
+    #[test]
+    fn rail_marks_take_a_grapheme_and_keep_their_slots() {
+        let fallback = std::path::Path::new("/projects/fallback");
+        assert_eq!(initial("  项目", fallback), "项");
+        assert_eq!(initial("🧠 Lab", fallback), "🧠");
+        assert_eq!(initial("e\u{301}clair", fallback), "E\u{301}");
+        assert_eq!(initial("", std::path::Path::new("/projects/traction")), "T");
+        let path = |p: &str| PathBuf::from(p);
+        let (a, b, c) = (path("/a"), path("/b"), path("/c"));
+        let first = merge_slots(&[], &[a.clone(), b.clone()]);
+        assert_eq!(first, [a.clone(), b.clone()]);
+        assert_eq!(
+            merge_slots(&first, &[b.clone(), a.clone()]),
+            [a.clone(), b.clone()]
+        );
+        assert_eq!(
+            merge_slots(&first, &[c.clone(), b.clone()]),
+            [b.clone(), c.clone()]
+        );
     }
 }

@@ -36,34 +36,14 @@ impl ElectronData {
 
 /// The Electron product's data directory for this channel, or `PUPPYONE_ELECTRON_DATA_DIR`.
 pub fn default_dir() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("PUPPYONE_ELECTRON_DATA_DIR") {
-        return Some(PathBuf::from(dir));
-    }
-    let home = std::env::var_os("HOME")?;
-    Some(default_dir_for(
-        Path::new(&home),
-        super::build_identity::current().channel,
-    ))
+    super::paths::electron_user_data(super::build_identity::current().channel)
 }
 
 /// Resolves the existing Electron userData directory under `home`, checking
 /// canonical lowercase channel names (`application-identity.mjs`) before legacy
-/// capitalized `"PuppyOne"` so case-sensitive APFS volumes never miss user data.
+/// capitalized `"PuppyOne"` so case-sensitive volumes never miss user data.
 pub fn default_dir_for(home: &Path, channel: super::build_identity::Channel) -> PathBuf {
-    let support = home.join("Library/Application Support");
-    let candidates: &[&str] = match channel {
-        super::build_identity::Channel::Internal => &["puppyone-internal", "puppyone", "PuppyOne"],
-        super::build_identity::Channel::Stable | super::build_identity::Channel::Dev => {
-            &["puppyone", "PuppyOne"]
-        }
-    };
-    for name in candidates {
-        let candidate = support.join(name);
-        if candidate.is_dir() {
-            return candidate;
-        }
-    }
-    support.join(candidates[0])
+    super::paths::electron_user_data_for(home, channel)
 }
 
 /// Everything importable under `dir`; `None` when it holds no product data.
@@ -101,9 +81,10 @@ fn workspace_state(path: &Path) -> Vec<Recent> {
         .flatten()
         .filter_map(|entry| {
             let path = PathBuf::from(entry.get("path")?.as_str()?);
-            let name = entry
-                .get("name")
-                .and_then(|n| n.as_str())
+            // `displayName` is the name given with Rename; `name` the folder's.
+            let name = ["displayName", "name"]
+                .iter()
+                .find_map(|key| entry.get(*key)?.as_str().filter(|n| !n.trim().is_empty()))
                 .map(str::to_owned)
                 .or_else(|| path.file_name().map(|n| n.to_string_lossy().into_owned()))?;
             let opened_at = entry
@@ -238,7 +219,7 @@ mod tests {
             r#"{"version":7,"lastActiveWorkspacePath":"/p/b",
                "recentWorkspaces":[
                  {"path":"/p/a","name":"A","lastOpenedAt":"2026-10-29T13:08:51.265Z"},
-                 {"path":"/p/b","name":"B","lastOpenedAt":"2026-10-28T00:00:00Z"}]}"#,
+                 {"path":"/p/b","name":"b-folder","displayName":"B","lastOpenedAt":"2026-10-28T00:00:00Z"}]}"#,
         )
         .unwrap();
         std::fs::write(
@@ -279,13 +260,34 @@ mod tests {
         );
         assert_eq!(data.storage.len(), 1);
         assert!(read(&dir.path().join("absent")).is_none());
+        // An old registry's obsolete local Project id is not carried over;
+        // the folder is.
+        std::fs::write(
+            dir.path().join("desktop-workspace-state.json"),
+            r#"{"version":3,"lastActiveWorkspacePath":"/p/legacy",
+               "recentWorkspaces":[{"workspaceInstanceId":"instance-legacy",
+                 "projectId":"obsolete-local-project-id","path":"/p/legacy","name":"Legacy"}]}"#,
+        )
+        .unwrap();
+        let legacy = read(dir.path()).unwrap();
+        assert_eq!(
+            (
+                legacy.recent[0].path.as_path(),
+                legacy.recent[0].name.as_str()
+            ),
+            (Path::new("/p/legacy"), "Legacy")
+        );
     }
 
     #[test]
     fn default_dir_resolves_canonical_lowercase_channel_dirs_and_legacy_fallback() {
-        use crate::platform::build_identity::Channel;
+        use crate::platform::{build_identity::Channel, os::Os};
         let home = tempfile::tempdir().unwrap();
-        let support = home.path().join("Library/Application Support");
+        let support = match Os::current() {
+            Os::Macos => home.path().join("Library/Application Support"),
+            Os::Windows => home.path().join("AppData/Roaming"),
+            Os::Linux | Os::Other => home.path().join(".config"),
+        };
         std::fs::create_dir_all(&support).unwrap();
 
         // When neither directory exists yet, canonical lowercase names are returned.

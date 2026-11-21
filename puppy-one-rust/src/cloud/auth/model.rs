@@ -658,6 +658,45 @@ mod configuration_tests {
         }
     }
 
+    /// `cloudEndpoint.test.mjs`: empty, non-HTTP and unparsable endpoints,
+    /// an insecure production endpoint (never upgraded), internal and
+    /// metadata targets and a lookalike parent domain are not Cloud; the
+    /// PuppyOne family and localhost are; a trailing slash names the same
+    /// endpoint and another host does not.
+    #[test]
+    fn endpoints_are_validated_never_upgraded_and_compare_after_normalizing() {
+        let web = "https://puppyone.ai";
+        for api in [
+            "",
+            "   ",
+            "ftp://example.com/api/v1",
+            "not a url",
+            "http://api.puppyone.ai/api/v1",
+            "https://example.com/api/v1",
+            "http://169.254.169.254/latest/meta-data",
+            "http://10.0.0.5/internal",
+            "https://evil.puppyone.ai.attacker.com/api/v1",
+        ] {
+            assert!(Environment::new(api, web).is_err(), "{api}");
+        }
+        for api in [
+            "https://api.puppyone.ai/api/v1",
+            "https://subdomain.puppyone.ai/api/v1",
+            "http://localhost:8000/api/v1",
+        ] {
+            assert_eq!(Environment::new(api, web).unwrap().api(), api);
+        }
+        let slash = Environment::new("https://subdomain.puppyone.ai/api/v1/", web).unwrap();
+        assert_eq!(
+            Ok(&slash),
+            Environment::new("https://subdomain.puppyone.ai/api/v1", web).as_ref()
+        );
+        assert_ne!(
+            Ok(&slash),
+            Environment::new("https://api.puppyone.ai/api/v1", web).as_ref()
+        );
+    }
+
     #[test]
     fn the_packaged_configuration_is_public_and_versioned() {
         let ok = br#"{"schemaVersion":1,"apiBase":"https://api.puppyone.ai/api/v1","webOrigin":"https://puppyone.ai"}"#;

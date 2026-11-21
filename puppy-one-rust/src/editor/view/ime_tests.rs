@@ -89,7 +89,7 @@ impl Ime<'_> {
     fn draw(&mut self) {
         self.cx.run_until_parked();
         self.cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
     /// `setMarkedText:selectedRange:replacementRange:` (UTF-16 ranges).
@@ -543,7 +543,7 @@ fn keys_handed_back_by_the_input_method_commit_first(cx: &mut TestAppContext) {
         );
         // Undo is never handled during a composition.
         ime.mark("ni");
-        ime.cx.simulate_keystrokes("cmd-z");
+        ime.cx.simulate_keystrokes("secondary-z");
         assert_eq!(
             (ime.text().as_str(), ime.composing()),
             ("abni´", true),
@@ -552,7 +552,7 @@ fn keys_handed_back_by_the_input_method_commit_first(cx: &mut TestAppContext) {
         // Paste commits the marked text and inserts after it.
         ime.cx
             .write_to_clipboard(ClipboardItem::new_string("X".into()));
-        ime.cx.simulate_keystrokes("cmd-v");
+        ime.cx.simulate_keystrokes("secondary-v");
         ime.draw();
         assert_eq!(
             (ime.text().as_str(), ime.composing()),

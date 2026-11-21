@@ -178,9 +178,16 @@ mod tests {
             r"{\rtf1\ansi{\fonttbl\f0 Helvetica;}\f0 Hello \b world\b0.}",
         )
         .unwrap();
-        let converted = convert_to_docx(&rtf).unwrap();
-        // A DOCX is a ZIP package.
-        assert!(converted.bytes.starts_with(b"PK\x03\x04"));
+        #[cfg(target_os = "macos")]
+        {
+            let converted = convert_to_docx(&rtf).unwrap();
+            // A DOCX is a ZIP package.
+            assert!(converted.bytes.starts_with(b"PK\x03\x04"));
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            assert!(convert_to_docx(&rtf).unwrap_err().contains("unavailable"));
+        }
         let odt = dir.path().join("a.odt");
         std::fs::write(&odt, b"x").unwrap();
         assert!(
@@ -212,7 +219,9 @@ mod lifetime_tests {
         input
     }
     fn wait_ready(path: &Path) -> String {
-        let deadline = Instant::now() + Duration::from_secs(4);
+        // Readiness only: macOS checks a new script on its first run, which
+        // can take seconds on a loaded machine.
+        let deadline = Instant::now() + Duration::from_secs(15);
         loop {
             if let Ok(s) = std::fs::read_to_string(path)
                 && !s.trim().is_empty()

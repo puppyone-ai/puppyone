@@ -354,6 +354,76 @@ mod tests {
         assert_eq!(out.3.len(), 1, "only the https link is navigable");
         assert_eq!(out.1.iter().map(|r| r.len).sum::<usize>(), out.0.len());
     }
+    /// `Agent Markdown renderer`: GFM tables, task lists, nested lists,
+    /// strikethrough and rules parse into their blocks; raw HTML stays text,
+    /// an unsafe link is no link and an image is only its alt text; a
+    /// `mermaid` fence is kept for the diagram.
+    #[test]
+    fn gfm_blocks_parse_and_unsafe_content_stays_inert() {
+        let blocks = parse("| Level | Action |\n| :--- | :---: |\n| 1 | Read |\n| 2 | Open |");
+        let Block::Table { head, rows } = &blocks[0] else {
+            panic!("table")
+        };
+        assert_eq!((head.len(), rows.len()), (2, 2));
+        let blocks = parse("- [x] Done\n- [ ] Next\n  - Nested\n\n~~obsolete~~\n\n---");
+        let Block::List { items, .. } = &blocks[0] else {
+            panic!("list")
+        };
+        assert_eq!(
+            items.iter().map(|i| i.task).collect::<Vec<_>>(),
+            [Some(true), Some(false)]
+        );
+        assert!(
+            items[1]
+                .blocks
+                .iter()
+                .any(|b| matches!(b, Block::List { depth: 2, .. })),
+            "nested under its item"
+        );
+        let Block::Paragraph { inlines, .. } = &blocks[1] else {
+            panic!("paragraph")
+        };
+        assert!(matches!(&inlines[0], Inline::Strike(_)));
+        assert_eq!(blocks[2], Block::Rule);
+        let blocks = parse(
+            "<script>window.pwned = true</script>\n\n[unsafe](javascript:alert(1))\n\n![tracking pixel](https://tracker.example/pixel.png)",
+        );
+        let text = format!("{blocks:?}");
+        assert!(text.contains("<script>"), "raw HTML stays text: {text}");
+        let palette = Palette {
+            text: Rgba::default(),
+            strong: Rgba::default(),
+        };
+        let mut targets = 0;
+        let mut images = vec![];
+        for block in &blocks {
+            if let Block::Paragraph { inlines, .. } = block {
+                let mut out = (String::new(), vec![], vec![], vec![]);
+                flatten(
+                    inlines,
+                    true,
+                    palette,
+                    &mut out,
+                    (FontWeight::NORMAL, false, false, None),
+                );
+                targets += out.3.len();
+                images.extend(inlines.iter().filter_map(|i| match i {
+                    Inline::Image(alt) => Some(alt.clone()),
+                    _ => None,
+                }));
+            }
+        }
+        assert_eq!(targets, 0, "no navigable link");
+        assert_eq!(images, ["tracking pixel"]);
+        let blocks = parse("```mermaid\ngraph TD; A-->B\n```");
+        assert_eq!(
+            blocks[0],
+            Block::Code {
+                language: "mermaid".into(),
+                text: "graph TD; A-->B".into()
+            }
+        );
+    }
     #[test]
     fn table_columns_share_extra_width_in_proportion() {
         assert_eq!(column_widths(&[100., 100.], 300.), vec![150., 150.]);

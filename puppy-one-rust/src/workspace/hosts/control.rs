@@ -6,6 +6,7 @@
 //! share or stop, and the host asks the App for the few Cloud calls that
 //! need the signed-in person.
 use super::service::{HostService, Person, PersonSession};
+use crate::platform::{fs as platform_fs, local_ipc};
 use futures_util::future::BoxFuture;
 use serde_json::{Value, json};
 use std::{
@@ -18,31 +19,19 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::{UnixListener, UnixStream},
+    io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader},
     sync::{mpsc, oneshot},
 };
 
 const MAX_LINE: usize = 1024 * 1024;
 const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
 const CALL_TIMEOUT: Duration = Duration::from_secs(60);
-const MAX_SOCKET_PATH: usize = 100;
 const MAX_CLIENTS: usize = 4;
 
 /// `hostControlPaths`: a long state directory gets a short socket in a
 /// private directory of this user's home instead (104 bytes on macOS).
 pub fn paths(dir: &Path) -> (PathBuf, PathBuf) {
-    let token = dir.join("control-token");
-    let inside = dir.join("control.sock");
-    if inside.as_os_str().len() <= MAX_SOCKET_PATH {
-        return (inside, token);
-    }
-    let name = &blake3::hash(dir.as_os_str().as_encoded_bytes()).to_hex()[..24];
-    let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-    (
-        home.join(".puppyone-host").join(format!("{name}.sock")),
-        token,
-    )
+    (local_ipc::endpoint_path(dir), dir.join("control-token"))
 }
 
 pub type Handler =
@@ -87,14 +76,17 @@ impl Peer {
 }
 
 /// Runs the RPC over `stream` after the hello; `rest` is what followed it.
-fn run_peer(
-    stream: UnixStream,
+fn run_peer<S>(
+    stream: S,
     rest: Vec<u8>,
     handler: Handler,
     events: Events,
     on_close: impl FnOnce() + Send + 'static,
-) -> Peer {
-    let (read, mut write) = stream.into_split();
+) -> Peer
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let (read, mut write) = tokio::io::split(stream);
     let (send, mut lines) = mpsc::unbounded_channel::<String>();
     let peer = Peer {
         send,
@@ -204,28 +196,17 @@ pub async fn serve(
     shutdown: mpsc::UnboundedSender<()>,
 ) -> std::io::Result<()> {
     std::fs::create_dir_all(&dir)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
-    }
+    let _ = platform_fs::set_private_dir_permissions(&dir);
     let (socket, token_file) = paths(&dir);
     let token = {
         let mut bytes = [0u8; 32];
         getrandom::fill(&mut bytes).map_err(std::io::Error::other)?;
         base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, bytes)
     };
+    let listener = local_ipc::Listener::bind(&socket).await?;
+    // Publish the token only after the listener and endpoint file are ready, so
+    // callers waiting on `token_file` can immediately connect without racing.
     write_private(&token_file, &token)?;
-    if let Some(parent) = socket.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let _ = std::fs::remove_file(&socket);
-    let listener = UnixListener::bind(&socket)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600));
-    }
     let peers: Arc<Mutex<Vec<Peer>>> = Arc::default();
     {
         let peers = peers.clone();
@@ -236,7 +217,7 @@ pub async fn serve(
         }));
     }
     loop {
-        let (mut stream, _) = listener.accept().await?;
+        let mut stream = listener.accept().await?;
         if peers
             .lock()
             .unwrap()
@@ -307,6 +288,10 @@ pub async fn serve(
     }
 }
 
+async fn connect_raw(socket: &Path) -> std::io::Result<local_ipc::Stream> {
+    local_ipc::connect(socket).await
+}
+
 /// Connects as the App (or another local client); fails when no host listens.
 pub async fn connect(
     dir: &Path,
@@ -317,9 +302,7 @@ pub async fn connect(
 ) -> Result<Peer, String> {
     let (socket, token_file) = paths(dir);
     let token = std::fs::read_to_string(&token_file).map_err(|e| e.to_string())?;
-    let mut stream = UnixStream::connect(&socket)
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut stream = connect_raw(&socket).await.map_err(|e| e.to_string())?;
     let hello = json!({"type": "hello", "token": token.trim(), "role": role});
     stream
         .write_all(format!("{hello}\n").as_bytes())
@@ -383,10 +366,20 @@ mod tests {
             let (stop, mut stopped) = mpsc::unbounded_channel();
             tokio::spawn(serve(dir.clone(), host.clone(), stop));
             let mut tries = 0;
-            while !paths(&dir).1.exists() || UnixStream::connect(paths(&dir).0).await.is_err() {
+            while !paths(&dir).1.exists() || connect_raw(&paths(&dir).0).await.is_err() {
                 tries += 1;
                 assert!(tries < 200);
                 tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            // Only this user reaches the directory, the socket and the token.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+                let (socket, token) = paths(&dir);
+                assert_eq!(mode(&dir), 0o700);
+                assert_eq!(mode(&token), 0o600);
+                assert_eq!(mode(&socket), 0o600);
             }
             let asked = Arc::new(Mutex::new(Vec::<Value>::new()));
             let seen = asked.clone();

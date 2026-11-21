@@ -68,3 +68,50 @@ fn windows_share_preferences_and_a_project_opens_where_it_was_chosen(cx: &mut Te
         assert!(!windows::quitting(cx));
     });
 }
+
+/// `interfaceStyleFirstPaint`: a window paints the persisted palette, and
+/// opening another window never resets the shared appearance to the
+/// start-up default.
+#[gpui::test]
+fn a_new_window_keeps_the_persisted_appearance(cx: &mut TestAppContext) {
+    use crate::features::settings::ThemeMode;
+    use crate::ui::appearance::ActiveAppearance as _;
+    let (first, vcx) = setup(cx);
+    let store = first.read_with(vcx, |s, _| s.prefs.store.clone());
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while !store.read_with(vcx, |s, _| s.loaded) {
+        assert!(std::time::Instant::now() < deadline, "preferences load");
+        vcx.run_until_parked();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    store.update(vcx, |s, cx| {
+        s.change(|p| p.theme_mode = ThemeMode::Light, cx)
+    });
+    vcx.run_until_parked();
+    vcx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+        assert!(
+            !cx.is_dark(),
+            "the first window follows the light preference"
+        );
+    });
+    let mut dark_when_built = None;
+    let (_, vcx2) = cx.add_window_view(|w, cx| {
+        let view = cx.new(|cx| Shell::new(w, cx));
+        dark_when_built = Some(cx.is_dark());
+        gpui_kit::base::Root::new(view, w, cx)
+    });
+    assert_eq!(
+        dark_when_built,
+        Some(false),
+        "a window built after preferences loaded never paints the start-up default"
+    );
+    vcx2.run_until_parked();
+    vcx2.update(|w, cx| {
+        w.draw(cx).clear(cx);
+        assert!(
+            !cx.is_dark(),
+            "a second window keeps the persisted light palette"
+        );
+    });
+}

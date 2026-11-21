@@ -22,6 +22,7 @@ fn repository(root: &Path) {
         vec!["config", "user.name", "Host"],
         vec!["config", "user.email", "host@example.invalid"],
         vec!["config", "commit.gpgsign", "false"],
+        vec!["config", "core.autocrlf", "false"],
     ] {
         invoke(&PlainGit, root, &args);
     }
@@ -407,7 +408,9 @@ fn named_mutations_cover_unborn_unstage_diff_discard_and_explicit_index_updates(
         .unwrap();
     let index = root.join(".git/index");
     let before = std::fs::read(&index).unwrap();
-    std::fs::File::open(root.join("note.md"))
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(root.join("note.md"))
         .unwrap()
         .set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000))
         .unwrap();

@@ -53,6 +53,7 @@ impl Homepage {
         let error = snapshot.and_then(|s| s.error).map(|e| e.to_string());
         let action = |id: &'static str, label: &str, primary: bool| {
             Button::new(id)
+                .debug_selector(move || id.into())
                 .variant(if primary {
                     ButtonVariant::Solid
                 } else {
@@ -129,6 +130,7 @@ impl Homepage {
                     .when(signing_in, |d| {
                         d.child(
                             h_flex()
+                                .debug_selector(|| "first-run-waiting".into())
                                 .mt(px(20.))
                                 .gap(px(6.))
                                 .text_size(px(m.ui.meta))
@@ -144,6 +146,7 @@ impl Homepage {
                     .when_some(error, |d, error| {
                         d.child(
                             div()
+                                .debug_selector(|| "first-run-error".into())
                                 .mt(px(20.))
                                 .text_size(px(m.ui.meta))
                                 .text_color(t.danger)

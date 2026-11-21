@@ -250,7 +250,7 @@ impl Element for RichText {
         if !self.links.is_empty() {
             if hitbox.is_hovered(window) && self.link_at(&layout, window.mouse_position()).is_some()
             {
-                window.set_cursor_style(CursorStyle::PointingHand, hitbox);
+                window.set_cursor_style(crate::theme::navigation_cursor(), hitbox);
             }
             let links = self.links.clone();
             let hitbox = hitbox.clone();

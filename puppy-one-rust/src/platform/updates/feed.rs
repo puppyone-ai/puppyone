@@ -62,8 +62,13 @@ fn semantic(version: &str) -> bool {
                     .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')))
 }
 
-/// `parseDesktopUpdaterMetadata` (macOS): every problem is reported.
+/// `parseDesktopUpdaterMetadata` (macOS default): every problem is reported.
 pub fn parse(source: &str) -> Result<Metadata, Vec<String>> {
+    parse_for_os(source, crate::platform::os::Os::Macos)
+}
+
+/// Parses updater feed YAML for `os` (`<channel>-mac.yml`, `-win.yml`, `-linux.yml`).
+pub fn parse_for_os(source: &str, os: crate::platform::os::Os) -> Result<Metadata, Vec<String>> {
     if source.trim().is_empty() {
         return Err(vec!["Desktop updater metadata is empty.".into()]);
     }
@@ -142,8 +147,18 @@ pub fn parse(source: &str) -> Result<Metadata, Vec<String>> {
             None => errors.push(format!("{label} must declare a positive byte size")),
         }
     }
-    if !files.iter().any(|(url, ..)| zip_url(url)) {
-        errors.push("macOS updater metadata must include a ZIP payload".to_owned());
+    if !files.iter().any(|(url, ..)| payload_matches_os(url, os)) {
+        errors.push(match os {
+            crate::platform::os::Os::Macos => {
+                "macOS updater metadata must include a ZIP payload".to_owned()
+            }
+            crate::platform::os::Os::Windows => {
+                "Windows updater metadata must include an EXE installer payload".to_owned()
+            }
+            crate::platform::os::Os::Linux | crate::platform::os::Os::Other => {
+                "Linux updater metadata must include an AppImage, DEB, or ZIP payload".to_owned()
+            }
+        });
     }
     let path = path.unwrap_or_default();
     let sha512 = sha512.unwrap_or_default();
@@ -177,20 +192,71 @@ pub fn parse(source: &str) -> Result<Metadata, Vec<String>> {
     })
 }
 
-fn zip_url(url: &str) -> bool {
+fn url_without_query(url: &str) -> &str {
     let end = url.find(['?', '#']).unwrap_or(url.len());
-    url[..end].to_ascii_lowercase().ends_with(".zip")
+    &url[..end]
 }
 
-/// The archive for this processor: a ZIP named for it (`-arm64.zip`,
+fn url_has_ext(url: &str, ext: &str) -> bool {
+    url_without_query(url).to_ascii_lowercase().ends_with(ext)
+}
+
+fn payload_matches_os(url: &str, os: crate::platform::os::Os) -> bool {
+    match os {
+        crate::platform::os::Os::Macos => url_has_ext(url, ".zip"),
+        crate::platform::os::Os::Windows => url_has_ext(url, ".exe"),
+        crate::platform::os::Os::Linux | crate::platform::os::Os::Other => {
+            url_has_ext(url, ".appimage") || url_has_ext(url, ".deb") || url_has_ext(url, ".zip")
+        }
+    }
+}
+
+/// The archive for this processor on macOS: a ZIP named for it (`-arm64.zip`,
 /// `-x64.zip`), else the one ZIP when there is only one.
 pub fn payload<'a>(metadata: &'a Metadata, arch: &str) -> Option<&'a File> {
-    let zips: Vec<&File> = metadata.files.iter().filter(|f| zip_url(&f.url)).collect();
-    let suffix = format!("-{arch}.zip");
-    zips.iter()
-        .find(|f| f.url.to_ascii_lowercase().ends_with(&suffix))
-        .copied()
-        .or_else(|| (zips.len() == 1).then(|| zips[0]))
+    payload_for_os(metadata, arch, crate::platform::os::Os::Macos)
+}
+
+/// Selects the update payload for `(arch, os)`.
+///
+/// Matches the actual filenames emitted by `tools/release/targets/*`:
+/// - macOS: `-<arch>.zip`
+/// - Windows: `-<arch>-setup.exe` or `-<arch>.exe` (`.zip` portable archives
+///   are never selected for auto-update)
+/// - Linux: `-<arch>.appimage`, `-<arch>.deb`, or `-<arch>.zip`
+pub fn payload_for_os<'a>(
+    metadata: &'a Metadata,
+    arch: &str,
+    os: crate::platform::os::Os,
+) -> Option<&'a File> {
+    let eligible: Vec<&File> = metadata
+        .files
+        .iter()
+        .filter(|f| payload_matches_os(&f.url, os))
+        .collect();
+    let arch_lower = arch.to_ascii_lowercase();
+    let suffix_patterns: Vec<String> = match os {
+        crate::platform::os::Os::Macos => vec![format!("-{arch_lower}.zip")],
+        crate::platform::os::Os::Windows => vec![
+            format!("-{arch_lower}-setup.exe"),
+            format!("-{arch_lower}.exe"),
+        ],
+        crate::platform::os::Os::Linux | crate::platform::os::Os::Other => vec![
+            format!("-{arch_lower}.appimage"),
+            format!("-{arch_lower}.deb"),
+            format!("-{arch_lower}.zip"),
+        ],
+    };
+    for suffix in &suffix_patterns {
+        if let Some(found) = eligible.iter().find(|f| {
+            url_without_query(&f.url)
+                .to_ascii_lowercase()
+                .ends_with(suffix)
+        }) {
+            return Some(found);
+        }
+    }
+    (eligible.len() == 1).then(|| eligible[0])
 }
 
 /// `resolveFeedPayloadUrl`: relative to the feed, never leaving its origin
@@ -295,5 +361,59 @@ mod tests {
         let local = url::Url::parse("http://127.0.0.1:8765/feed").unwrap();
         assert!(payload_url(&local, "a.zip", false).is_err());
         assert!(payload_url(&local, "a.zip", true).is_ok());
+    }
+
+    #[test]
+    fn windows_feed_selects_packaged_nsis_setup_exe_and_rejects_zip_only_feeds() {
+        let a = digest(1);
+        let b = digest(2);
+        let c = digest(3);
+        let raw = format!(
+            "version: 0.4.5\nfiles:\n  - url: puppyone-0.4.5-win-x64.zip\n    sha512: {a}\n    size: 40000000\n  - url: puppyone-0.4.5-win-x64-setup.exe\n    sha512: {b}\n    size: 41000000\n  - url: puppyone-0.4.5-win-arm64-setup.exe\n    sha512: {c}\n    size: 42000000\npath: puppyone-0.4.5-win-x64-setup.exe\nsha512: {b}\nreleaseDate: '2026-11-20T00:00:00.000Z'\n"
+        );
+        let parsed = parse_for_os(&raw, crate::platform::os::Os::Windows).unwrap();
+        assert_eq!(
+            payload_for_os(&parsed, "x64", crate::platform::os::Os::Windows)
+                .unwrap()
+                .url,
+            "puppyone-0.4.5-win-x64-setup.exe"
+        );
+        assert_eq!(
+            payload_for_os(&parsed, "arm64", crate::platform::os::Os::Windows)
+                .unwrap()
+                .url,
+            "puppyone-0.4.5-win-arm64-setup.exe"
+        );
+        assert_eq!(
+            payload_for_os(&parsed, "ia32", crate::platform::os::Os::Windows),
+            None
+        );
+
+        let zip_only = format!(
+            "version: 0.4.5\nfiles:\n  - url: puppyone-0.4.5-win-x64.zip\n    sha512: {a}\n    size: 40000000\npath: puppyone-0.4.5-win-x64.zip\nsha512: {a}\nreleaseDate: '2026-11-20T00:00:00.000Z'\n"
+        );
+        let errors = parse_for_os(&zip_only, crate::platform::os::Os::Windows).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e == "Windows updater metadata must include an EXE installer payload"),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn linux_feed_prefers_packaged_appimage_over_deb_for_same_arch() {
+        let a = digest(1);
+        let b = digest(2);
+        let raw = format!(
+            "version: 0.4.5\nfiles:\n  - url: puppyone-0.4.5-linux-x64.deb\n    sha512: {a}\n    size: 38000000\n  - url: puppyone-0.4.5-linux-x64.AppImage\n    sha512: {b}\n    size: 45000000\npath: puppyone-0.4.5-linux-x64.AppImage\nsha512: {b}\nreleaseDate: '2026-11-20T00:00:00.000Z'\n"
+        );
+        let parsed = parse_for_os(&raw, crate::platform::os::Os::Linux).unwrap();
+        assert_eq!(
+            payload_for_os(&parsed, "x64", crate::platform::os::Os::Linux)
+                .unwrap()
+                .url,
+            "puppyone-0.4.5-linux-x64.AppImage"
+        );
     }
 }

@@ -30,13 +30,17 @@ pub use clients::{agents_client, billing_client, services_client};
 pub use managed_compute::{Reason as ComputeReason, global as global_compute, money};
 #[cfg(test)]
 pub use publish::install_factory;
+#[cfg(test)]
+pub(crate) use publish::states as publish_states;
 pub use publish::{CloudPublish, HeaderStatus, Organizations};
 pub use repository::RepositoryCloud;
 pub use screen::{CloudScreen, CloudScreenEvent, ScreenLayout};
 pub use spaces::{
     CloudSpaces, Status as SpacesStatus, global as global_spaces, mark as space_mark,
-    name as space_name, plan_badge as space_plan_badge, read as global_spaces_read,
+    name as space_name, read as global_spaces_read,
 };
+#[cfg(test)]
+pub use workspace_agents::Invite;
 #[cfg(feature = "dev-capture")]
 pub use workspace_agents::lab_client as lab_agents_client;
 pub use workspace_agents::{CloudAgents, CopyStatus, InvitePhase, Opener, status as agent_status};

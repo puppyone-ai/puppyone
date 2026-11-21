@@ -32,11 +32,11 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
         s.sync_editor(w, cx);
     });
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     // Home lands on the heading's visible start (after its hidden marker);
     // then select the title and replace it.
-    cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
+    cx.simulate_keystrokes("secondary-right secondary-left secondary-shift-right");
     cx.simulate_input("Native 中🐶");
     let settle = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
@@ -166,7 +166,7 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
                 std::thread::sleep(std::time::Duration::from_millis(2));
             }
             cx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             });
         };
     view.update(cx, |s, cx| {
@@ -194,7 +194,7 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
                 .to_owned(),
         )
     });
-    cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
+    cx.simulate_keystrokes("secondary-right secondary-left secondary-shift-right");
     cx.simulate_input("Retained");
     settle(&view, cx, &|s, cx| !s.files(cx).saving());
     assert_eq!(
@@ -258,6 +258,419 @@ fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
         "# Original\n"
     );
 }
+/// A hidden clean tab gives up its live editor to stay within the live
+/// slot budget (`WB-01`), but the document is still open: coming back to it
+/// re-creates the view, and its undo history is still there (the product
+/// keeps a document's history for as long as it is open).
+#[gpui::test]
+fn a_hibernated_tab_keeps_its_undo_history_when_it_comes_back(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("a.md"), "# Original\n").unwrap();
+    std::fs::write(temp.path().join("b.md"), "# Second\n").unwrap();
+    let (view, cx) = setup(cx);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                cx.update(|w, cx| {
+                    w.draw(cx).clear(cx);
+                });
+                if view.read_with(cx, |s, cx| ready(s, cx)) {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Workbench did not settle"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+    let open = |view: &Entity<Shell>, cx: &mut VisualTestContext, path: &'static str| {
+        view.update(cx, |s, cx| {
+            s.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFile(path.into())))
+        });
+        settle(view, cx, &|s, cx| {
+            !s.files(cx).busy()
+                && s.files(cx)
+                    .opened()
+                    .is_some_and(|(_, p)| p == std::path::Path::new(path))
+        });
+    };
+    view.update(cx, |s, cx| {
+        s.session.docs.update(cx, |d, _| {
+            d.set_max_live_slots(1);
+            d.begin(Intent::OpenFolder(temp.path().into()))
+        })
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    open(&view, cx, "a.md");
+    let (key, first_view) = view.read_with(cx, |s, cx| {
+        (
+            s.files(cx)
+                .state()
+                .unwrap()
+                .layout
+                .active_editor()
+                .unwrap()
+                .to_owned(),
+            s.editor.read(cx).front.downgrade(),
+        )
+    });
+    cx.simulate_keystrokes("secondary-right secondary-left secondary-shift-right");
+    cx.simulate_input("Retained");
+    settle(&view, cx, &|s, cx| {
+        !s.files(cx).saving() && !s.files(cx).dirty
+    });
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("a.md")).unwrap(),
+        "# Retained\n"
+    );
+    open(&view, cx, "b.md");
+    settle(&view, cx, &|s, cx| s.files(cx).is_hibernated(&key));
+    assert!(
+        first_view.upgrade().is_none(),
+        "the hibernated document's editor must actually be released"
+    );
+    open(&view, cx, "a.md");
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.files(cx).document.as_ref().unwrap().text, "# Retained\n");
+    });
+    command(&view, cx, Command::Undo);
+    settle(&view, cx, &|s, cx| {
+        !s.files(cx).saving() && !s.files(cx).dirty
+    });
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("a.md")).unwrap(),
+        "# Original\n"
+    );
+}
+/// A page that edited holds the only copy of its undo history (the web
+/// engine's model cannot be detached), so the live slot budget (`WB-01`)
+/// never releases it while it is hidden; a clean Markdown copy goes instead.
+#[gpui::test]
+fn a_hidden_page_holding_its_undo_history_is_not_hibernated(cx: &mut TestAppContext) {
+    let flow = |prompt: &str| {
+        format!(
+            "{{\"kind\":\"puppyflow\",\"version\":1,\"title\":\"Matrix\",\"description\":\"\",\"steps\":[{{\"id\":\"step_matrix\",\"agent\":\"codex\",\"prompt\":\"{prompt}\",\"enabled\":true}}]}}\n"
+        )
+    };
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("flow.puppyflow"), flow("alpha")).unwrap();
+    std::fs::write(temp.path().join("a.md"), "# A\n").unwrap();
+    std::fs::write(temp.path().join("b.md"), "# B\n").unwrap();
+    let (view, cx) = setup(cx);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                cx.update(|w, cx| {
+                    w.draw(cx).clear(cx);
+                });
+                if view.read_with(cx, |s, cx| ready(s, cx)) {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Workbench did not settle"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+    let open = |view: &Entity<Shell>, cx: &mut VisualTestContext, path: &'static str| {
+        view.update(cx, |s, cx| {
+            s.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFile(path.into())))
+        });
+        settle(view, cx, &|s, cx| {
+            !s.files(cx).busy()
+                && s.files(cx)
+                    .opened()
+                    .is_some_and(|(_, p)| p == std::path::Path::new(path))
+        });
+    };
+    let active_key = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            s.files(cx)
+                .state()
+                .unwrap()
+                .layout
+                .active_editor()
+                .unwrap()
+                .to_owned()
+        })
+    };
+    view.update(cx, |s, cx| {
+        s.session.docs.update(cx, |d, _| {
+            d.set_max_live_slots(1);
+            d.begin(Intent::OpenFolder(temp.path().into()))
+        })
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    open(&view, cx, "flow.puppyflow");
+    let flow_key = active_key(&view, cx);
+    let page = view.read_with(cx, |s, cx| s.editor.read(cx).front.clone());
+    let generation = page
+        .read_with(cx, |h, cx| h.page_generation(cx))
+        .expect("a PuppyFlow page");
+    let edit =
+        serde_json::json!({"type": "content", "generation": generation, "text": flow("human")});
+    assert!(page.update(cx, |h, cx| h.page_deliver(&edit.to_string(), cx)));
+    settle(&view, cx, &|s, cx| {
+        !s.files(cx).saving() && !s.files(cx).dirty
+    });
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("flow.puppyflow")).unwrap(),
+        flow("human")
+    );
+    open(&view, cx, "a.md");
+    let a_key = active_key(&view, cx);
+    open(&view, cx, "b.md");
+    settle(&view, cx, &|s, cx| s.files(cx).is_hibernated(&a_key));
+    view.read_with(cx, |s, cx| {
+        assert!(!s.files(cx).is_hibernated(&flow_key));
+        assert!(s.files(cx).slot_for_key(&flow_key).is_some());
+    });
+    assert!(page.read_with(cx, |h, cx| h.holds_page_history(cx)));
+}
+
+/// A CSV in a local folder: a cell edit, an added field, an added record and
+/// a size picker growth each reach the file through the document session's
+/// conditional writes, and the grid shows the grown table.
+#[gpui::test]
+fn a_local_csv_persists_each_cell_and_structure_change(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("Untitled.csv");
+    std::fs::write(&file, "Column 1,Column 2").unwrap();
+    let (view, cx) = setup(cx);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                cx.update(|w, cx| {
+                    w.draw(cx).clear(cx);
+                });
+                if view.read_with(cx, |s, cx| ready(s, cx)) {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Workbench did not settle"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+    let saved = |view: &Entity<Shell>, cx: &mut VisualTestContext, expected: &str| {
+        settle(view, cx, &|s, cx| {
+            !s.files(cx).saving() && !s.files(cx).dirty
+        });
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), expected);
+    };
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(temp.path().into())))
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFile("Untitled.csv".into())))
+    });
+    settle(&view, cx, &|s, cx| {
+        !s.files(cx).busy() && s.editor.read(cx).front.read(cx).csv_editor().is_some()
+    });
+    let table = view.read_with(cx, |s, cx| {
+        s.editor.read(cx).front.read(cx).csv_editor().unwrap()
+    });
+    table.read_with(cx, |t, _| assert!(!t.read_only && t.is_live()));
+    let replace = |cx: &mut VisualTestContext, previous: &str, next: &str| {
+        table.update_in(cx, |t, w, cx| {
+            assert_eq!(t.find_query(previous, cx).total, 1);
+            t.find_focus_editor(w, cx);
+        });
+        cx.run_until_parked();
+        cx.simulate_input(next);
+        cx.simulate_keystrokes("enter");
+    };
+    replace(cx, "Column 1", "Updated");
+    saved(&view, cx, "Updated,Column 2");
+    table.update_in(cx, |t, w, cx| t.press_add_column(w, cx));
+    saved(&view, cx, "Updated,Column 2,");
+    table.update_in(cx, |t, w, cx| t.press_add_row(w, cx));
+    saved(&view, cx, "Updated,Column 2,\n,,");
+    table.update_in(cx, |t, w, cx| t.press_expand(2, 2, w, cx));
+    saved(&view, cx, "Updated,Column 2,,,\n,,,,\n,,,,\n,,,,");
+    replace(cx, "Updated", "Persisted");
+    saved(&view, cx, "Persisted,Column 2,,,\n,,,,\n,,,,\n,,,,");
+    table.read_with(cx, |t, cx| {
+        let text = t.text(cx);
+        assert_eq!(text.lines().count(), 4);
+        assert!(text.lines().all(|line| line.split(',').count() == 5));
+    });
+}
+
+/// A local edit whose save keeps failing stays in its document while the
+/// person switches to another file and back: the text, the dirty state and
+/// the failure are still there, and the file on disk is untouched.
+#[cfg(unix)]
+#[gpui::test]
+fn a_failing_save_keeps_its_edit_and_failure_across_switching_files(cx: &mut TestAppContext) {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("alpha.md"), "alpha").unwrap();
+    std::fs::write(temp.path().join("bravo.md"), "bravo").unwrap();
+    let (view, cx) = setup(cx);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                cx.update(|w, cx| {
+                    w.draw(cx).clear(cx);
+                });
+                if view.read_with(cx, |s, cx| ready(s, cx)) {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Workbench did not settle: {:?}",
+                    view.read_with(cx, |s, cx| {
+                        let f = s.files(cx);
+                        (
+                            f.status.clone(),
+                            f.dirty,
+                            f.saving(),
+                            f.save_error.clone(),
+                            f.error.clone(),
+                            s.editor.read(cx).front.read(cx).text(cx),
+                        )
+                    })
+                );
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+    let open = |view: &Entity<Shell>, cx: &mut VisualTestContext, path: &'static str| {
+        view.update(cx, |s, cx| {
+            s.session
+                .docs
+                .update(cx, |d, _| d.begin(Intent::OpenFile(path.into())))
+        });
+        settle(view, cx, &|s, cx| {
+            !s.files(cx).busy()
+                && s.files(cx)
+                    .opened()
+                    .is_some_and(|(_, p)| p == std::path::Path::new(path))
+        });
+    };
+    let shown = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| s.editor.read(cx).front.read(cx).text(cx))
+    };
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(temp.path().into())))
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    open(&view, cx, "alpha.md");
+    // The folder refuses new files, so every atomic save fails; the guard
+    // gives it back even when an assertion fails.
+    struct Writable(std::path::PathBuf, std::fs::Permissions);
+    impl Drop for Writable {
+        fn drop(&mut self) {
+            let _ = std::fs::set_permissions(&self.0, self.1.clone());
+        }
+    }
+    let _writable = Writable(
+        temp.path().to_path_buf(),
+        std::fs::metadata(temp.path()).unwrap().permissions(),
+    );
+    std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
+    cx.simulate_keystrokes("secondary-down");
+    cx.simulate_input(" changed");
+    settle(&view, cx, &|s, cx| s.files(cx).save_error.is_some());
+    assert_eq!(shown(&view, cx).as_deref(), Some("alpha changed"));
+    open(&view, cx, "bravo.md");
+    assert_eq!(shown(&view, cx).as_deref(), Some("bravo"));
+    open(&view, cx, "alpha.md");
+    assert_eq!(shown(&view, cx).as_deref(), Some("alpha changed"));
+    view.read_with(cx, |s, cx| {
+        assert!(s.files(cx).dirty);
+        assert!(s.files(cx).save_error.is_some());
+    });
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("alpha.md")).unwrap(),
+        "alpha"
+    );
+}
+
+/// An HTML file in a local folder is edited in its source view, chosen as
+/// a person would from the pane menu, and the edit autosaves to the file.
+#[gpui::test]
+fn a_local_html_source_edit_persists_to_the_file(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("page.html");
+    let initial = "<!doctype html><h1>Before</h1>";
+    std::fs::write(&file, initial).unwrap();
+    let (view, cx) = setup(cx);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                cx.update(|w, cx| {
+                    w.draw(cx).clear(cx);
+                });
+                if view.read_with(cx, |s, cx| ready(s, cx)) {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Workbench did not settle"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(temp.path().into())))
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFile("page.html".into())))
+    });
+    settle(&view, cx, &|s, cx| {
+        !s.files(cx).busy() && s.editor.read(cx).front.read(cx).viewer_id() == Some("html-artifact")
+    });
+    let host = view.read_with(cx, |s, cx| s.editor.read(cx).front.clone());
+    host.update_in(cx, |h, w, cx| h.lab_pane_segment("source", w, cx));
+    // The menu keeps focus for its keyboard; the person then clicks the text.
+    host.update_in(cx, |h, w, cx| h.focus_document(w, cx));
+    settle(&view, cx, &|_, _| true);
+    cx.simulate_keystrokes("secondary-down");
+    cx.simulate_input("<!-- After -->");
+    settle(&view, cx, &|s, cx| {
+        !s.files(cx).saving() && !s.files(cx).dirty
+    });
+    assert_eq!(
+        std::fs::read_to_string(&file).unwrap(),
+        format!("{initial}<!-- After -->")
+    );
+}
+
 #[gpui::test]
 fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
     cx: &mut TestAppContext,
@@ -319,7 +732,7 @@ fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
             s.files(cx).document.as_ref().unwrap().id.clone(),
         )
     });
-    cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
+    cx.simulate_keystrokes("secondary-right secondary-left secondary-shift-right");
     cx.simulate_input("Edited");
     settle(cx, &|s, cx| !s.files(cx).saving());
     assert_eq!(
@@ -403,7 +816,7 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
     fn path(csv: &Entity<crate::editor::csv::CsvEditor>, cx: &App, row: usize) -> Option<String> {
@@ -576,4 +989,56 @@ fn finder_drops_open_only_one_file_of_this_workspace(cx: &mut TestAppContext) {
             assert_eq!(s.editor.read(cx).external_document(&drop(paths), cx), None);
         }
     });
+}
+/// `workspace-files-ipc`: Open in default app on a file that may run code
+/// asks in the window's own dialog first; Cancel opens nothing, Open opens
+/// that file.
+#[gpui::test]
+fn opening_a_script_in_its_default_app_asks_first(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("run.command"), "echo hello\n").unwrap();
+    let opened = crate::platform::desktop::record_opens();
+    let (view, cx) = setup(cx);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while !view.read_with(cx, |s, cx| ready(s, cx)) {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                assert!(std::time::Instant::now() < deadline, "did not settle");
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+            draw(cx);
+        };
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(temp.path().into())))
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFile("run.command".into())))
+    });
+    settle(&view, cx, &|s, cx| s.files(cx).opened().is_some());
+    for (button, opens) in [
+        ("viewer-question-decline", 0),
+        ("viewer-question-accept", 1),
+    ] {
+        command(&view, cx, Command::OpenExternal);
+        view.read_with(cx, |s, cx| {
+            assert!(s.dialogs.read(cx).contains(DialogKey::Question), "{button}")
+        });
+        assert!(
+            opened.borrow().is_empty(),
+            "nothing opens before the answer"
+        );
+        let at = cx.debug_bounds(button).unwrap().center();
+        cx.simulate_click(at, Modifiers::none());
+        cx.run_until_parked();
+        draw(cx);
+        assert_eq!(opened.borrow().len(), opens, "{button}");
+    }
+    assert!(opened.borrow()[0].ends_with("run.command"));
 }

@@ -402,7 +402,302 @@ impl CloudCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cloud::auth::Status;
     use core::prelude::v1::test;
+    use serde_json::{Value, json};
+    use std::{
+        rc::Rc,
+        sync::{Arc, Mutex},
+    };
+
+    /// The Cloud's answers, path by path; a path with no answer fails. The
+    /// test scheduler runs requests on the test's own thread, so answers
+    /// are given before the work runs, never awaited.
+    #[derive(Default)]
+    struct Script {
+        answers: Mutex<HashMap<String, Value>>,
+    }
+    impl Script {
+        fn answer(&self, path: &str, value: Option<Value>) {
+            let mut answers = self.answers.lock().unwrap();
+            match value {
+                Some(value) => answers.insert(path.into(), value),
+                None => answers.remove(path),
+            };
+        }
+        fn responder(self: &Arc<Self>) -> crate::cloud::auth::Responder {
+            let script = self.clone();
+            Arc::new(move |request| {
+                script
+                    .answers
+                    .lock()
+                    .unwrap()
+                    .get(&request.path)
+                    .cloned()
+                    .ok_or(crate::cloud::auth::Error::Unavailable)
+            })
+        }
+    }
+    const LISTING: &str = "/projects/";
+    fn listing(ids: &[&str]) -> Value {
+        json!({"code": 0, "data": ids.iter().map(|id| json!({
+            "id": id, "name": format!("cloud-{id}"), "org_id": "org",
+            "description": "private notes", "updated_at": "2026-05-01T00:00:00Z"
+        })).collect::<Vec<_>>()})
+    }
+    fn history(date: &str) -> Value {
+        json!({"code": 0, "data": {"commits": [{"created_at": date}]}})
+    }
+    fn commits(id: &str) -> String {
+        format!("/content/{id}/commits")
+    }
+    struct Fixture {
+        script: Arc<Script>,
+        catalog: Entity<CloudCatalog>,
+        broker: Arc<crate::cloud::auth::Broker>,
+        dir: tempfile::TempDir,
+    }
+    fn fixture(cx: &mut TestAppContext) -> Fixture {
+        cx.executor().allow_parking();
+        let script = Arc::new(Script::default());
+        let (broker, browser) = crate::cloud::auth::responding_account_fixture(script.responder());
+        let dir = tempfile::tempdir().unwrap();
+        let catalog = cx.update(|cx| {
+            crate::features::cloud::account::install_fixture(broker.clone(), browser, cx);
+            global(cx)
+        });
+        settle(cx, crate::features::cloud::account::has_account);
+        catalog.update(cx, |c, _| c.cache_dir = Some(dir.path().to_path_buf()));
+        Fixture {
+            script,
+            catalog,
+            broker,
+            dir,
+        }
+    }
+    #[track_caller]
+    fn settle(cx: &mut TestAppContext, mut done: impl FnMut(&App) -> bool) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !cx.update(|cx| done(cx)) {
+            cx.run_until_parked();
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the catalog did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+    }
+    fn ids(f: &Fixture, cx: &mut TestAppContext) -> Option<Vec<String>> {
+        f.catalog.read_with(cx, |c, _| match &c.state {
+            State::Ready(entries) => Some(entries.iter().map(|e| e.id.clone()).collect()),
+            _ => None,
+        })
+    }
+    fn ensure(f: &Fixture, cx: &mut TestAppContext) {
+        f.catalog.update(cx, |c, cx| c.ensure(true, false, cx));
+    }
+    fn set_status(status: Status, signed_in: bool, cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            crate::features::cloud::account::account(cx)
+                .unwrap()
+                .update(cx, |a, cx| {
+                    let snapshot = a.snapshot.as_mut().unwrap();
+                    snapshot.status = status;
+                    if !signed_in {
+                        snapshot.account = None;
+                    }
+                    cx.notify();
+                })
+        });
+    }
+
+    /// `remembers only what the list and the Header's place need from the
+    /// catalog`, `shows the list once, in final order`: a first listing
+    /// keeps nothing on screen until it answers, its order is real only
+    /// once every project's history has answered, and the account keeps
+    /// the list (names, place and permissions only) and the dates.
+    #[gpui::test]
+    fn a_fresh_list_is_real_once_its_dates_arrive_and_is_kept_for_its_account(
+        cx: &mut TestAppContext,
+    ) {
+        let f = fixture(cx);
+        let seen = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let _watch = cx.update(|cx| {
+            let seen = seen.clone();
+            cx.observe(&f.catalog, move |c, cx| {
+                let c = c.read(cx);
+                seen.borrow_mut().push((
+                    matches!(c.state, State::Ready(_)),
+                    c.fresh,
+                    c.activity.len(),
+                ));
+            })
+        });
+        f.script.answer(LISTING, Some(listing(&["old", "new"])));
+        f.script
+            .answer(&commits("old"), Some(history("2026-10-01T00:00:00Z")));
+        f.script
+            .answer(&commits("new"), Some(history("2026-07-01T00:00:00Z")));
+        ensure(&f, cx);
+        f.catalog.read_with(cx, |c, _| {
+            assert_eq!((&c.state, c.fresh), (&State::Loading, false))
+        });
+        settle(cx, |cx| f.catalog.read(cx).fresh);
+        // Listed but not yet dated is never the real order.
+        assert!(
+            seen.borrow()
+                .iter()
+                .any(|&(ready, fresh, _)| ready && !fresh)
+        );
+        assert!(
+            seen.borrow()
+                .iter()
+                .all(|&(_, fresh, dated)| !fresh || dated == 2)
+        );
+        let scope = cx.update(|cx| CloudCatalog::scope(cx)).unwrap();
+        let stored: Value = serde_json::from_slice(
+            &std::fs::read(f.dir.path().join("cloud-project-catalog.v1.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(stored["scope"], scope.as_str());
+        assert_eq!(stored["projects"][0]["org_id"], "org");
+        assert!(!stored.to_string().contains("private notes"));
+        assert_eq!(cache::activity(f.dir.path(), &scope).unwrap().len(), 2);
+    }
+
+    /// `holds a returning account's list until its real order is known`,
+    /// `never dates a project from another account's cache`, `holds again
+    /// for another account`, `does not trust a cached list it cannot read`,
+    /// `does not let unknown or malformed cache data hold or break the
+    /// list`, `does not show a cached list offline`, `shows local projects
+    /// at once when the Cloud listing fails`: an account's kept list stands
+    /// in at once but is not the real order until its own listing and dates
+    /// answer; a list kept for another account, or one that cannot be read,
+    /// is never shown; offline nothing kept is shown, and a failed listing
+    /// settles with no Cloud rows.
+    #[gpui::test]
+    fn a_kept_list_stands_in_only_for_its_own_account_online(cx: &mut TestAppContext) {
+        let f = fixture(cx);
+        let scope = cx.update(|cx| CloudCatalog::scope(cx)).unwrap();
+        let entries = parse_projects(&listing(&["old", "new"]));
+        cache::write_catalog(f.dir.path(), &scope, &entries);
+        cache::write_activity(
+            f.dir.path(),
+            &scope,
+            &HashMap::from([("old".into(), 1), ("new".into(), 2)]),
+        );
+        f.script.answer(LISTING, Some(listing(&["old", "new"])));
+        f.script
+            .answer(&commits("old"), Some(history("2026-10-01T00:00:00Z")));
+        f.script
+            .answer(&commits("new"), Some(history("2026-07-01T00:00:00Z")));
+        ensure(&f, cx);
+        assert_eq!(ids(&f, cx), Some(vec!["old".into(), "new".into()]));
+        f.catalog.read_with(cx, |c, _| {
+            assert!(!c.fresh);
+            assert_eq!(c.activity.len(), 2);
+        });
+        settle(cx, |cx| f.catalog.read(cx).fresh);
+        // Another account's list, or one that cannot be read, never shows.
+        let bob = serde_json::json!([serde_json::from_str::<Value>(&scope).unwrap()[0], "bob"])
+            .to_string();
+        for (scope, bytes) in [(Some(bob.as_str()), None), (None, Some(&b"{"[..]))] {
+            f.catalog.update(cx, |c, _| c.forget());
+            match (scope, bytes) {
+                (Some(scope), _) => cache::write_catalog(f.dir.path(), scope, &entries),
+                (_, Some(bytes)) => {
+                    std::fs::write(f.dir.path().join("cloud-project-catalog.v1.json"), bytes)
+                        .unwrap()
+                }
+                _ => unreachable!(),
+            }
+            f.script.answer(LISTING, Some(listing(&[])));
+            ensure(&f, cx);
+            f.catalog
+                .read_with(cx, |c, _| assert_eq!(c.state, State::Loading));
+            settle(cx, |cx| f.catalog.read(cx).fresh);
+        }
+        // Offline: nothing kept shows, and the failed listing settles.
+        cache::write_catalog(f.dir.path(), &scope, &entries);
+        f.catalog.update(cx, |c, _| c.forget());
+        set_status(Status::Offline, true, cx);
+        f.script.answer(LISTING, None);
+        ensure(&f, cx);
+        f.catalog
+            .read_with(cx, |c, _| assert_eq!(c.state, State::Loading));
+        settle(cx, |cx| f.catalog.read(cx).fresh);
+        f.catalog
+            .read_with(cx, |c, _| assert_eq!(c.state, State::Failed));
+    }
+
+    /// `keeps a project's last known date when its history read fails`,
+    /// `keeps cached dates across a new session generation`, `keeps the
+    /// list through a new session generation of one account`, `takes rows
+    /// the fresh list adds or removes, without emptying the list`: a failed
+    /// history read keeps the date the project had; a new sign-in of the
+    /// same account keeps its list on screen while it lists again; a fresh
+    /// list takes and drops rows, and the kept list follows it.
+    #[gpui::test]
+    fn known_dates_and_rows_survive_failures_and_a_new_session(cx: &mut TestAppContext) {
+        let f = fixture(cx);
+        let scope = cx.update(|cx| CloudCatalog::scope(cx)).unwrap();
+        cache::write_catalog(
+            f.dir.path(),
+            &scope,
+            &parse_projects(&listing(&["old", "new"])),
+        );
+        cache::write_activity(
+            f.dir.path(),
+            &scope,
+            &HashMap::from([("old".into(), 1_000), ("new".into(), 2_000)]),
+        );
+        f.script.answer(LISTING, Some(listing(&["old", "new"])));
+        f.script
+            .answer(&commits("new"), Some(history("2026-07-01T00:00:00Z")));
+        ensure(&f, cx);
+        settle(cx, |cx| f.catalog.read(cx).fresh);
+        f.catalog
+            .read_with(cx, |c, _| assert_eq!(c.activity["old"], 1_000));
+        // A new sign-in of the same account keeps the list while it lists.
+        let epoch = |cx: &App| {
+            crate::features::cloud::account::broker_and_binding(cx).map(|(_, b)| b.epoch)
+        };
+        let before = cx.update(|cx| epoch(cx));
+        crate::cloud::auth::sign_in_again(&f.broker, "alice");
+        settle(cx, |cx| epoch(cx).is_some_and(|now| Some(now) != before));
+        f.script.answer(LISTING, Some(listing(&["new"])));
+        ensure(&f, cx);
+        assert_eq!(ids(&f, cx), Some(vec!["old".into(), "new".into()]));
+        settle(cx, |cx| f.catalog.read(cx).fresh);
+        assert_eq!(ids(&f, cx), Some(vec!["new".into()]));
+        f.catalog
+            .read_with(cx, |c, _| assert!(!c.activity.contains_key("old")));
+        let kept = cache::catalog(f.dir.path(), &scope).unwrap();
+        assert_eq!(
+            kept.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(),
+            ["new"]
+        );
+    }
+
+    /// `forgets the names when the account signs out, not while its session
+    /// restores`, `drops that list if the session turns out to be gone`:
+    /// while a session restores the kept list stays on disk; signing out
+    /// removes it and the Cloud rows.
+    #[gpui::test]
+    fn signing_out_forgets_the_list_and_restoring_does_not(cx: &mut TestAppContext) {
+        let f = fixture(cx);
+        let scope = cx.update(|cx| CloudCatalog::scope(cx)).unwrap();
+        cache::write_catalog(f.dir.path(), &scope, &parse_projects(&listing(&["old"])));
+        let kept = || f.dir.path().join("cloud-project-catalog.v1.json").exists();
+        set_status(Status::Restoring, false, cx);
+        ensure(&f, cx);
+        assert!(kept());
+        set_status(Status::SignedOut, false, cx);
+        ensure(&f, cx);
+        assert!(!kept());
+        f.catalog
+            .read_with(cx, |c, _| assert_eq!(c.state, State::Idle));
+    }
 
     #[test]
     fn the_project_envelope_parses_into_catalog_entries() {

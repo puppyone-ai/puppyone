@@ -50,7 +50,11 @@ impl WatchHandle for Vec<Lease> {
 impl Drop for Lease {
     fn drop(&mut self) {
         let close = {
-            let mut listeners = self.native.listeners.lock().unwrap();
+            let mut listeners = self
+                .native
+                .listeners
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             listeners.entries.remove(&self.id);
             if listeners.entries.is_empty() {
                 listeners.closing = true;
@@ -62,7 +66,12 @@ impl Drop for Lease {
         if close {
             // Dispose on the owning worker, never on notify's callback thread
             // just because an in-flight weak upgrade held the final Arc.
-            let watcher = self.native.watcher.lock().unwrap().take();
+            let watcher = self
+                .native
+                .watcher
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .take();
             drop(watcher);
         }
     }
@@ -88,8 +97,13 @@ impl Native {
         })
     }
     fn event(&self, result: notify::Result<notify::Event>) {
-        if result.is_err() {
+        let Ok(event) = result else {
             self.retire();
+            return;
+        };
+        // Read/open/close access notifications (e.g. Linux inotify when `git status`
+        // reads `.git/HEAD`) are not metadata mutations and must not wake listeners.
+        if matches!(event.kind, notify::EventKind::Access(_)) && !event.need_rescan() {
             return;
         }
         let listeners: Vec<_> = self
@@ -101,34 +115,29 @@ impl Native {
             .cloned()
             .collect();
         for listener in listeners {
-            match &result {
-                Err(_) => listener.wake.notify(CHANGED | REARM),
-                Ok(event) => {
-                    let relevant = event.paths.is_empty()
-                        || event.paths.iter().any(|path| {
-                            path.strip_prefix(&self.target.path).is_ok_and(|rel| {
-                                let rel = rel.to_string_lossy().replace('\\', "/");
-                                if listener.pending {
-                                    rel.is_empty() || rel == ".git" || rel.starts_with(".git/")
-                                } else {
-                                    !(listener.noise)(&rel)
-                                }
-                            })
-                        });
-                    if relevant {
-                        let rearm = listener.pending
-                            || event.paths.is_empty()
-                            || matches!(
-                                event.kind,
-                                notify::EventKind::Create(_)
-                                    | notify::EventKind::Remove(_)
-                                    | notify::EventKind::Modify(notify::event::ModifyKind::Name(_))
-                            );
-                        listener
-                            .wake
-                            .notify(CHANGED | if rearm { REARM } else { 0 });
-                    }
-                }
+            let relevant = event.paths.is_empty()
+                || event.paths.iter().any(|path| {
+                    path.strip_prefix(&self.target.path).is_ok_and(|rel| {
+                        let rel = rel.to_string_lossy().replace('\\', "/");
+                        if listener.pending {
+                            rel.is_empty() || rel == ".git" || rel.starts_with(".git/")
+                        } else {
+                            !(listener.noise)(&rel)
+                        }
+                    })
+                });
+            if relevant {
+                let rearm = listener.pending
+                    || event.paths.is_empty()
+                    || matches!(
+                        event.kind,
+                        notify::EventKind::Create(_)
+                            | notify::EventKind::Remove(_)
+                            | notify::EventKind::Modify(notify::event::ModifyKind::Name(_))
+                    );
+                listener
+                    .wake
+                    .notify(CHANGED | if rearm { REARM } else { 0 });
             }
         }
     }
@@ -320,7 +329,8 @@ mod tests {
         );
         worker.install(now);
         worker.last = worker.read();
-        assert_eq!(retained.native.listeners.lock().unwrap().entries.len(), 2);
+        let count = retained.native.listeners.lock().unwrap().entries.len();
+        assert_eq!(count, 2);
         // No queued OS notification is consumed: this path must repair a
         // silently dead shared stream through metadata reconciliation alone.
         std::fs::write(root.join(".git/HEAD"), "ref: refs/heads/renamed\n").unwrap();
@@ -339,5 +349,36 @@ mod tests {
         );
         drop(retained);
         assert!(replacement.native.watcher.lock().unwrap().is_some());
+    }
+
+    #[test]
+    fn access_only_notifications_do_not_wake_metadata_listeners() {
+        let root = tempfile::tempdir().unwrap();
+        let target = Target {
+            path: root.path().canonicalize().unwrap(),
+            recursive: false,
+        };
+        let (sub, events) = listener(1);
+        let lease = subscribe(target.clone(), sub).unwrap();
+        lease.native.event(Ok(notify::Event {
+            kind: notify::EventKind::Access(notify::event::AccessKind::Open(
+                notify::event::AccessMode::Any,
+            )),
+            paths: vec![target.path.join("HEAD")],
+            attrs: Default::default(),
+        }));
+        assert!(events.try_recv().is_err());
+        lease.native.event(Ok(notify::Event {
+            kind: notify::EventKind::Modify(notify::event::ModifyKind::Data(
+                notify::event::DataChange::Content,
+            )),
+            paths: vec![target.path.join("HEAD")],
+            attrs: Default::default(),
+        }));
+        assert!(
+            events
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .is_ok()
+        );
     }
 }

@@ -66,53 +66,14 @@ impl TitleBar {
     }
 }
 impl RenderOnce for TitleBar {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let t = cx.palette();
-        // Empty space moves the window; a double click zooms it.
-        let with_tabs = self.tabs.is_some();
-        let drag = div()
-            .id("header-drag")
-            .when(!with_tabs, |d| d.flex_1())
-            .when(with_tabs, |d| {
-                d.w(px(metric::TITLEBAR_DRAG_MIN_WIDTH)).flex_shrink_0()
-            })
-            .h_full()
-            .min_w(px(metric::TITLEBAR_DRAG_MIN_WIDTH))
-            .on_mouse_down(MouseButton::Left, |e, window, _| {
-                if e.click_count == 2 {
-                    window.zoom_window();
-                } else {
-                    window.start_window_move();
-                }
-            });
-        div()
-            .size_full()
-            .flex()
-            .items_center()
-            .bg(t.header)
-            .border_b_1()
-            .border_color(t.shell_divider)
-            .child(
-                h_flex()
-                    .h_full()
-                    .min_w_0()
-                    .pl(px(
-                        metric::TITLEBAR_NATIVE_CONTROLS_INSET + metric::TITLEBAR_CONTENT_START
-                    ))
-                    .gap(px(2.))
-                    .children(self.leading),
-            )
-            .when_some(self.tabs, |d, tabs| {
-                d.child(div().flex_1().min_w_0().h_full().child(tabs))
-            })
-            .child(drag)
-            .child(
-                h_flex()
-                    .h_full()
-                    .gap(px(2.))
-                    .pr(px(metric::TITLEBAR_CONTENT_END))
-                    .children(self.actions),
-            )
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        super::chrome::window_frame::title_bar::render_frame(
+            self.leading,
+            self.tabs,
+            self.actions,
+            window,
+            cx,
+        )
     }
 }
 
@@ -264,6 +225,7 @@ impl RenderOnce for ChangesButton {
         }
         let label = self.label();
         Button::new("changes")
+            .debug_selector(|| "header-changes".into())
             .variant(if self.coachmark {
                 ButtonVariant::TitlebarCoachmark
             } else {
@@ -289,6 +251,7 @@ pub(super) fn agent_entry(open: bool) -> Button {
         "shell.titlebar.showAgent"
     });
     Button::new("right")
+        .debug_selector(|| "header-agent".into())
         .variant(ButtonVariant::Titlebar)
         .icon("agent-entry")
         .accessibility_label(label)

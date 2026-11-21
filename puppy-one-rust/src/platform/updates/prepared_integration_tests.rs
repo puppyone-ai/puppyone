@@ -116,9 +116,13 @@ impl World {
         prepared
     }
 
+    /// The app's process, owned by the test. Runs `/bin/sleep` directly rather
+    /// than a re-signed copy of it: on Apple Silicon macOS 15, re-signing a
+    /// copied `arm64e` `/bin/sleep` ad hoc fails with `SIGILL` on launch, and
+    /// the updater acts on the process id alone.
     fn running(&self) -> OwnedChild {
         OwnedChild(
-            Command::new(self.app.join("Contents/MacOS/prepared-test"))
+            Command::new("/bin/sleep")
                 .arg("60")
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())

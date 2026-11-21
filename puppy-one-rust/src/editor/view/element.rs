@@ -4,7 +4,7 @@
 use super::{
     decoration::Block,
     editor::EditorView,
-    layout::{BlockGeometry, DocLayout, Leaf},
+    layout::{BlockGeometry, DocLayout, Leaf, ScrollAnchor},
     render::{LeafEntry, RenderCx},
     style::LineStyle,
     widget::{WidgetCx, WidgetState, render_block_widget_safely},
@@ -77,11 +77,13 @@ fn render_everything() -> bool {
 }
 
 impl EditorElement {
-    /// Builds the document for a pane `bounds` big at the view's scroll.
+    /// Builds the document for a pane `bounds` big at the view's scroll, or
+    /// where `anchor` estimates it after the heights were planned again.
     fn build(
         &self,
         bounds: Bounds<Pixels>,
         focused: bool,
+        anchor: Option<&ScrollAnchor>,
         window: &mut Window,
         cx: &mut App,
     ) -> Frame {
@@ -97,7 +99,7 @@ impl EditorElement {
             scroll,
             selection,
             read_only,
-        ) = self.view.update(cx, |v, _| {
+        ) = self.view.update(cx, |v, cx| {
             let s = v.state.selection;
             (
                 v.state.revision,
@@ -107,7 +109,7 @@ impl EditorElement {
                 v.caches.measures.clone(),
                 v.caches.heights.clone(),
                 v.caches.widget_states.clone(),
-                v.kit_context(),
+                v.kit_context(cx),
                 v.scroll_y,
                 (s.from(), s.to()),
                 v.read_only,
@@ -142,6 +144,20 @@ impl EditorElement {
         let mut heights = heights.borrow_mut();
         heights.prepare(&decorations, &doc, column_width, content.top);
         let count = heights.len();
+        // A new column width plans every block again, those never laid out
+        // from estimates: start from where the anchor's block is now, so it
+        // is laid out and `place` can hold its row exactly.
+        let scroll = match anchor {
+            Some(a) if count > 0 => {
+                let i = decorations.block_index_for_line(doc.line_index(a.offset));
+                if i < count && heights.valid(i) {
+                    (heights.top(i) + a.within.min(heights.height(i)) - a.row).max(0.)
+                } else {
+                    scroll
+                }
+            }
+            _ => scroll,
+        };
         let viewport = f32::from(bounds.size.height);
         let overscan = viewport.max(MIN_OVERSCAN);
         let everything = render_everything();
@@ -282,6 +298,7 @@ impl EditorElement {
         frame: &mut Frame,
         bounds: Bounds<Pixels>,
         focused: bool,
+        anchor: Option<&ScrollAnchor>,
         window: &mut Window,
         cx: &mut App,
     ) -> bool {
@@ -375,7 +392,11 @@ impl EditorElement {
         self.view.update(cx, |v, _| {
             v.bounds = Some(bounds);
             v.caches.layout = Some(layout.clone());
-            v.scroll_y += frame.correction;
+            // The anchor's row where it was in the viewport; without one,
+            // the blocks above it absorb what their measurement changed.
+            let anchored = anchor.and_then(|a| Some((a, layout.anchored_scroll(a)?)));
+            v.scroll_y = anchored.map_or(frame.scroll + frame.correction, |(_, y)| y);
+            let held = v.scroll_y;
             let height = f32::from(bounds.size.height);
             if v.pointer.reveal_caret && settled && !layout.covers(v.state.selection.head) {
                 if let Some((top, bottom)) = v.estimated_block_of(v.state.selection.head) {
@@ -407,7 +428,13 @@ impl EditorElement {
                     v.scroll_y = bottom + SCROLL_MARGIN - height;
                 }
             }
+            // A caret reveal moved away from the anchor: the next frame
+            // chooses again.
+            let revealed = v.scroll_y != held;
             v.scroll_y = (v.scroll_y.clamp(0., layout.max_scroll()) * scale).round() / scale;
+            v.held_anchor = anchored
+                .filter(|_| !revealed)
+                .map(|(a, _)| (*a, v.scroll_y, frame.revision));
             if v.scroll_y != frame.scroll {
                 settled = false;
             }
@@ -469,19 +496,28 @@ impl Element for EditorElement {
             v.sync_decorations(focused);
             v.ensure_blink(focused, cx);
         });
+        // The text at the viewport top, held still however this frame's
+        // blocks lay out.
+        let mut anchor = self.view.read(cx).scroll_anchor();
         let mut pass = 0;
         let frame = loop {
             pass += 1;
-            let mut frame = self.build(bounds, focused, window, cx);
+            let estimate = anchor.as_ref().filter(|_| pass == 1);
+            let mut frame = self.build(bounds, focused, estimate, window, cx);
             let last = pass == MAX_PASSES;
             let placed = window.transact(|window| {
-                let settled = self.place(&mut frame, bounds, focused, window, cx);
+                let settled = self.place(&mut frame, bounds, focused, anchor.as_ref(), window, cx);
                 if settled || last {
                     Ok(settled)
                 } else {
                     Err(())
                 }
             });
+            // A caret reveal scrolled away from the anchor (or the anchor
+            // was not laid out): later passes keep that scroll.
+            if self.view.read(cx).held_anchor.is_none() {
+                anchor = None;
+            }
             match placed {
                 Ok(settled) => {
                     if !settled {

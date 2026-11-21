@@ -302,19 +302,11 @@ impl LocalAgentInventory {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            let mut options = std::fs::OpenOptions::new();
-            options.write(true).create(true).truncate(true);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::OpenOptionsExt;
-                options.mode(0o600);
-            }
-            std::io::Write::write_all(&mut options.open(&temporary)?, payload.as_bytes())?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o600))?;
-            }
+            std::io::Write::write_all(
+                &mut crate::platform::fs::open_private_truncate(&temporary)?,
+                payload.as_bytes(),
+            )?;
+            crate::platform::fs::set_private_file_permissions(&temporary)?;
             std::fs::rename(&temporary, path)
         };
         if let Err(error) = write() {

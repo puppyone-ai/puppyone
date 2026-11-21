@@ -26,6 +26,7 @@ mod file_mode;
 mod header;
 mod home;
 mod host_sharing;
+pub(crate) mod menus;
 mod panes;
 mod project;
 mod project_actions;
@@ -36,13 +37,12 @@ mod sidebar;
 mod window_cloud;
 pub mod windows;
 use command::on_shell_actions;
-pub use command::{
-    Command, app_menus, bind_keys, dock_menu, on_app_actions, on_global_shell_actions,
-};
+pub use command::{Command, on_global_shell_actions};
 use dialogs::{DialogEvent, DialogKey, DialogLayer, Modal, Task};
 #[cfg(feature = "dev-capture")]
 pub(crate) use dialogs::{settings_dialog, task_backdrop};
 use explorer::{Explorer, ExplorerEvent, ExplorerSession, Host, SessionEvent};
+pub use menus::{app_menus, bind_keys, dock_menu, on_app_actions};
 use panes::{Layout, PaneEvent, PaneLayout, PaneStack, Side};
 use right_sidebar::Surface;
 use sidebar::{ExplorerColumn, SidebarFooter};
@@ -360,8 +360,7 @@ impl Shell {
             }
         })
         .detach();
-        // Until preferences load: the default Sub Theme in the start-up mode.
-        s.prefs.apply_default(window, cx);
+        s.prefs.apply_initial(window, cx);
         s.constrain_window(window, cx);
         s.push_explorer_host(window, cx);
         // What the window shows from its first frame.
@@ -573,8 +572,11 @@ impl Shell {
         let Some(minimum) = self.panes.update(cx, |p, _| p.take_window_minimum(rail)) else {
             return;
         };
-        let floor = size(px(minimum), px(theme::pane::WINDOW_MIN_HEIGHT));
-        crate::native_window::set_content_min_size(window, floor);
+        crate::platform::window::set_content_min_size(
+            window,
+            minimum,
+            theme::pane::WINDOW_MIN_HEIGHT,
+        );
         let viewport = window.viewport_size();
         if f32::from(viewport.width) < minimum && !window.is_fullscreen() {
             window.resize(size(px(minimum), viewport.height));

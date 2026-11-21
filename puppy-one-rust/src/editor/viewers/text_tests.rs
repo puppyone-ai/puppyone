@@ -39,6 +39,7 @@ fn dialect_surface<'a>(
                 assets: None,
                 references: None,
                 source_kind: crate::editor::registry::SourceKind::Local,
+                models: Default::default(),
             },
             window,
             cx,
@@ -206,6 +207,7 @@ fn companion_surface(text: &str, w: &mut Window, cx: &mut App) -> Box<dyn Viewer
             assets: None,
             references: None,
             source_kind: SourceKind::Local,
+            models: Default::default(),
         },
         w,
         cx,
@@ -248,7 +250,7 @@ fn setup<'a>(
 fn draw(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 fn assert_text(host: &Entity<Host>, text: &str, cx: &mut VisualTestContext) {
@@ -277,10 +279,10 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
     draw(cx);
     assert_text(&host, "source", cx);
     assert_eq!(count.get(), 1);
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     draw(cx);
     assert_text(&host, "", cx);
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     draw(cx);
     assert_text(&host, "source", cx);
     host.update_in(cx, |h, w, cx| {
@@ -294,10 +296,10 @@ fn source_and_page_share_history_across_focus_changes_and_do_not_echo_edits(
     });
     draw(cx);
     // Undo in the page must undo the earlier source edit, not an independent copy.
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     draw(cx);
     assert_text(&host, "", cx);
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     draw(cx);
     assert_text(&host, "source", cx);
     host.update_in(cx, |h, w, cx| h.surface.command(HostCommand::Undo, w, cx));

@@ -119,6 +119,52 @@ mod tests {
         assert!(!is_title_active("zsh"));
     }
 
+    /// `terminalActivity.test.ts`: the upstream titles, one output pulse for
+    /// every Agent (no Agent has its own branch), an explicit title that
+    /// outlasts silence and refreshes, and a shell that never reports work.
+    #[test]
+    fn upstream_titles_and_output_pulses_read_as_the_product_does() {
+        for (title, active) in [
+            ("⠋ Working", true),
+            ("⠙ Working", true),
+            ("Fix tests - ⏳ Working ···", true),
+            ("Fix tests - ⌨️ Running shell command", true),
+            ("Fix tests - 🧭 Planning", true),
+            ("Fix tests - ✅ Ready", false),
+            ("Fix tests - ❓ Waiting for you", false),
+            ("✳ Fix tests", false),
+            ("Fix tests", false),
+        ] {
+            assert_eq!(is_title_active(title), active, "{title}");
+        }
+        let start = Instant::now();
+        let ms = |n| start + Duration::from_millis(n);
+        let mut agent = TerminalActivity::new(true);
+        assert!(agent.note_output(start, 22));
+        assert!(agent.note_output(start, 10));
+        assert!(agent.active(start + OUTPUT_IDLE - Duration::from_millis(1)));
+        assert!(!agent.active(start + OUTPUT_IDLE));
+        // An explicit title stays active through silence until it says Ready.
+        let mut titled = TerminalActivity::new(true);
+        titled.note_title("Fix tests - ⏳ Working ...");
+        titled.note_output(start, 5);
+        assert!(titled.active(start + OUTPUT_IDLE));
+        titled.note_title("Fix tests - ✅ Ready");
+        assert!(!titled.active(start + OUTPUT_IDLE));
+        // A refresh hides only output, never what the title says.
+        let mut refreshed = TerminalActivity::new(true);
+        refreshed.begin_presentation_refresh(start);
+        assert!(!refreshed.note_output(ms(1), 13));
+        assert!(!refreshed.active(ms(1)));
+        refreshed.note_title("Fix tests - ⏳ Working ...");
+        assert!(refreshed.active(ms(1)));
+        assert!(refreshed.note_output(start + PRESENTATION_REFRESH, 17));
+        let mut shell = TerminalActivity::new(false);
+        shell.note_title("⠋ build");
+        assert!(!shell.note_output(start, 8));
+        assert!(!shell.active(start));
+    }
+
     #[test]
     fn output_lapses_and_refresh_bursts_are_ignored() {
         let start = Instant::now();

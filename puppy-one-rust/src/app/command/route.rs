@@ -206,9 +206,16 @@ impl Shell {
                 {
                     match ws.absolute(relative) {
                         Ok(path) => {
-                            if let Err(e) = crate::platform::desktop::open(&path) {
-                                self.show_error(e, cx);
-                            }
+                            let shell = cx.weak_entity();
+                            let failed = move |e: String, cx: &mut App| {
+                                let _ = shell.update(cx, |s, cx| s.show_error(e, cx));
+                            };
+                            crate::editor::question::open_external(
+                                Some(window.window_handle()),
+                                path,
+                                failed,
+                                cx,
+                            );
                         }
                         Err(e) => self.show_error(e.to_string(), cx),
                     }
@@ -260,7 +267,7 @@ impl Shell {
                 self.set_popover(None, cx);
                 self.explorer.view.update(cx, |e, cx| e.dismiss_menu(cx));
                 if !self.home_visible(cx) {
-                    self.home.update(cx, |h, _| h.hold_list());
+                    self.home.update(cx, |h, cx| h.hold_list(cx));
                 }
                 self.dialogs
                     .update(cx, |d, cx| d.set_cloud_project(None, cx));
@@ -270,6 +277,11 @@ impl Shell {
                 });
             }
             // With no dialog open, Escape closes a menu, external drop prompt, or Cloud conflict comparison.
+            Command::Escape if self.editor.read(cx).open_pane_menu(cx).is_some() => {
+                if let Some(editor) = self.editor.read(cx).open_pane_menu(cx) {
+                    editor.update(cx, |e, cx| e.dismiss_pane_menu(window, cx));
+                }
+            }
             Command::Escape if self.editor.read(cx).pending_external_drop.is_some() => {
                 self.editor.update(cx, |e, cx| e.dismiss_external_drop(cx));
             }

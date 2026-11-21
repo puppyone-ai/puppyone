@@ -42,7 +42,7 @@ fn pinned_files_sit_above_the_tree_and_follow_their_files(cx: &mut TestAppContex
         .detach()
     });
     vcx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
     let pin = vcx.debug_bounds("explorer-pin:docs/plan.md").unwrap();
     let other = vcx.debug_bounds("explorer-pin:notes.md").unwrap();

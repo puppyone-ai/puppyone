@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "kind": "puppyone-cloud-publish",
+  "operation_id": "33333333-3333-4333-8333-333333333333",
+  "revision": 11,
+  "phase": "compensation-pending",
+  "api_base_url": "https://api.puppyone.test/api/v1",
+  "api_origin": "https://api.puppyone.test",
+  "user_id": "user-1",
+  "organization_id": "org-1",
+  "project_name": "Legacy Cleanup",
+  "create_payload": {
+    "org_id": "org-1",
+    "name": "Legacy Cleanup",
+    "description": null
+  },
+  "repository_fingerprint": "legacy-repository-fingerprint",
+  "expected_head_commit_id": "fedcba9876543210fedcba9876543210fedcba98",
+  "expected_branch": "main",
+  "destination_branch": "main",
+  "project_id": "project-2",
+  "credential_id": "credential-2",
+  "secret_ref": "44444444-4444-4444-8444-444444444444",
+  "secret_stored": true,
+  "canonical_remote_url": "https://api.puppyone.test/git/project-2.git",
+  "credential_username": "x-puppyone-token",
+  "credential_config_snapshot": null,
+  "remote_add_intent": true,
+  "remote_created_by_operation": true,
+  "created_at": "2026-07-16T00:00:00.000Z",
+  "updated_at": "2026-07-18T00:01:00.000Z"
+}

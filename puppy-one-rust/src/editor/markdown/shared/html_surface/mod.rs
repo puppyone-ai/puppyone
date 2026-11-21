@@ -358,4 +358,33 @@ mod tests {
         assert_eq!(map.get(&1), Some(10.0));
         assert_eq!(map.get(&4), Some(40.0));
     }
+
+    /// `markdownHtmlConformance.test.ts`: `normalizes conventional README
+    /// align attributes into safe presentation`; `reduces invalid legacy
+    /// align values without changing block classification`.
+    #[test]
+    fn readme_align_attributes_become_alignment_and_invalid_ones_inherit() {
+        use super::{Element, TextAlign, align_of};
+        let element = |tag: &str, align: &str| Element {
+            tag: tag.into(),
+            attributes: vec![("align".into(), align.into())],
+            children: vec![],
+        };
+        assert!(matches!(
+            align_of(&element("div", "center"), TextAlign::Left),
+            TextAlign::Center
+        ));
+        assert!(matches!(
+            align_of(&element("p", "right"), TextAlign::Left),
+            TextAlign::Right
+        ));
+        assert!(matches!(
+            align_of(&element("div", "sideways"), TextAlign::Left),
+            TextAlign::Left
+        ));
+        assert!(matches!(
+            align_of(&element("div", "sideways"), TextAlign::Center),
+            TextAlign::Center
+        ));
+    }
 }

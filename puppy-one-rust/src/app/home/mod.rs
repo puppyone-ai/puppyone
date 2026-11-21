@@ -133,8 +133,15 @@ pub(in crate::app) struct Homepage {
     read_for: Option<Vec<PathBuf>>,
     shown: bool,
     pub reading: bool,
+    /// The latest project read: only its answer settles the page.
+    read_id: u64,
+    /// The latest list hold: only its budget releases the list.
+    hold_id: u64,
     first_paint: Option<Instant>,
     released_for: Option<Option<String>>,
+    /// The list was released while the Cloud session was still restoring:
+    /// the account turning up afterwards does not hold it again.
+    released_restoring: bool,
     pub list_held_since: Option<Instant>,
     pub place_focus: Option<(groups::GroupId, Instant, Option<Instant>)>,
     pub drop_over: Option<groups::GroupId>,
@@ -276,8 +283,11 @@ impl Homepage {
             read_for: None,
             shown: false,
             reading: false,
+            read_id: 0,
+            hold_id: 0,
             first_paint: None,
             released_for: None,
+            released_restoring: false,
             list_held_since: None,
             place_focus: None,
             drop_over: None,
@@ -330,7 +340,7 @@ impl Homepage {
         }
     }
 
-    fn refresh(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::app) fn refresh(&mut self, cx: &mut Context<Self>) {
         self.sync_import_sources(cx);
         self.read_spaces(false, cx);
         self.read_hosts(false, cx);
@@ -341,6 +351,14 @@ impl Homepage {
         self.sync_project_view(cx);
         self.sync_first_run(cx);
         self.sync_intro(cx);
+        // A session that restored to signed out is a signed-out Homepage:
+        // signing in later holds the list for the account again.
+        if self.released_restoring
+            && !self.cloud_session_restoring(cx)
+            && self.first_paint_account(cx).is_none()
+        {
+            self.released_restoring = false;
+        }
         if self.session.home && self.released_for != Some(self.first_paint_account(cx)) {
             self.first_paint.get_or_insert_with(Instant::now);
         }
@@ -683,7 +701,7 @@ impl Homepage {
             .into_any_element()
     }
 
-    fn drop_on_homepage(&mut self, paths: &[PathBuf], cx: &mut Context<Self>) {
+    pub(in crate::app) fn drop_on_homepage(&mut self, paths: &[PathBuf], cx: &mut Context<Self>) {
         match paths.iter().find(|p| p.is_dir()) {
             Some(folder) if paths.len() == 1 => {
                 self.error = None;

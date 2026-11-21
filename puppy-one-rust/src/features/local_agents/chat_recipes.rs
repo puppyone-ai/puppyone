@@ -108,10 +108,38 @@ pub fn hidden_agent_chat_runtime_ids(hidden_local_agent_ids: &[String]) -> Vec<S
 #[cfg(test)]
 mod tests {
     use super::{
-        BUILT_IN_AGENT_RUNTIME_ID, hidden_agent_chat_runtime_ids,
+        BUILT_IN_AGENT_RUNTIME_ID, LOCAL_AGENT_CHAT_RECIPES, hidden_agent_chat_runtime_ids,
         local_agent_id_for_agent_chat_runtime,
     };
 
+    /// `keeps local recipes alphabetized while Built-in Agent stays last and
+    /// independent of discovery`: the recipes are the local Agents in label
+    /// order, each naming the local Agent it starts.
+    #[test]
+    fn recipes_are_alphabetical_and_name_their_local_agent() {
+        assert_eq!(
+            LOCAL_AGENT_CHAT_RECIPES.map(|r| r.id),
+            [
+                "claude",
+                "codex",
+                "cursor",
+                "hermes",
+                "opencode-native",
+                "pi",
+                "workbuddy-china",
+                "workbuddy-international",
+            ]
+        );
+        let labels = LOCAL_AGENT_CHAT_RECIPES.map(|r| r.label.to_lowercase());
+        let mut sorted = labels.clone();
+        sorted.sort();
+        assert_eq!(labels, sorted);
+        assert_eq!(
+            local_agent_id_for_agent_chat_runtime("opencode-native"),
+            "opencode"
+        );
+        assert_eq!(local_agent_id_for_agent_chat_runtime("codex"), "codex");
+    }
     #[test]
     fn hidden_local_agents_hide_their_chat_runtimes_but_never_the_built_in() {
         assert_eq!(

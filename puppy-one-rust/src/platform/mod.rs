@@ -2,11 +2,16 @@ pub mod accessibility;
 pub mod agent_activity;
 pub mod app_folders;
 pub mod app_icon;
+pub mod app_link;
 pub mod app_preview;
 pub mod application_identity;
 pub mod build_identity;
+pub mod capabilities;
 pub mod cli_control;
+pub mod clipboard;
 pub mod connectivity;
+pub mod conventions;
+pub mod credentials;
 pub mod database;
 pub mod desktop;
 pub mod diagnostics;
@@ -19,6 +24,7 @@ pub mod environment;
 pub mod feedback;
 pub mod file_pasteboard;
 pub mod folder_availability;
+pub mod fs;
 pub mod git;
 pub mod git_diff;
 pub mod git_history;
@@ -28,8 +34,10 @@ pub mod html_page_store;
 pub mod image_transcode;
 pub mod local_agent_setup;
 pub mod local_computers;
+pub mod local_ipc;
 pub mod locale_format;
 pub mod office;
+pub mod os;
 pub mod paths;
 pub mod pdf;
 pub mod preference_storage;
@@ -47,19 +55,16 @@ pub mod terminal;
 pub mod text_rendering;
 pub mod themes;
 pub mod ui_state_store;
+pub mod unsupported;
 pub mod updates;
 pub mod url_scheme;
 pub mod viewer_packs;
 pub mod watchdog;
 pub mod webview;
+pub mod window;
 
 /// The native product's data directory, separate from the Electron product's
 /// (`PUPPYONE_RUST_DATA_DIR` isolates tests and captures).
 pub fn data_dir() -> std::path::PathBuf {
-    std::env::var_os("PUPPYONE_RUST_DATA_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| {
-            std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join("Library/Application Support/PuppyOne GPUI")
-        })
+    paths::data_dir()
 }

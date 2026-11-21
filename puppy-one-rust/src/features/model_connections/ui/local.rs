@@ -46,15 +46,18 @@ fn stars(count: u32) -> String {
 /// The guide's first model, one paste in the shell: install Ollama with
 /// its official script when missing, wait for its server, then
 /// `ollama run` (which downloads the model first).
-#[cfg(target_os = "macos")]
-const STARTER: &str = "command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh; ollama list >/dev/null 2>&1 || { open -a Ollama --args hidden; for i in $(seq 30); do ollama list >/dev/null 2>&1 && break; sleep 1; done; }; ollama run qwen3.5:9b";
-#[cfg(target_os = "windows")]
-const STARTER: &str = "if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) { irm https://ollama.com/install.ps1 | iex; $env:Path += \";$env:LOCALAPPDATA\\Programs\\Ollama\" }; if (-not (ollama list 2>$null)) { Start-Process ollama -ArgumentList serve -WindowStyle Hidden; Start-Sleep 3 }; ollama run qwen3.5:9b";
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-const STARTER: &str = "command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh; ollama list >/dev/null 2>&1 || { (ollama serve >/dev/null 2>&1 &); for i in $(seq 30); do ollama list >/dev/null 2>&1 && break; sleep 1; done; }; ollama run qwen3.5:9b";
-/// Where the user pastes [`STARTER`].
-#[cfg(target_os = "windows")]
-const SHELL: &str = "PowerShell";
+const STARTER_MACOS: &str = "command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh; ollama list >/dev/null 2>&1 || { open -a Ollama --args hidden; for i in $(seq 30); do ollama list >/dev/null 2>&1 && break; sleep 1; done; }; ollama run qwen3.5:9b";
+const STARTER_WINDOWS: &str = "if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) { irm https://ollama.com/install.ps1 | iex; $env:Path += \";$env:LOCALAPPDATA\\Programs\\Ollama\" }; if (-not (ollama list 2>$null)) { Start-Process ollama -ArgumentList serve -WindowStyle Hidden; Start-Sleep 3 }; ollama run qwen3.5:9b";
+const STARTER_UNIX: &str = "command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh; ollama list >/dev/null 2>&1 || { (ollama serve >/dev/null 2>&1 &); for i in $(seq 30); do ollama list >/dev/null 2>&1 && break; sleep 1; done; }; ollama run qwen3.5:9b";
+/// The command for this system's shell.
+fn starter() -> &'static str {
+    use crate::platform::conventions::{Conventions, LocalModelStarter};
+    match Conventions::current().local_model_starter {
+        LocalModelStarter::MacosTerminal => STARTER_MACOS,
+        LocalModelStarter::PowerShell => STARTER_WINDOWS,
+        LocalModelStarter::PosixShell => STARTER_UNIX,
+    }
+}
 /// Models a discovered service shows before `Show all`.
 const SHOWN_MODELS: usize = 4;
 
@@ -403,12 +406,14 @@ impl ModelConnections {
         if !open {
             return category;
         }
-        #[cfg(target_os = "windows")]
-        let shell: crate::localization::Arg = SHELL.into();
-        #[cfg(not(target_os = "windows"))]
-        let shell: crate::localization::Arg = tr("native.modelConnections.guide.terminal")
-            .to_string()
-            .into();
+        // Where the user pastes [`starter`].
+        let shell: crate::localization::Arg =
+            match crate::platform::conventions::Conventions::current().local_model_starter {
+                crate::platform::conventions::LocalModelStarter::PowerShell => "PowerShell".into(),
+                _ => tr("native.modelConnections.guide.terminal")
+                    .to_string()
+                    .into(),
+            };
         let mut rows: Vec<AnyElement> = vec![
             table_row(t)
                 .id("guide-starter")
@@ -431,7 +436,7 @@ impl ModelConnections {
                     "copy-starter",
                     "starter",
                     "native.modelConnections.guide.copyCommand",
-                    STARTER.into(),
+                    starter().into(),
                 ))
                 .into_any_element(),
         ];

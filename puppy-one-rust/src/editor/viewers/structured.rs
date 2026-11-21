@@ -12,7 +12,10 @@
 //! (`contextMapEnvironment`: folder listings and Markdown sources, read off
 //! the main thread) and its layout and line filters are the pane menu's
 //! (`EditorPaneMenuContribution`).
-use super::{html_visual::script_json, web::WebFrame};
+use super::{
+    html_visual::script_json,
+    web::{WebFallbackAction, WebFrame},
+};
 use crate::{
     editor::{
         registry::{
@@ -39,8 +42,13 @@ const BRAND_PREFIX: &str = "public/assets/icons/agents/";
 #[derive(Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum Inbound {
-    Ready,
+    /// Messages carry the generation of the page's last reset: anything a
+    /// page sent before it took the latest text is about the replaced text.
+    Ready {
+        generation: u64,
+    },
     Content {
+        generation: u64,
         text: String,
     },
     /// `listChildren(path)`.
@@ -115,6 +123,8 @@ fn open(request: &SurfaceRequest, kind: &'static str, cx: &mut App) -> Box<dyn V
             enabled: true,
             dark: request.dark,
             ready: false,
+            generation: 1,
+            history: false,
             pane: Vec::new(),
             revision: 0,
             _watch: None,
@@ -163,6 +173,11 @@ struct StructuredView {
     dark: bool,
     /// The page answers messages (its receiver is installed).
     ready: bool,
+    /// Bumped by every reset; the page tags its messages with the one it took.
+    generation: u64,
+    /// The page edited since it took its text: the undo history exists only
+    /// in its model, so the page is kept from eviction (`VW-20`, `WB-01`).
+    history: bool,
     /// The page's pane menu contribution.
     pane: Vec<PaneWire>,
     /// `contextMapEnvironment.revision`: workspace changes reread the map.
@@ -178,6 +193,7 @@ impl StructuredView {
         serde_json::json!({
             "kind": self.kind,
             "text": self.text,
+            "generation": self.generation,
             "name": Path::new(&self.name).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
             "path": self.name,
             "canEdit": self.enabled,
@@ -204,29 +220,19 @@ impl StructuredView {
 
     /// A new engine over the current text, input state and appearance.
     fn show(&mut self, cx: &mut Context<Self>) {
-        let html = self.current_page_html();
-        let mut assets: Vec<(&'static str, &'static [u8])> = vec![
-            ("structured-viewers.js", SCRIPT),
-            ("structured-viewers.css", STYLE),
-        ];
-        assets.extend(brand_assets());
         let (tx, rx) = async_channel::unbounded::<String>();
-        let content = Content {
-            root: None,
-            source: None,
-            entry: Entry::Html(html),
-            max_bytes: 0,
-            assets,
-            ipc: Some(Ipc(tx)),
-            policy: None,
-            frames: None,
-            disk_assets: None,
-            locked: false,
-        };
+        let content = content(self.current_page_html(), Ipc(tx));
         self.ready = false;
+        self.history = false;
         self.pane.clear();
         let weak = cx.weak_entity();
         let dark = self.dark;
+        let local_file = self
+            .workspace
+            .as_ref()
+            .and_then(|w| w.local_root())
+            .map(|root| root.join(&self.name))
+            .filter(|p| p.is_file());
         self.frame = Some(cx.new(|_| {
             let mut f = WebFrame::new(Some(content), dark);
             f.set_on_recreated(Some(std::rc::Rc::new(move |cx| {
@@ -234,6 +240,9 @@ impl StructuredView {
                     view.ready = false;
                 });
             })));
+            if let Some(path) = local_file {
+                f.set_fallback_actions(vec![WebFallbackAction::open_local_file(path)]);
+            }
             f
         }));
         self._inbox = Some(cx.spawn(async move |this, cx| {
@@ -248,7 +257,7 @@ impl StructuredView {
     }
     fn receive(&mut self, message: Inbound, cx: &mut Context<Self>) {
         match message {
-            Inbound::Ready => {
+            Inbound::Ready { generation } if generation == self.generation => {
                 self.ready = true;
                 let script = theme_update_script(self.dark);
                 if let Some(frame) = &self.frame {
@@ -279,9 +288,11 @@ impl StructuredView {
                     }
                 }
             }
-            Inbound::Content { text } => {
-                if self.enabled && text != self.text {
+            Inbound::Ready { .. } => {}
+            Inbound::Content { generation, text } => {
+                if self.enabled && generation == self.generation && text != self.text {
                     self.text = text;
+                    self.hold_history(true, cx);
                     self.sync_entry_html(cx);
                     cx.emit(Changed);
                 }
@@ -480,8 +491,23 @@ impl StructuredView {
             return;
         }
         self.text = text.to_owned();
+        self.generation += 1;
+        // The reset replaces the page model's content and its history.
+        self.hold_history(false, cx);
         self.sync_entry_html(cx);
-        self.post_state(serde_json::json!({ "type": "reset", "text": text }), cx);
+        let generation = self.generation;
+        self.post_state(
+            serde_json::json!({ "type": "reset", "text": text, "generation": generation }),
+            cx,
+        );
+    }
+    fn hold_history(&mut self, held: bool, cx: &mut Context<Self>) {
+        if self.history != held {
+            self.history = held;
+            if let Some(frame) = &self.frame {
+                frame.update(cx, |f, _| f.set_pinned(held));
+            }
+        }
     }
     fn history(&mut self, redo: bool, cx: &mut Context<Self>) {
         if self.ready && self.enabled {
@@ -523,6 +549,53 @@ impl StructuredView {
             );
         }
     }
+}
+
+/// The page, its bundle and the agent marks it serves, over `ipc`.
+fn content(entry: String, ipc: Ipc) -> Content {
+    let mut assets: Vec<(&'static str, &'static [u8])> = vec![
+        ("structured-viewers.js", SCRIPT),
+        ("structured-viewers.css", STYLE),
+    ];
+    assets.extend(brand_assets());
+    Content {
+        root: None,
+        source: None,
+        entry: Entry::Html(entry),
+        max_bytes: 0,
+        assets,
+        ipc: Some(ipc),
+        policy: None,
+        frames: None,
+        disk_assets: None,
+        locked: false,
+    }
+}
+
+/// The native acceptance process boots the same page, bundle and protocol as
+/// the viewer; `workspace` stands for a workspace the process answers itself.
+#[cfg(feature = "dev-capture")]
+#[allow(dead_code)]
+pub(crate) fn probe_content(kind: &'static str, name: &str, text: &str, ipc: Ipc) -> Content {
+    let view = StructuredView {
+        kind,
+        name: name.to_owned(),
+        workspace: None,
+        text: text.to_owned(),
+        enabled: true,
+        dark: false,
+        ready: false,
+        generation: 1,
+        history: false,
+        pane: Vec::new(),
+        revision: 0,
+        _watch: None,
+        frame: None,
+        _inbox: None,
+    };
+    let mut boot = view.boot_json();
+    boot["hasWorkspace"] = true.into();
+    content(page(&boot, false), ipc)
 }
 
 /// Compiled Sub Theme CSS custom properties + `color-scheme` (`VW-21`).
@@ -600,7 +673,36 @@ fn page(boot: &serde_json::Value, dark: bool) -> String {
 struct StructuredSurface {
     view: Entity<StructuredView>,
 }
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl crate::editor::registry::SurfaceTestProbe for StructuredSurface {
+    #[cfg(any(test, feature = "test-support"))]
+    fn page_deliver(&self, body: &str, cx: &mut App) -> bool {
+        let Ok(message) = serde_json::from_str::<Inbound>(body) else {
+            return false;
+        };
+        self.view.update(cx, |view, cx| view.receive(message, cx));
+        true
+    }
+    #[cfg(any(test, feature = "test-support"))]
+    fn page_generation(&self, cx: &App) -> Option<u64> {
+        Some(self.view.read(cx).generation)
+    }
+    #[cfg(test)]
+    fn page_entry(&self, cx: &App) -> Option<String> {
+        let frame = self.view.read(cx).frame.clone()?;
+        frame.read(cx).entry_html().map(str::to_owned)
+    }
+    #[cfg(test)]
+    fn page_view(&self) -> Option<AnyEntity> {
+        Some(self.view.clone().into())
+    }
+}
+
 impl ViewerSurface for StructuredSurface {
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    fn as_test_probe(&self) -> Option<&dyn crate::editor::registry::SurfaceTestProbe> {
+        Some(self)
+    }
     fn element(&self) -> AnyElement {
         self.view.clone().into_any_element()
     }
@@ -608,6 +710,9 @@ impl ViewerSurface for StructuredSurface {
         Some(cx.subscribe(&self.view, move |_, _: &Changed, cx| {
             events(SurfaceEvent::Changed, cx)
         }))
+    }
+    fn holds_page_history(&self, cx: &App) -> bool {
+        self.view.read(cx).history
     }
     fn text(&self, cx: &App) -> Option<String> {
         Some(self.view.read(cx).text.clone())
@@ -662,8 +767,12 @@ mod tests {
                 .any(|(name, _)| *name == "public/assets/icons/agents/claude-code.svg")
         );
         assert_eq!(
-            serde_json::from_str::<Inbound>(r#"{"type":"content","text":"x"}"#).unwrap(),
-            Inbound::Content { text: "x".into() }
+            serde_json::from_str::<Inbound>(r#"{"type":"content","generation":3,"text":"x"}"#)
+                .unwrap(),
+            Inbound::Content {
+                generation: 3,
+                text: "x".into()
+            }
         );
     }
 
@@ -678,6 +787,8 @@ mod tests {
                 enabled: true,
                 dark: false,
                 ready: true,
+                generation: 1,
+                history: false,
                 pane: Vec::new(),
                 revision: 0,
                 _watch: None,
@@ -703,6 +814,7 @@ mod tests {
         view.update(cx, |v, cx| {
             v.receive(
                 Inbound::Content {
+                    generation: 1,
                     text: "{\"title\":\"A\"}".into(),
                 },
                 cx,
@@ -716,13 +828,132 @@ mod tests {
         );
         cx.update(|window, cx| surface.apply(true, false, Scale::default(), window, cx));
         view.update(cx, |v, cx| {
-            v.receive(Inbound::Content { text: "x".into() }, cx)
+            v.receive(
+                Inbound::Content {
+                    generation: 1,
+                    text: "x".into(),
+                },
+                cx,
+            )
         });
         cx.run_until_parked();
         assert_eq!(changed.get(), 1);
         // A disk reload is the new mirror; the page is reset to it.
         cx.update(|window, cx| surface.replace_text("{}", window, cx));
         assert_eq!(cx.update(|_, cx| surface.text(cx)).as_deref(), Some("{}"));
+    }
+
+    /// A page edit still in flight when storage replaced the document was
+    /// made against the replaced text: it never becomes the document, and
+    /// the page's next edit after the reset does.
+    #[gpui::test]
+    fn an_edit_posted_before_a_reset_cannot_overwrite_the_new_text(cx: &mut TestAppContext) {
+        let (view, cx) = cx.add_window_view(|_, cx| {
+            let mut view = StructuredView {
+                kind: "puppyflow",
+                name: "flows/release.puppyflow".into(),
+                workspace: None,
+                text: "{\"title\":\"alpha\"}".into(),
+                enabled: true,
+                dark: false,
+                ready: false,
+                generation: 1,
+                history: false,
+                pane: Vec::new(),
+                revision: 0,
+                _watch: None,
+                frame: None,
+                _inbox: None,
+            };
+            view.show(cx);
+            view
+        });
+        let surface = StructuredSurface { view: view.clone() };
+        let changed = std::rc::Rc::new(std::cell::Cell::new(0));
+        let count = changed.clone();
+        let _subscription = cx.update(|_, cx| {
+            surface.subscribe(
+                std::rc::Rc::new(move |event, _| {
+                    if event == SurfaceEvent::Changed {
+                        count.set(count.get() + 1);
+                    }
+                }),
+                cx,
+            )
+        });
+        let deliver = |cx: &mut VisualTestContext, body: &str| {
+            let message = serde_json::from_str::<Inbound>(body).unwrap();
+            view.update(cx, |v, cx| v.receive(message, cx));
+            cx.run_until_parked();
+        };
+        deliver(cx, r#"{"type":"ready","generation":1}"#);
+        cx.update(|window, cx| surface.replace_text("{\"title\":\"agent\"}", window, cx));
+        deliver(
+            cx,
+            r#"{"type":"content","generation":1,"text":"{\"title\":\"human\"}"}"#,
+        );
+        assert_eq!(
+            cx.update(|_, cx| surface.text(cx)).as_deref(),
+            Some("{\"title\":\"agent\"}")
+        );
+        assert_eq!(changed.get(), 0);
+        deliver(
+            cx,
+            r#"{"type":"content","generation":2,"text":"{\"title\":\"human\"}"}"#,
+        );
+        assert_eq!(
+            cx.update(|_, cx| surface.text(cx)).as_deref(),
+            Some("{\"title\":\"human\"}")
+        );
+        assert_eq!(changed.get(), 1);
+    }
+
+    /// A page edit makes the page's model the only holder of the undo
+    /// history, so the page stays resident until a reset replaces both.
+    #[gpui::test]
+    fn an_edited_page_holds_its_history_until_a_reset(cx: &mut TestAppContext) {
+        let (view, cx) = cx.add_window_view(|_, cx| {
+            let mut view = StructuredView {
+                kind: "context-map",
+                name: "maps/project.contextmap".into(),
+                workspace: None,
+                text: "{}".into(),
+                enabled: true,
+                dark: false,
+                ready: false,
+                generation: 1,
+                history: false,
+                pane: Vec::new(),
+                revision: 0,
+                _watch: None,
+                frame: None,
+                _inbox: None,
+            };
+            view.show(cx);
+            view
+        });
+        let surface = StructuredSurface { view: view.clone() };
+        let held = |cx: &mut VisualTestContext| {
+            let frame = view.read_with(cx, |v, _| v.frame.clone().unwrap());
+            (
+                cx.update(|_, cx| surface.holds_page_history(cx)),
+                frame.read_with(cx, |f, _| f.is_pinned()),
+            )
+        };
+        view.update(cx, |v, cx| v.receive(Inbound::Ready { generation: 1 }, cx));
+        assert_eq!(held(cx), (false, false));
+        view.update(cx, |v, cx| {
+            v.receive(
+                Inbound::Content {
+                    generation: 1,
+                    text: "{\"version\":1}".into(),
+                },
+                cx,
+            )
+        });
+        assert_eq!(held(cx), (true, true));
+        cx.update(|window, cx| surface.replace_text("{}", window, cx));
+        assert_eq!(held(cx), (false, false));
     }
 
     #[gpui::test]
@@ -749,6 +980,8 @@ mod tests {
                 enabled: true,
                 dark: false,
                 ready: true,
+                generation: 1,
+                history: false,
                 pane: Vec::new(),
                 revision: 0,
                 _watch: None,
@@ -797,6 +1030,8 @@ mod tests {
                 enabled: true,
                 dark: false,
                 ready: false,
+                generation: 1,
+                history: false,
                 pane: Vec::new(),
                 revision: 0,
                 _watch: None,
@@ -808,7 +1043,7 @@ mod tests {
         });
         let surface = StructuredSurface { view: view.clone() };
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         cx.run_until_parked();
 
@@ -818,9 +1053,10 @@ mod tests {
         )
         .unwrap();
         view.update(cx, |v, cx| {
-            v.receive(Inbound::Ready, cx);
+            v.receive(Inbound::Ready { generation: 1 }, cx);
             v.receive(
                 Inbound::Content {
+                    generation: 1,
                     text: "{\"steps\":[{\"id\":\"s1\"}]}".into(),
                 },
                 cx,

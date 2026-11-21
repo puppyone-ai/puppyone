@@ -274,6 +274,77 @@ fn deadline(row: &model::Runtime) -> Result<Instant, Failure> {
     Ok(Instant::now() + duration)
 }
 
+/// How waking the open Workspace ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Woken {
+    /// It runs again and is the same Workspace: send the request again.
+    Running,
+    /// Another Workspace, or none, stands for the Project now: reopen it.
+    Replaced,
+    /// It could not be woken now; the request that found it asleep fails as
+    /// a passing fault and its caller tries again later.
+    Failed,
+}
+/// Wakes the Workspace a live request found asleep (`workbench_not_running`):
+/// what opening does, one POST and then waiting reads, but only for the same
+/// Workspace. Its failed requests are recorded like an opening's.
+pub(super) fn wake(
+    broker: &Broker,
+    binding: &Binding,
+    cancel: &Cancellation,
+    runtime: &model::Runtime,
+) -> Woken {
+    let project = runtime.project_id.as_str();
+    let same = |row: &model::Runtime| row.id == runtime.id && row.generation == runtime.generation;
+    let read = |method: Method, wait: bool| request(broker, binding, cancel, project, method, wait);
+    let workspace = |mut value: serde_json::Value| {
+        if value["workspace"].is_null() {
+            Err(Woken::Replaced)
+        } else {
+            decode(value["workspace"].take(), project).map_err(|_| Woken::Failed)
+        }
+    };
+    let run = || -> Result<Woken, Woken> {
+        // Another request may have woken it already.
+        let row = workspace(read(Method::GET, false).map_err(|_| Woken::Failed)?)?;
+        if !same(&row) {
+            return Ok(Woken::Replaced);
+        }
+        if state(&row).unwrap_or(false) {
+            return Ok(Woken::Running);
+        }
+        let mut row = decode(
+            read(Method::POST, false).map_err(|_| Woken::Failed)?,
+            project,
+        )
+        .map_err(|_| Woken::Failed)?;
+        let deadline = deadline(&row).map_err(|_| Woken::Failed)?;
+        loop {
+            if !same(&row) {
+                return Ok(Woken::Replaced);
+            }
+            if state(&row).map_err(|_| Woken::Failed)? {
+                return Ok(Woken::Running);
+            }
+            if cancel.check().is_err() || Instant::now() >= deadline {
+                return Ok(Woken::Failed);
+            }
+            let started = Instant::now();
+            row = workspace(read(Method::GET, true).map_err(|_| Woken::Failed)?)?;
+            if !state(&row).unwrap_or(false) {
+                // Older servers may ignore wait_seconds: at most once a second.
+                while started.elapsed() < Duration::from_secs(1)
+                    && Instant::now() < deadline
+                    && cancel.check().is_ok()
+                {
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+            }
+        }
+    };
+    run().unwrap_or_else(|woken| woken)
+}
+
 /// Run on a worker. The UI passes a distinct, cancellable navigation intent;
 /// it must still validate that intent before consuming the one-use handoff.
 /// A workspace that moved while it was opening is opened again once before
@@ -415,6 +486,258 @@ fn attempt(
 mod tests {
     use super::{Failure, Recovery};
     use crate::cloud::auth::Error;
+
+    /// `electron.cloud-ipc.test.mjs` (opening diagnostics): a failed opening
+    /// request is one local line naming its stage, method, status, code,
+    /// retry decision, request id and duration — never the project or a
+    /// path; a cancelled or superseded request writes nothing.
+    #[test]
+    fn an_opening_failure_is_one_private_line_and_a_cancellation_is_none() {
+        use crate::cloud::auth::model::Diagnostic;
+        use reqwest::Method;
+        use std::time::Duration;
+        let ours = |id: &str| {
+            crate::platform::diagnostics::recorded("[cloud-opening] request failed")
+                .into_iter()
+                .filter(|l| l["fields"]["request_id"] == id)
+                .collect::<Vec<_>>()
+        };
+        let diagnostic = Diagnostic::read(
+            &serde_json::json!({"data": {"retryable": true}}),
+            Some("req-opening-log-9"),
+        );
+        super::record_failure_elapsed(
+            "open",
+            &Method::POST,
+            &Error::Response(503, Some("workbench_connection_unavailable"), diagnostic),
+            Duration::from_millis(5),
+        );
+        let lines = ours("req-opening-log-9");
+        assert_eq!(lines.len(), 1);
+        let fields = lines[0]["fields"].as_object().unwrap();
+        assert_eq!(
+            serde_json::Value::Object(fields.clone()),
+            serde_json::json!({"stage": "open", "method": "POST", "status": 503,
+                "code": "workbench_connection_unavailable", "retryable": true,
+                "request_id": "req-opening-log-9", "duration_ms": 5})
+        );
+        let quiet = Diagnostic::read(&serde_json::json!({}), Some("req-opening-quiet"));
+        for error in [Error::Cancelled, Error::SessionChanged] {
+            super::record_failure_elapsed("status", &Method::GET, &error, Duration::ZERO);
+        }
+        super::record_failure_elapsed(
+            "status",
+            &Method::GET,
+            &Error::Response(500, None, quiet),
+            Duration::ZERO,
+        );
+        assert_eq!(ours("req-opening-quiet").len(), 1, "only the real failure");
+    }
+
+    /// `cloudOpeningFailureClassification`: what "Couldn't open Cloud
+    /// Computer" says, decided by what the person can do next, and the
+    /// server's code and request id shown beside it.
+    #[test]
+    fn workspace_opening_failures_say_what_to_do_next_and_carry_their_diagnostics() {
+        use crate::cloud::auth::model::Diagnostic;
+        use Recovery::{Account, None as Nothing, Retry};
+        for (label, status, reason, code, recovery, reopen) in [
+            (
+                "server start deadline",
+                503,
+                Some("workbench_start_timeout"),
+                "workspace-start-timeout",
+                Retry,
+                false,
+            ),
+            (
+                "client start deadline",
+                504,
+                Some("workbench_start_timeout"),
+                "workspace-start-timeout",
+                Retry,
+                false,
+            ),
+            (
+                "readiness timeout",
+                503,
+                Some("workbench_connection_timeout"),
+                "workspace-start-timeout",
+                Retry,
+                false,
+            ),
+            (
+                "still starting",
+                503,
+                Some("workbench_preparing"),
+                "workspace-preparing",
+                Retry,
+                false,
+            ),
+            (
+                "connection lost",
+                503,
+                Some("workbench_connection_unavailable"),
+                "workspace-connection-unavailable",
+                Retry,
+                false,
+            ),
+            (
+                "unclassified server error",
+                500,
+                None,
+                "workspace-open-failed",
+                Retry,
+                false,
+            ),
+            (
+                "gateway error",
+                502,
+                None,
+                "workspace-open-failed",
+                Retry,
+                false,
+            ),
+            (
+                "observer capacity",
+                503,
+                Some("workbench_observer_capacity"),
+                "workspace-open-failed",
+                Retry,
+                false,
+            ),
+            (
+                "generation replaced",
+                409,
+                Some("workbench_generation_changed"),
+                "workspace-changed",
+                Retry,
+                true,
+            ),
+            (
+                "paused during handoff",
+                409,
+                Some("workbench_not_running"),
+                "workspace-changed",
+                Retry,
+                true,
+            ),
+            (
+                "not ready",
+                409,
+                Some("workbench_not_ready"),
+                "workspace-changed",
+                Retry,
+                true,
+            ),
+            (
+                "operation fenced",
+                409,
+                Some("workbench_operation_replaced"),
+                "workspace-changed",
+                Retry,
+                true,
+            ),
+            (
+                "authorization revision moved",
+                409,
+                Some("workbench_context_changed"),
+                "workspace-changed",
+                Retry,
+                true,
+            ),
+            (
+                "disk lost",
+                503,
+                Some("workbench_disk_lost"),
+                "workspace-disk-lost",
+                Retry,
+                false,
+            ),
+            (
+                "needs recovery",
+                409,
+                Some("workbench_requires_recovery"),
+                "workspace-recovery-required",
+                Nothing,
+                false,
+            ),
+            (
+                "plan required",
+                402,
+                None,
+                "workspace-plan-required",
+                Account,
+                false,
+            ),
+            (
+                "access denied",
+                403,
+                Some("workbench_access_denied"),
+                "workspace-access-denied",
+                Nothing,
+                false,
+            ),
+            (
+                "project not ready",
+                409,
+                Some("workbench_unavailable"),
+                "project-unavailable",
+                Nothing,
+                false,
+            ),
+            (
+                "provider not configured",
+                503,
+                Some("workbench_provider_not_configured"),
+                "workspace-not-configured",
+                Nothing,
+                false,
+            ),
+        ] {
+            let failure = Failure::described(Some(status), reason, None);
+            assert_eq!(
+                (failure.code, failure.recovery, failure.reopen),
+                (code, recovery, reopen),
+                "{label}"
+            );
+        }
+        // The server's code and request id beside the message.
+        let failure = Failure::auth(Error::Response(
+            503,
+            Some("workbench_start_timeout"),
+            Diagnostic::read(&serde_json::json!({}), Some("req-7f3a")),
+        ));
+        assert_eq!(
+            failure.diagnostic(),
+            Some((
+                Some("workbench_start_timeout".to_owned()),
+                Some("req-7f3a".to_owned())
+            ))
+        );
+        // The HTTP status when the server named no code.
+        assert_eq!(
+            Failure::auth(Error::Http(500)).diagnostic(),
+            Some((Some("HTTP 500".to_owned()), None))
+        );
+        // No server string outside the workspace namespace, no malformed
+        // request id.
+        let private = Failure::auth(Error::Response(
+            503,
+            None,
+            Diagnostic::read(&serde_json::json!({}), Some("id with spaces")),
+        ));
+        assert_eq!(
+            private.diagnostic(),
+            Some((Some("HTTP 503".to_owned()), None))
+        );
+        assert_eq!(
+            Failure::described(Some(503), Some("private_customer_key"), None).diagnostic(),
+            Some((Some("HTTP 503".to_owned()), None))
+        );
+        // Nothing to report without a server answer.
+        assert_eq!(Failure::auth(Error::Cancelled).diagnostic(), None);
+    }
 
     #[test]
     fn opening_failures_preserve_status_and_access_recovery() {

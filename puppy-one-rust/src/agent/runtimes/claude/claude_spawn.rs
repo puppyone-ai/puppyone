@@ -303,7 +303,7 @@ impl ClaudeSpawn {
             .filter(|d| paths::is_absolute(d))
         {
             for name in names {
-                candidates.push(Path::new(directory).join(name));
+                candidates.push(paths::resolve(directory, name));
             }
         }
         let exec_path = options
@@ -329,18 +329,7 @@ impl ClaudeSpawn {
 }
 
 fn is_executable_file(path: &Path) -> bool {
-    #[cfg(unix)]
-    {
-        use std::os::unix::ffi::OsStrExt;
-        let Ok(path) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
-            return false;
-        };
-        unsafe { libc::access(path.as_ptr(), libc::X_OK) == 0 }
-    }
-    #[cfg(not(unix))]
-    {
-        path.is_file()
-    }
+    crate::platform::fs::can_access_execute(path).is_ok()
 }
 
 impl SpawnClaudeCodeProcess for ClaudeSpawn {

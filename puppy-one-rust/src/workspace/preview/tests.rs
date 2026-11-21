@@ -9,6 +9,7 @@ use std::{
     },
 };
 
+#[cfg(unix)]
 #[test]
 fn local_reader_retains_its_root_and_open_file_when_paths_are_replaced() {
     let temp = tempfile::tempdir().unwrap();
@@ -274,6 +275,7 @@ fn cached_snapshot_reader_preserves_its_input_version_and_checks_lease_on_seek()
     assert!(reader.seek(SeekFrom::End(0)).is_err());
 }
 
+#[cfg(unix)]
 #[test]
 fn session_readers_keep_provider_roots_and_validate_identity_without_loading_the_file() {
     let temp = tempfile::tempdir().unwrap();
@@ -297,6 +299,23 @@ fn session_readers_keep_provider_roots_and_validate_identity_without_loading_the
         (session.validate)(),
         Err(SessionReadFailure::Changed)
     ));
+}
+
+#[test]
+fn session_readers_refuse_traversal_and_directories_before_any_read() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("workspace");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(temp.path().join("sample.db"), b"outside").unwrap();
+    std::fs::create_dir(root.join("folder.db")).unwrap();
+    let ws = Workspace::open(&root).unwrap();
+    for path in ["../sample.db", "folder.db"] {
+        let refused = match ws.resource(Path::new(path)) {
+            Err(_) => true,
+            Ok(resource) => resource.session_reader().is_err(),
+        };
+        assert!(refused, "{path}");
+    }
 }
 
 #[test]

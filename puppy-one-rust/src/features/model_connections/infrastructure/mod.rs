@@ -229,13 +229,7 @@ pub fn catalog(
     run(
         wake,
         async move {
-            let client = crate::platform::proxy::system(
-                reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
-            )
-            .redirect_policy(reqwest::redirect::Policy::none())
-            .timeout(std::time::Duration::from_secs(15))
-            .build()
-            .map_err(|e| e.to_string())?;
+            let client = catalog::metadata_client()?;
             // An OAuth token is refreshed before it is used to list.
             let key = connection
                 .resolve_credential()

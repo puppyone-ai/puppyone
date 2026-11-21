@@ -173,6 +173,7 @@ embedded! {
     "icons" / "share-2.svg",
     "icons" / "shield-alert.svg",
     "icons" / "shield-check.svg",
+    "icons" / "sliders-horizontal.svg",
     "icons" / "sparkles.svg",
     "icons" / "spinner-arc.svg",
     "icons" / "spinner-track.svg",

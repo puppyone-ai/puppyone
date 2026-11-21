@@ -425,10 +425,16 @@ impl DatabaseView {
         }
     }
     fn open_external(&mut self, cx: &mut Context<Self>) {
-        if let Some(path) = self.local_path()
-            && crate::platform::desktop::open(&path).is_err()
-        {
-            self.fail(Failure::Unavailable, cx);
+        if let Some(path) = self.local_path() {
+            let view = cx.weak_entity();
+            crate::editor::question::open_external(
+                None,
+                path,
+                move |_, cx| {
+                    let _ = view.update(cx, |v, cx| v.fail(Failure::Unavailable, cx));
+                },
+                cx,
+            );
         }
     }
 }
@@ -1230,7 +1236,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.read_with(cx, |v, _| {
             assert_eq!(v.objects.as_ref().unwrap().len(), 1);
@@ -1300,7 +1306,7 @@ mod tests {
             cx.notify();
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
 }

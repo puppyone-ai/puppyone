@@ -38,7 +38,6 @@ impl Builder<'_> {
                 .then(b.1.range.end.cmp(&a.1.range.end))
         });
         let link_tokens = links::find_links(text);
-        let wiki_tokens = links::find_wiki_links(text);
         let widget_cx = InlineWidgetCx {
             doc: cx.doc,
             theme: cx.theme,
@@ -57,20 +56,20 @@ impl Builder<'_> {
             let reveal = cx.preview.reveal.as_ref() == Some(&e.range);
             match e.kind {
                 Kind::WikiLink => {
-                    let token = wiki_tokens.iter().find(|t| {
-                        range.start + t.range.start == e.range.start
-                            && range.start + t.range.end == e.range.end
-                    });
-                    let (Some(token), Some(content)) =
-                        (token, e.content.clone().filter(|c| c.start < c.end))
-                    else {
+                    // Syntax owns the inline region (including table-cell
+                    // boundaries). Rescanning the whole row can let an
+                    // unmatched opener in a previous cell consume this link.
+                    let (Some(target), Some(content)) = (
+                        e.href.as_ref(),
+                        e.content.clone().filter(|c| c.start < c.end),
+                    ) else {
                         continue;
                     };
                     self.hide(e.range.start..content.start, SourceSyntax::WikiLink, reveal);
                     self.hide(content.end..e.range.end, SourceSyntax::WikiLink, reveal);
-                    let href = Some(SharedString::from(token.target.clone()));
-                    let resolved = (!token.target.starts_with('#'))
-                        .then(|| cx.references.map(|r| r.resolve(&token.target)))
+                    let href = Some(SharedString::from(target.clone()));
+                    let resolved = (!target.starts_with('#'))
+                        .then(|| cx.references.map(|r| r.resolve(target)))
                         .flatten();
                     let mut classes = Class::SYNTAX_LINK | Class::WIKI_LINK_LABEL;
                     if resolved.as_ref().is_some_and(|r| !r.exists) {

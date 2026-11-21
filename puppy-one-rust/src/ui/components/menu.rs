@@ -16,7 +16,11 @@ use gpui_kit::{
     base::{Positioner, StyledExt as _},
     component::Sizable as _,
 };
-use std::{rc::Rc, time::Duration};
+use std::{
+    cell::Cell,
+    rc::{Rc, Weak},
+    time::Duration,
+};
 
 mod keyboard;
 #[cfg(test)]
@@ -325,6 +329,13 @@ impl Menu {
             })
             .collect()
     }
+    /// Number of separator rows currently in this menu surface.
+    pub fn separator_count(&self) -> usize {
+        self.entries
+            .iter()
+            .filter(|entry| matches!(entry, MenuEntry::Separator))
+            .count()
+    }
 }
 /// A menu surface. Items run their handler, then `on_dismiss`.
 #[derive(IntoElement)]
@@ -561,7 +572,7 @@ impl RenderOnce for Menu {
         if let Some(outside) = self.mouse_down_out {
             // A press in an open submenu is inside the menu it came from.
             frame = frame.on_mouse_down_out(move |e, w, cx| {
-                if !OpenSubmenus::contain(e.position, cx) {
+                if !submenu_contains(e.position, w, cx) {
                     outside(e, w, cx)
                 }
             });
@@ -611,16 +622,13 @@ struct SubmenuState {
     over_row: bool,
     over_submenu: bool,
     trigger: Bounds<Pixels>,
-    /// Where the open submenu is drawn ([`OpenSubmenus`]).
-    surface: Bounds<Pixels>,
     /// The menu its row is in: moving to another row of it closes this
     /// submenu at once.
     menu: Option<ElementId>,
 }
 
-/// The open submenus of the window's menus, so a menu that closes on a
-/// press outside it does not close on a press in its own submenu (which is
-/// drawn past its edge).
+/// The open submenus of the window's menus, so moving to another row of a
+/// menu closes the submenu its sibling opened.
 #[derive(Default)]
 struct OpenSubmenus(Vec<WeakEntity<SubmenuState>>);
 impl Global for OpenSubmenus {}
@@ -659,14 +667,58 @@ impl OpenSubmenus {
             });
         }
     }
-    fn contain(position: Point<Pixels>, cx: &App) -> bool {
-        cx.try_global::<OpenSubmenus>().is_some_and(|open| {
-            open.0.iter().filter_map(WeakEntity::upgrade).any(|s| {
-                let s = s.read(cx);
-                s.open && s.surface.contains(&position)
-            })
-        })
+}
+
+/// Live deferred submenu bounds currently on screen. Each entry is held alive
+/// by the submenu host's frame mouse listener, so cached view replays keep it
+/// alive and closing/unmounting the submenu drops it automatically.
+#[derive(Default)]
+struct ActiveSubmenus(Vec<(WindowId, Weak<Cell<Bounds<Pixels>>>)>);
+impl Global for ActiveSubmenus {}
+
+/// Whether `position` lies inside an open deferred submenu of `window`.
+pub(super) fn submenu_contains(position: Point<Pixels>, window: &Window, cx: &App) -> bool {
+    let Some(active) = cx.try_global::<ActiveSubmenus>() else {
+        return false;
+    };
+    let window_id = window.window_handle().window_id();
+    active.0.iter().any(|(id, weak)| {
+        *id == window_id && weak.upgrade().is_some_and(|b| b.get().contains(&position))
+    })
+}
+
+fn register_active_submenu(window: &Window, surface: &Rc<Cell<Bounds<Pixels>>>, cx: &mut App) {
+    let window_id = window.window_handle().window_id();
+    let weak = Rc::downgrade(surface);
+    if !cx.has_global::<ActiveSubmenus>() {
+        cx.set_global(ActiveSubmenus::default());
     }
+    cx.update_global::<ActiveSubmenus, _>(|active, _| {
+        active.0.retain(|(_, entry)| entry.strong_count() > 0);
+        active.0.push((window_id, weak));
+    });
+}
+/// Closes the submenus this row's siblings opened when the pointer moves
+/// onto it. Only a real move counts: a hover reported because the menu was
+/// laid out under a resting pointer must not close a submenu the keyboard
+/// opened.
+fn sibling_closer(menu: ElementId, keep: Option<WeakEntity<SubmenuState>>) -> impl IntoElement {
+    canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let (menu, keep) = (menu.clone(), keep.clone());
+            window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
+                if phase == DispatchPhase::Bubble && bounds.contains(&e.position) {
+                    let keep = keep.as_ref().and_then(WeakEntity::upgrade);
+                    OpenSubmenus::close_siblings(&menu, keep.as_ref(), cx);
+                }
+            });
+        },
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .size_full()
 }
 /// `.desktop-menu-item`.
 fn row(
@@ -841,14 +893,7 @@ fn row(
     let menu = menu.clone();
     let Some(submenu) = submenu else {
         return row
-            .on_hover({
-                let menu = menu.clone();
-                move |hovered, _, cx| {
-                    if *hovered {
-                        OpenSubmenus::close_siblings(&menu, None, cx);
-                    }
-                }
-            })
+            .child(sibling_closer(menu.clone(), None))
             .when_some(action.filter(|_| !disabled), |d, action| {
                 d.on_click(move |_, window, cx| {
                     cx.stop_propagation();
@@ -907,9 +952,6 @@ impl RenderOnce for SubmenuRow {
         let hover = {
             let state = state.clone();
             move |on_row: bool, hovered: bool, window: &mut Window, cx: &mut App| {
-                if on_row && hovered {
-                    OpenSubmenus::close_siblings(&menu, Some(&state), cx);
-                }
                 let epoch = state.update(cx, |s, cx| {
                     if on_row {
                         s.over_row = hovered;
@@ -944,10 +986,18 @@ impl RenderOnce for SubmenuRow {
         };
         let open = state.read(cx).open;
         let trigger = state.read(cx).trigger;
+        let corner_cell = Rc::new(Cell::new(point(
+            trigger.right() + px(4.),
+            trigger.top() - px(4.),
+        )));
         let measure = {
             let state = state.clone();
+            let corner_cell = corner_cell.clone();
             canvas(
-                move |bounds, _, cx| state.update(cx, |s, _| s.trigger = bounds),
+                move |bounds, _, cx| {
+                    corner_cell.set(point(bounds.right() + px(4.), bounds.top() - px(4.)));
+                    state.update(cx, |s, _| s.trigger = bounds);
+                },
                 |_, _, _, _| {},
             )
             .absolute()
@@ -963,6 +1013,7 @@ impl RenderOnce for SubmenuRow {
             // The trigger stays lit while its submenu is open (`data-open`).
             .when(open, |row| row.bg(t.hover).text_color(t.text))
             .child(measure)
+            .child(sibling_closer(menu.clone(), Some(state.downgrade())))
             .on_hover(move |hovered, window, cx| hover_row(true, *hovered, window, cx))
             .on_click(move |_, _, cx| {
                 cx.stop_propagation();
@@ -973,18 +1024,27 @@ impl RenderOnce for SubmenuRow {
             });
         if open {
             OpenSubmenus::register(&state, cx);
+            let mut menu = (self.build)(window, cx);
+            menu.dismiss_handler(self.dismiss);
+            let corner = corner_cell.get();
+            let surface = Rc::new(Cell::new(Bounds::default()));
+            register_active_submenu(window, &surface, cx);
+            let position_surface = surface.clone();
             // The submenu's own surface blocks the mouse for what is under
             // it, its host included, so the pointer is followed by its
-            // bounds: the host's hover would never see it.
-            let surface = {
-                let (measured, state) = (state.clone(), state.clone());
+            // bounds: the host's hover would never see it. The listener
+            // also keeps the bounds registered while the submenu is drawn.
+            let follow = {
+                let state = state.clone();
                 let hover = hover.clone();
                 canvas(
-                    move |bounds, _, cx| measured.update(cx, |s, _| s.surface = bounds),
+                    |_, _, _| {},
                     move |bounds, _, window, _| {
                         let state = state.clone();
                         let hover = hover.clone();
+                        let surface = surface.clone();
                         window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, cx| {
+                            let _keep_active = &surface;
                             if phase != DispatchPhase::Bubble {
                                 return;
                             }
@@ -1000,20 +1060,19 @@ impl RenderOnce for SubmenuRow {
                 .left_0()
                 .size_full()
             };
-            let mut menu = (self.build)(window, cx);
-            menu.dismiss_handler(self.dismiss);
-            let corner = point(trigger.right() + px(4.), trigger.top() - px(4.));
             row = row.child(
                 deferred(
                     Positioner::corner(Anchor::TopLeft, corner)
+                        .tracked_corner_position(corner_cell)
                         .margin(px(8.))
                         .occlude()
+                        .on_position(move |resolved| position_surface.set(resolved.bounds))
                         .child(
                             div()
                                 .id(child_id(&self.id, "submenu-host"))
                                 .relative()
                                 .child(menu.w(px(184.)))
-                                .child(surface),
+                                .child(follow),
                         ),
                 )
                 .with_priority(gpui_kit::base::POPUP_PRIORITY + 1),

@@ -39,9 +39,10 @@ pub(in crate::app) enum SessionEvent {
     /// The workbench drains and rebinds affected Working Copies without
     /// replacing their editor entities.
     ResourceOperation(FileOp),
-    /// The directory subscription failed (`service.watch`'s failure): the
-    /// workspace notice offers Retry.
-    WatchFailed(String),
+    /// The directory subscription failed (`service.watch`'s failure), or a
+    /// background reread of the root did: the shell reconnects a hosted
+    /// Project whose lease ended, else its notice offers Retry.
+    WatchFailed(crate::workspace::Error),
     /// A later change arrived: the subscription works again.
     WatchRecovered,
     /// The working tree changed under the granted root (the root watcher's
@@ -220,7 +221,7 @@ impl ExplorerSession {
                 for node in nodes {
                     if !node.folder {
                         out.push(Document {
-                            path: node.path.to_string_lossy().into_owned(),
+                            path: node.path.to_string_lossy().replace('\\', "/"),
                             name: node.name.clone(),
                         });
                     }
@@ -237,7 +238,7 @@ impl ExplorerSession {
                 .insert(owner.clone(), (tree.revision, index));
         }
         Some(ReferenceContext {
-            source: path.to_string_lossy().into_owned(),
+            source: path.to_string_lossy().replace('\\', "/"),
             index: self.references[&owner].1.clone(),
         })
     }
@@ -326,7 +327,7 @@ impl ExplorerSession {
             // watch has nothing to report.
             Err(error) => {
                 if error.kind != crate::workspace::ErrorKind::Unsupported {
-                    cx.emit(SessionEvent::WatchFailed(error.to_string()));
+                    cx.emit(SessionEvent::WatchFailed(error));
                 }
                 return;
             }
@@ -351,7 +352,7 @@ impl ExplorerSession {
                             }
                         }
                         Some(WatchEvent::Failed(error)) => {
-                            cx.emit(SessionEvent::WatchFailed(error.to_string()))
+                            cx.emit(SessionEvent::WatchFailed(error))
                         }
                         None => {}
                     }
@@ -409,14 +410,10 @@ impl ExplorerSession {
                         Ok(nodes) => s
                             .tree
                             .refresh_folders(vec![(folder.clone(), nodes)], vec![]),
-                        Err(error)
-                            if folder.as_os_str().is_empty()
-                                && error.kind == crate::workspace::ErrorKind::StaleLease =>
-                        {
-                            cx.emit(SessionEvent::WatchFailed(error.to_string()))
-                        }
+                        // A background reread: never a dialog, the tree
+                        // keeps what it showed.
                         Err(error) if folder.as_os_str().is_empty() => {
-                            cx.emit(SessionEvent::Error(error.to_string()))
+                            cx.emit(SessionEvent::WatchFailed(error))
                         }
                         Err(error) => s
                             .tree

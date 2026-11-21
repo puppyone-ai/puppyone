@@ -290,6 +290,16 @@ pub fn resolve_public_endpoint(href: &str) -> Result<ValidatedEndpoint, SharedSt
         .to_socket_addrs()
         .map_err(|_| SharedString::from("Unable to resolve host"))?
         .collect();
+    pinned_endpoint(url, host, addrs)
+}
+
+/// The endpoint `addrs` resolved to, only when there is one and every
+/// address is public: one private answer fails the whole resolution.
+fn pinned_endpoint(
+    url: url::Url,
+    host: String,
+    addrs: Vec<SocketAddr>,
+) -> Result<ValidatedEndpoint, SharedString> {
     if addrs.is_empty() {
         return Err("Unable to resolve host".into());
     }
@@ -429,6 +439,31 @@ mod tests {
                 verify_workspace_file(ws.path(), Path::new("escape.png"), 1024),
                 Err(AssetFailure::Blocked)
             );
+        }
+    }
+
+    #[test]
+    fn one_private_dns_answer_fails_the_whole_resolution() {
+        // `fails closed when DNS returns any non-public endpoint`.
+        let url = url::Url::parse("https://embed.example/").unwrap();
+        let resolve = |addrs: &[&str]| {
+            pinned_endpoint(
+                url.clone(),
+                "embed.example".into(),
+                addrs.iter().map(|a| a.parse().unwrap()).collect(),
+            )
+        };
+        assert!(resolve(&["93.184.216.34:443"]).is_ok());
+        assert!(resolve(&["93.184.216.34:443", "10.0.0.1:443"]).is_err());
+        assert!(resolve(&["[::1]:443"]).is_err());
+        assert!(resolve(&[]).is_err());
+        // Loopback aliases and IPv4-mapped IPv6 never reach DNS.
+        for href in [
+            "https://localhost./",
+            "https://LOCALHOST/",
+            "https://[::ffff:127.0.0.1]/",
+        ] {
+            assert!(allowed_https_url(href).is_none(), "{href}");
         }
     }
 

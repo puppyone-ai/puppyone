@@ -364,6 +364,9 @@ impl Shell {
             DialogEvent::OpenImport => {
                 self.home.update(cx, |h, cx| h.begin_import(window, cx));
             }
+            DialogEvent::CreateSpace => self
+                .cloud
+                .update(cx, |c, cx| c.open_create_space(window, cx)),
             DialogEvent::FolderSharing { folder, name } => {
                 let target = super::super::host_sharing::Target::Settings {
                     folder: folder.clone(),
@@ -500,6 +503,8 @@ impl Shell {
                     .session
                     .update(cx, |e, cx| e.refresh_published(cx));
                 self.session.docs.update(cx, |d, _| d.observe_publication());
+                let history = self.sidebar.read(cx).cloud_history.clone();
+                history.update(cx, |h, cx| h.refresh_published(cx));
             }
             SidebarEvent::Closed => self.frame.focus.focus(window, cx),
             SidebarEvent::GitFailure => return self.git_failure(cx),
@@ -741,20 +746,35 @@ impl Shell {
                 }
             }
             SessionEvent::Error(error) => self.show_error(error.clone(), cx),
+            // A hosted Project's subscription ends with its lease, and the
+            // pump reopens it quietly; what is wrong with any other
+            // workspace floats with its Retry. Never a dialog.
             SessionEvent::WatchFailed(error) => {
-                let error = error.clone();
-                self.session
-                    .project
-                    .update(cx, |p, _| p.record.notice = Some(error))
+                if self.hosted_project(cx).is_some() {
+                    crate::platform::diagnostics::note(
+                        "[cloud-recovery] tree subscription ended",
+                        &[("kind", &format!("{:?}", error.kind))],
+                    );
+                } else {
+                    let error = error.to_string();
+                    self.session
+                        .project
+                        .update(cx, |p, _| p.record.notice = Some(error))
+                }
             }
             SessionEvent::WatchRecovered => self
                 .session
                 .project
                 .update(cx, |p, _| p.record.notice = None),
-            // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
+            // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`;
+            // in a hosted Project, History settles after the activity.
             SessionEvent::ContentChanged => {
                 let source_control = self.sidebar.read(cx).source_control.clone();
                 source_control.update(cx, |sc, cx| sc.working_tree_changed(cx));
+                if self.hosted_project(cx).is_some() {
+                    let history = self.sidebar.read(cx).cloud_history.clone();
+                    history.update(cx, |h, cx| h.file_activity(cx));
+                }
             }
         }
         self.receive(window, cx);

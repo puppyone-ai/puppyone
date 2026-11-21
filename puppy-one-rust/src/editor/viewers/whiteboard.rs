@@ -19,7 +19,7 @@
 use super::{
     code,
     html_visual::script_json,
-    web::{WebFrame, parse_find_result},
+    web::{WebFallbackAction, WebFrame, parse_find_result},
 };
 use crate::{
     editor::{
@@ -92,6 +92,22 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
         view.start_load(viewer_packs::load_excalidraw, cx)
     });
     Box::new(surface)
+}
+
+/// The board over a stand-in pack: the host protocol without the SDK.
+#[cfg(test)]
+pub(crate) fn open_with_fixture_pack(
+    request: &SurfaceRequest,
+    window: &mut Window,
+    cx: &mut App,
+) -> Box<dyn ViewerSurface> {
+    let pack = ExcalidrawPack {
+        version: "fixture".into(),
+        script: Arc::from([]),
+        style: Arc::from([]),
+        dir: std::env::temp_dir(),
+    };
+    Box::new(open_with_pack(request, Some(pack), window, cx))
 }
 
 fn open_with_pack(
@@ -179,6 +195,9 @@ struct WhiteboardView {
     dark: bool,
     ready: bool,
     generation: u64,
+    /// The page edited since it took its text: the undo history exists only
+    /// in the SDK, so the page is kept from eviction (`VW-20`, `WB-01`).
+    history: bool,
     active: bool,
     references: Option<ReferenceContext>,
     assets: Option<DocumentAssets>,
@@ -203,6 +222,7 @@ impl WhiteboardView {
             dark,
             ready: false,
             generation: 1,
+            history: false,
             active: true,
             references: None,
             assets: None,
@@ -236,7 +256,21 @@ impl WhiteboardView {
         let (tx, rx) = async_channel::unbounded::<String>();
         let content = self.content(pack, Ipc(tx));
         self.ready = false;
-        self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
+        self.history = false;
+        let weak = cx.weak_entity();
+        let weak_source = cx.weak_entity();
+        self.frame = Some(cx.new(|_| {
+            let mut frame = WebFrame::new(Some(content), self.dark);
+            // The per-window engine cap may release the page while hidden; the
+            // recreated page boots from the current entry and reports ready.
+            frame.set_on_recreated(Some(Rc::new(move |cx| {
+                let _ = weak.update(cx, |view, _| view.ready = false);
+            })));
+            frame.set_fallback_actions(vec![WebFallbackAction::view_source(move |_, cx| {
+                let _ = weak_source.update(cx, |_, cx| cx.emit(Asked::ViewSource));
+            })]);
+            frame
+        }));
         self._inbox = Some(cx.spawn(async move |this, cx| {
             while let Ok(body) = rx.recv().await {
                 if let Some((current, total)) = parse_find_result(&body) {
@@ -252,7 +286,9 @@ impl WhiteboardView {
         cx.notify();
     }
 
-    fn content(&self, pack: ExcalidrawPack, ipc: Ipc) -> Content {
+    /// The page a recreated engine boots: the document, its input state and
+    /// generation as they are now.
+    fn entry(&self) -> String {
         let boot = serde_json::json!({
             "text": self.text,
             "name": Path::new(&self.name).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -265,13 +301,24 @@ impl WhiteboardView {
             "messages": crate::localization::messages(&["editor.whiteboard.", "common.", "shared-ui.", "editor.html."]),
             "assets": self.assets.is_some(),
         });
+        page(&boot, self.dark)
+    }
+
+    fn sync_entry(&self, cx: &mut Context<Self>) {
+        if let Some(frame) = &self.frame {
+            let entry = self.entry();
+            frame.update(cx, |f, _| f.update_entry_html(entry));
+        }
+    }
+
+    fn content(&self, pack: ExcalidrawPack, ipc: Ipc) -> Content {
         Content {
             root: None,
             source: self
                 .assets
                 .as_ref()
                 .map(|a| Source(Arc::new(Workspace(a.read.clone())) as Arc<dyn ResourceSource>)),
-            entry: Entry::Html(page(&boot, self.dark)),
+            entry: Entry::Html(self.entry()),
             max_bytes: EMBED_MAX_BYTES,
             assets: Vec::new(),
             ipc: Some(ipc),
@@ -362,6 +409,8 @@ impl WhiteboardView {
                     && text != self.text
                 {
                     self.text = text;
+                    self.hold_history(true, cx);
+                    self.sync_entry(cx);
                     cx.emit(Asked::Changed);
                 }
             }
@@ -413,6 +462,9 @@ impl WhiteboardView {
         }
         self.text = text.to_owned();
         self.advance_generation();
+        // The reset replaces the scene and the SDK's history with it.
+        self.hold_history(false, cx);
+        self.sync_entry(cx);
         if self.pack.is_some() {
             self.post_state(
                 serde_json::json!({ "type": "reset", "text": text, "generation": self.generation }),
@@ -429,8 +481,18 @@ impl WhiteboardView {
         }
         self.active = active;
         self.advance_generation();
+        self.sync_entry(cx);
         if self.pack.is_some() {
             self.post_state(serde_json::json!({ "type": "enabled", "value": self.enabled && active, "generation": self.generation }), cx);
+        }
+    }
+
+    fn hold_history(&mut self, held: bool, cx: &mut Context<Self>) {
+        if self.history != held {
+            self.history = held;
+            if let Some(frame) = &self.frame {
+                frame.update(cx, |f, _| f.set_pinned(held));
+            }
         }
     }
 
@@ -447,11 +509,12 @@ impl WhiteboardView {
     fn apply(&mut self, read_only: bool, dark: bool, cx: &mut Context<Self>) {
         let enabled = !read_only;
         let changed = enabled != self.enabled;
+        let restyled = dark != self.dark;
         self.enabled = enabled;
         if changed {
             self.advance_generation();
         }
-        if dark != self.dark {
+        if restyled {
             self.dark = dark;
             if self.pack.is_none() {
                 self.enabled = enabled;
@@ -465,6 +528,9 @@ impl WhiteboardView {
                 self.show(cx);
                 return;
             }
+        }
+        if changed || restyled {
+            self.sync_entry(cx);
         }
         if changed && self.pack.is_some() {
             self.post_state(
@@ -489,7 +555,8 @@ fn theme_css(dark: bool) -> String {
 }
 
 /// The native acceptance process uses the same boot document and assets as the viewer.
-#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+#[cfg(feature = "dev-capture")]
+#[allow(dead_code)]
 pub(crate) fn probe_content(pack: ExcalidrawPack, text: String, ipc: Ipc) -> Content {
     WhiteboardView::new("board.excalidraw".into(), None, text, false).content(pack, ipc)
 }
@@ -520,7 +587,36 @@ struct WhiteboardSurface {
     host: Entity<WhiteboardHost>,
 }
 
+#[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+impl crate::editor::registry::SurfaceTestProbe for WhiteboardSurface {
+    #[cfg(any(test, feature = "test-support"))]
+    fn page_deliver(&self, body: &str, cx: &mut App) -> bool {
+        let Ok(message) = serde_json::from_str::<Inbound>(body) else {
+            return false;
+        };
+        self.board.update(cx, |view, cx| view.receive(message, cx));
+        true
+    }
+    #[cfg(any(test, feature = "test-support"))]
+    fn page_generation(&self, cx: &App) -> Option<u64> {
+        Some(self.board.read(cx).generation)
+    }
+    #[cfg(test)]
+    fn page_entry(&self, cx: &App) -> Option<String> {
+        let frame = self.board.read(cx).frame.clone()?;
+        frame.read(cx).entry_html().map(str::to_owned)
+    }
+    #[cfg(test)]
+    fn page_view(&self) -> Option<AnyEntity> {
+        Some(self.board.clone().into())
+    }
+}
+
 impl ViewerSurface for WhiteboardSurface {
+    #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
+    fn as_test_probe(&self) -> Option<&dyn crate::editor::registry::SurfaceTestProbe> {
+        Some(self)
+    }
     fn set_reference_context(&self, context: Option<ReferenceContext>, cx: &mut App) {
         self.board.update(cx, |view, _| view.references = context);
     }
@@ -577,6 +673,9 @@ impl ViewerSurface for WhiteboardSurface {
     }
     fn composing(&self, cx: &App) -> bool {
         self.mode.get() == Mode::Source && self.source.composing(cx)
+    }
+    fn holds_page_history(&self, cx: &App) -> bool {
+        self.board.read(cx).history
     }
     fn replace_text(&self, text: &str, window: &mut Window, cx: &mut App) {
         self.source.replace_text(text, window, cx);

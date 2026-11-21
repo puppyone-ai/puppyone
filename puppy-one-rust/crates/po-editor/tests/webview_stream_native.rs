@@ -1,7 +1,10 @@
-#![cfg(all(target_os = "macos", feature = "dev-capture"))]
+#![cfg(all(
+    any(target_os = "macos", target_os = "windows"),
+    feature = "dev-capture"
+))]
 
 #[test]
-#[ignore = "requires the macOS WebKit processes; run the native-stream acceptance gate"]
+#[ignore = "requires macOS WebKit or Windows WebView2 runtime; run the native-stream acceptance gate"]
 fn real_webkit_streams_ranges_and_retires_cancelled_or_closed_tasks() {
     let profile = tempfile::tempdir().unwrap();
     let output = po_platform::platform::process::run_output(
@@ -19,7 +22,8 @@ fn real_webkit_streams_ranges_and_retires_cancelled_or_closed_tasks() {
     .unwrap();
     let receipt: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(receipt["passed"], true, "{receipt}");
-    for key in [
+    #[cfg(target_os = "macos")]
+    let required: &[&str] = &[
         "ephemeral",
         "range",
         "head",
@@ -29,7 +33,10 @@ fn real_webkit_streams_ranges_and_retires_cancelled_or_closed_tasks() {
         "close",
         "generationFence",
         "shortReadFails",
-    ] {
+    ];
+    #[cfg(target_os = "windows")]
+    let required: &[&str] = &["ephemeral", "range", "head", "unsatisfiable", "ipc"];
+    for key in required {
         assert_eq!(
             receipt[key], true,
             "missing native acceptance: {key}: {receipt}"

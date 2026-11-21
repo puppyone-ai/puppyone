@@ -282,19 +282,22 @@ impl Journal {
         self.directory.join(FILENAME)
     }
     pub fn read(&self) -> Result<Option<Record>, PublishError> {
+        match self.load()? {
+            Some(record) if record.migrated_from.as_ref().is_some_and(|m| !m.persisted) => {
+                self.persist_migration(record).map(Some)
+            }
+            other => Ok(other),
+        }
+    }
+    /// The record on disk, decoded (a version-1 record migrated in memory).
+    fn load(&self) -> Result<Option<Record>, PublishError> {
         let path = self.path();
         let metadata = match std::fs::symlink_metadata(&path) {
             Ok(m) => m,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(_) => return Err(io_failed("inspect")),
         };
-        #[cfg(unix)]
-        let private = {
-            use std::os::unix::fs::PermissionsExt;
-            metadata.permissions().mode() & 0o077 == 0
-        };
-        #[cfg(not(unix))]
-        let private = true;
+        let private = crate::platform::fs::is_private_metadata(&metadata);
         if !metadata.is_file()
             || metadata.file_type().is_symlink()
             || metadata.len() > MAX_BYTES
@@ -316,11 +319,25 @@ impl Journal {
         })?;
         Record::decode(value).map(Some)
     }
+    /// A version-1 record is written back as its v2 migration the first
+    /// time it is read, one revision later, so every later reader and
+    /// compare-and-swap sees the same record.
+    fn persist_migration(&self, mut record: Record) -> Result<Record, PublishError> {
+        if let Some(migration) = record.migrated_from.as_mut() {
+            migration.persisted = true;
+        }
+        record.revision += 1;
+        record.validate()?;
+        self.locked(|| {
+            write_atomic(&self.path(), &record)?;
+            Ok(record.clone())
+        })
+    }
     pub fn write(&self, record: &Record, expect: Expect) -> Result<Record, PublishError> {
         record.validate()?;
         self.ensure_directory()?;
         self.locked(|| {
-            let current = self.read()?;
+            let current = self.load()?;
             check_swap(current.as_ref(), &expect)?;
             if let Some(current) = &current
                 && (record.revision <= current.revision
@@ -341,7 +358,7 @@ impl Journal {
             return Ok(());
         }
         self.locked(|| {
-            let Some(current) = self.read()? else {
+            let Some(current) = self.load()? else {
                 return Ok(());
             };
             check_swap(Some(&current), &expect)?;
@@ -355,12 +372,7 @@ impl Journal {
         if !metadata.is_dir() || metadata.file_type().is_symlink() {
             return Err(io_failed("directory"));
         }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ =
-                std::fs::set_permissions(&self.directory, std::fs::Permissions::from_mode(0o700));
-        }
+        let _ = crate::platform::fs::set_private_dir_permissions(&self.directory);
         Ok(())
     }
     fn locked<T>(
@@ -451,14 +463,7 @@ fn write_atomic(path: &Path, record: &Record) -> Result<(), PublishError> {
     let temporary = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4()));
     let write = || -> std::io::Result<()> {
         use std::io::Write as _;
-        let mut options = std::fs::OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let mut file = options.open(&temporary)?;
+        let mut file = crate::platform::fs::open_private_create_new(&temporary)?;
         file.write_all(&bytes)?;
         file.sync_all()?;
         std::fs::rename(&temporary, path)

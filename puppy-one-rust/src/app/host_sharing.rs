@@ -34,6 +34,13 @@ pub(super) struct HostSharing {
     pending: bool,
     error: Option<String>,
     ask: Option<Ask>,
+    /// Who was signed in (and which sign-in) when it was asked: an answer
+    /// given under anyone else changes nothing.
+    account: Option<(String, u64)>,
+}
+/// The account and sign-in a sharing answer is given under.
+fn signed_in(cx: &App) -> Option<(String, u64)> {
+    crate::features::cloud::account::broker_and_binding(cx).map(|(_, b)| (b.user, b.epoch))
 }
 
 impl WindowCloud {
@@ -56,6 +63,7 @@ impl WindowCloud {
             pending: false,
             error: None,
             ask: stop.then_some(Ask::Stop),
+            account: signed_in(cx),
         });
         self.open_dialog(DialogKey::HostSharing, cx);
         self.dialog_focus.focus(window, cx);
@@ -102,6 +110,11 @@ impl WindowCloud {
         let Some(ask) = sharing.ask.clone() else {
             return;
         };
+        // Another account, or another sign-in, since it was asked: the
+        // question is no longer the one answered.
+        if signed_in(cx) != sharing.account {
+            return self.close_host_sharing(cx);
+        }
         if let Some(s) = self.host_sharing.as_mut() {
             s.pending = true;
             s.error = None;

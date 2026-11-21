@@ -18,6 +18,13 @@ mod parity_tests;
 /// `interface-style-manifest.json`, `useFirstRunSignIn.ts`).
 mod keys {
     pub const APPEARANCE: &str = "puppyone.desktop.appearance";
+    /// Before the canonical document: `legacyAppearancePreferences` and the
+    /// separate keys `readLegacyAppearanceSnapshot` reads.
+    pub const LEGACY_APPEARANCE: &str = "puppyone.desktop.appearance.v2";
+    pub const INTERFACE_STYLE: &str = "puppyone.desktop.interfaceStyle";
+    pub const LEGACY_PRESET: &str = "puppyone.desktop.themePreset";
+    pub const SURFACE_THEMES: &str = "puppyone.desktop.surfaceThemes";
+    pub const TEXT_SIZE: &str = "puppyone.desktop.textSize";
     pub const THEME: &str = "puppyone.desktop.theme";
     pub const LIGHT_PRESET: &str = "puppyone.desktop.lightThemePreset";
     pub const DARK_PRESET: &str = "puppyone.desktop.darkThemePreset";
@@ -74,7 +81,11 @@ pub fn import(data: &ElectronData) -> Preferences {
         p.locale = language.clone();
     }
 
-    appearance(&mut p, object(keys::APPEARANCE), &get);
+    appearance(
+        &mut p,
+        object(keys::APPEARANCE).or_else(|| object(keys::LEGACY_APPEARANCE)),
+        &get,
+    );
     p.create_new = crate::features::create_new::MenuSettings::from_electron(get(keys::CREATE_NEW));
 
     // `readInitialHomepageProjectLayout` / `…Sort`: the stored word, else Grid
@@ -244,62 +255,145 @@ fn explorer_pins(
 
 /// `appearancePreferences.ts`: the v6 document, else the legacy keys it
 /// migrates from. Only the default interface is native (D-6).
+/// `readAppearancePreferences` for the Default root theme: a schema-6
+/// document as it is, an older one (or the `appearance.v2` document)
+/// migrated, and no document — or a newer one this release cannot read —
+/// from the separate legacy keys.
 fn appearance<'a>(
     p: &mut Preferences,
     document: Option<Value>,
     get: &dyn Fn(&str) -> Option<&'a str>,
 ) {
-    let theme_mode = |value: Option<&str>| match value {
-        Some("light") => Some(ThemeMode::Light),
-        Some("dark") => Some(ThemeMode::Dark),
-        Some("system") => Some(ThemeMode::System),
-        _ => None,
+    let mode_of = |value: Option<&str>| match value {
+        Some("light") => ThemeMode::Light,
+        Some("dark") => ThemeMode::Dark,
+        _ => ThemeMode::System,
     };
     // Installed (`local.*`) ids are kept: the Themes Folder may hold them.
     let pack = |id: Option<&str>| id.and_then(super::preference_types::normalize_sub_theme_id);
-    let current = document.filter(|d| d.get("schemaVersion").and_then(Value::as_u64) == Some(6));
-    let (mode, light, dark) = match &current {
-        Some(d) => {
-            let root = d
-                .get("byRootTheme")
-                .and_then(|r| r.get("default"))
-                .cloned()
-                .unwrap_or(Value::Null);
-            let ids = root.get("requestedSubThemeIds");
-            (
-                theme_mode(root.get("requestedColorMode").and_then(Value::as_str)),
-                pack(ids.and_then(|i| i.get("light")).and_then(Value::as_str)),
-                pack(ids.and_then(|i| i.get("dark")).and_then(Value::as_str)),
-            )
-        }
-        // `createLegacyRequestedSubThemeIds`: Warm and Graphite presets have
-        // their own Sub Themes; any other preset was Neutral.
+    let neutral = || {
+        (
+            crate::theme::DEFAULT_PACK.to_owned(),
+            crate::theme::DEFAULT_PACK.to_owned(),
+        )
+    };
+    // `readLegacyAppearanceSnapshot`.
+    let legacy_mode = mode_of(get(keys::THEME));
+    let legacy_light = light_preset(get(keys::LIGHT_PRESET).or_else(|| get(keys::LEGACY_PRESET)))
+        .unwrap_or("neutral")
+        .to_owned();
+    let legacy_dark = dark_preset(get(keys::DARK_PRESET))
+        .unwrap_or("default")
+        .to_owned();
+    let surface_theme = legacy_surface_theme(get(keys::SURFACE_THEMES));
+    let legacy_default = |style: Option<&str>| style != Some("windows-xp");
+    // `resolveLegacyDefaultSubThemes`: Warm and Graphite presets have their
+    // own Sub Themes; any other preset was Neutral.
+    let preset_ids = |light: &str, dark: &str| match &surface_theme {
+        Some(id) => (id.clone(), id.clone()),
         None => {
-            let preset = |key: &str| {
-                get(key).map(|p| match p {
-                    "warm" => "default.warm".to_owned(),
-                    "graphite" => "default.graphite".to_owned(),
-                    _ => crate::theme::DEFAULT_PACK.to_owned(),
-                })
+            let id = |preset: &str| match preset {
+                "warm" => "default.warm".to_owned(),
+                "graphite" => "default.graphite".to_owned(),
+                _ => crate::theme::DEFAULT_PACK.to_owned(),
             };
-            (
-                theme_mode(get(keys::THEME)),
-                preset(keys::LIGHT_PRESET),
-                preset(keys::DARK_PRESET),
-            )
+            (id(light), id(dark))
         }
     };
-    if let Some(mode) = mode {
-        p.theme_mode = mode;
-    }
+    // `readRootThemePreferences` for `default`.
+    let root = |value: &Value, fallback: ThemeMode, by_style: bool| {
+        let single = pack(text(value.get("requestedSubThemeId")).or(text(value.get("subThemeId"))));
+        let by_mode = value.get("requestedSubThemeIds");
+        let id = |mode: &str| {
+            pack(text(by_mode.and_then(|m| m.get(mode))))
+                .or_else(|| single.clone())
+                .unwrap_or_else(|| crate::theme::DEFAULT_PACK.to_owned())
+        };
+        let mode = text(value.get("requestedColorMode"))
+            .or_else(|| by_style.then(|| text(value.get("themeMode"))).flatten());
+        (
+            mode.map_or(fallback, |m| mode_of(Some(m))),
+            id("light"),
+            id("dark"),
+        )
+    };
+    let document = document.filter(Value::is_object);
+    let version = document
+        .as_ref()
+        .and_then(|d| d.get("schemaVersion"))
+        .and_then(Value::as_u64);
+    let (requested, shared, text_size) = match (&document, version) {
+        // `normalizeV6`.
+        (Some(d), Some(6)) => {
+            let active = text(d.get("activeRootThemeId")).or(get(keys::INTERFACE_STYLE));
+            let requested = match d.get("byRootTheme").and_then(|r| r.get("default")) {
+                Some(value) if value.is_object() => root(value, legacy_mode, false),
+                _ if legacy_default(active) => {
+                    let (light, dark) = preset_ids(&legacy_light, &legacy_dark);
+                    (legacy_mode, light, dark)
+                }
+                _ => {
+                    let (light, dark) = neutral();
+                    (ThemeMode::System, light, dark)
+                }
+            };
+            (requested, d.get("shared").cloned(), None)
+        }
+        // `migrateLegacyDocument`.
+        (Some(d), version) if version.is_none_or(|v| v < 6) => {
+            let shared = d
+                .get("shared")
+                .filter(|s| s.is_object())
+                .cloned()
+                .unwrap_or_else(|| d.clone());
+            let active = text(d.get("activeRootThemeId"))
+                .or(text(d.get("activeStyle")))
+                .or(text(d.get("style")))
+                .or(get(keys::INTERFACE_STYLE));
+            let mode = mode_of(text(shared.get("themeMode")).or(get(keys::THEME)));
+            let (light, dark) = preset_ids(
+                light_preset(text(shared.get("lightThemePreset"))).unwrap_or(&legacy_light),
+                dark_preset(text(shared.get("darkThemePreset"))).unwrap_or(&legacy_dark),
+            );
+            let remembered = match d.get("byRootTheme") {
+                Some(roots) if roots.is_object() => roots
+                    .get("default")
+                    .filter(|r| r.is_object())
+                    .map(|r| root(r, mode, false)),
+                _ => d
+                    .get("byStyle")
+                    .and_then(|s| s.get("default"))
+                    .filter(|r| r.is_object())
+                    .map(|r| root(r, mode, true)),
+            };
+            let requested = remembered.unwrap_or_else(|| {
+                if legacy_default(active) {
+                    (mode, light, dark)
+                } else {
+                    let (light, dark) = neutral();
+                    (ThemeMode::System, light, dark)
+                }
+            });
+            let size = text(shared.get("textSize")).map(str::to_owned);
+            (requested, Some(shared), size)
+        }
+        // `fromLegacy`: no document, or one newer than this release.
+        _ => {
+            let requested = if legacy_default(get(keys::INTERFACE_STYLE)) {
+                let (light, dark) = preset_ids(&legacy_light, &legacy_dark);
+                (legacy_mode, light, dark)
+            } else {
+                let (light, dark) = neutral();
+                (ThemeMode::System, light, dark)
+            };
+            (requested, None, get(keys::TEXT_SIZE).map(str::to_owned))
+        }
+    };
+    let (mode, light, dark) = requested;
+    p.theme_mode = mode;
     // Light and Dark selections are remembered independently.
-    if let Some(id) = light {
-        p.sub_theme_ids.light = id;
-    }
-    if let Some(id) = dark {
-        p.sub_theme_ids.dark = id;
-    }
-    let shared = current.as_ref().and_then(|d| d.get("shared")).cloned();
+    p.sub_theme_ids.light = light;
+    p.sub_theme_ids.dark = dark;
     let typography = shared
         .as_ref()
         .and_then(|s| s.get("typography"))
@@ -307,6 +401,13 @@ fn appearance<'a>(
         .or_else(|| get(keys::TYPOGRAPHY).map(str::to_owned));
     if let Some(typography) = typography {
         (p.fonts, p.text_scale) = crate::typography::fonts::parse_preferences(Some(&typography));
+    }
+    // `migrateLegacyContentSize`: the retired content-size switch, only
+    // before schema 6.
+    match text_size.as_deref() {
+        Some("small") => p.text_scale = crate::typography::Scale::Small,
+        Some("large") => p.text_scale = crate::typography::Scale::Large,
+        _ => {}
     }
     let shared_bool = |key: &str| {
         shared
@@ -329,11 +430,42 @@ fn appearance<'a>(
             .and_then(Value::as_str)
             .map(str::to_owned)
     };
+    // `parseFileIconThemeId`: a retired id becomes its replacement.
     if let Some(theme) =
         shared_str("fileIconTheme").or(get(keys::FILE_ICON_THEME).map(str::to_owned))
     {
-        p.file_icon_theme = theme;
+        p.file_icon_theme = crate::file_kind::parse_theme(Some(&theme))
+            .unwrap_or(crate::file_kind::default_theme())
+            .into();
     }
+}
+
+fn text(value: Option<&Value>) -> Option<&str> {
+    value.and_then(Value::as_str)
+}
+/// `isLightThemePreset`, `isDarkThemePreset`.
+fn light_preset(value: Option<&str>) -> Option<&str> {
+    value.filter(|v| matches!(*v, "neutral" | "warm" | "graphite"))
+}
+fn dark_preset(value: Option<&str>) -> Option<&str> {
+    value.filter(|v| matches!(*v, "default" | "warm" | "graphite"))
+}
+/// `readLegacySurfaceSubThemeId`: one Sub Theme chosen for all three
+/// surfaces (version 1), never the managed Custom CSS id.
+fn legacy_surface_theme(value: Option<&str>) -> Option<String> {
+    let parsed: Value = serde_json::from_str(value?).ok()?;
+    if parsed.get("version").and_then(Value::as_u64) != Some(1) {
+        return None;
+    }
+    let ids: Vec<String> = ["application", "markdown", "csv"]
+        .iter()
+        .filter_map(|surface| parsed.get(*surface).and_then(Value::as_str))
+        .filter_map(super::preference_types::normalize_sub_theme_id)
+        .collect();
+    (ids.len() == 3
+        && ids.iter().all(|id| *id == ids[0])
+        && ids[0] != crate::platform::themes::service::LEGACY_CUSTOM_THEME_ID)
+        .then(|| ids[0].clone())
 }
 
 /// `parseExperimentalSettings` (and the Project Switcher Rail, which the
@@ -435,6 +567,97 @@ mod tests {
         assert!(!p.header_changes && p.header_terminal);
     }
 
+    /// `appearance profile architecture`: every schema of the product's
+    /// Appearance document, the pre-document keys, and a document newer than
+    /// this release, as `readAppearancePreferences` resolves them for the
+    /// Default root theme.
+    #[test]
+    fn appearance_documents_of_every_schema_migrate_like_the_product() {
+        let doc = |text: &str| import(&data(&[(keys::APPEARANCE, text)]));
+        // Schema 2: the Default style's remembered Sub Theme and mode, even
+        // while another style was active.
+        let p = doc(r#"{"schemaVersion":2,"activeStyle":"windows-xp",
+            "shared":{"sidebarNavigationLayout":"left-vertical","themeMode":"dark"},
+            "byStyle":{"default":{"subThemeId":"builtin.pack.github","themeMode":"dark"},
+                       "windows-xp":{"subThemeId":"windows-xp.luna-blue","themeMode":"light"}},
+            "bySurface":{"markdown":{"headingScale":"large"}}}"#);
+        assert_eq!(p.theme_mode, ThemeMode::Dark);
+        assert_eq!(
+            (
+                p.sub_theme_ids.light.as_str(),
+                p.sub_theme_ids.dark.as_str()
+            ),
+            ("default.github", "default.github")
+        );
+        // Schema 1 keeps everything at the top level.
+        assert_eq!(
+            doc(r#"{"schemaVersion":1,"style":"default","navigationLayout":"left-vertical","themeMode":"light"}"#)
+                .theme_mode,
+            ThemeMode::Light
+        );
+        // The retired content size becomes the typography scale before 6 ...
+        let p = doc(r#"{"schemaVersion":5,"activeRootThemeId":"default",
+            "shared":{"textSize":"large","typography":{"version":4,"contentFont":{"mode":"follow-theme"}}},
+            "byRootTheme":{},"bySurface":{}}"#);
+        assert_eq!(p.text_scale, crate::typography::Scale::Large);
+        // ... and is ignored once a schema-6 document exists.
+        let p = doc(r#"{"schemaVersion":6,"activeRootThemeId":"default",
+            "shared":{"textSize":"large","typography":{"version":11,"scale":"medium"},
+                      "pointerCursors":false,"fileIconTheme":"vscode"},
+            "byRootTheme":{},"bySurface":{}}"#);
+        assert_eq!(p.text_scale, crate::typography::Scale::Medium);
+        // A retired file-icon theme id is migrated inside the document.
+        assert_eq!(p.file_icon_theme, "default");
+        // Legacy Light and Dark presets become independent memories.
+        let p = import(&data(&[
+            (keys::LIGHT_PRESET, "warm"),
+            (keys::DARK_PRESET, "graphite"),
+        ]));
+        assert_eq!(
+            (
+                p.sub_theme_ids.light.as_str(),
+                p.sub_theme_ids.dark.as_str()
+            ),
+            ("default.warm", "default.graphite")
+        );
+        // A document newer than this release is not read: the legacy keys
+        // decide, and the Default style.
+        let p = import(&data(&[
+            (
+                keys::APPEARANCE,
+                r#"{"schemaVersion":99,"activeStyle":"future-style","shared":{}}"#,
+            ),
+            (keys::THEME, "dark"),
+        ]));
+        assert_eq!(p.theme_mode, ThemeMode::Dark);
+        assert_eq!(p.sub_theme_ids.dark, crate::theme::DEFAULT_PACK);
+        // The pre-canonical document, the legacy content size, and one Sub
+        // Theme chosen for every surface.
+        let p = import(&data(&[(
+            keys::LEGACY_APPEARANCE,
+            r#"{"schemaVersion":3,"shared":{"themeMode":"light","lightThemePreset":"graphite"}}"#,
+        )]));
+        assert_eq!(
+            (p.theme_mode, p.sub_theme_ids.light.as_str()),
+            (ThemeMode::Light, "default.graphite")
+        );
+        let p = import(&data(&[
+            (keys::TEXT_SIZE, "small"),
+            (
+                keys::SURFACE_THEMES,
+                r#"{"version":1,"application":"default.github","markdown":"builtin.pack.github","csv":"default.github"}"#,
+            ),
+        ]));
+        assert_eq!(p.text_scale, crate::typography::Scale::Small);
+        assert_eq!(
+            (
+                p.sub_theme_ids.light.as_str(),
+                p.sub_theme_ids.dark.as_str()
+            ),
+            ("default.github", "default.github")
+        );
+    }
+
     #[test]
     fn a_projects_pins_come_along() {
         let p = import(&data(&[
@@ -455,10 +678,33 @@ mod tests {
         assert_eq!(p.explorer_pins.len(), 1);
     }
 
+    /// `readInitialRightSidebarSurface`: Chat unless History or Changes was
+    /// stored; anything else (a retired `terminal`) is Chat.
+    #[test]
+    fn the_right_sidebar_starts_on_chat_unless_a_git_surface_was_stored() {
+        assert_eq!(
+            import(&data(&[])).right_sidebar_surface,
+            RightSidebarSurface::Chat
+        );
+        for (stored, surface) in [
+            ("history", RightSidebarSurface::History),
+            ("changes", RightSidebarSurface::Changes),
+            ("terminal", RightSidebarSurface::Chat),
+        ] {
+            assert_eq!(
+                import(&data(&[(keys::RIGHT_SIDEBAR_SURFACE, stored)])).right_sidebar_surface,
+                surface,
+                "{stored}"
+            );
+        }
+    }
+
     #[test]
     fn legacy_keys_flags_and_unknown_values_follow_the_product_parsers() {
         let p = import(&data(&[
             (keys::THEME, "light"),
+            (keys::LIGHT_PRESET, "warm"),
+            (keys::DARK_PRESET, "graphite"),
             (
                 keys::TYPOGRAPHY,
                 r#"{"version":8,"scales":{"editor":"small"}}"#,
@@ -484,6 +730,15 @@ mod tests {
             (keys::EXPLORER_WIDTH, "wide"),
         ]));
         assert_eq!(p.theme_mode, ThemeMode::Light);
+        // `createLegacyRequestedSubThemeIds`: the legacy presets choose the
+        // Sub Themes the first window paints.
+        assert_eq!(
+            (
+                p.sub_theme_ids.light.as_str(),
+                p.sub_theme_ids.dark.as_str()
+            ),
+            ("default.warm", "default.graphite")
+        );
         assert_eq!(p.text_scale, crate::typography::Scale::Small);
         assert!(p.pointer_cursors);
         assert!(

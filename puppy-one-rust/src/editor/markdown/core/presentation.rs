@@ -92,8 +92,19 @@ pub fn block_rhythm_in_lines(
         }
     }
 
+    // The enclosing top-level block's start: lists and items nest, so their
+    // ends are only ordered across top-level blocks, and a binary search
+    // over ends must start from there (a nested list ending before the
+    // window does not end its parent list).
+    let block_min = syntax
+        .top_blocks
+        .partition_point(|b| b.start <= byte_start)
+        .checked_sub(1)
+        .and_then(|i| syntax.top_blocks.get(i))
+        .map_or(byte_start, |b| b.start.min(byte_start));
+
     // 2. Top-level lists intersecting `[byte_start..=byte_end]`.
-    let l_first = syntax.lists.partition_point(|l| l.range.end < byte_start);
+    let l_first = syntax.lists.partition_point(|l| l.range.end < block_min);
     let l_last = syntax
         .lists
         .partition_point(|l| l.range.start <= byte_end)
@@ -107,12 +118,6 @@ pub fn block_rhythm_in_lines(
 
     // 3. Items in tree (pre-)order intersecting `[byte_start..=byte_end]`.
     // Start from the enclosing top-level block so outer parent items are included!
-    let block_min = syntax
-        .top_blocks
-        .partition_point(|b| b.start <= byte_start)
-        .checked_sub(1)
-        .and_then(|i| syntax.top_blocks.get(i))
-        .map_or(byte_start, |b| b.start.min(byte_start));
     let i_first = syntax.items.partition_point(|i| i.range.end < block_min);
     let i_last = syntax
         .items
@@ -244,5 +249,261 @@ mod tests {
             r[6].list.as_ref().unwrap().prefix_to,
             doc.line_range(6).start + 2
         );
+    }
+
+    // `markdownListEditing.test.ts`: list lines through one structural model.
+
+    /// The rhythm of every line, checked against the bounded computation
+    /// (`equivalent(state)`: an incremental window agrees with the whole).
+    fn rhythm(text: &str, source_line: Option<usize>) -> (Buffer, Syntax, Vec<LineRhythm>) {
+        let doc = Buffer::new(text);
+        let syntax = Syntax::parse(&doc);
+        let whole = block_rhythm(&doc, &syntax, source_line);
+        for (line, expected) in whole.iter().enumerate() {
+            assert_eq!(
+                &block_rhythm_in_lines(&doc, &syntax, line..line + 1, source_line)[0],
+                expected,
+                "{text:?} line {line}"
+            );
+        }
+        (doc, syntax, whole)
+    }
+
+    /// `types a task without duplicate markers or lost parent geometry`;
+    /// `keeps both typed markers visible when the parser recognizes compact
+    /// nested lists`; `allows deleting a task prefix character by character
+    /// without a hidden checkbox`: while a list prefix is typed or deleted
+    /// on a source line the line keeps a list rail, and the finished task is
+    /// one item at its parent's depth plus one.
+    #[test]
+    fn a_typed_or_deleted_task_prefix_keeps_its_list_rail() {
+        for initial in ["", "- parent\n  ", "- parent\n    ", "10. parent\n    "] {
+            let mut text = initial.to_owned();
+            for c in "- [ ] task".chars() {
+                text.push(c);
+                let last = text.matches('\n').count();
+                let (_, _, lines) = rhythm(&text, Some(last));
+                assert!(lines[last].list.is_some(), "{text:?}");
+            }
+            let (_, syntax, lines) = rhythm(&text, None);
+            let task = syntax.items.iter().find(|i| i.task.is_some()).unwrap();
+            let nested = usize::from(!initial.is_empty());
+            assert_eq!(task.parents.len(), nested, "{initial:?}");
+            assert!(lines.last().unwrap().classes.has(Class::TASK_LINE));
+        }
+        let mut text = "- parent\n  ".to_owned();
+        for c in "- - [ ] task".chars() {
+            text.push(c);
+            let (_, _, lines) = rhythm(&text, Some(1));
+            assert!(lines[1].list.is_some(), "{text:?}");
+        }
+        let mut text = "- parent\n    - [ ] task".to_owned();
+        for at in (15..19).rev() {
+            text.remove(at);
+            let (_, syntax, lines) = rhythm(&text, Some(1));
+            assert!(lines[1].list.is_some(), "{text:?}");
+            assert_eq!(syntax.items.last().unwrap().parents.len(), 1, "{text:?}");
+        }
+        assert_eq!(text, "- parent\n    - task");
+    }
+
+    /// `shares nesting for every list item text block`.
+    #[test]
+    fn every_nested_item_block_shares_its_depth() {
+        for text in [
+            "- parent\n    - child",
+            "- parent\n    - [ ] task",
+            "- parent\n    - # heading",
+        ] {
+            let (_, _, lines) = rhythm(text, None);
+            assert_eq!(lines[1].list.as_ref().unwrap().depth, 1, "{text:?}");
+            assert!(lines[1].classes.has(Class::NESTED_LIST_LINE), "{text:?}");
+        }
+    }
+
+    /// `does not invent list/task semantics in literal content`.
+    #[test]
+    fn literal_content_has_no_task() {
+        for text in [
+            "    - [ ] code",
+            "- [ ]task",
+            "```md\n- [ ] code\n```",
+            "text\n2. literal",
+        ] {
+            let (_, syntax, lines) = rhythm(text, None);
+            assert!(syntax.items.iter().all(|i| i.task.is_none()), "{text:?}");
+            assert!(
+                lines.iter().all(|l| !l.classes.has(Class::TASK_LINE)),
+                "{text:?}"
+            );
+        }
+    }
+
+    /// `reprojects the whole item on a task transition`.
+    #[test]
+    fn a_task_transition_reprojects_the_whole_item() {
+        let item = "- root\n  one\n  two\n  three\n  four\n  five\n- last";
+        for (text, task) in [
+            (item.replacen("- ", "- [ ] ", 1), true),
+            (item.to_owned(), false),
+        ] {
+            let (_, _, lines) = rhythm(&text, None);
+            for line in &lines[1..6] {
+                assert!(line.classes.has(Class::LIST_CONTINUATION), "{text:?}");
+                assert_eq!(line.classes.has(Class::TASK_LINE), task, "{text:?}");
+            }
+        }
+    }
+
+    // `markdownBlockRhythm.test.ts`.
+
+    /// `marks paragraph edges without separating soft source lines or
+    /// decorating empty lines`.
+    #[test]
+    fn paragraph_edges_span_soft_lines_and_skip_blank_ones() {
+        let (_, _, lines) = rhythm("First line\ncontinued paragraph\n\nSecond paragraph", None);
+        assert!(
+            lines[0].classes.has(Class::PARAGRAPH_START)
+                && !lines[0].classes.has(Class::PARAGRAPH_END)
+        );
+        assert!(
+            lines[1].classes.has(Class::PARAGRAPH_END)
+                && !lines[1].classes.has(Class::PARAGRAPH_START)
+        );
+        assert_eq!(lines[2], LineRhythm::default());
+        assert!(
+            lines[3]
+                .classes
+                .has(Class::PARAGRAPH_START | Class::PARAGRAPH_END)
+        );
+    }
+
+    /// `resolves nesting from parsed ownership and keeps continuation lines
+    /// in the same hanging column`.
+    #[test]
+    fn nesting_follows_parsed_ownership() {
+        let (_, _, lines) = rhythm(
+            "- root\n  continued\n    - child\n      child continued\n- next",
+            None,
+        );
+        assert!(lines[1].classes.has(Class::LIST_CONTINUATION));
+        let depth = |line: usize| lines[line].list.as_ref().unwrap().depth;
+        // Four source spaces are still one nested level.
+        assert_eq!([depth(1), depth(2), depth(3), depth(4)], [0, 1, 1, 0]);
+    }
+
+    /// `reserves one shared column for the widest ordered marker`;
+    /// `projects ancestor columns for mixed nested lists and keeps ordered
+    /// continuations classified` (a nested ordered list starts at 1: under
+    /// CommonMark only a list starting at 1 can interrupt its parent's
+    /// paragraph).
+    #[test]
+    fn ordered_lists_share_their_widest_marker_column_with_descendants() {
+        let (_, _, lines) = rhythm("9. nine\n10. ten\n100. hundred", None);
+        for line in &lines {
+            assert!(line.classes.has(Class::ORDERED_LIST_LINE));
+            assert_eq!(line.list.as_ref().unwrap().columns, 4);
+        }
+        let (_, _, lines) = rhythm(
+            "100. parent\n     1. child\n        continued\n     1000. wide\n           - grandchild",
+            None,
+        );
+        assert!(lines[1].classes.has(Class::NESTED_LIST_LINE));
+        assert_eq!(lines[1].list.as_ref().unwrap().parent_columns, [4]);
+        assert!(
+            lines[2]
+                .classes
+                .has(Class::ORDERED_LIST_LINE | Class::LIST_CONTINUATION)
+        );
+        assert!(!lines[4].classes.has(Class::ORDERED_LIST_LINE));
+        let grandchild = lines[4].list.as_ref().unwrap();
+        assert_eq!(grandchild.depth, 2);
+        assert_eq!(grandchild.parent_columns, [4, 5]);
+    }
+
+    /// `reuses ordered column geometry through ordinary body edits instead
+    /// of scanning siblings`; `reuses every ancestor column when typing
+    /// inside a nested ordered item`: one edited line's window agrees with
+    /// the whole document.
+    #[test]
+    fn an_edited_line_keeps_its_ordered_columns_in_its_own_window() {
+        let mut text: String = (1..=100)
+            .map(|i| {
+                let nested = if i == 50 {
+                    "\n    1. nested\n    10. nested second"
+                } else {
+                    ""
+                };
+                format!("{i}. Item {i}{nested}")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let at = text.find("nested second").unwrap() + "nested second".len();
+        text.insert_str(at, " revised");
+        let (doc, syntax, whole) = rhythm(&text, None);
+        let line = doc.line_index(at);
+        let window = block_rhythm_in_lines(&doc, &syntax, line..line + 1, None);
+        assert_eq!(window[0], whole[line]);
+        assert_eq!(window[0].list.as_ref().unwrap().parent_columns, [4]);
+        assert_eq!(whole[49].list.as_ref().unwrap().columns, 4);
+    }
+
+    /// `matches a fresh projection after <edit>`: an incremental parse after
+    /// each edit equals a fresh one, and so does its rhythm.
+    #[test]
+    fn edits_match_a_fresh_projection() {
+        use crate::editor::{
+            markdown::composition::FEATURES,
+            text::{
+                change::ChangeSet,
+                state::{EditorState, Transaction, UserEvent},
+            },
+        };
+        for (text, from, to, insert) in [
+            ("First\nsecond\nthird\nfourth", 12, 12, "\n"),
+            ("First\n\nsecond\nthird", 6, 7, ""),
+            ("- root\n- child\n  - grandchild\n- last", 7, 7, "  "),
+            ("9. nine\n10. ten\n100. hundred", 27, 27, "\n1000. appended"),
+            ("9. nine\n10. ten\n100. hundred", 15, 18, "1000"),
+            (
+                "9. first\n100. parent\n     1. child\n        - grandchild",
+                0,
+                1,
+                "1000",
+            ),
+            (
+                "100. parent\n     9. child one\n     10. child two\n         - grandchild",
+                17,
+                18,
+                "1000",
+            ),
+            ("- first\n- last", 0, 0, "- inserted\n"),
+            ("- first\n- last", 0, 8, ""),
+        ] {
+            let mut state = EditorState::new(text);
+            let before = Syntax::parse_with(&state.doc, FEATURES);
+            let applied = state
+                .apply(Transaction::edit(
+                    ChangeSet::replace(from..to, insert),
+                    None,
+                    UserEvent::Input,
+                ))
+                .unwrap();
+            let fresh = Syntax::parse_with(&state.doc, FEATURES);
+            let syntax = Syntax::try_parse_incremental(
+                &state.doc,
+                &applied.before_doc,
+                &before,
+                &applied.changes,
+                FEATURES,
+            )
+            .map_or_else(|| fresh.clone(), |(syntax, _)| syntax);
+            assert_eq!(syntax, fresh, "{text:?}");
+            assert_eq!(
+                block_rhythm(&state.doc, &syntax, None),
+                block_rhythm(&state.doc, &fresh, None),
+                "{text:?}"
+            );
+        }
     }
 }

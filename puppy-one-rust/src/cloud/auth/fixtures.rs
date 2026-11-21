@@ -64,6 +64,13 @@ pub(super) struct FakeRemote {
     pub responder: Mutex<Option<Responder>>,
     pub screen_responder: Mutex<Option<ScreenResponder>>,
     pub keep_workspace_events: bool,
+    /// Template downloads sent: (url, access token).
+    pub templates: Mutex<Vec<(String, String)>>,
+    /// How many template downloads the store refuses as unauthenticated.
+    pub template_refusals: AtomicU64,
+    /// Set: the open Workspace change stream ends as a replaced Workspace's
+    /// does (`workbench_generation_changed`), once.
+    pub replace_workspace: Arc<AtomicBool>,
 }
 impl Default for FakeRemote {
     fn default() -> Self {
@@ -89,6 +96,9 @@ impl Default for FakeRemote {
             responder: Mutex::default(),
             screen_responder: Mutex::default(),
             keep_workspace_events: false,
+            templates: Mutex::default(),
+            template_refusals: AtomicU64::new(0),
+            replace_workspace: Arc::default(),
         }
     }
 }
@@ -171,6 +181,26 @@ impl Remote for FakeRemote {
             Ok(())
         }
     }
+    fn template_download(
+        &self,
+        session: &Session,
+        url: &url::Url,
+        _: &serde_json::Value,
+        _: &Fence,
+    ) -> Result<serde_json::Value> {
+        self.templates
+            .lock()
+            .unwrap()
+            .push((url.to_string(), session.access.0.clone()));
+        if self
+            .template_refusals
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+            .is_ok()
+        {
+            return Err(Error::InvalidCredentials);
+        }
+        Ok(serde_json::json!({"schema_version": 1}))
+    }
     fn initialize(&self, _: &Session, _: &Fence) -> Result<()> {
         self.inits.fetch_add(1, Ordering::SeqCst);
         if self.fail_initialize.load(Ordering::SeqCst) {
@@ -223,6 +253,12 @@ impl Remote for FakeRemote {
         // stream would retire the real Cloud provider before a file can open.
         loop {
             fence.check()?;
+            if self.replace_workspace.swap(false, Ordering::SeqCst) {
+                return Err(Error::Service(
+                    409,
+                    super::transport::ServiceCode::GenerationChanged,
+                ));
+            }
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
     }
@@ -253,6 +289,12 @@ pub(super) fn login(broker: &Broker, user: &str) -> Result<()> {
 }
 /// Signs `user` in again on a fixture broker (the browser round trip done).
 pub fn relogin(broker: &Broker, user: &str) {
+    login(broker, user).unwrap();
+}
+/// A new sign-in of `user` while one is current, as the browser flow makes
+/// one: a new generation, so every lease of the old one ends.
+pub fn sign_in_again(broker: &Broker, user: &str) {
+    broker.control.advance();
     login(broker, user).unwrap();
 }
 /// Controls a signed-out fixture broker's browser sign-in without opening a
@@ -336,6 +378,26 @@ pub fn responding_account_fixture(
     let pair = Broker::new(env(), Arc::new(remote), Arc::new(MemoryStore::default()));
     login(&pair.0, "alice").unwrap();
     pair
+}
+/// A signed-in account whose API answers come from `responder` and whose
+/// Workspace change stream stays open, so an opened Project keeps its lease
+/// until the returned switch replaces the Workspace.
+pub fn responding_live_account_fixture(
+    responder: Responder,
+) -> (
+    Arc<Broker>,
+    async_channel::Receiver<super::service::BrowserEvent>,
+    Arc<AtomicBool>,
+) {
+    let remote = FakeRemote {
+        keep_workspace_events: true,
+        ..Default::default()
+    };
+    let replace = remote.replace_workspace.clone();
+    *remote.responder.lock().unwrap() = Some(responder);
+    let (broker, browser) = Broker::new(env(), Arc::new(remote), Arc::new(MemoryStore::default()));
+    login(&broker, "alice").unwrap();
+    (broker, browser, replace)
 }
 /// A signed-in account whose API and screen-stream answers come from test responders.
 pub fn responding_screen_account_fixture(

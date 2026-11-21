@@ -455,16 +455,11 @@ fn repository_identity_uses_absolute_top_level_git_and_linked_common_directories
     assert_eq!(main.common_dir, main.git_dir);
     let linked_parent = tempfile::tempdir().unwrap();
     let linked = linked_parent.path().canonicalize().unwrap().join("linked");
+    let linked_arg = linked.to_string_lossy();
+    let linked_arg = linked_arg.strip_prefix(r"\\?\").unwrap_or(&linked_arg);
     command(
         &root,
-        &[
-            "worktree",
-            "add",
-            "-q",
-            "-b",
-            "linked",
-            linked.to_str().unwrap(),
-        ],
+        &["worktree", "add", "-q", "-b", "linked", linked_arg],
     );
     let branch = identity(&linked).unwrap();
     assert_eq!(branch.top_level, linked);

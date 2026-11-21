@@ -182,10 +182,16 @@ pub struct Workbench {
     closing: std::collections::HashSet<Id>,
     /// What the host last heard (it hears only changes).
     shown: WorkbenchView,
+    /// `active`: the sidebar shows the workbench (open, on its surface).
+    /// Hidden items keep their content but are neither presented nor a
+    /// command target.
+    content_visible: bool,
 }
 /// `AuxiliaryWorkbenchCreationFailure`: the tab, the item it was to be
 /// (`label`) and the contribution's retry (`retryCreation`).
 struct CreationFailure {
+    /// The project it happened in: it shows and retries only there.
+    root: PathBuf,
     tab: Id,
     message: String,
     retry: Option<CreationRetry>,
@@ -239,6 +245,18 @@ impl Workbench {
             close_blocked: false,
             closing: Default::default(),
             shown: WorkbenchView::default(),
+            content_visible: true,
+        }
+    }
+    #[cfg(test)]
+    pub fn content_visible(&self) -> bool {
+        self.content_visible
+    }
+    /// The sidebar showed or hid the workbench.
+    pub fn set_content_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
+        if self.content_visible != visible {
+            self.content_visible = visible;
+            cx.notify();
         }
     }
     /// The shell's launcher and contributions.
@@ -283,10 +301,10 @@ impl Workbench {
         }
     }
     /// `presented` (the shown tab of its group) and `commandTarget` (that
-    /// tab in the active group) for every item; other projects' items are
-    /// hidden.
+    /// tab in the active group) for every item; other projects' items, and
+    /// every item while the sidebar hides the workbench, are hidden.
     fn sync_presentation(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let current = self.root.clone();
+        let current = self.root.clone().filter(|_| self.content_visible);
         let mut updates = Vec::new();
         for (root, project) in &self.projects {
             for (tab, content) in &project.content {

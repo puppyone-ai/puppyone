@@ -62,6 +62,57 @@ impl RenderOnce for SpaceMark {
     }
 }
 
+/// A person: a circle in their tone with their initial, beside a Space's
+/// rounded square wherever both appear (the Header's account, Settings'
+/// switcher, Members).
+#[derive(IntoElement)]
+pub struct PersonMark {
+    tone: usize,
+    initial: SharedString,
+    side: f32,
+}
+impl PersonMark {
+    /// `tone` is the person's (`spaceMarkTone` of their email or id).
+    pub fn new(tone: usize, initial: impl Into<SharedString>) -> Self {
+        Self {
+            tone,
+            initial: initial.into(),
+            side: 16.,
+        }
+    }
+    /// The circle's diameter: 16 beside a row's label (a Space mark's
+    /// size), 22 in the Header, 28 beside a name and an email.
+    pub fn side(mut self, side: f32) -> Self {
+        self.side = side;
+        self
+    }
+}
+impl RenderOnce for PersonMark {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let ui = &theme::ty().ui;
+        let text = if self.side <= 16. {
+            ui.micro
+        } else if self.side <= 22. {
+            ui.caption
+        } else {
+            ui.meta
+        };
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .justify_center()
+            .size(px(self.side))
+            .rounded_full()
+            .bg(theme::space_mark(self.tone, cx.is_dark()))
+            .text_color(theme::space_mark_letter())
+            .text_size(px(text))
+            .line_height(px(text))
+            .font_weight(FontWeight::SEMIBOLD)
+            .child(self.initial)
+    }
+}
+
 /// `SpacePlanBadge`: the plan's name, accent-tinted unless it is Free.
 #[derive(IntoElement)]
 pub struct SpacePlanBadge {

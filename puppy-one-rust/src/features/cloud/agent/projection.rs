@@ -171,3 +171,56 @@ pub fn project_cloud_agent_runs(runs: &[Run]) -> AgentProjection {
         AgentDisplay::from_value(&value).expect("the hosted projection has every collection");
     AgentProjection::project(&display, None).expect("the hosted projection reads as a display")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    /// `cloudAgentProjection`: a tool's own error is the tool's status, never
+    /// the Run's: denied tools read as blocked, failed ones as failed, declined
+    /// ones as cancelled, whether the Run still runs or has succeeded.
+    #[test]
+    fn tool_errors_stay_on_their_tools_while_the_run_runs_or_succeeds() {
+        for state in ["running", "succeeded"] {
+            let run: Run = serde_json::from_value(json!({
+                "id": "run", "project_id": "p", "agent_id": "a", "session_id": "s", "request_id": "r",
+                "prompt": "Read files", "state": state, "sequence": 1, "stop_requested": false,
+                "snapshot": {"text": "Continuing"}, "publication": null,
+                "created_at": "2026-10-10T00:00:00Z", "updated_at": "2026-10-10T00:00:00Z",
+                "tools": [
+                    {"call_id": "denied", "name": "write", "input": {"path": "/recovery/test"}, "state": "completed",
+                     "result": {"isError": true, "details": {"code": "tool_permission_denied", "recoverable": true},
+                                "content": [{"type": "text", "text": "Permission denied"}]}},
+                    {"call_id": "failed", "name": "bash", "input": {"command": "false"}, "state": "completed",
+                     "result": {"isError": true, "content": [{"type": "text", "text": "Exit code 1"}]}},
+                    {"call_id": "declined", "name": "bash", "input": {"command": "touch nope"}, "state": "rejected"},
+                    {"call_id": "good", "name": "read", "input": {"path": "file.md"}, "state": "completed",
+                     "result": {"content": []}}
+                ]
+            }))
+            .unwrap();
+            let projection = project_cloud_agent_runs(&[run]);
+            let statuses: Vec<&str> = projection
+                .activities
+                .iter()
+                .map(|a| a.status.as_str())
+                .collect();
+            assert_eq!(
+                statuses,
+                ["blocked", "failed", "cancelled", "completed"],
+                "{state}"
+            );
+            assert_eq!(projection.activities[0].output, "Permission denied");
+            assert!(projection.activities[2].output.contains("declined"));
+            let presentation = projection.presentation.as_ref().unwrap();
+            if state == "succeeded" {
+                assert_eq!(presentation.terminal_state, "completed");
+                assert_eq!(projection.running_turn_id, None);
+            } else {
+                assert_eq!(presentation.terminal_state, "running");
+                assert_eq!(projection.running_turn_id.as_deref(), Some("run"));
+            }
+        }
+    }
+}

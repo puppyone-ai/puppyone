@@ -71,7 +71,13 @@ impl RenderOnce for Switch {
         } else {
             (t.divider, t.control, t.subtle)
         };
+        let selector = format!(
+            "switch:{}:{}",
+            self.label,
+            if checked { "on" } else { "off" }
+        );
         BaseSwitch::new(self.id)
+            .debug_selector(move || selector)
             .accessibility_label(self.label)
             .checked(checked)
             .disabled(self.disabled)

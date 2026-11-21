@@ -218,6 +218,15 @@ impl History {
         self.composing = None;
     }
 
+    /// The view that recorded this history is going away: an open
+    /// composition is dropped and later input starts a new step.
+    pub fn seal(&mut self) {
+        self.composing = None;
+        if let Some(step) = self.undo.last_mut() {
+            step.sealed = true;
+        }
+    }
+
     /// `trimHistory`: the newest steps are kept within both the step and
     /// the byte budget; the oldest undo steps go first, then the furthest
     /// redo steps.

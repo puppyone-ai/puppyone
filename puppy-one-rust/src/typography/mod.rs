@@ -304,4 +304,150 @@ mod tests {
         assert_eq!(Scale::Small.scale_medium(9.), 8.);
         assert_eq!(Scale::Large.metrics().control_size, 34.);
     }
+
+    /// `typographyArchitecture`: one bounded application scale drives every
+    /// surface; Medium and Large keep the product's role tables, the Header
+    /// and the Right Sidebar stay aligned, meta stays below body, and every
+    /// size is a whole pixel.
+    #[test]
+    fn every_preset_keeps_the_product_role_table_and_its_invariants() {
+        let m = Scale::Medium.metrics();
+        assert_eq!(
+            (
+                m.control_size,
+                m.ui.meta,
+                m.ui.body,
+                m.ui.page_title,
+                m.ui.hero
+            ),
+            (32., 13., 14., 21., 29.)
+        );
+        assert_eq!(
+            (m.left.content, m.left.meta, m.left.line_height),
+            (14., 12., 19.)
+        );
+        assert_eq!(
+            (
+                m.editor.content,
+                m.editor.line_height,
+                m.editor.data,
+                m.editor.code
+            ),
+            (15., 30., 13., 13.)
+        );
+        assert_eq!(m.editor.headings, [22., 19., 17., 16., 15., 15.]);
+        assert_eq!(
+            (
+                m.right.meta_line_height,
+                m.right.caption_line_height,
+                m.right.heading1
+            ),
+            (19., 17., 20.)
+        );
+        // `createTypographyRootProps` at Large.
+        let l = Scale::Large.metrics();
+        assert_eq!(l.control_size, 34.);
+        assert_eq!(
+            (l.ui.micro, l.ui.caption, l.ui.meta, l.ui.control, l.ui.body),
+            (12., 13., 14., 16., 16.)
+        );
+        assert_eq!((l.ui.section_title, l.ui.page_title), (18., 23.));
+        assert_eq!(
+            (l.left.content, l.left.meta, l.left.line_height),
+            (16., 14., 21.)
+        );
+        assert_eq!(
+            (
+                l.header.content,
+                l.header.line_height,
+                l.header.meta,
+                l.header.meta_line_height
+            ),
+            (16., 21., 14., 19.)
+        );
+        assert_eq!(
+            (
+                l.editor.content,
+                l.editor.line_height,
+                l.editor.data,
+                l.editor.code
+            ),
+            (16., 32., 14., 14.)
+        );
+        assert_eq!(l.editor.headings, [24., 20., 18., 17., 16., 16.]);
+        assert_eq!(
+            (
+                l.right.control_line_height,
+                l.right.meta,
+                l.right.meta_line_height,
+                l.right.caption,
+                l.right.caption_line_height,
+                l.right.micro,
+                l.right.micro_line_height,
+                l.right.code,
+                l.right.terminal,
+                l.right.heading1,
+                l.right.heading2,
+            ),
+            (21., 14., 20., 13., 18., 12., 16., 14., 14., 23., 18.)
+        );
+        for scale in [Scale::Small, Scale::Medium, Scale::Large] {
+            let t = scale.metrics();
+            assert_eq!(t.header.content, t.right.content, "{scale:?}");
+            assert_eq!(
+                t.header.line_height, t.right.control_line_height,
+                "{scale:?}"
+            );
+            assert!(t.ui.meta < t.ui.body, "{scale:?}");
+            let ui = &t.ui;
+            let left = &t.left;
+            let header = &t.header;
+            let editor = &t.editor;
+            let right = &t.right;
+            let sizes = [
+                t.control_size,
+                ui.glyph,
+                ui.micro,
+                ui.caption,
+                ui.hint,
+                ui.meta,
+                ui.label,
+                ui.control,
+                ui.body,
+                ui.body_large,
+                ui.section_title,
+                ui.title,
+                ui.heading,
+                ui.page_title,
+                ui.display,
+                ui.hero,
+                left.content,
+                left.meta,
+                left.line_height,
+                header.content,
+                header.line_height,
+                header.meta,
+                header.meta_line_height,
+                editor.content,
+                editor.line_height,
+                editor.data,
+                editor.code,
+                right.content,
+                right.control_line_height,
+                right.meta,
+                right.meta_line_height,
+                right.caption,
+                right.caption_line_height,
+                right.micro,
+                right.micro_line_height,
+                right.code,
+                right.terminal,
+                right.heading1,
+                right.heading2,
+            ];
+            for size in sizes.iter().chain(&editor.headings) {
+                assert_eq!(size.fract(), 0., "{scale:?}: {size}");
+            }
+        }
+    }
 }

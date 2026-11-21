@@ -809,7 +809,7 @@ mod tests {
         cx.update(|w, cx| {
             let message = view.read(cx).message.focus_handle(cx);
             message.focus(w, cx);
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         cx.write_to_clipboard(ClipboardItem::new_string("typed via paste".into()));
         cx.dispatch_action(gpui_kit::base::input::Paste);

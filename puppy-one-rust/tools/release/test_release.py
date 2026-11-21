@@ -1,6 +1,9 @@
 """Unit tests for the release tooling: `python3 -m unittest discover -s tools/release`."""
+import importlib.util
+import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 import bundle
@@ -8,6 +11,9 @@ import feed
 import icon
 import identity
 import sign
+import targets
+from targets import linux as linux_target
+from targets import windows as windows_target
 
 COMMIT = 'a' * 40
 
@@ -31,14 +37,23 @@ class ReleaseIdentityTest(unittest.TestCase):
         self.assertEqual(stable['runtime'], 'gpui')
 
     def test_published_builds_refuse_what_cannot_be_released(self):
-        for args in [('0.4', 'stable', COMMIT, '1'), ('0.4.4', 'stable', 'abc', '1'),
+        for args in [('0.4', 'stable', COMMIT, '1'), ('0.4.4-beta.1', 'dev', COMMIT),
+                     ('0.4.4', 'stable', 'abc', '1'), ('0.4.4', 'dev', COMMIT.upper()),
                      ('0.4.4', 'stable', COMMIT, None), ('0.4.4', 'internal', COMMIT, '0'),
                      ('0.4.4', 'qubits', COMMIT, '1'),
-                     ('0.4.4', 'stable', COMMIT, '1', '2026-11-15')]:
+                     ('0.4.4', 'stable', COMMIT, '1', '2026-11-15'),
+                     ('0.4.4', 'dev', COMMIT, None, '2026-11-15 10:00:00Z')]:
             with self.assertRaises(ValueError, msg=args):
                 identity.release_identity(*args)
         with self.assertRaises(ValueError):
             identity.release_identity('0.4.4', 'stable', COMMIT, '1', dirty=True)
+        with self.assertRaises(ValueError):
+            identity.release_identity('0.4.4', 'internal', COMMIT, '1', dirty=True)
+
+    def test_only_dev_internal_and_stable_are_channels(self):
+        for channel in ('beta', 'preview', 'rc', 'archive', 'production'):
+            with self.assertRaisesRegex(ValueError, 'Unsupported PuppyOne Desktop build channel', msg=channel):
+                identity.release_identity('0.4.4', channel, COMMIT, '1')
 
     def test_stamps_name_every_coordinate_and_default_production_feeds(self):
         release = identity.release_identity('0.4.4', 'internal', COMMIT, '3', built_at='2026-11-14T00:00:00.000Z')
@@ -85,6 +100,8 @@ class InfoPlistTest(unittest.TestCase):
         self.assertEqual(info['CFBundleURLTypes'][0]['CFBundleURLSchemes'], ['puppyone-internal'])
         self.assertEqual(info['LSMinimumSystemVersion'], '12.0')
         self.assertEqual(info['CFBundleIconFile'], 'icon.icns')
+        # One icon source: no asset-catalog name or App Image file competes.
+        self.assertNotIn('CFBundleIconName', info)
         self.assertEqual(info['PuppyOneCliUserDataName'], 'PuppyOne GPUI')
         self.assertIn('md', info['CFBundleDocumentTypes'][0]['CFBundleTypeExtensions'])
         stable = identity.info_plist(identity.release_identity('0.4.4', 'stable', COMMIT, '9'),
@@ -157,7 +174,44 @@ class FeedTest(unittest.TestCase):
             identity.build_environment(release, 'http://updates.puppyone.ai/x')
 
 
+@unittest.skipUnless(sys.platform == 'darwin', 'requires macOS iconutil/sips')
 class IconTest(unittest.TestCase):
+    """`macosAppIcon.test.mjs`: input validation and the ten representations."""
+
+    def test_a_png_header_without_valid_pixels_is_refused(self):
+        source = bundle.ROOT / 'assets/release' / identity.policy('stable')['icon']
+        header = source.read_bytes()[:33]
+        with tempfile.TemporaryDirectory() as out:
+            for name, data in [('empty.png', header), ('corrupt.png', header + b'\0' * 64 + b'IEND')]:
+                bad = Path(out) / name
+                bad.write_bytes(data)
+                with self.assertRaises(Exception, msg=name):
+                    icon.build(bad, Path(out) / 'icon.icns')
+                self.assertFalse((Path(out) / 'icon.icns').exists())
+
+    def test_wrong_retina_sizes_and_another_channels_artwork_are_refused(self):
+        import shutil
+        import subprocess
+        stable = (bundle.ROOT / 'assets/release' / identity.policy('stable')['icon']).read_bytes()
+        dev = (bundle.ROOT / 'assets/release' / identity.policy('dev')['icon']).read_bytes()
+        self.assertNotEqual(stable, dev)
+        with tempfile.TemporaryDirectory() as out:
+            built = Path(out) / 'icon.icns'
+            source = Path(out) / 'stable.png'
+            source.write_bytes(stable)
+            icon.build(source, built)
+            icon.verify(built, stable)
+            with self.assertRaisesRegex(ValueError, "App Image"):
+                icon.verify(built, dev)
+            # The former converter wrote 1x pixels into the @2x slots.
+            iconset = Path(out) / 'wrong.iconset'
+            subprocess.run(['/usr/bin/iconutil', '-c', 'iconset', str(built), '-o', str(iconset)], check=True)
+            shutil.copyfile(iconset / 'icon_16x16.png', iconset / 'icon_16x16@2x.png')
+            wrong = Path(out) / 'wrong.icns'
+            subprocess.run(['/usr/bin/iconutil', '-c', 'icns', str(iconset), '-o', str(wrong)], check=True)
+            with self.assertRaisesRegex(ValueError, r'icon_16x16@2x\.png is (missing|not 32 px)'):
+                icon.verify(wrong, stable)
+
     def test_every_channel_icon_builds_a_complete_icns(self):
         for channel in identity.CHANNELS:
             source = bundle.ROOT / 'assets/release' / identity.policy(channel)['icon']
@@ -165,6 +219,230 @@ class IconTest(unittest.TestCase):
                 destination = Path(out) / 'icon.icns'
                 icon.build(source, destination)
                 self.assertEqual(destination.read_bytes()[:4], b'icns')
+
+
+class CrossPlatformFeedAndIdentityTest(unittest.TestCase):
+    def test_platform_feeds_append_windows_and_linux_without_changing_macos(self):
+        self.assertEqual(
+            identity.platform_feed('stable', 'mac'),
+            'https://updates.puppyone.ai/desktop/stable/mac/latest',
+        )
+        self.assertEqual(
+            identity.platform_feed('stable', 'windows'),
+            'https://updates.puppyone.ai/desktop/stable/win/latest',
+        )
+        self.assertEqual(
+            identity.platform_feed('internal', 'linux'),
+            'https://downloads.puppyone.ai/desktop/internal/linux/latest',
+        )
+        self.assertIsNone(identity.platform_feed('dev', 'windows'))
+        release = identity.release_identity('0.4.5', 'stable', COMMIT, '10', built_at='2026-11-20T00:00:00.000Z')
+        win_env = identity.build_environment(release, target_os='windows')
+        self.assertNotIn('MACOSX_DEPLOYMENT_TARGET', win_env)
+        self.assertEqual(win_env['PUPPYONE_UPDATE_FEED_URL'], 'https://updates.puppyone.ai/desktop/stable/win/latest')
+        linux_env = identity.build_environment(release, target_os='linux')
+        self.assertNotIn('MACOSX_DEPLOYMENT_TARGET', linux_env)
+        self.assertEqual(linux_env['PUPPYONE_UPDATE_FEED_URL'], 'https://updates.puppyone.ai/desktop/stable/linux/latest')
+        self.assertEqual(linux_env['PUPPYONE_LINUX_RELEASE_MARKER'], 'release:stable:0.4.5')
+        dev_release = identity.release_identity('0.4.5', 'dev', COMMIT, built_at='2026-11-20T00:00:00.000Z')
+        self.assertNotIn('PUPPYONE_LINUX_RELEASE_MARKER', identity.build_environment(dev_release, target_os='linux'))
+
+    def test_windows_and_linux_feeds_roundtrip_and_validate_payloads(self):
+        with tempfile.TemporaryDirectory() as out:
+            installer = Path(out) / 'puppyone-0.4.5-win-x64-setup.exe'
+            installer.write_bytes(b'MZ-fake-nsis')
+            win_meta_path = feed.write(
+                out, 'stable', '0.4.5', [installer], released='2026-11-20T00:00:00.000Z', target_os='win'
+            )
+            self.assertEqual(win_meta_path.name, 'stable-win.yml')
+            win_meta = feed.parse(win_meta_path.read_text(encoding='utf-8'), target_os='win')
+            self.assertEqual(win_meta['path'], installer.name)
+            with self.assertRaisesRegex(ValueError, 'EXE installer payload'):
+                feed.parse(win_meta_path.read_text(encoding='utf-8').replace('.exe', '.zip'), target_os='win')
+            with self.assertRaisesRegex(ValueError, 'EXE installer payload'):
+                feed.parse(win_meta_path.read_text(encoding='utf-8').replace('.exe', '.dmg'), target_os='win')
+
+            appimage = Path(out) / 'puppyone-0.4.5-linux-x64.AppImage'
+            appimage.write_bytes(b'ELF-fake-appimage')
+            linux_meta_path = feed.write(
+                out, 'internal', '0.4.5-internal.2', [appimage], released='2026-11-20T00:00:00.000Z', target_os='linux'
+            )
+            self.assertEqual(linux_meta_path.name, 'internal-linux.yml')
+            linux_meta = feed.parse(linux_meta_path.read_text(encoding='utf-8'), target_os='linux')
+            self.assertEqual(linux_meta['path'], appimage.name)
+            with self.assertRaisesRegex(ValueError, 'AppImage, DEB, or ZIP'):
+                feed.parse(linux_meta_path.read_text(encoding='utf-8').replace('.AppImage', '.dmg'), target_os='linux')
+
+
+class WindowsTargetTest(unittest.TestCase):
+    def test_authenticode_signing_plan_validates_credentials(self):
+        self.assertEqual(
+            windows_target.signing_plan('dev', {}),
+            {'signing': None, 'release': False, 'errors': [], 'publishers': []},
+        )
+        self.assertEqual(
+            windows_target.signing_plan('internal', {'WIN_CSC_THUMBPRINT': 'abc'}),
+            {'signing': None, 'release': False, 'errors': [], 'publishers': []},
+        )
+        missing = windows_target.signing_plan('stable', {})
+        self.assertFalse(missing['release'])
+        self.assertEqual(len(missing['errors']), 2)
+
+        partial = windows_target.signing_plan(
+            'stable', {'WIN_CSC_LINK': 'cert.pfx', 'WINDOWS_SIGNER_SUBJECT': 'CN=PuppyOne'}
+        )
+        self.assertFalse(partial['release'])
+        self.assertIn('WIN_CSC_KEY_PASSWORD', partial['errors'][0])
+
+        credentials = {'WIN_CSC_LINK': 'cert.pfx', 'WIN_CSC_KEY_PASSWORD': 'secret'}
+        unpinned = windows_target.signing_plan('stable', credentials)
+        self.assertFalse(unpinned['release'])
+        self.assertEqual(unpinned['signing']['mode'], 'pfx')
+        self.assertIn('WINDOWS_SIGNER_SUBJECT', unpinned['errors'][0])
+
+        ready = windows_target.signing_plan(
+            'stable',
+            {**credentials, 'WINDOWS_SIGNER_SUBJECT': 'CN=PuppyOne Inc., O=PuppyOne Inc., C=US'},
+        )
+        self.assertTrue(ready['release'])
+        self.assertEqual(ready['signing']['mode'], 'pfx')
+        self.assertEqual(ready['errors'], [])
+        self.assertEqual(ready['publishers'], ['PuppyOne Inc.'])
+
+    def test_publisher_names_pin_the_signer_common_name(self):
+        names = windows_target.publisher_names
+        self.assertEqual(names({}), [])
+        self.assertEqual(
+            names({'WINDOWS_SIGNER_SUBJECT': 'CN="PuppyOne, Inc.", O="PuppyOne, Inc.", L=San Francisco, C=US'}),
+            ['PuppyOne, Inc.'],
+        )
+        self.assertEqual(names({'WINDOWS_SIGNER_SUBJECT': 'CN="Say ""Hi"" Ltd", C=US'}), ['Say "Hi" Ltd'])
+        self.assertEqual(names({'WINDOWS_SIGNER_SUBJECT': 'O=PuppyOne Inc., C=US'}), [])
+        self.assertEqual(
+            names({
+                'PUPPYONE_WIN_EXPECTED_PUBLISHERS': 'PuppyOne Legacy; PuppyOne, Inc.',
+                'WINDOWS_SIGNER_SUBJECT': 'CN=Ignored',
+            }),
+            ['PuppyOne Legacy', 'PuppyOne, Inc.'],
+        )
+
+    def test_staging_nsis_rendering_and_portable_zip(self):
+        release = identity.release_identity('0.4.5', 'stable', COMMIT, '12', built_at='2026-11-20T00:00:00.000Z')
+        cloud = identity.cloud_configuration('https://api.puppyone.ai/api/v1', 'https://puppyone.ai')
+        policy = identity.policy('stable')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake_exe = root / 'puppy-one-rust.exe'
+            fake_exe.write_bytes(b'MZ-binary')
+            fake_pdfium_root = root / 'pdfium'
+            (fake_pdfium_root / 'bin').mkdir(parents=True)
+            fake_dll = fake_pdfium_root / 'bin/pdfium.dll'
+            fake_dll.write_bytes(b'MZ-pdfium')
+            (fake_pdfium_root / 'LICENSE').write_text('BSD', encoding='utf-8')
+
+            stage_dir = windows_target.stage(
+                root / 'stage', fake_exe, release, cloud, policy, pdfium=fake_dll
+            )
+            self.assertTrue((stage_dir / 'puppy-one-rust.exe').is_file())
+            self.assertTrue((stage_dir / 'pdfium.dll').is_file())
+            self.assertTrue((stage_dir / 'resources/desktop-cloud.json').is_file())
+            self.assertTrue((stage_dir / 'resources/build-info.json').is_file())
+            self.assertTrue((stage_dir / 'resources/PDFIUM_LICENSE.txt').is_file())
+
+            script = windows_target.render_nsis(
+                root / 'installer.nsi',
+                release=release,
+                policy=policy,
+                stage_dir=stage_dir,
+                out_installer=root / 'puppyone-setup.exe',
+            )
+            rendered = script.read_text(encoding='utf-8')
+            self.assertIn('!define URL_SCHEME "puppyone"', rendered)
+            self.assertIn('Software\\Classes\\${URL_SCHEME}', rendered)
+            self.assertIn('Section "Uninstall"', rendered)
+
+            archive = windows_target.archive_zip(stage_dir, root / 'puppyone-win.zip')
+            with zipfile.ZipFile(archive) as zf:
+                names = set(zf.namelist())
+                self.assertIn('puppy-one-rust.exe', names)
+                self.assertIn('pdfium.dll', names)
+                self.assertIn('resources/build-info.json', names)
+
+
+class LinuxTargetTest(unittest.TestCase):
+    def test_appdir_deb_staging_and_checksums(self):
+        release = identity.release_identity('0.4.5', 'internal', COMMIT, '4', built_at='2026-11-20T00:00:00.000Z')
+        cloud = identity.cloud_configuration('https://api.puppyone.ai/api/v1', 'https://puppyone.ai')
+        policy = identity.policy('internal')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake_bin = root / 'puppy-one-rust'
+            fake_bin.write_bytes(b'\x7fELF-binary')
+            fake_pdfium_root = root / 'pdfium'
+            (fake_pdfium_root / 'lib').mkdir(parents=True)
+            fake_so = fake_pdfium_root / 'lib/libpdfium.so'
+            fake_so.write_bytes(b'\x7fELF-pdfium')
+            (fake_pdfium_root / 'LICENSE').write_text('BSD', encoding='utf-8')
+
+            appdir = linux_target.stage_appdir(
+                root / 'PuppyOne.AppDir', fake_bin, release, cloud, policy, pdfium=fake_so
+            )
+            self.assertTrue((appdir / 'AppRun').is_file())
+            self.assertTrue((appdir / 'usr/bin/puppy-one-rust').is_file())
+            self.assertTrue((appdir / 'usr/lib/libpdfium.so').is_file())
+            desktop_text = (appdir / f'{policy["id"]}.desktop').read_text(encoding='utf-8')
+            self.assertIn('MimeType=x-scheme-handler/puppyone-internal;', desktop_text)
+
+            deb_root = linux_target.stage_deb_root(
+                root / 'deb-root', fake_bin, release, cloud, policy, deb_arch='amd64', pdfium=fake_so
+            )
+            control = (deb_root / 'DEBIAN/control').read_text(encoding='utf-8')
+            self.assertIn('Package: puppyone-internal', control)
+            self.assertIn('Version: 0.4.5-internal.4', control)
+            self.assertIn('Architecture: amd64', control)
+            self.assertTrue((deb_root / 'usr/lib/puppyone/libpdfium.so').is_file())
+
+            checksums = linux_target.write_checksums(root, [fake_bin])
+            self.assertIn('puppy-one-rust', checksums.read_text(encoding='utf-8'))
+
+            import shutil
+            import subprocess
+            dpkg_deb = shutil.which('dpkg-deb')
+            if dpkg_deb:
+                deb_out = root / 'puppyone-internal.deb'
+                subprocess.run(
+                    [dpkg_deb, '--build', '--root-owner-group', str(deb_root), str(deb_out)],
+                    check=True,
+                    capture_output=True,
+                )
+                self.assertTrue(deb_out.is_file())
+                info = subprocess.check_output([dpkg_deb, '--info', str(deb_out)], text=True)
+                self.assertIn('Package: puppyone-internal', info)
+                contents = subprocess.check_output([dpkg_deb, '--contents', str(deb_out)], text=True)
+                self.assertIn('usr/bin/puppy-one-rust', contents)
+                self.assertIn('usr/lib/puppyone/libpdfium.so', contents)
+                self.assertIn(f'usr/share/applications/{policy["id"]}.desktop', contents)
+
+    def test_target_registry_dispatches_all_three_platforms(self):
+        self.assertIs(targets.for_target('macos'), targets.macos)
+        self.assertIs(targets.for_target('windows'), targets.windows)
+        self.assertIs(targets.for_target('linux'), targets.linux)
+        with self.assertRaises(ValueError):
+            targets.for_target('plan9')
+
+
+class PdfiumPinTableTest(unittest.TestCase):
+    def test_all_six_desktop_targets_have_pinned_sha256_digests(self):
+        spec = importlib.util.spec_from_file_location('fetch_pdfium', bundle.ROOT / 'tools/fetch-pdfium.py')
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        expected = {'mac-arm64', 'mac-x64', 'win-x64', 'win-arm64', 'linux-x64', 'linux-arm64'}
+        self.assertEqual(set(mod.ASSETS.keys()), expected)
+        for target_id, (archive, digest, rel_lib) in mod.ASSETS.items():
+            self.assertTrue(archive.endswith('.tgz'), target_id)
+            self.assertEqual(len(digest), 64, target_id)
+            self.assertTrue(all(c in '0123456789abcdef' for c in digest), target_id)
+            self.assertTrue(str(rel_lib), target_id)
 
 
 if __name__ == '__main__':

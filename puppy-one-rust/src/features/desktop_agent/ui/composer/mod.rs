@@ -344,9 +344,14 @@ impl ComposerView {
         let view = self.data.clone();
         let t_ = cx.palette();
         let a = AgentTheme::new(&t_);
-        self.input.update(cx, |input, _| {
-            input.set_placeholder(view.placeholder.clone());
-        });
+        // A blank caller copy keeps the useful default.
+        let placeholder = if crate::text::trim(&view.placeholder).is_empty() {
+            crate::localization::t("agent.composer.placeholder.default").to_string()
+        } else {
+            view.placeholder.clone()
+        };
+        self.input
+            .update(cx, |input, _| input.set_placeholder(placeholder));
         let toolbar = self.render_toolbar(&view, &a, window, cx);
         let focused = self.input.focus_handle(cx).contains_focused(window, cx);
         let size = theme::ty().left.content;

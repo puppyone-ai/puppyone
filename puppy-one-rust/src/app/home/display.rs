@@ -55,10 +55,8 @@ pub(in crate::app::home) fn item_caption(item: &Item) -> String {
     }
     tr(if item.local_path.is_none() {
         "cloud.home.location.cloud"
-    } else if cfg!(target_os = "macos") {
-        "shell.workspaceSwitcher.location.thisMac"
     } else {
-        "shell.workspaceSwitcher.location.thisComputer"
+        crate::platform::conventions::Conventions::current().this_computer_label_key
     })
     .to_owned()
 }

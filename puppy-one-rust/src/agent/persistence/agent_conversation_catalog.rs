@@ -263,14 +263,7 @@ impl AgentConversationCatalog {
     ) -> AgentResult<()> {
         let path = &self.0.file_path;
         if let Some(parent) = path.parent() {
-            let mut builder = std::fs::DirBuilder::new();
-            builder.recursive(true);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::DirBuilderExt;
-                builder.mode(0o700);
-            }
-            builder.create(parent)?;
+            crate::platform::fs::create_private_dir_all(parent)?;
         }
         let temporary = PathBuf::from(format!(
             "{}.{}.{}.tmp",
@@ -285,15 +278,8 @@ impl AgentConversationCatalog {
                 "truncated": truncated,
             }))
             .map_err(|error| AgentError::new(error.to_string()))?;
-            let mut options = std::fs::OpenOptions::new();
-            options.write(true).create(true).truncate(true);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::OpenOptionsExt;
-                options.mode(0o600);
-            }
             std::io::Write::write_all(
-                &mut options.open(&temporary)?,
+                &mut crate::platform::fs::open_private_truncate(&temporary)?,
                 format!("{payload}\n").as_bytes(),
             )?;
             if let Some(guard) = guard {

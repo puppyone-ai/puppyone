@@ -42,7 +42,7 @@ impl AgentChatTabPanel {
                     .px(px(8.))
                     .gap(px(8.))
                     .rounded(px(6.))
-                    .cursor(theme::clickable_cursor())
+                    .cursor(theme::navigation_cursor())
                     .hover(move |s| s.bg(a.row_hover))
                     .on_click(cx.listener(move |s, _, _, cx| {
                         s.select_routed_runtime(runtime_id.clone(), cx);

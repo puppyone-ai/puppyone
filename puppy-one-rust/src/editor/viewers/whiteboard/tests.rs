@@ -41,6 +41,7 @@ fn surface(cx: &mut VisualTestContext, text: &str, pack: bool, dir: &Path) -> Wh
             assets: None,
             references: None,
             source_kind: crate::editor::registry::SourceKind::Local,
+            models: Default::default(),
         };
         // These tests qualify the host protocol and source editor. The separate
         // required real-pack test qualifies the full SDK assets.
@@ -504,4 +505,115 @@ fn the_installed_sdk_has_every_host_patch_and_executes_resize_callbacks() {
         })
         .collect();
     assert_eq!(result["checks"], serde_json::json!(expected));
+}
+
+/// Frames shown one at a time, as panes are when the window switches tabs.
+struct Frames {
+    frames: Vec<Entity<WebFrame>>,
+    shown: usize,
+}
+impl Render for Frames {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .size_full()
+            .children(self.frames.get(self.shown).cloned())
+    }
+}
+
+/// A board whose engine the per-window WebView cap released comes back as
+/// the document is now, under the generation its messages must carry, and
+/// is not written to before the recreated page reports ready.
+#[gpui::test]
+fn an_evicted_board_returns_with_the_current_text_and_generation(app: &mut TestAppContext) {
+    use crate::web_host::MAX_LIVE_WEBVIEWS_PER_WINDOW;
+    let (frames, cx) = app.add_window_view(|_, _| Frames {
+        frames: Vec::new(),
+        shown: 0,
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let s = surface(cx, BLANK, true, dir.path());
+    let board = s.board.read_with(cx, |v, _| v.frame.clone().unwrap());
+    frames.update(cx, |f, cx| {
+        f.frames.push(board.clone());
+        for i in 0..MAX_LIVE_WEBVIEWS_PER_WINDOW {
+            f.frames.push(cx.new(|_| {
+                WebFrame::new(
+                    Some(Content {
+                        root: None,
+                        source: None,
+                        entry: Entry::Html(format!("<p>other {i}</p>")),
+                        max_bytes: 0,
+                        assets: vec![],
+                        ipc: None,
+                        policy: None,
+                        frames: None,
+                        disk_assets: None,
+                        locked: false,
+                    }),
+                    false,
+                )
+            }));
+        }
+    });
+    let show = |cx: &mut VisualTestContext, index: usize| {
+        frames.update(cx, |f, cx| {
+            f.shown = index;
+            cx.notify();
+        });
+        cx.update(|w, cx| w.draw(cx).clear(cx));
+        cx.run_until_parked();
+    };
+    show(cx, 0);
+    ready(&s, cx);
+    let external = BLANK.replace("{}}", "{\"viewBackgroundColor\":\"#00ff00\"}}");
+    cx.update(|w, cx| s.replace_text(&external, w, cx));
+    for index in 1..=MAX_LIVE_WEBVIEWS_PER_WINDOW {
+        show(cx, index);
+    }
+    assert!(
+        !board.read_with(cx, |f, _| f.is_resident()),
+        "the cap released the board"
+    );
+    show(cx, 0);
+    assert!(board.read_with(cx, |f, _| f.is_resident()));
+    let current = generation(&s, cx);
+    let entry = board.read_with(cx, |f, _| f.entry_html().unwrap().to_owned());
+    assert!(
+        entry.contains("00ff00"),
+        "the board came back with old text"
+    );
+    assert!(
+        entry.contains(&format!("\\\"generation\\\":{current}"))
+            || entry.contains(&format!("\"generation\":{current}")),
+        "the board came back under an old generation"
+    );
+    assert!(
+        !s.board.read_with(cx, |v, _| v.ready),
+        "a recreated page is written to before it is ready"
+    );
+    ready(&s, cx);
+    assert!(s.board.read_with(cx, |v, _| v.ready));
+}
+
+/// Drawing makes the SDK the only holder of the undo history, so the page
+/// stays resident until a reset replaces the scene and its history.
+#[gpui::test]
+fn a_board_that_drew_holds_its_page_until_a_reset(app: &mut TestAppContext) {
+    let (_window, cx) = app.add_window_view(|_, _| EmptyView);
+    let dir = tempfile::tempdir().unwrap();
+    let s = surface(cx, BLANK, true, dir.path());
+    let pinned = |cx: &mut VisualTestContext| {
+        let frame = s.board.read_with(cx, |v, _| v.frame.clone().unwrap());
+        (
+            cx.update(|_, cx| s.holds_page_history(cx)),
+            frame.read_with(cx, |f, _| f.is_pinned()),
+        )
+    };
+    ready(&s, cx);
+    assert_eq!(pinned(cx), (false, false));
+    let drawn = BLANK.replace("{}}", "{\"viewBackgroundColor\":\"#0000ff\"}}");
+    content(&s, cx, generation(&s, cx), &drawn);
+    assert_eq!(pinned(cx), (true, true));
+    cx.update(|w, cx| s.replace_text(BLANK, w, cx));
+    assert_eq!(pinned(cx), (false, false));
 }

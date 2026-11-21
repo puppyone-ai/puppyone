@@ -25,7 +25,11 @@ pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn V
         _ => "",
     };
     let (dark, scale) = (request.dark, request.scale);
-    let editor = cx.new(|cx| CsvEditor::new(request.id, request.name, text, dark, scale, cx));
+    let editor = cx.new(|cx| {
+        let mut editor = CsvEditor::new(request.id, request.name, text, dark, scale, cx);
+        editor.attach_model(&request.models);
+        editor
+    });
     Box::new(CsvSurface { editor })
 }
 
@@ -35,7 +39,7 @@ pub struct CsvSurface {
 
 #[cfg(any(test, feature = "dev-capture", feature = "test-support"))]
 impl SurfaceTestProbe for CsvSurface {
-    #[cfg(feature = "test-support")]
+    #[cfg(any(test, feature = "test-support"))]
     fn csv_editor(&self) -> Option<Entity<CsvEditor>> {
         Some(self.editor.clone())
     }

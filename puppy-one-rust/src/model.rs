@@ -57,7 +57,13 @@ impl Row {
 }
 /// A status row's path: a child no real entry can have.
 fn status_path(folder: &Path) -> PathBuf {
-    folder.join("\u{0}error")
+    if folder.as_os_str().is_empty() {
+        PathBuf::from("\u{0}error")
+    } else {
+        let mut s = folder.as_os_str().to_os_string();
+        s.push("/\u{0}error");
+        PathBuf::from(s)
+    }
 }
 
 /// `DEFAULT_EXPLORER_EXCLUDE_PATTERNS`: what the Explorer hides unless hidden
@@ -483,6 +489,20 @@ impl Default for Tree {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// `createEditorNodeIndex`: a nested Explorer node and its folder are
+    /// found by their paths, a missing path is not.
+    #[test]
+    fn nested_nodes_are_found_by_their_path() {
+        let mut t = Tree::fixture();
+        let nested = "document/puppyone-desktop/architecture/02-native-shell.md";
+        assert_eq!(
+            t.find_mut(Path::new(nested)).map(|n| n.name.clone()),
+            Some("02-native-shell.md".into())
+        );
+        assert!(t.find_mut(Path::new("document")).is_some());
+        assert!(t.is_folder(Path::new("document")));
+        assert!(t.find_mut(Path::new("missing.md")).is_none());
+    }
     #[test]
     fn collapsed_children_are_not_in_projection() {
         let mut t = Tree::fixture();

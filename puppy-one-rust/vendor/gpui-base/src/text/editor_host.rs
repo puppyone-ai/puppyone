@@ -28,7 +28,7 @@ use std::{cell::RefCell, collections::HashMap, ops::Range, rc::Rc, sync::Arc};
 use gpui::{
     AnyElement, App, Bounds, ClickEvent, ElementId, HighlightStyle, Hsla, ImageSource,
     InteractiveElement as _, IntoElement as _, ParentElement as _, Pixels, Point, SharedString,
-    SharedUri, TextLayout, Window, WrappedLineLayout, div, point, px,
+    SharedUri, TextAlign, TextLayout, Window, WrappedLineLayout, div, point, px,
 };
 use unicode_segmentation::UnicodeSegmentation as _;
 
@@ -281,9 +281,15 @@ struct Collector {
 
 impl EditorSink for Collector {
     fn report(&self, key: u64, layout: &TextLayout) {
+        self.report_aligned(key, layout, TextAlign::Left);
+    }
+
+    fn report_aligned(&self, key: u64, layout: &TextLayout, align: TextAlign) {
+        let mut snapshot = LayoutSnapshot::new(layout);
+        snapshot.align = align;
         self.pieces
             .borrow_mut()
-            .insert(key, vec![Piece::Whole(LayoutSnapshot::new(layout))]);
+            .insert(key, vec![Piece::Whole(snapshot)]);
     }
 
     fn begin_pieces(&self, key: u64) {
@@ -330,6 +336,7 @@ struct LayoutSnapshot {
     line_height: Pixels,
     text: SharedString,
     lines: Vec<Arc<WrappedLineLayout>>,
+    align: TextAlign,
 }
 
 impl LayoutSnapshot {
@@ -340,6 +347,7 @@ impl LayoutSnapshot {
             line_height: layout.line_height(),
             text: layout.text().into(),
             lines: layout.line_layouts().into_iter().collect(),
+            align: TextAlign::Left,
         }
     }
 
@@ -359,6 +367,17 @@ impl LayoutSnapshot {
         &self.lines
     }
 
+    fn row_left(&self, line: &WrappedLineLayout, row: usize) -> Pixels {
+        let boundary_x = |i: usize| {
+            line.wrap_boundaries.get(i).map(|b| {
+                line.unwrapped_layout.runs[b.run_ix].glyphs[b.glyph_ix].position.x
+            })
+        };
+        let start = row.checked_sub(1).and_then(boundary_x).unwrap_or(px(0.));
+        let end = boundary_x(row).unwrap_or(line.unwrapped_layout.width);
+        super::inline::aligned_row_left(self.align, self.bounds.size.width, end - start)
+    }
+
     fn position_for_index(&self, index: usize) -> Option<Point<Pixels>> {
         let mut origin = self.bounds.origin;
         let mut start = 0;
@@ -366,7 +385,11 @@ impl LayoutSnapshot {
             if index <= start + line.len() {
                 return line
                     .position_for_index(index - start, self.line_height)
-                    .map(|p| origin + p);
+                    .map(|mut p| {
+                        let row = (p.y / self.line_height).round() as usize;
+                        p.x += self.row_left(line, row);
+                        origin + p
+                    });
             }
             start += line.len() + 1;
             origin.y += line.size(self.line_height).height;
@@ -617,9 +640,11 @@ fn whole_index_at(layout: &LayoutSnapshot, at: Point<Pixels>) -> usize {
         let height = line.size(line_height).height.max(line_height);
         let is_last = ix + 1 == lines.len();
         if at.y < top + height || is_last {
+            let y = (at.y - top).clamp(px(0.), (height - px(1.)).max(px(0.)));
+            let row = (y / line_height).floor() as usize;
             let local = point(
-                (at.x - bounds.left()).max(px(0.)),
-                (at.y - top).clamp(px(0.), (height - px(1.)).max(px(0.))),
+                (at.x - bounds.left() - layout.row_left(line, row)).max(px(0.)),
+                y,
             );
             let index = match line.closest_index_for_position(local, line_height) {
                 Ok(ix) | Err(ix) => ix,

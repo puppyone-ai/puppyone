@@ -39,6 +39,8 @@ mod session;
 
 pub use keyboard::bind_keys;
 use menus::ExplorerMenu;
+#[cfg(test)]
+pub(super) use menus::MenuKind;
 pub(super) use menus::{MenuAt, RowTrigger};
 pub(in crate::app) use rows::DragNodes;
 use session::FileOp;
@@ -377,7 +379,7 @@ impl Render for Explorer {
                 })
             }))
             .on_drop(cx.listener(|s, paths: &ExternalPaths, _, cx| {
-                s.drop_external(paths, Path::new(""), cx)
+                s.drop_external(paths.paths(), Path::new(""), cx)
             }))
             // Entries dragged past the window's edge leave as files.
             .on_drag_move::<rows::DragNodes>(cx.listener(

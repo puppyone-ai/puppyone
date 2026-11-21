@@ -387,3 +387,280 @@ fn one_history_request_per_agent_and_an_open_conversation_is_not_opened_twice() 
     let b = CloudAgentController::new(s.hub.clone(), "tab-b", other, wake).unwrap();
     assert_eq!(b.snapshot().session_id.as_deref(), Some("session-2"));
 }
+
+/// `cloudAgentController.test.ts`: "binds a submission to the current
+/// workspace without exposing credentials" — the admission names this
+/// Project's workbench and the prompt; the transport is handed no token.
+#[test]
+fn a_submission_names_this_projects_workbench_and_its_prompt() {
+    let s = setup(Fake::new(|r| {
+        let request = r.body.as_ref().unwrap()["request_id"].as_str().unwrap();
+        Ok(run("run-1", request, "running", 1))
+    }));
+    let c = controller(&s.hub, "tab-1");
+    c.submit("Edit notes".into());
+    settle(&c, "the admitted run", |state| state.session_id.is_some());
+    let body = &s.fake.bodies("/agents/runs")[0];
+    assert_eq!(body["workbench_id"], "wb-1");
+    assert_eq!(body["project_id"], "project-a");
+    assert_eq!(body["prompt"], "Edit notes");
+    let sent = format!("{:?}", s.fake.requests.lock().unwrap());
+    assert!(!sent.contains("Bearer") && !sent.contains("access_token"));
+}
+
+/// `cloudAgentController.test.ts`: "keeps a draft after rejection and never
+/// clears later edits on a delayed receipt".
+#[test]
+fn a_refusal_keeps_the_draft_and_a_late_receipt_keeps_later_edits() {
+    let s = setup(Fake::new(|_| Err(status(403))));
+    let c = controller(&s.hub, "tab-1");
+    c.set_draft("Edit notes".into());
+    c.submit("Edit notes".into());
+    settle(&c, "the refusal", |state| {
+        state.error.is_some() && !state.submitting
+    });
+    assert_eq!(c.snapshot().draft, "Edit notes");
+    assert!(c.snapshot().pending.is_none());
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let held = Mutex::new(held);
+    let asked = Arc::new(AtomicUsize::new(0));
+    let seen = asked.clone();
+    s.fake.set(move |r| {
+        seen.fetch_add(1, Ordering::SeqCst);
+        let _ = held.lock().unwrap().recv_timeout(Duration::from_secs(5));
+        let request = r.body.as_ref().unwrap()["request_id"].as_str().unwrap();
+        Ok(run("run-1", request, "running", 1))
+    });
+    c.submit("Edit notes".into());
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while asked.load(Ordering::SeqCst) == 0 {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the send did not start"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    c.set_draft("Next instruction".into());
+    release.send(()).unwrap();
+    settle(&c, "the late receipt", |state| {
+        state.session_id.is_some() && !state.submitting
+    });
+    assert_eq!(c.snapshot().draft, "Next instruction");
+}
+
+/// `cloudAgentController.test.ts`: "restores a persisted accepted run without
+/// submitting it again" — opening a conversation reads its runs and sends no
+/// message.
+#[test]
+fn opening_a_conversation_reads_its_runs_and_sends_nothing() {
+    let s = setup(Fake::new(|r| {
+        if r.path.ends_with("/runs") {
+            let mut saved = run("run-1", "req", "succeeded", 8);
+            saved["snapshot"]["text"] = json!("Saved answer");
+            Ok(json!([saved]))
+        } else {
+            Ok(json!([]))
+        }
+    }));
+    let session: Session = serde_json::from_value(json!({"id": "session-1",
+        "agent_id": "agent-1", "mode": "cloud_pi", "title": "Notes",
+        "updated_at": "2026-10-01T00:00:00Z"}))
+    .unwrap();
+    let (wake, _rx) = Wake::channel();
+    let c = CloudAgentController::new(s.hub.clone(), "tab-1", Some(session), wake).unwrap();
+    settle(&c, "the saved run", |state| !state.runs.is_empty());
+    assert!(
+        texts(&c.snapshot())
+            .iter()
+            .any(|(_, text)| text == "Saved answer")
+    );
+    assert_eq!(s.fake.count("POST", "/"), 0);
+}
+
+/// `cloudAgentController.test.ts`: "keeps a 500 submission unresolved across
+/// reopen and retries its receipt before admission".
+#[test]
+fn a_server_error_stays_unresolved_across_reopen_and_its_receipt_is_asked_first() {
+    let s = setup(Fake::new(|_| Err(status(500))));
+    let first = controller(&s.hub, "tab-1");
+    first.set_draft("Connection test".into());
+    first.submit("Connection test".into());
+    settle(&first, "the server error", |state| {
+        state.error.is_some() && !state.submitting
+    });
+    assert_eq!(first.snapshot().error_status, Some(500));
+    let request = first.snapshot().pending.unwrap().request_id;
+    drop(first);
+    let again = controller(&s.hub, "tab-1");
+    settle(&again, "the reopened tab", |state| !state.loading);
+    let reopened = again.snapshot();
+    assert_eq!(reopened.draft, "Connection test");
+    assert_eq!(
+        reopened.pending.map(|p| p.request_id),
+        Some(request.clone())
+    );
+    assert!(reopened.runs.is_empty());
+    assert_eq!(s.fake.count("POST", "/agents/runs"), 1);
+    s.fake.set(|r| {
+        if r.path.starts_with("/agents/requests/") {
+            Err(status(404))
+        } else if r.path == "/agents/runs" {
+            let request = r.body.as_ref().unwrap()["request_id"].as_str().unwrap();
+            Ok(run("run-1", request, "succeeded", 2))
+        } else {
+            Ok(json!([]))
+        }
+    });
+    again.submit("Connection test".into());
+    settle(&again, "the admitted retry", |state| {
+        state.pending.is_none() && !state.submitting
+    });
+    let requests = s.fake.requests.lock().unwrap().clone();
+    let receipt = requests
+        .iter()
+        .position(|(_, p, _)| *p == format!("/agents/requests/project-a/{request}"))
+        .unwrap();
+    let admission = requests
+        .iter()
+        .rposition(|(m, p, _)| m == "POST" && p == "/agents/runs")
+        .unwrap();
+    assert!(receipt < admission);
+    assert_eq!(
+        s.fake.bodies("/agents/runs")[1]["request_id"],
+        request.as_str()
+    );
+    let state = again.snapshot();
+    assert!(state.draft.is_empty() && state.error.is_none());
+}
+
+/// `cloudAgentController.test.ts`: "does not treat EOF as completion or
+/// unknown/conflict outcomes as success" — empty event batches leave a run
+/// running, and an unknown or conflicting outcome has no terminal state.
+#[test]
+fn an_empty_event_read_is_not_completion_and_unknown_outcomes_are_not_success() {
+    let s = setup(Fake::new(|r| {
+        if r.path == "/agents/runs" {
+            let request = r.body.as_ref().unwrap()["request_id"].as_str().unwrap();
+            Ok(run("run-1", request, "running", 1))
+        } else if r.path.ends_with("/runs") || r.path.starts_with("/agents/sessions") {
+            Ok(json!([]))
+        } else {
+            Ok(run("run-1", "req", "running", 1))
+        }
+    }));
+    let c = controller(&s.hub, "tab-1");
+    c.submit("Edit notes".into());
+    settle(&c, "the running turn", CloudAgentState::running);
+    // Two empty batches (an idle stream that ended) leave it running.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while s.fake.event_reads.load(Ordering::SeqCst) < 2 {
+        assert!(std::time::Instant::now() < deadline, "no event read");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(c.snapshot().running());
+    for state in ["outcome_unknown", "conflict"] {
+        let mut value = run("run-2", "req", state, 3);
+        value["snapshot"]["text"] = json!("Unconfirmed result");
+        let projection = project_cloud_agent_runs(&[serde_json::from_value(value).unwrap()]);
+        let reply = projection
+            .messages
+            .iter()
+            .find(|m| m.role == "assistant")
+            .unwrap();
+        assert_eq!(reply.terminal_state, None, "{state}");
+        assert_ne!(
+            projection.presentation.unwrap().terminal_state,
+            "completed",
+            "{state}"
+        );
+    }
+}
+
+fn hub_for(fake: &Arc<Fake>, project: &str, storage: &str, dir: &std::path::Path) -> Arc<Hub> {
+    Hub::new(
+        Client::new(fake.clone(), project.into(), "wb-1".into()),
+        storage.into(),
+        dir.to_path_buf(),
+        Box::new(|| {}),
+    )
+}
+
+/// `useCloudAgentWorkspace.test.tsx`: what a hosted chat holds belongs to
+/// its workspace identity (API, account, Project, root): another account,
+/// API or Project starts empty, and the same identity finds it again.
+#[test]
+fn a_chats_pending_message_belongs_to_its_workspace_identity() {
+    let dir = tempfile::tempdir().unwrap();
+    let fake = Fake::new(|_| Err(lost()));
+    let own = "puppyone-cloud://api/user-1/project-a/root/";
+    let first = controller(&hub_for(&fake, "project-a", own, dir.path()), "tab-1");
+    first.set_draft("Private draft".into());
+    first.submit("Private draft".into());
+    settle(&first, "the lost receipt", |s| {
+        s.error.is_some() && !s.submitting
+    });
+    drop(first);
+    for other in [
+        "puppyone-cloud://api/user-2/project-a/root/",
+        "puppyone-cloud://other-api/user-1/project-a/root/",
+        "puppyone-cloud://api/user-1/project-b/root/",
+    ] {
+        let project = if other.contains("project-b") {
+            "project-b"
+        } else {
+            "project-a"
+        };
+        let elsewhere = controller(&hub_for(&fake, project, other, dir.path()), "tab-1");
+        settle(&elsewhere, "the other identity", |s| !s.loading);
+        let state = elsewhere.snapshot();
+        assert!(state.pending.is_none() && state.draft.is_empty(), "{other}");
+    }
+    let again = controller(&hub_for(&fake, "project-a", own, dir.path()), "tab-1");
+    settle(&again, "the same identity", |s| !s.loading);
+    assert_eq!(
+        again.snapshot().pending.map(|p| p.prompt).as_deref(),
+        Some("Private draft")
+    );
+}
+
+/// `keeps a delayed admission with its original project while the user
+/// changes projects`: a late receipt lands on the chat that sent it, never
+/// on the next Project's.
+#[test]
+fn a_late_receipt_lands_on_the_chat_that_sent_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let held = Mutex::new(held);
+    let fake = Fake::new(move |r| {
+        if r.path == "/agents/runs" {
+            let _ = held.lock().unwrap().recv_timeout(Duration::from_secs(5));
+            let request = r.body.as_ref().unwrap()["request_id"].as_str().unwrap();
+            return Ok(run("run-1", request, "succeeded", 2));
+        }
+        Ok(json!([]))
+    });
+    let first = controller(
+        &hub_for(
+            &fake,
+            "project-a",
+            "puppyone-cloud://api/user-1/project-a/root/",
+            dir.path(),
+        ),
+        "tab-1",
+    );
+    first.submit("Private instruction".into());
+    let next = controller(
+        &hub_for(
+            &fake,
+            "project-b",
+            "puppyone-cloud://api/user-1/project-b/root/",
+            dir.path(),
+        ),
+        "tab-1",
+    );
+    release.send(()).unwrap();
+    settle(&first, "the late receipt", |s| !s.runs.is_empty());
+    settle(&next, "the next project", |s| !s.loading);
+    assert!(next.snapshot().runs.is_empty());
+    assert!(next.snapshot().draft.is_empty());
+}

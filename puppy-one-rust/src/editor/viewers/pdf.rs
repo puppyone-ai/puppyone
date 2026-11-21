@@ -54,14 +54,12 @@ const MAX_TILE_LRU: usize = 64;
 const OUTLINE_PREFIX: &str = "pdf-outline-";
 
 pub fn bind_keys(cx: &mut App) {
-    for modifier in ["cmd", "ctrl"] {
-        cx.bind_keys([
-            KeyBinding::new(&format!("{modifier}-="), ZoomIn, Some(CONTEXT)),
-            KeyBinding::new(&format!("{modifier}-+"), ZoomIn, Some(CONTEXT)),
-            KeyBinding::new(&format!("{modifier}--"), ZoomOut, Some(CONTEXT)),
-            KeyBinding::new(&format!("{modifier}-0"), ZoomReset, Some(CONTEXT)),
-        ]);
-    }
+    cx.bind_keys([
+        KeyBinding::new("secondary-=", ZoomIn, Some(CONTEXT)),
+        KeyBinding::new("secondary-+", ZoomIn, Some(CONTEXT)),
+        KeyBinding::new("secondary--", ZoomOut, Some(CONTEXT)),
+        KeyBinding::new("secondary-0", ZoomReset, Some(CONTEXT)),
+    ]);
 }
 
 fn intern_id(id: &str) -> &'static str {
@@ -1889,6 +1887,7 @@ mod tests {
         });
     }
 
+    #[cfg(unix)]
     #[test]
     fn pdf_workspace_source_uses_retained_authority_and_rechecks_revocation_before_opening() {
         use std::io::Read;
@@ -1973,7 +1972,7 @@ mod tests {
                 assert!(view.pages.is_empty() && view.sizes.is_empty());
             });
             cx.update(|window, cx| {
-                let _ = window.draw(cx);
+                window.draw(cx).clear(cx);
             });
             assert!(cx.debug_bounds("pdf-retry").is_some(), "{case}");
         }
@@ -2009,7 +2008,7 @@ mod tests {
             )
         });
         cx.update(|window, cx| {
-            let _ = window.draw(cx);
+            window.draw(cx).clear(cx);
         });
         let retry = cx.debug_bounds("pdf-retry").unwrap();
         cx.simulate_click(retry.center(), Modifiers::none());
@@ -2020,7 +2019,7 @@ mod tests {
         loop {
             cx.run_until_parked();
             cx.update(|window, cx| {
-                let _ = window.draw(cx);
+                window.draw(cx).clear(cx);
             });
             if view.read_with(cx, |v, _| {
                 v.phase == Phase::Ready && v.pages.contains_key(&0)
@@ -2057,7 +2056,7 @@ mod tests {
         loop {
             cx.run_until_parked();
             cx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
             });
             if view.read_with(cx, |v, _| {
                 v.phase == Phase::Ready && v.pages.contains_key(&0)

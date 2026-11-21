@@ -114,6 +114,7 @@ impl ComposerView {
                 .into_any_element()
         };
         let primary = gpui_kit::base::Button::new("agent-panel-primary")
+            .debug_selector(|| "agent-composer-action".into())
             .accessibility_label(action_label.clone())
             .disabled(disabled)
             .size(px(theme::control_compact()))

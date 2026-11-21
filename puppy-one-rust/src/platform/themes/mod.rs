@@ -11,3 +11,6 @@ mod named_colors;
 pub mod palette;
 pub mod service;
 pub mod value;
+
+#[cfg(test)]
+mod builtin_tests;

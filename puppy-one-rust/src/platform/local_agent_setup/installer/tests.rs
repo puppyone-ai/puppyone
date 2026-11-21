@@ -335,7 +335,8 @@ fn cancellation_still_reaps_descendants_after_the_version_parent_has_exited() {
     let worker = std::thread::spawn(move || {
         let _ = sent.send(verify_version(&script, &worker_home, &worker_cancel));
     });
-    let deadline = Instant::now() + Duration::from_secs(3);
+    // Readiness only: macOS checks a new script on its first run.
+    let deadline = Instant::now() + Duration::from_secs(15);
     let parent = loop {
         if let Ok(text) = std::fs::read_to_string(home.join("worker.pid"))
             && let Some(pid) = text
@@ -467,7 +468,7 @@ fn losing_the_installation_lease_stops_a_real_staged_version_process() {
     }
     let root = home.join(".puppyone/agent-runtimes/codex");
     std::fs::remove_dir(root.join("install.lock")).unwrap();
-    let result = rx.recv_timeout(Duration::from_secs(7));
+    let result = rx.recv_timeout(Duration::from_secs(15));
     // Ensure failure also reaps the fixture instead of abandoning a child.
     cancel.store(true, Ordering::SeqCst);
     worker.join().unwrap();

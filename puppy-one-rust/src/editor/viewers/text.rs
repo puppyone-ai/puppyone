@@ -63,6 +63,7 @@ pub fn open_markdown(
     let file_mode = request.file_mode;
     let editor = cx.new(|cx| {
         let mut view = EditorView::new(text, Box::new(markdown), cx);
+        view.attach_model(&request.models);
         view.set_appearance(dark, scale, cx);
         if initial_assets.is_some() {
             view.dispatch(config_transaction(SetAssets(initial_assets)), cx);

@@ -3,7 +3,7 @@
 //! block and incrementally spliced across [`SyntaxSplice`] windows so typing in
 //! paragraph 500 only recompiles plans in paragraph 500's block window.
 use super::{
-    feature::{self, CompileCx, Features},
+    feature::{self, CompileCx, Features, MarkdownFeature},
     state::FeatureStateStore,
     syntax::{Element, Kind, Span, Syntax, SyntaxSplice},
 };
@@ -75,6 +75,11 @@ impl fmt::Debug for BlockEmbed {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Presentation {
     VisibleSource,
+    /// A recognized feature intentionally keeps its source, with a stable
+    /// diagnostic code for inspection and acceptance (not a UI message).
+    SourceFallback {
+        code: &'static str,
+    },
     InlineMark {
         content: Range<usize>,
         markers: Vec<Range<usize>>,
@@ -94,6 +99,13 @@ pub struct Plan {
 }
 
 impl Plan {
+    pub fn is_visible_source(&self) -> bool {
+        matches!(
+            self.presentation,
+            Presentation::VisibleSource | Presentation::SourceFallback { .. }
+        )
+    }
+
     /// The block embed, if this plan is a feature block.
     pub fn embed(&self) -> Option<&BlockEmbed> {
         match &self.presentation {
@@ -234,7 +246,14 @@ pub fn window_syntax_view(
         .partition_point(|f| f.range.start < byte_window.end)
         .max(f_a);
     let fences = syntax.fences[f_a..f_b].to_vec();
-    let code_lines = fences.iter().map(|f| f.lines.clone()).collect();
+    let code_start = syntax
+        .code_lines
+        .partition_point(|r| r.end <= line_window.start);
+    let code_end = syntax
+        .code_lines
+        .partition_point(|r| r.start < line_window.end)
+        .max(code_start);
+    let code_lines = syntax.code_lines[code_start..code_end].to_vec();
 
     let c_a = syntax
         .callouts
@@ -251,9 +270,11 @@ pub fn window_syntax_view(
         lists: Vec::new(),
         paragraphs: Vec::new(),
         fences,
+        code_blocks: slice_spans(&syntax.code_blocks),
         code_lines,
         highlights: Vec::new(),
         tables: slice_spans(&syntax.tables),
+        table_cells: slice_spans(&syntax.table_cells),
         callouts,
         note_definitions: Vec::new(),
         inline_tags: Vec::new(),
@@ -283,6 +304,7 @@ pub fn compile_blocks_in_window(
         folds,
     };
     let mut out = Vec::new();
+    let mut owned = Vec::new();
     for f in features {
         let mut stage = Vec::new();
         if feature::catch_feature_panic(f.id(), "compile_blocks", || {
@@ -290,8 +312,9 @@ pub fn compile_blocks_in_window(
         })
         .is_some()
         {
-            for p in stage {
-                let clamped = p.clamp_to_doc(doc);
+            let mut stage: Vec<_> = stage.into_iter().map(|p| p.clamp_to_doc(doc)).collect();
+            claim_lines(*f, &mut stage, &mut owned);
+            for clamped in stage {
                 if clamped.source.end > byte_window.start && clamped.source.start < byte_window.end
                     || (byte_window.start == 0 && clamped.source.start == 0)
                 {
@@ -306,6 +329,7 @@ pub fn compile_blocks_in_window(
             .cmp(&b.source.start)
             .then(a.source.end.cmp(&b.source.end))
     });
+    retain_first_block_owner(&mut out);
     out
 }
 
@@ -324,6 +348,7 @@ pub fn compile(
         .enumerate()
         .map(|(i, e)| compile_one_element(i, e, &cx, features))
         .collect();
+    let mut owned = Vec::new();
     for f in features {
         let mut stage = Vec::new();
         if feature::catch_feature_panic(f.id(), "compile_blocks", || {
@@ -331,7 +356,9 @@ pub fn compile(
         })
         .is_some()
         {
-            plans.extend(stage.into_iter().map(|p| p.clamp_to_doc(doc)));
+            let mut stage: Vec<_> = stage.into_iter().map(|p| p.clamp_to_doc(doc)).collect();
+            claim_lines(*f, &mut stage, &mut owned);
+            plans.extend(stage);
         }
     }
     plans.sort_by(|a, b| {
@@ -340,7 +367,39 @@ pub fn compile(
             .cmp(&b.source.start)
             .then(a.source.end.cmp(&b.source.end))
     });
+    retain_first_block_owner(&mut plans);
     plans
+}
+
+/// Composition order decides which feature owns an identical block range,
+/// including a feature's explicit source fallback. Stable source sorting
+/// preserves that order. Inline plans remain independent.
+fn retain_first_block_owner(plans: &mut Vec<Plan>) {
+    let mut claimed = std::collections::HashSet::new();
+    plans.retain(|plan| !owns_block(plan) || claimed.insert((plan.source.start, plan.source.end)));
+}
+
+fn owns_block(plan: &Plan) -> bool {
+    plan.embed().is_some() || (plan.element.is_none() && plan.is_visible_source())
+}
+
+/// A [`MarkdownFeature::owns_block_lines`] feature's block plans claim
+/// their lines from the features composed after it.
+fn claim_lines(f: &dyn MarkdownFeature, stage: &mut Vec<Plan>, owned: &mut Vec<Range<usize>>) {
+    stage.retain(|p| {
+        !owns_block(p)
+            || !owned
+                .iter()
+                .any(|o| o.start <= p.source.start && p.source.end <= o.end)
+    });
+    if f.owns_block_lines() {
+        owned.extend(
+            stage
+                .iter()
+                .filter(|p| owns_block(p))
+                .map(|p| p.source.clone()),
+        );
+    }
 }
 
 fn shift_signed(v: usize, delta: isize) -> usize {

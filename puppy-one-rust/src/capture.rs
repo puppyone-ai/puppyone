@@ -72,7 +72,7 @@ pub fn send_to_back(_: &Window) {}
 /// rendered off screen. GPUI's content only (no native child views or
 /// traffic lights), but it does not depend on a window behind every other
 /// one presenting its frames, which macOS stops doing while it is covered.
-#[cfg(feature = "dev-capture")]
+#[cfg(all(target_os = "macos", feature = "dev-capture"))]
 fn schedule_offscreen(
     window: &Window,
     cx: &App,

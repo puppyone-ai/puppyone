@@ -620,6 +620,34 @@ mod tests {
         }
         let (_, scale) = parse(r#"{"version":3,"sizes":{"content":{"mode":"auto","sizePx":16}}}"#);
         assert_eq!(scale, Scale::Medium);
+        // `typographyArchitecture`: every retired scale shape becomes the one
+        // application scale.
+        for (json, expected) in [
+            (
+                r#"{"version":5,"sizes":{"content":{"mode":"explicit","sizePx":18},
+                    "conversation":{"mode":"explicit","sizePx":13}}}"#,
+                Scale::Large,
+            ),
+            (
+                r#"{"version":10,"scales":{"leftSidebar":"large","header":"small","editor":"custom"}}"#,
+                Scale::Medium,
+            ),
+            (
+                r#"{"version":9,"scales":{"leftSidebar":"large","editor":"small","rightSidebar":"large"}}"#,
+                Scale::Small,
+            ),
+            (
+                r#"{"version":7,"scales":{"appChrome":"large","editor":"small"}}"#,
+                Scale::Small,
+            ),
+            (
+                r#"{"version":8,"scales":{"leftSidebar":"small","editor":"large"}}"#,
+                Scale::Large,
+            ),
+            (r#"{"version":11,"scale":"custom"}"#, Scale::Medium),
+        ] {
+            assert_eq!(parse(json).1, expected, "{json}");
+        }
     }
 
     #[test]

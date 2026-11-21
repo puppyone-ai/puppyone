@@ -1,6 +1,6 @@
 # gpui-base 0.8.0, patched for PuppyOne
 
-This is the crates.io release of `gpui-base` 0.8.0 with nine additions, used
+This is the crates.io release of `gpui-base` 0.8.0 with ten additions, used
 through `[patch.crates-io]` in `puppy-one-rust/Cargo.toml`. Nothing else
 differs from the published source.
 
@@ -497,3 +497,38 @@ diff -ru registry/gpui-base-0.8.0/src/input/mod.rs vendor/gpui-base/src/input/mo
 creating a second dialog or focus scope. The application wrapper uses the title
 by default, and custom headings explicitly supply the same label. Rendered
 Homepage import-dialog tests inspect the native Dialog role and label.
+
+## The patch: aligned editor geometry
+
+Whole-leaf editor geometry records the text alignment used during prepaint.
+Caret positions and inverse hit testing apply each wrapped row's horizontal
+offset, so centered and right-aligned table content has the same painted and
+interactive coordinates. Piece-based inline flows keep their already positioned
+fragment geometry. `EditorSink::report_aligned` defaults to the previous report
+hook for custom sinks. Native table acceptance covers ready image placement,
+aligned link clicks, and caret/hit round trips across wrapped rows.
+
+## The patch: `Positioner::tracked_corner_position` visibility
+
+Deferred `SubmenuRow` overlays render outside the parent `AnchoredMenu` or
+`PopoverMenu` hitbox, so the parent's capture-phase `on_mouse_down_out` handler
+would otherwise dismiss the menu on `MouseDown` before a submenu item's
+`on_click` could run. Exposing `Positioner::tracked_corner_position` as `pub`
+lets `src/ui/components/menu.rs` capture each active deferred submenu's live
+corner position (surviving `.cached()` view replays) so `menu::submenu_contains`
+can skip parent dismissal in `src/ui/components/menu.rs` and
+`src/ui/components/popover.rs` when the click lands inside an open submenu.
+
+```diff
+--- registry/gpui-base-0.8.0/src/positioner.rs
++++ vendor/gpui-base/src/positioner.rs
+@@ -152,7 +152,7 @@ impl Positioner {
+     }
+ 
+     // Read after trigger prepaint so an open popup follows a moving trigger.
+-    pub(crate) fn tracked_corner_position(mut self, position: Rc<Cell<Point<Pixels>>>) -> Self {
++    pub fn tracked_corner_position(mut self, position: Rc<Cell<Point<Pixels>>>) -> Self {
+         self.corner_position = Some(position);
+         self
+     }
+```

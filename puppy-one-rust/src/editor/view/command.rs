@@ -12,6 +12,7 @@ use std::{
 #[derive(Clone)]
 pub struct Command {
     feature: &'static str,
+    focus_editor: bool,
     /// Payload identity (decorations compare and hash by it).
     key: u64,
     payload: Rc<dyn Any>,
@@ -23,6 +24,7 @@ impl Command {
         (feature, &payload).hash(&mut h);
         Self {
             feature,
+            focus_editor: true,
             key: h.finish(),
             payload: Rc::new(payload),
         }
@@ -30,6 +32,17 @@ impl Command {
 
     pub fn feature(&self) -> &'static str {
         self.feature
+    }
+
+    /// A view-only control may keep focus where it was instead of entering
+    /// the document's source-editing state when it runs.
+    pub fn preserving_focus(mut self) -> Self {
+        self.focus_editor = false;
+        self
+    }
+
+    pub fn focuses_editor(&self) -> bool {
+        self.focus_editor
     }
 
     /// The payload, if it is a `T`.
@@ -40,7 +53,9 @@ impl Command {
 
 impl PartialEq for Command {
     fn eq(&self, other: &Self) -> bool {
-        self.feature == other.feature && self.key == other.key
+        self.feature == other.feature
+            && self.key == other.key
+            && self.focus_editor == other.focus_editor
     }
 }
 

@@ -349,6 +349,12 @@ impl EditorView {
     }
 
     pub fn edit_intent(&mut self, intent: EditIntent, cx: &mut Context<Self>) {
+        if intent == EditIntent::Escape && self.pointer.drag.take().is_some() {
+            let focused = self.focused_before;
+            self.extensions
+                .selection_changed(&self.state, focused, false);
+            cx.notify();
+        }
         if self.try_intercept(intent, cx) {
             return;
         }

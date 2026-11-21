@@ -75,7 +75,9 @@ pub fn run_feedback(label: SharedString, busy: Option<SharedString>, a: &AgentTh
 
 /// `.desktop-agent-prompt-mention` (and the resolving placeholder).
 pub fn mention_chip(a: &AgentTheme, label: String, resolving: bool) -> Div {
+    let selector = format!("agent-mention:{label}");
     div()
+        .debug_selector(move || selector)
         .flex_shrink_0()
         .mt(px(0.5))
         .px(px(4.))

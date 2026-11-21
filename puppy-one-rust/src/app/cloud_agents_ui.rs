@@ -7,7 +7,7 @@
 //! Agent looks like itself in the Header, its card and the dialog.
 use super::window_cloud::WindowCloud;
 use super::*;
-use crate::features::cloud::{Opener, agent_status};
+use crate::features::cloud::{CloudAgents, Opener, agent_status};
 use crate::features::source_control::{relative_time, short_date};
 use crate::localization::{t as tr, tf};
 use crate::ui::{
@@ -45,9 +45,11 @@ pub(super) type AgentsAnchor = Rc<Cell<Bounds<Pixels>>>;
 /// which card shows.
 #[derive(Default)]
 pub(super) struct AgentCards {
-    faces: Rc<RefCell<HashMap<String, Bounds<Pixels>>>>,
+    pub(super) faces: Rc<RefCell<HashMap<String, Bounds<Pixels>>>>,
     /// The face whose card shows.
     pub(super) shown: Option<String>,
+    /// The face under the pointer, its card shown or on its way.
+    hovered: Option<String>,
     timer: Option<gpui::Task<()>>,
 }
 
@@ -161,11 +163,22 @@ pub(super) fn agent_mark(name: &str, avatar: Option<&str>, look: Look, t: Theme)
         .child(drawing)
         .when(active, |d| d.child(dot(t.success, 0.5)))
         .when(waiting && header, |d| d.child(dot(t.accent, 1.)));
-    if active && header {
+    if hops(
+        active,
+        header,
+        crate::platform::accessibility::reduce_motion(),
+    ) {
         hop(mark, name)
     } else {
         mark.into_any_element()
     }
+}
+
+/// Only a Header mark at work hops, and never for a person who asked for
+/// less motion (`agent-avatar.css`: `prefers-reduced-motion` stills
+/// `[data-reach-activity]`).
+fn hops(active: bool, header: bool, reduce_motion: bool) -> bool {
+    active && header && !reduce_motion
 }
 
 /// Compact `AgentAvatarMark` inside a Homepage Agent tile (`18 × 18`, `4px`
@@ -216,12 +229,8 @@ pub(in crate::app) fn compact_agent_face(
         .child(inner)
         .into_any_element()
 }
-/// `desktop-project-reach-hop`: a mark at work hops now and then; a person
-/// who asked for less motion sees it still.
+/// `desktop-project-reach-hop`: a mark at work hops now and then.
 fn hop(mark: Div, name: &str) -> AnyElement {
-    if crate::platform::accessibility::reduce_motion() {
-        return mark.into_any_element();
-    }
     let lift = |delta: f32| -> f32 {
         // 0%, 26%, 100%: rest; 5%: up 3; 10%: down; 15%: up 2; 20%: down.
         let keys = [
@@ -290,11 +299,78 @@ fn people(agents: &[WorkspaceAgent], requests: &[AgentRequest]) -> (Vec<Live>, V
     (live, resting)
 }
 
-/// `.desktop-titlebar-cloud-agent`: a mark is its button's own circle.
+/// A live mark's name: the Agent, then what it is doing.
+fn mark_label(mark: &Live) -> String {
+    [Some(mark.name.clone()), mark.status.clone()]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+/// The stack is named by all of them, as a sentence would (`formatList`).
+fn stack_label(resting: &[Live]) -> String {
+    crate::localization::and_list(&resting.iter().map(|r| r.name.clone()).collect::<Vec<_>>())
+}
+
+/// What an Agent's card says: when it last worked, then who it is, how it
+/// got in and how long it may stay. A request says only that it asks.
+struct CardFace {
+    name: String,
+    avatar: Option<String>,
+    live: bool,
+    when: String,
+    facts: Vec<String>,
+}
+fn card_face(agents: &CloudAgents, id: &str, now: i64) -> Option<CardFace> {
+    if let Some(agent) = agents.agents.iter().find(|a| a.agent.id == id) {
+        let joined = tr(match agent.agent.admission {
+            Admission::SignIn => "cloud.share.agent.detail.approved",
+            Admission::Link => "cloud.share.agent.detail.joinedByLink",
+        })
+        .to_string();
+        let stay = match agent.agent.expires_at.as_deref().and_then(short_date) {
+            Some(date) => tf("cloud.share.agent.detail.ends", &[("date", date.into())]),
+            None => tf(
+                "cloud.share.agent.detail.since",
+                &[(
+                    "date",
+                    short_date(&agent.agent.connected_at)
+                        .unwrap_or_default()
+                        .into(),
+                )],
+            ),
+        };
+        return Some(CardFace {
+            name: agent.agent.name.clone(),
+            avatar: agent.agent.avatar.clone(),
+            live: agent.active,
+            when: agent_status(agent, now).unwrap_or_default(),
+            facts: vec![joined, stay],
+        });
+    }
+    let request = agents.requests.iter().find(|r| r.id == id)?;
+    Some(CardFace {
+        name: request.name.clone(),
+        avatar: request.avatar.clone(),
+        live: false,
+        when: format!(
+            "{} · {}",
+            tr("cloud.share.agent.request.status"),
+            relative_time(&request.requested_at, now).unwrap_or_default()
+        ),
+        facts: vec![],
+    })
+}
+
+/// `.desktop-titlebar-cloud-agent`: a mark is its button's own circle,
+/// named for assistive technology. It shows no tooltip: resting on a face
+/// shows its card, which says more (`disableTooltipHints`).
 fn mark_button(id: SharedString, label: String, t: Theme) -> Stateful<Div> {
     div()
         .id(id.clone())
         .debug_selector(move || id.to_string())
+        .role(Role::Button)
+        .aria_label(label)
         .h(px(theme::control_compact()))
         .min_w(px(theme::control_compact()))
         .flex_none()
@@ -303,9 +379,9 @@ fn mark_button(id: SharedString, label: String, t: Theme) -> Stateful<Div> {
         .rounded_full()
         .text_color(t.muted)
         .cursor(theme::clickable_cursor())
-        .tooltip(crate::ui::components::tooltip(label))
 }
-/// Records where a face is, for the card under it.
+/// Records where a face is, for the card under it: laid over the whole
+/// face, not after what it holds.
 fn measured(faces: &Rc<RefCell<HashMap<String, Bounds<Pixels>>>>, id: &str) -> impl IntoElement {
     let (faces, id) = (faces.clone(), id.to_owned());
     canvas(
@@ -315,6 +391,8 @@ fn measured(faces: &Rc<RefCell<HashMap<String, Bounds<Pixels>>>>, id: &str) -> i
         |_, _, _, _| {},
     )
     .absolute()
+    .top_0()
+    .left_0()
     .size_full()
 }
 
@@ -326,7 +404,11 @@ impl WindowCloud {
     pub(super) fn agents_control(&self, cx: &App) -> Option<AnyElement> {
         let agents = self.agents.read(cx);
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
-        let checking = !agents.known;
+        // Until it is known whether this person may invite, the seat holds
+        // its place: a Project on its way in for the signed-in account, or
+        // one being asked about. With nothing to ask about there is none.
+        let checking = agents.checking()
+            || (self.session().opening && crate::features::cloud::account::has_account(cx));
         let seat = !listed && (agents.manageable || checking);
         if !listed && !seat {
             return None;
@@ -351,11 +433,7 @@ impl WindowCloud {
         };
         let mut row = h_flex().gap(px(6.)).items_center();
         for mark in &live {
-            let label = [Some(mark.name.clone()), mark.status.clone()]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-                .join(" · ");
+            let label = mark_label(mark);
             row = row.child(
                 mark_button(
                     SharedString::from(format!("cloud-workspace-agent:{}", mark.id)),
@@ -418,23 +496,16 @@ impl WindowCloud {
         let overflow = resting.len() - stacked.len();
         let step = size * 0.28;
         let width = size + step * (stacked.len().saturating_sub(1)) as f32;
-        let label = resting
-            .iter()
-            .map(|r| r.name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
+        let label = stack_label(resting);
         let faces = self.agent_cards.faces.clone();
         // Painted back to front, so the first covers the ones behind it.
         let mut pile = div().relative().w(px(width)).h(px(size)).flex_none();
         for (index, face) in stacked.iter().enumerate().rev() {
-            let host = self.weak.clone();
-            let id = face.id.clone();
+            let selector = format!("cloud-workspace-agent-face:{}", face.id);
             pile = pile.child(
                 div()
-                    .id(SharedString::from(format!(
-                        "cloud-workspace-agent-face:{}",
-                        face.id
-                    )))
+                    .id(SharedString::from(selector.clone()))
+                    .debug_selector(move || selector.clone())
                     .absolute()
                     .top_0()
                     .left(px(step * index as f32))
@@ -460,15 +531,32 @@ impl WindowCloud {
                         },
                         t,
                     ))
-                    .child(measured(&faces, &face.id))
-                    .on_hover(move |hovered, _, cx| {
-                        let id = id.clone();
-                        let _ = host.update(cx, |s, cx| s.hover_agent(hovered.then_some(id), cx));
-                    }),
+                    .child(measured(&faces, &face.id)),
             );
         }
+        // The faces overlap, so the card is for the one under the pointer
+        // that is in front, found in the pile's order; none past them.
+        let order: Vec<String> = stacked.iter().map(|face| face.id.clone()).collect();
+        let (follow, leave) = (self.weak.clone(), self.weak.clone());
         let host = self.weak.clone();
         mark_button("cloud-workspace-agent-stack".into(), label, t)
+            .on_mouse_move(move |event, _, cx| {
+                let face = order
+                    .iter()
+                    .find(|id| {
+                        faces
+                            .borrow()
+                            .get(*id)
+                            .is_some_and(|bounds| bounds.contains(&event.position))
+                    })
+                    .cloned();
+                let _ = follow.update(cx, |s, cx| s.hover_agent(face, cx));
+            })
+            .on_hover(move |hovered, _, cx| {
+                if !hovered {
+                    let _ = leave.update(cx, |s, cx| s.hover_agent(None, cx));
+                }
+            })
             .gap(px(5.))
             .child(pile)
             .when(overflow > 0, |d| {
@@ -491,7 +579,8 @@ impl WindowCloud {
         let t = cx.palette();
         let host = self.weak.clone();
         let label = tr("cloud.share.agent.invite.title").to_string();
-        mark_button("cloud-workspace-agent-add".into(), label, t)
+        mark_button("cloud-workspace-agent-add".into(), label.clone(), t)
+            .tooltip(crate::ui::components::tooltip(label))
             .justify_center()
             .size(px(size))
             .bg(theme::mix(t.text, ground, 0.08))
@@ -529,6 +618,7 @@ impl WindowCloud {
             label.to_string(),
             t,
         )
+        .tooltip(crate::ui::components::tooltip(label))
         .px(px(10.))
         .gap(px(5.))
         .bg(theme::alpha(t.text, 0.07))
@@ -562,10 +652,16 @@ impl WindowCloud {
     pub(super) fn hover_agent(&mut self, face: Option<String>, cx: &mut Context<Self>) {
         let suppressed =
             self.dialog_open(DialogKey::Agents, cx) || !self.agents.read(cx).requests.is_empty();
+        let face = face.filter(|_| !suppressed);
         let cards = &mut self.agent_cards;
+        // The pointer moving within the same face changes nothing.
+        if cards.hovered == face {
+            return;
+        }
+        cards.hovered = face.clone();
         cards.timer = None;
         match face {
-            Some(face) if !suppressed => {
+            Some(face) => {
                 if cards.shown.is_some() {
                     cards.shown = Some(face);
                     cx.notify();
@@ -596,46 +692,13 @@ impl WindowCloud {
         let t = cx.palette();
         let ty = theme::ty().ui;
         let now = crate::clock::now_ms() / 1000;
-        let (name, avatar, live, when, facts) =
-            if let Some(agent) = agents.agents.iter().find(|a| &a.agent.id == id) {
-                let joined = tr(match agent.agent.admission {
-                    Admission::SignIn => "cloud.share.agent.detail.approved",
-                    Admission::Link => "cloud.share.agent.detail.joinedByLink",
-                })
-                .to_string();
-                let stay = match agent.agent.expires_at.as_deref().and_then(short_date) {
-                    Some(date) => tf("cloud.share.agent.detail.ends", &[("date", date.into())]),
-                    None => tf(
-                        "cloud.share.agent.detail.since",
-                        &[(
-                            "date",
-                            short_date(&agent.agent.connected_at)
-                                .unwrap_or_default()
-                                .into(),
-                        )],
-                    ),
-                };
-                (
-                    agent.agent.name.clone(),
-                    agent.agent.avatar.clone(),
-                    agent.active,
-                    agent_status(agent, now).unwrap_or_default(),
-                    vec![joined, stay],
-                )
-            } else {
-                let request = agents.requests.iter().find(|r| &r.id == id)?;
-                (
-                    request.name.clone(),
-                    request.avatar.clone(),
-                    false,
-                    format!(
-                        "{} · {}",
-                        tr("cloud.share.agent.request.status"),
-                        relative_time(&request.requested_at, now).unwrap_or_default()
-                    ),
-                    vec![],
-                )
-            };
+        let CardFace {
+            name,
+            avatar,
+            live,
+            when,
+            facts,
+        } = card_face(agents, id, now)?;
         let ground = t.menu_bg;
         let card = SurfaceFrame::popover_card("cloud-agent-card")
             .occlude(false)
@@ -897,9 +960,13 @@ impl WindowCloud {
         });
         let name = self.session().name.clone();
         let open = self.dialog_open(DialogKey::Agents, cx);
+        let before = self.agents.read(cx).scope_key().map(str::to_owned);
         self.agents.update(cx, |a, cx| {
             a.sync(project.as_deref().map(|p| (p, name.as_str())), open, cx)
         });
+        // A dialog open for one Project and identity ends with them: another
+        // Project, account, sign-in or host never inherits it.
+        let revoked = before.is_some() && self.agents.read(cx).scope_key() != before.as_deref();
         // The Agent at work here: the screen's card unfolds to watch it.
         let operator = self
             .agents
@@ -915,11 +982,12 @@ impl WindowCloud {
         let gone =
             agents.project_name().is_none() || (!listed && !agents.manageable && agents.known);
         // An open dialog answers a request itself, where the Agent asks.
-        if open && gone {
+        if open && (gone || revoked) {
             self.close_dialog(DialogKey::Agents, cx);
         }
         if pending || gone {
             self.agent_cards.shown = None;
+            self.agent_cards.hovered = None;
             self.agent_cards.timer = None;
         }
     }
@@ -946,6 +1014,17 @@ mod tests {
             last_active_at: None,
             activity_known: true,
         }
+    }
+
+    /// `agentPresenceMotion`: a working Agent's Header mark hops, a resting
+    /// one or one in a list does not, and none hops for a person who asked
+    /// for less motion.
+    #[test]
+    fn only_a_working_header_mark_hops_and_never_with_reduced_motion() {
+        assert!(hops(true, true, false));
+        assert!(!hops(true, true, true));
+        assert!(!hops(false, true, false));
+        assert!(!hops(true, false, false));
     }
 
     /// `CloudWorkspaceAgentPeople`: only what is live stands on its own —
@@ -976,5 +1055,106 @@ mod tests {
         let (live, resting) = people(&[agent("a", false)], &[]);
         assert!(live.is_empty());
         assert_eq!(ids(&resting), ["a"]);
+    }
+
+    fn named(id: &str, name: &str, active: bool) -> WorkspaceAgent {
+        let mut agent = agent(id, active);
+        agent.agent.name = name.into();
+        agent
+    }
+
+    /// `CloudWorkspaceAgentPeople`'s names: a live mark says who and what
+    /// it is doing; the stack is named by all of them, as a sentence.
+    #[test]
+    fn each_mark_and_the_stack_are_named_as_a_person_reads_them() {
+        let request = AgentRequest {
+            id: "r1".into(),
+            name: "Claude Code".into(),
+            avatar: None,
+            admission: Admission::SignIn,
+            requested_at: "2026-10-30T12:00:00Z".into(),
+            expires_at: String::new(),
+        };
+        let (live, resting) = people(
+            &[
+                named("c1", "Quiet agent", false),
+                named("c2", "Busy agent", true),
+            ],
+            &[request],
+        );
+        let labels: Vec<_> = live.iter().map(mark_label).collect();
+        assert_eq!(
+            labels,
+            ["Claude Code · Wants to join", "Busy agent · Working now"]
+        );
+        assert_eq!(stack_label(&resting), "Quiet agent");
+        let (_, resting) = people(
+            &[named("c1", "秘书小陈", false), named("c2", "Codex", false)],
+            &[],
+        );
+        assert_eq!(stack_label(&resting), "秘书小陈 and Codex");
+        let five: Vec<_> = ["A", "B", "C", "D", "E"]
+            .iter()
+            .map(|n| named(n, n, false))
+            .collect();
+        let (_, resting) = people(&five, &[]);
+        assert_eq!(stack_label(&resting), "A, B, C, D, and E");
+        // Three faces in the stack, the rest a count.
+        assert_eq!(resting.len() - VISIBLE_AGENT_LIMIT, 2);
+        assert_eq!(
+            tf("shell.projectReach.more", &[("count", 2usize.into())]),
+            "+2"
+        );
+    }
+
+    /// `AgentAvatarMark`: the picture an Agent chose when it connected,
+    /// over anything read from its name; "other" is a choice of no brand,
+    /// and a picture this build does not know is no choice at all. Without
+    /// a brand it is its own creature, never a letter of its name.
+    #[test]
+    fn an_agent_shows_the_brand_it_chose_else_its_names_else_a_creature() {
+        let brand = |name: &str, avatar: Option<&str>| agent_brand(name, avatar).map(|b| b.id);
+        assert_eq!(brand("Grok Bot", None), Some("grok-bot"));
+        assert_eq!(brand("Research helper", None), None);
+        assert_eq!(brand("秘书小陈", None), None);
+        assert_eq!(brand("薄肌孙教练", Some("grok-bot")), Some("grok-bot"));
+        assert_eq!(brand("Claude helper", Some("other")), None);
+        assert_eq!(
+            brand("Codex", Some("a-picture-this-build-does-not-know")),
+            Some("codex")
+        );
+    }
+
+    /// `CloudWorkspaceAgentCard`: when it last worked, then who it is, how
+    /// it got in and how long it may stay — or since when it is here when
+    /// its access does not end.
+    #[test]
+    fn a_card_says_when_it_worked_who_it_is_and_how_it_got_in() {
+        let now = 1_793_361_600; // 2026-10-30T12:00:00Z
+        let mut agents = CloudAgents::new();
+        let mut working = named("c1", "Codex", true);
+        working.agent.expires_at = Some("2026-11-29T12:00:00Z".into());
+        let mut earlier = named("c2", "Grok Bot", false);
+        earlier.last_active_at = Some("2026-10-30T10:00:00Z".into());
+        earlier.agent.connected_at = "2026-10-30T09:00:00Z".into();
+        earlier.agent.admission = Admission::Link;
+        let mut idle = named("c3", "Cursor", false);
+        idle.agent.connected_at = "2026-10-29T12:00:00Z".into();
+        agents.agents = vec![working, earlier, idle];
+        let face = card_face(&agents, "c1", now).unwrap();
+        assert!(face.live);
+        assert_eq!(
+            (face.name.as_str(), face.when.as_str()),
+            ("Codex", "Working now")
+        );
+        assert_eq!(face.facts, ["Approved by you", "Access ends Nov 29"]);
+        let face = card_face(&agents, "c2", now).unwrap();
+        assert!(!face.live);
+        assert_eq!(face.when, "Last worked 2 hours ago");
+        assert_eq!(face.facts, ["Joined with a link", "Here since Oct 30"]);
+        let face = card_face(&agents, "c3", now).unwrap();
+        assert_eq!(face.when, "No recent work");
+        assert_eq!(face.facts[1], "Here since Oct 29");
+        assert!(card_face(&agents, "gone", now).is_none());
     }
 }

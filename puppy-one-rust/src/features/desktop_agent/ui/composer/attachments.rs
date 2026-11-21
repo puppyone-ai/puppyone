@@ -117,9 +117,17 @@ impl ComposerView {
                 &[("name", Arg::Text(name.clone()))],
             );
             let remove_id = id.clone();
+            let status = match reference.status {
+                ReferenceStatus::Resolving => "resolving",
+                ReferenceStatus::Ready => "ready",
+                ReferenceStatus::Error => "error",
+            };
+            let card_selector = format!("agent-attachment:{name}:{status}");
+            let remove_selector = format!("agent-attachment-remove:{name}");
             shelf = shelf.child(
                 div()
                     .id(SharedString::from(format!("panel-visual-card-{id}")))
+                    .debug_selector(move || card_selector)
                     .group(group.clone())
                     .relative()
                     .size(px(CARD))
@@ -157,6 +165,7 @@ impl ComposerView {
                     .child(
                         div()
                             .id(SharedString::from(format!("panel-visual-remove-{id}")))
+                            .debug_selector(move || remove_selector)
                             .absolute()
                             .top(px(-6.))
                             .right(px(-6.))

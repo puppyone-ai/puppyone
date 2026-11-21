@@ -91,7 +91,7 @@ fn every_binary_preview_watches_its_own_path_and_unknown_changes_without_text_or
 }
 
 #[test]
-fn a_failed_preview_refresh_retains_the_committed_snapshot_and_recovers_on_retry() {
+fn a_preview_refresh_lost_in_transit_keeps_the_committed_snapshot_and_refreshes_quietly() {
     let provider = Arc::new(Resources::default());
     provider
         .bytes
@@ -108,7 +108,9 @@ fn a_failed_preview_refresh_retains_the_committed_snapshot_and_recovers_on_retry
         Error::new(ErrorKind::Io, "preview offline"),
     );
     change(&provider, "image.png");
-    settle(&mut d, &wake, |d| d.error.is_some());
+    // Nothing is said; the committed preview stays.
+    settle(&mut d, &wake, |d| d.observation_retry.is_some());
+    assert!(d.error.is_none());
     assert_eq!(d.resource.as_ref().unwrap().preview, original);
     assert_eq!(bytes(&d), [1]);
     provider.failures.lock().unwrap().clear();
@@ -129,14 +131,64 @@ fn a_failed_preview_refresh_retains_the_committed_snapshot_and_recovers_on_retry
         [1],
         "late retries cannot refresh another document"
     );
-    d.client(
-        ClientMessage::RetryInput {
-            id: d.resource.as_ref().unwrap().id.clone(),
-        },
-        &wake,
-    );
-    settle(&mut d, &wake, |d| bytes(d) == [2]);
+    // It refreshes on its own once the retry is due.
+    let later = Instant::now() + OBSERVATION_RETRIES[0];
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while bytes(&d) != [2] {
+        d.poll_at(&wake, later);
+        assert!(Instant::now() < deadline, "the preview never refreshed");
+        std::thread::sleep(Duration::from_millis(2));
+    }
     assert!(d.error.is_none());
+}
+
+/// A change subscription that ends is never the person's error: a passing
+/// fault subscribes again later and rereads; a lease that ended waits for the
+/// Project to reconnect and rebind the copy.
+#[test]
+fn a_change_subscription_that_ends_says_nothing_and_subscribes_again() {
+    let provider = Arc::new(Resources::default());
+    provider
+        .bytes
+        .lock()
+        .unwrap()
+        .insert("image.png".into(), vec![1]);
+    let (mut d, wake) = open(provider.clone(), "image.png");
+    settle(&mut d, &wake, |d| {
+        d.watching() && !d.observation_pending && d.resource_observing.is_none()
+    });
+    provider.publish(WatchEvent::Failed(Error::new(ErrorKind::Io, "stream lost")));
+    d.poll(&wake);
+    assert!(d.error.is_none(), "{:?}", d.error);
+    assert!(!d.watching());
+    assert!(d.watch_retry.is_some());
+    // Due, it subscribes again and rereads what changed meanwhile.
+    provider
+        .bytes
+        .lock()
+        .unwrap()
+        .insert("image.png".into(), vec![2]);
+    let later = Instant::now() + super::WATCH_RETRIES[0];
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !(d.watching() && bytes(&d) == [2]) {
+        d.poll_at(&wake, later);
+        assert!(Instant::now() < deadline, "it never subscribed again");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert_eq!(provider.subscribers(), 1);
+    // A lease that ended: nothing said, nothing retried here.
+    provider.publish(WatchEvent::Failed(Error::new(
+        ErrorKind::StaleLease,
+        "Cloud access changed; reopen this workspace",
+    )));
+    d.poll(&wake);
+    assert!(d.error.is_none(), "{:?}", d.error);
+    assert!(!d.watching() && d.watch_retry.is_none());
+    let logged = crate::platform::diagnostics::recorded("[cloud-recovery] document watch ended");
+    assert!(
+        logged.iter().any(|l| l["fields"]["kind"] == "StaleLease"),
+        "{logged:?}"
+    );
 }
 
 #[test]

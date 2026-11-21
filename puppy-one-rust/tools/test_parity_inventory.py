@@ -42,3 +42,27 @@ class CaseAccountingTests(unittest.TestCase):
         self.manifest['referenceCommit'] = 'different'
         with self.assertRaises(ValueError):
             case_inventory(self.manifest, self.collected, ['test.ts'], [])
+
+    def test_known_differences_are_reported_apart_and_never_count_as_reviewed(self):
+        gap = {'path': 'test.ts', 'sha256': 'hash', 'cases': [{'index': 1, 'name': 'parameterized'}]}
+        excluded = {'path': 'test.ts', 'sha256': 'hash', 'cases': [{'index': 0, 'name': 'parameterized'}]}
+        self.manifest['knownDifferences'] = [
+            {'id': 'gap', 'kind': 'gap', 'reason': 'why', 'owner': 'doc.md', 'typescript': [gap]},
+            {'id': 'scope', 'kind': 'out-of-scope', 'reason': 'why', 'owner': 'decision.md', 'typescript': [excluded]}]
+        result = case_inventory(self.manifest, self.collected, ['test.ts'], [])
+        self.assertEqual(result['reviewedCaseCount'], 0)
+        self.assertEqual([case['index'] for case in result['knownGapCases']], [1])
+        self.assertEqual([case['index'] for case in result['outOfScopeCases']], [0])
+        self.assertEqual(result['unreviewedCases'], [])
+        for field, value in [('reason', None), ('owner', None), ('kind', 'waived')]:
+            changed = copy.deepcopy(self.manifest)
+            changed['knownDifferences'][0][field] = value
+            with self.assertRaises(ValueError):
+                case_inventory(changed, self.collected, ['test.ts'], [])
+        twice = copy.deepcopy(self.manifest)
+        twice['knownDifferences'][1]['typescript'] = [gap]
+        with self.assertRaises(ValueError):
+            case_inventory(twice, self.collected, ['test.ts'], [])
+        self.manifest['contracts'][0]['typescript'][0]['cases'] = [{'index': 1, 'name': 'parameterized'}]
+        with self.assertRaises(ValueError):
+            case_inventory(self.manifest, self.collected, ['test.ts'], [])

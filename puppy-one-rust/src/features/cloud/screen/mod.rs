@@ -403,7 +403,7 @@ impl CloudScreen {
         let aspect = motion::aspect(self.frame_dims);
         let card = plane
             .filter(|_| self.entry_available(cx))
-            .map(|plane| Card::new(plane, aspect));
+            .map(|plane| Card::new(plane, crate::theme::footer(), aspect));
         let shown = if self.live(cx) {
             let place = if self.shown {
                 Place::Stage

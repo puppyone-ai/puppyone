@@ -176,6 +176,11 @@ impl EditorView {
             return;
         };
         if event.pressed_button != Some(MouseButton::Left) {
+            self.pointer.drag = None;
+            let focused = self.focused_before;
+            self.extensions
+                .selection_changed(&self.state, focused, false);
+            cx.notify();
             return;
         }
         let Some((offset, upstream)) = self.offset_for(event.position) else {

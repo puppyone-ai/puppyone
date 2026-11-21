@@ -92,7 +92,7 @@ impl<'a> Fixture<'a> {
         self.cx.run_until_parked();
         self.cx.update(|w, cx| {
             w.refresh();
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
     fn click_retry(&mut self) {
@@ -212,7 +212,7 @@ fn repairing_a_real_word_file_recovers_via_the_rendered_retry(cx: &mut TestAppCo
     let mut f = Fixture::new(cx);
     let root = f._root.path();
     assert!(
-        std::process::Command::new("/usr/bin/git")
+        std::process::Command::new(crate::platform::git::git_executable())
             .args(["-c", "init.defaultBranch=main", "init", "--template=", "-q"])
             .current_dir(root)
             .output()
@@ -353,7 +353,7 @@ fn workspace_changes_retire_the_actual_word_cache_and_its_worker_authority(
     let mut f = Fixture::new(cx);
     let root = f._root.path().to_path_buf();
     assert!(
-        std::process::Command::new("/usr/bin/git")
+        std::process::Command::new(crate::platform::git::git_executable())
             .args(["-c", "init.defaultBranch=main", "init", "--template=", "-q"])
             .current_dir(&root)
             .output()

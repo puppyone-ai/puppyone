@@ -407,9 +407,13 @@ pub struct Syntax {
     pub lists: Vec<List>,
     pub paragraphs: Vec<Paragraph>,
     pub fences: Vec<Fence>,
+    /// Parser-owned fenced/indented code, including quote and list containers.
+    pub code_blocks: Vec<Span>,
     pub code_lines: Vec<Range<usize>>,
     pub highlights: Vec<(Span, Hl)>,
     pub tables: Vec<Span>,
+    /// Parser-owned content ranges; custom inline syntax cannot cross cells.
+    pub table_cells: Vec<Span>,
     pub callouts: Vec<Callout>,
     pub note_definitions: Vec<usize>,
     pub inline_tags: Vec<Span>,
@@ -485,15 +489,22 @@ impl Syntax {
         let slice_cow = doc.slice_cow(byte_start..byte_end);
         let (mut syntax, link_defs) = tree::walk_slice(&slice_cow, byte_start, extra_link_defs);
         syntax.link_defs = link_defs;
-        syntax.code_lines = fences.iter().map(|f| f.lines.clone()).collect();
+        let mut code_lines: Vec<_> = fences.iter().map(|f| f.lines.clone()).collect();
+        code_lines.extend(syntax.code_blocks.iter().map(|r| {
+            doc.line_index(r.start)..doc.line_index(r.end.saturating_sub(1).max(r.start)) + 1
+        }));
+        code_lines.sort_by_key(|r| (r.start, r.end));
+        for range in code_lines {
+            if let Some(last) = syntax.code_lines.last_mut()
+                && range.start < last.end
+            {
+                last.end = last.end.max(range.end);
+            } else {
+                syntax.code_lines.push(range);
+            }
+        }
 
         let mut blocks: Vec<Range<usize>> = syntax.code_lines.clone();
-        blocks.extend(
-            syntax
-                .tables
-                .iter()
-                .map(|t| doc.line_index(t.start)..doc.line_index(t.end) + 1),
-        );
         for f in features {
             let mut extra_blocks = Vec::new();
             if feature::catch_feature_panic(f.id(), "recognize_blocks", || {
@@ -510,16 +521,28 @@ impl Syntax {
         }
         blocks.sort_by_key(|r| r.start);
 
-        lines::add_line_elements_in_lines(
+        let inline_ranges = lines::inline_ranges(
             doc,
             start_line..end_line,
             &blocks,
-            features,
-            &mut syntax.elements,
+            &syntax.tables,
+            &syntax.table_cells,
         );
-        footnotes::add_in_lines(doc, start_line..end_line, &blocks, &mut syntax);
-        let html = inline_html::elements_in_buffer(doc, &syntax.inline_tags);
-        syntax.elements.extend(html);
+        lines::add_inline_elements(doc, &inline_ranges, features, &mut syntax.elements);
+        footnotes::add_in_ranges(doc, &inline_ranges, &mut syntax);
+        let html = inline_html::elements_in_buffer(doc, &syntax);
+        syntax.elements.extend(html.into_iter().filter(|element| {
+            // Inline HTML may span soft line breaks in a paragraph, but a
+            // table cell is its own inline context. Any tag pair touching a
+            // cell must fit wholly inside that one cell.
+            let index = syntax
+                .table_cells
+                .partition_point(|cell| cell.end <= element.range.start);
+            syntax.table_cells.get(index).is_none_or(|cell| {
+                cell.start >= element.range.end
+                    || (cell.start <= element.range.start && cell.end >= element.range.end)
+            })
+        }));
         syntax.elements.sort_by(|a, b| {
             a.range
                 .start
@@ -531,21 +554,59 @@ impl Syntax {
             .elements
             .dedup_by(|b, a| a.kind == b.kind && a.range == b.range);
 
-        // Line expressions and feature inline recognizers do not reach into inline code.
-        let code: Vec<Span> = syntax
+        // Code spans suppress line scanners unless a feature explicitly owns
+        // that entire span as part of its delimiter syntax. Resolve all code
+        // intersections before removing anything, so an outer code span still
+        // protects a nested feature-looking string.
+        let code: Vec<Element> = syntax
             .elements
             .iter()
             .filter(|e| e.kind == Kind::InlineCode)
-            .map(|e| e.range.clone())
+            .cloned()
             .collect();
+        let mut owned_code = Vec::new();
         syntax.elements.retain(|e| {
-            !matches!(
+            if !matches!(
                 e.kind,
-                Kind::Highlight | Kind::Comment | Kind::FeatureInline(_)
-            ) || !code
+                Kind::Highlight
+                    | Kind::Comment
+                    | Kind::WikiLink
+                    | Kind::Strike
+                    | Kind::ImageEmbed
+                    | Kind::VideoEmbed
+                    | Kind::FeatureInline(_)
+            ) {
+                return true;
+            }
+            let overlaps: Vec<_> = code
                 .iter()
-                .any(|c| c.start < e.range.end && e.range.start < c.end)
+                .filter(|c| c.range.start < e.range.end && e.range.start < c.range.end)
+                .collect();
+            if overlaps.is_empty() {
+                return true;
+            }
+            let Kind::FeatureInline(id) = e.kind else {
+                return false;
+            };
+            let Some(owner) = feature::find(features, id) else {
+                return false;
+            };
+            let owns_all = overlaps.iter().all(|c| {
+                e.range.start < c.range.start
+                    && c.range.end < e.range.end
+                    && feature::catch_feature_panic(id, "owns_inline_code", || {
+                        owner.owns_inline_code(e, c)
+                    })
+                    .unwrap_or(false)
+            });
+            if owns_all {
+                owned_code.extend(overlaps.iter().map(|c| c.range.clone()));
+            }
+            owns_all
         });
+        syntax
+            .elements
+            .retain(|e| e.kind != Kind::InlineCode || !owned_code.contains(&e.range));
 
         let notes: Vec<Span> = syntax
             .elements
@@ -1003,27 +1064,34 @@ impl Syntax {
             }
         }
 
-        // 3. Fences & code_lines
+        // 3. Fence models and all code-line regions have independent indexes:
+        // indented/quoted code need not have a standalone fence model.
         let f_pre = prev.fences.partition_point(|f| f.range.end <= ob.start);
         let f_suf = prev
             .fences
             .partition_point(|f| f.range.start < ob.end)
             .max(f_pre);
         let win_f_len = win.fences.len();
-        let win_code_lines: Vec<Range<usize>> =
-            win.fences.iter().map(|f| f.lines.clone()).collect();
         prev.fences.splice(f_pre..f_suf, win.fences);
-        prev.code_lines.splice(f_pre..f_suf, win_code_lines);
         if bd != 0 || ld != 0 {
             for m in &mut prev.fences[f_pre + win_f_len..] {
                 m.range = shift_span_signed(&m.range, bd);
                 m.code = shift_span_signed(&m.code, bd);
                 m.lines = shift_span_signed(&m.lines, ld);
             }
-            if ld != 0 {
-                for r in &mut prev.code_lines[f_pre + win_f_len..] {
-                    *r = shift_span_signed(r, ld);
-                }
+        }
+        let c_pre = prev
+            .code_lines
+            .partition_point(|r| r.end <= sp.old_lines.start);
+        let c_suf = prev
+            .code_lines
+            .partition_point(|r| r.start < sp.old_lines.end)
+            .max(c_pre);
+        let win_c_len = win.code_lines.len();
+        prev.code_lines.splice(c_pre..c_suf, win.code_lines);
+        if ld != 0 {
+            for r in &mut prev.code_lines[c_pre + win_c_len..] {
+                *r = shift_span_signed(r, ld);
             }
         }
 
@@ -1072,7 +1140,9 @@ impl Syntax {
                 }
             }
         };
+        splice_spans_in_place(&mut prev.code_blocks, win.code_blocks);
         splice_spans_in_place(&mut prev.tables, win.tables);
+        splice_spans_in_place(&mut prev.table_cells, win.table_cells);
         splice_spans_in_place(&mut prev.inline_tags, win.inline_tags);
         splice_spans_in_place(&mut prev.html_blocks, win.html_blocks);
         splice_spans_in_place(&mut prev.top_blocks, win.top_blocks);
@@ -1169,7 +1239,19 @@ impl Syntax {
 
     pub fn reveal_element(&self, caret: usize) -> Option<&Element> {
         self.elements_in(caret..caret)
-            .filter(|e| e.kind.reveals() && caret > e.range.start && caret < e.range.end)
+            .filter(|e| {
+                e.kind.reveals()
+                    && if matches!(
+                        e.kind,
+                        Kind::FootnoteReference | Kind::FootnoteDefinition | Kind::Entity
+                    ) {
+                        // Footnotes and character references expose source on
+                        // either boundary under the product's caret-touch rule.
+                        e.range.start <= caret && caret <= e.range.end
+                    } else {
+                        e.range.start < caret && caret < e.range.end
+                    }
+            })
             .min_by_key(|e| e.range.len())
     }
 

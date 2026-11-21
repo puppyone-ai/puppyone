@@ -10,6 +10,7 @@
 //! point at a local feed with `PUPPYONE_DESKTOP_DEV_UPDATE_URL` and
 //! `PUPPYONE_DESKTOP_FORCE_DEV_UPDATE_CONFIG=1`, as the product's may.
 pub mod feed;
+pub mod installer;
 pub mod policy;
 mod preferences;
 pub use preferences::{read_automatic_download, write_automatic_download};
@@ -161,18 +162,38 @@ pub fn disabled_reason(
     if !packaged && !config.force_dev {
         return Some("Auto updates are disabled outside a packaged release build.".into());
     }
-    if cfg!(target_os = "macos") && !config.force_dev {
+    if !config.force_dev {
         let reason = match signature() {
             Signature::Release => None,
-            Signature::AdHoc => Some("Auto updates are disabled because this macOS build is ad-hoc signed.".into()),
-            Signature::Unsigned => Some("Auto updates are disabled because this macOS build is not code signed.".into()),
-            Signature::OtherCertificate => Some(
+            Signature::AdHoc => Some(if cfg!(target_os = "macos") {
+                "Auto updates are disabled because this macOS build is ad-hoc signed.".into()
+            } else {
+                "Auto updates are disabled because this build is ad-hoc signed.".into()
+            }),
+            Signature::Unsigned => Some(if cfg!(target_os = "macos") {
+                "Auto updates are disabled because this macOS build is not code signed.".into()
+            } else if cfg!(target_os = "linux") {
+                "Auto updates are disabled because this Linux build is not a signed release build."
+                    .into()
+            } else {
+                "Auto updates are disabled because this Windows build is not code signed.".into()
+            }),
+            Signature::OtherCertificate => Some(if cfg!(target_os = "macos") {
                 "Auto updates are disabled because this macOS build is not signed with a release certificate."
-                    .into(),
-            ),
-            Signature::Unreadable(error) => Some(format!(
-                "Auto updates are disabled because the macOS code signature could not be inspected: {error}"
-            )),
+                    .into()
+            } else {
+                "Auto updates are disabled because this build is not signed with a trusted release certificate."
+                    .into()
+            }),
+            Signature::Unreadable(error) => Some(if cfg!(target_os = "macos") {
+                format!(
+                    "Auto updates are disabled because the macOS code signature could not be inspected: {error}"
+                )
+            } else {
+                format!(
+                    "Auto updates are disabled because the build signature could not be verified: {error}"
+                )
+            }),
         };
         if reason.is_some() {
             return reason;
@@ -219,12 +240,25 @@ fn client(
         .map_err(|e| e.to_string())
 }
 
-/// Reads `<feed>/<channel>-mac.yml` and picks this processor's archive.
+/// Returns the per-OS updater metadata filename (`<channel>-mac.yml`,
+/// `<channel>-win.yml`, or `<channel>-linux.yml`).
+pub fn platform_feed_filename(channel: &str, os: super::os::Os) -> String {
+    let suffix = match os {
+        super::os::Os::Macos => "mac",
+        super::os::Os::Windows => "win",
+        super::os::Os::Linux | super::os::Os::Other => "linux",
+    };
+    format!("{channel}-{suffix}.yml")
+}
+
+/// Reads `<feed>/<channel>-<os>.yml` and picks this processor's payload.
 pub fn check(config: &Configuration) -> Result<Candidate, String> {
     let (Some(feed), Some(channel)) = (&config.feed, config.update_channel) else {
         return Err("No update feed is configured.".into());
     };
-    let metadata_url = feed::payload_url(feed, &format!("{channel}-mac.yml"), config.force_dev)?;
+    let os = super::os::Os::current();
+    let filename = platform_feed_filename(channel, os);
+    let metadata_url = feed::payload_url(feed, &filename, config.force_dev)?;
     let source = runtime()?.block_on(async {
         let mut response = client(config, &metadata_url, Duration::from_secs(30))?
             .get(metadata_url.clone())
@@ -249,8 +283,8 @@ pub fn check(config: &Configuration) -> Result<Candidate, String> {
         }
         String::from_utf8(bytes).map_err(|_| "The update metadata is not text.".into())
     })?;
-    let metadata = feed::parse(&source).map_err(|errors| errors.join("; "))?;
-    let file = feed::payload(&metadata, super::build_identity::node_architecture())
+    let metadata = feed::parse_for_os(&source, os).map_err(|errors| errors.join("; "))?;
+    let file = feed::payload_for_os(&metadata, super::build_identity::node_architecture(), os)
         .ok_or("The update has no archive for this computer.")?;
     Ok(Candidate {
         version: metadata.version.clone(),
@@ -258,6 +292,21 @@ pub fn check(config: &Configuration) -> Result<Candidate, String> {
         sha512: file.sha512.clone(),
         size: file.size,
     })
+}
+
+fn payload_temp_suffix(url: &url::Url) -> &'static str {
+    let lower = url.path().to_ascii_lowercase();
+    if lower.ends_with(".exe") {
+        ".exe"
+    } else if lower.ends_with(".appimage") {
+        ".AppImage"
+    } else if lower.ends_with(".deb") {
+        ".deb"
+    } else if lower.ends_with(".zip") {
+        ".zip"
+    } else {
+        ".bin"
+    }
 }
 
 /// Downloads the candidate's archive into `directory`, checking its size
@@ -284,7 +333,7 @@ pub fn download(
     std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     let mut file = tempfile::Builder::new()
         .prefix("update-")
-        .suffix(".zip")
+        .suffix(payload_temp_suffix(&candidate.url))
         .tempfile_in(directory)
         .map_err(|e| e.to_string())?;
     let mut hasher = sha2::Sha512::new();
@@ -359,12 +408,20 @@ pub fn download(
     Ok(file.into_temp_path())
 }
 
-/// `~/Library/Caches/PuppyOne GPUI.<name>`: downloads and the prepared app,
-/// on the same volume as an app installed in the home folder.
+/// Per-OS update cache directory (`~/Library/Caches/PuppyOne GPUI.<name>` on
+/// macOS, so staging stays on the same volume as `/Applications` / `~/Applications`;
+/// `<cache_dir>/<name>` on Windows and Linux).
 pub fn cache_path(name: &str) -> PathBuf {
-    super::paths::home_dir()
-        .join("Library/Caches")
-        .join(format!("PuppyOne GPUI.{name}"))
+    #[cfg(target_os = "macos")]
+    {
+        super::paths::home_dir()
+            .join("Library/Caches")
+            .join(format!("PuppyOne GPUI.{name}"))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        super::paths::cache_dir().join(name)
+    }
 }
 
 #[cfg(test)]
@@ -397,6 +454,7 @@ mod tests {
                 .contains("outside a packaged release build")
         );
         let packaged = configuration(&identity(Channel::Stable, true), none);
+        #[cfg(target_os = "macos")]
         assert!(
             disabled_reason(&packaged, true, || Signature::AdHoc)
                 .unwrap()

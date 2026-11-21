@@ -315,10 +315,11 @@ fn keeps_an_explicit_interrupt_authoritative_while_retry_is_cancelled() {
 
 fn temporary(prefix: &str) -> (tempfile::TempDir, String) {
     let directory = tempfile::Builder::new().prefix(prefix).tempdir().unwrap();
-    let path = std::fs::canonicalize(directory.path())
+    let raw = std::fs::canonicalize(directory.path())
         .unwrap()
         .to_string_lossy()
         .into_owned();
+    let path = raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_owned();
     (directory, path)
 }
 
@@ -327,9 +328,15 @@ fn keeps_non_image_files_as_authorized_native_path_mentions_and_sends_images_on_
 {
     let (_workspace_guard, workspace) = temporary("pi-workspace-");
     let (_staged_guard, staged) = temporary("pi-staged-");
-    std::fs::create_dir(format!("{workspace}/notes")).unwrap();
-    std::fs::write(format!("{workspace}/notes/brief.md"), "brief").unwrap();
-    let image = format!("{staged}/screen.png");
+    let brief = std::path::Path::new(&workspace)
+        .join("notes")
+        .join("brief.md");
+    std::fs::create_dir(brief.parent().unwrap()).unwrap();
+    std::fs::write(&brief, "brief").unwrap();
+    let image = std::path::Path::new(&staged)
+        .join("screen.png")
+        .to_string_lossy()
+        .into_owned();
     std::fs::write(&image, [0x89u8, 0x50, 0x4e, 0x47]).unwrap();
     let input = build_pi_turn_input(
         "Review both",
@@ -342,11 +349,7 @@ fn keeps_non_image_files_as_authorized_native_path_mentions_and_sends_images_on_
     )
     .unwrap();
     assert!(input.message.contains("Review both"));
-    assert!(
-        input
-            .message
-            .contains(&format!("{workspace}/notes/brief.md"))
-    );
+    assert!(input.message.contains(brief.to_string_lossy().as_ref()));
     assert_eq!(
         input.images,
         [json!({ "type": "image", "data": "iVBORw==", "mimeType": "image/png" })]
@@ -357,7 +360,10 @@ fn keeps_non_image_files_as_authorized_native_path_mentions_and_sends_images_on_
 fn accepts_an_authorized_external_file_only_when_it_is_an_inline_native_path_mention() {
     let (_workspace_guard, workspace) = temporary("pi-workspace-");
     let (_external_guard, external) = temporary("pi-external-");
-    let filename = format!("{external}/outside.txt");
+    let filename = std::path::Path::new(&external)
+        .join("outside.txt")
+        .to_string_lossy()
+        .into_owned();
     std::fs::write(&filename, "outside").unwrap();
     let input = build_pi_turn_input(
         &format!("Read {filename}"),

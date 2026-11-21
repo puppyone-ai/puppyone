@@ -24,30 +24,27 @@ pub trait KeyStore: Send + Sync {
     fn get(&self, item: &str) -> Result<Option<Vec<u8>>, String>;
     fn delete(&self, item: &str) -> Result<(), String>;
 }
-/// The login keychain (macOS), under the host's own service name.
-#[cfg(target_os = "macos")]
+/// System credential store under [`crate::platform::credentials::Namespace::HostDeviceKey`].
 pub struct Keychain;
-#[cfg(target_os = "macos")]
-const SERVICE: &str = "PuppyOne Host Device Key";
-#[cfg(target_os = "macos")]
 impl KeyStore for Keychain {
     fn put(&self, item: &str, secret: &[u8]) -> Result<(), String> {
-        security_framework::passwords::set_generic_password(SERVICE, item, secret)
+        crate::platform::credentials::system()
+            .set(
+                crate::platform::credentials::Namespace::HostDeviceKey,
+                item,
+                secret,
+            )
             .map_err(|e| e.to_string())
     }
     fn get(&self, item: &str) -> Result<Option<Vec<u8>>, String> {
-        match security_framework::passwords::get_generic_password(SERVICE, item) {
-            Ok(bytes) => Ok(Some(bytes)),
-            Err(e) if e.code() == -25300 => Ok(None),
-            Err(e) => Err(e.to_string()),
-        }
+        crate::platform::credentials::system()
+            .get(crate::platform::credentials::Namespace::HostDeviceKey, item)
+            .map_err(|e| e.to_string())
     }
     fn delete(&self, item: &str) -> Result<(), String> {
-        match security_framework::passwords::delete_generic_password(SERVICE, item) {
-            Ok(()) => Ok(()),
-            Err(e) if e.code() == -25300 => Ok(()),
-            Err(e) => Err(e.to_string()),
-        }
+        crate::platform::credentials::system()
+            .delete(crate::platform::credentials::Namespace::HostDeviceKey, item)
+            .map_err(|e| e.to_string())
     }
 }
 /// Keys in memory, for tests.
@@ -265,11 +262,7 @@ pub(super) fn save_private(file: &Path, bytes: &[u8]) -> Result<(), String> {
     }
     let temp = file.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
     let written = (|| {
-        let mut options = std::fs::OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        let mut out = options.open(&temp)?;
+        let mut out = crate::platform::fs::open_private_create_new(&temp)?;
         out.write_all(bytes)?;
         out.sync_all()?;
         std::fs::rename(&temp, file)
@@ -339,8 +332,42 @@ mod tests {
         );
         let text = std::fs::read_to_string(temp.path().join("host-device-identity.json")).unwrap();
         assert!(!text.contains("private"), "only public parts on disk");
+        // It signs only for its own account's device.
+        let other_account = Owner {
+            account_id: OTHER.into(),
+            device_id: DEVICE.into(),
+        };
+        let other_device = Owner {
+            account_id: ACCOUNT.into(),
+            device_id: OTHER.into(),
+        };
+        assert!(identity.sign(&other_account, "x").is_err());
+        assert!(identity.sign(&other_device, "x").is_err());
+        // Another account here never reuses this identity.
+        let mut second = None;
+        identity
+            .register(OTHER, |key| {
+                second = Some(key.to_owned());
+                Ok(OTHER.into())
+            })
+            .unwrap();
+        assert_ne!(second.as_deref(), Some(sent[0].as_str()));
+        assert!(identity.register("nobody", |_| Ok(DEVICE.into())).is_err());
+        // Forgetting another account's device leaves this one; forgetting
+        // this one takes its key, and a later share registers a new key.
+        assert!(!identity.forget(&other_account));
         assert!(identity.forget(&owner));
         assert!(identity.existing_for(ACCOUNT).is_none());
         assert!(identity.key(&owner).is_err());
+        assert!(identity.existing_for(OTHER).is_some());
+        let mut renewed = None;
+        identity
+            .register(ACCOUNT, |key| {
+                renewed = Some(key.to_owned());
+                Ok(DEVICE.into())
+            })
+            .unwrap();
+        assert_ne!(renewed.as_deref(), Some(sent[0].as_str()));
     }
+    const OTHER: &str = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 }

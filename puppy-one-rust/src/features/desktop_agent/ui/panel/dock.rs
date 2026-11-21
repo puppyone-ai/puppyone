@@ -28,6 +28,7 @@ impl AgentChatTabPanel {
         let a = AgentTheme::new(&palette);
         let m = theme::ty();
         let mut dock = v_flex()
+            .debug_selector(|| "agent-dock".into())
             .flex_shrink_0()
             .pt(px(12.))
             .px(px(12.))
@@ -141,7 +142,9 @@ impl AgentChatTabPanel {
         let runtime_label = view.runtime.runtime_label.clone();
         let turn = turn_id.to_string();
         let detail = |label: &str, value: String| {
+            let selector = format!("agent-recovery-detail:{value}");
             h_flex()
+                .debug_selector(move || selector)
                 .gap(px(8.))
                 .text_size(px(m.right.caption))
                 .child(
@@ -177,6 +180,7 @@ impl AgentChatTabPanel {
                     )
                     .child(
                         div()
+                            .debug_selector(|| "agent-recovery-degraded".into())
                             .font_weight(FontWeight::MEDIUM)
                             .child(t("agent.recovery.degraded.title")),
                     ),
@@ -242,6 +246,7 @@ impl AgentChatTabPanel {
                             false,
                             &a,
                         )
+                        .debug_selector(|| "agent-recovery-details".into())
                         .on_click(cx.listener(|s, _, _, cx| {
                             s.recovery_details_open = !s.recovery_details_open;
                             cx.notify();
@@ -260,6 +265,7 @@ impl AgentChatTabPanel {
                             submitting,
                             &a,
                         )
+                        .debug_selector(|| "agent-recovery-continue".into())
                         .on_click(cx.listener(move |s, _, _, cx| {
                             drop(s.controller.continue_from_recovery(
                                 &turn,

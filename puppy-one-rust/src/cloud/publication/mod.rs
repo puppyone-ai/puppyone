@@ -18,6 +18,7 @@ pub mod fixtures;
 pub mod git;
 pub mod journal;
 mod migrate;
+pub mod preparation;
 #[cfg(test)]
 mod tests;
 pub mod vault;
@@ -187,6 +188,10 @@ pub fn valid_branch(branch: &str) -> bool {
 /// Visible steps (`createCloudPublishProgressChannel`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
+    /// `publishPreparation`'s local steps, before anything needs an account.
+    EnablingVersionControl,
+    CreatingSnapshot,
+    CreatingBranch,
     Validating,
     CreatingProject,
     SecuringCredential,
@@ -304,14 +309,7 @@ impl Coordinator {
                 false,
             )
         })?;
-        #[cfg(unix)]
-        let (dev, ino) = {
-            use std::os::unix::fs::MetadataExt;
-            (metadata.dev(), metadata.ino())
-        };
-        #[cfg(not(unix))]
-        let (dev, ino) = (0u64, 0u64);
-        let _ = &metadata;
+        let (dev, ino) = crate::platform::fs::metadata_device_inode(&metadata);
         let fingerprint = format!(
             "{:x}",
             sha2::Sha256::digest(
@@ -332,6 +330,28 @@ impl Coordinator {
             fingerprint,
             _ownership: ownership,
         })
+    }
+    /// `assertTrustedJournalRemote`: a journaled remote is this Cloud's
+    /// canonical one for the operation's Project, and the credential scope
+    /// names it, before any secret is read or any network Git runs — an
+    /// edited journal cannot send the credential elsewhere.
+    fn trusted(&self, record: &Record) -> Result<(), PublishError> {
+        let Some(url) = record.canonical_remote_url.as_deref() else {
+            return Ok(());
+        };
+        let scoped = record
+            .credential_config_snapshot
+            .as_ref()
+            .is_none_or(|config| config.scope_url == url);
+        let project = record.project_id.as_deref().unwrap_or_default();
+        if !scoped || !self.cloud.trusts_remote(url, project, &record.api_base_url) {
+            return Err(PublishError::new(
+                Code::RemoteConflict,
+                "The pending operation names a Git remote outside this Cloud.",
+                false,
+            ));
+        }
+        Ok(())
     }
     fn persist(
         &self,
@@ -370,6 +390,7 @@ impl Coordinator {
     /// `readFacts`: local facts, plus Cloud main when the operation has
     /// everything needed to ask.
     fn facts(&self, root: &Path, record: &Record) -> Result<Facts, PublishError> {
+        self.trusted(record)?;
         let mut facts = self.local_facts(root, record);
         if facts.local_remote_conflict
             || record.canonical_remote_url.is_none()
@@ -486,8 +507,63 @@ impl Coordinator {
             failure(e, Some(self.project_state(&record, &facts)), Some(record))
         })
     }
-    /// `startOrResume`: begin, or continue from the durable checkpoint.
+    /// `startOrResume`: begin, or continue from the durable checkpoint. The
+    /// same request for a repository while one runs shares its result
+    /// (`singleflight`) instead of meeting the remote the first one made.
     pub fn start(&self, request: &Request, progress: &mut dyn FnMut(Stage)) -> Outcome {
+        type Flight = Arc<(std::sync::Mutex<Option<Outcome>>, std::sync::Condvar)>;
+        static FLIGHTS: std::sync::Mutex<Vec<(Request, Flight)>> =
+            std::sync::Mutex::new(Vec::new());
+        let joined = {
+            let mut flights = FLIGHTS.lock().unwrap_or_else(|p| p.into_inner());
+            match flights.iter().find(|(r, _)| r == request) {
+                Some((_, flight)) => Err(flight.clone()),
+                None => {
+                    let flight: Flight = Arc::default();
+                    flights.push((request.clone(), flight.clone()));
+                    Ok(flight)
+                }
+            }
+        };
+        let flight = match joined {
+            Ok(flight) => flight,
+            Err(flight) => {
+                let (result, finished) = &*flight;
+                let mut result = result.lock().unwrap_or_else(|p| p.into_inner());
+                while result.is_none() {
+                    result = finished.wait(result).unwrap_or_else(|p| p.into_inner());
+                }
+                return result.clone().unwrap_or_else(|| unreachable!());
+            }
+        };
+        // The flight ends however this one does, a panic included.
+        struct Land<'a>(&'a Flight, Option<Outcome>);
+        impl Drop for Land<'_> {
+            fn drop(&mut self) {
+                let mut flights = FLIGHTS.lock().unwrap_or_else(|p| p.into_inner());
+                flights.retain(|(_, f)| !Arc::ptr_eq(f, self.0));
+                let (result, finished) = &**self.0;
+                *result.lock().unwrap_or_else(|p| p.into_inner()) =
+                    Some(self.1.take().unwrap_or_else(|| {
+                        failure(
+                            PublishError::new(
+                                Code::JournalIoFailed,
+                                "The publication stopped before it finished. Retry to resume it.",
+                                true,
+                            ),
+                            None,
+                            None,
+                        )
+                    }));
+                finished.notify_all();
+            }
+        }
+        let mut land = Land(&flight, None);
+        let outcome = self.start_once(request, progress);
+        land.1 = Some(outcome.clone());
+        outcome
+    }
+    fn start_once(&self, request: &Request, progress: &mut dyn FnMut(Stage)) -> Outcome {
         progress(Stage::Validating);
         if !valid_branch(&request.source_branch) {
             return failure(
@@ -699,6 +775,7 @@ impl Coordinator {
                 r.attempt.updated_at = now_iso();
             })?;
             *latest = Some(record.clone());
+            self.trusted(&record)?;
             let secret = self.stored_secret(&record)?;
             progress(Stage::Uploading);
             self.git.push(root, &record, &secret)?;
@@ -727,6 +804,7 @@ impl Coordinator {
         checkpoint: &str,
     ) -> Result<Record, PublishError> {
         progress(Stage::ConfiguringRemote);
+        self.trusted(&record)?;
         if record.credential_config_snapshot.is_none() {
             let config = self.git.prepare_credential_config(
                 root,
@@ -993,6 +1071,21 @@ impl Coordinator {
             }
             if record.project_id.is_some() && record.checkpoint != "cleanup-server-complete" {
                 if !self.cloud.abandon_empty_project(&record)? {
+                    // Cloud refuses a Project that is no longer empty: when its
+                    // main is this operation's push, the operation completes.
+                    if let Ok(facts) = self.facts(&request.root, &record) {
+                        let truth = self.remote_truth(journal, record.clone(), &facts)?;
+                        if truth.push_state == "accepted" {
+                            return Ok(self.finish(&request.root, &context, truth));
+                        }
+                        if truth.push_state == "conflict" {
+                            return Err(PublishError::new(
+                                Code::RemoteRefConflict,
+                                "Cloud main contains content, so this Project is no longer empty and cannot be deleted by initialization cleanup.",
+                                false,
+                            ));
+                        }
+                    }
                     // CLEANUP_NOT_ALLOWED: back to a sendable state, nothing
                     // deleted locally or in Cloud.
                     let checkpoint = if record.credential_config_snapshot.is_some() {
@@ -1114,7 +1207,7 @@ fn new_attempt(sequence: u32, commit: &str) -> Attempt {
     }
 }
 /// `createInitialRecord`.
-fn initial_record(request: &Request, fingerprint: &str, commit: &str) -> Record {
+pub fn initial_record(request: &Request, fingerprint: &str, commit: &str) -> Record {
     let now = now_iso();
     let origin = url::Url::parse(&request.api_base_url)
         .map(|u| u.origin().ascii_serialization())

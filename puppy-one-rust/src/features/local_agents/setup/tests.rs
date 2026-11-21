@@ -78,7 +78,7 @@ fn an_unfinished_installation_scan_never_recommends_installing_an_agent(cx: &mut
     let rendered = |cx: &mut VisualTestContext| {
         cx.run_until_parked();
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         cx.debug_bounds("agent-setup-activate:codex").is_some()
     };
@@ -304,7 +304,7 @@ fn ui(cx: &mut TestAppContext) -> (UiFixture, &mut VisualTestContext) {
 fn draw(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|w, cx| {
-        let _ = w.draw(cx);
+        w.draw(cx).clear(cx);
     });
 }
 fn has(cx: &mut VisualTestContext, selector: &'static str) -> bool {
@@ -357,9 +357,13 @@ fn publish(f: &UiFixture, op: Operation, cx: &mut VisualTestContext) {
 }
 #[gpui::test]
 fn rendered_suggestion_toggle_preserves_other_settings_and_running_tasks(cx: &mut TestAppContext) {
+    let cursor_supported = crate::platform::local_agent_setup::route("cursor").is_some_and(|r| {
+        r.platforms
+            .contains(&crate::platform::local_agent_setup::platform())
+    });
     let (f, cx) = ui(cx);
     assert!(has(cx, "agent-setup-activate:codex"));
-    assert!(has(cx, "agent-setup-activate:cursor"));
+    assert_eq!(has(cx, "agent-setup-activate:cursor"), cursor_supported);
     f.preferences.update(cx, |p, cx| {
         p.change(
             |p| {
@@ -370,7 +374,7 @@ fn rendered_suggestion_toggle_preserves_other_settings_and_running_tasks(cx: &mu
         )
     });
     assert!(!has(cx, "agent-setup-activate:codex"));
-    assert!(has(cx, "agent-setup-activate:cursor"));
+    assert_eq!(has(cx, "agent-setup-activate:cursor"), cursor_supported);
     f.section.update(cx, |s, cx| {
         s.presentation = Presentation::Settings;
         cx.notify();
@@ -688,7 +692,7 @@ fn closing_a_native_window_revokes_only_its_plans_and_keeps_application_work(
         .plan(&owner(first), "claude", Surface::Chat)
         .unwrap();
     let second_plan = service
-        .plan(&owner(second), "hermes", Surface::Chat)
+        .plan(&owner(second), "opencode", Surface::Chat)
         .unwrap();
     service.start(&owner(first), &first_plan.plan_id).unwrap();
     service.settle_for_test();
@@ -774,10 +778,7 @@ fn explicit_companion_refresh_during_a_scan_runs_one_latest_follow_up(cx: &mut T
 }
 
 fn fixture_companions(store: &mut Activation, values: Vec<(&'static str, Presence)>) {
-    store.presence.cancel();
-    store.presence = companion::session::Session::default();
-    let scan = store.presence.discover(store.companion_generation).unwrap();
-    store.presence.complete(&scan, values);
+    store.fixture_companions(values);
 }
 
 #[gpui::test]

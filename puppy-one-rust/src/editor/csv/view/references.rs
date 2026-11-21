@@ -270,7 +270,7 @@ impl CsvEditor {
             .rounded(px(5.))
             .when(!openable, |d| d.opacity(0.62))
             .when(openable, |d| {
-                d.cursor(crate::theme::clickable_cursor())
+                d.cursor(crate::theme::navigation_cursor())
                     .hover(move |s| {
                         s.bg(Rgba {
                             a: link.a * 0.12,

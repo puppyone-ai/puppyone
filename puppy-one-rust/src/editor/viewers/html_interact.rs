@@ -222,6 +222,27 @@ impl Interact {
     pub fn set_on_edit(&self, on_edit: Rc<dyn Fn(&mut App)>) {
         self.state.borrow_mut().on_edit = Some(on_edit);
     }
+    pub fn set_fallback_actions(&self, actions: Vec<super::web::WebFallbackAction>, cx: &mut App) {
+        self.frame
+            .update(cx, |frame, _| frame.set_fallback_actions(actions));
+    }
+    /// Local document path when this HTML viewer is backed by a local folder
+    /// (never returns a path for Cloud documents).
+    pub fn local_file_path(&self) -> Option<PathBuf> {
+        if self.assets.is_some() {
+            return None;
+        }
+        let folder = self.folder.as_ref()?;
+        let name = self.name.borrow();
+        let file_name = Path::new(name.as_str()).file_name()?;
+        let candidate = folder.join(file_name);
+        candidate.is_file().then_some(candidate)
+    }
+    /// The surface is closing: the edit callback holds its parts (this page
+    /// among them), so it goes first.
+    pub fn retire(&self) {
+        self.state.borrow_mut().on_edit = None;
+    }
     /// What Interact shows now.
     pub fn element(&self) -> AnyElement {
         match self.access() {
@@ -445,32 +466,21 @@ impl Interact {
             drop(st);
             scripts.push_str(&super::html_tools::injected_head_bundle());
         }
-        let (csp, policy) = if offline {
-            (html_page::OFFLINE_CSP, html_page::OFFLINE_HEADER)
-        } else {
-            (
-                html_preview::INTERACTIVE_CSP,
-                html_preview::INTERACTIVE_HEADER,
-            )
-        };
         let budget = viewer_budget("html-artifact");
         let (tx, rx) = async_channel::unbounded::<String>();
-        let content = Content {
-            source: self
-                .assets
-                .clone()
-                .filter(|_| self.folder.is_none())
-                .map(|source| Source(Arc::new(Budgeted::new(source, MAX_REFERENCES, budget)))),
-            root: self.folder.clone(),
-            entry: Entry::Html(preview_html(text, csp, &scripts)),
-            max_bytes: budget,
-            assets: vec![],
-            ipc: Some(Ipc(tx)),
-            policy: Some(policy),
-            frames: None,
-            disk_assets: None,
-            locked: offline,
-        };
+        let source = self
+            .assets
+            .clone()
+            .filter(|_| self.folder.is_none())
+            .map(|source| Source(Arc::new(Budgeted::new(source, MAX_REFERENCES, budget))));
+        let content = preview_content(
+            text,
+            &scripts,
+            offline,
+            source,
+            self.folder.clone(),
+            Ipc(tx),
+        );
         self.frame
             .update(cx, |f, cx| f.set_content(Some(content), cx));
         let folder = self.bridge().filter(|_| offline);
@@ -967,6 +977,47 @@ impl Interact {
 }
 
 /// Injected scroll listener & initial scroll restorer for `viewportState` (`VW-23`).
+/// The preview page for `text`: the document with `scripts`, under the
+/// interactive policy or, with folder access, the offline one.
+fn preview_content(
+    text: &str,
+    scripts: &str,
+    offline: bool,
+    source: Option<Source>,
+    root: Option<PathBuf>,
+    ipc: Ipc,
+) -> Content {
+    let (csp, policy) = if offline {
+        (html_page::OFFLINE_CSP, html_page::OFFLINE_HEADER)
+    } else {
+        (
+            html_preview::INTERACTIVE_CSP,
+            html_preview::INTERACTIVE_HEADER,
+        )
+    };
+    Content {
+        source,
+        root,
+        entry: Entry::Html(preview_html(text, csp, scripts)),
+        max_bytes: viewer_budget("html-artifact"),
+        assets: vec![],
+        ipc: Some(ipc),
+        policy: Some(policy),
+        frames: None,
+        disk_assets: None,
+        locked: offline,
+    }
+}
+
+/// The native acceptance process loads the preview a lone document shows.
+#[cfg(feature = "dev-capture")]
+#[allow(dead_code)]
+pub(crate) fn probe_content(text: &str, ipc: Ipc) -> Content {
+    let mut scripts = html_page::link_script(None);
+    scripts.push_str(&preview_scroll_script(0.));
+    preview_content(text, &scripts, false, None, None, ipc)
+}
+
 fn preview_scroll_script(initial_ratio: f32) -> String {
     let init = initial_ratio.clamp(0.0, 1.0);
     format!(

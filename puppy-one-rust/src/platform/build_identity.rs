@@ -146,14 +146,21 @@ pub fn system_version() -> String {
     if let Some(version) = sysctl_string(c"kern.osproductversion") {
         return version;
     }
-    #[cfg(unix)]
+    #[cfg(target_os = "macos")]
     if let Some(release) = sysctl_string(c"kern.osrelease") {
         return release;
+    }
+    #[cfg(target_os = "linux")]
+    if let Ok(release) = std::fs::read_to_string("/proc/sys/kernel/osrelease") {
+        let release = release.trim();
+        if !release.is_empty() {
+            return release.to_owned();
+        }
     }
     String::new()
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "macos")]
 fn sysctl_string(name: &std::ffi::CStr) -> Option<String> {
     let mut buffer = [0u8; 64];
     let mut length = buffer.len();
@@ -201,6 +208,9 @@ mod tests {
     fn channels_and_node_names_follow_the_product() {
         assert_eq!(Channel::parse("stable"), Some(Channel::Stable));
         assert_eq!(Channel::parse("qubits"), None);
+        for unsupported in ["beta", "preview", "rc", "archive", "production"] {
+            assert_eq!(Channel::parse(unsupported), None, "{unsupported}");
+        }
         for channel in [Channel::Dev, Channel::Internal, Channel::Stable] {
             assert_eq!(Channel::parse(channel.key()), Some(channel));
         }

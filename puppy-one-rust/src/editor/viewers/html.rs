@@ -58,7 +58,11 @@ enum Mode {
 type FlushCallback = Box<dyn FnOnce(&mut Window, &mut App)>;
 
 pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
-    let source: Rc<dyn ViewerSurface> = Rc::from(code::open_with(
+    Box::new(surface(request, window, cx))
+}
+
+fn surface(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> HtmlSurface {
+    let source: Rc<dyn ViewerSurface> = Rc::from(code::open_document(
         request,
         None,
         request.file_mode,
@@ -90,6 +94,30 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
     let dark = Rc::new(Cell::new(request.dark));
     let name = Rc::new(RefCell::new(request.name.to_owned()));
     let read_only = Rc::new(Cell::new(false));
+    {
+        let mut actions = Vec::new();
+        if let Some(path) = interact.local_file_path() {
+            actions.push(super::web::WebFallbackAction::open_local_in_browser(path));
+        }
+        let mode_src = mode.clone();
+        let split_weak = split.as_ref().map(|s| s.downgrade());
+        let source_weak = Rc::downgrade(&source);
+        actions.push(super::web::WebFallbackAction::view_source(
+            move |window, cx| {
+                mode_src.set(Mode::Source);
+                if let Some(split) = split_weak.as_ref().and_then(|s| s.upgrade()) {
+                    split.update(cx, |_, cx| cx.notify());
+                }
+                if let Some(source) = source_weak.upgrade()
+                    && let Some(focus) = source.focus_handle(cx)
+                {
+                    focus.focus(window, cx);
+                }
+                window.refresh();
+            },
+        ));
+        interact.set_fallback_actions(actions, cx);
+    }
     {
         let window_handle = window.window_handle();
         let mode = mode.clone();
@@ -184,7 +212,7 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
             });
         }));
     }
-    Box::new(HtmlSurface {
+    HtmlSurface {
         source,
         interact,
         empty,
@@ -198,31 +226,93 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
         read_only,
         scroll_ratio,
         visual,
-    })
+    }
 }
 
-/// `htmlDocumentEmpty`: nothing but whitespace, comments and an empty skeleton.
+/// `isHtmlDocumentEmpty`: only a definitely empty document — nothing but a
+/// doctype, the html/head/body shell, comments, a title, metadata and
+/// whitespace. Scripts, styles, stylesheets and refreshes may produce
+/// content, so such pages still run in the preview.
 pub fn is_empty_page(text: &str) -> bool {
-    let mut rest = text.to_string();
-    while let (Some(a), Some(b)) = (rest.find("<!--"), rest.find("-->")) {
-        if b < a {
-            break;
+    let mut rest = text;
+    let mut in_title = false;
+    while !rest.is_empty() {
+        let Some(open) = rest.find('<') else {
+            return in_title || rest.trim().is_empty();
+        };
+        if !in_title && !rest[..open].trim().is_empty() {
+            return false;
         }
-        rest.replace_range(a..b + 3, "");
+        rest = &rest[open..];
+        if let Some(comment) = rest.strip_prefix("<!--") {
+            rest = comment.find("-->").map_or("", |end| &comment[end + 3..]);
+            continue;
+        }
+        let Some(close) = tag_end(rest) else {
+            // An unterminated tag is text to the parser.
+            return in_title;
+        };
+        let tag = &rest[1..close];
+        rest = &rest[close + 1..];
+        let closing = tag.starts_with('/');
+        let name: String = tag
+            .trim_start_matches('/')
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+            .collect::<String>()
+            .to_ascii_lowercase();
+        if in_title {
+            if closing && name == "title" {
+                in_title = false;
+            }
+            continue;
+        }
+        match name.as_str() {
+            "" if tag.starts_with('!') => {}
+            "html" | "head" | "body" | "base" => {}
+            "title" => in_title = !closing,
+            "meta" => {
+                let refresh =
+                    meta_http_equiv(tag).is_some_and(|value| value.eq_ignore_ascii_case("refresh"));
+                if refresh {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
     }
-    let lower = rest.to_ascii_lowercase();
-    let stripped: String = [
-        "<!doctype html>",
-        "<html>",
-        "</html>",
-        "<head>",
-        "</head>",
-        "<body>",
-        "</body>",
-    ]
-    .iter()
-    .fold(lower, |acc, tag| acc.replace(tag, ""));
-    stripped.trim().is_empty()
+    true
+}
+
+/// The index of the `>` that ends the tag `tag` opens, outside quotes.
+fn tag_end(tag: &str) -> Option<usize> {
+    let mut quote = None;
+    for (index, c) in tag.char_indices().skip(1) {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (None, '"' | '\'') => quote = Some(c),
+            (None, '>') => return Some(index),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// A `<meta>` tag's `http-equiv` value.
+fn meta_http_equiv(tag: &str) -> Option<String> {
+    let lower = tag.to_ascii_lowercase();
+    let at = lower.find("http-equiv")?;
+    let value = tag[at + "http-equiv".len()..]
+        .trim_start()
+        .strip_prefix('=')?
+        .trim_start();
+    Some(match value.chars().next()? {
+        quote @ ('"' | '\'') => value[1..].split(quote).next()?.to_owned(),
+        _ => value
+            .split(|c: char| c.is_whitespace() || c == '>' || c == '/')
+            .next()?
+            .to_owned(),
+    })
 }
 
 fn page_element(
@@ -275,6 +365,16 @@ struct HtmlSurface {
     scroll_ratio: Rc<Cell<f32>>,
     /// The Edit page while Edit mode is shown.
     visual: Rc<RefCell<Option<html_visual::Session>>>,
+}
+
+impl Drop for HtmlSurface {
+    fn drop(&mut self) {
+        // The page callbacks hold the surface's parts: without them the
+        // pages, the Edit session and the source view go with the surface.
+        self.interact.retire();
+        let session = self.visual.borrow_mut().take();
+        drop(session);
+    }
 }
 
 impl HtmlSurface {
@@ -862,6 +962,11 @@ impl SurfaceTestProbe for HtmlSurface {
     fn code_editor(&self) -> Option<Entity<code::CodeView>> {
         self.source.as_test_probe()?.code_editor()
     }
+
+    #[cfg(test)]
+    fn page_entry(&self, cx: &App) -> Option<String> {
+        self.interact.current_entry_html(cx)
+    }
 }
 
 /// `HtmlDocumentEmpty`: an actionable empty page instead of a blank frame.
@@ -923,6 +1028,36 @@ mod tests {
         assert!(!is_empty_page("<body><p>content</p></body>"));
     }
 
+    /// `htmlDocumentEmpty.test.ts`: `recognizes an empty page without
+    /// changing its source`; `keeps visible and potentially dynamic content
+    /// in the preview`.
+    #[test]
+    fn an_empty_page_is_recognised_and_dynamic_content_is_kept() {
+        for source in [
+            "",
+            " \n",
+            "<!-- empty -->",
+            "<!doctype html><html><head><title>Untitled</title><meta charset=\"utf-8\"></head><body>\n</body></html>",
+            // The New HTML document template.
+            "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Untitled</title>\n</head>\n<body>\n\n</body>\n</html>\n",
+        ] {
+            assert!(is_empty_page(source), "{source:?}");
+        }
+        for source in [
+            "<h1>Hello</h1>",
+            "<img src=\"cover.png\">",
+            "<svg></svg>",
+            "<canvas></canvas>",
+            "<div id=\"root\"></div><script>document.querySelector(\"#root\").textContent=\"Ready\"</script>",
+            "<script>document.body.textContent=\"Ready\"</script>",
+            "<style>body::before{content:\"Hello\"}</style>",
+            "<link rel=\"stylesheet\" href=\"page.css\">",
+            "<meta http-equiv=\"refresh\" content=\"0;url=next.html\">",
+        ] {
+            assert!(!is_empty_page(source), "{source:?}");
+        }
+    }
+
     fn open_html_surface(
         id: &str,
         name: &str,
@@ -949,6 +1084,7 @@ mod tests {
             assets: None,
             references: None,
             source_kind: SourceKind::Local,
+            models: Default::default(),
         };
         let source: Rc<dyn ViewerSurface> =
             Rc::from(code::open_with(&request, None, false, window, cx));
@@ -1093,6 +1229,212 @@ mod tests {
                 "{html_after}"
             );
             assert!(!html_after.contains("before.html"));
+        });
+    }
+
+    /// Closing an HTML document takes its pages with it. The page's edit
+    /// callback and the Edit session's callbacks hold parts of the surface;
+    /// neither may keep the pages or the source view alive once it is gone.
+    #[gpui::test]
+    fn a_dropped_surface_releases_its_pages_and_source_view(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+                gpui_kit::init(cx);
+            }
+            cx.text_system()
+                .add_fonts(crate::editor::view::style::font_bytes())
+                .unwrap();
+        });
+        let text = "<!doctype html><html><head></head><body><h1>Draft</h1></body></html>";
+        let (_, cx) = cx.add_window_view(|_, _| EmptyPage);
+        let (source, page, edit_page) = cx.update(|window, cx| {
+            let resolved = resolve(&EditorDocument::local("site/index.html"));
+            let surface = surface(
+                &SurfaceRequest {
+                    id: "html-drop",
+                    name: "site/index.html",
+                    input: SurfaceInput::Text(text),
+                    format: resolved.format,
+                    resolved_extension: Some(".html"),
+                    dark: false,
+                    scale: Scale::default(),
+                    workspace: None,
+                    file_mode: false,
+                    folder: None,
+                    web_source: None,
+                    assets: None,
+                    references: None,
+                    source_kind: SourceKind::Local,
+                    models: Default::default(),
+                },
+                window,
+                cx,
+            );
+            surface.pane_segment(PaneSegmentId::Edit, window, cx);
+            let edit_page = surface.visual.borrow().as_ref().unwrap().frame.downgrade();
+            (
+                surface.code_editor().unwrap().downgrade(),
+                surface.interact.frame.downgrade(),
+                edit_page,
+            )
+        });
+        cx.run_until_parked();
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        assert!(source.upgrade().is_none(), "the source view leaked");
+        assert!(page.upgrade().is_none(), "the Interact page leaked");
+        assert!(edit_page.upgrade().is_none(), "the Edit page leaked");
+    }
+
+    #[gpui::test]
+    fn html_file_mode_source_panel_and_standalone_mode_menus(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+                gpui_kit::init(cx);
+            }
+            cx.text_system()
+                .add_fonts(crate::editor::view::style::font_bytes())
+                .unwrap();
+        });
+        let (_, cx) = cx.add_window_view(|_, _| EmptyPage);
+        let open = |id: &str,
+                    name: &str,
+                    text: &str,
+                    file_mode: bool,
+                    source_kind: SourceKind,
+                    window: &mut Window,
+                    cx: &mut App| {
+            let doc = EditorDocument::with_source(name, source_kind);
+            let resolved = resolve(&doc);
+            surface(
+                &SurfaceRequest {
+                    id,
+                    name,
+                    input: SurfaceInput::Text(text),
+                    format: resolved.format,
+                    resolved_extension: Some(".html"),
+                    dark: false,
+                    scale: Scale::default(),
+                    workspace: None,
+                    file_mode,
+                    folder: None,
+                    web_source: None,
+                    assets: None,
+                    references: None,
+                    source_kind,
+                    models: Default::default(),
+                },
+                window,
+                cx,
+            )
+        };
+
+        // 1. File mode offers Edit and Source panel switches (no segmented mode menu),
+        //    opens on the page, opens source beside page, and keeps source open while editing.
+        cx.update(|window, cx| {
+            let s = open(
+                "html-file-mode",
+                "page.html",
+                "<h1>Page</h1>",
+                true,
+                SourceKind::Local,
+                window,
+                cx,
+            );
+            let pane = s.pane(cx);
+            assert!(pane.segmented.is_none());
+            assert_eq!(
+                pane.toggles
+                    .iter()
+                    .map(|t| (t.id, t.checked))
+                    .collect::<Vec<_>>(),
+                vec![
+                    (DOCUMENT_EDITING_TOGGLE_ID, false),
+                    (DOCUMENT_SOURCE_PANEL_TOGGLE_ID, false),
+                ]
+            );
+            assert_eq!(s.mode.get(), Mode::Preview);
+            assert!(!s.source_panel.get());
+
+            s.pane_item(PaneItemId::DocumentSourcePanel, window, cx);
+            assert!(s.source_panel.get());
+            assert_eq!(s.text(cx).as_deref(), Some("<h1>Page</h1>"));
+
+            s.pane_item(PaneItemId::DocumentEditing, window, cx);
+            assert_eq!(s.mode.get(), Mode::Edit);
+            assert!(
+                s.source_panel.get(),
+                "source stays open beside page while editing"
+            );
+
+            s.pane_item(PaneItemId::DocumentSourcePanel, window, cx);
+            assert!(!s.source_panel.get());
+
+            // Read-only HTML page omits Edit switch and offers only Source panel.
+            s.read_only.set(true);
+            let ro_pane = s.pane(cx);
+            assert_eq!(
+                ro_pane.toggles.iter().map(|t| t.id).collect::<Vec<_>>(),
+                vec![DOCUMENT_SOURCE_PANEL_TOGGLE_ID]
+            );
+        });
+
+        // 2. Standalone mode menus stay local to each pane, hide Edit when read-only,
+        //    and empty pages transition to non-empty after editing source.
+        cx.update(|window, cx| {
+            let empty_src =
+                "<!doctype html><html><head><title>Untitled</title></head><body>\n</body></html>";
+            let editable = open(
+                "html-pane-1",
+                "one.html",
+                empty_src,
+                false,
+                SourceKind::Local,
+                window,
+                cx,
+            );
+            let readonly = open(
+                "html-pane-2",
+                "two.html",
+                "<p>Page</p>",
+                false,
+                SourceKind::Cloud,
+                window,
+                cx,
+            );
+            readonly.read_only.set(true);
+
+            assert!(is_empty_page(empty_src));
+            assert_eq!(
+                editable
+                    .pane(cx)
+                    .segmented
+                    .unwrap()
+                    .options
+                    .iter()
+                    .map(|o| o.id)
+                    .collect::<Vec<_>>(),
+                vec!["preview", "edit", "source"]
+            );
+            assert_eq!(
+                readonly
+                    .pane(cx)
+                    .segmented
+                    .unwrap()
+                    .options
+                    .iter()
+                    .map(|o| o.id)
+                    .collect::<Vec<_>>(),
+                vec!["preview", "source"]
+            );
+
+            editable.pane_segment(PaneSegmentId::Source, window, cx);
+            assert_eq!(editable.text(cx).as_deref(), Some(empty_src));
+            editable.replace_text("<h1>Now visible</h1>", window, cx);
+            editable.pane_segment(PaneSegmentId::Preview, window, cx);
+            assert_eq!(editable.text(cx).as_deref(), Some("<h1>Now visible</h1>"));
+            assert!(!is_empty_page(&editable.text(cx).unwrap()));
+            assert_eq!(editable.pane(cx).segmented.unwrap().value, "preview");
+            assert_eq!(readonly.pane(cx).segmented.unwrap().value, "preview");
         });
     }
 }

@@ -26,6 +26,7 @@ icu_collator = "=2.3.0"
 icu_normalizer = "=2.3.0"
 image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 pulldown-cmark = "0.13"
+raw-window-handle = { version = "0.6", features = ["std"] }
 regex = "1.13.1"
 reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls", "macos-system-configuration"] }
 semver = "1"
@@ -33,6 +34,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "process", "io-util"] }
+# Compose the upstream JSX query with Kit's JavaScript and TSX queries.
+tree-sitter-javascript = "=0.23.1"
 unicode-segmentation = "1"
 url = "2.5"
 uuid = { version = "1", features = ["v4"] }
@@ -73,6 +76,12 @@ bench = false
 [[bin]]
 name = "webview-whiteboard-probe"
 path = "bin/webview-whiteboard-probe.rs"
+required-features = ["dev-capture"]
+test = false
+
+[[bin]]
+name = "webview-document-pages-probe"
+path = "bin/webview-document-pages-probe.rs"
 required-features = ["dev-capture"]
 test = false
 bench = false

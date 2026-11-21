@@ -20,7 +20,8 @@
 //! (transport, timeouts, 5xx, reason codes, 402/403/404/426/429),
 //! `workspace::cloud::failure` (the full table), `service_generation_errors_are_not_misclassified_as_file_conflicts`
 //! and `reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease`
-//! (generation replaced), `non_sse_responses_fail_closed_and_transport_reconnects_are_bounded`
+//! (generation replaced), `non_sse_responses_fail_closed`,
+//! `transport_losses_keep_reconnecting_and_never_end_the_workspace`,
 //! and `streaming_auth_refresh_and_planned_renewal_do_not_exhaust_reconnect_budget` (SSE drops).
 use super::*;
 use crate::cloud::auth::{self as auth, Environment};
@@ -111,6 +112,28 @@ fn explicit_opening_wakes_once_and_only_observes_pending_operation() {
     assert!(prepared.into_parts().is_ok());
 }
 
+/// `cloudWorkspaceReadiness`: a server that ignores `wait_seconds` and
+/// answers a pending opening at once is polled at most once a second, and a
+/// ready answer is used without any added delay.
+#[test]
+fn a_fast_legacy_answer_is_paced_and_a_ready_one_is_not_delayed() {
+    let f = Fixture::new();
+    let mut waiting = opening_row("starting");
+    waiting["operation"] =
+        json!({"pending":true,"deadline":null,"error":null,"retryable":true,"phase":"connecting"});
+    f.state.opening_status.lock().unwrap().extend([
+        opening_row("paused"),
+        waiting.clone(),
+        opening_row("running"),
+    ]);
+    *f.state.opening_reply.lock().unwrap() = Some(waiting);
+    let started = Instant::now();
+    explicit_open(&f, &Cancellation::default(), |_| {}).unwrap();
+    let elapsed = started.elapsed();
+    assert_eq!(f.state.count("GET", "/workbench"), 3);
+    assert!(elapsed >= Duration::from_secs(1), "{elapsed:?}");
+    assert!(elapsed < Duration::from_secs(2), "{elapsed:?}");
+}
 /// N-7: `initializing` and `checking_files` mean the wait is for the files.
 /// N-8: the operation's reason decides the copy and the action.
 #[test]
@@ -304,6 +327,8 @@ struct State {
     stream_count: AtomicUsize,
     read: Gate,
     write: Gate,
+    /// Only writes of this path wait at `write` (`live.hold(path)`).
+    write_only: Mutex<Option<String>>,
     stop: AtomicBool,
     readonly: AtomicBool,
     denied: AtomicBool,
@@ -311,6 +336,11 @@ struct State {
     stream_disconnects: AtomicUsize,
     stream_401: AtomicUsize,
     stream_wrong_type: AtomicBool,
+    /// The Workspace sleeps: file and stream requests are refused with
+    /// `workbench_not_running` until a POST wakes it, as `replace_on_wake`
+    /// says, under the same generation or another one.
+    asleep: AtomicBool,
+    replace_on_wake: AtomicBool,
     expires: AtomicUsize,
     file_failure: Mutex<Option<(u16, &'static str)>>,
     context: Mutex<Option<Value>>,
@@ -331,6 +361,7 @@ impl State {
             stream_count: AtomicUsize::new(0),
             read: Gate::new(),
             write: Gate::new(),
+            write_only: Mutex::new(None),
             stop: AtomicBool::new(false),
             readonly: AtomicBool::new(false),
             denied: AtomicBool::new(false),
@@ -338,6 +369,8 @@ impl State {
             stream_disconnects: AtomicUsize::new(0),
             stream_401: AtomicUsize::new(0),
             stream_wrong_type: AtomicBool::new(false),
+            asleep: AtomicBool::new(false),
+            replace_on_wake: AtomicBool::new(false),
             expires: AtomicUsize::new(3600),
             file_failure: Mutex::new(None),
             context: Mutex::new(None),
@@ -553,6 +586,18 @@ fn connection(mut stream: TcpStream, state: Arc<State>, origin: &str) {
         return;
     }
     if path.ends_with("/workbench") {
+        if method == "POST" && state.asleep.swap(false, Ordering::SeqCst) {
+            let mut row = opening_row("running");
+            if state.replace_on_wake.load(Ordering::SeqCst) {
+                row["generation"] = json!("5c7d2b56-9f0e-4c41-8a51-2d7b8b0f9a10");
+            }
+            reply(&mut stream, 200, row);
+            return;
+        }
+        if method == "GET" && state.asleep.load(Ordering::SeqCst) {
+            reply(&mut stream, 200, json!({"workspace":opening_row("paused")}));
+            return;
+        }
         if method == "POST" {
             let value = state
                 .opening_reply
@@ -599,6 +644,10 @@ fn connection(mut stream: TcpStream, state: Arc<State>, origin: &str) {
     }
     if let Some((status, code)) = *state.file_failure.lock().unwrap() {
         failure(&mut stream, status, code);
+        return;
+    }
+    if state.asleep.load(Ordering::SeqCst) {
+        failure(&mut stream, 409, "workbench_not_running");
         return;
     }
     if path.ends_with("/events") {
@@ -657,8 +706,16 @@ fn connection(mut stream: TcpStream, state: Arc<State>, origin: &str) {
         return;
     }
     if method == "PUT" && path.ends_with("/file") {
-        state.write.block(&state.stop);
         let name = body["path"].as_str().unwrap();
+        if state
+            .write_only
+            .lock()
+            .unwrap()
+            .as_deref()
+            .is_none_or(|only| only == name)
+        {
+            state.write.block(&state.stop);
+        }
         let bytes = STANDARD
             .decode(body["content_base64"].as_str().unwrap())
             .unwrap();
@@ -1082,6 +1139,90 @@ fn document_and_tree_subscriptions_share_one_stream_and_last_drop_stops_it() {
     assert_eq!(f.state.stream_count.load(Ordering::SeqCst), 2);
     assert_eq!(f.state.streams.lock().unwrap().len(), 1);
 }
+/// `cloudWorkspaceEvents.test.mjs`: "drops late events after an account
+/// change" — the change is never delivered and the stream is let go.
+#[test]
+fn a_late_event_after_an_account_change_is_dropped_and_ends_the_stream() {
+    let f = Fixture::new();
+    let (ws, shared) = f.scoped();
+    let (watch, count) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    while watch.next().is_some() {}
+    f.broker.sign_out();
+    wait(|| f.broker.subscribe().borrow().account.is_none());
+    let before = count.load(Ordering::SeqCst);
+    f.state.event(&format!(
+        "event: change\ndata: {{\"generation\":\"{GENERATION}\",\"paths\":[\"live.md\"]}}\n\n"
+    ));
+    wait(|| f.state.streams.lock().unwrap().is_empty());
+    // A retired lease answers every read with its failure, never the change.
+    assert!(matches!(watch.next(), Some(WatchEvent::Failed(e)) if e.kind == ErrorKind::StaleLease));
+    assert_eq!(
+        count.load(Ordering::SeqCst),
+        before,
+        "the late change wakes no one"
+    );
+    let n = f.state.stream_count.load(Ordering::SeqCst);
+    thread::sleep(Duration::from_millis(100));
+    assert_eq!(
+        f.state.stream_count.load(Ordering::SeqCst),
+        n,
+        "no reconnect"
+    );
+}
+/// `cloudWorkspaceEvents.test.mjs`: "never retries revoked authority and
+/// distinguishes server transport interruption" — a refused stream is asked
+/// for once and its watcher hears the failure; a retryable `unavailable`
+/// is an interruption the same GET recovers from, without waking compute.
+#[test]
+fn revoked_event_streams_are_asked_once_and_interruptions_reconnect() {
+    let f = Fixture::new();
+    let ws = f.open();
+    *f.state.file_failure.lock().unwrap() = Some((403, "access_denied"));
+    let (watch, _) = subscription(&ws);
+    wait(|| matches!(watch.next(), Some(WatchEvent::Failed(_))));
+    // Longer than the first reconnect delay (250 ms).
+    thread::sleep(Duration::from_millis(400));
+    assert_eq!(f.state.count("GET", "/events"), 1);
+
+    let f = Fixture::new();
+    let (ws, shared) = f.scoped();
+    let (watch, _) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    while watch.next().is_some() {}
+    f.state
+        .event("event: unavailable\ndata: {\"retryable\":true}\n\n");
+    wait(|| f.state.stream_count.load(Ordering::SeqCst) >= 2);
+    let mut heard = vec![];
+    wait(|| {
+        heard.extend(watch.next());
+        !heard.is_empty()
+    });
+    assert!(
+        heard.iter().all(|e| matches!(e, WatchEvent::Invalidated)),
+        "{heard:?}"
+    );
+    assert!(ws.read(p("live.md")).is_ok());
+    assert_eq!(f.state.count("GET", "/events"), 2);
+    assert_eq!(f.state.count("POST", "/workbench"), 0);
+}
+/// `cloudWorkspaceEvents.test.mjs`: "delivers path hints to the subscribing
+/// window" — the paths a change names reach the subscription, once each.
+#[test]
+fn a_scoped_change_reaches_the_subscriber_with_its_paths() {
+    let f = Fixture::new();
+    let (ws, shared) = f.scoped();
+    let (watch, count) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    while watch.next().is_some() {}
+    let before = count.load(Ordering::SeqCst);
+    changed_paths(&f, &["docs/a.md", "docs/a.md"]);
+    wait(|| count.load(Ordering::SeqCst) > before);
+    let Some(WatchEvent::Changed(paths)) = watch.next() else {
+        panic!("expected the named paths");
+    };
+    assert_eq!(paths, [RelativePath::new(p("docs/a.md")).unwrap()]);
+}
 #[test]
 fn reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease() {
     let f = Fixture::new();
@@ -1132,6 +1273,26 @@ fn subscription_revalidates_a_change_between_read_and_registration() {
         "changed before subscription"
     );
     assert_eq!(f.state.stream_count.load(Ordering::SeqCst), 1);
+}
+/// `cloudWorkspaceHandoff`: a prepared opening is a one-use receipt. It is
+/// consumed once and the next opening asks the API again; a receipt whose
+/// generation moved, or whose sign-in ended, is refused before its root is
+/// shown.
+#[test]
+fn a_prepared_opening_is_one_use_and_ends_with_its_generation_or_sign_in() {
+    let f = Fixture::new();
+    let first = f.prepare().unwrap();
+    let asked = f.state.count("GET", "/workbench");
+    first.into_parts().unwrap();
+    f.prepare().unwrap().into_parts().unwrap();
+    assert_eq!(f.state.count("GET", "/workbench"), asked + 1);
+    let moved = f.prepare().unwrap();
+    moved.shared.invalidate();
+    assert!(moved.into_parts().is_err());
+    let signed_out = f.prepare().unwrap();
+    f.broker.sign_out();
+    wait(|| f.broker.subscribe().borrow().account.is_none());
+    assert!(signed_out.into_parts().is_err());
 }
 #[test]
 fn readiness_receipts_expire_and_cancellation_prevents_any_api_dispatch() {
@@ -1190,24 +1351,83 @@ fn streaming_auth_refresh_and_planned_renewal_do_not_exhaust_reconnect_budget() 
     assert!(f.state.count("POST", "/auth/v1/token") >= 2);
 }
 #[test]
-fn non_sse_responses_fail_closed_and_transport_reconnects_are_bounded() {
-    for wrong_type in [true, false] {
-        let f = Fixture::new();
-        f.state
-            .stream_wrong_type
-            .store(wrong_type, Ordering::SeqCst);
-        f.state.stream_disconnects.store(100, Ordering::SeqCst);
-        let ws = f.open();
-        let preview = ws.resource(p("image.png")).unwrap();
-        let (watch, _) = subscription(&ws);
-        wait(|| preview.data().is_err());
-        assert!(matches!(watch.next(), Some(WatchEvent::Failed(_))));
-        assert_eq!(
-            f.state.count("GET", "/events"),
-            if wrong_type { 1 } else { 4 }
-        );
-        assert_eq!(f.state.count("POST", "/workbench"), 0);
-    }
+fn non_sse_responses_fail_closed() {
+    let f = Fixture::new();
+    f.state.stream_wrong_type.store(true, Ordering::SeqCst);
+    f.state.stream_disconnects.store(100, Ordering::SeqCst);
+    let ws = f.open();
+    let preview = ws.resource(p("image.png")).unwrap();
+    let (watch, _) = subscription(&ws);
+    wait(|| preview.data().is_err());
+    assert!(matches!(watch.next(), Some(WatchEvent::Failed(_))));
+    assert_eq!(f.state.count("GET", "/events"), 1);
+    assert_eq!(f.state.count("POST", "/workbench"), 0);
+}
+/// A lost connection is a passing fault however often it happens: the stream
+/// keeps reconnecting while anyone watches, the files stay readable, and
+/// watching never wakes the Workspace.
+#[test]
+fn transport_losses_keep_reconnecting_and_never_end_the_workspace() {
+    let f = Fixture::new();
+    f.state.stream_disconnects.store(100, Ordering::SeqCst);
+    let ws = f.open();
+    let preview = ws.resource(p("image.png")).unwrap();
+    let (watch, _) = subscription(&ws);
+    wait(|| f.state.count("GET", "/events") >= 5);
+    assert!(!matches!(watch.next(), Some(WatchEvent::Failed(_))));
+    assert!(preview.data().is_ok());
+    assert!(ws.read(p("live.md")).is_ok());
+    assert_eq!(f.state.count("POST", "/workbench"), 0);
+}
+/// A Workspace that went to sleep while open (`idle_pause_seconds`) is woken
+/// by the next request, which is then sent again: nothing fails and nothing
+/// is said.
+#[test]
+fn a_sleeping_workspace_is_woken_by_the_next_request_which_is_sent_again() {
+    let f = Fixture::new();
+    let ws = f.open();
+    let posts = f.state.count("POST", "/workbench");
+    f.state.asleep.store(true, Ordering::SeqCst);
+    let doc = ws.read(p("live.md")).unwrap();
+    assert_eq!(doc.text, "live before Git\n");
+    assert_eq!(f.state.count("POST", "/workbench"), posts + 1);
+    assert!(!f.state.asleep.load(Ordering::SeqCst));
+    assert!(ws.list(p("")).is_ok());
+    assert_eq!(f.state.count("POST", "/workbench"), posts + 1);
+    let woken = crate::platform::diagnostics::recorded("[cloud-recovery] workspace woken");
+    assert!(
+        woken.iter().any(|l| l["fields"]["outcome"] == "Running"),
+        "{woken:?}"
+    );
+}
+/// Woken under another generation, it is another Workspace: the lease ends
+/// and the Project reopens; nothing is sent to the new one in its name.
+#[test]
+fn a_workspace_woken_under_another_generation_ends_the_lease() {
+    let f = Fixture::new();
+    let ws = f.open();
+    let reads = f.state.count("GET", "/file");
+    f.state.asleep.store(true, Ordering::SeqCst);
+    f.state.replace_on_wake.store(true, Ordering::SeqCst);
+    let error = ws.read(p("live.md")).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::StaleLease);
+    assert!(ws.lost());
+    assert_eq!(f.state.count("GET", "/file"), reads + 1);
+}
+/// Watching never wakes a sleeping Workspace: the stream waits for it.
+#[test]
+fn a_sleeping_workspace_is_waited_for_by_its_change_stream() {
+    let f = Fixture::new();
+    let ws = f.open();
+    let posts = f.state.count("POST", "/workbench");
+    f.state.asleep.store(true, Ordering::SeqCst);
+    let (watch, _) = subscription(&ws);
+    wait(|| f.state.count("GET", "/events") >= 1);
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(f.state.count("GET", "/events"), 1);
+    assert_eq!(f.state.count("POST", "/workbench"), posts);
+    assert!(!matches!(watch.next(), Some(WatchEvent::Failed(_))));
+    assert!(!ws.lost());
 }
 #[test]
 fn directory_contract_rejects_duplicates_escape_names_and_unbounded_results() {
@@ -1291,10 +1511,11 @@ fn database_previews_refuse_active_sidecars_and_keep_one_snapshot() {
     assert!(ws.resource(p("image.png")).is_ok());
 }
 #[test]
-fn creating_an_unrelated_folder_finishes_while_a_slow_save_is_in_flight() {
+fn creating_an_unrelated_folder_and_file_finishes_while_a_slow_save_is_in_flight() {
     let f = Fixture::new();
     let ws = Arc::new(f.open());
     let old = ws.read(p("live.md")).unwrap();
+    *f.state.write_only.lock().unwrap() = Some("live.md".into());
     f.state.write.held.store(true, Ordering::SeqCst);
     let saving = {
         let ws = ws.clone();
@@ -1305,7 +1526,10 @@ fn creating_an_unrelated_folder_finishes_while_a_slow_save_is_in_flight() {
     let creating = {
         let ws = ws.clone();
         thread::spawn(move || {
-            let result = ws.create_entry(p(""), "folder", true, "").map(|_| ());
+            let result = ws
+                .create_entry(p(""), "folder", true, "")
+                .and_then(|_| ws.create_entry(p(""), "fresh.md", false, "created while saving"))
+                .map(|_| ());
             let _ = created.send(result);
         })
     };
@@ -1320,6 +1544,10 @@ fn creating_an_unrelated_folder_finishes_while_a_slow_save_is_in_flight() {
         .unwrap();
     assert_eq!(unchanged.as_deref(), Some(b"live before Git\n".as_slice()));
     assert_eq!(f.state.count("POST", "/files"), 1);
+    assert_eq!(
+        f.state.files.lock().unwrap()["fresh.md"].as_deref(),
+        Some(b"created while saving".as_slice())
+    );
     assert_eq!(ws.read(p("live.md")).unwrap().text, "first\n");
 }
 
@@ -1416,6 +1644,33 @@ fn scoped_events_drop_the_named_subtree_and_unknown_events_drop_every_listing() 
         ws.list(p(folder)).unwrap();
     }
     assert_eq!(list_requests(&f), ["", "docs", "docs/deep", "other"]);
+}
+/// `cloudWorkspaceChanges`: the change event that echoes one's own save is
+/// the same bytes: one read and one parent listing, no conflict, and the
+/// next save follows on from it.
+#[test]
+fn the_echo_of_an_own_save_reads_once_as_the_same_bytes() {
+    let f = Fixture::new();
+    seed_folders(&f);
+    let (ws, shared) = f.scoped();
+    let (watch, count) = subscription(&ws);
+    wait(|| shared.epoch.load(Ordering::SeqCst) >= 2);
+    watch.next();
+    cached_folders(&f, &ws);
+    let before = ws.read(p("live.md")).unwrap();
+    let saved = ws.save(&before, "mine").unwrap();
+    assert!(!saved.updated);
+    f.state.requests.lock().unwrap().clear();
+    let notified = count.load(Ordering::SeqCst);
+    changed_paths(&f, &["live.md"]);
+    wait(|| count.load(Ordering::SeqCst) > notified);
+    let echo = ws.read(p("live.md")).unwrap();
+    ws.list(p("")).unwrap();
+    assert_eq!(echo.text, "mine");
+    assert_eq!(f.state.count("GET", "/file"), 1);
+    assert_eq!(list_requests(&f), [""]);
+    let next = ws.save(&echo, "mine again").unwrap();
+    assert!(!next.updated, "the echo is not a conflict");
 }
 #[test]
 fn a_move_invalidates_both_parents_and_a_delete_invalidates_the_subtree() {

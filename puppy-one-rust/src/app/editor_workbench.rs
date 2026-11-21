@@ -31,9 +31,9 @@ pub(super) struct EditorResize {
 }
 #[derive(Clone, PartialEq)]
 pub(super) struct EditorDrop {
-    pane: String,
-    direction: Direction,
-    placement: Placement,
+    pub(super) pane: String,
+    pub(super) direction: Direction,
+    pub(super) placement: Placement,
 }
 #[derive(Clone)]
 struct TabDrag {
@@ -344,6 +344,7 @@ impl EditorArea {
         let palette = cx.palette();
         let mut tabs = div()
             .id("editor-tabs")
+            .debug_selector(|| "editor-tabs".into())
             .flex()
             .items_center()
             .h_full()
@@ -557,6 +558,8 @@ impl EditorArea {
                 let external_target = id.clone();
                 let preview_target = id.clone();
                 let external_preview = id.clone();
+                let move_preview = id.clone();
+                let shows = editor.clone();
                 let measured = self.pane_bounds.clone();
                 let painted = id.clone();
                 let mut view = fraction(rect)
@@ -597,6 +600,38 @@ impl EditorArea {
                                 }
                             } else if s.drop.as_ref().is_some_and(|p| p.pane == preview_target) {
                                 s.drop = None;
+                                cx.notify();
+                            }
+                        },
+                    ))
+                    // `pane move`: the edge a moved pane would land on, never
+                    // its own.
+                    .on_drag_move(cx.listener(
+                        move |s,
+                              event: &DragMoveEvent<crate::editor::workbench::pane::PaneDrag>,
+                              _,
+                              cx| {
+                            let drag = event.drag(cx);
+                            let docs = s.docs.read(cx);
+                            let own = shows.as_deref().and_then(|key| docs.slot_for_key(key))
+                                == Some(drag.slot);
+                            let inside = event.bounds.contains(&event.event.position)
+                                && drag.owner == cx.entity_id()
+                                && docs.visible_slots().contains(&drag.slot)
+                                && !own
+                                && !s.gate.modal;
+                            let preview = inside.then(|| {
+                                let (direction, placement) =
+                                    drop_edge(event.event.position, event.bounds);
+                                EditorDrop {
+                                    pane: move_preview.clone(),
+                                    direction,
+                                    placement,
+                                }
+                            });
+                            let ours = s.drop.as_ref().is_some_and(|p| p.pane == move_preview);
+                            if preview.is_some() && s.drop != preview || preview.is_none() && ours {
+                                s.drop = preview;
                                 cx.notify();
                             }
                         },
@@ -664,6 +699,7 @@ impl EditorArea {
                     }))
                     .on_drop(cx.listener(
                         move |s, drag: &crate::editor::workbench::pane::PaneDrag, w, cx| {
+                            s.drop = None;
                             if drag.owner != cx.entity_id()
                                 || !s.docs.read(cx).visible_slots().contains(&drag.slot)
                                 || s.gate.modal
@@ -717,11 +753,7 @@ impl EditorArea {
                             IconButton::new(SharedString::from(format!("close-empty-{id}")), "x")
                                 .label(crate::localization::t("editor.panes.closePane"))
                                 .on_click(cx.listener(move |s, _, w, cx| {
-                                    s.docs.update(cx, |d, _| {
-                                        if let Some(mut state) = d.state_mut() {
-                                            state.close_pane(&close);
-                                        }
-                                    });
+                                    s.docs.update(cx, |d, _| d.close_pane(&close));
                                     s.sync(w, cx);
                                 })),
                         ),
@@ -788,6 +820,10 @@ impl EditorArea {
                         .h(px(6.))
                         .mt(px(-3.))
                 };
+                let lane = lane.debug_selector({
+                    let split = split.clone();
+                    move || format!("editor-resize-{split}")
+                });
                 let handle = ResizeHandle::new(
                     SharedString::from(format!("editor-resize-{id}")),
                     if horizontal {

@@ -1,6 +1,6 @@
 #![cfg(test)]
-use super::*;
-use crate::platform::webview::{Entry, local_url_for};
+use super::protocol_response;
+use crate::platform::webview::{Content, ENTRY_ORIGIN, Entry, local_url_for};
 
 #[test]
 fn wry_adapter_emits_exact_range_head_cors_and_security_headers() {

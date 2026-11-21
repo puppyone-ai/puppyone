@@ -96,6 +96,13 @@ pub(super) struct EditorArea {
 impl EventEmitter<EditorEvent> for EditorArea {}
 
 impl EditorArea {
+    /// The editor whose pane menu is open, if any.
+    pub fn open_pane_menu(&self, cx: &App) -> Option<Entity<DocumentEditor>> {
+        self.hosts
+            .values()
+            .find(|editor| editor.read(cx).pane_menu_open())
+            .cloned()
+    }
     pub fn new(
         docs: Entity<DocumentSession>,
         explorer: Entity<ExplorerSession>,
@@ -190,7 +197,9 @@ impl EditorArea {
     }
     /// The window left: a drag or a split resize in flight ends.
     pub fn cancel_gestures(&mut self, cx: &mut Context<Self>) {
-        self.drop = None;
+        if self.drop.take().is_some() {
+            cx.notify();
+        }
         self.end_resize(false, cx);
     }
     /// Standalone files decoded from a legacy encoding remain read-only;
@@ -310,6 +319,7 @@ impl EditorArea {
         let sampled: Vec<(
             u64,
             bool,
+            bool,
             Option<crate::editor::workbench::view_state::SurfaceViewState>,
         )> = self
             .hosts
@@ -317,12 +327,18 @@ impl EditorArea {
             .filter(|(slot, _)| **slot != 0)
             .map(|(slot, editor)| {
                 let s = editor.read(cx);
-                (*slot, s.composing(cx), s.view_state(cx))
+                (
+                    *slot,
+                    s.composing(cx),
+                    s.holds_page_history(cx),
+                    s.view_state(cx),
+                )
             })
             .collect();
         self.docs.update(cx, |d, _| {
-            for (slot, composing, vs) in sampled {
+            for (slot, composing, page_history, vs) in sampled {
                 d.set_slot_composing(slot, composing);
+                d.set_slot_page_history(slot, page_history);
                 if let Some(vs) = vs {
                     d.record_view_state(slot, vs);
                 }
@@ -395,6 +411,7 @@ impl EditorArea {
             self.docs.update(cx, |d, _| {
                 for (id, vs) in evicted_final {
                     d.set_slot_composing(id, false);
+                    d.set_slot_page_history(id, false);
                     if let Some(vs) = vs {
                         d.record_view_state(id, vs);
                     }
@@ -449,17 +466,23 @@ impl EditorArea {
                 if let ClientMessage::Action { action } = event {
                     if s.docs.read(cx).visible_slots().contains(&slot) && !s.gate.modal {
                         s.focus_slot(slot, cx);
-                        if action == "close-file" {
+                        let close = action == "close-file";
+                        if close {
                             s.docs.update(cx, |d, _| {
-                                if let Some(mut state) = d.state_mut() {
-                                    let active = state.layout.active.clone();
-                                    state.close_pane(&active);
+                                if let Some(active) = d.state().map(|s| s.layout.active.clone()) {
+                                    d.close_pane(&active);
                                 }
                             });
                         } else if let Some(command) = Command::from_protocol(action) {
                             cx.emit(EditorEvent::Command(command));
                         }
                         s.sync(window, cx);
+                        // The closed pane held the focus (its menu): the
+                        // pane that becomes active takes it.
+                        if close && s.docs.read(cx).active_slot() != 0 {
+                            s.front
+                                .update(cx, |editor, cx| editor.focus_document(window, cx));
+                        }
                     }
                 } else {
                     let normalized = matches!(event, ClientMessage::NormalizeLineEndings { .. });
@@ -758,7 +781,7 @@ mod tests {
         });
         let view = content.unwrap();
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         (view, cx)
     }
@@ -779,7 +802,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
     }
 
@@ -822,7 +845,7 @@ mod tests {
             s.command(Command::CompareCloudConflict, w, cx);
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.read_with(cx, |s, cx| {
             assert!(s.editor.read(cx).comparing_conflict);
@@ -994,11 +1017,11 @@ mod tests {
             assert!(handled);
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         cx.run_until_parked();
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         view.read_with(cx, |s, cx| {
             assert!(s.editor.read(cx).pending_external_drop.is_some());

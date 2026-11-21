@@ -96,6 +96,12 @@ impl Workbench {
             .child(
                 div()
                     .id(("group-content", id))
+                    .debug_selector(move || format!("workbench-group-content-{id}"))
+                    // Pointer focus within a group makes it the command
+                    // target; only tab actions ask an item for focus.
+                    .capture_any_mouse_down(cx.listener(move |s, _, _, cx| {
+                        s.activate_group(id, cx)
+                    }))
                     .relative()
                     .flex_1()
                     .min_h_0()
@@ -314,6 +320,9 @@ impl Workbench {
 
     /// `retryCreation`: the contribution tries the same creation again.
     pub(super) fn retry_creation(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.shown_failure().is_none() {
+            return;
+        }
         let Some(failure) = self.creation_failure.take() else {
             return;
         };
@@ -329,7 +338,7 @@ impl Workbench {
         use crate::ui::components::{
             FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
         };
-        let failure = self.creation_failure.as_ref()?;
+        let failure = self.shown_failure()?;
         let ty = theme::ty();
         let entity = cx.entity();
         let retry = entity.clone();
@@ -440,17 +449,8 @@ impl Workbench {
             .iter()
             .map(minimum)
             .fold((1f32, 1f32), |(w, h), (a, b)| (w.max(a), h.max(b)));
-        let (width, height) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
-        match axis {
-            Axis::Horizontal => {
-                width >= source_min.0 + layout::DIVIDER + target_min.0
-                    && height >= source_min.1.max(target_min.1)
-            }
-            Axis::Vertical => {
-                height >= source_min.1 + layout::DIVIDER + target_min.1
-                    && width >= source_min.0.max(target_min.0)
-            }
-        }
+        let size = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+        Layout::fits(axis, size, source_min, target_min)
     }
 }
 

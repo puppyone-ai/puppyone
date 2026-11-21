@@ -33,6 +33,7 @@ impl Repo {
         history(self.0.path(), &AtomicBool::new(false)).unwrap()
     }
 }
+#[cfg(unix)]
 #[test]
 fn history_preserves_filename_boundaries_and_control_characters_in_subjects() {
     let repo = Repo::new();
@@ -73,6 +74,7 @@ fn history_preserves_filename_boundaries_and_control_characters_in_subjects() {
         assert!(change.old_path.is_none());
     }
 }
+#[cfg(unix)]
 #[test]
 fn a_history_rename_keeps_exact_old_and_new_paths_and_one_stats_record() {
     let repo = Repo::new();

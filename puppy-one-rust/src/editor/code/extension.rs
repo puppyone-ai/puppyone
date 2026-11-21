@@ -18,7 +18,7 @@ use super::{
     },
     editing::{filter_typing_transaction, intercept_intent},
     folding::{FoldState, FoldedCodeWidget, compute_fold_ranges},
-    highlight::{Roles, SyntaxColors},
+    highlight::{Roles, SyntaxColors, syntax_highlighter},
     language::Language,
 };
 use crate::{
@@ -45,7 +45,7 @@ use crate::{
     typography::Scale,
 };
 use gpui::Rgba;
-use gpui_kit::component::{Rope as KitRope, highlighter::SyntaxHighlighter};
+use gpui_kit::component::Rope as KitRope;
 use std::{
     cell::RefCell,
     collections::{BTreeSet, hash_map::DefaultHasher},
@@ -330,7 +330,7 @@ fn compute_syntax_marks(doc: &Buffer, language: Language, colors: &SyntaxColors)
         return Vec::new();
     };
     let text = doc.slice_cow(0..doc.len());
-    let mut highlighter = SyntaxHighlighter::new(grammar);
+    let mut highlighter = syntax_highlighter(grammar);
     highlighter.update(None, &KitRope::from(text.as_ref()), None);
     let roles = Roles(colors.clone());
     let keyword_rgba = colors.keyword;

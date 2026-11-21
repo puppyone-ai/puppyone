@@ -198,7 +198,7 @@ fn walk(root: &Path, directory: &Path, files: &mut Vec<Value>) {
         };
         let modules = index.modules.iter().flat_map(|(relative, excluded, explicit)| {
             let candidates = if *explicit { vec![path.parent().unwrap().join(relative)] } else { vec![module_root.join(relative).with_extension("rs"), module_root.join(relative).join("mod.rs")] };
-            candidates.into_iter().filter(|p| p.is_file()).map(move |p| json!({"path":p.canonicalize().unwrap().strip_prefix(root).unwrap().to_str().unwrap(),"excluded":excluded}))
+            candidates.into_iter().filter(|p| p.is_file()).map(move |p| json!({"path":p.canonicalize().unwrap().strip_prefix(root).unwrap().to_str().unwrap().replace('\\', "/"),"excluded":excluded}))
         }).collect::<Vec<_>>();
         let dedicated = path.components().any(|part| part.as_os_str() == "tests")
             || matches!(
@@ -212,7 +212,7 @@ fn walk(root: &Path, directory: &Path, files: &mut Vec<Value>) {
                 json!({"start":1,"end":text.lines().count(),"reason":"dedicated test source"}),
             );
         }
-        files.push(json!({"path":path.strip_prefix(root).unwrap().to_str().unwrap(),"lines":text.lines().count(),"excluded":index.excluded,"tests":index.tests,"modules":modules,"verificationOnly":dedicated,"pushes":index.pushes,"pushBindings":index.push_bindings}));
+        files.push(json!({"path":path.strip_prefix(root).unwrap().to_str().unwrap().replace('\\', "/"),"lines":text.lines().count(),"excluded":index.excluded,"tests":index.tests,"modules":modules,"verificationOnly":dedicated,"pushes":index.pushes,"pushBindings":index.push_bindings}));
     }
 }
 fn main() {

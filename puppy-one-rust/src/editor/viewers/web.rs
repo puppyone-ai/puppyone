@@ -16,18 +16,81 @@ use super::html_visual::script_json;
 use crate::{
     editor::workbench::find::FindEvent,
     localization::t,
-    platform::webview::{Content, Entry},
+    platform::{
+        capabilities::Capabilities,
+        webview::{Content, Entry},
+    },
     theme,
-    ui::{appearance::ActiveAppearance, loading::LoadingMark},
+    ui::{
+        appearance::ActiveAppearance,
+        components::{Button, ButtonVariant},
+        loading::LoadingMark,
+    },
     web_host::WebHost,
 };
 use gpui::{prelude::*, *};
 use serde::Deserialize;
-use std::rc::Rc;
+use std::{path::PathBuf, rc::Rc};
 
 #[cfg(test)]
 type EvaluationRecorder = Rc<dyn Fn(&str)>;
 pub type OnRecreated = Rc<dyn Fn(&mut App)>;
+pub type OnFallbackClick = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// Actionable native fallback rendered when embedded web views are unavailable
+/// (for example Linux native-first mode or missing Windows WebView2 Runtime).
+#[derive(Clone)]
+pub struct WebFallbackAction {
+    pub id: &'static str,
+    pub label_key: &'static str,
+    pub on_click: OnFallbackClick,
+}
+
+impl WebFallbackAction {
+    /// Opens a verified local file in the OS default application (never for Cloud files).
+    pub fn open_local_file(path: PathBuf) -> Self {
+        Self {
+            id: "web-fallback-open-external",
+            label_key: "native.web.openExternally",
+            on_click: Rc::new(move |_, cx| {
+                crate::editor::question::open_external(None, path.clone(), |_, _| {}, cx);
+            }),
+        }
+    }
+
+    /// Opens a verified local HTML document in the OS default browser (never for Cloud files).
+    pub fn open_local_in_browser(path: PathBuf) -> Self {
+        Self {
+            id: "web-fallback-open-browser",
+            label_key: "native.web.openInBrowser",
+            on_click: Rc::new(move |_, cx| {
+                crate::editor::question::open_external(None, path.clone(), |_, _| {}, cx);
+            }),
+        }
+    }
+
+    /// Switches the hosting viewer to its native source editor.
+    pub fn view_source(on_click: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        Self {
+            id: "web-fallback-view-source",
+            label_key: "native.web.viewSource",
+            on_click: Rc::new(on_click),
+        }
+    }
+
+    /// Custom actionable fallback (for example opening an app preview externally).
+    pub fn custom(
+        id: &'static str,
+        label_key: &'static str,
+        on_click: impl Fn(&mut Window, &mut App) + 'static,
+    ) -> Self {
+        Self {
+            id,
+            label_key,
+            on_click: Rc::new(on_click),
+        }
+    }
+}
 
 #[derive(Deserialize)]
 struct FindWire {
@@ -178,6 +241,7 @@ pub struct WebFrame {
     pinned: bool,
     restore_script: Option<String>,
     on_recreated: Option<OnRecreated>,
+    fallback_actions: Vec<WebFallbackAction>,
 }
 
 impl WebFrame {
@@ -192,7 +256,24 @@ impl WebFrame {
             pinned: false,
             restore_script: None,
             on_recreated: None,
+            fallback_actions: Vec::new(),
         }
+    }
+
+    /// Sets actionable fallback controls shown if embedded web views are unavailable.
+    pub fn set_fallback_actions(&mut self, actions: Vec<WebFallbackAction>) {
+        self.fallback_actions = actions;
+    }
+
+    #[cfg(test)]
+    pub fn fallback_actions(&self) -> &[WebFallbackAction] {
+        &self.fallback_actions
+    }
+
+    #[cfg(test)]
+    pub fn fail_for_test(&mut self, reason: impl Into<String>) {
+        self.host = None;
+        self.failed = Some(reason.into());
     }
 
     /// Replaces what the frame shows (a new engine instance).
@@ -385,16 +466,67 @@ impl Render for WebFrame {
         }
         crate::web_host::frame_drawn(window);
         if let Some(error) = self.failed.clone() {
+            let native_first = !Capabilities::probe().embedded_web.is_available();
+            let headline = t("native.web.embeddedUnavailable").to_owned();
+            let detail = (!error.is_empty() && error != headline).then_some(error);
+            let actions = self.fallback_actions.clone();
             return div()
+                .id("web-fallback-card")
                 .size_full()
                 .flex()
+                .flex_col()
                 .items_center()
                 .justify_center()
+                .gap(px(12.))
                 .p(px(24.))
                 .bg(p.canvas)
-                .text_size(px(theme::ty().ui.meta))
-                .text_color(p.danger)
-                .child(error)
+                .child(
+                    div()
+                        .max_w(px(460.))
+                        .flex()
+                        .flex_col()
+                        .items_center()
+                        .gap(px(10.))
+                        .text_center()
+                        .child(
+                            div()
+                                .text_size(px(theme::ty().ui.body))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(if native_first { p.text } else { p.danger })
+                                .child(headline),
+                        )
+                        .when_some(detail, |d, detail| {
+                            d.child(
+                                div()
+                                    .text_size(px(theme::ty().ui.meta))
+                                    .text_color(p.subtle)
+                                    .child(detail),
+                            )
+                        })
+                        .when(!actions.is_empty(), |d| {
+                            d.child(
+                                div()
+                                    .pt(px(6.))
+                                    .flex()
+                                    .flex_wrap()
+                                    .justify_center()
+                                    .gap(px(8.))
+                                    .children(actions.into_iter().enumerate().map(
+                                        |(idx, action)| {
+                                            let on_click = action.on_click.clone();
+                                            Button::new(action.id)
+                                                .variant(if idx == 0 {
+                                                    ButtonVariant::Solid
+                                                } else {
+                                                    ButtonVariant::Secondary
+                                                })
+                                                .label(t(action.label_key).to_owned())
+                                                .on_click(move |_, window, cx| on_click(window, cx))
+                                        },
+                                    )),
+                            )
+                        }),
+                )
                 .into_any_element();
         }
         let host = self.host.clone();
@@ -477,7 +609,7 @@ mod tests {
         let (frame, cx) =
             cx.add_window_view(|_, _| WebFrame::new(Some(dummy_content("hello world")), false));
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
         });
         frame.read_with(cx, |f, cx| {
             assert_eq!(f.find(FindEvent::Query("hello".into()), cx), None);
@@ -536,7 +668,7 @@ mod tests {
                 cx.notify();
             });
             cx.update(|w, cx| {
-                let _ = w.draw(cx);
+                w.draw(cx).clear(cx);
                 let live = live_host_count(w);
                 assert!(
                     live <= MAX_LIVE_WEBVIEWS_PER_WINDOW,
@@ -558,7 +690,7 @@ mod tests {
             cx.notify();
         });
         cx.update(|w, cx| {
-            let _ = w.draw(cx);
+            w.draw(cx).clear(cx);
             assert_eq!(live_host_count(w), MAX_LIVE_WEBVIEWS_PER_WINDOW);
         });
         cx.run_until_parked();
@@ -572,5 +704,31 @@ mod tests {
                 vec!["window.__restored = 42;".to_string()]
             );
         });
+    }
+
+    #[gpui::test]
+    fn fallback_card_exposes_actionable_native_controls_when_web_unavailable(
+        cx: &mut TestAppContext,
+    ) {
+        let clicked = Rc::new(Cell::new(false));
+        let clicked_cb = clicked.clone();
+        let (frame, cx) = cx.add_window_view(|_, _| {
+            let mut f = WebFrame::new(None, false);
+            f.set_fallback_actions(vec![WebFallbackAction::view_source(move |_, _| {
+                clicked_cb.set(true);
+            })]);
+            f.fail_for_test("Embedded web preview is not available on this platform.");
+            f
+        });
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+        frame.read_with(cx, |f, _| {
+            assert_eq!(f.fallback_actions().len(), 1);
+            assert_eq!(f.fallback_actions()[0].label_key, "native.web.viewSource");
+        });
+        let action = frame.read_with(cx, |f, _| f.fallback_actions()[0].on_click.clone());
+        cx.update(|w, cx| action(w, cx));
+        assert!(clicked.get());
     }
 }

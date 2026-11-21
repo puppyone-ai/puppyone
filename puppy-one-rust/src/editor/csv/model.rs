@@ -922,6 +922,77 @@ impl CsvModel {
 mod tests {
     use super::*;
 
+    /// `csvDocumentModel.test.ts` with the product's inputs: an edit replaces
+    /// only its row and serializes on demand (the same text until the next
+    /// change); accepted source stays byte-exact until a local edit, and a
+    /// replacement is taken as written; row and column identities follow
+    /// their moves; undo and redo belong to the model; one edit in a
+    /// 500 × 20 table shares every other row.
+    #[test]
+    fn the_product_model_cases_keep_rows_identities_and_history() {
+        let mut m = CsvModel::new("Name,Score\nAda,1\nLin,2", Delimiter::Comma);
+        let header = Arc::clone(m.rows().get_arc(0).unwrap());
+        let other = Arc::clone(m.rows().get_arc(2).unwrap());
+        let target = Arc::clone(m.rows().get_arc(1).unwrap());
+        assert!(m.set_cell(1, 1, "10"));
+        assert!(Arc::ptr_eq(m.rows().get_arc(0).unwrap(), &header));
+        assert!(Arc::ptr_eq(m.rows().get_arc(2).unwrap(), &other));
+        assert!(!Arc::ptr_eq(m.rows().get_arc(1).unwrap(), &target));
+        assert_eq!(*m.text(), "Name,Score\nAda,10\nLin,2");
+        assert!(Rc::ptr_eq(&m.text(), &m.text()));
+
+        let source = "\u{FEFF}name,notes\r\nAda,\"hello\"\r\n";
+        let mut m = CsvModel::new(source, Delimiter::Comma);
+        assert_eq!(*m.text(), source);
+        assert!(m.set_cell(1, 1, "updated"));
+        assert_eq!(*m.text(), "\u{FEFF}name,notes\r\nAda,updated\r\n");
+        let external = "name,notes\nGrace,\"quoted\"";
+        m.replace_content(external);
+        assert_eq!(*m.text(), external);
+
+        let mut m = CsvModel::new("Name,Score\nAda,1\nLin,2", Delimiter::Comma);
+        let (ada, lin) = (m.rows()[1].id, m.rows()[2].id);
+        let (name, score) = (m.content().columns[0], m.content().columns[1]);
+        assert!(m.apply(true, Operation::MoveRowDown, 1, 0).changed);
+        assert_eq!((m.rows()[1].id, m.rows()[2].id), (lin, ada));
+        assert!(m.apply(true, Operation::MoveColumnRight, 1, 0).changed);
+        assert_eq!(
+            (m.content().columns[0], m.content().columns[1]),
+            (score, name)
+        );
+
+        let mut m = CsvModel::new("Name,Score\nAda,1", Delimiter::Comma);
+        assert!(m.set_cell(1, 1, "2"));
+        assert_eq!(*m.text(), "Name,Score\nAda,2");
+        assert!(m.undo(false));
+        assert_eq!(*m.text(), "Name,Score\nAda,1");
+        assert!(m.undo(true));
+        assert_eq!(*m.text(), "Name,Score\nAda,2");
+
+        let large = (0..500)
+            .map(|r| {
+                (0..20)
+                    .map(|c| format!("r{r}c{c}"))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut m = CsvModel::new(&large, Delimiter::Comma);
+        let before: Vec<_> = (0..500)
+            .map(|r| Arc::clone(m.rows().get_arc(r).unwrap()))
+            .collect();
+        assert!(m.set_cell(250, 10, "updated"));
+        for (r, row) in before.iter().enumerate() {
+            assert_eq!(
+                Arc::ptr_eq(m.rows().get_arc(r).unwrap(), row),
+                r != 250,
+                "{r}"
+            );
+        }
+        assert_eq!(m.rows()[250].cell_or_empty(10), "updated");
+    }
+
     #[test]
     fn edits_share_history_and_serialize_canonically() {
         let mut m = CsvModel::new("a,b\n1,2\n", Delimiter::Comma);

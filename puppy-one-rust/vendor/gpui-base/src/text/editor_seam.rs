@@ -12,11 +12,15 @@
 
 use std::{cell::RefCell, ops::Range, rc::Rc};
 
-use gpui::{Bounds, Hsla, Pixels, TextLayout};
+use gpui::{Bounds, Hsla, Pixels, TextAlign, TextLayout};
 
 pub(crate) trait EditorSink {
     /// The leaf `key` was laid out this frame as one `TextLayout`.
     fn report(&self, key: u64, layout: &TextLayout);
+    /// Whole-leaf geometry follows the alignment used to paint each row.
+    fn report_aligned(&self, key: u64, layout: &TextLayout, _align: TextAlign) {
+        self.report(key, layout);
+    }
     /// The leaf `key` is laid out in pieces this frame (a mixed text /
     /// image / custom-inline paragraph rendered by `InlineFlow`); drops
     /// pieces reported for it earlier in the frame.

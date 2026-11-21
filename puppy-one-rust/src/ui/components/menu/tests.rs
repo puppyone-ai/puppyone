@@ -45,7 +45,7 @@ impl Render for Harness {
 }
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| {
-        let _ = window.draw(cx);
+        window.draw(cx).clear(cx);
     });
 }
 
@@ -130,11 +130,11 @@ fn keyboard_menu_with_no_enabled_rows_still_dismisses_and_returns_focus(cx: &mut
 
 /// A menu that closes on a press outside it, with one row opening a
 /// submenu, as the agent panel's source picker is.
-struct SubmenuHarness {
+struct PickerSubmenuHarness {
     outside: Rc<Cell<usize>>,
     picked: Rc<Cell<usize>>,
 }
-impl Render for SubmenuHarness {
+impl Render for PickerSubmenuHarness {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         let outside = self.outside.clone();
         let picked = self.picked.clone();
@@ -166,7 +166,7 @@ fn a_submenu_stays_open_under_the_pointer_and_takes_its_click(cx: &mut TestAppCo
     cx.update(gpui_kit::init);
     let outside = Rc::new(Cell::new(0));
     let picked = Rc::new(Cell::new(0));
-    let (_view, cx) = cx.add_window_view(|_, _| SubmenuHarness {
+    let (_view, cx) = cx.add_window_view(|_, _| PickerSubmenuHarness {
         outside: outside.clone(),
         picked: picked.clone(),
     });
@@ -194,7 +194,7 @@ fn a_submenu_stays_open_under_the_pointer_and_takes_its_click(cx: &mut TestAppCo
 #[gpui::test]
 fn a_submenu_closes_once_the_pointer_leaves_it_and_its_row(cx: &mut TestAppContext) {
     cx.update(gpui_kit::init);
-    let (_view, cx) = cx.add_window_view(|_, _| SubmenuHarness {
+    let (_view, cx) = cx.add_window_view(|_, _| PickerSubmenuHarness {
         outside: Rc::new(Cell::new(0)),
         picked: Rc::new(Cell::new(0)),
     });
@@ -237,6 +237,78 @@ impl Render for SiblingHarness {
     }
 }
 
+struct SubmenuHarness {
+    open: bool,
+    anchored: bool,
+    calls: Rc<Cell<usize>>,
+}
+impl Render for SubmenuHarness {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let calls = self.calls.clone();
+        let build_menu = move |menu: Menu| {
+            let calls = calls.clone();
+            menu.item(
+                MenuItem::new("Parent")
+                    .id("parent-row")
+                    .open_submenu(true)
+                    .submenu(move |_, _| {
+                        let calls = calls.clone();
+                        Menu::new("child-submenu").item(
+                            MenuItem::new("Child Action")
+                                .id("child-action")
+                                .on_click(move |_, _| calls.set(calls.get() + 1)),
+                        )
+                    }),
+            )
+        };
+        if self.anchored {
+            let view = cx.entity().downgrade();
+            div().size_full().when(self.open, |d| {
+                d.child(
+                    crate::ui::components::AnchoredMenu::new(
+                        "anchored-sub",
+                        point(px(40.), px(40.)),
+                        build_menu(Menu::new("anchored-sub-menu").w(px(160.))),
+                    )
+                    .on_dismiss(move |_, cx| {
+                        let _ = view.update(cx, |s, cx| {
+                            s.open = false;
+                            cx.notify();
+                        });
+                    }),
+                )
+            })
+        } else {
+            let view = cx.entity().downgrade();
+            div().size_full().child(
+                PopoverMenu::new("popover-sub")
+                    .open(self.open)
+                    .on_open_change(move |opened, _, cx| {
+                        let _ = view.update(cx, |s, cx| {
+                            s.open = *opened;
+                            cx.notify();
+                        });
+                    })
+                    .trigger(Button::new("open-sub").label("Open"))
+                    .menu(move |menu, _, _| build_menu(menu.w(px(160.)))),
+            )
+        }
+    }
+}
+
+struct CachedSubmenuHost {
+    inner: Entity<SubmenuHarness>,
+}
+impl Render for CachedSubmenuHost {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().child(
+            self.inner
+                .clone()
+                .cached(StyleRefinement::default().size_full()),
+        )
+    }
+}
+
 #[gpui::test]
 fn moving_to_a_sibling_row_closes_the_open_submenu_at_once(cx: &mut TestAppContext) {
     cx.update(gpui_kit::init);
@@ -254,4 +326,48 @@ fn moving_to_a_sibling_row_closes_the_open_submenu_at_once(cx: &mut TestAppConte
     // No grace period: only the new row's submenu shows.
     assert!(cx.debug_bounds("plan-provider").is_none());
     assert!(cx.debug_bounds("key-provider").is_some());
+}
+
+#[gpui::test]
+fn clicking_submenu_item_runs_action_before_parent_menu_dismisses(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    for anchored in [true, false] {
+        let calls = Rc::new(Cell::new(0));
+        let mut inner = None;
+        let (_, cx) = cx.add_window_view(|_, cx| {
+            let view = cx.new(|_| SubmenuHarness {
+                open: true,
+                anchored,
+                calls: calls.clone(),
+            });
+            inner = Some(view.clone());
+            CachedSubmenuHost { inner: view }
+        });
+        let view = inner.unwrap();
+        draw(cx);
+        draw(cx);
+        // Third draw exercises a pure cached-view replay frame where
+        // `SubmenuRow::render` does not run.
+        draw(cx);
+        let bounds = cx.debug_bounds("menu-item:Child Action").unwrap();
+        assert!(
+            bounds.origin.x > px(100.),
+            "submenu must reposition beside the trigger row (bounds={bounds:?})"
+        );
+        cx.simulate_click(bounds.center(), Modifiers::none());
+        draw(cx);
+        assert_eq!(
+            calls.get(),
+            1,
+            "submenu item click must run action (anchored={anchored}, bounds={bounds:?})"
+        );
+        if !anchored {
+            view.read_with(cx, |v, _| assert!(!v.open, "popover submenu must dismiss"));
+        } else {
+            // Clicking outside both the anchored menu and its submenu still dismisses.
+            cx.simulate_click(point(px(900.), px(500.)), Modifiers::none());
+            draw(cx);
+            view.read_with(cx, |v, _| assert!(!v.open, "outside click must dismiss"));
+        }
+    }
 }

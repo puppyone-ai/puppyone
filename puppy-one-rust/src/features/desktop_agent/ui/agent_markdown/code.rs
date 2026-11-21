@@ -42,17 +42,20 @@ pub(super) fn code_block(
                 .border_b_1()
                 .border_color(a.border_subtle)
                 .text_color(a.text_subtle)
-                .child(
+                .child({
+                    let selector = format!("agent-code-language:{language}");
                     div()
+                        .debug_selector(move || selector)
                         .min_w_0()
                         .truncate()
                         .font_family(theme::MONO)
                         .text_size(px(theme::ty().right.caption))
-                        .child(language),
-                )
+                        .child(language)
+                })
                 .child(
                     gpui_kit::base::Button::new(SharedString::from(copy_key.clone()))
                         .accessibility_label(label.clone())
+                        .debug_selector(|| "agent-code-copy".into())
                         .size(px(theme::control_small()))
                         .rounded(px(6.))
                         .text_color(a.text_subtle)

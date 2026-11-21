@@ -137,11 +137,11 @@ fn email_end(text: &[u8], from: usize) -> Option<usize> {
     }
 }
 
-/// Where a literal opens: `www.` over HTTP, an address as `mailto:`.
+/// Where a literal opens: `www.` over HTTPS, an address as `mailto:`.
 pub fn href(literal: &str) -> String {
     let lower = literal.to_ascii_lowercase();
     if lower.starts_with("www.") {
-        format!("http://{literal}")
+        format!("https://{literal}")
     } else if !lower.contains("://")
         && !lower.starts_with("mailto:")
         && !lower.starts_with("xmpp:")
