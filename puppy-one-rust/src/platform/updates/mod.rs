@@ -359,12 +359,20 @@ pub fn download(
     Ok(file.into_temp_path())
 }
 
-/// `~/Library/Caches/PuppyOne GPUI.<name>`: downloads and the prepared app,
-/// on the same volume as an app installed in the home folder.
+/// Per-OS update cache directory (`~/Library/Caches/PuppyOne GPUI.<name>` on
+/// macOS, so staging stays on the same volume as `/Applications` / `~/Applications`;
+/// `<cache_dir>/<name>` on Windows and Linux).
 pub fn cache_path(name: &str) -> PathBuf {
-    super::paths::home_dir()
-        .join("Library/Caches")
-        .join(format!("PuppyOne GPUI.{name}"))
+    #[cfg(target_os = "macos")]
+    {
+        super::paths::home_dir()
+            .join("Library/Caches")
+            .join(format!("PuppyOne GPUI.{name}"))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        super::paths::cache_dir().join(name)
+    }
 }
 
 #[cfg(test)]

@@ -189,9 +189,9 @@ pub fn quitting(cx: &App) -> bool {
     cx.try_global::<Registry>().is_some_and(|r| r.quitting)
 }
 /// Whether the last window closing ends the app: always when quitting,
-/// never on macOS otherwise (`resumeAfterLastWindowClosed`).
+/// otherwise governed by [`crate::platform::conventions::Conventions`].
 pub fn last_close_quits(cx: &App) -> bool {
-    quitting(cx) || !cfg!(target_os = "macos")
+    quitting(cx) || crate::platform::conventions::Conventions::current().last_window_close_quits
 }
 /// Quit: every window closes through its own barrier; the last close quits.
 pub fn quit_all(cx: &mut App) {

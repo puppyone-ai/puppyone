@@ -572,8 +572,11 @@ impl Shell {
         let Some(minimum) = self.panes.update(cx, |p, _| p.take_window_minimum(rail)) else {
             return;
         };
-        let floor = size(px(minimum), px(theme::pane::WINDOW_MIN_HEIGHT));
-        crate::native_window::set_content_min_size(window, floor);
+        crate::platform::window::set_content_min_size(
+            window,
+            minimum,
+            theme::pane::WINDOW_MIN_HEIGHT,
+        );
         let viewport = window.viewport_size();
         if f32::from(viewport.width) < minimum && !window.is_fullscreen() {
             window.resize(size(px(minimum), viewport.height));

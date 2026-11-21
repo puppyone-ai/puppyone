@@ -1,11 +1,119 @@
-//! Lexical path arithmetic on the host's path flavor: absolute paths,
-//! `relative` paths between two of them, containment and file names, with
-//! the same answers as Node's `path` module that the product's Main process
-//! uses. No call touches the file system.
+//! Cross-platform standard application directories and lexical path arithmetic.
+//!
+//! Directory layout per OS:
+//! - macOS: `~/Library/Application Support/PuppyOne GPUI` (unchanged for upgrade compatibility)
+//! - Windows: `%LOCALAPPDATA%\PuppyOne GPUI` (Electron user data in `%APPDATA%`)
+//! - Linux: `$XDG_DATA_HOME/puppyone-gpui` / `$XDG_CONFIG_HOME/puppyone-gpui` / `$XDG_CACHE_HOME/puppyone-gpui`
+//!
+//! `PUPPYONE_RUST_DATA_DIR` always overrides [`data_dir`] (isolating tests and captures).
+use super::build_identity::Channel;
 use std::path::{Component, MAIN_SEPARATOR_STR, Path, PathBuf};
 
-/// The absolute `path` with `.` dropped and `..` folded (Node `path.normalize`): drops `.` and folds `..`
-/// without walking above the root.
+#[cfg(target_os = "macos")]
+#[path = "macos.rs"]
+mod imp;
+#[cfg(target_os = "windows")]
+#[path = "windows.rs"]
+mod imp;
+#[cfg(target_os = "linux")]
+#[path = "linux.rs"]
+mod imp;
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+mod imp {
+    use super::Channel;
+    use std::path::{Path, PathBuf};
+
+    pub(super) fn data_dir() -> PathBuf {
+        super::home_dir().join(".puppyone-gpui")
+    }
+    pub(super) fn config_dir() -> PathBuf {
+        data_dir()
+    }
+    pub(super) fn cache_dir() -> PathBuf {
+        data_dir().join("cache")
+    }
+    pub(super) fn logs_dir() -> PathBuf {
+        data_dir().join("logs")
+    }
+    pub(super) fn electron_user_data_under(base: &Path, channel: Channel) -> PathBuf {
+        super::pick_electron_dir(base, channel)
+    }
+    pub(super) fn electron_user_data(channel: Channel) -> Option<PathBuf> {
+        Some(electron_user_data_under(&super::home_dir(), channel))
+    }
+}
+
+/// The native product's data directory, separate from the Electron product's
+/// (`PUPPYONE_RUST_DATA_DIR` isolates tests and captures).
+pub fn data_dir() -> PathBuf {
+    std::env::var_os("PUPPYONE_RUST_DATA_DIR")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(imp::data_dir)
+}
+
+/// Per-user configuration directory.
+pub fn config_dir() -> PathBuf {
+    if let Some(override_dir) = std::env::var_os("PUPPYONE_RUST_DATA_DIR").filter(|v| !v.is_empty())
+    {
+        return PathBuf::from(override_dir);
+    }
+    imp::config_dir()
+}
+
+/// Per-user cache directory (update downloads, staging, transient caches).
+pub fn cache_dir() -> PathBuf {
+    imp::cache_dir()
+}
+
+/// Per-user logs directory.
+pub fn logs_dir() -> PathBuf {
+    imp::logs_dir()
+}
+
+/// The Electron product's userData directory for `channel`, or `PUPPYONE_ELECTRON_DATA_DIR`.
+pub fn electron_user_data(channel: Channel) -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("PUPPYONE_ELECTRON_DATA_DIR").filter(|v| !v.is_empty()) {
+        return Some(PathBuf::from(dir));
+    }
+    imp::electron_user_data(channel)
+}
+
+/// Resolves the existing Electron userData directory under `home` for `channel`.
+pub fn electron_user_data_for(home: &Path, channel: Channel) -> PathBuf {
+    imp::electron_user_data_under(home, channel)
+}
+
+/// Picks the first existing Electron product directory name under `support_dir`
+/// (preferring lowercase canonical names before legacy `"PuppyOne"`).
+pub(crate) fn pick_electron_dir(support_dir: &Path, channel: Channel) -> PathBuf {
+    let candidates: &[&str] = match channel {
+        Channel::Internal => &["puppyone-internal", "puppyone", "PuppyOne"],
+        Channel::Stable | Channel::Dev => &["puppyone", "PuppyOne"],
+    };
+    for name in candidates {
+        let candidate = support_dir.join(name);
+        if candidate.is_dir() {
+            return candidate;
+        }
+    }
+    support_dir.join(candidates[0])
+}
+
+/// The user's home directory, or an empty path.
+pub fn home_dir() -> PathBuf {
+    dirs::home_dir()
+        .or_else(std::env::home_dir)
+        .unwrap_or_default()
+}
+
+/// Alias matching the cross-platform capability catalog (`paths::home`).
+pub fn home() -> PathBuf {
+    home_dir()
+}
+
+/// The absolute `path` with `.` dropped and `..` folded (Node `path.normalize`):
+/// drops `.` and folds `..` without walking above the root.
 pub fn normalize(path: &Path) -> PathBuf {
     let mut normalized = PathBuf::new();
     for component in path.components() {
@@ -99,11 +207,6 @@ pub fn is_same_or_inside(root: impl AsRef<Path>, target: impl AsRef<Path>) -> bo
     relative.is_empty() || (!relative.starts_with("..") && !is_absolute(&relative))
 }
 
-/// The user's home directory, or an empty path.
-pub fn home_dir() -> PathBuf {
-    std::env::home_dir().unwrap_or_default()
-}
-
 /// POSIX and Windows path strings, whatever the host (Node `path.posix`
 /// and `path.win32`).
 pub mod flavor {
@@ -167,23 +270,5 @@ pub mod flavor {
     }
 }
 
-#[cfg(all(test, unix))]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-
-    #[test]
-    fn resolves_and_relates_like_node_posix() {
-        assert_eq!(resolve("/a/b", "../c/./d"), PathBuf::from("/a/c/d"));
-        assert_eq!(resolve("/a", "/x/../y"), PathBuf::from("/y"));
-        assert_eq!(resolve("/", "../../a"), PathBuf::from("/a"));
-        assert_eq!(relative("/a/b", "/a/b"), "");
-        assert_eq!(relative("/a/b", "/a/b/c/d"), "c/d");
-        assert_eq!(relative("/a/b", "/a/c"), "../c");
-        assert!(is_same_or_inside("/w", "/w/x"));
-        assert!(is_same_or_inside("/w", "/w"));
-        assert!(!is_same_or_inside("/w", "/wx"));
-        assert!(!is_same_or_inside("/w", "/"));
-        assert_eq!(file_name("/usr/bin/codex"), "codex");
-    }
-}
+#[cfg(test)]
+mod tests;

@@ -234,7 +234,9 @@ impl Render for OversizedCard {
             actions.push(
                 Button::new("oversized-reveal-finder")
                     .variant(ButtonVariant::Secondary)
-                    .label(t("workspace.node.revealInFinder"))
+                    .label(t(
+                        crate::platform::conventions::Conventions::current().reveal_label_key
+                    ))
                     .on_click(move |_, _, _| {
                         let _ = crate::platform::desktop::reveal(&path);
                     })

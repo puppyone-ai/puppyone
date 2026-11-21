@@ -1041,11 +1041,13 @@ impl FileWindow {
                         cx,
                     );
                 }),
-            MenuItem::new(tr("fileMode.html.revealInFinder"))
-                .product_icon(ProductIcon::Folder)
-                .on_click(move |_, _| {
-                    let _ = desktop::reveal(&finder_path);
-                }),
+            MenuItem::new(tr(
+                crate::platform::conventions::Conventions::current().html_reveal_label_key
+            ))
+            .product_icon(ProductIcon::Folder)
+            .on_click(move |_, _| {
+                let _ = desktop::reveal(&finder_path);
+            }),
             MenuItem::new(tr("fileMode.html.openFolderAsProject"))
                 .icon("external-link")
                 .on_click(move |_, cx| {

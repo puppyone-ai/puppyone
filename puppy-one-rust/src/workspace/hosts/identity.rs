@@ -24,30 +24,27 @@ pub trait KeyStore: Send + Sync {
     fn get(&self, item: &str) -> Result<Option<Vec<u8>>, String>;
     fn delete(&self, item: &str) -> Result<(), String>;
 }
-/// The login keychain (macOS), under the host's own service name.
-#[cfg(target_os = "macos")]
+/// System credential store under [`crate::platform::credentials::Namespace::HostDeviceKey`].
 pub struct Keychain;
-#[cfg(target_os = "macos")]
-const SERVICE: &str = "PuppyOne Host Device Key";
-#[cfg(target_os = "macos")]
 impl KeyStore for Keychain {
     fn put(&self, item: &str, secret: &[u8]) -> Result<(), String> {
-        security_framework::passwords::set_generic_password(SERVICE, item, secret)
+        crate::platform::credentials::system()
+            .set(
+                crate::platform::credentials::Namespace::HostDeviceKey,
+                item,
+                secret,
+            )
             .map_err(|e| e.to_string())
     }
     fn get(&self, item: &str) -> Result<Option<Vec<u8>>, String> {
-        match security_framework::passwords::get_generic_password(SERVICE, item) {
-            Ok(bytes) => Ok(Some(bytes)),
-            Err(e) if e.code() == -25300 => Ok(None),
-            Err(e) => Err(e.to_string()),
-        }
+        crate::platform::credentials::system()
+            .get(crate::platform::credentials::Namespace::HostDeviceKey, item)
+            .map_err(|e| e.to_string())
     }
     fn delete(&self, item: &str) -> Result<(), String> {
-        match security_framework::passwords::delete_generic_password(SERVICE, item) {
-            Ok(()) => Ok(()),
-            Err(e) if e.code() == -25300 => Ok(()),
-            Err(e) => Err(e.to_string()),
-        }
+        crate::platform::credentials::system()
+            .delete(crate::platform::credentials::Namespace::HostDeviceKey, item)
+            .map_err(|e| e.to_string())
     }
 }
 /// Keys in memory, for tests.

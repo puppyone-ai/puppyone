@@ -46,16 +46,132 @@ fn native() -> &'static Value {
     DATA.get_or_init(|| {
         let mut data: Value = serde_json::from_str(include_str!("../assets/native-locales.json"))
             .expect("native catalogs");
-        let extra: Value = serde_json::from_str(DOCUMENT_RECONCILE_MESSAGES)
-            .expect("document reconciliation catalogs");
-        for (locale, messages) in extra.as_object().unwrap() {
-            if let Some(target) = data["catalogs"][locale].as_object_mut() {
-                target.extend(messages.as_object().unwrap().clone());
+        for raw in [DOCUMENT_RECONCILE_MESSAGES, CROSS_PLATFORM_MESSAGES] {
+            let extra: Value = serde_json::from_str(raw).expect("native extension catalogs");
+            for (locale, messages) in extra.as_object().unwrap() {
+                if let Some(target) = data["catalogs"][locale].as_object_mut() {
+                    target.extend(messages.as_object().unwrap().clone());
+                }
             }
         }
         data
     })
 }
+
+const CROSS_PLATFORM_MESSAGES: &str = r#"{
+  "en": {
+    "native.desktop.showInExplorer": "Show in Explorer",
+    "native.desktop.showInFiles": "Show in Files",
+    "native.credentials.unavailable": "System credential storage is not available. Install or start a desktop keyring service (for example GNOME Keyring or KWallet) and try again.",
+    "native.credentials.locked": "System credential storage is locked. Unlock your desktop keyring and try again.",
+    "native.web.embeddedUnavailable": "Embedded web preview is not available on this platform.",
+    "native.web.openInBrowser": "Open in browser",
+    "native.web.openExternally": "Open with default app",
+    "native.web.viewSource": "View source",
+    "native.window.minimize": "Minimize",
+    "native.window.maximize": "Maximize",
+    "native.window.restore": "Restore",
+    "native.window.close": "Close"
+  },
+  "zh-Hans": {
+    "native.desktop.showInExplorer": "在资源管理器中显示",
+    "native.desktop.showInFiles": "在文件管理器中显示",
+    "native.credentials.unavailable": "系统凭据存储不可用。请安装或启动桌面密钥环服务（如 GNOME Keyring 或 KWallet）后重试。",
+    "native.credentials.locked": "系统凭据存储已锁定。请先解锁桌面密钥环后重试。",
+    "native.web.embeddedUnavailable": "当前平台暂不支持内嵌网页预览。",
+    "native.web.openInBrowser": "在浏览器中打开",
+    "native.web.openExternally": "使用默认应用打开",
+    "native.web.viewSource": "查看源码",
+    "native.window.minimize": "最小化",
+    "native.window.maximize": "最大化",
+    "native.window.restore": "还原",
+    "native.window.close": "关闭"
+  },
+  "ja": {
+    "native.desktop.showInExplorer": "エクスプローラーで表示",
+    "native.desktop.showInFiles": "ファイルマネージャーで表示",
+    "native.credentials.unavailable": "システムの資格情報ストレージを利用できません。デスクトップのキーリングサービスを起動してから再試行してください。",
+    "native.credentials.locked": "システムの資格情報ストレージがロックされています。ロックを解除してから再試行してください。",
+    "native.web.embeddedUnavailable": "このプラットフォームでは組み込み Web プレビューを利用できません。",
+    "native.web.openInBrowser": "ブラウザーで開く",
+    "native.web.openExternally": "既定のアプリで開く",
+    "native.web.viewSource": "ソースを表示",
+    "native.window.minimize": "最小化",
+    "native.window.maximize": "最大化",
+    "native.window.restore": "元に戻す",
+    "native.window.close": "閉じる"
+  },
+  "ko": {
+    "native.desktop.showInExplorer": "탐색기에서 표시",
+    "native.desktop.showInFiles": "파일 관리자에서 표시",
+    "native.credentials.unavailable": "시스템 자격 증명 저장소를 사용할 수 없습니다. 데스크톱 키링 서비스를 설치하거나 시작한 후 다시 시도하세요.",
+    "native.credentials.locked": "시스템 자격 증명 저장소가 잠겨 있습니다. 데스크톱 키링의 잠금을 해제한 후 다시 시도하세요.",
+    "native.web.embeddedUnavailable": "이 플랫폼에서는 내장 웹 미리 보기를 사용할 수 없습니다.",
+    "native.web.openInBrowser": "브라우저에서 열기",
+    "native.web.openExternally": "기본 앱으로 열기",
+    "native.web.viewSource": "소스 보기",
+    "native.window.minimize": "최소화",
+    "native.window.maximize": "최대화",
+    "native.window.restore": "복원",
+    "native.window.close": "닫기"
+  },
+  "es": {
+    "native.desktop.showInExplorer": "Mostrar en el Explorador",
+    "native.desktop.showInFiles": "Mostrar en Archivos",
+    "native.credentials.unavailable": "El almacenamiento de credenciales del sistema no está disponible. Inicia un servicio de llavero de escritorio e inténtalo de nuevo.",
+    "native.credentials.locked": "El almacenamiento de credenciales del sistema está bloqueado. Desbloquea tu llavero de escritorio e inténtalo de nuevo.",
+    "native.web.embeddedUnavailable": "La vista previa web integrada no está disponible en esta plataforma.",
+    "native.web.openInBrowser": "Abrir en el navegador",
+    "native.web.openExternally": "Abrir con la aplicación predeterminada",
+    "native.web.viewSource": "Ver código fuente",
+    "native.window.minimize": "Minimizar",
+    "native.window.maximize": "Maximizar",
+    "native.window.restore": "Restaurar",
+    "native.window.close": "Cerrar"
+  },
+  "pt-BR": {
+    "native.desktop.showInExplorer": "Mostrar no Explorador",
+    "native.desktop.showInFiles": "Mostrar em Arquivos",
+    "native.credentials.unavailable": "O armazenamento de credenciais do sistema não está disponível. Inicie um serviço de chaveiro da área de trabalho e tente novamente.",
+    "native.credentials.locked": "O armazenamento de credenciais do sistema está bloqueado. Desbloqueie seu chaveiro e tente novamente.",
+    "native.web.embeddedUnavailable": "A visualização da web incorporada não está disponível nesta plataforma.",
+    "native.web.openInBrowser": "Abrir no navegador",
+    "native.web.openExternally": "Abrir com o aplicativo padrão",
+    "native.web.viewSource": "Ver código-fonte",
+    "native.window.minimize": "Minimizar",
+    "native.window.maximize": "Maximizar",
+    "native.window.restore": "Restaurar",
+    "native.window.close": "Fechar"
+  },
+  "fr": {
+    "native.desktop.showInExplorer": "Afficher dans l’Explorateur",
+    "native.desktop.showInFiles": "Afficher dans Fichiers",
+    "native.credentials.unavailable": "Le stockage d’identifiants système n’est pas disponible. Démarrez un service de trousseau de bureau et réessayez.",
+    "native.credentials.locked": "Le stockage d’identifiants système est verrouillé. Déverrouillez votre trousseau et réessayez.",
+    "native.web.embeddedUnavailable": "L’aperçu web intégré n’est pas disponible sur cette plateforme.",
+    "native.web.openInBrowser": "Ouvrir dans le navigateur",
+    "native.web.openExternally": "Ouvrir avec l’application par défaut",
+    "native.web.viewSource": "Voir le code source",
+    "native.window.minimize": "Réduire",
+    "native.window.maximize": "Agrandir",
+    "native.window.restore": "Restaurer",
+    "native.window.close": "Fermer"
+  },
+  "de": {
+    "native.desktop.showInExplorer": "Im Explorer anzeigen",
+    "native.desktop.showInFiles": "In Dateien anzeigen",
+    "native.credentials.unavailable": "Der System-Anmeldeinformationsspeicher ist nicht verfügbar. Starten Sie einen Desktop-Schlüsselbunddienst und versuchen Sie es erneut.",
+    "native.credentials.locked": "Der System-Anmeldeinformationsspeicher ist gesperrt. Entsperren Sie Ihren Schlüsselbund und versuchen Sie es erneut.",
+    "native.web.embeddedUnavailable": "Die eingebettete Webvorschau ist auf dieser Plattform nicht verfügbar.",
+    "native.web.openInBrowser": "Im Browser öffnen",
+    "native.web.openExternally": "Mit Standard-App öffnen",
+    "native.web.viewSource": "Quelltext anzeigen",
+    "native.window.minimize": "Minimieren",
+    "native.window.maximize": "Maximieren",
+    "native.window.restore": "Wiederherstellen",
+    "native.window.close": "Schließen"
+  }
+}"#;
 
 const DOCUMENT_RECONCILE_MESSAGES: &str = r#"{
   "en": {

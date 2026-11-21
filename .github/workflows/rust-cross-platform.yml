@@ -24,6 +24,8 @@ jobs:
     name: Rust (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    env:
+      PYTHONUTF8: "1"
     strategy:
       fail-fast: false
       matrix:

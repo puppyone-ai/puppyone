@@ -14,19 +14,33 @@ use crate::editor::{
         state::{EditorState, Transaction, UserEvent},
     },
 };
-use std::{
-    ops::Range,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::ops::Range;
+#[cfg(not(test))]
+use std::sync::atomic::{AtomicBool, Ordering};
 
+#[cfg(not(test))]
 static ENABLED: AtomicBool = AtomicBool::new(false);
+#[cfg(test)]
+thread_local! {
+    static ENABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
 
 /// Follow the experiment (preferences apply it).
 pub fn set_enabled(enabled: bool) {
+    #[cfg(not(test))]
     ENABLED.store(enabled, Ordering::Relaxed);
+    #[cfg(test)]
+    ENABLED.with(|flag| flag.set(enabled));
 }
 pub fn enabled() -> bool {
-    ENABLED.load(Ordering::Relaxed)
+    #[cfg(not(test))]
+    {
+        ENABLED.load(Ordering::Relaxed)
+    }
+    #[cfg(test)]
+    {
+        ENABLED.with(std::cell::Cell::get)
+    }
 }
 
 /// Ordered-item metadata needed to renumber an ordered list after a move.

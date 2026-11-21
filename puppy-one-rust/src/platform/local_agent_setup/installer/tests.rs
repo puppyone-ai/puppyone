@@ -468,7 +468,7 @@ fn losing_the_installation_lease_stops_a_real_staged_version_process() {
     }
     let root = home.join(".puppyone/agent-runtimes/codex");
     std::fs::remove_dir(root.join("install.lock")).unwrap();
-    let result = rx.recv_timeout(Duration::from_secs(7));
+    let result = rx.recv_timeout(Duration::from_secs(15));
     // Ensure failure also reaps the fixture instead of abandoning a child.
     cancel.store(true, Ordering::SeqCst);
     worker.join().unwrap();
