@@ -234,11 +234,9 @@ impl AgentChatTabPanel {
                     })
                     .copied()
             };
-            // The source switcher in two levels: source → provider (each
-            // signed-in plan, API or local service). Picking a provider
-            // keeps its model if it is the current one, else takes its
-            // first; its models are switched beside it, in the model picker.
-            // A source without a ready model opens Settings.
+            // The source switcher, in levels as Cursor's model picker:
+            // source → provider (each signed-in plan, API or local service)
+            // → its models; a source without a ready model opens Settings.
             let snapshot = self.compute.as_ref();
             let name_of = |id: &str| {
                 snapshot
@@ -271,18 +269,27 @@ impl AgentChatTabPanel {
                             .map(|(id, models)| {
                                 let current = models
                                     .iter()
-                                    .find(|m| compute.ready && selected == Some(m.model.as_str()));
-                                let pick = current.or(models.first()).map(|m| m.model.clone());
+                                    .any(|m| compute.ready && selected == Some(m.model.as_str()));
                                 AgentSessionControlOption {
-                                    value: pick.unwrap_or_default(),
+                                    value: format!("provider:{id}"),
                                     label: name_of(&id),
                                     description: None,
                                     keywords: None,
                                     icon: Some(icon),
                                     mark: mark_of(&id),
-                                    current: current.is_some(),
-                                    sets: Some(AgentSessionControlId::Model),
-                                    children: vec![],
+                                    current,
+                                    sets: None,
+                                    children: models
+                                        .iter()
+                                        .map(|m| AgentSessionControlOption {
+                                            value: m.model.clone(),
+                                            label: m.display_name.clone(),
+                                            current: compute.ready
+                                                && selected == Some(m.model.as_str()),
+                                            sets: Some(AgentSessionControlId::Model),
+                                            ..Default::default()
+                                        })
+                                        .collect(),
                                 }
                             })
                             .collect();
@@ -334,8 +341,8 @@ impl AgentChatTabPanel {
                     .color(a.text_subtle),
                 )
                 .child(source_picker);
-            // The model picker beside it: the current provider's models
-            // (another provider is picked in the source picker).
+            // The quick switch beside it: the current provider's models
+            // (another provider is one level in, in the source picker).
             let provider = compute
                 .offered
                 .iter()
@@ -359,10 +366,20 @@ impl AgentChatTabPanel {
                         .map(|model| AgentSessionControlOption {
                             value: model.model.clone(),
                             label: model.display_name.clone(),
-                            // One provider's models: its name is the
-                            // source picker's, not repeated per row.
-                            description: (!model.description.is_empty())
-                                .then(|| model.description.clone()),
+                            // The service it runs on (models of several
+                            // services share a source).
+                            description: self
+                                .compute
+                                .as_ref()
+                                .and_then(|s| {
+                                    s.names
+                                        .get(model.connection_id.as_deref().unwrap_or_default())
+                                        .cloned()
+                                })
+                                .or_else(|| {
+                                    (!model.description.is_empty())
+                                        .then(|| model.description.clone())
+                                }),
                             keywords: Some(format!("{} {}", model.id, model.model)),
                             icon: Some(source_presentation(compute.source).0),
                             mark: self.compute.as_ref().and_then(|s| {
