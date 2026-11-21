@@ -374,6 +374,24 @@ class LinuxTargetTest(unittest.TestCase):
             checksums = linux_target.write_checksums(root, [fake_bin])
             self.assertIn('puppy-one-rust', checksums.read_text(encoding='utf-8'))
 
+            import shutil
+            import subprocess
+            dpkg_deb = shutil.which('dpkg-deb')
+            if dpkg_deb:
+                deb_out = root / 'puppyone-internal.deb'
+                subprocess.run(
+                    [dpkg_deb, '--build', '--root-owner-group', str(deb_root), str(deb_out)],
+                    check=True,
+                    capture_output=True,
+                )
+                self.assertTrue(deb_out.is_file())
+                info = subprocess.check_output([dpkg_deb, '--info', str(deb_out)], text=True)
+                self.assertIn('Package: puppyone-internal', info)
+                contents = subprocess.check_output([dpkg_deb, '--contents', str(deb_out)], text=True)
+                self.assertIn('usr/bin/puppy-one-rust', contents)
+                self.assertIn('usr/lib/puppyone/libpdfium.so', contents)
+                self.assertIn(f'usr/share/applications/{policy["id"]}.desktop', contents)
+
     def test_target_registry_dispatches_all_three_platforms(self):
         self.assertIs(targets.for_target('macos'), targets.macos)
         self.assertIs(targets.for_target('windows'), targets.windows)

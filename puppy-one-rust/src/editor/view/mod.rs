@@ -131,12 +131,13 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("secondary-z", Undo, c),
         KeyBinding::new("secondary-shift-z", Redo, c),
     ]);
-    #[cfg(target_os = "macos")]
-    cx.bind_keys([
-        KeyBinding::new("ctrl-a", MoveLineStart, c),
-        KeyBinding::new("ctrl-e", MoveLineEnd, c),
-        KeyBinding::new("ctrl-d", DeleteForward, c),
-    ]);
+    if crate::platform::os::Os::current().is_macos() {
+        cx.bind_keys([
+            KeyBinding::new("ctrl-a", MoveLineStart, c),
+            KeyBinding::new("ctrl-e", MoveLineEnd, c),
+            KeyBinding::new("ctrl-d", DeleteForward, c),
+        ]);
+    }
 }
 
 macro_rules! motion {

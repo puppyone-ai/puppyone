@@ -431,6 +431,7 @@ impl WebHost {
         PAINTED_IN_SEQ.with(|p| {
             p.borrow_mut().insert(state.window);
         });
+        #[allow(irrefutable_let_patterns)]
         if let HostEngine::Native(native) = &state.engine {
             native.place(rect);
         }
@@ -466,6 +467,7 @@ impl WebHost {
         let bounds_rect = to_rect(bounds);
         let visible_rect = to_rect(visible);
         state.bounds.set(bounds_rect);
+        #[allow(irrefutable_let_patterns)]
         if let HostEngine::Native(native) = &state.engine {
             native.place_clipped(
                 bounds_rect,
@@ -699,6 +701,7 @@ pub fn snapshots(window: &gpui::Window) -> Vec<Snapshot> {
     states
         .into_iter()
         .filter_map(|state| {
+            #[allow(irrefutable_let_patterns)]
             let HostEngine::Native(native) = &state.engine else {
                 return None;
             };
