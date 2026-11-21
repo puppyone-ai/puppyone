@@ -6,6 +6,7 @@
 //! share or stop, and the host asks the App for the few Cloud calls that
 //! need the signed-in person.
 use super::service::{HostService, Person, PersonSession};
+use crate::platform::{fs as platform_fs, local_ipc};
 use futures_util::future::BoxFuture;
 use serde_json::{Value, json};
 use std::{
@@ -17,10 +18,6 @@ use std::{
     },
     time::Duration,
 };
-#[cfg(not(unix))]
-use tokio::net::{TcpListener, TcpStream};
-#[cfg(unix)]
-use tokio::net::{UnixListener, UnixStream};
 use tokio::{
     io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader},
     sync::{mpsc, oneshot},
@@ -29,31 +26,12 @@ use tokio::{
 const MAX_LINE: usize = 1024 * 1024;
 const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
 const CALL_TIMEOUT: Duration = Duration::from_secs(60);
-#[cfg(unix)]
-const MAX_SOCKET_PATH: usize = 100;
 const MAX_CLIENTS: usize = 4;
 
 /// `hostControlPaths`: a long state directory gets a short socket in a
 /// private directory of this user's home instead (104 bytes on macOS).
 pub fn paths(dir: &Path) -> (PathBuf, PathBuf) {
-    let token = dir.join("control-token");
-    let inside = dir.join("control.sock");
-    #[cfg(not(unix))]
-    {
-        (inside, token)
-    }
-    #[cfg(unix)]
-    {
-        if inside.as_os_str().len() <= MAX_SOCKET_PATH {
-            return (inside, token);
-        }
-        let name = &blake3::hash(dir.as_os_str().as_encoded_bytes()).to_hex()[..24];
-        let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-        (
-            home.join(".puppyone-host").join(format!("{name}.sock")),
-            token,
-        )
-    }
+    (local_ipc::endpoint_path(dir), dir.join("control-token"))
 }
 
 pub type Handler =
@@ -218,35 +196,14 @@ pub async fn serve(
     shutdown: mpsc::UnboundedSender<()>,
 ) -> std::io::Result<()> {
     std::fs::create_dir_all(&dir)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
-    }
+    let _ = platform_fs::set_private_dir_permissions(&dir);
     let (socket, token_file) = paths(&dir);
     let token = {
         let mut bytes = [0u8; 32];
         getrandom::fill(&mut bytes).map_err(std::io::Error::other)?;
         base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, bytes)
     };
-    if let Some(parent) = socket.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let _ = std::fs::remove_file(&socket);
-    #[cfg(unix)]
-    let listener = {
-        let listener = UnixListener::bind(&socket)?;
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600));
-        listener
-    };
-    #[cfg(not(unix))]
-    let listener = {
-        let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
-        let port = listener.local_addr()?.port();
-        write_private(&socket, &port.to_string())?;
-        listener
-    };
+    let listener = local_ipc::Listener::bind(&socket).await?;
     // Publish the token only after the listener and endpoint file are ready, so
     // callers waiting on `token_file` can immediately connect without racing.
     write_private(&token_file, &token)?;
@@ -260,7 +217,7 @@ pub async fn serve(
         }));
     }
     loop {
-        let (mut stream, _) = listener.accept().await?;
+        let mut stream = listener.accept().await?;
         if peers
             .lock()
             .unwrap()
@@ -331,18 +288,8 @@ pub async fn serve(
     }
 }
 
-#[cfg(unix)]
-async fn connect_raw(socket: &Path) -> std::io::Result<UnixStream> {
-    UnixStream::connect(socket).await
-}
-
-#[cfg(not(unix))]
-async fn connect_raw(socket: &Path) -> std::io::Result<TcpStream> {
-    let port_text = std::fs::read_to_string(socket)?;
-    let port: u16 = port_text.trim().parse().map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid control port")
-    })?;
-    TcpStream::connect(("127.0.0.1", port)).await
+async fn connect_raw(socket: &Path) -> std::io::Result<local_ipc::Stream> {
+    local_ipc::connect(socket).await
 }
 
 /// Connects as the App (or another local client); fails when no host listens.

@@ -51,8 +51,26 @@ fn dir_final_path(dir: &Dir) -> io::Result<PathBuf> {
     }
 }
 
+fn extended_path(path: &Path) -> PathBuf {
+    let raw = path.to_string_lossy();
+    if raw.starts_with(r"\\?\") || raw.starts_with(r"\\.\") {
+        return PathBuf::from(raw.replace('/', r"\"));
+    }
+    let abs = std::path::absolute(path).unwrap_or_else(|_| crate::platform::paths::absolute(path));
+    let normalized = abs.to_string_lossy().replace('/', r"\");
+    if normalized.starts_with(r"\\?\") || normalized.starts_with(r"\\.\") {
+        return PathBuf::from(normalized);
+    }
+    if let Some(unc_tail) = normalized.strip_prefix(r"\\") {
+        PathBuf::from(format!(r"\\?\UNC\{unc_tail}"))
+    } else {
+        PathBuf::from(format!(r"\\?\{normalized}"))
+    }
+}
+
 fn wide_nul(path: &Path) -> Vec<u16> {
-    path.as_os_str()
+    extended_path(path)
+        .as_os_str()
         .encode_wide()
         .chain(std::iter::once(0))
         .collect()
@@ -168,4 +186,29 @@ pub(super) fn rename_with_retry(from: &Dir, name: &Path, to: &Dir, next: &Path) 
         }
     }
     Err(last_err.unwrap_or_else(|| io::Error::other("rename failed")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extended_path_applies_verbatim_prefixes_for_drive_and_unc_paths() {
+        assert_eq!(
+            extended_path(Path::new(r"C:\Users\dev\docs\file.txt")),
+            PathBuf::from(r"\\?\C:\Users\dev\docs\file.txt")
+        );
+        assert_eq!(
+            extended_path(Path::new("C:/Users/dev/docs/file.txt")),
+            PathBuf::from(r"\\?\C:\Users\dev\docs\file.txt")
+        );
+        assert_eq!(
+            extended_path(Path::new(r"\\fileserver\share\dir\file.txt")),
+            PathBuf::from(r"\\?\UNC\fileserver\share\dir\file.txt")
+        );
+        assert_eq!(
+            extended_path(Path::new(r"\\?\C:\already\verbatim.txt")),
+            PathBuf::from(r"\\?\C:\already\verbatim.txt")
+        );
+    }
 }

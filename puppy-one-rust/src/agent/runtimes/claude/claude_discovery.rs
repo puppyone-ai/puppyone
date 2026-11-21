@@ -74,14 +74,7 @@ fn make_temp_dir(tmpdir: &Path, prefix: &str) -> std::io::Result<PathBuf> {
         "{prefix}{}",
         &uuid::Uuid::new_v4().simple().to_string()[..6]
     ));
-    #[cfg_attr(not(unix), allow(unused_mut))]
-    let mut builder = std::fs::DirBuilder::new();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::DirBuilderExt;
-        builder.mode(0o700);
-    }
-    builder.create(&directory)?;
+    crate::platform::fs::create_private_dir(&directory)?;
     Ok(directory)
 }
 

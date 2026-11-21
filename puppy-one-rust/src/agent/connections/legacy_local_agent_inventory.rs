@@ -144,7 +144,11 @@ fn locate_with(
             .or_else(|| {
                 let home = std::env::var_os("HOME").map(PathBuf::from)?;
                 crate::platform::local_agent_setup::installer::managed_entry(&home, agent.id)
-                    .filter(|p| cfg!(target_os = "macos") && probe(p))
+                    .filter(|p| {
+                        crate::platform::conventions::Conventions::current()
+                            .supports_managed_agent_installs
+                            && probe(p)
+                    })
             }),
         Locator::AppBundle {
             app,
@@ -253,20 +257,7 @@ pub fn lab_installations() -> Vec<Installation> {
     result
 }
 fn executable(path: &Path) -> std::io::Result<bool> {
-    let metadata = match path.metadata() {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(error),
-    };
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        Ok(metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
-    }
-    #[cfg(not(unix))]
-    {
-        Ok(metadata.is_file())
-    }
+    crate::platform::fs::is_executable_file(path)
 }
 #[cfg(test)]
 mod tests {

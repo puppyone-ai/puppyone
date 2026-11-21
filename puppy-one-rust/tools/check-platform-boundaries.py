@@ -99,7 +99,7 @@ def strip_test_mods(source: str) -> str:
     cleaned = re.sub(r"/\*.*?\*/", "", cleaned, flags=re.S)
     out, i = [], 0
     pattern = re.compile(
-        r"#\[cfg\([^\]]*\btest\b[^\]]*\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*([{;])"
+        r"#\[cfg\([^\]]*\btest\b[^\]]*\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*([{;])"
     )
     while True:
         m = pattern.search(cleaned, i)
@@ -137,7 +137,7 @@ def is_test_file(root: Path, path: Path, cfg_test_files: set[Path], source: str)
     if path in cfg_test_files:
         return True
     if path.name in ("tests.rs", "bench.rs", "test_support.rs") or path.name.endswith(
-        ("_tests.rs", "_test_fixtures.rs", "_probe.rs")
+        ("_tests.rs", "_test_fixtures.rs")
     ):
         return True
     rel_parts = path.relative_to(root).parts

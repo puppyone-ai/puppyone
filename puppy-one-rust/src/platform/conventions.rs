@@ -88,6 +88,8 @@ pub struct Conventions {
     pub start_at_login_mechanism: StartAtLoginMechanism,
     /// Default non-sandboxed shell family for local host execution fixtures.
     pub host_shell_kind: HostShellKind,
+    /// Whether managed in-app local agent installation candidates are probed.
+    pub supports_managed_agent_installs: bool,
 }
 
 impl Conventions {
@@ -124,6 +126,7 @@ impl Conventions {
                 default_git_credential_helper: Some("osxkeychain"),
                 start_at_login_mechanism: StartAtLoginMechanism::LaunchAgent,
                 host_shell_kind: HostShellKind::PosixSh,
+                supports_managed_agent_installs: true,
             },
             Os::Windows => Self {
                 os,
@@ -150,6 +153,7 @@ impl Conventions {
                 default_git_credential_helper: None,
                 start_at_login_mechanism: StartAtLoginMechanism::Unsupported,
                 host_shell_kind: HostShellKind::CmdExe,
+                supports_managed_agent_installs: false,
             },
             Os::Linux | Os::Other => Self {
                 os,
@@ -176,6 +180,7 @@ impl Conventions {
                 default_git_credential_helper: None,
                 start_at_login_mechanism: StartAtLoginMechanism::Unsupported,
                 host_shell_kind: HostShellKind::PosixSh,
+                supports_managed_agent_installs: false,
             },
         }
     }

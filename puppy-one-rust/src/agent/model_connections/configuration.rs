@@ -386,14 +386,7 @@ pub fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
     std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     let temp = parent.join(format!(".{}.tmp", uuid::Uuid::new_v4()));
     let result = (|| -> std::io::Result<()> {
-        let mut options = std::fs::OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let mut file = options.open(&temp)?;
+        let mut file = crate::platform::fs::open_private_create_new(&temp)?;
         serde_json::to_writer(&mut file, value)?;
         file.flush()?;
         file.sync_all()?;

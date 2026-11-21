@@ -37,6 +37,42 @@ pub(super) fn sync_dir(dir: &Dir) -> io::Result<()> {
     }
 }
 
+pub(super) fn open_path_nofollow_read(path: &Path) -> io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true).custom_flags(libc::O_NOFOLLOW);
+    options.open(path)
+}
+
+pub(super) fn open_path_nofollow_private_write(path: &Path) -> io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let mut options = std::fs::OpenOptions::new();
+    options
+        .write(true)
+        .create(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .mode(0o600);
+    options.open(path)
+}
+
+pub(super) fn can_access_read(path: &Path) -> io::Result<()> {
+    let c_path = CString::new(path.as_os_str().as_bytes()).map_err(io::Error::other)?;
+    if unsafe { libc::access(c_path.as_ptr(), libc::R_OK) } == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+pub(super) fn can_access_execute(path: &Path) -> io::Result<()> {
+    let c_path = CString::new(path.as_os_str().as_bytes()).map_err(io::Error::other)?;
+    if unsafe { libc::access(c_path.as_ptr(), libc::X_OK) } == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
 pub(super) fn open_nofollow_read(dir: &Dir, name: &Path) -> io::Result<File> {
     let mut options = OpenOptions::new();
     options

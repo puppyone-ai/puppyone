@@ -230,6 +230,273 @@ pub fn open_private_create_new(path: &Path) -> io::Result<std::fs::File> {
     options.open(path)
 }
 
+/// Opens a file for writing, creating or truncating it with owner-only permissions (`0o600` on Unix).
+pub fn open_private_truncate(path: &Path) -> io::Result<std::fs::File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
+}
+
+/// Opens a filesystem path for reading without following symbolic links (`O_NOFOLLOW` on Unix).
+pub fn open_path_nofollow_read(path: &Path) -> io::Result<std::fs::File> {
+    #[cfg(unix)]
+    {
+        unix::open_path_nofollow_read(path)
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::OpenOptions::new().read(true).open(path)
+    }
+}
+
+/// Opens a filesystem path for writing (creating if absent, without truncating)
+/// without following symbolic links and with owner-only permissions (`O_NOFOLLOW`, `0o600` on Unix).
+pub fn open_path_nofollow_private_write(path: &Path) -> io::Result<std::fs::File> {
+    #[cfg(unix)]
+    {
+        unix::open_path_nofollow_private_write(path)
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(path)
+    }
+}
+
+/// Creates a single new directory with owner-only permissions (`0o700` on Unix).
+pub fn create_private_dir(path: &Path) -> io::Result<()> {
+    #[cfg_attr(not(unix), allow(unused_mut))]
+    let mut builder = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(path)
+}
+
+/// Recursively creates `path` and enforces owner-only permissions (`0o700` on Unix).
+pub fn create_private_dir_all(path: &Path) -> io::Result<()> {
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+        builder.mode(0o700);
+        builder.create(path)?;
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        builder.create(path)
+    }
+}
+
+/// Returns whether `path` is a regular file with execute permission (`0o111` on Unix; regular file on non-Unix).
+pub fn is_executable_file(path: &Path) -> io::Result<bool> {
+    let metadata = match path.metadata() {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        Ok(metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(metadata.is_file())
+    }
+}
+
+/// Checks whether the current process has read access to `path` (`access(R_OK)` on Unix).
+pub fn can_access_read(path: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        unix::can_access_read(path)
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::metadata(path).map(|_| ())
+    }
+}
+
+/// Checks whether the current process has execute access to `path` (`access(X_OK)` on Unix).
+pub fn can_access_execute(path: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        unix::can_access_execute(path)
+    }
+    #[cfg(not(unix))]
+    {
+        let meta = std::fs::metadata(path)?;
+        if meta.is_file() {
+            Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "Path is not a regular file.",
+            ))
+        }
+    }
+}
+
+/// Returns `(device, inode)` from `std::fs::Metadata` (`(0, 0)` on non-Unix).
+pub fn metadata_device_inode(metadata: &std::fs::Metadata) -> (u64, u64) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        (metadata.dev(), metadata.ino())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        (0, 0)
+    }
+}
+
+/// Returns whether two `std::fs::Metadata` snapshots identify the same file.
+pub fn same_metadata_identity(expected: &std::fs::Metadata, actual: &std::fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        expected.dev() == actual.dev() && expected.ino() == actual.ino()
+    }
+    #[cfg(not(unix))]
+    {
+        let millis = |m: &std::fs::Metadata| {
+            m.modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis())
+        };
+        expected.len() == actual.len() && millis(expected) == millis(actual)
+    }
+}
+
+/// Cross-platform stat summary extracted from a `cap_std::fs::Metadata`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CapStatSummary {
+    pub len: u64,
+    pub mtime_ns: i128,
+    pub ctime_ns: i128,
+    pub ino: u64,
+    pub dev: u64,
+    pub mode: u32,
+    pub nlink: u64,
+    pub readonly: bool,
+}
+
+/// Extracts a [`CapStatSummary`] from a `cap_std::fs::Metadata`.
+pub fn cap_stat_summary(meta: &Metadata) -> CapStatSummary {
+    #[cfg(unix)]
+    {
+        use cap_std::fs::MetadataExt;
+        CapStatSummary {
+            len: meta.len(),
+            mtime_ns: i128::from(meta.mtime()) * 1_000_000_000 + i128::from(meta.mtime_nsec()),
+            ctime_ns: i128::from(meta.ctime()) * 1_000_000_000 + i128::from(meta.ctime_nsec()),
+            ino: meta.ino(),
+            dev: meta.dev(),
+            mode: meta.mode(),
+            nlink: meta.nlink(),
+            readonly: meta.permissions().readonly(),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let mtime_ns = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.into_std().duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_nanos() as i128);
+        CapStatSummary {
+            len: meta.len(),
+            mtime_ns,
+            ctime_ns: 0,
+            ino: 0,
+            dev: 0,
+            mode: 0,
+            nlink: 1,
+            readonly: meta.permissions().readonly(),
+        }
+    }
+}
+
+/// Builds a change-detection version token from `cap_std::fs::Metadata`.
+pub fn cap_version_token(meta: &Metadata) -> String {
+    #[cfg(unix)]
+    {
+        use cap_std::fs::MetadataExt;
+        format!(
+            "{}:{}:{}:{}:{}.{}:{}.{}",
+            meta.dev(),
+            meta.ino(),
+            meta.mode(),
+            meta.len(),
+            meta.mtime(),
+            meta.mtime_nsec(),
+            meta.ctime(),
+            meta.ctime_nsec()
+        )
+    }
+    #[cfg(not(unix))]
+    {
+        let modified_ns = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.into_std().duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0u128, |d| d.as_nanos());
+        format!("{}:{modified_ns}", meta.len())
+    }
+}
+
+/// Returns `true` when `meta` reports more than one hard link (`nlink != 1` on Unix).
+pub fn cap_has_multiple_links(meta: &Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use cap_std::fs::MetadataExt;
+        meta.nlink() != 1
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = meta;
+        false
+    }
+}
+
+/// Makes a copied capability-confined directory writable/removable (`| 0o700` on Unix; clears readonly on non-Unix).
+pub fn make_dir_removable(dir: &Dir, meta: &Metadata) -> io::Result<()> {
+    let mut permissions = meta.permissions();
+    #[cfg(unix)]
+    {
+        use cap_std::fs::PermissionsExt;
+        permissions.set_mode(permissions.mode() | 0o700);
+    }
+    #[cfg(not(unix))]
+    permissions.set_readonly(false);
+    dir.set_permissions(".", permissions)
+}
+
+/// Normalizes a path-derived lookup key for platform filename case sensitivity
+/// (lowercasing on Windows, preserving case elsewhere).
+pub fn fold_path_key(value: String) -> String {
+    if cfg!(windows) {
+        value.to_lowercase()
+    } else {
+        value
+    }
+}
+
 /// Returns `true` if `component` is a Windows reserved DOS device name
 /// (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, with or without an extension)
 /// or ends with a trailing dot or space.

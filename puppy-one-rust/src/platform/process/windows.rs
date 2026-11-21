@@ -129,6 +129,10 @@ pub(super) fn isolate_tokio(command: &mut tokio::process::Command) {
     command.creation_flags((CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW).0);
 }
 
+pub(super) fn hide_console_window(command: &mut tokio::process::Command) {
+    command.creation_flags(CREATE_NO_WINDOW.0);
+}
+
 pub(super) fn terminate_child(child: &mut Child) {
     let _ = child.kill();
     let _ = child.wait();

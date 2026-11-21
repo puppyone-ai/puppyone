@@ -239,36 +239,10 @@ impl Mechanism {
     }
     /// `detectSandbox`: a sandbox that actually runs, or none.
     pub fn detect() -> Option<Self> {
-        let works = |program: &Path, args: &[&str]| {
-            std::process::Command::new(program)
-                .args(args)
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .is_ok_and(|s| s.success())
-        };
-        if cfg!(target_os = "macos") {
-            let seatbelt = PathBuf::from("/usr/bin/sandbox-exec");
-            return (seatbelt.exists()
-                && works(
-                    &seatbelt,
-                    &["-p", "(version 1)(allow default)", "/usr/bin/true"],
-                ))
-            .then_some(Self::Seatbelt(seatbelt));
+        match crate::platform::process::detect_sandbox()? {
+            crate::platform::process::SandboxTool::Seatbelt(path) => Some(Self::Seatbelt(path)),
+            crate::platform::process::SandboxTool::Bubblewrap(path) => Some(Self::Bubblewrap(path)),
         }
-        if cfg!(target_os = "linux") {
-            let bwrap = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"]
-                .iter()
-                .map(PathBuf::from)
-                .find(|p| p.exists())?;
-            // Unprivileged user namespaces may be off; then bubblewrap cannot run.
-            return works(
-                &bwrap,
-                &["--ro-bind", "/", "/", "--dev", "/dev", "/bin/true"],
-            )
-            .then_some(Self::Bubblewrap(bwrap));
-        }
-        None
     }
 }
 
@@ -574,8 +548,7 @@ fn spawn_plain(
     done: mpsc::UnboundedSender<u32>,
 ) -> Result<i32, &'static str> {
     let mut command = std::process::Command::new(&prepared.program);
-    #[cfg(unix)]
-    std::os::unix::process::CommandExt::process_group(&mut command, 0);
+    crate::platform::process::isolate(&mut command);
     let mut child = command
         .args(&prepared.args)
         .current_dir(&root)

@@ -31,7 +31,7 @@ unicode-normalization = "0.1"
 url = "2.5"
 uuid = { version = "1", features = ["v4"] }
 
-[target.'cfg(unix)'.dependencies]
+[target.'cfg(unix)'.dev-dependencies]
 libc = "0.2"
 
 [dev-dependencies]

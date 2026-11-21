@@ -1,34 +1,9 @@
 {
   "description": "Shrink-only platform boundary baseline (puppyone#130). Resolve entries as OS logic moves into src/platform/ and src/web_host/backend/; run `--prune` to remove fixed items.",
   "violations": [
-    "P1 src/agent/connections/legacy_local_agent_inventory.rs",
-    "P1 src/agent/connections/local_agent_inventory.rs",
-    "P1 src/agent/discovery/windows/registered_applications.rs",
-    "P1 src/agent/infrastructure/attachments/agent_attachment_store.rs",
-    "P1 src/agent/installation/executable_resolver.rs",
-    "P1 src/agent/model_connections/configuration.rs",
-    "P1 src/agent/persistence/agent_conversation_catalog.rs",
-    "P1 src/agent/runtimes/claude/claude_agent_sdk/sessions.rs",
-    "P1 src/agent/runtimes/claude/claude_discovery.rs",
-    "P1 src/agent/runtimes/claude/claude_spawn.rs",
-    "P1 src/agent/runtimes/puppyone_agent/native_kernel/session.rs",
-    "P1 src/agent/security/acp_workspace_files.rs",
-    "P1 src/agent/security/authorized_project_instructions.rs",
-    "P1 src/agent/transports/jsonl_rpc_connection.rs",
-    "P1 src/agent/transports/managed_agent_process.rs",
     "P1 src/capture.rs",
-    "P1 src/cloud/publication/mod.rs",
-    "P1 src/workspace/hosts/control.rs",
-    "P1 src/workspace/hosts/exec.rs",
-    "P1 src/workspace/hosts/files.rs",
-    "P1 src/workspace/local.rs",
-    "P2 src/agent/installation/executable_resolver.rs",
-    "P2 src/agent/runtimes/claude/claude_spawn.rs",
-    "P2 src/agent/security/acp_workspace_files.rs",
-    "P2 src/agent/security/authorized_project_instructions.rs",
     "P2 src/capture.rs",
     "P3 Cargo.toml objc2",
-    "P3 Cargo.toml objc2-app-kit",
-    "P3 crates/po-agent/Cargo.toml libc"
+    "P3 Cargo.toml objc2-app-kit"
   ]
 }

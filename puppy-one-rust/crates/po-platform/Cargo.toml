@@ -39,7 +39,7 @@ sha2 = "0.10"
 sysinfo = { version = "=0.31.4", default-features = false, features = ["system"] }
 tar = { version = "=0.4.46", default-features = false }
 tempfile = "3"
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "process", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "process", "io-util", "net"] }
 unicode-normalization = "0.1"
 url = "2.5"
 uuid = { version = "1", features = ["v4"] }

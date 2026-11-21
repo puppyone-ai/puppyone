@@ -1,8 +1,6 @@
 //! `transports/jsonl-rpc-connection.mjs`: a JSON-RPC 2.0 connection over a
 //! native Agent's stdio, one JSON object per line.
 use super::jsonl_stream::{Framed, JsonlFramer};
-#[cfg(unix)]
-use super::managed_agent_process::signal_name;
 use super::managed_agent_process::{create_managed_agent_process, terminate_managed_agent_process};
 use super::native_request_ledger::{LateResponse, NativeRequestLedger, Taken};
 use crate::agent::agent_error::{AgentError, AgentResult};
@@ -147,14 +145,11 @@ pub fn spawn_managed_process(options: &ConnectionOptions) -> AgentResult<Process
         stderr: Box::new(stderr),
         exit: Box::pin(async move {
             match child.wait().await {
-                Ok(status) => {
-                    #[cfg(unix)]
-                    let signal =
-                        std::os::unix::process::ExitStatusExt::signal(&status).map(signal_name);
-                    #[cfg(not(unix))]
-                    let signal: Option<String> = None;
-                    (status.code(), signal, None)
-                }
+                Ok(status) => (
+                    status.code(),
+                    crate::platform::process::exit_signal_name(&status),
+                    None,
+                ),
                 Err(error) => (None, None, Some(AgentError::from(error))),
             }
         }),

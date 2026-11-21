@@ -65,37 +65,16 @@ pub struct StatFingerprint {
 
 impl StatFingerprint {
     pub(super) fn from_metadata(meta: &Metadata) -> Self {
-        #[cfg(unix)]
-        {
-            use cap_std::fs::MetadataExt;
-            Self {
-                len: meta.len(),
-                mtime_ns: i128::from(meta.mtime()) * 1_000_000_000 + i128::from(meta.mtime_nsec()),
-                ctime_ns: i128::from(meta.ctime()) * 1_000_000_000 + i128::from(meta.ctime_nsec()),
-                ino: meta.ino(),
-                dev: meta.dev(),
-                mode: meta.mode(),
-                nlink: meta.nlink(),
-                readonly: meta.permissions().readonly(),
-            }
-        }
-        #[cfg(not(unix))]
-        {
-            let mtime_ns = meta
-                .modified()
-                .ok()
-                .and_then(|t| t.into_std().duration_since(std::time::UNIX_EPOCH).ok())
-                .map_or(0, |d| d.as_nanos() as i128);
-            Self {
-                len: meta.len(),
-                mtime_ns,
-                ctime_ns: 0,
-                ino: 0,
-                dev: 0,
-                mode: 0,
-                nlink: 1,
-                readonly: meta.permissions().readonly(),
-            }
+        let s = crate::platform::fs::cap_stat_summary(meta);
+        Self {
+            len: s.len,
+            mtime_ns: s.mtime_ns,
+            ctime_ns: s.ctime_ns,
+            ino: s.ino,
+            dev: s.dev,
+            mode: s.mode,
+            nlink: s.nlink,
+            readonly: s.readonly,
         }
     }
 }
@@ -837,15 +816,7 @@ impl Workspace {
             return parent.remove_file(name).map_err(io);
         }
         let dir = Self::open_directory(parent, name)?;
-        let mut permissions = meta.permissions();
-        #[cfg(unix)]
-        {
-            use cap_std::fs::PermissionsExt;
-            permissions.set_mode(permissions.mode() | 0o700);
-        }
-        #[cfg(not(unix))]
-        permissions.set_readonly(false);
-        dir.set_permissions(".", permissions).map_err(io)?;
+        crate::platform::fs::make_dir_removable(&dir, &meta).map_err(io)?;
         for entry in dir.entries().map_err(io)? {
             Self::discard_created_tree(&dir, Path::new(&entry.map_err(io)?.file_name()))?;
         }

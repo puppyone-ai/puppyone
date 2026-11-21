@@ -67,7 +67,6 @@ pub fn terminate_managed_agent_process(pid: Option<u32>, grouped: bool, force: b
 }
 
 /// The Node name of a terminating POSIX signal (`"SIGTERM"`).
-#[cfg(unix)]
 pub fn signal_name(signal: i32) -> String {
     process::signal_name(signal)
 }

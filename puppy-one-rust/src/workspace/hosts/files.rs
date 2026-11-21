@@ -174,25 +174,7 @@ fn snapshot(dir: &Dir) -> Result<HashMap<String, String>, &'static str> {
     Ok(state)
 }
 fn version(metadata: &cap_std::fs::Metadata) -> String {
-    #[cfg(unix)]
-    {
-        use cap_std::fs::MetadataExt;
-        format!(
-            "{}:{}:{}:{}:{}.{}:{}.{}",
-            metadata.dev(),
-            metadata.ino(),
-            metadata.mode(),
-            metadata.len(),
-            metadata.mtime(),
-            metadata.mtime_nsec(),
-            metadata.ctime(),
-            metadata.ctime_nsec()
-        )
-    }
-    #[cfg(not(unix))]
-    {
-        format!("{}:{}", metadata.len(), modified_ns(metadata))
-    }
+    crate::platform::fs::cap_version_token(metadata)
 }
 
 pub struct FileService {
@@ -381,12 +363,8 @@ impl FileService {
                 if !metadata.is_file() {
                     return Err("unsupported_file");
                 }
-                #[cfg(unix)]
-                {
-                    use cap_std::fs::MetadataExt;
-                    if metadata.nlink() != 1 {
-                        return Err("unsupported_file");
-                    }
+                if crate::platform::fs::cap_has_multiple_links(&metadata) {
+                    return Err("unsupported_file");
                 }
                 if revision(&Self::read_bytes(&dir, &name)?.0) != expected {
                     return Err("conflict");

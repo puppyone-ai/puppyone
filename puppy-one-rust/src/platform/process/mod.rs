@@ -112,6 +112,14 @@ pub fn isolate_tokio(command: &mut tokio::process::Command) {
     let _ = command;
 }
 
+/// Suppresses console window flash on Windows (`CREATE_NO_WINDOW`); no-op elsewhere.
+pub fn hide_console_window(command: &mut tokio::process::Command) {
+    #[cfg(windows)]
+    windows::hide_console_window(command);
+    #[cfg(not(windows))]
+    let _ = command;
+}
+
 /// Terminates a spawned child and its isolated descendants.
 pub fn terminate(child: &mut std::process::Child) {
     #[cfg(unix)]
@@ -146,9 +154,88 @@ pub fn terminate_pid(pid: u32, grouped: bool, force: bool) -> bool {
 }
 
 /// The Node name of a POSIX terminating signal (`"SIGTERM"`).
-#[cfg(unix)]
 pub fn signal_name(signal: i32) -> String {
-    unix::signal_name(signal)
+    #[cfg(unix)]
+    {
+        unix::signal_name(signal)
+    }
+    #[cfg(not(unix))]
+    {
+        format!("SIG{signal}")
+    }
+}
+
+/// Returns the Node.js `process.platform` identifier (`"darwin"`, `"win32"`, or `"linux"`).
+pub const fn node_platform() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "darwin"
+    } else if cfg!(windows) {
+        "win32"
+    } else {
+        "linux"
+    }
+}
+
+/// Returns the terminating POSIX signal name of `status` on Unix (`None` on Windows).
+pub fn exit_signal_name(status: &std::process::ExitStatus) -> Option<String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        status.signal().map(unix::signal_name)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = status;
+        None
+    }
+}
+
+/// Native folder-execution sandbox binary available on this OS.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SandboxTool {
+    Seatbelt(std::path::PathBuf),
+    Bubblewrap(std::path::PathBuf),
+}
+
+/// Detects an actually working OS execution sandbox (`sandbox-exec` on macOS,
+/// `bwrap` on Linux, none on Windows).
+pub fn detect_sandbox() -> Option<SandboxTool> {
+    let works = |program: &Path, args: &[&str]| {
+        Command::new(program)
+            .args(args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+    };
+    #[cfg(target_os = "macos")]
+    {
+        let seatbelt = std::path::PathBuf::from("/usr/bin/sandbox-exec");
+        (seatbelt.exists()
+            && works(
+                &seatbelt,
+                &["-p", "(version 1)(allow default)", "/usr/bin/true"],
+            ))
+        .then_some(SandboxTool::Seatbelt(seatbelt))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let bwrap = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"]
+            .iter()
+            .map(std::path::PathBuf::from)
+            .find(|p| p.exists())?;
+        // Unprivileged user namespaces may be off; then bubblewrap cannot run.
+        works(
+            &bwrap,
+            &["--ro-bind", "/", "/", "--dev", "/dev", "/bin/true"],
+        )
+        .then_some(SandboxTool::Bubblewrap(bwrap))
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let _ = works;
+        None
+    }
 }
 
 pub fn bounded_read(mut reader: impl Read, max: usize) -> std::io::Result<Vec<u8>> {
