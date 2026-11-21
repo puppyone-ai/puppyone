@@ -28,6 +28,7 @@ impl Repo {
     }
 }
 
+#[cfg(unix)]
 #[test]
 fn actual_git_paths_survive_quoting_spaces_and_user_prefix_preferences() {
     let repo = Repo::new();
@@ -94,6 +95,7 @@ fn patch_header_looking_body_lines_are_counted_and_numbered_as_content() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn quoted_word_renames_and_history_keep_the_real_paths_and_semantic_bodies() {
     use super::super::docx_redline::{self, State};
@@ -143,6 +145,7 @@ fn quoted_word_renames_and_history_keep_the_real_paths_and_semantic_bodies() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn binary_word_paths_with_ambiguous_header_spacing_still_select_the_correct_model() {
     use super::super::docx_redline::{self, SegmentKind};

@@ -120,6 +120,7 @@ fn failed_import_or_move_shows_above_the_tree_and_retry_rereads_the_root(cx: &mu
 }
 /// A subscription the workspace refuses is reported, with its Retry, rather
 /// than leaving the tree silently unwatched.
+#[cfg(unix)]
 #[gpui::test]
 fn a_refused_directory_subscription_is_reported(cx: &mut TestAppContext) {
     cx.executor().allow_parking();

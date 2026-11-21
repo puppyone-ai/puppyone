@@ -600,7 +600,7 @@ fn code_search_shortcut_opens_the_product_find_bar(cx: &mut TestAppContext) {
     let (view, _, cx) = setup(cx, "main.ts", "const answer = 42;");
     view.update_in(cx, |v, w, cx| v.focus_document(w, cx));
     cx.run_until_parked();
-    cx.simulate_keystrokes("cmd-f");
+    cx.simulate_keystrokes("secondary-f");
     cx.run_until_parked();
     assert!(view.update(cx, |v, cx| v.find_bar(cx)).is_some());
 }

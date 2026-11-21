@@ -50,46 +50,59 @@ pub(super) fn snapshot_with(
     if cancelled.load(Ordering::Relaxed) {
         return None;
     }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        struct Walk<'a> {
-            hash: blake3::Hasher,
-            entries: usize,
-            max_entries: usize,
-            cancelled: &'a AtomicBool,
-        }
-        impl Walk<'_> {
-            fn inspect(&mut self, location: &Path, recursive: bool) -> Option<()> {
-                if self.cancelled.load(Ordering::Relaxed) {
-                    return None;
-                }
-                let info = match std::fs::symlink_metadata(location) {
-                    Ok(info) => info,
-                    Err(error)
-                        if matches!(
-                            error.kind(),
-                            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
-                        ) =>
-                    {
-                        return Some(());
-                    }
-                    Err(_) => return None,
-                };
-                let kind = info.file_type();
-                if !kind.is_file() && !kind.is_dir() && !kind.is_symlink() {
+    struct Walk<'a> {
+        hash: blake3::Hasher,
+        entries: usize,
+        max_entries: usize,
+        cancelled: &'a AtomicBool,
+    }
+    impl Walk<'_> {
+        fn inspect(&mut self, location: &Path, recursive: bool) -> Option<()> {
+            if self.cancelled.load(Ordering::Relaxed) {
+                return None;
+            }
+            let info = match std::fs::symlink_metadata(location) {
+                Ok(info) => info,
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                    ) =>
+                {
                     return Some(());
                 }
-                self.entries += 1;
-                if self.entries > self.max_entries {
-                    return None;
-                }
-                // Directory times move with ignored lock and object activity.
-                let version = if kind.is_dir() {
+                Err(_) => return None,
+            };
+            let kind = info.file_type();
+            if !kind.is_file() && !kind.is_dir() && !kind.is_symlink() {
+                return Some(());
+            }
+            self.entries += 1;
+            if self.entries > self.max_entries {
+                return None;
+            }
+            // Directory times move with ignored lock and object activity.
+            // Coarse filesystem timestamp ticks (Linux 4ms jiffies, Windows
+            // 15.6ms NTFS ticks) can coalesce same-length in-place writes to
+            // tiny Git ref/state files (e.g. `HEAD`, `refs/heads/*`), so include
+            // a digest for tiny regular metadata files (`symlink_metadata`
+            // guarantees `kind.is_file()` is false for symlinks).
+            let content_tag = if kind.is_file() && info.len() <= 4096 {
+                std::fs::read(location)
+                    .ok()
+                    .map(|b| blake3::hash(&b).to_hex().to_string())
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            };
+            #[cfg(unix)]
+            let version = {
+                use std::os::unix::fs::MetadataExt;
+                if kind.is_dir() {
                     format!("{}:{}", info.dev(), info.ino())
                 } else {
                     format!(
-                        "{}:{}:{}:{}:{}.{}:{}.{}",
+                        "{}:{}:{}:{}:{}.{}:{}.{}:{content_tag}",
                         info.dev(),
                         info.ino(),
                         info.mode(),
@@ -99,26 +112,44 @@ pub(super) fn snapshot_with(
                         info.ctime(),
                         info.ctime_nsec()
                     )
-                };
-                self.hash.update(location.as_os_str().as_encoded_bytes());
-                self.hash.update(b"\0");
-                self.hash.update(version.as_bytes());
-                self.hash.update(b"\0");
-                if !recursive || !kind.is_dir() {
-                    return Some(());
                 }
-                if std::fs::canonicalize(location).ok()? != location {
+            };
+            #[cfg(not(unix))]
+            let version = {
+                let (dev, ino) = crate::platform::fs::path_identity(location).unwrap_or((0, 0));
+                if kind.is_dir() {
+                    format!("{dev}:{ino}")
+                } else {
+                    let mtime_ns = info
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map_or(0, |d| d.as_nanos());
+                    format!("{dev}:{ino}:{}:{mtime_ns}:{content_tag}", info.len())
+                }
+            };
+            self.hash.update(location.as_os_str().as_encoded_bytes());
+            self.hash.update(b"\0");
+            self.hash.update(version.as_bytes());
+            self.hash.update(b"\0");
+            if !recursive || !kind.is_dir() {
+                return Some(());
+            }
+            if std::fs::canonicalize(location).ok()? != location {
+                return None;
+            }
+            let mut children = Vec::new();
+            for entry in std::fs::read_dir(location).ok()? {
+                if self.cancelled.load(Ordering::Relaxed)
+                    || children.len() + self.entries >= self.max_entries
+                {
                     return None;
                 }
-                let mut children = Vec::new();
-                for entry in std::fs::read_dir(location).ok()? {
-                    if self.cancelled.load(Ordering::Relaxed)
-                        || children.len() + self.entries >= self.max_entries
-                    {
-                        return None;
-                    }
-                    children.push(entry.ok()?.file_name());
-                }
+                children.push(entry.ok()?.file_name());
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::MetadataExt;
                 let after = std::fs::symlink_metadata(location).ok()?;
                 if after.dev() != info.dev()
                     || after.ino() != info.ino()
@@ -126,45 +157,46 @@ pub(super) fn snapshot_with(
                 {
                     return None;
                 }
-                children.sort();
-                for name in children {
-                    let text = name.to_string_lossy();
-                    if text.ends_with(".lock") || text.ends_with(".cookie") || text == "cookies" {
-                        continue;
-                    }
-                    self.inspect(&location.join(&name), true)?;
+            }
+            #[cfg(not(unix))]
+            {
+                if std::fs::canonicalize(location).ok()? != location {
+                    return None;
                 }
-                Some(())
             }
+            children.sort();
+            for name in children {
+                let text = name.to_string_lossy();
+                if text.ends_with(".lock") || text.ends_with(".cookie") || text == "cookies" {
+                    continue;
+                }
+                self.inspect(&location.join(&name), true)?;
+            }
+            Some(())
         }
-        let mut walk = Walk {
-            hash: blake3::Hasher::new(),
-            entries: 0,
-            max_entries,
-            cancelled,
-        };
-        walk.inspect(&top_level.join(".git"), false)?;
-        let mut directories = vec![git_dir.to_path_buf(), common.to_path_buf()];
-        directories.sort();
-        directories.dedup();
-        for directory in directories {
-            for file in FILES {
-                walk.inspect(&directory.join(file), false)?;
-            }
-            for tree in TREES {
-                walk.inspect(&directory.join(tree), true)?;
-            }
+    }
+    let mut walk = Walk {
+        hash: blake3::Hasher::new(),
+        entries: 0,
+        max_entries,
+        cancelled,
+    };
+    walk.inspect(&top_level.join(".git"), false)?;
+    let mut directories = vec![git_dir.to_path_buf(), common.to_path_buf()];
+    directories.sort();
+    directories.dedup();
+    for directory in directories {
+        for file in FILES {
+            walk.inspect(&directory.join(file), false)?;
         }
-        (!cancelled.load(Ordering::Relaxed)).then(|| walk.hash.finalize().to_hex().to_string())
+        for tree in TREES {
+            walk.inspect(&directory.join(tree), true)?;
+        }
     }
-    #[cfg(not(unix))]
-    {
-        let _ = (top_level, git_dir, common, max_entries);
-        None
-    }
+    (!cancelled.load(Ordering::Relaxed)).then(|| walk.hash.finalize().to_hex().to_string())
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::*;
     fn fixture() -> tempfile::TempDir {
@@ -199,6 +231,7 @@ mod tests {
         std::fs::write(root.path().join(".git/refs/heads/main"), "b".repeat(40)).unwrap();
         assert_ne!(read(root.path()).unwrap(), original);
     }
+    #[cfg(unix)]
     #[test]
     fn snapshot_never_follows_metadata_symlinks() {
         let root = fixture();

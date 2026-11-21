@@ -424,10 +424,9 @@ fn temporary_root() -> (tempfile::TempDir, String) {
         .prefix("puppyone-acp-input-")
         .tempdir()
         .unwrap();
-    let root = std::fs::canonicalize(directory.path())
-        .unwrap()
-        .to_string_lossy()
-        .into_owned();
+    let canonical = std::fs::canonicalize(directory.path()).unwrap();
+    let raw = canonical.to_string_lossy();
+    let root = raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_owned();
     (directory, root)
 }
 

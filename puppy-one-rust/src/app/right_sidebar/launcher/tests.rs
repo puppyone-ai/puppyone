@@ -537,10 +537,15 @@ fn detected_agents_then_setup_then_the_built_in_and_the_terminal(cx: &mut TestAp
     use crate::platform::local_agent_setup::companion::Presence;
     use crate::platform::local_agent_setup::{Observation, ObservationFailure, ObservationStatus};
     let (workbench, launcher, cx) = compose(cx);
-    // Cursor's app is here and its CLI is not: setup offers it.
+    let cursor_supported = crate::platform::local_agent_setup::route("cursor").is_some_and(|r| {
+        r.platforms
+            .contains(&crate::platform::local_agent_setup::platform())
+    });
+    let suggested = if cursor_supported { "cursor" } else { "codex" };
+    // A companion app is here and its CLI is not: setup offers it.
     cx.update(|_, cx| {
         crate::features::local_agents::activation_store(cx).update(cx, |s, cx| {
-            s.fixture_companions(vec![("cursor", Presence::Present)]);
+            s.fixture_companions(vec![(suggested, Presence::Present)]);
             cx.notify();
         })
     });
@@ -555,7 +560,11 @@ fn detected_agents_then_setup_then_the_built_in_and_the_terminal(cx: &mut TestAp
     workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
         .unwrap();
-    let detected = ["codex", "hermes", "workbuddy-china"];
+    let detected: &[&str] = if cursor_supported {
+        &["codex", "hermes", "workbuddy-china"]
+    } else {
+        &["hermes", "workbuddy-china"]
+    };
     for failed in [false, true] {
         launcher.update(cx, |l, cx| {
             l.discovery_override = true;

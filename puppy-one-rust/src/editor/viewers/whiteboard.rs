@@ -19,7 +19,7 @@
 use super::{
     code,
     html_visual::script_json,
-    web::{WebFrame, parse_find_result},
+    web::{WebFallbackAction, WebFrame, parse_find_result},
 };
 use crate::{
     editor::{
@@ -258,6 +258,7 @@ impl WhiteboardView {
         self.ready = false;
         self.history = false;
         let weak = cx.weak_entity();
+        let weak_source = cx.weak_entity();
         self.frame = Some(cx.new(|_| {
             let mut frame = WebFrame::new(Some(content), self.dark);
             // The per-window engine cap may release the page while hidden; the
@@ -265,6 +266,9 @@ impl WhiteboardView {
             frame.set_on_recreated(Some(Rc::new(move |cx| {
                 let _ = weak.update(cx, |view, _| view.ready = false);
             })));
+            frame.set_fallback_actions(vec![WebFallbackAction::view_source(move |_, cx| {
+                let _ = weak_source.update(cx, |_, cx| cx.emit(Asked::ViewSource));
+            })]);
             frame
         }));
         self._inbox = Some(cx.spawn(async move |this, cx| {
@@ -551,7 +555,8 @@ fn theme_css(dark: bool) -> String {
 }
 
 /// The native acceptance process uses the same boot document and assets as the viewer.
-#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+#[cfg(feature = "dev-capture")]
+#[allow(dead_code)]
 pub(crate) fn probe_content(pack: ExcalidrawPack, text: String, ipc: Ipc) -> Content {
     WhiteboardView::new("board.excalidraw".into(), None, text, false).content(pack, ipc)
 }

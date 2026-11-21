@@ -1,10 +1,12 @@
 //! `tests/integration/agent/runtimes/pi/electron.pi-adapter.test.mjs` and
 //! `tests/unit/agent/runtimes/pi/electron.pi-discovery.test.mjs`.
+#[cfg(unix)]
 use super::pi_discovery::{PiDiscoveryOptions, discover_pi_executable};
 use super::pi_identity::PI_RUNTIME_DESCRIPTOR;
 use super::pi_rpc_adapter::pi_rpc_adapter;
 use crate::agent::agent_error::AgentError;
 use crate::agent::application::tests_support::run_local;
+#[cfg(unix)]
 use crate::agent::discovery::command_environment::{EnvMap, EnvironmentSnapshot};
 use crate::agent::domain::agent_session_actor::{ActorOptions, AgentSessionActor, EventInput};
 use crate::agent::protocols::pi_rpc::pi_rpc_client::fake::FakePiClient;
@@ -498,6 +500,7 @@ fn routes_pi_extension_dialogs_through_the_shared_structured_question_contract()
 
 // ------------------------------------------------------------------ discovery
 
+#[cfg(unix)]
 fn pi_executable(directory: &std::path::Path, help: &str) -> String {
     let path = directory.join("pi");
     crate::agent::application::tests_support::installed_shell_fixture(
@@ -512,6 +515,7 @@ fn pi_executable(directory: &std::path::Path, help: &str) -> String {
         .into_owned()
 }
 
+#[cfg(unix)]
 fn discovery_options(configured: Option<String>) -> PiDiscoveryOptions {
     PiDiscoveryOptions {
         env: Some(EnvMap::from([("PATH".to_string(), String::new())])),
@@ -532,6 +536,7 @@ fn discovery_options(configured: Option<String>) -> PiDiscoveryOptions {
     }
 }
 
+#[cfg(unix)]
 #[test]
 fn requires_the_installed_executable_to_expose_the_official_rpc_mode() {
     run_local(async {
@@ -571,6 +576,7 @@ fn requires_the_installed_executable_to_expose_the_official_rpc_mode() {
     });
 }
 
+#[cfg(unix)]
 #[test]
 fn distinguishes_a_missing_runtime_from_an_installed_runtime_without_rpc_support() {
     run_local(async {

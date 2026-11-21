@@ -95,6 +95,30 @@ fn surface(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> HtmlS
     let name = Rc::new(RefCell::new(request.name.to_owned()));
     let read_only = Rc::new(Cell::new(false));
     {
+        let mut actions = Vec::new();
+        if let Some(path) = interact.local_file_path() {
+            actions.push(super::web::WebFallbackAction::open_local_in_browser(path));
+        }
+        let mode_src = mode.clone();
+        let split_weak = split.as_ref().map(|s| s.downgrade());
+        let source_weak = Rc::downgrade(&source);
+        actions.push(super::web::WebFallbackAction::view_source(
+            move |window, cx| {
+                mode_src.set(Mode::Source);
+                if let Some(split) = split_weak.as_ref().and_then(|s| s.upgrade()) {
+                    split.update(cx, |_, cx| cx.notify());
+                }
+                if let Some(source) = source_weak.upgrade()
+                    && let Some(focus) = source.focus_handle(cx)
+                {
+                    focus.focus(window, cx);
+                }
+                window.refresh();
+            },
+        ));
+        interact.set_fallback_actions(actions, cx);
+    }
+    {
         let window_handle = window.window_handle();
         let mode = mode.clone();
         let visual = visual.clone();

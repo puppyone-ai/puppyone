@@ -23,28 +23,9 @@ pub fn state_dir(app_data: &Path) -> PathBuf {
     app_data.join("host-service")
 }
 
-/// Where device keys live on this computer; none where it has no keychain.
+/// Where device keys live on this computer.
 pub fn keys() -> Keys {
-    #[cfg(target_os = "macos")]
-    {
-        Arc::new(|| Box::new(super::identity::Keychain) as Box<dyn KeyStore>)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        struct Unavailable;
-        impl KeyStore for Unavailable {
-            fn put(&self, _: &str, _: &[u8]) -> Result<(), String> {
-                Err("Device key storage is unavailable.".into())
-            }
-            fn get(&self, _: &str) -> Result<Option<Vec<u8>>, String> {
-                Ok(None)
-            }
-            fn delete(&self, _: &str) -> Result<(), String> {
-                Ok(())
-            }
-        }
-        Arc::new(|| Box::new(Unavailable) as Box<dyn KeyStore>)
-    }
+    Arc::new(|| Box::new(super::identity::Keychain) as Box<dyn KeyStore>)
 }
 
 /// Runs the host for the App whose data is at `app_data` until it is asked
@@ -140,11 +121,16 @@ pub struct Autostart {
 }
 impl Autostart {
     pub fn new(home: &Path, program: &Path) -> Self {
-        Self {
-            entry: cfg!(target_os = "macos").then(|| {
+        use crate::platform::conventions::{Conventions, StartAtLoginMechanism};
+        let entry = match Conventions::current().start_at_login_mechanism {
+            StartAtLoginMechanism::LaunchAgent => Some(
                 home.join("Library/LaunchAgents")
-                    .join(format!("{LAUNCH_AGENT_LABEL}.plist"))
-            }),
+                    .join(format!("{LAUNCH_AGENT_LABEL}.plist")),
+            ),
+            StartAtLoginMechanism::Unsupported => None,
+        };
+        Self {
+            entry,
             contents: launch_agent(program),
         }
     }
@@ -220,7 +206,8 @@ mod tests {
         let (stop, _stopped) = tokio::sync::mpsc::unbounded_channel();
         runtime.spawn(control::serve(dir.clone(), host, stop));
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while !control::paths(&dir).1.exists() {
+        let (socket_path, token_path) = control::paths(&dir);
+        while !socket_path.exists() || !token_path.exists() {
             assert!(std::time::Instant::now() < deadline);
             std::thread::sleep(std::time::Duration::from_millis(10));
         }

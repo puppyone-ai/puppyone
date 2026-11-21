@@ -37,11 +37,19 @@ fn settle(
     }
 }
 
+fn feed_file(channel: &str) -> String {
+    updates::platform_feed_filename(channel, crate::platform::os::Os::current())
+}
+
+fn feed_path(channel: &str) -> String {
+    format!("/feed/{}", feed_file(channel))
+}
+
 fn feed_for(version: &str, archive: &[u8]) -> Vec<u8> {
     let digest = base64::engine::general_purpose::STANDARD.encode(sha2::Sha512::digest(archive));
-    let arch = build_identity::node_architecture();
+    let name = archive_name(version);
     format!(
-        "version: {version}\nfiles:\n  - url: puppyone-gpui-{version}-{arch}.zip\n    sha512: {digest}\n    size: {}\npath: puppyone-gpui-{version}-{arch}.zip\nsha512: {digest}\nreleaseDate: '2026-11-15T00:00:00.000Z'\n",
+        "version: {version}\nfiles:\n  - url: {name}\n    sha512: {digest}\n    size: {}\npath: {name}\nsha512: {digest}\nreleaseDate: '2026-11-15T00:00:00.000Z'\n",
         archive.len()
     )
     .into_bytes()
@@ -57,7 +65,7 @@ fn a_newer_version_is_offered_downloaded_and_checked(cx: &mut gpui::TestAppConte
     let version = "0.4.5-dev.gb";
     let name = archive_name(version);
     let feed = Feed::new(vec![
-        ("dev-mac.yml".into(), feed_for(version, &archive)),
+        (feed_file("dev"), feed_for(version, &archive)),
         (name, archive),
     ]);
     let updates = service(&feed, false, cx);
@@ -76,11 +84,7 @@ fn a_newer_version_is_offered_downloaded_and_checked(cx: &mut gpui::TestAppConte
         assert_eq!(u.state.status, Status::Error);
         assert_eq!(
             u.state.error.as_deref(),
-            Some(if cfg!(target_os = "macos") {
-                "This installation cannot be updated in place."
-            } else {
-                "Auto updates are available on macOS only."
-            })
+            Some("This installation cannot be updated in place.")
         );
     });
 }
@@ -88,7 +92,7 @@ fn a_newer_version_is_offered_downloaded_and_checked(cx: &mut gpui::TestAppConte
 #[gpui::test]
 fn an_older_or_tampered_update_is_never_offered(cx: &mut gpui::TestAppContext) {
     cx.executor().allow_parking();
-    let older = Feed::new(vec![("dev-mac.yml".into(), feed_for("0.4.3-dev.gz", b"x"))]);
+    let older = Feed::new(vec![(feed_file("dev"), feed_for("0.4.3-dev.gz", b"x"))]);
     let updates = service(&older, true, cx);
     updates.update(cx, |u, cx| u.check(cx));
     settle(&updates, cx, |u| !u.busy);
@@ -101,7 +105,7 @@ fn an_older_or_tampered_update_is_never_offered(cx: &mut gpui::TestAppContext) {
     let name = archive_name(version);
     let tampered = feed_for(version, b"the archive");
     let feed = Feed::new(vec![
-        ("dev-mac.yml".into(), tampered),
+        (feed_file("dev"), tampered),
         (name, b"another one".to_vec()),
     ]);
     let updates = service(&feed, true, cx);
@@ -140,7 +144,7 @@ fn stable_and_internal_rejections_never_download_or_request_a_quit(cx: &mut gpui
         ),
         (Internal, "1.4.0-internal.80", "1.4.0", Status::Error),
     ] {
-        let metadata = format!("{}-mac.yml", channel.key());
+        let metadata = feed_file(channel.key());
         let feed = Feed::new(vec![(
             metadata.clone(),
             feed_for(version, b"no archive should be fetched"),
@@ -198,7 +202,10 @@ fn repeated_checks_share_one_operation_and_waiters_receive_its_settled_state(
     assert_eq!(expected.status, Status::Error);
     assert_eq!(*outcomes.borrow(), [(1, expected.clone()), (2, expected)]);
     assert!(updates.read_with(cx, |u, _| u.waiting.is_empty()));
-    feed.put("dev-mac.yml", feed_for("0.4.5-dev.gb", b"not downloaded"));
+    feed.put(
+        &feed_file("dev"),
+        feed_for("0.4.5-dev.gb", b"not downloaded"),
+    );
     updates.update(cx, |u, cx| u.update_now(cx));
     settle(&updates, cx, |u| !u.busy);
     updates.update(cx, |u, cx| {
@@ -212,7 +219,7 @@ fn repeated_checks_share_one_operation_and_waiters_receive_its_settled_state(
         );
     });
     cx.run_until_parked();
-    assert_eq!(feed.requests(), vec!["/feed/dev-mac.yml"; 2]);
+    assert_eq!(feed.requests(), vec![feed_path("dev"); 2]);
     assert_eq!(outcomes.borrow().len(), 3);
     assert_eq!(outcomes.borrow()[2].1.status, Status::Available);
     assert_eq!(updates.quits(cx), 0);
@@ -310,7 +317,7 @@ fn automatic_manual_and_enabled_downloads_prepare_once_without_restarting(
         let updates = Fixture::new(&feed, channel, current, mode != "enabled", cx);
         let archive = updates.prepare_target(version, cx);
         let name = archive_name(version);
-        let metadata = format!("{}-mac.yml", channel.key());
+        let metadata = feed_file(channel.key());
         feed.put(&metadata, feed_for(version, &archive));
         feed.put(&name, archive);
         if mode == "manual" {
@@ -493,10 +500,14 @@ fn cancelled_restarts_keep_the_prepared_app_and_ordinary_quit_installs_without_r
 }
 
 fn archive_name(version: &str) -> String {
-    format!(
-        "puppyone-gpui-{version}-{}.zip",
-        build_identity::node_architecture()
-    )
+    let arch = build_identity::node_architecture();
+    match crate::platform::os::Os::current() {
+        crate::platform::os::Os::Windows => format!("puppyone-{version}-win-{arch}-setup.exe"),
+        crate::platform::os::Os::Linux | crate::platform::os::Os::Other => {
+            format!("puppyone-{version}-linux-{arch}.AppImage")
+        }
+        crate::platform::os::Os::Macos => format!("puppyone-gpui-{version}-{arch}.zip"),
+    }
 }
 
 #[gpui::test]
@@ -585,7 +596,7 @@ fn background_checks_start_once_follow_the_cadence_and_stop_with_the_service(
     use std::time::Duration;
     cx.executor().allow_parking();
     let feed = Feed::new(vec![(
-        "stable-mac.yml".into(),
+        feed_file("stable"),
         feed_for("1.4.0", b"not downloaded"),
     )]);
     let updates = Fixture::new(&feed, build_identity::Channel::Stable, "1.4.0", false, cx);
@@ -601,7 +612,7 @@ fn background_checks_start_once_follow_the_cadence_and_stop_with_the_service(
     cx.executor().advance_clock(Duration::from_millis(1));
     cx.run_until_parked();
     settle(&updates, cx, |u| !u.busy);
-    assert_eq!(feed.requests(), ["/feed/stable-mac.yml"]);
+    assert_eq!(feed.requests(), [feed_path("stable")]);
     assert_eq!(
         updates.read_with(cx, |u, _| u.state.status),
         Status::NotAvailable
@@ -619,7 +630,7 @@ fn background_checks_start_once_follow_the_cadence_and_stop_with_the_service(
     settle(&updates, cx, |u| !u.busy);
     assert_eq!(feed.requests().len(), 3);
     feed.put(
-        "stable-mac.yml",
+        &feed_file("stable"),
         feed_for("1.4.1", b"pending manual download"),
     );
     updates.update(cx, |u, cx| u.check(cx));
@@ -666,7 +677,7 @@ fn background_checks_retry_errors_on_the_next_interval(cx: &mut gpui::TestAppCon
     settle(&updates, cx, |u| !u.busy);
     assert_eq!(updates.read_with(cx, |u, _| u.state.status), Status::Error);
     assert_eq!(feed.requests().len(), 1);
-    feed.put("dev-mac.yml", feed_for("0.4.4-dev.ga", b"same version"));
+    feed.put(&feed_file("dev"), feed_for("0.4.4-dev.ga", b"same version"));
     cx.executor().advance_clock(updates::CHECK_INTERVAL);
     cx.run_until_parked();
     settle(&updates, cx, |u| !u.busy);

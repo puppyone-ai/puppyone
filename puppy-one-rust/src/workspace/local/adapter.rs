@@ -36,6 +36,16 @@ fn change_hint(root: &Path, result: notify::Result<notify::Event>) -> Option<Wat
     if matches!(event.kind, notify::EventKind::Access(_)) {
         return None;
     }
+    // On inotify (Linux), creating a nested directory and immediately writing
+    // inside it can race with recursive sub-watch attachment, so only the new
+    // directory's creation event arrives. Trigger a scoped refresh so callers
+    // re-scan the new subtree rather than missing files created inside it.
+    if matches!(
+        event.kind,
+        notify::EventKind::Create(notify::event::CreateKind::Folder)
+    ) {
+        return Some(WatchEvent::Invalidated);
+    }
     let mut paths = Vec::new();
     for absolute in event.paths {
         let Ok(relative) = absolute.strip_prefix(root) else {

@@ -36,14 +36,14 @@ pub fn local_history_source_scope(
 /// `historyStoragePath(value, fallback, home)`.
 pub fn history_storage_path(value: Option<&str>, fallback: &str, home: &Path) -> PathBuf {
     let input = value.filter(|v| !v.is_empty()).unwrap_or(fallback);
-    let path = match input.strip_prefix("~/") {
-        Some(rest) => home.join(rest),
-        None => PathBuf::from(input),
-    };
-    if path.is_absolute() {
-        path
+    if let Some(rest) = input.strip_prefix("~/") {
+        return crate::platform::paths::resolve(home, rest);
+    }
+    if crate::platform::paths::is_absolute(input) {
+        crate::platform::paths::absolute(input)
     } else {
-        std::env::current_dir().unwrap_or_default().join(path)
+        let cwd = std::env::current_dir().unwrap_or_default();
+        crate::platform::paths::resolve(cwd, input)
     }
 }
 

@@ -11,8 +11,8 @@ pub mod test_support;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod lifecycle_tests;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod managed_process_tests;

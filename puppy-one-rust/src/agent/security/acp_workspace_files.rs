@@ -122,14 +122,7 @@ impl AcpWorkspaceFileSystem {
                 "ACP can only write regular workspace files.",
             ));
         }
-        let mut options = std::fs::OpenOptions::new();
-        options.write(true).create(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.custom_flags(libc::O_NOFOLLOW).mode(0o600);
-        }
-        let mut handle = options.open(&target)?;
+        let mut handle = crate::platform::fs::open_path_nofollow_private_write(&target)?;
         let metadata = handle.metadata()?;
         let changed = || AgentError::new("ACP write target changed during authorization.");
         if !metadata.is_file() {
@@ -169,21 +162,8 @@ fn split_lines(content: &str) -> Vec<&str> {
         .collect()
 }
 
-#[cfg(unix)]
 fn same_file_identity(expected: &std::fs::Metadata, actual: &std::fs::Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    expected.dev() == actual.dev() && expected.ino() == actual.ino()
-}
-
-#[cfg(not(unix))]
-fn same_file_identity(expected: &std::fs::Metadata, actual: &std::fs::Metadata) -> bool {
-    let millis = |m: &std::fs::Metadata| {
-        m.modified()
-            .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_millis())
-    };
-    expected.len() == actual.len() && millis(expected) == millis(actual)
+    crate::platform::fs::same_metadata_identity(expected, actual)
 }
 
 fn workspace_path(raw_path: Option<&Value>) -> AgentResult<&str> {
@@ -246,13 +226,7 @@ fn ensure_canonical_parent(root: &Path, parent: &Path) -> AgentResult<()> {
         let metadata = match std::fs::symlink_metadata(&current) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                let mut builder = std::fs::DirBuilder::new();
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::DirBuilderExt;
-                    builder.mode(0o700);
-                }
-                builder.create(&current)?;
+                crate::platform::fs::create_private_dir(&current)?;
                 std::fs::symlink_metadata(&current)?
             }
             Err(error) => return Err(error.into()),

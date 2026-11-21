@@ -134,7 +134,7 @@ pub fn resolve_workspace_path(document: &Path, href: &str) -> Result<PathBuf, Me
     if parts.is_empty() {
         Err(MediaSourceError::Empty)
     } else {
-        Ok(parts.iter().collect())
+        Ok(PathBuf::from(parts.join("/")))
     }
 }
 

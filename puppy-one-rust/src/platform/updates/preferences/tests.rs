@@ -75,6 +75,7 @@ fn persistence_is_private_and_updates_in_caller_order() {
         write_automatic_download(&data, enabled).unwrap();
         assert_eq!(read_automatic_download(&data), enabled);
     }
+    #[cfg(unix)]
     let path = data.join(NAME);
     assert_eq!(fs::read_dir(&data).unwrap().count(), 1);
     #[cfg(unix)]

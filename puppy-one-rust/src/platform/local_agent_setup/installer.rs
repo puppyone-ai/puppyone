@@ -307,12 +307,11 @@ impl Lease {
         let (renew, stopping, lost) = (path.clone(), stop.clone(), compromised.clone());
         std::thread::spawn(move || {
             let step = Duration::from_millis(100);
-            let mut waited = Duration::ZERO;
+            let mut last = std::time::Instant::now();
             while !stopping.load(Ordering::Relaxed) {
                 std::thread::sleep(step);
-                waited += step;
-                if waited >= LEASE_UPDATE {
-                    waited = Duration::ZERO;
+                if last.elapsed() >= LEASE_UPDATE {
+                    last = std::time::Instant::now();
                     let mut stamp = renewed_stamp.lock().unwrap();
                     if !stamp.matches(&renew) || !touch(&renew) {
                         lost.store(true, Ordering::Relaxed);

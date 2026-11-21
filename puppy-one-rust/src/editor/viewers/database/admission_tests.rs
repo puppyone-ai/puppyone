@@ -350,6 +350,7 @@ fn database_retry_and_reload_clicks_request_fresh_input_and_display_the_rebound_
     assert_eq!(retries.get(), 2);
 }
 
+#[cfg(unix)]
 #[gpui::test]
 fn database_queries_use_the_admitted_provider_root_after_the_display_path_is_replaced(
     cx: &mut TestAppContext,

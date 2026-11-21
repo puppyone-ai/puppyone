@@ -123,6 +123,7 @@ mod tests {
     /// opens without asking.
     #[gpui::test]
     fn executables_ask_first_and_are_checked_again_after_the_answer(cx: &mut TestAppContext) {
+        #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let script = dir.path().join("run.command");
@@ -131,6 +132,7 @@ mod tests {
         std::fs::write(&script, "echo safe").unwrap();
         std::fs::write(&note, "# note").unwrap();
         std::fs::write(outside.path().join("replacement.command"), "echo outside").unwrap();
+        #[cfg(unix)]
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o644)).unwrap();
         let window = cx.add_window(|_, _| gpui::Empty).into();
         let opened = crate::platform::desktop::record_opens();
@@ -166,16 +168,19 @@ mod tests {
         cx.update(|cx| (question.answer)(false, cx));
         assert_eq!(opened.borrow().len(), 1, "declining opens nothing");
 
-        open(&script, cx);
-        let question = asked.borrow_mut().pop().unwrap();
-        std::fs::remove_file(&script).unwrap();
-        std::os::unix::fs::symlink(outside.path().join("replacement.command"), &script).unwrap();
-        cx.update(|cx| (question.answer)(true, cx));
-        assert_eq!(opened.borrow().len(), 1, "a link swapped in is not opened");
-        assert_eq!(failures.borrow().len(), 1);
-
-        std::fs::remove_file(&script).unwrap();
-        std::fs::write(&script, "echo safe").unwrap();
+        #[cfg(unix)]
+        {
+            open(&script, cx);
+            let question = asked.borrow_mut().pop().unwrap();
+            std::fs::remove_file(&script).unwrap();
+            std::os::unix::fs::symlink(outside.path().join("replacement.command"), &script)
+                .unwrap();
+            cx.update(|cx| (question.answer)(true, cx));
+            assert_eq!(opened.borrow().len(), 1, "a link swapped in is not opened");
+            assert_eq!(failures.borrow().len(), 1);
+            std::fs::remove_file(&script).unwrap();
+            std::fs::write(&script, "echo safe").unwrap();
+        }
         open(&script, cx);
         let question = asked.borrow_mut().pop().unwrap();
         cx.update(|cx| (question.answer)(true, cx));

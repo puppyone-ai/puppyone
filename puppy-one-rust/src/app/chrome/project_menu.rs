@@ -493,12 +493,8 @@ fn group_label(kind: &GroupKind, t: Theme) -> AnyElement {
                 .with_size(px(12.))
                 .stroke(1.8)
                 .into_any_element(),
-            tr(if cfg!(target_os = "macos") {
-                "shell.workspaceSwitcher.location.thisMac"
-            } else {
-                "shell.workspaceSwitcher.location.thisComputer"
-            })
-            .to_owned(),
+            tr(crate::platform::conventions::Conventions::current().this_computer_label_key)
+                .to_owned(),
         ),
         GroupKind::Cloud => (
             Icon::product(crate::ui::components::ProductIcon::Cloud)

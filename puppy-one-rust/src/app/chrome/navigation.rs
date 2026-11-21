@@ -95,12 +95,7 @@ pub(super) fn rows(
     }
     let mut places = vec![place(
         LOCAL_PLACE,
-        tr(if cfg!(target_os = "macos") {
-            "shell.workspaceSwitcher.location.thisMac"
-        } else {
-            "shell.workspaceSwitcher.location.thisComputer"
-        })
-        .to_owned(),
+        tr(crate::platform::conventions::Conventions::current().this_computer_label_key).to_owned(),
         Icon::product(ProductIcon::Local)
             .with_size(px(15.))
             .stroke(1.75)
