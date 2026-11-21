@@ -177,12 +177,14 @@ fn status_error(status: u16, oauth: bool, protocol: Protocol) -> String {
 }
 
 fn client() -> Result<reqwest::Client, String> {
-    crate::platform::proxy::system(reqwest::Client::builder())
-        .redirect_policy(reqwest::redirect::Policy::none())
-        .connect_timeout(std::time::Duration::from_secs(15))
-        .timeout(std::time::Duration::from_secs(300))
-        .build()
-        .map_err(|_| "Cannot initialize model client".into())
+    crate::platform::proxy::system(
+        reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
+    )
+    .redirect_policy(reqwest::redirect::Policy::none())
+    .connect_timeout(std::time::Duration::from_secs(15))
+    .timeout(std::time::Duration::from_secs(300))
+    .build()
+    .map_err(|_| "Cannot initialize model client".into())
 }
 
 async fn read<P: Events>(

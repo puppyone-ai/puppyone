@@ -41,11 +41,13 @@ fn budget(provider: Option<&Provider>, models: &[CatalogModel], model: &str) -> 
 }
 
 fn client() -> Result<reqwest::Client, String> {
-    crate::platform::proxy::system(reqwest::Client::builder())
-        .redirect_policy(reqwest::redirect::Policy::none())
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())
+    crate::platform::proxy::system(
+        reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
+    )
+    .redirect_policy(reqwest::redirect::Policy::none())
+    .timeout(std::time::Duration::from_secs(15))
+    .build()
+    .map_err(|e| e.to_string())
 }
 
 /// Fill `connection`'s default model and budget from its catalog (read with

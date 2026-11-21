@@ -183,6 +183,11 @@ fn known_errors_read_as_sentences() {
         "START_FAILED",
         "LOCAL_KEY_REQUIRED",
         "START_IN_APP:oMLX",
+        "OAUTH_UNAVAILABLE",
+        "OAUTH_UNREACHABLE",
+        "OAUTH_INVALID_RESPONSE",
+        "OAUTH_EXCHANGE_FAILED",
+        "OAUTH_STATE_MISMATCH",
     ] {
         assert!(!ModelConnections::error_text(code).contains(code), "{code}");
     }

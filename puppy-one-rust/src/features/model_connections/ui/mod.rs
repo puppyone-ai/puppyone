@@ -543,6 +543,12 @@ impl ModelConnections {
             "OAUTH_DENIED" => "native.modelConnections.error.denied",
             "OAUTH_EXPIRED" | "OAUTH_TIMEOUT" => "native.modelConnections.error.expired",
             "OAUTH_PORT_IN_USE" => "native.modelConnections.error.portInUse",
+            "OAUTH_UNAVAILABLE" | "OAUTH_UNREACHABLE" => {
+                "native.modelConnections.error.signInUnavailable"
+            }
+            "OAUTH_INVALID_RESPONSE" | "OAUTH_EXCHANGE_FAILED" | "OAUTH_STATE_MISMATCH" => {
+                "native.modelConnections.error.signInFailed"
+            }
             "OAUTH_REAUTH_REQUIRED" => "native.modelConnections.error.reauth",
             "NO_USABLE_MODEL" => "native.modelConnections.error.noModel",
             "START_FAILED" => "native.modelConnections.error.startFailed",

@@ -234,7 +234,9 @@
       "native.modelConnections.guide.jan": "Open-source chat app by the Jan team (janhq) with a built-in server",
       "native.modelConnections.foundEmpty": "Running at {endpoint} · no models yet",
       "native.modelConnections.error.startInApp": "{app} is open but not serving yet. Start its server in {app}, then scan again.",
-      "native.modelConnections.guide.terminal": "Terminal"
+      "native.modelConnections.guide.terminal": "Terminal",
+      "native.modelConnections.error.signInUnavailable": "Could not reach this provider’s sign-in. Your network or proxy may be blocking it; try again later.",
+      "native.modelConnections.error.signInFailed": "Sign-in did not finish: the provider sent an unexpected answer. Please sign in again."
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -469,7 +471,9 @@
       "native.modelConnections.guide.jan": "Jan 团队（janhq）出品的开源聊天应用，内置推理服务",
       "native.modelConnections.foundEmpty": "运行于 {endpoint} · 还没有模型",
       "native.modelConnections.error.startInApp": "已打开 {app}，但它的服务还没启动。请在 {app} 里启动服务，再点“发现本地服务”。",
-      "native.modelConnections.guide.terminal": "终端"
+      "native.modelConnections.guide.terminal": "终端",
+      "native.modelConnections.error.signInUnavailable": "暂时连不上该服务的登录页面，可能是网络或代理拦截了请求，请稍后重试。",
+      "native.modelConnections.error.signInFailed": "登录没有完成：服务返回了无法识别的结果，请重新登录。"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -704,7 +708,9 @@
       "native.modelConnections.guide.jan": "Jan チーム（janhq）製のオープンソースチャットアプリ（サーバー内蔵）",
       "native.modelConnections.foundEmpty": "{endpoint} で実行中 · モデルがまだありません",
       "native.modelConnections.error.startInApp": "{app} を開きましたが、サーバーはまだ起動していません。{app} でサーバーを起動してから「ローカルサービスを検索」を選んでください。",
-      "native.modelConnections.guide.terminal": "ターミナル"
+      "native.modelConnections.guide.terminal": "ターミナル",
+      "native.modelConnections.error.signInUnavailable": "このサービスのサインインに接続できません。ネットワークまたはプロキシが遮断している可能性があります。しばらくしてから再試行してください。",
+      "native.modelConnections.error.signInFailed": "サインインが完了しませんでした。サービスから想定外の応答がありました。もう一度サインインしてください。"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -939,7 +945,9 @@
       "native.modelConnections.guide.jan": "Jan 팀(janhq)이 만든 오픈 소스 채팅 앱, 서버 내장",
       "native.modelConnections.foundEmpty": "{endpoint}에서 실행 중 · 아직 모델 없음",
       "native.modelConnections.error.startInApp": "{app}을(를) 열었지만 서버가 아직 시작되지 않았습니다. {app}에서 서버를 시작한 뒤 ‘로컬 서비스 찾기’를 누르세요.",
-      "native.modelConnections.guide.terminal": "터미널"
+      "native.modelConnections.guide.terminal": "터미널",
+      "native.modelConnections.error.signInUnavailable": "이 서비스의 로그인에 연결할 수 없습니다. 네트워크나 프록시가 막고 있을 수 있으니 잠시 후 다시 시도하세요.",
+      "native.modelConnections.error.signInFailed": "로그인이 완료되지 않았습니다. 서비스가 예상치 못한 응답을 보냈습니다. 다시 로그인하세요."
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -1174,7 +1182,9 @@
       "native.modelConnections.guide.jan": "App de chat de código abierto del equipo de Jan (janhq) con servidor integrado",
       "native.modelConnections.foundEmpty": "En ejecución en {endpoint} · aún sin modelos",
       "native.modelConnections.error.startInApp": "{app} está abierto pero aún no sirve modelos. Inicia su servidor en {app} y vuelve a buscar.",
-      "native.modelConnections.guide.terminal": "Terminal"
+      "native.modelConnections.guide.terminal": "Terminal",
+      "native.modelConnections.error.signInUnavailable": "No se pudo acceder al inicio de sesión de este proveedor. Puede que tu red o proxy lo bloquee; inténtalo más tarde.",
+      "native.modelConnections.error.signInFailed": "El inicio de sesión no terminó: el proveedor envió una respuesta inesperada. Vuelve a iniciar sesión."
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -1409,7 +1419,9 @@
       "native.modelConnections.guide.jan": "App de chat de código aberto da equipe Jan (janhq) com servidor integrado",
       "native.modelConnections.foundEmpty": "Em execução em {endpoint} · ainda sem modelos",
       "native.modelConnections.error.startInApp": "{app} está aberto, mas ainda não está servindo. Inicie o servidor no {app} e escolha Encontrar serviços locais.",
-      "native.modelConnections.guide.terminal": "Terminal"
+      "native.modelConnections.guide.terminal": "Terminal",
+      "native.modelConnections.error.signInUnavailable": "Não foi possível acessar o login deste provedor. Sua rede ou proxy pode estar bloqueando; tente mais tarde.",
+      "native.modelConnections.error.signInFailed": "O login não foi concluído: o provedor enviou uma resposta inesperada. Faça login novamente."
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -1644,7 +1656,9 @@
       "native.modelConnections.guide.jan": "App de chat open source de l’équipe Jan (janhq) avec serveur intégré",
       "native.modelConnections.foundEmpty": "En cours sur {endpoint} · aucun modèle pour l’instant",
       "native.modelConnections.error.startInApp": "{app} est ouvert mais ne sert pas encore. Démarrez son serveur dans {app}, puis choisissez Rechercher des services locaux.",
-      "native.modelConnections.guide.terminal": "Terminal"
+      "native.modelConnections.guide.terminal": "Terminal",
+      "native.modelConnections.error.signInUnavailable": "Impossible de joindre la connexion de ce fournisseur. Votre réseau ou proxy la bloque peut-être ; réessayez plus tard.",
+      "native.modelConnections.error.signInFailed": "La connexion n’a pas abouti : le fournisseur a renvoyé une réponse inattendue. Reconnectez-vous."
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1879,7 +1893,9 @@
       "native.modelConnections.guide.jan": "Open-Source-Chat-App des Jan-Teams (janhq) mit eingebautem Server",
       "native.modelConnections.foundEmpty": "Läuft unter {endpoint} · noch keine Modelle",
       "native.modelConnections.error.startInApp": "{app} ist geöffnet, stellt aber noch nichts bereit. Starten Sie den Server in {app} und wählen Sie dann „Lokale Dienste suchen“.",
-      "native.modelConnections.guide.terminal": "Terminal"
+      "native.modelConnections.guide.terminal": "Terminal",
+      "native.modelConnections.error.signInUnavailable": "Die Anmeldung dieses Anbieters ist nicht erreichbar. Netzwerk oder Proxy blockieren sie eventuell; später erneut versuchen.",
+      "native.modelConnections.error.signInFailed": "Die Anmeldung wurde nicht abgeschlossen: Der Anbieter hat unerwartet geantwortet. Bitte erneut anmelden."
     }
   }
 }

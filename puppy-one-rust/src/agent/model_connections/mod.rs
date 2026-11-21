@@ -31,3 +31,9 @@ impl ComputeAccount for NoComputeAccount {
         None
     }
 }
+
+/// The User-Agent of every model request (sign-in, catalogs, inference,
+/// discovery): PuppyOne names itself. Some providers' gateways refuse
+/// requests without one (chat.qwen.ai's Aliyun WAF answers an HTML block
+/// page instead of the API).
+pub const USER_AGENT: &str = concat!("PuppyOne/", env!("CARGO_PKG_VERSION"));

@@ -392,11 +392,12 @@ async fn probe(client: &reqwest::Client, port: u16, hint: Option<Driver>) -> Opt
 
 /// Probe every port concurrently; one candidate per answering port.
 pub async fn discover_ports(ports: &[(u16, Option<String>)]) -> Vec<Candidate> {
-    let Ok(client) = crate::platform::proxy::system(reqwest::Client::builder())
-        .redirect_policy(reqwest::redirect::Policy::none())
-        .timeout(PROBE_TIMEOUT)
-        .build()
-    else {
+    let Ok(client) = crate::platform::proxy::system(
+        reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
+    )
+    .redirect_policy(reqwest::redirect::Policy::none())
+    .timeout(PROBE_TIMEOUT)
+    .build() else {
         return vec![];
     };
     futures_util::future::join_all(

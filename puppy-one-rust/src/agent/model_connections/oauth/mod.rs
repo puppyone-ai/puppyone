@@ -101,12 +101,14 @@ const LOGIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10 * 6
 
 /// The HTTP client sign-in requests use: system proxy, no redirects.
 fn client() -> Result<reqwest::Client, String> {
-    crate::platform::proxy::system(reqwest::Client::builder())
-        .redirect_policy(reqwest::redirect::Policy::none())
-        .connect_timeout(std::time::Duration::from_secs(15))
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|_| "OAUTH_UNAVAILABLE".to_owned())
+    crate::platform::proxy::system(
+        reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
+    )
+    .redirect_policy(reqwest::redirect::Policy::none())
+    .connect_timeout(std::time::Duration::from_secs(15))
+    .timeout(std::time::Duration::from_secs(30))
+    .build()
+    .map_err(|_| "OAUTH_UNAVAILABLE".to_owned())
 }
 
 /// A token endpoint's answer, read as JSON whatever its status.
@@ -114,11 +116,21 @@ async fn post_form(url: &str, form: &[(&str, &str)]) -> Result<(u16, serde_json:
     let response = client()?
         .post(url)
         .header("accept", "application/json")
+        .header("x-request-id", uuid::Uuid::new_v4().to_string())
         .form(form)
         .send()
         .await
         .map_err(|_| "OAUTH_UNREACHABLE".to_owned())?;
     let status = response.status().as_u16();
+    // A gateway's block or error page is not the provider's answer.
+    let json = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.contains("json"));
+    if !json {
+        return Err("OAUTH_UNAVAILABLE".into());
+    }
     let body = response.json().await.unwrap_or(serde_json::Value::Null);
     Ok((status, body))
 }
