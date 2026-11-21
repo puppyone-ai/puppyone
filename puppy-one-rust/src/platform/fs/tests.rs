@@ -53,6 +53,41 @@ fn sync_dir_and_exclusive_rename_work_on_cap_std_dirs() {
 }
 
 #[test]
+fn a_file_replaced_by_rename_changes_its_summary_even_with_the_same_size_and_time() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = Dir::open_ambient_dir(tmp.path(), cap_std::ambient_authority()).unwrap();
+    dir.write("doc.md", b"hello").unwrap();
+    dir.write("next.md", b"world").unwrap();
+    let modified = std::fs::metadata(tmp.path().join("doc.md"))
+        .unwrap()
+        .modified()
+        .unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(tmp.path().join("next.md"))
+        .unwrap()
+        .set_modified(modified)
+        .unwrap();
+    let before_meta = dir.symlink_metadata("doc.md").unwrap();
+    let (before, before_token) = (
+        cap_stat_summary(&before_meta),
+        cap_version_token(&before_meta),
+    );
+
+    // An editor's atomic save: same length, same modification time, new file.
+    std::fs::rename(tmp.path().join("next.md"), tmp.path().join("doc.md")).unwrap();
+    let after_meta = dir.symlink_metadata("doc.md").unwrap();
+    let after = cap_stat_summary(&after_meta);
+
+    assert_eq!((after.len, after.mtime_ns), (before.len, before.mtime_ns));
+    assert_ne!(
+        after, before,
+        "the replacement must not look like the same file"
+    );
+    assert_ne!(cap_version_token(&after_meta), before_token);
+}
+
+#[test]
 fn private_file_and_access_helpers_work_cross_platform() {
     let tmp = tempfile::tempdir().unwrap();
     let private_dir = tmp.path().join("private/nested");

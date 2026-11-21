@@ -6744,6 +6744,7 @@ dependencies = [
  "async-channel",
  "base64",
  "blake3",
+ "cap-primitives",
  "cap-std",
  "chrono",
  "core-foundation-sys",
