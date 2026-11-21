@@ -27,7 +27,7 @@ pub fn last_modified(root: &Path) -> Option<SystemTime> {
     let cancel = AtomicBool::new(false);
     let run = |args: &[&str]| {
         process::run(
-            Path::new("/usr/bin/git"),
+            git::git_executable(),
             args,
             root,
             None,
@@ -80,7 +80,7 @@ pub fn last_modified(root: &Path) -> Option<SystemTime> {
 pub fn remote_urls(root: &Path) -> Option<Vec<String>> {
     let cancel = AtomicBool::new(false);
     let out = match process::run(
-        Path::new("/usr/bin/git"),
+        git::git_executable(),
         &["remote", "-v"],
         root,
         None,
@@ -168,7 +168,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         assert_eq!(remote_urls(temp.path()), Some(vec![]));
         let git = |args: &[&str]| {
-            std::process::Command::new("/usr/bin/git")
+            std::process::Command::new(git::git_executable())
                 .args(args)
                 .current_dir(temp.path())
                 .output()
@@ -193,7 +193,7 @@ mod tests {
     fn a_repository_counts_its_commit_and_its_changes() {
         let temp = tempfile::tempdir().unwrap();
         let git = |args: &[&str]| {
-            std::process::Command::new("/usr/bin/git")
+            std::process::Command::new(git::git_executable())
                 .args(args)
                 .current_dir(temp.path())
                 .env("GIT_AUTHOR_NAME", "t")
@@ -226,7 +226,7 @@ mod tests {
         for kind in ["modified", "untracked", "deleted", "renamed"] {
             let temp = tempfile::tempdir().unwrap();
             let git = |args: &[&str]| {
-                std::process::Command::new("/usr/bin/git")
+                std::process::Command::new(git::git_executable())
                     .args(["-c", "core.hooksPath=/dev/null"])
                     .args(args)
                     .current_dir(temp.path())

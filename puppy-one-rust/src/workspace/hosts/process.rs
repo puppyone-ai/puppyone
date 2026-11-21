@@ -201,7 +201,8 @@ mod tests {
         let (stop, _stopped) = tokio::sync::mpsc::unbounded_channel();
         runtime.spawn(control::serve(dir.clone(), host, stop));
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while !control::paths(&dir).1.exists() {
+        let (socket_path, token_path) = control::paths(&dir);
+        while !socket_path.exists() || !token_path.exists() {
             assert!(std::time::Instant::now() < deadline);
             std::thread::sleep(std::time::Duration::from_millis(10));
         }

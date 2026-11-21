@@ -198,7 +198,7 @@ fn request_path(value: &str) -> bool {
     !value.is_empty()
         && value.chars().count() <= MAX_PATH_LENGTH
         && !value.contains('\0')
-        && Path::new(value).is_absolute()
+        && crate::platform::paths::is_absolute(value)
 }
 
 static SERVING: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();

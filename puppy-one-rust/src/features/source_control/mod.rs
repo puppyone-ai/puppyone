@@ -2262,7 +2262,7 @@ mod tests {
         // An index change from outside (a terminal's `git add`) arrives
         // through the metadata watch alone.
         assert!(
-            std::process::Command::new("/usr/bin/git")
+            std::process::Command::new(crate::platform::git::git_executable())
                 .arg("-C")
                 .arg(&root)
                 .args(["add", "b.md"])

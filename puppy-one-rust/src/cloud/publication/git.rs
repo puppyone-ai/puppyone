@@ -99,7 +99,7 @@ fn git(
     timeout: Duration,
 ) -> Result<String, String> {
     crate::platform::process::run(
-        Path::new("/usr/bin/git"),
+        crate::platform::git::git_executable(),
         args,
         root,
         input,

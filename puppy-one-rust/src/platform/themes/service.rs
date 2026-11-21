@@ -288,7 +288,10 @@ fn node_error(error: &io::Error, syscall: &str, path: &Path) -> String {
 }
 
 fn sanitize(message: &str, root: &Path) -> String {
-    let replaced = message.replace(&root.display().to_string(), "<themes>");
+    let mut replaced = message.replace(&root.display().to_string(), "<themes>");
+    if replaced.contains("<themes>\\") {
+        replaced = replaced.replace('\\', "/");
+    }
     let units: Vec<u16> = replaced.encode_utf16().take(500).collect();
     String::from_utf16_lossy(&units)
 }

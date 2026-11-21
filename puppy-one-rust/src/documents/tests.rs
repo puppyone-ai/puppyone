@@ -1346,7 +1346,7 @@ impl workspace::ports::DataPort for HostedFake {
             parent.as_path().join(name)
         };
         let rel = workspace::contracts::RelativePath::new(&joined)?;
-        let key = rel.as_path().to_string_lossy().into_owned();
+        let key = rel.as_path().to_string_lossy().replace('\\', "/");
         let mut files = self.files.lock().unwrap();
         if files.contains_key(&key) {
             return Err(workspace::Error::new(
@@ -1364,9 +1364,9 @@ impl workspace::ports::DocumentStoragePort for HostedFake {
         &self,
         path: &workspace::contracts::RelativePath,
     ) -> workspace::Result<workspace::contracts::TextSnapshot> {
-        let key = path.as_path().to_string_lossy();
+        let key = path.as_path().to_string_lossy().replace('\\', "/");
         let files = self.files.lock().unwrap();
-        let Some(text) = files.get(key.as_ref()) else {
+        let Some(text) = files.get(&key) else {
             return Err(workspace::Error::new(
                 workspace::ErrorKind::NotFound,
                 "Not found",
@@ -1384,7 +1384,7 @@ impl workspace::ports::DocumentStoragePort for HostedFake {
         if let Some(kind) = self.fail_next_write.lock().unwrap().take() {
             return Err(workspace::Error::new(kind, format!("Simulated {kind:?}")));
         }
-        let key = path.as_path().to_string_lossy().into_owned();
+        let key = path.as_path().to_string_lossy().replace('\\', "/");
         let mut files = self.files.lock().unwrap();
         let Some(current) = files.get(&key) else {
             return Err(workspace::Error::new(
@@ -1418,9 +1418,9 @@ impl workspace::ports::ResourcePort for HostedFake {
         &self,
         path: &workspace::contracts::RelativePath,
     ) -> workspace::Result<workspace::EntryStat> {
-        let key = path.as_path().to_string_lossy();
+        let key = path.as_path().to_string_lossy().replace('\\', "/");
         let files = self.files.lock().unwrap();
-        let Some(text) = files.get(key.as_ref()) else {
+        let Some(text) = files.get(&key) else {
             return Err(workspace::Error::new(
                 workspace::ErrorKind::NotFound,
                 "Not found",

@@ -1889,6 +1889,7 @@ mod tests {
         });
     }
 
+    #[cfg(unix)]
     #[test]
     fn pdf_workspace_source_uses_retained_authority_and_rechecks_revocation_before_opening() {
         use std::io::Read;

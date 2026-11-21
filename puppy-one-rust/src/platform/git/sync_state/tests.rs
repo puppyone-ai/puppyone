@@ -66,7 +66,7 @@ fn remote(name: &str, url: &str) -> Remote {
 fn real_git_status_keeps_remote_metadata_and_config_without_retargeting_the_branch() {
     let dir = tempfile::tempdir().unwrap();
     let run = |args: &[&str]| {
-        let output = std::process::Command::new("/usr/bin/git")
+        let output = std::process::Command::new(crate::platform::git::git_executable())
             .args([
                 "-c",
                 "user.name=Parity",

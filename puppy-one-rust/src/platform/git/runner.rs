@@ -24,6 +24,18 @@ impl Kind {
     }
 }
 
+/// Platform-appropriate `git` executable path.
+pub fn git_executable() -> &'static Path {
+    #[cfg(windows)]
+    {
+        Path::new("git")
+    }
+    #[cfg(not(windows))]
+    {
+        Path::new("/usr/bin/git")
+    }
+}
+
 pub(super) fn execute(
     root: &Path,
     args: &[&str],
@@ -36,7 +48,7 @@ pub(super) fn execute(
     execute_prepared(
         root,
         Invocation {
-            program: Path::new("/usr/bin/git"),
+            program: git_executable(),
             args: &args,
             environment: &[],
         },

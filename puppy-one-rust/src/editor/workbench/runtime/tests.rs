@@ -48,7 +48,9 @@ fn snapshots(r: &mut Runtime, content: impl Fn(&str) -> String) {
                     request,
                     id: document.id.clone(),
                     revision: 1,
-                    text: Buffer::new(content(document.relative.to_str().unwrap())),
+                    text: Buffer::new(content(
+                        &document.relative.to_string_lossy().replace('\\', "/"),
+                    )),
                 },
                 &Wake::default(),
             );

@@ -87,10 +87,12 @@ pub(super) fn wait_process_group_gone(pid: u32) -> Result<(), String> {
     loop {
         if unsafe { libc::kill(-(pid as i32), 0) } != 0 {
             let error = std::io::Error::last_os_error();
-            return if error.raw_os_error() == Some(libc::ESRCH) {
-                Ok(())
-            } else {
-                Err(error.to_string())
+            return match error.raw_os_error() {
+                Some(libc::ESRCH) => Ok(()),
+                // On macOS, probing a process group whose leader has already
+                // been reaped can yield EPERM instead of ESRCH.
+                Some(libc::EPERM) if unsafe { libc::kill(pid as i32, 0) } != 0 => Ok(()),
+                _ => Err(error.to_string()),
             };
         }
         if Instant::now() >= deadline {

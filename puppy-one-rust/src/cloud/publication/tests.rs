@@ -337,7 +337,7 @@ fn repository() -> tempfile::TempDir {
     let temp = tempfile::tempdir().unwrap();
     let git = |args: &[&str]| {
         assert!(
-            std::process::Command::new("/usr/bin/git")
+            std::process::Command::new(crate::platform::git::git_executable())
                 .args(args)
                 .current_dir(temp.path())
                 .output()
@@ -379,7 +379,7 @@ fn the_cli_reads_remotes_sources_and_refuses_lfs_pointers() {
     )
     .unwrap();
     let git = |args: &[&str]| {
-        std::process::Command::new("/usr/bin/git")
+        std::process::Command::new(crate::platform::git::git_executable())
             .args(args)
             .current_dir(root)
             .output()
@@ -405,7 +405,7 @@ fn the_managed_helper_round_trips_the_secret_and_restores_the_previous_config() 
     let cli = Cli {
         helper: Some(format!("store --file={}", store.display())),
     };
-    std::process::Command::new("/usr/bin/git")
+    std::process::Command::new(crate::platform::git::git_executable())
         .args([
             "config",
             "--local",
@@ -439,7 +439,7 @@ fn the_managed_helper_round_trips_the_secret_and_restores_the_previous_config() 
     // remote it created.
     cli.cleanup(root, &record).unwrap();
     assert_eq!(cli.remote(root).unwrap(), Remote::Missing);
-    let helpers = std::process::Command::new("/usr/bin/git")
+    let helpers = std::process::Command::new(crate::platform::git::git_executable())
         .args([
             "config",
             "--local",
@@ -521,7 +521,7 @@ fn issued_remotes_must_be_canonical_and_trusted() {
 fn detaching_a_missing_project_removes_only_the_reviewed_remote() {
     let temp = repository();
     let root = temp.path();
-    std::process::Command::new("/usr/bin/git")
+    std::process::Command::new(crate::platform::git::git_executable())
         .args(["remote", "add", "puppyone", URL])
         .current_dir(root)
         .output()
@@ -793,7 +793,7 @@ fn every_first_push_diagnostic_has_its_publish_code() {
 #[test]
 fn every_repository_shape_but_lfs_passes_the_preflight() {
     fn git(root: &Path, args: &[&str]) -> String {
-        let out = std::process::Command::new("/usr/bin/git")
+        let out = std::process::Command::new(crate::platform::git::git_executable())
             .args(args)
             .current_dir(root)
             .env("GIT_AUTHOR_DATE", "2026-11-08T00:00:00Z")
@@ -1065,7 +1065,7 @@ fn a_reviewed_detach_keeps_history_content_and_unrelated_remotes() {
     const OLD: &str = "http://api.puppyone.ai/git/project-1.git";
     const GITHUB: &str = "https://github.com/fixture/project.git";
     let sh = |root: &Path, args: &[&str]| {
-        let out = std::process::Command::new("/usr/bin/git")
+        let out = std::process::Command::new(crate::platform::git::git_executable())
             .args(args)
             .current_dir(root)
             .output()
@@ -1153,7 +1153,7 @@ fn a_reviewed_detach_keeps_history_content_and_unrelated_remotes() {
     let temp = fixture();
     let root = temp.path();
     let repoint = format!(
-        "!f() {{ cd {} && /usr/bin/git remote set-url puppyone https://api.puppyone.ai/git/new-project.git; }}; f",
+        "!f() {{ cd {} && git remote set-url puppyone https://api.puppyone.ai/git/new-project.git; }}; f",
         root.display()
     );
     let config = journal::CredentialConfig {

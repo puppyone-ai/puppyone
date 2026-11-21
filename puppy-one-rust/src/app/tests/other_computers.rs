@@ -45,6 +45,7 @@ fn a_saved_choice_cannot_open_other_computers_past_the_release_gate(cx: &mut Tes
     });
 }
 
+#[cfg(unix)]
 #[gpui::test]
 fn another_computers_folder_opens_here_and_runs_there(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();

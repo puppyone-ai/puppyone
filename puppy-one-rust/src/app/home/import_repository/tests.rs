@@ -840,7 +840,7 @@ fn successful_repository_entry(
     }
     let git = |dir: &Path, args: &[&str]| {
         crate::platform::process::run(
-            Path::new("/usr/bin/git"),
+            crate::platform::git::git_executable(),
             args,
             dir,
             None,
@@ -961,7 +961,7 @@ fn successful_repository_entry(
                     );
                     assert!(!target.exists(), "publication has not happened");
                     crate::platform::process::run(
-                        Path::new("/usr/bin/git"),
+                        crate::platform::git::git_executable(),
                         &["clone", "--quiet", "--", source.to_str().unwrap(), "."],
                         staging,
                         None,

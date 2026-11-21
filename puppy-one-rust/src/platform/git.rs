@@ -17,6 +17,7 @@ use sync_config::binding;
 pub mod coordinator;
 pub mod runner;
 pub mod sync_state;
+pub use runner::git_executable;
 use std::{
     path::{Component, Path},
     sync::atomic::AtomicBool,
@@ -679,7 +680,7 @@ fn resolve_operation(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result
     runner::execute_prepared(
         root,
         runner::Invocation {
-            program: Path::new("/usr/bin/git"),
+            program: git_executable(),
             args: &full_args,
             environment,
         },

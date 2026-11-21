@@ -29,6 +29,7 @@ use tokio::{
 const MAX_LINE: usize = 1024 * 1024;
 const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
 const CALL_TIMEOUT: Duration = Duration::from_secs(60);
+#[cfg(unix)]
 const MAX_SOCKET_PATH: usize = 100;
 const MAX_CLIENTS: usize = 4;
 
@@ -37,15 +38,22 @@ const MAX_CLIENTS: usize = 4;
 pub fn paths(dir: &Path) -> (PathBuf, PathBuf) {
     let token = dir.join("control-token");
     let inside = dir.join("control.sock");
-    if inside.as_os_str().len() <= MAX_SOCKET_PATH {
-        return (inside, token);
+    #[cfg(not(unix))]
+    {
+        (inside, token)
     }
-    let name = &blake3::hash(dir.as_os_str().as_encoded_bytes()).to_hex()[..24];
-    let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-    (
-        home.join(".puppyone-host").join(format!("{name}.sock")),
-        token,
-    )
+    #[cfg(unix)]
+    {
+        if inside.as_os_str().len() <= MAX_SOCKET_PATH {
+            return (inside, token);
+        }
+        let name = &blake3::hash(dir.as_os_str().as_encoded_bytes()).to_hex()[..24];
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
+        (
+            home.join(".puppyone-host").join(format!("{name}.sock")),
+            token,
+        )
+    }
 }
 
 pub type Handler =
@@ -221,7 +229,6 @@ pub async fn serve(
         getrandom::fill(&mut bytes).map_err(std::io::Error::other)?;
         base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, bytes)
     };
-    write_private(&token_file, &token)?;
     if let Some(parent) = socket.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -240,6 +247,9 @@ pub async fn serve(
         write_private(&socket, &port.to_string())?;
         listener
     };
+    // Publish the token only after the listener and endpoint file are ready, so
+    // callers waiting on `token_file` can immediately connect without racing.
+    write_private(&token_file, &token)?;
     let peers: Arc<Mutex<Vec<Peer>>> = Arc::default();
     {
         let peers = peers.clone();

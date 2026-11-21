@@ -603,6 +603,7 @@ mod tests {
     }
     /// Sessions started together each run in their own folder at their own
     /// size, sharing nothing but the folder they were given.
+    #[cfg(unix)]
     #[test]
     fn sessions_started_together_run_in_their_folder_at_their_size() {
         let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -663,6 +664,7 @@ mod tests {
     /// `queues early input until the session connection is ready without
     /// retrying it`: what is typed while the session is still being
     /// prepared waits for its process, which reads it exactly once.
+    #[cfg(unix)]
     #[test]
     fn input_typed_before_the_process_starts_reaches_it_once() {
         let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -766,6 +768,7 @@ mod tests {
             "a late resolution started a command after its terminal closed"
         );
     }
+    #[cfg(unix)]
     #[test]
     fn verified_cli_arguments_and_environment_reach_the_real_pty_without_shell_interpolation() {
         let _exclusive = PTY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
