@@ -124,6 +124,16 @@ pub struct Discovery {
 
 /// Probe local model services (loopback only).
 pub fn discover(wake: Wake) -> Receiver<Discovery> {
+    // Tests never probe this machine's services: every Settings page a test
+    // opens would otherwise `lsof` the user's listeners and send them HTTP
+    // (hundreds of connections per run, enough to exhaust loopback ports).
+    // Discovery itself is tested on its own fixtures (`discovery::tests`).
+    if cfg!(test) {
+        let (tx, rx) = mpsc::sync_channel(1);
+        let _ = tx.send(Discovery::default());
+        wake.notify();
+        return rx;
+    }
     run(
         wake,
         async {
