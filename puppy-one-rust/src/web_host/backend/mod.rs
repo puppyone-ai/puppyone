@@ -12,7 +12,7 @@ mod protocol_tests;
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 mod unsupported;
 #[cfg(target_os = "windows")]
-mod windows;
+pub(super) mod windows;
 #[cfg(all(target_os = "windows", feature = "dev-capture"))]
 mod windows_probe;
 

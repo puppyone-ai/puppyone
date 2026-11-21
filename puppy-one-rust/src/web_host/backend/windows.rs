@@ -98,7 +98,7 @@ fn webview2_protocol_response(
     http_resp
 }
 
-pub(super) struct BackendHost {
+pub(in crate::web_host) struct BackendHost {
     #[cfg(feature = "dev-capture")]
     pub(super) view: wry::WebView,
     #[cfg(not(feature = "dev-capture"))]
