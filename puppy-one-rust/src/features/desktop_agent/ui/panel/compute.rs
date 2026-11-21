@@ -264,32 +264,28 @@ impl AgentChatTabPanel {
                                 }
                             }
                         }
+                        // Providers are the last level: picking one keeps
+                        // its current model, else takes its first; its
+                        // models are switched in the model picker beside.
                         let children: Vec<AgentSessionControlOption> = providers
                             .into_iter()
                             .map(|(id, models)| {
                                 let current = models
                                     .iter()
-                                    .any(|m| compute.ready && selected == Some(m.model.as_str()));
+                                    .find(|m| compute.ready && selected == Some(m.model.as_str()));
                                 AgentSessionControlOption {
-                                    value: format!("provider:{id}"),
+                                    value: current
+                                        .or(models.first())
+                                        .map(|m| m.model.clone())
+                                        .unwrap_or_default(),
                                     label: name_of(&id),
                                     description: None,
                                     keywords: None,
                                     icon: Some(icon),
                                     mark: mark_of(&id),
-                                    current,
-                                    sets: None,
-                                    children: models
-                                        .iter()
-                                        .map(|m| AgentSessionControlOption {
-                                            value: m.model.clone(),
-                                            label: m.display_name.clone(),
-                                            current: compute.ready
-                                                && selected == Some(m.model.as_str()),
-                                            sets: Some(AgentSessionControlId::Model),
-                                            ..Default::default()
-                                        })
-                                        .collect(),
+                                    current: current.is_some(),
+                                    sets: Some(AgentSessionControlId::Model),
+                                    children: vec![],
                                 }
                             })
                             .collect();
