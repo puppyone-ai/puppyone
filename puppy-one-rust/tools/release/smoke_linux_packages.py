@@ -32,7 +32,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 
 
-def run(cmd, *, cwd=ROOT, env=None, check=True, capture=False):
+def run(cmd, *, cwd=ROOT, env=None, check=True, capture=False, timeout=None):
     print(f"+ {' '.join(str(c) for c in cmd)}", flush=True)
     return subprocess.run(
         [str(c) for c in cmd],
@@ -41,6 +41,7 @@ def run(cmd, *, cwd=ROOT, env=None, check=True, capture=False):
         check=check,
         text=True,
         capture_output=capture,
+        timeout=timeout,
     )
 
 
@@ -168,12 +169,17 @@ def main() -> None:
         assert Path("/usr/share/applications/ai.puppyone.desktop.internal.desktop").is_file()
 
         deb_info = json.loads(
-            run(["/usr/bin/puppy-one-rust", "--puppyone-build-info"], capture=True).stdout
+            run(
+                ["/usr/bin/puppy-one-rust", "--puppyone-build-identity"],
+                capture=True,
+                timeout=30,
+            ).stdout
         )
-        print("[deb] build-info:", deb_info, flush=True)
+        print("[deb] build-identity:", deb_info, flush=True)
+        assert deb_info["runtime"] == "gpui", deb_info
         assert deb_info["version"] == expected_version, deb_info
         assert deb_info["channel"] == "internal", deb_info
-        assert deb_info["packaged"] is True, deb_info
+        assert deb_info["updateFeedUrl"] == "https://updates.puppyone.ai/desktop/internal/linux/latest", deb_info
 
         launch_and_verify_cli_hello(["/usr/bin/puppy-one-rust"], "deb", expected_version)
 
@@ -191,14 +197,16 @@ def main() -> None:
 
         appimage_info = json.loads(
             run(
-                [str(appimage_file), "--appimage-extract-and-run", "--puppyone-build-info"],
+                [str(appimage_file), "--appimage-extract-and-run", "--puppyone-build-identity"],
                 capture=True,
+                timeout=30,
             ).stdout
         )
-        print("[appimage] build-info:", appimage_info, flush=True)
+        print("[appimage] build-identity:", appimage_info, flush=True)
+        assert appimage_info["runtime"] == "gpui", appimage_info
         assert appimage_info["version"] == expected_version, appimage_info
         assert appimage_info["channel"] == "internal", appimage_info
-        assert appimage_info["packaged"] is True, appimage_info
+        assert appimage_info["updateFeedUrl"] == "https://updates.puppyone.ai/desktop/internal/linux/latest", appimage_info
 
         launch_and_verify_cli_hello(
             [str(appimage_file), "--appimage-extract-and-run"],

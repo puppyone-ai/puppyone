@@ -70,6 +70,7 @@ pub(super) fn terminate_child(child: &mut Child) {
     unsafe {
         libc::kill(-(child.id() as i32), libc::SIGKILL);
     }
+    thread::sleep(Duration::from_millis(20));
     let _ = child.kill();
     let _ = child.wait();
 }

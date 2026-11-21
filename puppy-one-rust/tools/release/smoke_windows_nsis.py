@@ -39,19 +39,30 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 
 
-def run(cmd, *, env=None, check=True, capture=False):
+def run(cmd, *, env=None, check=True, capture=False, timeout=None):
     print(f"+ {' '.join(str(c) for c in cmd)}", flush=True)
-    return subprocess.run(
+    res = subprocess.run(
         [str(c) for c in cmd],
         cwd=str(ROOT),
         env=env,
-        check=check,
+        check=False,
         text=True,
         capture_output=capture,
+        timeout=timeout,
     )
+    if check and res.returncode != 0:
+        if capture:
+            if res.stdout:
+                print(res.stdout, file=sys.stderr, flush=True)
+            if res.stderr:
+                print(res.stderr, file=sys.stderr, flush=True)
+        raise subprocess.CalledProcessError(res.returncode, cmd, res.stdout, res.stderr)
+    return res
 
 
 def create_ci_signing_cert(pfx_path: Path, password: str) -> str:
+    # Install the temporary CI root certificate into LocalMachine\Root (non-interactive;
+    # CurrentUser\Root pops up a confirmation dialog that fails in headless CI).
     script = f"""
 $ErrorActionPreference = 'Stop'
 $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=PuppyOne' -CertStoreLocation 'Cert:\\CurrentUser\\My' -NotAfter (Get-Date).AddDays(2)
@@ -59,12 +70,13 @@ $pwd = ConvertTo-SecureString -String '{password}' -Force -AsPlainText
 Export-PfxCertificate -Cert $cert -FilePath '{pfx_path}' -Password $pwd | Out-Null
 $cer = Join-Path (Split-Path '{pfx_path}') 'ci-signing.cer'
 Export-Certificate -Cert $cert -FilePath $cer | Out-Null
-Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\\CurrentUser\\Root' | Out-Null
+Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\\LocalMachine\\Root' | Out-Null
 Write-Output $cert.Thumbprint
 """
     res = run(
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
         capture=True,
+        timeout=60,
     )
     thumbprint = res.stdout.strip().splitlines()[-1].strip()
     if not thumbprint:
@@ -78,11 +90,12 @@ def remove_ci_signing_cert(thumbprint: str) -> None:
         return
     script = f"""
 Get-ChildItem 'Cert:\\CurrentUser\\My\\{thumbprint}' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-Get-ChildItem 'Cert:\\CurrentUser\\Root\\{thumbprint}' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+Get-ChildItem 'Cert:\\LocalMachine\\Root\\{thumbprint}' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 """
     run(
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
         check=False,
+        timeout=30,
     )
 
 
@@ -271,14 +284,19 @@ def main() -> None:
             r"Software\Microsoft\Windows\CurrentVersion\Uninstall\ai.puppyone.desktop"
         ), "Uninstall registry key missing"
 
-        # 4. Verify --puppyone-build-info on installed v1 binary.
+        # 4. Verify --puppyone-build-identity on installed v1 binary.
         info_v1 = json.loads(
-            run([installed_exe, "--puppyone-build-info"], capture=True).stdout
+            run(
+                [installed_exe, "--puppyone-build-identity"],
+                capture=True,
+                timeout=30,
+            ).stdout
         )
-        print("Installed v1 build-info:", info_v1, flush=True)
+        print("Installed v1 build-identity:", info_v1, flush=True)
+        assert info_v1["runtime"] == "gpui", info_v1
         assert info_v1["version"] == "0.4.90", info_v1
         assert info_v1["channel"] == "stable", info_v1
-        assert info_v1["packaged"] is True, info_v1
+        assert info_v1["updateFeedUrl"] == "https://updates.puppyone.ai/desktop/stable/win/latest", info_v1
 
         # 5. Launch installed app and perform CLI Named Pipe hello handshake.
         cli_data_dir = work / "cli-data"
@@ -337,11 +355,16 @@ def main() -> None:
 
         # Verify installed executable upgraded to 0.4.91!
         info_v2 = json.loads(
-            run([installed_exe, "--puppyone-build-info"], capture=True).stdout
+            run(
+                [installed_exe, "--puppyone-build-identity"],
+                capture=True,
+                timeout=30,
+            ).stdout
         )
-        print("Upgraded v2 build-info:", info_v2, flush=True)
+        print("Upgraded v2 build-identity:", info_v2, flush=True)
+        assert info_v2["runtime"] == "gpui", info_v2
         assert info_v2["version"] == "0.4.91", info_v2
-        assert info_v2["packaged"] is True, info_v2
+        assert info_v2["channel"] == "stable", info_v2
 
         # 7. Silent NSIS uninstall and cleanup verification.
         run([uninstaller, "/S"])

@@ -661,7 +661,7 @@ mod tests {
         let staging = work.path().join("staging");
         let cancel = std::sync::atomic::AtomicBool::new(false);
         let downloaded =
-            crate::platform::updates::download(&config, &candidate, &downloads, &cancel, |_| {})
+            crate::platform::updates::download(&config, &candidate, &downloads, |_| {}, &cancel)
                 .expect("updates::download must download and SHA-512 verify signed NSIS installer");
         assert_eq!(
             downloaded.extension().and_then(|e| e.to_str()),
