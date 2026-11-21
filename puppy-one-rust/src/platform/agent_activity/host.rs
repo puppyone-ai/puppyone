@@ -3,14 +3,14 @@
 //! A terminal is prepared only while its provider's Hook is enabled (any
 //! Hook for a plain shell); the socket starts with the first such terminal.
 #[cfg(unix)]
-use super::transport::{self, Envelope};
+use super::transport;
 use super::{
     Phase, PublicEvent,
     adapters::{self, Normalized},
     env, now_millis,
     registration::{Bridge, Enrollment, ProviderStatus, Registration},
     service::{Service, Session},
-    transport::{Auth, Server},
+    transport::{Auth, Envelope, Server},
 };
 use std::{
     path::{Path, PathBuf},
@@ -178,6 +178,7 @@ impl Host {
     }
 }
 /// `handleEnvelope`: the provider's adapter, then the claim service.
+#[cfg_attr(not(unix), allow(dead_code))]
 fn handle(service: &Mutex<Service>, envelope: Envelope) -> bool {
     let Some(normalized) = adapters::normalize(
         &envelope.provider_id,

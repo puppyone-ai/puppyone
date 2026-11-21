@@ -8,7 +8,11 @@ fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     // Collapsed, the Explorer's expand button is in the Header.
     command(&view, cx, Command::ToggleExplorer);
     view.update(cx, |s, cx| assert!(!s.panes.read(cx).explorer().open));
-    cx.simulate_click(point(px(100.), px(20.)), Modifiers::none());
+    draw(cx);
+    let expand = cx
+        .debug_bounds("expand-explorer")
+        .expect("collapsed explorer renders expand button in header");
+    cx.simulate_click(expand.center(), Modifiers::none());
     view.update(cx, |s, cx| assert!(s.panes.read(cx).explorer().open));
     command(&view, cx, Command::ToggleRightSidebar);
     view.update(cx, |s, cx| assert!(s.panes.read(cx).right().open));
@@ -291,10 +295,17 @@ fn macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu(cx: &mut TestA
         );
     });
     let menus = app_menus();
-    assert_eq!(
-        menus[0].name.as_ref(),
-        crate::app::windows::application_name()
-    );
+    if crate::platform::conventions::Conventions::current().uses_system_menu_bar {
+        assert_eq!(
+            menus[0].name.as_ref(),
+            crate::app::windows::application_name()
+        );
+    } else {
+        assert_eq!(
+            menus[0].name.as_ref(),
+            crate::localization::t("native.menu.file")
+        );
+    }
     cx.simulate_keystrokes("secondary-,");
     draw(cx);
     view.read_with(cx, |s, cx| {
@@ -311,22 +322,39 @@ fn app_menu_about_and_check_for_updates_follow_the_product_menu(cx: &mut TestApp
     // Close Window only.
     let menus = app_menus();
     let names: Vec<String> = menus.iter().map(|m| m.name.to_string()).collect();
-    assert_eq!(names.len(), 7, "{names:?}");
-    assert_eq!(names[0], crate::app::windows::application_name());
-    assert_eq!(
-        [&names[2], &names[3], &names[5], &names[6]],
-        ["Edit", "View", "Window", "Help"]
-    );
-    let file: Vec<String> = menus[1]
-        .items
-        .iter()
-        .filter_map(|item| match item {
-            gpui::MenuItem::Action { name, .. } => Some(name.to_string()),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(file.len(), 3, "{file:?}");
-    assert_eq!(file[2], "Close Window");
+    if crate::platform::conventions::Conventions::current().uses_system_menu_bar {
+        assert_eq!(names.len(), 7, "{names:?}");
+        assert_eq!(names[0], crate::app::windows::application_name());
+        assert_eq!(
+            [&names[2], &names[3], &names[5], &names[6]],
+            ["Edit", "View", "Window", "Help"]
+        );
+        let file: Vec<String> = menus[1]
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                gpui::MenuItem::Action { name, .. } => Some(name.to_string()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(file.len(), 3, "{file:?}");
+        assert_eq!(file[2], "Close Window");
+    } else {
+        assert_eq!(names.len(), 6, "{names:?}");
+        assert_eq!(
+            [&names[1], &names[2], &names[4], &names[5]],
+            ["Edit", "View", "Window", "Help"]
+        );
+        let file: Vec<String> = menus[0]
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                gpui::MenuItem::Action { name, .. } => Some(name.to_string()),
+                _ => None,
+            })
+            .collect();
+        assert!(file.iter().any(|n| n == "Close Window"), "{file:?}");
+    }
     // About is the system's panel, never a dialog of the window.
     command(&view, cx, Command::About);
     view.read_with(cx, |s, cx| assert!(s.dialogs.read(cx).is_empty()));
