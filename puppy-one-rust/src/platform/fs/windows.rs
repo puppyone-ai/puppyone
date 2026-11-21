@@ -188,6 +188,18 @@ pub(super) fn rename_with_retry(from: &Dir, name: &Path, to: &Dir, next: &Path) 
     Err(last_err.unwrap_or_else(|| io::Error::other("rename failed")))
 }
 
+/// `(volume serial number, file index)` of a `cap_std` `Metadata`: Windows'
+/// device and inode. `cap_std` reads metadata through a handle, so both are
+/// present; a file replaced by rename gets a new index even when its size and
+/// modification time match. Zero when the filesystem reports none.
+pub(super) fn cap_identity(meta: &cap_std::fs::Metadata) -> (u64, u64) {
+    use cap_primitives::fs::_WindowsByHandle;
+    (
+        meta.volume_serial_number().map_or(0, u64::from),
+        meta.file_index().unwrap_or(0),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -211,16 +223,4 @@ mod tests {
             PathBuf::from(r"\\?\C:\already\verbatim.txt")
         );
     }
-}
-
-/// `(volume serial number, file index)` of a `cap_std` `Metadata`: Windows'
-/// device and inode. `cap_std` reads metadata through a handle, so both are
-/// present; a file replaced by rename gets a new index even when its size and
-/// modification time match. Zero when the filesystem reports none.
-pub(super) fn cap_identity(meta: &cap_std::fs::Metadata) -> (u64, u64) {
-    use cap_primitives::fs::_WindowsByHandle;
-    (
-        meta.volume_serial_number().map_or(0, u64::from),
-        meta.file_index().unwrap_or(0),
-    )
 }
