@@ -110,4 +110,24 @@ mod tests {
         assert_eq!(take_written(), Some(sample));
         assert_eq!(take_written(), None);
     }
+
+    /// Restored from the former `platform::drag_out` tests: a drag-out never
+    /// starts for an empty, relative or oversized file list.
+    #[test]
+    fn only_absolute_bounded_file_lists_start() {
+        struct NoWindow;
+        impl raw_window_handle::HasWindowHandle for NoWindow {
+            fn window_handle(
+                &self,
+            ) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError>
+            {
+                Err(raw_window_handle::HandleError::Unavailable)
+            }
+        }
+        assert!(!begin_file_drag(&NoWindow, &[], || {}));
+        assert!(!begin_file_drag(&NoWindow, &[PathBuf::from("a.md")], || {}));
+        let many = vec![PathBuf::from("/a"); MAX_FILES + 1];
+        assert!(!begin_file_drag(&NoWindow, &many, || {}));
+        assert_eq!(own_drag_files(), None);
+    }
 }

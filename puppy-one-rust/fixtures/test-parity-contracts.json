@@ -20255,7 +20255,7 @@
         },
         {
           "package": "po-platform",
-          "test": "platform::drag_out::tests::only_absolute_bounded_file_lists_start"
+          "test": "platform::clipboard::tests::only_absolute_bounded_file_lists_start"
         }
       ],
       "environment": "local temporary folders; GPUI terminal drop handling"
