@@ -11,6 +11,8 @@ mod imp;
 #[cfg(target_os = "windows")]
 #[path = "windows.rs"]
 mod imp;
+#[cfg(all(target_os = "windows", feature = "dev-capture"))]
+pub use imp::probe_window;
 #[cfg(target_os = "linux")]
 #[path = "linux.rs"]
 mod imp;

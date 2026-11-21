@@ -1,4 +1,6 @@
 //! Single source of truth for application and Dock menus across all platforms.
+#[cfg(test)]
+use crate::platform::os::Os;
 use crate::{
     app::command::{
         About, CheckForUpdates, CloseWindow, ManageExecutions, Minimize, NewWindow, OpenHelp,
@@ -6,7 +8,7 @@ use crate::{
     },
     app::menus::keymap::{HideApp, HideOtherApps, ShowAllApps},
     localization::t as tr,
-    platform::{conventions::Conventions, os::Os},
+    platform::conventions::Conventions,
     ui,
 };
 use gpui::*;
@@ -22,6 +24,7 @@ pub fn app_menus() -> Vec<Menu> {
 }
 
 /// Builds the application menu model for `os`.
+#[cfg(test)]
 pub fn app_menus_for_os(os: Os) -> Vec<Menu> {
     app_menus_for_conventions(Conventions::for_os(os))
 }

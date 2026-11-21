@@ -1,16 +1,113 @@
 //! Windows WebView2 backend (`wry` child HWND, per-monitor DPI bounds via
 //! `LogicalPosition`/`LogicalSize`, async custom protocol handlers for
 //! `puppyone-preview` & `puppyone-local`, and WebView2 runtime detection).
-use super::{allow_navigation, protocol_response};
+use super::{allow_navigation, prepare_protocol_response, response};
 use crate::platform::webview::{Content, LOCAL_SCHEME, PreparedContent, SCHEME, entry_url};
-use std::cell::Cell;
+use std::{borrow::Cow, cell::Cell};
 
 pub(super) const SUPPORTED: bool = true;
 
+/// Intercepts `window.fetch` calls targeting PuppyOne's custom schemes inside
+/// WebView2 and maps them onto Wry's synthetic `http://<scheme>.local/` hosts
+/// so shared viewer bundles work identically across WKWebView and WebView2.
+const WEBVIEW2_FETCH_SHIM: &str = r#"(function(){
+  if (window.__puppyoneSchemeShim) return;
+  window.__puppyoneSchemeShim = true;
+  const rewrite = (u) => {
+    if (typeof u !== 'string') return u;
+    if (u.startsWith('puppyone-preview://local/')) {
+      return 'http://puppyone-preview.local/' + u.slice('puppyone-preview://local/'.length);
+    }
+    if (u.startsWith('puppyone-local://local/')) {
+      return 'http://puppyone-local.local/' + u.slice('puppyone-local://local/'.length);
+    }
+    return u;
+  };
+  const origFetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    if (typeof input === 'string') {
+      return origFetch(rewrite(input), init);
+    }
+    if (input instanceof URL) {
+      const next = rewrite(input.href);
+      return origFetch(next === input.href ? input : next, init);
+    }
+    if (input && typeof input === 'object' && typeof input.url === 'string') {
+      const next = rewrite(input.url);
+      if (next !== input.url) {
+        return origFetch(new Request(next, input), init);
+      }
+    }
+    return origFetch(input, init);
+  };
+})();"#;
+
+/// Adapts CSP scheme sources (`puppyone-preview:`, `puppyone-local:`) to Wry's
+/// exact WebView2 synthetic origins without ever broadening to generic `http:`.
+pub(super) fn adapt_csp_for_webview2(policy: &str) -> String {
+    policy
+        .replace(&format!("{SCHEME}:"), &format!("http://{SCHEME}.local"))
+        .replace(
+            &format!("{LOCAL_SCHEME}:"),
+            &format!("http://{LOCAL_SCHEME}.local"),
+        )
+}
+
+/// Rewrites entry HTML custom-scheme URLs (`<base href>`, `<script src>`,
+/// `<video src>`, inline `<meta http-equiv="Content-Security-Policy">`) for
+/// WebView2's `http://<scheme>.local/` custom protocol workaround.
+pub(super) fn adapt_html_for_webview2(html: &str) -> String {
+    let rewritten = html
+        .replace(
+            &format!("{SCHEME}://local/"),
+            &format!("http://{SCHEME}.local/"),
+        )
+        .replace(
+            &format!("{LOCAL_SCHEME}://local/"),
+            &format!("http://{LOCAL_SCHEME}.local/"),
+        );
+    adapt_csp_for_webview2(&rewritten)
+}
+
+fn webview2_protocol_response(
+    content: &PreparedContent,
+    local: bool,
+    request: &wry::http::Request<Vec<u8>>,
+) -> wry::http::Response<Cow<'static, [u8]>> {
+    let mut reply = prepare_protocol_response(content, local, request).collect();
+    if request.method() == "HEAD" {
+        reply.body.clear();
+    } else if !local
+        && reply.status == 200
+        && reply.mime.starts_with("text/html")
+        && let Ok(html) = String::from_utf8(reply.body.clone())
+    {
+        let adapted = adapt_html_for_webview2(&html).into_bytes();
+        reply.length = Some(adapted.len() as u64);
+        reply.body = adapted;
+    }
+    let mut http_resp = response(reply, None);
+    if let Some(policy) = content.policy {
+        let adapted_policy = adapt_csp_for_webview2(policy);
+        if let Ok(value) = wry::http::HeaderValue::from_str(&adapted_policy) {
+            http_resp
+                .headers_mut()
+                .insert("Content-Security-Policy", value);
+        }
+    }
+    http_resp
+}
+
 pub(super) struct BackendHost {
+    #[cfg(feature = "dev-capture")]
+    pub(super) view: wry::WebView,
+    #[cfg(not(feature = "dev-capture"))]
     view: wry::WebView,
     resources: PreparedContent,
     bounds: Cell<(f32, f32, f32, f32)>,
+    // Keep WebContext and its temp user-data folder alive until after `view` drops.
+    _web_context: wry::WebContext,
+    _data_dir: Option<tempfile::TempDir>,
 }
 
 impl Drop for BackendHost {
@@ -32,6 +129,13 @@ impl BackendHost {
             );
         }
 
+        let data_dir = tempfile::Builder::new()
+            .prefix("puppyone-webview2-")
+            .tempdir()
+            .ok();
+        let mut web_context =
+            wry::WebContext::new(data_dir.as_ref().map(|d| d.path().to_path_buf()));
+
         let served = content.clone().prepare();
         let local = served.clone();
         let resources = served.clone();
@@ -44,12 +148,13 @@ impl BackendHost {
             (255, 255, 255, 255)
         };
 
-        let mut builder = wry::WebViewBuilder::new()
+        let mut builder = wry::WebViewBuilder::new_with_web_context(&mut web_context)
             .with_background_color(background)
+            .with_initialization_script(WEBVIEW2_FETCH_SHIM)
             .with_asynchronous_custom_protocol(SCHEME.into(), move |_, request, responder| {
                 let served = served.clone();
                 std::thread::spawn(move || {
-                    responder.respond(protocol_response(&served, false, &request))
+                    responder.respond(webview2_protocol_response(&served, false, &request))
                 });
             })
             .with_asynchronous_custom_protocol(
@@ -57,7 +162,7 @@ impl BackendHost {
                 move |_, request, responder| {
                     let served = local.clone();
                     std::thread::spawn(move || {
-                        responder.respond(protocol_response(&served, true, &request))
+                        responder.respond(webview2_protocol_response(&served, true, &request))
                     });
                 },
             );
@@ -90,6 +195,8 @@ impl BackendHost {
             view,
             resources,
             bounds: Cell::new((0., 0., 0., 0.)),
+            _web_context: web_context,
+            _data_dir: data_dir,
         })
     }
 
@@ -172,5 +279,27 @@ impl BackendHost {
         done: Box<dyn FnOnce(Option<Vec<u8>>)>,
     ) {
         done(None);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn webview2_csp_and_html_adaptation_pins_exact_synthetic_origins() {
+        let policy = "default-src 'none'; script-src puppyone-preview:; media-src puppyone-local:;";
+        assert_eq!(
+            adapt_csp_for_webview2(policy),
+            "default-src 'none'; script-src http://puppyone-preview.local; media-src http://puppyone-local.local;"
+        );
+
+        let html = r#"<!doctype html><head><base href="puppyone-preview://local/"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src puppyone-local:"></head><img src="puppyone-local://local/a.png">"#;
+        let adapted = adapt_html_for_webview2(html);
+        assert!(adapted.contains(r#"<base href="http://puppyone-preview.local/">"#));
+        assert!(adapted.contains(r#"<img src="http://puppyone-local.local/a.png">"#));
+        assert!(adapted.contains("img-src http://puppyone-local.local"));
+        assert!(!adapted.contains("puppyone-preview://local/"));
+        assert!(!adapted.contains("puppyone-local://local/"));
     }
 }

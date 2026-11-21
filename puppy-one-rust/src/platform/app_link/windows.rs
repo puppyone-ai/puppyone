@@ -221,6 +221,7 @@ pub(super) fn serve_control(
     info: AppInfo,
 ) -> std::io::Result<async_channel::Receiver<Incoming>> {
     let pipe = cli_pipe_name(data_dir);
+    cli_control::set_serving(PathBuf::from(&pipe));
     let (tx, rx) = async_channel::unbounded();
     std::thread::Builder::new()
         .name("puppyone-cli-control-win".into())
@@ -356,4 +357,65 @@ pub(super) fn register_scheme(scheme: &str) -> Result<(), String> {
         &format!("\"{exe_str}\" \"%1\""),
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::platform::cli_control::{self, AppInfo, Incoming, Request};
+
+    #[test]
+    fn cli_control_named_pipe_answers_hello() {
+        let dir = tempfile::tempdir().unwrap();
+        let info = AppInfo {
+            name: "PuppyOne".into(),
+            version: "0.4.90".into(),
+            channel: "stable".into(),
+        };
+        let incoming = serve_control(dir.path(), info.clone()).unwrap();
+        let responder_info = info.clone();
+        std::thread::spawn(move || {
+            if let Ok(Incoming { request, reply }) = incoming.recv_blocking() {
+                let answer = match request {
+                    Ok(Request::Hello) => {
+                        cli_control::hello(&responder_info, &[".md".into()], 1024)
+                    }
+                    Ok(Request::Open { .. }) => cli_control::opened(&responder_info, vec![]),
+                    Err(err) => err,
+                };
+                let _ = reply.send_blocking(answer);
+            }
+        });
+
+        let pipe = cli_pipe_name(dir.path());
+        let wide = wide_nul(&pipe);
+        let mut handle = INVALID_HANDLE_VALUE;
+        for _ in 0..50 {
+            let _ = unsafe { WaitNamedPipeW(PCWSTR(wide.as_ptr()), 200) };
+            if let Ok(opened) = unsafe {
+                CreateFileW(
+                    PCWSTR(wide.as_ptr()),
+                    GENERIC_READ.0 | GENERIC_WRITE.0,
+                    FILE_SHARE_NONE,
+                    None,
+                    OPEN_EXISTING,
+                    FILE_FLAGS_AND_ATTRIBUTES(0),
+                    None,
+                )
+            } && opened != INVALID_HANDLE_VALUE
+            {
+                handle = opened;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert_ne!(handle, INVALID_HANDLE_VALUE, "failed to connect to {pipe}");
+        write_all_handle(handle, b"{\"protocol\":1,\"type\":\"hello\"}\n").unwrap();
+        let reply_line = read_line_handle(handle, 16 * 1024).unwrap();
+        let _ = unsafe { CloseHandle(handle) };
+        let reply: serde_json::Value = serde_json::from_str(reply_line.trim()).unwrap();
+        assert_eq!(reply["ok"], true);
+        assert_eq!(reply["protocol"], 1);
+        assert_eq!(reply["app"]["version"], "0.4.90");
+    }
 }

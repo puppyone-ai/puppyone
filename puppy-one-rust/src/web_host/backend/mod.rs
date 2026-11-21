@@ -13,6 +13,8 @@ mod protocol_tests;
 mod unsupported;
 #[cfg(target_os = "windows")]
 mod windows;
+#[cfg(all(target_os = "windows", feature = "dev-capture"))]
+mod windows_probe;
 
 use crate::platform::webview::Content;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -121,17 +123,29 @@ impl std::ops::Deref for NativeBackend {
     }
 }
 
+#[cfg(all(target_os = "windows", feature = "dev-capture"))]
+impl std::ops::Deref for NativeBackend {
+    type Target = windows::BackendHost;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[cfg(feature = "dev-capture")]
 pub(super) fn run_stream_probe() {
     #[cfg(target_os = "macos")]
     macos_stream::run_probe();
+    #[cfg(target_os = "windows")]
+    windows_probe::run_probe();
 }
 
 #[cfg(feature = "dev-capture")]
 pub(super) fn run_whiteboard_probe(root: &std::path::Path) {
     #[cfg(target_os = "macos")]
     macos_stream::run_whiteboard_probe(root);
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    windows_probe::run_whiteboard_probe(root);
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let _ = root;
 }
 
@@ -139,11 +153,13 @@ pub(super) fn run_whiteboard_probe(root: &std::path::Path) {
 pub(super) fn run_document_pages_probe() {
     #[cfg(target_os = "macos")]
     macos_stream::run_document_pages_probe();
+    #[cfg(target_os = "windows")]
+    windows_probe::run_document_pages_probe();
 }
 
 /// Shared by the Wry handlers on macOS and Windows so method/origin/range checks
 /// cannot drift across platforms.
-#[cfg(any(target_os = "windows", all(test, target_os = "macos")))]
+#[cfg(all(test, any(target_os = "macos", target_os = "windows")))]
 pub(super) fn protocol_response(
     content: &PreparedContent,
     local: bool,

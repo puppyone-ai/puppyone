@@ -84,6 +84,7 @@ jobs:
       - name: Check formatting and architecture boundaries
         run: |
           cargo fmt --all --check
+          python3 -B tools/check-editor-architecture.py
           python3 -B tools/check-ui-boundaries.py
           python3 -B -m unittest discover -s tools/release -p 'test_*.py'
       - name: Check workspace compilation (all targets)
@@ -100,3 +101,137 @@ jobs:
           PUPPYONE_PRODUCT_ROOT: ${{ github.workspace }}/puppyone-baseline-5e87974ef
         run: |
           cargo test --locked --workspace --no-fail-fast
+
+  windows-webview-probes:
+    name: Windows WebView2 & PDFium probes
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+    defaults:
+      run:
+        working-directory: rust/puppy-one-rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: rust
+      - name: Install reviewed Rust toolchain
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup override set 1.97.1
+          cargo fetch --locked
+      - name: Fetch pinned Windows PDFium and verify PDF rendering
+        run: |
+          python3 -B tools/fetch-pdfium.py --target win-x64
+          cargo test --locked -p po-platform --lib a_document_opens_and_renders_pages_when_the_engine_is_installed -- --ignored --nocapture
+      - name: Run native Windows WebView2 stream & protocol probe
+        run: |
+          cargo test --locked -p po-editor --features dev-capture --test webview_stream_native -- --ignored --nocapture
+      - name: Run native Windows WebView2 document pages probe (ContextMap, PuppyFlow, HTML)
+        run: |
+          cargo test --locked -p po-editor --features dev-capture --test webview_document_pages_native -- --ignored --nocapture
+
+  windows-nsis-smoke:
+    name: Windows NSIS install, update & uninstall smoke
+    runs-on: windows-2025
+    timeout-minutes: 60
+    env:
+      PYTHONUTF8: "1"
+    defaults:
+      run:
+        working-directory: rust/puppy-one-rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: rust
+      - name: Install reviewed Rust toolchain
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup override set 1.97.1
+          cargo fetch --locked
+      - name: Locate makensis and signtool
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            if (Test-Path 'C:\Program Files (x86)\NSIS\makensis.exe') {
+              'C:\Program Files (x86)\NSIS' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            } else {
+              choco install nsis -y --no-progress
+              'C:\Program Files (x86)\NSIS' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
+          }
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) {
+            throw 'signtool.exe not found under Windows Kits'
+          }
+          $signtool.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Fetch pinned Windows PDFium
+        run: |
+          python3 -B tools/fetch-pdfium.py --target win-x64
+      - name: Run Windows NSIS full lifecycle smoke test
+        run: |
+          python3 -B tools/release/smoke_windows_nsis.py
+
+  linux-package-smoke:
+    name: Linux packages smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      PYTHONUTF8: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    defaults:
+      run:
+        working-directory: rust/puppy-one-rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: rust
+      - name: Install Linux build, Xvfb, and Vulkan software runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libwayland-dev \
+            libxcb1-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libvulkan-dev \
+            libfontconfig1-dev \
+            libasound2-dev \
+            libssl-dev \
+            xvfb \
+            xauth \
+            mesa-vulkan-drivers \
+            file
+      - name: Install appimagetool (FUSE-free wrapper)
+        run: |
+          sudo mkdir -p /usr/local/lib /usr/local/bin
+          sudo curl -fsSL -o /usr/local/lib/appimagetool-x86_64.AppImage \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          sudo chmod +x /usr/local/lib/appimagetool-x86_64.AppImage
+          sudo tee /usr/local/bin/appimagetool >/dev/null <<'EOF'
+          #!/bin/sh
+          exec env ARCH=x86_64 /usr/local/lib/appimagetool-x86_64.AppImage --appimage-extract-and-run "$@"
+          EOF
+          sudo chmod +x /usr/local/bin/appimagetool
+      - name: Install reviewed Rust toolchain
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup override set 1.97.1
+          cargo fetch --locked
+      - name: Fetch pinned Linux PDFium and verify PDF rendering
+        run: |
+          python3 -B tools/fetch-pdfium.py --target linux-x64
+          cargo test --locked -p po-platform --lib a_document_opens_and_renders_pages_when_the_engine_is_installed -- --ignored --nocapture
+      - name: Run Linux .deb and .AppImage build, install, and CLI handshake smoke test
+        run: |
+          python3 -B tools/release/smoke_linux_packages.py

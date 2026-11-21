@@ -610,4 +610,113 @@ mod tests {
         );
         assert_eq!(publisher_matches(&["Evil Corp".into()], &parsed), None);
     }
+
+    /// Executed explicitly by `tools/release/smoke_windows_nsis.py` in Windows CI
+    /// against real self-signed Authenticode NSIS installers served over local HTTP.
+    #[test]
+    #[ignore = "requires signed NSIS installer fixtures; run via tools/release/smoke_windows_nsis.py"]
+    fn windows_local_feed_update_smoke_installs_signed_nsis_installer() {
+        let feed_url =
+            std::env::var("PUPPYONE_SMOKE_FEED_URL").expect("PUPPYONE_SMOKE_FEED_URL must be set");
+        let installed_exe = PathBuf::from(
+            std::env::var("PUPPYONE_SMOKE_INSTALLED_EXE")
+                .expect("PUPPYONE_SMOKE_INSTALLED_EXE must be set"),
+        );
+        let current_version = std::env::var("PUPPYONE_SMOKE_CURRENT_VERSION")
+            .expect("PUPPYONE_SMOKE_CURRENT_VERSION must be set");
+        let expected_version = std::env::var("PUPPYONE_SMOKE_EXPECTED_VERSION")
+            .expect("PUPPYONE_SMOKE_EXPECTED_VERSION must be set");
+        let expected_pubs = parse_publishers(
+            std::env::var("PUPPYONE_SMOKE_EXPECTED_PUBLISHERS")
+                .ok()
+                .as_deref(),
+        );
+
+        // 1. Verify the installed v1 executable passes Authenticode + publisher checks.
+        assert_eq!(
+            running_signature(&installed_exe, &expected_pubs),
+            Signature::Release,
+            "installed signed executable must verify as Signature::Release"
+        );
+
+        // 2. Check the local HTTP update feed and download the signed v2 NSIS installer.
+        let config = Configuration {
+            channel: Channel::Stable,
+            current_version,
+            feed: Some(url::Url::parse(&feed_url).unwrap()),
+            update_channel: Some("stable"),
+            force_dev: true,
+        };
+        let candidate = crate::platform::updates::check(&config)
+            .expect("updates::check must parse local stable-win.yml feed");
+        assert_eq!(candidate.version, expected_version);
+        assert!(
+            candidate.url.path().to_ascii_lowercase().ends_with(".exe"),
+            "Windows feed candidate must be an .exe installer: {}",
+            candidate.url
+        );
+
+        let work = tempfile::tempdir().unwrap();
+        let downloads = work.path().join("downloads");
+        let staging = work.path().join("staging");
+        let cancel = std::sync::atomic::AtomicBool::new(false);
+        let downloaded =
+            crate::platform::updates::download(&config, &candidate, &downloads, &cancel, |_| {})
+                .expect("updates::download must download and SHA-512 verify signed NSIS installer");
+        assert_eq!(
+            downloaded.extension().and_then(|e| e.to_str()),
+            Some("exe"),
+            "downloaded payload must preserve .exe extension: {}",
+            downloaded.display()
+        );
+
+        // 3. Stage & verify Authenticode + expected publisher through Backend::prepare.
+        let mut backend = Backend {
+            exe: installed_exe.clone(),
+            staging,
+            expected_publishers: expected_pubs,
+            staged: None,
+        };
+        backend
+            .prepare(&downloaded, &candidate.version)
+            .expect("Backend::prepare must accept validly signed NSIS installer");
+        let (staged_payload, _) = backend.staged.take().expect("payload staged");
+
+        // 4. Spawn a short-lived dummy process, let the real PowerShell helper wait
+        // for it to exit, run the NSIS installer silently (/S), and verify cleanup.
+        let mut dummy = Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Start-Sleep -Milliseconds 300",
+            ])
+            .spawn()
+            .unwrap();
+        let dummy_pid = dummy.id();
+        let output = Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                INSTALL_HELPER_SCRIPT,
+            ])
+            .env("PUPPYONE_UPDATE_PID", dummy_pid.to_string())
+            .env("PUPPYONE_UPDATE_PAYLOAD", &staged_payload)
+            .env("PUPPYONE_UPDATE_EXE", &installed_exe)
+            .env("PUPPYONE_UPDATE_RELAUNCH", "0")
+            .output()
+            .unwrap();
+        let _ = dummy.wait();
+        assert!(
+            output.status.success(),
+            "PowerShell update helper failed: stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            !staged_payload.exists(),
+            "staged installer should be removed after successful NSIS /S run"
+        );
+    }
 }

@@ -202,6 +202,12 @@ fn request_path(value: &str) -> bool {
 }
 
 static SERVING: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+/// Records the active CLI control endpoint on platforms whose transport lives
+/// in `platform::app_link` (Windows Named Pipe).
+#[cfg(target_os = "windows")]
+pub(crate) fn set_serving(endpoint: PathBuf) {
+    let _ = SERVING.set(endpoint);
+}
 /// The endpoint this app answers at, once it listens; terminals name it
 /// (`PUPPYONE_CLI_ENDPOINT`) so `puppyone open` reaches this app.
 pub fn serving() -> Option<&'static Path> {

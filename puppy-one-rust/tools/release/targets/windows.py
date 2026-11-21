@@ -157,7 +157,10 @@ def sign_binary(target, signing):
     signtool = shutil.which('signtool') or shutil.which('signtool.exe')
     if not signtool:
         raise SystemExit('signtool.exe is required for Windows Authenticode signing')
-    base = [signtool, 'sign', '/fd', 'SHA256', '/tr', signing['timestamp_url'], '/td', 'SHA256']
+    base = [signtool, 'sign', '/fd', 'SHA256']
+    ts_url = (signing.get('timestamp_url') or '').strip()
+    if ts_url and ts_url.lower() != 'none':
+        base.extend(['/tr', ts_url, '/td', 'SHA256'])
     if signing['mode'] == 'thumbprint':
         subprocess.run(base + ['/sha1', signing['thumbprint'], str(target)], check=True)
         return
