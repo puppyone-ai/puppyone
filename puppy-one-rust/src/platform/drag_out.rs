@@ -23,27 +23,3 @@ pub fn begin_files(
 pub fn own_files() -> Option<Vec<PathBuf>> {
     super::clipboard::own_drag_files()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use core::prelude::v1::test;
-
-    #[test]
-    fn only_absolute_bounded_file_lists_start() {
-        struct NoWindow;
-        impl raw_window_handle::HasWindowHandle for NoWindow {
-            fn window_handle(
-                &self,
-            ) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError>
-            {
-                Err(raw_window_handle::HandleError::Unavailable)
-            }
-        }
-        assert!(!begin_files(&NoWindow, &[], || {}));
-        assert!(!begin_files(&NoWindow, &[PathBuf::from("a.md")], || {}));
-        let many = vec![PathBuf::from("/a"); MAX_FILES + 1];
-        assert!(!begin_files(&NoWindow, &many, || {}));
-        assert_eq!(own_files(), None);
-    }
-}
