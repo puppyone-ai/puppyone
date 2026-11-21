@@ -196,6 +196,8 @@ pub struct Answers {
     pub ollama_version: Option<serde_json::Value>,
     /// `GET /api/tags` (Ollama's downloaded models).
     pub ollama_tags: Option<serde_json::Value>,
+    /// `POST /api/show` by model name, where it answered.
+    pub ollama_details: std::collections::HashMap<String, serde_json::Value>,
     /// `GET /api/v1/models`.
     pub lm_studio_models: Option<serde_json::Value>,
     /// `GET /props`.
@@ -262,45 +264,281 @@ pub fn identify(answers: &Answers) -> Option<Driver> {
     Some(Driver::OpenaiCompatible)
 }
 
-/// A chat model, not embeddings, speech or a reranker.
+/// Model-name tokens that mark a model other than a text chat model, matched
+/// whole. Short words are never matched inside other words (`gte` is not in
+/// `gpt`). Audio chat models (`gpt-4o-audio-preview`) and realtime speech
+/// models are left out too: the Agent sends text and tool calls only.
+const NOT_CHAT_TOKENS: [&str; 11] = [
+    "e5", "gte", "bge", "asr", "stt", "bark", "audio", "realtime", "image", "dall", "sd3",
+];
+/// Model-name token prefixes that mark a model other than a text chat model:
+/// embeddings, rerankers, speech-to-text, text-to-speech, image and video
+/// generation, moderation.
+const NOT_CHAT_PREFIXES: [&str; 22] = [
+    "embed",
+    "minilm",
+    "rerank",
+    "whisper",
+    "parakeet",
+    "sensevoice",
+    "paraformer",
+    "transcri",
+    "tts",
+    "speech",
+    "kokoro",
+    "cosyvoice",
+    "voice",
+    "flux",
+    "sdxl",
+    "imagen",
+    "midjourney",
+    "wan2",
+    "sora",
+    "veo",
+    "moderation",
+    "stablediffusion",
+];
+
+/// The name fallback, for a model its service does not describe: a chat
+/// model, not embeddings, a reranker, speech, image or video generation.
+/// The ID is split into tokens on `/ : - _ .` and spaces.
 pub fn chat_model(id: &str) -> bool {
     let id = id.to_ascii_lowercase();
-    ![
-        "embed", "whisper", "tts", "rerank", "bge-", "speech", "audio", "parakeet",
-    ]
-    .iter()
-    .any(|n| id.contains(n))
+    let tokens: Vec<&str> = id
+        .split(|c: char| matches!(c, '/' | ':' | '-' | '_' | '.') || c.is_whitespace())
+        .filter(|t| !t.is_empty())
+        .collect();
+    let stable_diffusion = tokens
+        .windows(2)
+        .any(|w| w[0] == "stable" && w[1] == "diffusion");
+    !stable_diffusion
+        && !tokens.iter().any(|t| {
+            NOT_CHAT_TOKENS.contains(t) || NOT_CHAT_PREFIXES.iter().any(|p| t.starts_with(p))
+        })
+}
+
+/// What a service-reported kind (`type`, `model_type`, `task`, a modality
+/// such as `text->text`) says: a text chat model, another kind, or unknown.
+fn chat_kind(kind: &str) -> Option<bool> {
+    let kind = kind.trim().to_ascii_lowercase();
+    // `text+image->text`, `image-text-to-text`: what the model outputs.
+    let output = kind
+        .rsplit_once("->")
+        .or_else(|| kind.rsplit_once("-to-"))
+        .map(|(_, out)| out);
+    if let Some(out) = output {
+        let other = ["image", "audio", "speech", "video"]
+            .iter()
+            .any(|m| out.contains(m));
+        return Some(out.contains("text") && !other);
+    }
+    let has = |words: &[&str]| words.iter().any(|w| kind.contains(w));
+    if has(&[
+        "llm",
+        "vlm",
+        "chat",
+        "completion",
+        "text-generation",
+        "text_generation",
+        "language",
+    ]) {
+        Some(true)
+    } else if has(&[
+        "embed",
+        "rerank",
+        "speech",
+        "audio",
+        "tts",
+        "asr",
+        "stt",
+        "whisper",
+        "transcri",
+        "image",
+        "video",
+        "diffusion",
+        "moderation",
+        "feature-extraction",
+        "sentence-similarity",
+        "classification",
+    ]) {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// What an OpenAI-compatible `/models` entry reports about its kind, when it
+/// reports anything: OpenRouter's `architecture`, `capabilities`, `type`,
+/// `model_type`, `task`, or an `object` other than `model`.
+pub(super) fn reported_chat(entry: &serde_json::Value) -> Option<bool> {
+    let architecture = &entry["architecture"];
+    if let Some(output) = architecture["output_modalities"].as_array() {
+        let has = |m: &str| output.iter().any(|v| v == m);
+        return Some(has("text") && !has("image") && !has("audio"));
+    }
+    if let Some(found) = architecture["modality"].as_str().and_then(chat_kind) {
+        return Some(found);
+    }
+    match &entry["capabilities"] {
+        serde_json::Value::Array(caps) => {
+            let kinds: Vec<Option<bool>> = caps
+                .iter()
+                .filter_map(|c| c.as_str())
+                .map(chat_kind)
+                .collect();
+            if kinds.contains(&Some(true)) {
+                return Some(true);
+            }
+            if kinds.contains(&Some(false)) {
+                return Some(false);
+            }
+        }
+        serde_json::Value::Object(caps) => {
+            if let Some(chat) = ["chat", "completion", "completions"]
+                .iter()
+                .find_map(|k| caps.get(*k).and_then(|v| v.as_bool()))
+            {
+                return Some(chat);
+            }
+        }
+        _ => {}
+    }
+    ["type", "model_type", "task", "pipeline_tag"]
+        .iter()
+        .filter_map(|k| entry[*k].as_str())
+        .chain(entry["object"].as_str().filter(|o| *o != "model"))
+        .find_map(chat_kind)
+}
+
+/// An OpenAI-compatible entry the Agent can chat with: what it reports,
+/// else its name.
+pub(super) fn chat_entry(entry: &serde_json::Value, id: &str) -> bool {
+    reported_chat(entry).unwrap_or_else(|| chat_model(id))
+}
+
+/// An LM Studio `/api/v1/models` entry: a language or vision-language model
+/// (`type` `llm` / `vlm`); embeddings and anything else are left out.
+pub(super) fn lm_studio_chat(entry: &serde_json::Value, id: &str) -> bool {
+    match entry["type"].as_str() {
+        Some(kind) => matches!(kind, "llm" | "vlm"),
+        None => chat_model(id),
+    }
+}
+
+/// An Ollama model the Agent can chat with: `/api/show` capabilities name
+/// `completion`; without them, a BERT family (embeddings) in `/api/tags` is
+/// not, else its name decides.
+pub(super) fn ollama_chat(
+    id: &str,
+    tag: Option<&serde_json::Value>,
+    detail: Option<&serde_json::Value>,
+) -> bool {
+    if let Some(caps) = detail.and_then(|d| d["capabilities"].as_array()) {
+        return caps.iter().any(|c| c == "completion");
+    }
+    let details = tag.map(|t| &t["details"]);
+    let bert = details.is_some_and(|d| {
+        d["family"]
+            .as_str()
+            .into_iter()
+            .chain(
+                d["families"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|f| f.as_str()),
+            )
+            .any(|f| f.to_ascii_lowercase().contains("bert"))
+    });
+    !bert && chat_model(id)
+}
+
+/// How long one Ollama `/api/show` may take.
+pub(super) const SHOW_TIMEOUT: Duration = Duration::from_millis(1500);
+
+/// Ollama `/api/show` for each of `names` (at most [`MODEL_LIMIT`]),
+/// concurrently, each within [`SHOW_TIMEOUT`]; `None` where it failed.
+pub(super) async fn ollama_show(
+    client: &reqwest::Client,
+    base: &str,
+    names: &[String],
+    key: Option<&str>,
+) -> Vec<Option<serde_json::Value>> {
+    let url = format!("{}/api/show", base.trim_end_matches('/'));
+    futures_util::future::join_all(names.iter().take(MODEL_LIMIT).map(|name| {
+        let mut request = client
+            .post(&url)
+            .json(&serde_json::json!({"model": name}))
+            .timeout(SHOW_TIMEOUT);
+        if let Some(key) = key {
+            request = request.bearer_auth(key);
+        }
+        async move {
+            let answer = async {
+                let response = request.send().await.ok()?;
+                if !response.status().is_success() {
+                    return None;
+                }
+                response.json::<serde_json::Value>().await.ok()
+            };
+            tokio::time::timeout(SHOW_TIMEOUT, answer)
+                .await
+                .ok()
+                .flatten()
+        }
+    }))
+    .await
 }
 
 fn limited(mut models: Vec<String>) -> Vec<String> {
-    models.retain(|id| !id.trim().is_empty() && id.len() <= 300 && chat_model(id));
+    models.retain(|id| !id.trim().is_empty() && id.len() <= 300);
     models.dedup();
     models.truncate(MODEL_LIMIT);
     models
 }
 
-/// The chat models a service's answers list (Ollama's cloud models left out).
+/// Downloaded models, which no service describes: the name fallback.
+fn downloaded(mut models: Vec<String>) -> Vec<String> {
+    models.retain(|id| chat_model(id));
+    limited(models)
+}
+
+/// Ollama's local (not cloud) models in `/api/tags`, with their entries.
+fn ollama_local(tags: &serde_json::Value) -> impl Iterator<Item = (&str, &serde_json::Value)> {
+    tags["models"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|m| m["remote_host"].is_null() && m["remote_model"].is_null())
+        .filter_map(|m| m["name"].as_str().map(|name| (name, m)))
+}
+
+/// The chat models a service's answers list (Ollama's cloud models left out),
+/// by what the service reports, else by name.
 pub fn models(answers: &Answers) -> Vec<String> {
-    let strings = |items: Option<&Vec<serde_json::Value>>,
-                   keep: &dyn Fn(&serde_json::Value) -> bool,
-                   key: &str| {
-        items
+    let ids: Vec<String> = if let Some(tags) = &answers.ollama_tags {
+        ollama_local(tags)
+            .filter(|(name, tag)| ollama_chat(name, Some(tag), answers.ollama_details.get(*name)))
+            .map(|(name, _)| name.to_owned())
+            .collect()
+    } else if let Some(models) = &answers.lm_studio_models {
+        models["models"]
+            .as_array()
             .into_iter()
             .flatten()
-            .filter(|m| keep(m))
-            .filter_map(|m| m[key].as_str().map(str::to_owned))
-            .collect::<Vec<_>>()
-    };
-    let ids = if let Some(tags) = &answers.ollama_tags {
-        strings(
-            tags["models"].as_array(),
-            &|m| m["remote_host"].is_null() && m["remote_model"].is_null(),
-            "name",
-        )
-    } else if let Some(models) = &answers.lm_studio_models {
-        strings(models["models"].as_array(), &|m| m["type"] == "llm", "key")
+            .filter_map(|m| m["key"].as_str().map(|key| (key, m)))
+            .filter(|(key, m)| lm_studio_chat(m, key))
+            .map(|(key, _)| key.to_owned())
+            .collect()
     } else if let Some(models) = &answers.openai_models {
-        strings(models["data"].as_array(), &|_| true, "id")
+        models["data"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|m| m["id"].as_str().map(|id| (id, m)))
+            .filter(|(id, m)| chat_entry(m, id))
+            .map(|(id, _)| id.to_owned())
+            .collect()
     } else {
         vec![]
     };
@@ -358,12 +596,23 @@ async fn probe(client: &reqwest::Client, port: u16, hint: Option<Driver>) -> Opt
         .is_some_and(|v| v["version"].is_string())
     {
         let ollama_tags = ok(get("/api/tags").await);
+        let names: Vec<String> = ollama_tags
+            .as_ref()
+            .map(|tags| ollama_local(tags).map(|(n, _)| n.to_owned()).collect())
+            .unwrap_or_default();
+        let shown = ollama_show(client, &base, &names, None).await;
+        let ollama_details = names
+            .into_iter()
+            .zip(shown)
+            .filter_map(|(name, detail)| detail.map(|d| (name, d)))
+            .collect();
         return candidate(
             port,
             Some(Driver::Ollama),
             &Answers {
                 ollama_version,
                 ollama_tags,
+                ollama_details,
                 ..Default::default()
             },
         );
@@ -381,6 +630,7 @@ async fn probe(client: &reqwest::Client, port: u16, hint: Option<Driver>) -> Opt
         &Answers {
             ollama_version,
             ollama_tags: None,
+            ollama_details: Default::default(),
             lm_studio_models: ok(lm_studio_models),
             llama_props: ok(llama_props),
             openai_models: ok(openai_models),
@@ -581,7 +831,7 @@ pub fn installed_in(
         found.push(Installed {
             driver: Driver::Ollama,
             name: "Ollama",
-            models: limited(ollama_downloads(&root.join(".ollama"))),
+            models: downloaded(ollama_downloads(&root.join(".ollama"))),
         });
     }
     if app("LM Studio.app") || on_path("lms") {
@@ -590,7 +840,7 @@ pub fn installed_in(
         found.push(Installed {
             driver: Driver::LmStudio,
             name: "LM Studio",
-            models: limited(models),
+            models: downloaded(models),
         });
     }
     if app("oMLX.app") {
@@ -601,7 +851,7 @@ pub fn installed_in(
         found.push(Installed {
             driver: Driver::Omlx,
             name: "oMLX",
-            models: limited(models),
+            models: downloaded(models),
         });
     }
     if app("Jan.app") {
@@ -900,7 +1150,8 @@ mod tests {
         assert_eq!(omlx_key(home), None);
     }
 
-    /// Real HTTP on a loopback port: `(path, status line, body)`.
+    /// Real HTTP on a loopback port: `(path, status line, body)`. A POST
+    /// naming a model in its JSON body is routed as `"<path> <model>"` first.
     fn serve(routes: Vec<(&'static str, &'static str, &'static str)>) -> u16 {
         use std::io::{Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -908,27 +1159,196 @@ mod tests {
         std::thread::spawn(move || {
             for stream in listener.incoming() {
                 let Ok(mut stream) = stream else { break };
-                let mut request = [0u8; 2048];
-                let n = stream.read(&mut request).unwrap_or(0);
-                let head = String::from_utf8_lossy(&request[..n]).to_string();
-                let path = head
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or_default()
-                    .to_owned();
-                let (status, body) = routes
-                    .iter()
-                    .find(|(p, _, _)| *p == path)
-                    .map(|(_, s, b)| (*s, *b))
-                    .unwrap_or(("404 Not Found", "{}"));
-                let _ = write!(
-                    stream,
-                    "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-                    body.len()
-                );
+                let routes = routes.clone();
+                std::thread::spawn(move || {
+                    let mut request = vec![];
+                    let mut buffer = [0u8; 2048];
+                    // The head, then as much body as it announces.
+                    loop {
+                        let n = stream.read(&mut buffer).unwrap_or(0);
+                        request.extend_from_slice(&buffer[..n]);
+                        let text = String::from_utf8_lossy(&request).to_string();
+                        if let Some((head, body)) = text.split_once("\r\n\r\n") {
+                            let length = head
+                                .lines()
+                                .find_map(|l| {
+                                    let (k, v) = l.split_once(':')?;
+                                    k.eq_ignore_ascii_case("content-length")
+                                        .then(|| v.trim().parse::<usize>().ok())?
+                                })
+                                .unwrap_or(0);
+                            if body.len() >= length {
+                                break;
+                            }
+                        }
+                        if n == 0 {
+                            break;
+                        }
+                    }
+                    let text = String::from_utf8_lossy(&request).to_string();
+                    let path = text
+                        .split_whitespace()
+                        .nth(1)
+                        .unwrap_or_default()
+                        .to_owned();
+                    let model = text
+                        .split_once("\r\n\r\n")
+                        .and_then(|(_, b)| serde_json::from_str::<serde_json::Value>(b).ok())
+                        .and_then(|b| b["model"].as_str().map(str::to_owned));
+                    let keyed = model.map(|m| format!("{path} {m}"));
+                    let (status, body) = routes
+                        .iter()
+                        .find(|(p, _, _)| Some(*p) == keyed.as_deref())
+                        .or_else(|| routes.iter().find(|(p, _, _)| *p == path))
+                        .map(|(_, s, b)| (*s, *b))
+                        .unwrap_or(("404 Not Found", "{}"));
+                    let _ = write!(
+                        stream,
+                        "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                });
             }
         });
         port
+    }
+
+    #[test]
+    fn the_name_fallback_keeps_chat_models_only() {
+        for id in [
+            "qwen3-coder",
+            "qwen3-coder:30b",
+            "llama3.2",
+            "gpt-oss:20b",
+            "glm-4.6",
+            "kimi-k2",
+            "deepseek-r1:8b",
+            "Qwen/Qwen3.5-9B",
+            "gemma3",
+            "gpt-5",
+            "integrate-7b",
+            "mlx-community/Qwen3-4B-4bit",
+            "deepseek-ocr",
+        ] {
+            assert!(chat_model(id), "{id} should be kept");
+        }
+        for id in [
+            "nomic-embed-text",
+            "mxbai-embed-large",
+            "bge-m3",
+            "Qwen/Qwen3-Embedding-0.6B",
+            "qwen3-embedding:4b",
+            "BAAI/bge-reranker-v2-m3",
+            "bge-reranker-v2",
+            "intfloat/multilingual-e5-large",
+            "thenlper/gte-large",
+            "all-minilm:latest",
+            "mlx-community/whisper-large-v3-turbo",
+            "nvidia/parakeet-tdt-0.6b-v2",
+            "parakeet-tdt",
+            "FunAudioLLM/SenseVoiceSmall",
+            "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
+            "kokoro-82m",
+            "suno/bark",
+            "CosyVoice2-0.5B",
+            "gpt-4o-audio-preview",
+            "gpt-4o-mini-transcribe",
+            "black-forest-labs/flux.1-schnell",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "sdxl-turbo",
+            "dall-e-3",
+            "gpt-image-1",
+            "imagen-4.0-generate",
+            "sora-2",
+            "Wan-AI/Wan2.1-T2V-14B",
+            "veo-3.0-generate",
+            "omni-moderation-latest",
+        ] {
+            assert!(!chat_model(id), "{id} should be left out");
+        }
+    }
+
+    #[test]
+    fn lm_studio_lists_language_and_vision_models_by_type() {
+        let found = models(&Answers {
+            lm_studio_models: Some(json!({"models": [
+                {"key": "qwen/qwen3-coder-30b", "type": "llm"},
+                {"key": "google/gemma-3-12b", "type": "vlm"},
+                {"key": "text-embedding-nomic-embed-text-v1.5", "type": "embeddings"},
+                {"key": "my-llm", "type": "embedding"},
+                {"key": "something", "type": "tts"}
+            ]})),
+            ..answers()
+        });
+        assert_eq!(found, ["qwen/qwen3-coder-30b", "google/gemma-3-12b"]);
+    }
+
+    #[test]
+    fn openai_compatible_lists_trust_a_reported_kind_over_the_name() {
+        let found = models(&Answers {
+            openai_models: Some(json!({"data": [
+                {"id": "Qwen/Qwen3.5-9B", "object": "model"},
+                {"id": "BAAI/bge-m3", "object": "model"},
+                {"id": "custom-a", "model_type": "embedding"},
+                {"id": "custom-b", "type": "llm"},
+                {"id": "custom-c", "capabilities": ["completion"]},
+                {"id": "custom-d", "task": "automatic-speech-recognition"}
+            ]})),
+            ..answers()
+        });
+        assert_eq!(found, ["Qwen/Qwen3.5-9B", "custom-b", "custom-c"]);
+    }
+
+    #[test]
+    fn ollama_models_are_kept_by_their_reported_capabilities() {
+        let ollama = serve(vec![
+            ("/api/version", "200 OK", r#"{"version":"0.12.0"}"#),
+            (
+                "/api/tags",
+                "200 OK",
+                r#"{"models":[{"name":"qwen3-coder:30b"},{"name":"embeddinggemma:latest"},{"name":"chat-or-not:latest"},{"name":"nomic-embed-text:latest"},{"name":"llama3.2:latest"},{"name":"glm:cloud","remote_host":"https://ollama.com"}]}"#,
+            ),
+            (
+                "/api/show qwen3-coder:30b",
+                "200 OK",
+                r#"{"capabilities":["completion","tools"]}"#,
+            ),
+            (
+                "/api/show embeddinggemma:latest",
+                "200 OK",
+                r#"{"capabilities":["embedding"]}"#,
+            ),
+            (
+                "/api/show chat-or-not:latest",
+                "200 OK",
+                r#"{"capabilities":["completion"]}"#,
+            ),
+            // `/api/show` fails for these two: their names decide.
+            (
+                "/api/show nomic-embed-text:latest",
+                "500 Internal Server Error",
+                "{}",
+            ),
+            (
+                "/api/show llama3.2:latest",
+                "500 Internal Server Error",
+                "{}",
+            ),
+        ]);
+        let found = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(discover_ports(&[(ollama, None)]));
+        assert_eq!(found.len(), 1);
+        assert_eq!(
+            found[0].models,
+            ["qwen3-coder:30b", "chat-or-not:latest", "llama3.2:latest"]
+        );
+        // No capabilities reported at all: the tags entry and the name.
+        let tag = json!({"name": "x", "details": {"families": ["bert"]}});
+        assert!(!ollama_chat("x", Some(&tag), None));
+        assert!(ollama_chat("x", None, Some(&json!({}))));
     }
 
     #[test]

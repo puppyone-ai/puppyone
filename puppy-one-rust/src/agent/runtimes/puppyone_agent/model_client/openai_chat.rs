@@ -6,8 +6,37 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 /// The request body: the context and tools are already in this shape.
-pub fn body(model: &str, context: &[Value], tools: Value) -> Value {
-    json!({"model":model,"messages":context,"tools":tools,"stream":true,"stream_options":{"include_usage":true}})
+pub fn body(model: &str, context: &[Value], tools: Value, keep_reasoning: bool) -> Value {
+    let messages: Vec<Value> = context
+        .iter()
+        .map(|message| {
+            let mut message = message.clone();
+            if !keep_reasoning && let Some(m) = message.as_object_mut() {
+                m.remove("reasoning_content");
+            }
+            message
+        })
+        .collect();
+    json!({"model":model,"messages":messages,"tools":tools,"stream":true,"stream_options":{"include_usage":true}})
+}
+
+/// Providers whose thinking models need an assistant turn's
+/// `reasoning_content` sent back with it (Pi: `requiresReasoningContentOn
+/// AssistantMessages` for Kimi's K3 family; Kimi Code and Moonshot). Others
+/// get it stripped: some refuse the field.
+pub fn keeps_reasoning(
+    connection: &crate::agent::model_connections::configuration::ModelConnection,
+) -> bool {
+    let host = url::Url::parse(&connection.endpoint)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_ascii_lowercase))
+        .unwrap_or_default();
+    matches!(
+        connection.provider.as_deref(),
+        Some("kimi-code" | "moonshot")
+    ) || host == "api.kimi.com"
+        || host.ends_with("moonshot.ai")
+        || host.ends_with("moonshot.cn")
 }
 
 /// The Chat Completions event stream; `[DONE]` is its receipt.
@@ -176,5 +205,28 @@ mod tests {
             result.unwrap_err(),
             "Model returned ambiguous tool identities"
         );
+    }
+
+    #[test]
+    fn thinking_goes_back_only_to_providers_that_need_it() {
+        use crate::agent::model_connections::configuration::ModelConnection;
+        let context = vec![serde_json::json!({
+            "role": "assistant", "content": "", "reasoning_content": "Plan",
+            "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "ls", "arguments": "{}"}}]
+        })];
+        let kimi = ModelConnection {
+            endpoint: "https://api.kimi.com/coding/v1".into(),
+            ..Default::default()
+        };
+        let deepseek = ModelConnection {
+            endpoint: "https://api.deepseek.com/v1".into(),
+            ..Default::default()
+        };
+        assert!(keeps_reasoning(&kimi) && !keeps_reasoning(&deepseek));
+        let kept = body("k", &context, serde_json::json!([]), true);
+        assert_eq!(kept["messages"][0]["reasoning_content"], "Plan");
+        let dropped = body("d", &context, serde_json::json!([]), false);
+        assert!(dropped["messages"][0].get("reasoning_content").is_none());
+        assert_eq!(dropped["messages"][0]["tool_calls"][0]["id"], "c1");
     }
 }

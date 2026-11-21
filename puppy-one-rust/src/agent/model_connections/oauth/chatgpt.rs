@@ -47,8 +47,7 @@ pub fn authorize_url(endpoints: &Endpoints, port: u16, challenge: &str, state: &
         .append_pair("code_challenge_method", "S256")
         .append_pair("state", state)
         .append_pair("id_token_add_organizations", "true")
-        .append_pair("codex_cli_simplified_flow", "true")
-        .append_pair("originator", "puppyone");
+        .append_pair("codex_cli_simplified_flow", "true");
     url.into()
 }
 
@@ -170,14 +169,17 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn the_authorization_url_names_this_app_and_the_loopback_redirect() {
+    fn the_authorization_url_is_codexs_with_the_loopback_redirect() {
         let url =
             url::Url::parse(&authorize_url(&Endpoints::default(), 1455, "chal", "st")).unwrap();
         let pairs: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
         assert_eq!(url.host_str(), Some("auth.openai.com"));
         assert_eq!(pairs["redirect_uri"], "http://localhost:1455/auth/callback");
         assert_eq!(pairs["code_challenge_method"], "S256");
-        assert_eq!(pairs["originator"], "puppyone");
+        // As Cherry Studio: no `originator` on the authorization page (the
+        // requests name PuppyOne in their `originator` header).
+        assert!(!pairs.contains_key("originator"));
+        assert_eq!(pairs["codex_cli_simplified_flow"], "true");
         assert_eq!(pairs["state"], "st");
     }
 

@@ -90,6 +90,24 @@ pub fn use_as_default(
     })
 }
 
+/// Offer `model` in Chat, or stop offering it (the default always is).
+pub fn set_chat_model(
+    mut connection: ModelConnection,
+    model: String,
+    offered: bool,
+    wake: Wake,
+) -> Receiver<Connections> {
+    connection.chat_models.retain(|m| m != &model);
+    if offered {
+        connection.chat_models.push(model);
+    }
+    change(wake, async move {
+        tokio::task::spawn_blocking(move || configuration::save(connection, None))
+            .await
+            .map_err(|e| e.to_string())?
+    })
+}
+
 pub fn remove(id: String, generation: String, wake: Wake) -> Receiver<Connections> {
     let (tx, rx) = mpsc::sync_channel(1);
     crate::localization::spawn(move || {

@@ -1,4 +1,6 @@
-//! The one-shot OAuth callback server: listens on `127.0.0.1` only, answers
+//! The one-shot OAuth callback server: listens on loopback only
+//! (`127.0.0.1`, and `::1` when the system has it, since a browser may
+//! resolve `localhost` to either, as Cherry Studio's transport does), answers
 //! the browser with a short page, and hands back the authorization code of
 //! the first request on `path` whose `state` matches. Other requests
 //! (favicons, stray probes) get 404 and are ignored.
@@ -8,7 +10,7 @@ use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
 pub struct Callback {
-    listener: TcpListener,
+    listeners: Vec<TcpListener>,
     pub port: u16,
 }
 
@@ -20,18 +22,26 @@ pub struct Authorization {
 }
 
 impl Callback {
-    /// Bind `127.0.0.1:port` (`0` for any free port).
+    /// Bind `127.0.0.1:port` (`0` for any free port) and the same port on
+    /// `::1` when available.
     pub fn bind(port: u16) -> Result<Self, String> {
-        let listener =
+        let v4 =
             TcpListener::bind(("127.0.0.1", port)).map_err(|_| "OAUTH_PORT_IN_USE".to_owned())?;
-        listener
-            .set_nonblocking(true)
-            .map_err(|_| "OAUTH_UNAVAILABLE".to_owned())?;
-        let port = listener
+        let port = v4
             .local_addr()
             .map_err(|_| "OAUTH_UNAVAILABLE".to_owned())?
             .port();
-        Ok(Self { listener, port })
+        let mut listeners = vec![v4];
+        // IPv6 loopback is optional: some systems have none.
+        if let Ok(v6) = TcpListener::bind(("::1", port)) {
+            listeners.push(v6);
+        }
+        for listener in &listeners {
+            listener
+                .set_nonblocking(true)
+                .map_err(|_| "OAUTH_UNAVAILABLE".to_owned())?;
+        }
+        Ok(Self { listeners, port })
     }
 
     /// Wait (on a blocking thread) for the callback on `path`; `state`, when
@@ -63,16 +73,21 @@ impl Callback {
             if Instant::now() >= deadline {
                 return Err("OAUTH_TIMEOUT".into());
             }
-            match self.listener.accept() {
-                Ok((stream, _)) => {
-                    if let Some(result) = answer(stream, path, state) {
-                        return result;
+            let mut idle = true;
+            for listener in &self.listeners {
+                match listener.accept() {
+                    Ok((stream, _)) => {
+                        idle = false;
+                        if let Some(result) = answer(stream, path, state) {
+                            return result;
+                        }
                     }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                    Err(_) => return Err("OAUTH_UNAVAILABLE".into()),
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    std::thread::sleep(Duration::from_millis(50));
-                }
-                Err(_) => return Err("OAUTH_UNAVAILABLE".into()),
+            }
+            if idle {
+                std::thread::sleep(Duration::from_millis(50));
             }
         }
     }
@@ -239,8 +254,29 @@ mod tests {
     }
 
     #[test]
-    fn the_server_binds_only_to_loopback() {
+    fn the_server_binds_only_to_loopback_on_both_families() {
         let callback = Callback::bind(0).unwrap();
-        assert!(callback.listener.local_addr().unwrap().ip().is_loopback());
+        assert!(
+            callback
+                .listeners
+                .iter()
+                .all(|l| l.local_addr().unwrap().ip().is_loopback())
+        );
+        // `localhost` may resolve to `::1`: the callback still arrives.
+        if callback.listeners.len() == 2 {
+            let port = callback.port;
+            std::thread::spawn(move || {
+                use std::io::{Read, Write};
+                std::thread::sleep(Duration::from_millis(50));
+                let mut s = TcpStream::connect(("::1", port)).unwrap();
+                s.write_all(b"GET /cb?code=c6 HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                    .unwrap();
+                let _ = s.read(&mut [0u8; 256]);
+            });
+            let got = callback
+                .wait_blocking("/cb", None, &Cancel::default(), Duration::from_secs(5))
+                .unwrap();
+            assert_eq!(got.code, "c6");
+        }
     }
 }

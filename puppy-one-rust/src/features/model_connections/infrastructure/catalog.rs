@@ -1,6 +1,7 @@
 //! Model catalogs: what each service reports about the models it serves
 //! (`drivers/*.list` and `projectModelCatalog`), read with the connection's
 //! credential, never written anywhere.
+use super::discovery::{MODEL_LIMIT, chat_entry, lm_studio_chat, ollama_chat, ollama_show};
 use super::{Driver, ModelConnection};
 use crate::agent::model_connections::providers;
 
@@ -105,11 +106,12 @@ async fn openai_catalog(
     }
 }
 /// `drivers/*.list` by the connection's driver: Ollama (tags, ps, show for
-/// the first 16), LM Studio (`/api/v1/models`, else the OpenAI catalog),
+/// the first [`MODEL_LIMIT`] local models, concurrently), LM Studio (`/api/v1/models`, else the OpenAI catalog),
 /// llama.cpp (`/models` with the server's `/props` window), Anthropic
 /// (`/v1/models`), the other services (`/models`); a provider whose
 /// catalog cannot be read with this credential serves its known models.
-/// Then `projectModelCatalog`. At most 500 models.
+/// Text chat models only: what the service reports about each model, else
+/// its name. Then `projectModelCatalog`. At most 500 models.
 pub async fn list_models(
     client: &reqwest::Client,
     connection: &ModelConnection,
@@ -125,21 +127,15 @@ pub async fn list_models(
         Driver::Ollama => {
             let tags = get_json(client, format!("{native}/api/tags"), key).await?;
             let running = get_json(client, format!("{native}/api/ps"), key).await.ok();
-            let mut models = ollama_models(&tags, running.as_ref());
-            for model in models.iter_mut().filter(|m| !m.remote).take(16) {
-                let detail = client
-                    .post(format!("{native}/api/show"))
-                    .json(&serde_json::json!({"model": model.id}))
-                    .send()
-                    .await
-                    .ok();
-                if let Some(detail) = detail
-                    && let Ok(value) = detail.json::<serde_json::Value>().await
-                {
-                    ollama_detail(model, &value);
-                }
-            }
-            Ok(models)
+            let models = ollama_models(&tags, running.as_ref());
+            let local: Vec<String> = models
+                .iter()
+                .filter(|m| !m.remote)
+                .take(MODEL_LIMIT)
+                .map(|m| m.id.clone())
+                .collect();
+            let shown = ollama_show(client, &native, &local, key).await;
+            Ok(ollama_chat_models(&tags, models, &local, &shown))
         }
         Driver::LmStudio => match get_json(client, format!("{native}/api/v1/models"), key).await {
             Ok(value) => Ok(lm_studio_models(&value)),
@@ -225,7 +221,7 @@ pub fn openrouter_models(value: &serde_json::Value) -> Vec<CatalogModel> {
         .flatten()
         .take(500)
         .filter_map(|entry| {
-            let id = model_id(&entry["id"])?;
+            let id = model_id(&entry["id"]).filter(|id| chat_entry(entry, id))?;
             let parameters = entry["supported_parameters"].as_array();
             Some(CatalogModel {
                 name: entry["name"]
@@ -272,6 +268,35 @@ fn ollama_detail(model: &mut CatalogModel, detail: &serde_json::Value) {
             .and_then(|(_, value)| positive(value))
     });
 }
+/// The Ollama models the Agent can chat with: each shown model by its
+/// `/api/show` capabilities (filling in its details), the rest (cloud models,
+/// failed or unchecked ones) by their tags entry and name.
+fn ollama_chat_models(
+    tags: &serde_json::Value,
+    models: Vec<CatalogModel>,
+    shown_ids: &[String],
+    shown: &[Option<serde_json::Value>],
+) -> Vec<CatalogModel> {
+    let entries = tags["models"].as_array();
+    models
+        .into_iter()
+        .filter_map(|mut model| {
+            let detail = shown_ids
+                .iter()
+                .position(|id| id == &model.id)
+                .and_then(|i| shown.get(i))
+                .and_then(Option::as_ref);
+            let tag = entries
+                .into_iter()
+                .flatten()
+                .find(|e| e["name"] == model.id.as_str() || e["model"] == model.id.as_str());
+            if let Some(detail) = detail {
+                ollama_detail(&mut model, detail);
+            }
+            ollama_chat(&model.id, tag, detail).then_some(model)
+        })
+        .collect()
+}
 /// Ollama `/api/tags`, with `/api/ps` (when it answered) for loaded state
 /// and the loaded context length.
 pub fn ollama_models(
@@ -302,16 +327,16 @@ pub fn ollama_models(
     }
     models
 }
-/// LM Studio `/api/v1/models`: language models only.
+/// LM Studio `/api/v1/models`: language and vision-language models only.
 pub fn lm_studio_models(value: &serde_json::Value) -> Vec<CatalogModel> {
     let mut models = vec![];
     for entry in value["models"].as_array().into_iter().flatten().take(500) {
-        if entry["type"] != "llm" {
-            continue;
-        }
         let Some(id) = model_id(&entry["key"]) else {
             continue;
         };
+        if !lm_studio_chat(entry, &id) {
+            continue;
+        }
         let instances = entry["loaded_instances"]
             .as_array()
             .cloned()
@@ -335,14 +360,15 @@ pub fn lm_studio_models(value: &serde_json::Value) -> Vec<CatalogModel> {
     }
     models
 }
-/// An OpenAI-compatible `/models` list.
+/// An OpenAI-compatible `/models` list: chat models by what each entry
+/// reports, else by name.
 pub fn openai_models(value: &serde_json::Value) -> Vec<CatalogModel> {
     value["data"]
         .as_array()
         .into_iter()
         .flatten()
         .take(500)
-        .filter_map(|entry| model_id(&entry["id"]))
+        .filter_map(|entry| model_id(&entry["id"]).filter(|id| chat_entry(entry, id)))
         .map(CatalogModel::named)
         .collect()
 }
@@ -482,6 +508,84 @@ mod catalog_tests {
         assert_eq!(
             (models[1].name.as_str(), models[1].tools, models[1].loaded),
             ("gemma", None, Some(false))
+        );
+    }
+
+    #[test]
+    fn catalogs_keep_text_chat_models_by_what_the_service_reports() {
+        // OpenAI-style lists carry no kind: the name decides.
+        let value = json!({"data": [
+            {"id": "gpt-5", "object": "model"},
+            {"id": "text-embedding-3-small", "object": "model"},
+            {"id": "whisper-1", "object": "model"},
+            {"id": "gpt-4o-mini-tts", "object": "model"},
+            {"id": "gpt-4o-transcribe", "object": "model"},
+            {"id": "gpt-image-1", "object": "model"},
+            {"id": "dall-e-3", "object": "model"},
+            {"id": "omni-moderation-latest", "object": "model"},
+            {"id": "sora-2", "object": "model"},
+            // A reported kind wins over the name.
+            {"id": "my-embedder", "model_type": "LLM"},
+            {"id": "plain-name", "type": "embedding"},
+            {"id": "x/rank", "task": "text-generation"},
+            {"id": "y/caps", "capabilities": ["embedding"]}
+        ]});
+        let ids: Vec<_> = openai_models(&value).into_iter().map(|m| m.id).collect();
+        assert_eq!(ids, ["gpt-5", "my-embedder", "x/rank"]);
+        // OpenRouter reports output modalities.
+        let value = json!({"data": [
+            {"id": "a/chat", "architecture": {"output_modalities": ["text"]}},
+            {"id": "b/painter", "architecture": {"output_modalities": ["image", "text"]}},
+            {"id": "c/modality", "architecture": {"modality": "text+image->text"}},
+            {"id": "d/embedding-only", "architecture": {"modality": "text->embeddings"}}
+        ]});
+        let ids: Vec<_> = openrouter_models(&value)
+            .into_iter()
+            .map(|m| m.id)
+            .collect();
+        assert_eq!(ids, ["a/chat", "c/modality"]);
+        // LM Studio: `llm` and `vlm` only.
+        let value = json!({"models": [
+            {"type": "llm", "key": "qwen/qwen3-coder"},
+            {"type": "vlm", "key": "google/gemma-3-12b"},
+            {"type": "embeddings", "key": "text-embedding-nomic"},
+            {"type": "tts", "key": "kokoro"}
+        ]});
+        let ids: Vec<_> = lm_studio_models(&value).into_iter().map(|m| m.id).collect();
+        assert_eq!(ids, ["qwen/qwen3-coder", "google/gemma-3-12b"]);
+    }
+
+    #[test]
+    fn ollama_catalog_keeps_models_whose_capabilities_name_completion() {
+        let tags = json!({"models": [
+            {"name": "qwen3:8b"},
+            {"name": "embeddinggemma:latest"},
+            {"name": "nomic-embed-text:latest"},
+            {"name": "odd-name:latest", "details": {"family": "nomic-bert"}},
+            {"name": "gpt-oss:120b-cloud", "remote_host": "https://ollama.com:443"}
+        ]});
+        let models = ollama_models(&tags, None);
+        let shown_ids: Vec<String> = [
+            "qwen3:8b",
+            "embeddinggemma:latest",
+            "nomic-embed-text:latest",
+            "odd-name:latest",
+        ]
+        .map(str::to_owned)
+        .to_vec();
+        let shown = vec![
+            Some(json!({"capabilities": ["completion", "tools"]})),
+            Some(json!({"capabilities": ["embedding"]})),
+            // `/api/show` failed: the name decides, and the BERT family.
+            None,
+            None,
+        ];
+        let kept = ollama_chat_models(&tags, models, &shown_ids, &shown);
+        assert_eq!(
+            kept.iter()
+                .map(|m| (m.id.as_str(), m.tools))
+                .collect::<Vec<_>>(),
+            [("qwen3:8b", Some(true)), ("gpt-oss:120b-cloud", None)]
         );
     }
 

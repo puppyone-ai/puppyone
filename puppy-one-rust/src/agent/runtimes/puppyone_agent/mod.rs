@@ -350,11 +350,13 @@ mod verify_tests {
                 401,
                 "OAUTH_REAUTH_REQUIRED",
             ),
+            // A refusal that is not about the token says what the provider
+            // said, with the request's credential masked out.
             (
                 configuration::Driver::Chatgpt,
                 chatgpt(),
                 403,
-                "OAUTH_REAUTH_REQUIRED",
+                "HTTP 403: bad key",
             ),
             (configuration::Driver::Chatgpt, chatgpt(), 500, "HTTP 500"),
             (
@@ -369,7 +371,7 @@ mod verify_tests {
             let error = run(&signed(base, driver, credential)).unwrap_err();
             server.join().unwrap();
             assert!(error.contains(expected), "{driver:?} {status}: {error}");
-            for secret in [SECRET, ACCESS, ACCOUNT, "bad key"] {
+            for secret in [SECRET, ACCESS, ACCOUNT] {
                 assert!(!error.contains(secret), "{error}");
             }
         }

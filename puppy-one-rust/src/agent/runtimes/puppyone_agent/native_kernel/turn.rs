@@ -147,6 +147,18 @@ pub fn chat_context(cwd: &std::path::Path, messages: &[Value]) -> Vec<Value> {
                     continue;
                 }
                 let mut entry = json!({ "role": "assistant", "content": text });
+                // The model's thinking, for providers that require it back
+                // (Kimi); `openai_chat::body` drops it for the others.
+                let thinking: String = message["content"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|part| part["type"] == "thinking")
+                    .filter_map(|part| part["thinking"].as_str())
+                    .collect();
+                if !thinking.is_empty() {
+                    entry["reasoning_content"] = Value::from(thinking);
+                }
                 if !calls.is_empty() {
                     open = calls
                         .iter()

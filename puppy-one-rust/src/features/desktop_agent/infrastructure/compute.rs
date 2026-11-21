@@ -26,6 +26,9 @@ pub(crate) struct ComputeSnapshot {
     /// Each ready connection's brand mark under `assets/providers/` and
     /// whether it is one colour (`providers::Provider::mark`).
     pub marks: HashMap<String, (&'static str, bool)>,
+    /// Each connection's name, shown under its models in Chat's picker so
+    /// models from several services (Ollama, MLX…) tell apart.
+    pub names: HashMap<String, String>,
     pub managed: Option<ManagedCompute>,
 }
 
@@ -76,6 +79,10 @@ pub(crate) fn read_compute_snapshot() -> ComputeSnapshot {
                     (provider.mark?, provider.monochrome),
                 ))
             })
+            .collect(),
+        names: connections
+            .iter()
+            .map(|c| (product_connection_id(&c.id), c.name.clone()))
             .collect(),
         managed: Some(ManagedCompute {
             signed_in,

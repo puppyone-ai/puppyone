@@ -183,6 +183,8 @@ pub async fn sign_in(
     progress: impl Fn(oauth::Progress) + Send + Sync + 'static,
     cancel: oauth::Cancel,
 ) -> Result<(), String> {
+    let progress = std::sync::Arc::new(progress);
+    let report = progress.clone();
     let credential = oauth::login(
         provider,
         move |step| {
@@ -197,11 +199,13 @@ pub async fn sign_in(
                 }
                 oauth::Progress::Exchanging => {}
             }
-            progress(step);
+            report(step);
         },
         cancel,
     )
     .await?;
+    // The provider answered: the user sees it at once, not after the save.
+    progress(oauth::Progress::Exchanging);
     let mut connection = signed_in_connection(provider, existing.as_ref())?;
     // A sign-in that assigns its own endpoint (Qwen Code) is served there.
     if let Some(endpoint) = credential.endpoint() {
@@ -209,6 +213,15 @@ pub async fn sign_in(
     }
     // Re-signing in with the same connection replaces its credential.
     let bearer = credential.bearer().to_owned();
+    connection.account = credential.label().map(str::to_owned);
+    // A provider's recommended model serves at once; reading its catalog
+    // (which may take seconds) waits for the connection's details.
+    if connection.default_model_id.is_none() {
+        connection.default_model_id = connection
+            .provider()
+            .and_then(|p| p.recommended.first())
+            .map(|m| (*m).to_owned());
+    }
     if connection.default_model_id.is_none() {
         let _ = complete_binding(&mut connection, Some(&bearer)).await;
     }
@@ -322,7 +335,7 @@ mod tests {
         let kimi = signed_in_connection(OauthProvider::KimiCode, None).unwrap();
         assert_eq!(
             (kimi.driver, kimi.endpoint.as_str()),
-            (Driver::Anthropic, "https://api.kimi.com/coding")
+            (Driver::OpenaiCompatible, "https://api.kimi.com/coding/v1")
         );
         let xai = signed_in_connection(OauthProvider::Xai, None).unwrap();
         assert_eq!(xai.driver, Driver::OpenaiResponses);

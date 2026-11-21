@@ -134,7 +134,9 @@ pub struct ModelConnections {
     catalog: Option<(String, Result<Vec<client::CatalogModel>, String>)>,
     catalog_rx: Option<Receiver<Result<Vec<client::CatalogModel>, String>>>,
     /// Agent tool round trips that passed, by route; one in flight.
-    verified: std::collections::BTreeMap<String, bool>,
+    /// Agent tool round trips by route: the result and when it arrived
+    /// (the chip's entrance is keyed by it).
+    verified: std::collections::BTreeMap<String, (Result<(), String>, std::time::Instant)>,
     verify_rx: Option<(String, Receiver<Result<(), String>>)>,
     wake: Wake,
 }
@@ -284,10 +286,9 @@ impl ModelConnections {
             .and_then(|(route, rx)| rx.try_recv().ok().map(|r| (route.clone(), r)))
         {
             self.verify_rx = None;
-            if let Err(code) = &result {
-                self.error = Some(code.clone());
-            }
-            self.verified.insert(route, result.is_ok());
+            // The result shows on the model's row, not at the page's top.
+            self.verified
+                .insert(route, (result, std::time::Instant::now()));
             cx.notify();
         }
         self.receive_sign_in(cx);

@@ -35,6 +35,9 @@ impl Completion {
     /// The assistant message, in the kernel's OpenAI Chat shape.
     pub fn message(&self) -> Value {
         let mut v = json!({"role":"assistant","content":self.text});
+        if !self.reasoning.is_empty() {
+            v["reasoning_content"] = json!(self.reasoning);
+        }
         if !self.calls.is_empty() {
             v["tool_calls"] = json!(self.calls);
         }
@@ -82,73 +85,54 @@ pub async fn complete(
     connection.validate()?;
     let delta: &mut dyn FnMut(&str, &str) = &mut delta;
     if connection.managed {
-        let body = openai_chat::body(&connection.model, context, tool_schema);
+        let body = openai_chat::body(&connection.model, context, tool_schema, false);
         return complete_managed(account, body, delta).await;
     }
     let protocol = connection.driver.protocol();
-    let credential = connection.resolve_credential().await?;
     let oauth = connection.auth == Auth::Oauth;
     let endpoint = connection.endpoint.trim_end_matches('/');
     let client = client()?;
-    let request = match protocol {
-        Protocol::OpenaiChat => {
-            let mut request = client.post(format!("{endpoint}/chat/completions"));
-            if let Some(credential) = &credential {
-                request = request.bearer_auth(&credential.bearer);
-            }
-            request.json(&openai_chat::body(&connection.model, context, tool_schema))
-        }
-        Protocol::AnthropicMessages => {
-            let mut request = client
-                .post(format!("{endpoint}/v1/messages"))
-                .header("anthropic-version", anthropic::VERSION);
-            match &credential {
-                Some(credential) if oauth => request = request.bearer_auth(&credential.bearer),
-                Some(credential) => request = request.header("x-api-key", &credential.bearer),
-                None => {}
-            }
-            request.json(&anthropic::body(&connection.model, context, &tool_schema))
-        }
-        Protocol::OpenaiResponses => {
-            let mut request = client.post(format!("{endpoint}/responses"));
-            if let Some(credential) = &credential {
-                request = request.bearer_auth(&credential.bearer);
-            }
-            request.json(&responses::body(
-                &connection.model,
-                context,
-                &tool_schema,
-                false,
-            ))
-        }
-        Protocol::CodexResponses => {
-            let credential = credential.as_ref().ok_or("CREDENTIAL_REQUIRED")?;
-            let account_id = credential
-                .account_id
-                .as_deref()
-                .filter(|a| !a.is_empty())
-                .ok_or("CREDENTIAL_REQUIRED")?;
-            client
-                .post(format!("{endpoint}/codex/responses"))
-                .bearer_auth(&credential.bearer)
-                .header("chatgpt-account-id", account_id)
-                .header("originator", "puppyone")
-                .header("OpenAI-Beta", "responses=experimental")
-                .header(reqwest::header::ACCEPT, "text/event-stream")
-                .json(&responses::body(
-                    &connection.model,
-                    context,
-                    &tool_schema,
-                    true,
-                ))
+    let send = |credential| {
+        let request = build_request(
+            &client,
+            connection,
+            protocol,
+            endpoint,
+            oauth,
+            &credential,
+            context,
+            &tool_schema,
+        );
+        async move {
+            request?.send().await.map_err(|_| {
+                "Model request failed before a response. Check the configured endpoint and connection."
+                    .to_owned()
+            })
         }
     };
-    let response = request.send().await.map_err(
-        |_| "Model request failed before a response. Check the configured endpoint and connection.",
-    )?;
+    let mut credential = connection.resolve_credential().await?;
+    let mut response = send(credential.clone()).await?;
+    // A subscription token the provider refuses may have been rotated or
+    // revoked early: refresh it once and retry (Cherry Studio's
+    // `forceRefresh`), then ask the user to sign in again.
+    if oauth
+        && response.status().as_u16() == 401
+        && let Some(fresh) = connection.resolve_fresh_credential().await?
+    {
+        credential = Some(fresh);
+        response = send(credential.clone()).await?;
+    }
     let status = response.status().as_u16();
     if !response.status().is_success() {
-        return Err(status_error(status, oauth, protocol));
+        // What this request carried is masked out of the provider's text.
+        let secrets: Vec<String> = credential
+            .iter()
+            .flat_map(|c| [Some(c.bearer.clone()), c.account_id.clone()])
+            .flatten()
+            .filter(|s| !s.is_empty())
+            .collect();
+        let detail = provider_message(response, &secrets).await;
+        return Err(status_error(status, oauth, protocol, detail.as_deref()));
     }
     match protocol {
         Protocol::OpenaiChat => read(response, openai_chat::Parser::default(), delta).await,
@@ -159,17 +143,76 @@ pub async fn complete(
     }
 }
 
-/// The error a refused request reports: never its body, key or account.
-fn status_error(status: u16, oauth: bool, protocol: Protocol) -> String {
-    match status {
-        401 | 403 if oauth => "OAUTH_REAUTH_REQUIRED".into(),
-        429 if matches!(
-            protocol,
-            Protocol::OpenaiResponses | Protocol::CodexResponses
-        ) =>
+/// The provider's own reason for refusing a request (`error.message`,
+/// `message`, `error_description` or `error`): one line, at most 240
+/// characters. Never a credential: request headers are not echoed, and a
+/// bearer-looking token in the text is masked.
+async fn provider_message(response: reqwest::Response, secrets: &[String]) -> Option<String> {
+    let bytes = response.bytes().await.ok()?;
+    let head = &bytes[..bytes.len().min(16 * 1024)];
+    let body: Value = serde_json::from_slice(head).ok()?;
+    let text = [
+        &body["error"]["message"],
+        &body["message"],
+        &body["error_description"],
+        &body["error"],
+        &body["detail"],
+    ]
+    .into_iter()
+    .find_map(|v| v.as_str().filter(|s| !s.trim().is_empty()))?;
+    let mut text = text.to_owned();
+    for secret in secrets {
+        text = text.replace(secret.as_str(), "…");
+    }
+    Some(sanitize_message(&text))
+}
+
+/// One line, masked tokens, at most 240 characters.
+pub fn sanitize_message(text: &str) -> String {
+    let line = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let masked = line
+        .split(' ')
+        .map(|word| {
+            let lower = word.to_ascii_lowercase();
+            // Keys, JWTs and account / organization / project identifiers.
+            let key_like = [
+                "sk-", "sk_", "pk-", "eyj", "bearer", "acct", "org-", "org_", "user-", "user_",
+                "proj_", "proj-",
+            ]
+            .iter()
+            .any(|p| lower.starts_with(p))
+                && word.len() >= 8;
+            let token_like = key_like
+                || (word.len() >= 24
+                    && word
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c)));
+            if token_like { "…" } else { word }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut out: String = masked.chars().take(240).collect();
+    if masked.chars().count() > 240 {
+        out.push('…');
+    }
+    out
+}
+
+/// The error a refused request reports: the status and the provider's
+/// reason, never its key or account.
+fn status_error(status: u16, oauth: bool, protocol: Protocol, detail: Option<&str>) -> String {
+    match (status, detail) {
+        // Still refused after a fresh token: the sign-in itself is gone.
+        (401, _) if oauth => "OAUTH_REAUTH_REQUIRED".into(),
+        (429, _)
+            if matches!(
+                protocol,
+                Protocol::OpenaiResponses | Protocol::CodexResponses
+            ) =>
         {
             responses::USAGE_LIMIT.into()
         }
+        (_, Some(detail)) => format!("Model endpoint returned HTTP {status}: {detail}"),
         _ => format!(
             "Model endpoint returned HTTP {status}. Check its availability, model and credential."
         ),
@@ -257,4 +300,78 @@ async fn complete_managed(
         }
     }
     stream.finish()
+}
+
+/// The request for `protocol`, carrying `credential` as that protocol
+/// expects.
+#[allow(clippy::too_many_arguments)]
+fn build_request(
+    client: &reqwest::Client,
+    connection: &ModelConnection,
+    protocol: Protocol,
+    endpoint: &str,
+    oauth: bool,
+    credential: &Option<crate::agent::model_connections::credentials::Resolved>,
+    context: &[Value],
+    tool_schema: &Value,
+) -> Result<reqwest::RequestBuilder, String> {
+    let tool_schema = tool_schema.clone();
+    Ok(match protocol {
+        Protocol::OpenaiChat => {
+            let mut request = client.post(format!("{endpoint}/chat/completions"));
+            if let Some(credential) = &credential {
+                request = request.bearer_auth(&credential.bearer);
+            }
+            request.json(&openai_chat::body(
+                &connection.model,
+                context,
+                tool_schema,
+                openai_chat::keeps_reasoning(connection),
+            ))
+        }
+        Protocol::AnthropicMessages => {
+            let mut request = client
+                .post(format!("{endpoint}/v1/messages"))
+                .header("anthropic-version", anthropic::VERSION);
+            match &credential {
+                Some(credential) if oauth => request = request.bearer_auth(&credential.bearer),
+                Some(credential) => request = request.header("x-api-key", &credential.bearer),
+                None => {}
+            }
+            request.json(&anthropic::body(&connection.model, context, &tool_schema))
+        }
+        Protocol::OpenaiResponses => {
+            let mut request = client.post(format!("{endpoint}/responses"));
+            if let Some(credential) = &credential {
+                request = request.bearer_auth(&credential.bearer);
+            }
+            request.json(&responses::body(
+                &connection.model,
+                context,
+                &tool_schema,
+                false,
+            ))
+        }
+        Protocol::CodexResponses => {
+            let credential = credential.as_ref().ok_or("CREDENTIAL_REQUIRED")?;
+            let account_id = credential
+                .account_id
+                .as_deref()
+                .filter(|a| !a.is_empty())
+                .ok_or("CREDENTIAL_REQUIRED")?;
+            client
+                .post(format!("{endpoint}/codex/responses"))
+                .bearer_auth(&credential.bearer)
+                .header("chatgpt-account-id", account_id)
+                .header("originator", "puppyone")
+                .header("OpenAI-Beta", "responses=experimental")
+                .header(reqwest::header::ACCEPT, "text/event-stream")
+                .json(&responses::body(
+                    &connection.model,
+                    context,
+                    &tool_schema,
+                    true,
+                ))
+        }
+    })
 }

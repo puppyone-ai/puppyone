@@ -169,6 +169,11 @@ pub struct ModelConnection {
     /// A model the service may not list (`manualModelId`).
     #[serde(default)]
     pub manual_model_id: Option<String>,
+    /// More models of this connection offered in Chat besides the default
+    /// (Cherry Studio's enabled models): the user picks them on the
+    /// connection's page, across services.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub chat_models: Vec<String>,
     /// The context budget used when the service reports none.
     #[serde(default)]
     pub manual_context_window: Option<u64>,
@@ -179,6 +184,10 @@ pub struct ModelConnection {
     /// made from a preset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
+    /// The signed-in account's name (an email; not a secret), shown in
+    /// Settings without touching the Keychain on the UI thread.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account: Option<String>,
     /// The sign-in an `Auth::Oauth` connection was made with.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oauth_provider: Option<super::oauth::OauthProvider>,
@@ -296,6 +305,7 @@ impl ModelConnection {
         for id in [&self.default_model_id, &self.manual_model_id]
             .into_iter()
             .flatten()
+            .chain(self.chat_models.iter())
         {
             if !ids.contains(&id) {
                 ids.push(id);
@@ -322,6 +332,18 @@ impl ModelConnection {
             .await
             .map(Some)
     }
+    /// The credential with its OAuth token refreshed now (the provider
+    /// refused the current one); `None` when there is nothing to refresh.
+    pub async fn resolve_fresh_credential(
+        &self,
+    ) -> Result<Option<super::credentials::Resolved>, String> {
+        match self.credential_id.as_deref() {
+            Some(reference) if self.auth == Auth::Oauth => {
+                super::credentials::resolve_fresh(reference, self.oauth_provider).await
+            }
+            _ => Ok(None),
+        }
+    }
     /// The bearer token, without refreshing (catalog reads).
     pub fn credential(&self) -> Result<Option<String>, String> {
         if self.auth == Auth::None {
@@ -332,15 +354,13 @@ impl ModelConnection {
         };
         super::credentials::read(reference).map(|c| Some(c.bearer().to_owned()))
     }
-    /// The signed-in account's label (OAuth), for Settings.
+    /// The signed-in account's label (OAuth), for Settings: the name stored
+    /// at sign-in, never a Keychain read (a Keychain prompt would block the
+    /// thread that asks; older sign-ins show as signed in).
     pub fn account_label(&self) -> Option<String> {
-        if self.auth != Auth::Oauth {
-            return None;
-        }
-        super::credentials::read(self.credential_id.as_deref()?)
-            .ok()?
-            .label()
-            .map(str::to_owned)
+        (self.auth == Auth::Oauth)
+            .then(|| self.account.clone())
+            .flatten()
     }
     /// The provider this connection was made from, if registered.
     pub fn provider(&self) -> Option<&'static super::providers::Provider> {
@@ -595,6 +615,7 @@ fn load_from(path: &Path) -> Result<Vec<ModelConnection>, String> {
         .map(|entry| serde_json::from_value::<ModelConnection>(migrate(entry)))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
+    let connections: Vec<ModelConnection> = connections.into_iter().map(serve_current).collect();
     let mut identities = std::collections::HashSet::new();
     for c in &connections {
         c.validate()?;
@@ -603,6 +624,32 @@ fn load_from(path: &Path) -> Result<Vec<ModelConnection>, String> {
         }
     }
     Ok(connections)
+}
+/// A sign-in saved before its provider moved is served where the provider
+/// is now: Kimi Code from Anthropic Messages to Chat Completions
+/// (`/coding/v1`), Qwen Code from the retired `portal.qwen.ai` to its
+/// subscription API.
+fn serve_current(mut connection: ModelConnection) -> ModelConnection {
+    use super::oauth::OauthProvider;
+    let Some(provider) = connection
+        .oauth_provider
+        .filter(|_| connection.auth == Auth::Oauth)
+    else {
+        return connection;
+    };
+    let moved = match provider {
+        OauthProvider::KimiCode => connection.driver == Driver::Anthropic,
+        OauthProvider::QwenCode => !connection.endpoint.starts_with("https://api.qwen.ai/"),
+        _ => false,
+    };
+    if moved
+        && let Some((_, driver, endpoint)) =
+            super::providers::for_oauth(provider).and_then(|p| p.oauth)
+    {
+        connection.driver = driver;
+        connection.endpoint = endpoint.to_owned();
+    }
+    connection
 }
 /// The connections the Agent may use: every saved connection's members and
 /// PuppyOne compute's.
@@ -645,6 +692,16 @@ fn parse_save(
     connection.endpoint = normalize_endpoint(&connection.endpoint, connection.driver)?;
     connection.default_model_id = model_id(connection.default_model_id.as_deref())?;
     connection.manual_model_id = model_id(connection.manual_model_id.as_deref())?;
+    let mut chat_models: Vec<String> = vec![];
+    for id in &connection.chat_models {
+        if let Some(id) = model_id(Some(id))?
+            && !chat_models.contains(&id)
+            && chat_models.len() < 64
+        {
+            chat_models.push(id);
+        }
+    }
+    connection.chat_models = chat_models;
     if connection.auth != Auth::Oauth {
         connection.oauth_provider = None;
     }
@@ -965,5 +1022,55 @@ mod tests {
         let stored = serde_json::to_value(&remote).unwrap();
         assert_eq!(migrate(stored.clone()), stored);
         assert!(stored.get("model").is_none());
+    }
+
+    #[test]
+    fn models_picked_for_chat_are_offered_besides_the_default() {
+        let connection = ModelConnection {
+            default_model_id: Some("qwen3".into()),
+            chat_models: vec!["qwen3".into(), "llama3.2".into(), "gemma3".into()],
+            manual_context_window: Some(32768),
+            ..Default::default()
+        };
+        assert_eq!(
+            connection
+                .members()
+                .iter()
+                .map(|m| m.model.as_str())
+                .collect::<Vec<_>>(),
+            ["qwen3", "llama3.2", "gemma3"]
+        );
+    }
+
+    #[test]
+    fn sign_ins_saved_before_their_provider_moved_are_served_where_it_is_now() {
+        use super::super::oauth::OauthProvider;
+        let kimi = serve_current(ModelConnection {
+            auth: Auth::Oauth,
+            oauth_provider: Some(OauthProvider::KimiCode),
+            driver: Driver::Anthropic,
+            endpoint: "https://api.kimi.com/coding".into(),
+            ..Default::default()
+        });
+        assert_eq!(
+            (kimi.driver, kimi.endpoint.as_str()),
+            (Driver::OpenaiCompatible, "https://api.kimi.com/coding/v1")
+        );
+        let qwen = serve_current(ModelConnection {
+            auth: Auth::Oauth,
+            oauth_provider: Some(OauthProvider::QwenCode),
+            driver: Driver::OpenaiCompatible,
+            endpoint: "https://portal.qwen.ai/v1".into(),
+            ..Default::default()
+        });
+        assert_eq!(qwen.endpoint, "https://api.qwen.ai/compatible-mode/v1");
+        // An API-key connection is the user's own address.
+        let own = serve_current(ModelConnection {
+            auth: Auth::Bearer,
+            driver: Driver::Anthropic,
+            endpoint: "https://api.kimi.com/coding".into(),
+            ..Default::default()
+        });
+        assert_eq!(own.driver, Driver::Anthropic);
     }
 }

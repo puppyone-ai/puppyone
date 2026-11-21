@@ -1,17 +1,21 @@
-//! Qwen Code sign-in (`QwenLM/qwen-code`: `packages/core/src/qwen/qwenOAuth2.ts`,
-//! Apache-2.0): RFC 8628 device authorization with PKCE at `chat.qwen.ai`.
-//! The token names the account's API host (`resource_url`), served as an
-//! OpenAI-compatible endpoint at `https://<host>/v1`.
+//! Qwen Code subscription sign-in, as Qwen Code does it today
+//! (`QwenLM/qwen-code`: `packages/core/src/qwen/subscription-oauth-client.ts`
+//! and `oauth-config.ts`, Apache-2.0): RFC 8628 device authorization at
+//! `auth.qwen.ai` for the public client `qwen-code-cli`, scope
+//! `model:invoke profile:read`. The token calls the subscription API at
+//! `https://api.qwen.ai/compatible-mode/v1` (OpenAI-compatible). The plan is a
+//! Qwen Plus or Pro subscription; a free account is refused on the
+//! authorization page.
 use super::device::{self, Device};
-use super::{Cancel, Progress, pkce, post_form, token_credential};
+use super::{Cancel, Progress, post_form, token_credential};
 use crate::agent::model_connections::credentials::Credential;
 use std::sync::Arc;
 
-const CLIENT_ID: &str = "f0304373b74a44d2b584a3fb70ca9e56";
-const SCOPE: &str = "openid profile email model.completion";
+const CLIENT_ID: &str = "qwen-code-cli";
+const SCOPE: &str = "model:invoke profile:read";
 const DEVICE_GRANT: &str = "urn:ietf:params:oauth:grant-type:device_code";
-/// The endpoint used when the token names none (`DEFAULT_DASHSCOPE_BASE_URL`).
-const DEFAULT_ENDPOINT: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+/// The subscription API (`QWEN_SUBSCRIPTION_BASE_URL`).
+pub const ENDPOINT: &str = "https://api.qwen.ai/compatible-mode/v1";
 
 pub struct Endpoints {
     pub host: String,
@@ -19,37 +23,26 @@ pub struct Endpoints {
 impl Default for Endpoints {
     fn default() -> Self {
         Self {
-            host: "https://chat.qwen.ai".into(),
+            host: "https://auth.qwen.ai".into(),
         }
     }
 }
 
-/// `getCurrentEndpoint(resource_url)`: https, one `/v1`. Only an https host
-/// is accepted, so a token cannot send requests to plain HTTP.
-pub fn endpoint(resource_url: Option<&str>) -> Result<String, String> {
-    let Some(raw) = resource_url.map(str::trim).filter(|r| !r.is_empty()) else {
-        return Ok(DEFAULT_ENDPOINT.into());
-    };
-    let with_scheme = if raw.contains("://") {
-        raw.to_owned()
-    } else {
-        format!("https://{raw}")
-    };
-    let url = url::Url::parse(&with_scheme).map_err(|_| "OAUTH_INVALID_RESPONSE")?;
-    if url.scheme() != "https" || url.host_str().is_none() || url.query().is_some() {
-        return Err("OAUTH_INVALID_RESPONSE".into());
+/// `withQwenChatTracking`: the authorization page Qwen Code opens.
+fn tracked(uri: &str) -> String {
+    match url::Url::parse(uri) {
+        Ok(mut url) if url.host_str() == Some("chat.qwen.ai") => {
+            url.query_pairs_mut()
+                .append_pair("entry", "qwen_code")
+                .append_pair("paywallScene", "desktop");
+            url.into()
+        }
+        _ => uri.to_owned(),
     }
-    let base = url.as_str().trim_end_matches('/').to_owned();
-    Ok(if base.ends_with("/v1") {
-        base
-    } else {
-        format!("{base}/v1")
-    })
 }
 
-/// A token response as a Qwen credential with its endpoint.
+/// A token answer as a credential on the subscription API.
 fn credential(body: &serde_json::Value, require_refresh: bool) -> Result<Credential, String> {
-    let endpoint = endpoint(body["resource_url"].as_str())?;
     match token_credential(body, require_refresh)? {
         Credential::Oauth {
             access,
@@ -64,7 +57,7 @@ fn credential(body: &serde_json::Value, require_refresh: bool) -> Result<Credent
             expires,
             account_id,
             label,
-            endpoint: Some(endpoint),
+            endpoint: Some(ENDPOINT.into()),
         }),
         other => Ok(other),
     }
@@ -75,15 +68,9 @@ pub async fn login(
     progress: Arc<dyn Fn(Progress) + Send + Sync>,
     cancel: &Cancel,
 ) -> Result<Credential, String> {
-    let pkce = pkce::Pkce::new();
     let (status, body) = post_form(
-        &format!("{}/api/v1/oauth2/device/code", endpoints.host),
-        &[
-            ("client_id", CLIENT_ID),
-            ("scope", SCOPE),
-            ("code_challenge", &pkce.challenge),
-            ("code_challenge_method", "S256"),
-        ],
+        &format!("{}/api/oauth/device/code", endpoints.host),
+        &[("client_id", CLIENT_ID), ("scope", SCOPE)],
     )
     .await?;
     if !(200..300).contains(&status) {
@@ -92,16 +79,15 @@ pub async fn login(
     let device: Device = device::parse(&body)?;
     progress(Progress::DeviceCode {
         user_code: device.user_code.clone(),
-        verification_uri: device.verification_uri.clone(),
+        verification_uri: tracked(&device.verification_uri),
     });
     let body = device::poll(
         &device,
-        &format!("{}/api/v1/oauth2/token", endpoints.host),
+        &format!("{}/api/oauth/token", endpoints.host),
         &[
             ("grant_type", DEVICE_GRANT),
             ("client_id", CLIENT_ID),
             ("device_code", &device.device_code),
-            ("code_verifier", &pkce.verifier),
         ],
         cancel,
     )
@@ -111,11 +97,11 @@ pub async fn login(
 
 pub async fn refresh(endpoints: &Endpoints, refresh_token: &str) -> Result<Credential, String> {
     let (status, body) = post_form(
-        &format!("{}/api/v1/oauth2/token", endpoints.host),
+        &format!("{}/api/oauth/token", endpoints.host),
         &[
             ("grant_type", "refresh_token"),
-            ("refresh_token", refresh_token),
             ("client_id", CLIENT_ID),
+            ("refresh_token", refresh_token),
         ],
     )
     .await?;
@@ -130,30 +116,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_resource_url_becomes_an_https_v1_endpoint() {
+    fn the_authorization_page_carries_qwen_codes_tracking() {
         assert_eq!(
-            endpoint(Some("portal.qwen.ai")).unwrap(),
-            "https://portal.qwen.ai/v1"
+            tracked("https://chat.qwen.ai/device?user_code=JBBC-RQLR"),
+            "https://chat.qwen.ai/device?user_code=JBBC-RQLR&entry=qwen_code&paywallScene=desktop"
         );
-        assert_eq!(
-            endpoint(Some("https://portal.qwen.ai/v1/")).unwrap(),
-            "https://portal.qwen.ai/v1"
-        );
-        assert_eq!(endpoint(None).unwrap(), DEFAULT_ENDPOINT);
-        assert!(endpoint(Some("http://portal.qwen.ai")).is_err());
-        assert!(endpoint(Some("https://evil.test/?x=1")).is_err());
+        assert_eq!(tracked("https://other.test/x"), "https://other.test/x");
     }
 
     #[test]
-    fn the_device_flow_sends_pkce_and_keeps_the_endpoint() {
+    fn the_device_flow_signs_in_to_the_subscription_api() {
         let (base, server) = super::super::test_server::serve(vec![
             (
                 "200 OK",
-                r#"{"device_code":"dc","user_code":"QWEN-1","verification_uri":"http://127.0.0.1/authorize","interval":1,"expires_in":60}"#,
+                r#"{"device_code":"dc","user_code":"QWEN-1","verification_uri":"http://127.0.0.1/device","verification_uri_complete":"http://127.0.0.1/device?user_code=QWEN-1","interval":1,"expires_in":60}"#,
             ),
+            ("400 Bad Request", r#"{"error":"authorization_pending"}"#),
             (
                 "200 OK",
-                r#"{"access_token":"qat","refresh_token":"qrt","expires_in":900,"resource_url":"portal.qwen.ai"}"#,
+                r#"{"access_token":"qat","refresh_token":"qrt","token_type":"Bearer","expires_in":900,"scope":"model:invoke profile:read"}"#,
             ),
         ]);
         let progress: Arc<dyn Fn(Progress) + Send + Sync> = Arc::new(|_| {});
@@ -170,10 +151,16 @@ mod tests {
         assert_eq!(credential.bearer(), "qat");
         assert!(matches!(
             &credential,
-            Credential::Oauth { endpoint: Some(e), .. } if e == "https://portal.qwen.ai/v1"
+            Credential::Oauth { endpoint: Some(e), .. } if e == ENDPOINT
         ));
         let requests = server.join().unwrap();
-        assert!(requests[0].body.contains("code_challenge_method=S256"));
-        assert!(requests[1].body.contains("code_verifier="));
+        assert!(requests[0].head.starts_with("POST /api/oauth/device/code"));
+        assert!(requests[0].body.contains("client_id=qwen-code-cli"));
+        assert!(
+            requests[0]
+                .body
+                .contains("scope=model%3Ainvoke+profile%3Aread")
+        );
+        assert!(requests[2].body.contains("device_code=dc"));
     }
 }

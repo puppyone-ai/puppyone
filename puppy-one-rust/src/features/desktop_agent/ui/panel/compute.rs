@@ -308,7 +308,20 @@ impl AgentChatTabPanel {
                         .map(|model| AgentSessionControlOption {
                             value: model.model.clone(),
                             label: model.display_name.clone(),
-                            description: Some(model.description.clone()),
+                            // The service it runs on (models of several
+                            // services share a source).
+                            description: self
+                                .compute
+                                .as_ref()
+                                .and_then(|s| {
+                                    s.names
+                                        .get(model.connection_id.as_deref().unwrap_or_default())
+                                        .cloned()
+                                })
+                                .or_else(|| {
+                                    (!model.description.is_empty())
+                                        .then(|| model.description.clone())
+                                }),
                             keywords: Some(format!("{} {}", model.id, model.model)),
                             icon: Some(source_presentation(compute.source).0),
                             mark: self.compute.as_ref().and_then(|s| {
@@ -475,6 +488,7 @@ mod tests {
                 ("mc_paid".to_string(), "managed"),
             ]),
             marks: HashMap::new(),
+            names: HashMap::new(),
             managed,
         }
     }

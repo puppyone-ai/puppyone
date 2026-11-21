@@ -296,14 +296,17 @@ pub const ACCOUNT_PROVIDERS: &[Provider] = &[
         mark: Some("kimi-color.svg"),
         monochrome: false,
         source: SourceKind::Api,
-        driver: Driver::Anthropic,
-        base_url: "https://api.kimi.com/coding",
+        // Chat Completions, as the official Kimi Code client and Pi
+        // (`catalog/providers/kimi-coding.ts`) call it; `/models` lists the
+        // plan's models (kimi-for-coding, k3…).
+        driver: Driver::OpenaiCompatible,
+        base_url: "https://api.kimi.com/coding/v1",
         context: 262_144,
         api_key: false,
         oauth: Some((
             OauthProvider::KimiCode,
-            Driver::Anthropic,
-            "https://api.kimi.com/coding",
+            Driver::OpenaiCompatible,
+            "https://api.kimi.com/coding/v1",
         )),
         recommended: &["kimi-for-coding"],
         known: &[known("kimi-for-coding", 262_144)],
@@ -315,17 +318,18 @@ pub const ACCOUNT_PROVIDERS: &[Provider] = &[
         monochrome: false,
         source: SourceKind::Api,
         driver: Driver::OpenaiCompatible,
-        // The sign-in names the account's endpoint (`resource_url`).
-        base_url: "https://portal.qwen.ai/v1",
+        // Qwen Code's subscription API (`oauth-config.ts`): a Plus or Pro
+        // plan; its `/models` lists what the plan serves.
+        base_url: "https://api.qwen.ai/compatible-mode/v1",
         context: 262_144,
         api_key: false,
         oauth: Some((
             OauthProvider::QwenCode,
             Driver::OpenaiCompatible,
-            "https://portal.qwen.ai/v1",
+            "https://api.qwen.ai/compatible-mode/v1",
         )),
-        recommended: &["coder-model"],
-        known: &[known("coder-model", 262_144)],
+        recommended: &["qwen3.8-max"],
+        known: &[known("qwen3.8-max", 262_144)],
     },
 ];
 

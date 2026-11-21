@@ -268,8 +268,34 @@ pub struct Resolved {
 /// `OAUTH_REAUTH_REQUIRED`: the user signs in again; nothing falls back to
 /// another route.
 pub async fn resolve(id: &str, provider: Option<OauthProvider>) -> Result<Resolved, String> {
+    resolve_with(id, provider, false).await
+}
+
+/// [`resolve`], refreshing the OAuth token whatever its expiry says: the
+/// provider just refused it (401), so it was revoked or rotated early.
+/// `None` when there is no refresh token to try.
+pub async fn resolve_fresh(
+    id: &str,
+    provider: Option<OauthProvider>,
+) -> Result<Option<Resolved>, String> {
+    match read(id)? {
+        Credential::Oauth { refresh, .. } if !refresh.is_empty() && provider.is_some() => {
+            resolve_with(id, provider, true).await.map(Some)
+        }
+        _ => Ok(None),
+    }
+}
+
+async fn resolve_with(
+    id: &str,
+    provider: Option<OauthProvider>,
+    force: bool,
+) -> Result<Resolved, String> {
     let credential = read(id)?;
-    let credential = match (provider, credential.needs_refresh(now_ms())) {
+    let stale = credential.needs_refresh(now_ms())
+        || (force
+            && matches!(&credential, Credential::Oauth { refresh, .. } if !refresh.is_empty()));
+    let credential = match (provider, stale) {
         (Some(provider), true) => {
             let Credential::Oauth {
                 refresh,
