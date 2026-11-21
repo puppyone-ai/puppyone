@@ -225,6 +225,9 @@ def main() -> None:
             "WIN_CSC_LINK": str(pfx_path),
             "WIN_CSC_KEY_PASSWORD": pfx_password,
             "WIN_TIMESTAMP_URL": "none",
+            # The self-signed certificate's subject: the built app trusts updates
+            # from this publisher only (`PUPPYONE_WIN_EXPECTED_PUBLISHERS`).
+            "WINDOWS_SIGNER_SUBJECT": "CN=PuppyOne",
         }
 
         v1_out = work / "v1"

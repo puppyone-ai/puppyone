@@ -420,12 +420,16 @@ pub fn cap_stat_summary(meta: &Metadata) -> CapStatSummary {
             .ok()
             .and_then(|t| t.into_std().duration_since(std::time::UNIX_EPOCH).ok())
             .map_or(0, |d| d.as_nanos() as i128);
+        #[cfg(windows)]
+        let (dev, ino) = windows::cap_identity(meta);
+        #[cfg(not(windows))]
+        let (dev, ino) = (0, 0);
         CapStatSummary {
             len: meta.len(),
             mtime_ns,
             ctime_ns: 0,
-            ino: 0,
-            dev: 0,
+            ino,
+            dev,
             mode: 0,
             nlink: 1,
             readonly: meta.permissions().readonly(),
@@ -457,7 +461,11 @@ pub fn cap_version_token(meta: &Metadata) -> String {
             .ok()
             .and_then(|t| t.into_std().duration_since(std::time::UNIX_EPOCH).ok())
             .map_or(0u128, |d| d.as_nanos());
-        format!("{}:{modified_ns}", meta.len())
+        #[cfg(windows)]
+        let (dev, ino) = windows::cap_identity(meta);
+        #[cfg(not(windows))]
+        let (dev, ino) = (0, 0);
+        format!("{dev}:{ino}:{}:{modified_ns}", meta.len())
     }
 }
 

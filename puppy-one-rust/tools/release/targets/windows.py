@@ -44,13 +44,58 @@ def _has(env, key):
     return bool((env.get(key) or '').strip())
 
 
+def _subject_fields(subject):
+    """Split an X.500 subject (`CN=PuppyOne, O="PuppyOne, Inc.", C=US`, as
+    .NET's `X509Certificate2.Subject` prints it) into `(key, value)` pairs.
+    Commas inside double quotes belong to the value; `""` is a literal quote."""
+    fields, part, quoted, i = [], [], False, 0
+    while i < len(subject):
+        char = subject[i]
+        if char == '"':
+            if quoted and subject[i + 1:i + 2] == '"':
+                part.append('"')
+                i += 2
+                continue
+            quoted = not quoted
+        elif char == ',' and not quoted:
+            fields.append(''.join(part))
+            part = []
+        else:
+            part.append(char)
+        i += 1
+    fields.append(''.join(part))
+    pairs = []
+    for field in fields:
+        key, sep, value = field.partition('=')
+        if sep:
+            pairs.append((key.strip().upper(), value.strip()))
+    return pairs
+
+
+def publisher_names(env):
+    """The Authenticode publisher names the built app trusts for its updates
+    (`PUPPYONE_WIN_EXPECTED_PUBLISHERS` in `platform::updates::installer`).
+
+    `PUPPYONE_WIN_EXPECTED_PUBLISHERS` lists them explicitly, separated by `;`
+    (old and new names during a certificate rotation). Otherwise the common
+    name of `WINDOWS_SIGNER_SUBJECT`, the signing certificate's subject the
+    Electron release also pins, is used."""
+    explicit = env.get('PUPPYONE_WIN_EXPECTED_PUBLISHERS') or ''
+    names = [name.strip() for name in explicit.replace('\n', ';').split(';') if name.strip()]
+    if names:
+        return names
+    subject = (env.get('WINDOWS_SIGNER_SUBJECT') or '').strip()
+    return [value for key, value in _subject_fields(subject) if key == 'CN' and value]
+
+
 def signing_plan(channel, env):
     """Authenticode signing plan for Windows releases.
 
     Dev and internal builds remain unsigned; stable builds sign with
     `signtool.exe` and RFC 3161 SHA-256 timestamping when configured via:
     - `WIN_CSC_LINK` (path or base64 PFX) + `WIN_CSC_KEY_PASSWORD`, or
-    - `WIN_CSC_THUMBPRINT` (installed certificate SHA-1 thumbprint).
+    - `WIN_CSC_THUMBPRINT` (installed certificate SHA-1 thumbprint);
+    and name the publishers their updates must come from (`publisher_names`).
     """
     errors = []
     signing = None
@@ -75,8 +120,18 @@ def signing_plan(channel, env):
         errors.append('set WIN_CSC_LINK (+ WIN_CSC_KEY_PASSWORD) or WIN_CSC_THUMBPRINT for Authenticode signing')
 
     if channel != 'stable':
-        return {'signing': None, 'release': False, 'errors': []}
-    return {'signing': signing, 'release': signing is not None, 'errors': errors}
+        return {'signing': None, 'release': False, 'errors': [], 'publishers': []}
+    publishers = publisher_names(env)
+    if not publishers:
+        errors.append(
+            'set WINDOWS_SIGNER_SUBJECT (or PUPPYONE_WIN_EXPECTED_PUBLISHERS) so updates trust only this publisher'
+        )
+    return {
+        'signing': signing,
+        'release': signing is not None and bool(publishers),
+        'errors': errors,
+        'publishers': publishers,
+    }
 
 
 def _nsis_escape(value):
@@ -192,6 +247,8 @@ def package(args):
     policy = identity.policy(args.channel)
     stamps = identity.build_environment(release, args.update_feed_url, target_os=TARGET_OS)
     signing = signing_plan(args.channel, os.environ)
+    if signing['publishers']:
+        stamps['PUPPYONE_WIN_EXPECTED_PUBLISHERS'] = ';'.join(signing['publishers'])
     out = args.out if args.flat_out else args.out / args.channel
     stem = f'puppyone-{release["version"]}-win-{_arch()}'
     installer = out / f'{stem}-setup.exe'
@@ -199,14 +256,18 @@ def package(args):
     print(f'{policy["name"]} {release["version"]} ({policy["id"]}) → {installer}')
     print(f'Cloud: {cloud["apiBase"]} · {cloud["webOrigin"]}')
     print(f'Update feed: {stamps.get("PUPPYONE_UPDATE_FEED_URL", "none (updates disabled)")}')
-    if signing['release']:
+    if signing['signing']:
         print(f'Signing: Authenticode ({signing["signing"]["mode"]})')
     else:
         print('Signing: unsigned')
-        for error in signing['errors']:
-            print(f'warning: not release-ready: {error}', file=sys.stderr)
+    if signing['publishers']:
+        print('Trusted update publishers: ' + '; '.join(signing['publishers']))
+    for error in signing['errors']:
+        print(f'warning: not release-ready: {error}', file=sys.stderr)
     if args.release and (args.channel != 'stable' or not signing['release']):
-        raise SystemExit('--release needs a stable build with complete Windows Authenticode credentials')
+        raise SystemExit(
+            '--release needs a stable build with complete Windows Authenticode credentials and a trusted publisher'
+        )
     if args.dry_run:
         print('Build environment: ' + ' '.join(f'{k}={v}' for k, v in stamps.items()))
         return
@@ -232,7 +293,7 @@ def package(args):
 
     stage_dir = out / 'stage'
     stage(stage_dir, binary, release, cloud, policy)
-    if signing['release']:
+    if signing['signing']:
         sign_binary(stage_dir / EXECUTABLE, signing['signing'])
 
     portable = archive_zip(stage_dir, out / f'{stem}.zip')
@@ -248,7 +309,7 @@ def package(args):
     makensis = shutil.which('makensis')
     if makensis:
         subprocess.run([makensis, '/V2', str(nsi_script)], check=True)
-        if signing['release']:
+        if signing['signing']:
             sign_binary(installer, signing['signing'])
         artifacts.append(installer)
         feed_artifacts.append(installer)

@@ -42,10 +42,13 @@ use windows::{
     core::{PCSTR, PCWSTR},
 };
 
-/// Default trusted Authenticode publisher names (CN or O). Release builds may
-/// also supply a comma-separated list via `PUPPYONE_WIN_EXPECTED_PUBLISHERS`
-/// (e.g. listing both old and new names during a certificate rotation).
-const DEFAULT_EXPECTED_PUBLISHERS: &[&str] = &["PuppyOne", "PuppyOne Inc.", "PuppyOne AI"];
+/// The Authenticode publisher names (CN, O or display name) a release trusts,
+/// stamped at build time by `tools/release/targets/windows.py` from the signing
+/// certificate's subject (`WINDOWS_SIGNER_SUBJECT`). Entries are separated by
+/// `;` or newlines so legal names may contain commas; list the old and new
+/// names during a certificate rotation. A build without it trusts no publisher,
+/// so its updates stay disabled.
+const EXPECTED_PUBLISHERS: Option<&str> = option_env!("PUPPYONE_WIN_EXPECTED_PUBLISHERS");
 
 /// Detached PowerShell helper script launched on quit.
 ///
@@ -106,24 +109,16 @@ enum AuthenticodeError {
 }
 
 fn expected_publishers() -> Vec<String> {
-    parse_publishers(option_env!("PUPPYONE_WIN_EXPECTED_PUBLISHERS"))
+    parse_publishers(EXPECTED_PUBLISHERS)
 }
 
 fn parse_publishers(configured: Option<&str>) -> Vec<String> {
-    if let Some(raw) = configured {
-        let parsed: Vec<String> = raw
-            .split(',')
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(str::to_owned)
-            .collect();
-        if !parsed.is_empty() {
-            return parsed;
-        }
-    }
-    DEFAULT_EXPECTED_PUBLISHERS
-        .iter()
-        .map(|s| (*s).to_owned())
+    configured
+        .unwrap_or_default()
+        .split([';', '\n'])
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
         .collect()
 }
 
@@ -337,14 +332,28 @@ fn running_signature(exe: &Path, expected: &[String]) -> Signature {
 }
 
 pub(super) fn open(config: &Configuration, packaged: bool) -> (Option<Backend>, Option<String>) {
+    open_with(config, packaged, expected_publishers())
+}
+
+fn open_with(
+    config: &Configuration,
+    packaged: bool,
+    expected: Vec<String>,
+) -> (Option<Backend>, Option<String>) {
     let Ok(exe) = std::env::current_exe() else {
         return (
             None,
             Some("Auto updates are unavailable: unable to locate current executable.".into()),
         );
     };
-    let expected = expected_publishers();
-    let reason = disabled_reason(config, packaged, || running_signature(&exe, &expected));
+    // A build that names no publisher trusts no certificate, its own included.
+    let reason = disabled_reason(config, packaged, || {
+        if expected.is_empty() {
+            Signature::OtherCertificate
+        } else {
+            running_signature(&exe, &expected)
+        }
+    });
     if reason.is_some() {
         return (None, reason);
     }
@@ -588,7 +597,7 @@ mod tests {
             update_channel: Some("stable"),
             force_dev: false,
         };
-        let (backend, reason) = open(&config, true);
+        let (backend, reason) = open_with(&config, true, vec!["PuppyOne".into()]);
         assert!(
             backend.is_none(),
             "unsigned test binary must not enable auto-update"
@@ -601,9 +610,36 @@ mod tests {
     }
 
     #[test]
+    fn a_build_naming_no_publisher_keeps_updates_disabled() {
+        assert!(parse_publishers(None).is_empty());
+        assert!(parse_publishers(Some(" ; \n ")).is_empty());
+        let config = Configuration {
+            channel: Channel::Stable,
+            current_version: "0.4.5".into(),
+            feed: Some(
+                url::Url::parse("https://updates.puppyone.ai/desktop/stable/win/latest").unwrap(),
+            ),
+            update_channel: Some("stable"),
+            force_dev: false,
+        };
+        let (backend, reason) = open_with(&config, true, Vec::new());
+        assert!(backend.is_none());
+        assert!(
+            reason
+                .expect("a build without publishers must explain why updates are disabled")
+                .contains("trusted release certificate")
+        );
+    }
+
+    #[test]
     fn publisher_rotation_accepts_both_old_and_new_names() {
-        let parsed = parse_publishers(Some("PuppyOne Legacy, PuppyOne Inc."));
-        assert_eq!(parsed, vec!["PuppyOne Legacy", "PuppyOne Inc."]);
+        let parsed = parse_publishers(Some("PuppyOne Legacy; PuppyOne, Inc.\n"));
+        assert_eq!(parsed, vec!["PuppyOne Legacy", "PuppyOne, Inc."]);
+        assert_eq!(
+            publisher_matches(&["puppyone, inc.".into()], &parsed).as_deref(),
+            Some("puppyone, inc.")
+        );
+        let parsed = parse_publishers(Some("PuppyOne Legacy; PuppyOne Inc."));
         assert_eq!(
             publisher_matches(&["puppyone inc.".into()], &parsed).as_deref(),
             Some("puppyone inc.")

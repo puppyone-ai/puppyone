@@ -278,27 +278,53 @@ class WindowsTargetTest(unittest.TestCase):
     def test_authenticode_signing_plan_validates_credentials(self):
         self.assertEqual(
             windows_target.signing_plan('dev', {}),
-            {'signing': None, 'release': False, 'errors': []},
+            {'signing': None, 'release': False, 'errors': [], 'publishers': []},
         )
         self.assertEqual(
             windows_target.signing_plan('internal', {'WIN_CSC_THUMBPRINT': 'abc'}),
-            {'signing': None, 'release': False, 'errors': []},
+            {'signing': None, 'release': False, 'errors': [], 'publishers': []},
         )
         missing = windows_target.signing_plan('stable', {})
         self.assertFalse(missing['release'])
-        self.assertEqual(len(missing['errors']), 1)
+        self.assertEqual(len(missing['errors']), 2)
 
-        partial = windows_target.signing_plan('stable', {'WIN_CSC_LINK': 'cert.pfx'})
+        partial = windows_target.signing_plan(
+            'stable', {'WIN_CSC_LINK': 'cert.pfx', 'WINDOWS_SIGNER_SUBJECT': 'CN=PuppyOne'}
+        )
         self.assertFalse(partial['release'])
         self.assertIn('WIN_CSC_KEY_PASSWORD', partial['errors'][0])
 
+        credentials = {'WIN_CSC_LINK': 'cert.pfx', 'WIN_CSC_KEY_PASSWORD': 'secret'}
+        unpinned = windows_target.signing_plan('stable', credentials)
+        self.assertFalse(unpinned['release'])
+        self.assertEqual(unpinned['signing']['mode'], 'pfx')
+        self.assertIn('WINDOWS_SIGNER_SUBJECT', unpinned['errors'][0])
+
         ready = windows_target.signing_plan(
             'stable',
-            {'WIN_CSC_LINK': 'cert.pfx', 'WIN_CSC_KEY_PASSWORD': 'secret'},
+            {**credentials, 'WINDOWS_SIGNER_SUBJECT': 'CN=PuppyOne Inc., O=PuppyOne Inc., C=US'},
         )
         self.assertTrue(ready['release'])
         self.assertEqual(ready['signing']['mode'], 'pfx')
         self.assertEqual(ready['errors'], [])
+        self.assertEqual(ready['publishers'], ['PuppyOne Inc.'])
+
+    def test_publisher_names_pin_the_signer_common_name(self):
+        names = windows_target.publisher_names
+        self.assertEqual(names({}), [])
+        self.assertEqual(
+            names({'WINDOWS_SIGNER_SUBJECT': 'CN="PuppyOne, Inc.", O="PuppyOne, Inc.", L=San Francisco, C=US'}),
+            ['PuppyOne, Inc.'],
+        )
+        self.assertEqual(names({'WINDOWS_SIGNER_SUBJECT': 'CN="Say ""Hi"" Ltd", C=US'}), ['Say "Hi" Ltd'])
+        self.assertEqual(names({'WINDOWS_SIGNER_SUBJECT': 'O=PuppyOne Inc., C=US'}), [])
+        self.assertEqual(
+            names({
+                'PUPPYONE_WIN_EXPECTED_PUBLISHERS': 'PuppyOne Legacy; PuppyOne, Inc.',
+                'WINDOWS_SIGNER_SUBJECT': 'CN=Ignored',
+            }),
+            ['PuppyOne Legacy', 'PuppyOne, Inc.'],
+        )
 
     def test_staging_nsis_rendering_and_portable_zip(self):
         release = identity.release_identity('0.4.5', 'stable', COMMIT, '12', built_at='2026-11-20T00:00:00.000Z')

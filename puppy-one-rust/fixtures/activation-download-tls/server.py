@@ -2,6 +2,7 @@
 import http.server
 import json
 from pathlib import Path
+import socketserver
 import ssl
 import subprocess
 import sys
@@ -33,7 +34,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
     def log_message(self, *_):
         pass
-server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+class LoopbackServer(http.server.ThreadingHTTPServer):
+    def server_bind(self):
+        # Skip HTTPServer.server_bind's socket.getfqdn("127.0.0.1"), which can
+        # stall for 10-30s on macOS CI runners when reverse DNS/mDNS is slow.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = "127.0.0.1"
+        self.server_port = self.server_address[1]
+
+
+server = LoopbackServer(("127.0.0.1", 0), Handler)
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 context.load_cert_chain(root / "server.pem", root / "server.key")
 server.socket = context.wrap_socket(server.socket, server_side=True)

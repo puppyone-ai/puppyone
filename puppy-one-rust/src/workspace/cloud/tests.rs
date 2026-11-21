@@ -20,7 +20,8 @@
 //! (transport, timeouts, 5xx, reason codes, 402/403/404/426/429),
 //! `workspace::cloud::failure` (the full table), `service_generation_errors_are_not_misclassified_as_file_conflicts`
 //! and `reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease`
-//! (generation replaced), `non_sse_responses_fail_closed_and_transport_reconnects_are_bounded`
+//! (generation replaced), `non_sse_responses_fail_closed`,
+//! `transport_losses_keep_reconnecting_and_never_end_the_workspace`,
 //! and `streaming_auth_refresh_and_planned_renewal_do_not_exhaust_reconnect_budget` (SSE drops).
 use super::*;
 use crate::cloud::auth::{self as auth, Environment};
