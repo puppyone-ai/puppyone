@@ -921,7 +921,9 @@ mod tests {
     }
 
     /// Runs without a sandbox, for the bridge alone.
+    #[cfg(unix)]
     struct Plain;
+    #[cfg(unix)]
     impl super::super::exec::Execution for Plain {
         fn prepare(
             &self,
@@ -940,6 +942,7 @@ mod tests {
             })
         }
     }
+    #[cfg(unix)]
     async fn collect(mut channel: Channel<russh::client::Msg>) -> (String, String, Option<u32>) {
         let (mut out, mut err, mut status) = (Vec::new(), Vec::new(), None);
         while let Some(message) = channel.wait().await {
@@ -1163,6 +1166,7 @@ mod tests {
 
     /// A command and a terminal run in the folder over the session: output,
     /// errors and the exit status come back; an unknown launcher is told why.
+    #[cfg(unix)]
     #[tokio::test]
     async fn commands_and_terminals_run_in_the_folder() {
         let temp = tempfile::tempdir().unwrap();
@@ -1211,7 +1215,10 @@ mod tests {
         // As a view drives it: input as bytes, a resize, and how it ended.
         let mut session = access.session("shell", 80, 24).await.unwrap();
         session.resize(100, 40).await;
-        session.input("stty size; exit 5\n".as_bytes()).await;
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        session
+            .input("for _ in 1 2 3 4 5; do s=$(stty size); echo \"$s\"; [ \"$s\" = \"40 100\" ] && break; sleep 0.1; done; exit 5\n".as_bytes())
+            .await;
         let mut out = Vec::new();
         let status = loop {
             match session.next().await {

@@ -159,7 +159,12 @@ fn another_computers_folder_opens_here_and_runs_there(cx: &mut TestAppContext) {
             .unwrap()
             .0
     });
-    terminal.read_with(cx, |t, _| t.type_text("echo $((40 + 2))\n"));
+    let command_text = if crate::platform::os::Os::current() == crate::platform::os::Os::Windows {
+        "set /a 40+2\r\n"
+    } else {
+        "echo $((40 + 2))\n"
+    };
+    terminal.read_with(cx, |t, _| t.type_text(command_text));
     settle_cloud(&view, cx, "the terminal's output", &|_, cx| {
         terminal.read(cx).screen_text().contains("42")
     });

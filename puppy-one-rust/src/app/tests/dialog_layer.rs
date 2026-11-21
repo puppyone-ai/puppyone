@@ -6,7 +6,7 @@ use core::prelude::v1::test;
 fn task_shortcuts_do_not_save_and_cmd_w_stays_the_windows(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     command(&view, cx, Command::Settings);
-    cx.simulate_keystrokes("cmd-s");
+    cx.simulate_keystrokes("secondary-s");
     view.update(cx, |s, cx| {
         assert_eq!(s.dialogs.read(cx).task(), Some(Task::Settings));
         assert!(matches!(s.files(cx).phase, Phase::Idle));
@@ -14,7 +14,7 @@ fn task_shortcuts_do_not_save_and_cmd_w_stays_the_windows(cx: &mut TestAppContex
     });
     // Settings takes no ⌘W of its own (`SettingsDialog`): with no editor
     // open it is the menu's Close Window.
-    cx.simulate_keystrokes("cmd-w");
+    cx.simulate_keystrokes("secondary-w");
     cx.run_until_parked();
     assert!(cx.read(|app| app.windows().is_empty()));
 }

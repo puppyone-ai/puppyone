@@ -354,35 +354,72 @@ fn extract_bookmarks(document: &PdfDocument<'_>, page_count: usize) -> Vec<Bookm
     out
 }
 
-/// Where the PDFium library lives: explicit override, the app bundle,
-/// beside the executable, or the developer vendor folder.
+/// Where the PDFium library lives: explicit override, packaged OS library
+/// directories (macOS `.app/Contents/Frameworks`, Linux `.deb` `/usr/lib/puppyone`
+/// and AppImage `usr/lib`, Windows exe folder), beside the executable, or the
+/// developer vendor folder.
 pub fn library_path() -> Option<PathBuf> {
-    let name = pdfium_library_name();
-    let mut candidates = Vec::new();
-    if let Some(path) = std::env::var_os("PUPPYONE_PDFIUM_LIB") {
-        candidates.push(PathBuf::from(path));
-    }
-    if let Ok(exe) = std::env::current_exe()
-        && let Some(dir) = exe.parent()
-    {
-        candidates.push(dir.join("../Frameworks").join(name));
-        candidates.push(dir.join(name));
-    }
-    candidates.push(
-        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
-            .join("vendor/pdfium/lib")
-            .join(name),
-    );
-    candidates.into_iter().find(|p| p.is_file())
+    let exe = std::env::current_exe().ok();
+    let exe_dir = exe.as_deref().and_then(Path::parent);
+    let env_override = std::env::var_os("PUPPYONE_PDFIUM_LIB").map(PathBuf::from);
+    let repo_root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+    library_candidates(
+        exe_dir,
+        env_override.as_deref(),
+        repo_root,
+        crate::platform::os::Os::current(),
+    )
+    .into_iter()
+    .find(|p| p.is_file())
 }
 
-fn pdfium_library_name() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "libpdfium.dylib"
-    } else if cfg!(target_os = "windows") {
-        "pdfium.dll"
-    } else {
-        "libpdfium.so"
+fn library_candidates(
+    exe_dir: Option<&Path>,
+    env_override: Option<&Path>,
+    repo_root: &Path,
+    os: crate::platform::os::Os,
+) -> Vec<PathBuf> {
+    let name = pdfium_library_name_for(os);
+    let mut candidates = Vec::new();
+    if let Some(path) = env_override {
+        candidates.push(path.to_path_buf());
+    }
+    if let Some(dir) = exe_dir {
+        match os {
+            crate::platform::os::Os::Macos => {
+                candidates.push(dir.join("../Frameworks").join(name));
+                candidates.push(dir.join(name));
+            }
+            crate::platform::os::Os::Linux | crate::platform::os::Os::Other => {
+                // `.deb` installs `/usr/bin/puppy-one-rust` + `/usr/lib/puppyone/libpdfium.so`.
+                candidates.push(dir.join("../lib/puppyone").join(name));
+                // AppImage installs `usr/bin/puppy-one-rust` + `usr/lib/libpdfium.so`.
+                candidates.push(dir.join("../lib").join(name));
+                candidates.push(dir.join(name));
+            }
+            crate::platform::os::Os::Windows => {
+                candidates.push(dir.join(name));
+            }
+        }
+    }
+    if matches!(
+        os,
+        crate::platform::os::Os::Linux | crate::platform::os::Os::Other
+    ) {
+        candidates.push(PathBuf::from("/usr/lib/puppyone").join(name));
+    }
+    if os.is_windows() {
+        candidates.push(repo_root.join("vendor/pdfium/bin").join(name));
+    }
+    candidates.push(repo_root.join("vendor/pdfium/lib").join(name));
+    candidates
+}
+
+fn pdfium_library_name_for(os: crate::platform::os::Os) -> &'static str {
+    match os {
+        crate::platform::os::Os::Macos => "libpdfium.dylib",
+        crate::platform::os::Os::Windows => "pdfium.dll",
+        crate::platform::os::Os::Linux | crate::platform::os::Os::Other => "libpdfium.so",
     }
 }
 
@@ -828,6 +865,90 @@ mod tests {
             .clamped(5000, 2200)
             .is_none()
         );
+    }
+
+    #[test]
+    fn library_candidates_match_packaged_layouts_on_all_platforms() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("repo");
+
+        // Linux .deb layout: /usr/bin/puppy-one-rust + /usr/lib/puppyone/libpdfium.so
+        let deb_bin = dir.path().join("deb/usr/bin");
+        let deb_lib = dir.path().join("deb/usr/lib/puppyone/libpdfium.so");
+        std::fs::create_dir_all(&deb_bin).unwrap();
+        std::fs::create_dir_all(deb_lib.parent().unwrap()).unwrap();
+        std::fs::write(&deb_lib, b"fake").unwrap();
+        let resolved =
+            library_candidates(Some(&deb_bin), None, &repo, crate::platform::os::Os::Linux)
+                .into_iter()
+                .find(|p| p.is_file());
+        assert_eq!(
+            resolved.as_deref().and_then(|p| p.canonicalize().ok()),
+            deb_lib.canonicalize().ok()
+        );
+
+        // Linux AppImage layout: usr/bin/puppy-one-rust + usr/lib/libpdfium.so
+        let appimage_bin = dir.path().join("appimage/usr/bin");
+        let appimage_lib = dir.path().join("appimage/usr/lib/libpdfium.so");
+        std::fs::create_dir_all(&appimage_bin).unwrap();
+        std::fs::create_dir_all(appimage_lib.parent().unwrap()).unwrap();
+        std::fs::write(&appimage_lib, b"fake").unwrap();
+        let resolved = library_candidates(
+            Some(&appimage_bin),
+            None,
+            &repo,
+            crate::platform::os::Os::Linux,
+        )
+        .into_iter()
+        .find(|p| p.is_file());
+        assert_eq!(
+            resolved.as_deref().and_then(|p| p.canonicalize().ok()),
+            appimage_lib.canonicalize().ok()
+        );
+
+        // Windows packaged layout: pdfium.dll next to executable
+        let win_bin = dir.path().join("win");
+        let win_dll = win_bin.join("pdfium.dll");
+        std::fs::create_dir_all(&win_bin).unwrap();
+        std::fs::write(&win_dll, b"fake").unwrap();
+        let resolved = library_candidates(
+            Some(&win_bin),
+            None,
+            &repo,
+            crate::platform::os::Os::Windows,
+        )
+        .into_iter()
+        .find(|p| p.is_file());
+        assert_eq!(resolved.as_deref(), Some(win_dll.as_path()));
+
+        // macOS .app layout: Contents/MacOS + Contents/Frameworks/libpdfium.dylib
+        let mac_bin = dir.path().join("mac/Contents/MacOS");
+        let mac_dylib = dir.path().join("mac/Contents/Frameworks/libpdfium.dylib");
+        std::fs::create_dir_all(&mac_bin).unwrap();
+        std::fs::create_dir_all(mac_dylib.parent().unwrap()).unwrap();
+        std::fs::write(&mac_dylib, b"fake").unwrap();
+        let resolved =
+            library_candidates(Some(&mac_bin), None, &repo, crate::platform::os::Os::Macos)
+                .into_iter()
+                .find(|p| p.is_file());
+        assert_eq!(
+            resolved.as_deref().and_then(|p| p.canonicalize().ok()),
+            mac_dylib.canonicalize().ok()
+        );
+
+        // Explicit env override always wins.
+        let override_lib = dir.path().join("override/custom.so");
+        std::fs::create_dir_all(override_lib.parent().unwrap()).unwrap();
+        std::fs::write(&override_lib, b"fake").unwrap();
+        let resolved = library_candidates(
+            Some(&deb_bin),
+            Some(&override_lib),
+            &repo,
+            crate::platform::os::Os::Linux,
+        )
+        .into_iter()
+        .find(|p| p.is_file());
+        assert_eq!(resolved.as_deref(), Some(override_lib.as_path()));
     }
 
     #[test]

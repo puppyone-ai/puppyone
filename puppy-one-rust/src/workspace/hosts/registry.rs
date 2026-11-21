@@ -399,14 +399,17 @@ mod tests {
         let owner = owner();
         let other = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
         // A link is not a folder to share.
-        std::os::unix::fs::symlink(&root, base.join("link")).unwrap();
-        assert!(
-            registry
-                .register(&owner, &base.join("link"), "notes", false, |id, _, _| Ok(
-                    id.into()
-                ))
-                .is_err()
-        );
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&root, base.join("link")).unwrap();
+            assert!(
+                registry
+                    .register(&owner, &base.join("link"), "notes", false, |id, _, _| Ok(
+                        id.into()
+                    ))
+                    .is_err()
+            );
+        }
         let mut told = Vec::new();
         assert!(
             registry

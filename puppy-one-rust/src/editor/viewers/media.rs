@@ -8,7 +8,11 @@
 //! product manifest (audio 512 MiB, video 2 GiB). A media element that
 //! cannot load reports it, and the surface shows the product's failure with
 //! Retry (`onRetryInput`), which reads the resource again.
-use super::{html_visual::script_json, image::resource_failure, web::WebFrame};
+use super::{
+    html_visual::script_json,
+    image::resource_failure,
+    web::{WebFallbackAction, WebFrame},
+};
 use crate::{
     editor::registry::{SurfaceEvent, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface},
     localization::{t, tf},
@@ -392,10 +396,21 @@ impl MediaView {
             .resource
             .as_ref()
             .and_then(|resource| source(resource, &self.path, self.kind.budget()));
+        let local_path = self.resource.as_ref().and_then(|r| match r.data().ok()? {
+            PreviewData::LocalFile(path) => Some(path.clone()),
+            PreviewData::Bytes { .. } => None,
+        });
         let (tx, rx) = async_channel::unbounded::<String>();
         self.frame = resolved.as_ref().map(|source| {
             let content = self.content(source, Some(Ipc(tx)), cx);
-            cx.new(|_| WebFrame::new(Some(content), self.dark))
+            let local_path = local_path.clone();
+            cx.new(|_| {
+                let mut frame = WebFrame::new(Some(content), self.dark);
+                if let Some(path) = local_path {
+                    frame.set_fallback_actions(vec![WebFallbackAction::open_local_file(path)]);
+                }
+                frame
+            })
         });
         self._source = resolved;
         self._failures = Some(cx.spawn(async move |this, cx| {

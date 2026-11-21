@@ -10,7 +10,7 @@ use std::{
 mod snapshot;
 mod subscriptions;
 mod worker;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use snapshot::snapshot;
 pub use subscriptions::{GitWatch, invalidate_working_tree};
 
@@ -47,7 +47,10 @@ fn identity(root: &Path) -> Result<Identity, String> {
         &AtomicBool::new(false),
     )?;
     let text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
-    let mut paths = text.lines().map(PathBuf::from);
+    let mut paths = text
+        .lines()
+        .map(PathBuf::from)
+        .map(|p| std::fs::canonicalize(&p).unwrap_or(p));
     let result = Identity {
         top_level: paths.next().ok_or("no worktree root")?,
         git_dir: paths.next().ok_or("no Git directory")?,
@@ -61,7 +64,7 @@ fn identity(root: &Path) -> Result<Identity, String> {
     }
     Ok(result)
 }
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn directories(root: &Path) -> Result<(PathBuf, PathBuf), String> {
     identity(root).map(|i| (i.git_dir, i.common_dir))
 }

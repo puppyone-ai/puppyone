@@ -71,7 +71,55 @@ pub fn identity(folder: &Path) -> Option<String> {
         meta.is_dir()
             .then(|| format!("fs:{}:{}", meta.dev(), meta.ino()))
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows::{
+            Win32::{
+                Foundation::CloseHandle,
+                Storage::FileSystem::{
+                    BY_HANDLE_FILE_INFORMATION, CreateFileW, FILE_FLAG_BACKUP_SEMANTICS,
+                    FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+                    GetFileInformationByHandle, OPEN_EXISTING,
+                },
+            },
+            core::PCWSTR,
+        };
+        let meta = std::fs::metadata(folder).ok()?;
+        if !meta.is_dir() {
+            return None;
+        }
+        let wide: Vec<u16> = folder
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        // SAFETY: `wide` is NUL-terminated; `dwDesiredAccess = 0` queries file
+        // identity metadata without locking the folder against renames/deletes.
+        let handle = unsafe {
+            CreateFileW(
+                PCWSTR(wide.as_ptr()),
+                0,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                None,
+                OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS,
+                None,
+            )
+        }
+        .ok()?;
+        let mut info = BY_HANDLE_FILE_INFORMATION::default();
+        let ok = unsafe { GetFileInformationByHandle(handle, &mut info) }.is_ok();
+        unsafe {
+            let _ = CloseHandle(handle);
+        }
+        if !ok {
+            return None;
+        }
+        let index = ((info.nFileIndexHigh as u64) << 32) | (info.nFileIndexLow as u64);
+        Some(format!("fs:{}:{index}", info.dwVolumeSerialNumber))
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         let _ = folder;
         None
@@ -118,7 +166,7 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     #[test]
     fn a_folder_renamed_where_it_was_is_found_again() {
         let dir = tempfile::tempdir().unwrap();

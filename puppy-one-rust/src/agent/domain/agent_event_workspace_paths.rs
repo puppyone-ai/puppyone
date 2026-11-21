@@ -5,9 +5,10 @@
 //! never need to infer filesystem identity.
 use crate::agent::contract::js;
 use crate::agent::contract::types::AgentEventView;
+use crate::platform::paths;
 use crate::text;
 use serde_json::{Map, Value};
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 
 const ACTIVITY_EVENT_TYPES: &[&str] = &[
     "tool.started",
@@ -26,7 +27,7 @@ pub fn normalize_agent_event_workspace_paths(event: &Value, workspace_root: &str
     let Some(payload) = event.get("payload").filter(|p| p.is_object()) else {
         return event.clone();
     };
-    if !Path::new(workspace_root).is_absolute() {
+    if !paths::is_absolute(workspace_root) {
         return event.clone();
     }
     let mut replacements: Vec<(String, String)> = Vec::new();
@@ -40,37 +41,19 @@ pub fn normalize_agent_event_workspace_paths(event: &Value, workspace_root: &str
     js::with(event, "payload", payload)
 }
 
-/// `path.resolve` without touching the filesystem.
-fn resolve(base: &Path, candidate: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    let joined = if candidate.is_absolute() {
-        candidate.to_path_buf()
-    } else {
-        base.join(candidate)
-    };
-    for component in joined.components() {
-        match component {
-            Component::ParentDir => {
-                out.pop();
-            }
-            Component::CurDir => {}
-            other => out.push(other.as_os_str()),
-        }
-    }
-    out
-}
-
 /// `normalizeAgentWorkspaceEventPath(workspaceRoot, candidate)`.
 pub fn normalize_agent_workspace_event_path(
     workspace_root: &str,
     candidate: &str,
 ) -> Option<String> {
-    let root_path = Path::new(workspace_root);
-    if !root_path.is_absolute() || text::trim(candidate).is_empty() || candidate.contains("://") {
+    if !paths::is_absolute(workspace_root)
+        || text::trim(candidate).is_empty()
+        || candidate.contains("://")
+    {
         return None;
     }
-    let root = resolve(Path::new("/"), root_path);
-    let resolved = resolve(&root, Path::new(candidate));
+    let root = paths::normalize(Path::new(workspace_root));
+    let resolved = paths::resolve(&root, candidate);
     let relative = resolved.strip_prefix(&root).ok()?;
     if relative.as_os_str().is_empty() {
         return None;

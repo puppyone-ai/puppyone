@@ -1,6 +1,10 @@
-//! `transports/managed-agent-process.mjs`: one native Agent launched as an
-//! isolated POSIX process group, so termination reaches its descendants.
-use crate::agent::agent_error::{AgentError, AgentResult};
+//! `transports/managed-agent-process.mjs`: one native Agent launched in an
+//! isolated process group (Unix) or Win32 Job Object (Windows) so termination
+//! reaches its descendants.
+use crate::{
+    agent::agent_error::{AgentError, AgentResult},
+    platform::process::{self, BootstrapPipe, SubtreeGuard},
+};
 use std::path::Path;
 use tokio::process::{Child, Command};
 
@@ -9,11 +13,12 @@ pub struct ManagedAgentProcess {
     pub child: Child,
     pub pid: Option<u32>,
     pub grouped: bool,
+    _subtree: SubtreeGuard,
 }
 
 /// `createManagedAgentProcess({ spawn, executablePath, args, options })`.
-/// A `bootstrap` envelope is written to the child's fd 3, which then
-/// closes; it is not inherited further than the child.
+/// A `bootstrap` envelope is delivered over the OS bootstrap pipe (fd 3 on
+/// Unix; `PUPPYONE_BOOTSTRAP_HANDLE` on Windows).
 pub fn create_managed_agent_process(
     executable_path: &Path,
     args: &[String],
@@ -33,100 +38,35 @@ pub fn create_managed_agent_process(
         command.env_clear();
         command.envs(environment.iter().map(|(k, v)| (k.as_str(), v.as_str())));
     }
-    #[cfg(unix)]
-    command.process_group(0);
-    #[cfg(unix)]
+    process::isolate_tokio(&mut command);
     let pipe = match bootstrap {
-        Some(_) => Some(bootstrap_pipe(&mut command)?),
+        Some(_) => Some(BootstrapPipe::attach_tokio(&mut command)?),
         None => None,
     };
-    #[cfg(not(unix))]
-    if bootstrap.is_some() {
-        return Err(AgentError::new(
-            "A bootstrap pipe is unavailable on this platform.",
-        ));
-    }
     let child = command.spawn().map_err(AgentError::from)?;
-    #[cfg(unix)]
-    if let (Some((read, write)), Some(payload)) = (pipe, bootstrap) {
-        drop(read);
-        let payload = payload.to_vec();
-        std::thread::spawn(move || {
-            use std::io::Write;
-            let mut pipe = std::fs::File::from(write);
-            let _ = pipe.write_all(&payload);
-        });
-    }
     let pid = child.id();
+    let subtree = SubtreeGuard::attach_pid(pid);
+    if let (Some(pipe), Some(payload)) = (pipe, bootstrap) {
+        pipe.deliver_async(payload.to_vec());
+    }
     Ok(ManagedAgentProcess {
         child,
         pid,
-        grouped: cfg!(unix),
+        grouped: true,
+        _subtree: subtree,
     })
 }
 
-/// A close-on-exec pipe whose read end the child receives as fd 3.
-#[cfg(unix)]
-fn bootstrap_pipe(
-    command: &mut Command,
-) -> AgentResult<(std::os::fd::OwnedFd, std::os::fd::OwnedFd)> {
-    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-    let mut fds = [0; 2];
-    if unsafe { libc::pipe(fds.as_mut_ptr()) } != 0 {
-        return Err(std::io::Error::last_os_error().into());
-    }
-    let (read, write) = unsafe { (OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1])) };
-    for fd in [read.as_raw_fd(), write.as_raw_fd()] {
-        unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) };
-    }
-    let source = read.as_raw_fd();
-    unsafe {
-        command.pre_exec(move || {
-            if source == 3 {
-                // dup2 onto itself keeps close-on-exec; clear it instead.
-                if libc::fcntl(3, libc::F_SETFD, 0) < 0 {
-                    return Err(std::io::Error::last_os_error());
-                }
-            } else if libc::dup2(source, 3) < 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
-    Ok((read, write))
-}
-
-/// `terminateManagedAgentProcess(processHandle, signal)`: the harness and
-/// its descendants; falls back to the direct child.
+/// `terminateManagedAgentProcess(processHandle, signal)`: terminates the
+/// harness and its isolated descendants; falls back to the direct child.
 pub fn terminate_managed_agent_process(pid: Option<u32>, grouped: bool, force: bool) -> bool {
     let Some(pid) = pid.filter(|p| *p > 0) else {
         return false;
     };
-    #[cfg(unix)]
-    {
-        let signal = if force { libc::SIGKILL } else { libc::SIGTERM };
-        // Only signal the process group created at launch, never the app's own group.
-        if grouped && unsafe { libc::kill(-(pid as i32), signal) } == 0 {
-            return true;
-        }
-        unsafe { libc::kill(pid as i32, signal) == 0 }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (grouped, force);
-        false
-    }
+    process::terminate_pid(pid, grouped, force)
 }
 
-/// The Node name of a terminating signal (`"SIGTERM"`).
-#[cfg(unix)]
+/// The Node name of a terminating POSIX signal (`"SIGTERM"`).
 pub fn signal_name(signal: i32) -> String {
-    match signal {
-        libc::SIGTERM => "SIGTERM".into(),
-        libc::SIGKILL => "SIGKILL".into(),
-        libc::SIGINT => "SIGINT".into(),
-        libc::SIGHUP => "SIGHUP".into(),
-        libc::SIGPIPE => "SIGPIPE".into(),
-        other => format!("SIG{other}"),
-    }
+    process::signal_name(signal)
 }

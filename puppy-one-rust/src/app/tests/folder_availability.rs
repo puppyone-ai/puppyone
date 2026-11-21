@@ -62,6 +62,7 @@ fn a_renamed_folder_is_found_again_from_the_homepage(cx: &mut TestAppContext) {
 
 /// The open project's folder goes away: its window says so and the rest
 /// keeps working; using the folder found opens it from its new place.
+#[cfg(unix)]
 #[gpui::test]
 fn a_window_whose_folder_moved_says_so_and_follows_it(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();

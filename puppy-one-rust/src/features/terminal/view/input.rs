@@ -113,7 +113,7 @@ impl TerminalView {
         self.pressed_link = (e.button == MouseButton::Left && !captured)
             .then(|| interaction::link_at(self.parser.screen(), cell))
             .flatten();
-        if e.button == MouseButton::Left && e.modifiers.platform {
+        if e.button == MouseButton::Left && e.modifiers.secondary() {
             if let Some(link) = interaction::link_at(self.parser.screen(), cell) {
                 self.pressed_link = None;
                 cx.open_url(&link.url);
@@ -285,7 +285,9 @@ impl TerminalView {
         }
         let key = &event.keystroke.key;
         let m = event.keystroke.modifiers;
-        if m.platform {
+        let use_platform_clipboard = crate::platform::conventions::Conventions::current()
+            .terminal_clipboard_uses_platform_modifier;
+        if use_platform_clipboard && m.platform {
             match key.as_str() {
                 "v" => self.paste(cx),
                 "c" => self.copy(cx),
@@ -294,6 +296,36 @@ impl TerminalView {
             }
             cx.stop_propagation();
             return;
+        }
+        if !use_platform_clipboard && m.control && !m.alt && !m.platform {
+            if m.shift {
+                match key.as_str() {
+                    "v" => {
+                        self.paste(cx);
+                        cx.stop_propagation();
+                        return;
+                    }
+                    "c" => {
+                        self.copy(cx);
+                        cx.stop_propagation();
+                        return;
+                    }
+                    "a" => {
+                        self.select_all(cx);
+                        cx.stop_propagation();
+                        return;
+                    }
+                    _ => {}
+                }
+            } else if key.as_str() == "c"
+                && self
+                    .selection
+                    .is_some_and(|s| !s.text(&mut self.parser).is_empty())
+            {
+                self.copy(cx);
+                cx.stop_propagation();
+                return;
+            }
         }
         if !self.marked.is_empty() {
             return;

@@ -239,7 +239,7 @@
         "assets/locales.json",
         "assets/native-locales.json",
         "tools/import-localization.py",
-        "src/platform/locale_format.rs",
+        "src/platform/locale_format/mod.rs",
         "src/text.rs"
       ],
       "evidence": [
@@ -1397,7 +1397,8 @@
         "src/editor/viewers/html_page.rs",
         "src/editor/viewers/html_preview.rs",
         "src/platform/html_page_store.rs",
-        "src/web_host.rs",
+        "src/web_host/mod.rs",
+        "src/web_host/backend/mod.rs",
         "src/app/dialogs/question.rs",
         "src/editor/question.rs"
       ],
@@ -1447,7 +1448,7 @@
         "src/editor/workbench/pane.rs",
         "src/editor/host/chrome.rs",
         "src/app/mod.rs",
-        "src/platform/desktop.rs",
+        "src/platform/desktop/mod.rs",
         "src/app/command/route.rs",
         "src/app/explorer/menus.rs"
       ],
@@ -2214,7 +2215,7 @@
         "src/cloud/auth/http.rs",
         "src/cloud/auth/callback.rs",
         "src/features/cloud/account.rs",
-        "src/platform/proxy.rs"
+        "src/platform/proxy/mod.rs"
       ],
       "evidence": [
         "test:twenty_requests_share_refresh_and_initialization_without_exposing_secrets"
@@ -3369,7 +3370,8 @@
         "src/features/native-surfaces/useNativeSurfacePointerRoutingRegion.ts"
       ],
       "targets": [
-        "src/web_host.rs",
+        "src/web_host/mod.rs",
+        "src/web_host/backend/mod.rs",
         "src/platform/webview.rs",
         "src/app/mod.rs"
       ],

@@ -1,9 +1,37 @@
 //! Executable lookup shared by native Agent and PTY hosts.
 use std::path::PathBuf;
+/// This computer's friendly hostname (without `.local` suffix), capped at 120 chars.
+pub fn hostname() -> String {
+    #[cfg(unix)]
+    {
+        let mut buffer = [0u8; 256];
+        // SAFETY: `gethostname` writes up to `buffer.len()` bytes into `buffer`.
+        if unsafe { libc::gethostname(buffer.as_mut_ptr().cast(), buffer.len()) } == 0 {
+            let end = buffer.iter().position(|b| *b == 0).unwrap_or(buffer.len());
+            let name = String::from_utf8_lossy(&buffer[..end]).into_owned();
+            let name = name.trim_end_matches(".local").to_owned();
+            if !name.is_empty() {
+                return name.chars().take(120).collect();
+            }
+        }
+    }
+    #[cfg(windows)]
+    {
+        if let Ok(name) = std::env::var("COMPUTERNAME") {
+            let trimmed = name.trim();
+            if !trimmed.is_empty() {
+                return trimmed.chars().take(120).collect();
+            }
+        }
+    }
+    "Computer".into()
+}
+
 pub fn search_dirs() -> Vec<PathBuf> {
     let mut dirs =
         std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()).collect::<Vec<_>>();
-    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+    let home = super::paths::home_dir();
+    if !home.as_os_str().is_empty() {
         dirs.extend([
             home.join(".local/bin"),
             home.join(".cargo/bin"),
@@ -21,6 +49,7 @@ pub fn search_dirs() -> Vec<PathBuf> {
             dirs.extend(versions);
         }
     }
+    #[cfg(unix)]
     dirs.extend([
         PathBuf::from("/opt/homebrew/bin"),
         PathBuf::from("/usr/local/bin"),

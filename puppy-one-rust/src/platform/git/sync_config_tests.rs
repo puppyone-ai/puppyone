@@ -582,6 +582,7 @@ fn hosted_push_honors_every_upstream_name_without_changing_either_main() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn checkout_during_publication_cannot_change_the_upload_or_rebind_either_branch() {
     isolated(

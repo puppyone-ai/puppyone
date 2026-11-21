@@ -864,18 +864,11 @@ fn terminate(session: &Shared, reason: &str) {
         s.append(&format!("[puppyone] Stopping app preview ({reason}).\n"));
         pid
     };
-    #[cfg(unix)]
-    {
-        let group = -(pid as i32);
-        // Only the group isolate() created, never the GUI's own.
-        unsafe { libc::kill(group, libc::SIGTERM) };
-        if !wait_exit(session, Duration::from_millis(1400)) {
-            unsafe { libc::kill(group, libc::SIGKILL) };
-            wait_exit(session, Duration::from_millis(500));
-        }
+    crate::platform::process::terminate_pid(pid, true, false);
+    if !wait_exit(session, Duration::from_millis(1400)) {
+        crate::platform::process::terminate_pid(pid, true, true);
+        wait_exit(session, Duration::from_millis(500));
     }
-    #[cfg(not(unix))]
-    let _ = pid;
     let mut s = session.lock().unwrap();
     s.exited = true;
     s.pid = None;

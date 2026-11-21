@@ -16,6 +16,15 @@ from urllib.parse import urlsplit
 
 CHANNELS = ('dev', 'internal', 'stable')
 PUBLISHED_CHANNELS = ('internal', 'stable')
+TARGET_OSES = ('mac', 'win', 'linux')
+TARGET_OS_ALIASES = {
+    'mac': 'mac',
+    'macos': 'mac',
+    'darwin': 'mac',
+    'win': 'win',
+    'windows': 'win',
+    'linux': 'linux',
+}
 MINIMUM_SYSTEM_VERSION = '12.0'
 
 POLICIES = {
@@ -29,6 +38,25 @@ POLICIES = {
                'scheme': 'puppyone', 'icon': 'puppy-app-image.png',
                'feed': 'https://updates.puppyone.ai/desktop/stable/mac/latest'},
 }
+
+
+def normalize_target_os(target_os='mac'):
+    key = TARGET_OS_ALIASES.get((target_os or '').strip().lower())
+    if not key:
+        raise ValueError(f'Unsupported target OS: {target_os}')
+    return key
+
+
+def platform_feed(channel, target_os='mac'):
+    """The default HTTPS update feed directory for `channel` on `target_os`.
+    Appends Windows and Linux feeds without altering macOS feed URLs."""
+    policy(channel)
+    os_key = normalize_target_os(target_os)
+    if channel == 'dev':
+        return None
+    if channel == 'internal':
+        return f'https://downloads.puppyone.ai/desktop/internal/{os_key}/latest'
+    return f'https://updates.puppyone.ai/desktop/stable/{os_key}/latest'
 BASE_VERSION = re.compile(r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$')
 COMMIT = re.compile(r'^[a-f0-9]{40}$')
 BUILD_NUMBER = re.compile(r'^[1-9]\d*$')
@@ -82,10 +110,11 @@ def update_feed(value):
     return value.rstrip('/')
 
 
-def build_environment(release, feed=None):
+def build_environment(release, feed=None, target_os='mac'):
     """The `PUPPYONE_BUILD_*` stamps `platform::build_identity` reads, and
     the update feed `platform::updates` reads (defaults to the channel's
-    production feed URL; never stamped for dev)."""
+    production feed URL for `target_os`; never stamped for dev)."""
+    os_key = normalize_target_os(target_os)
     stamps = {
         'PUPPYONE_BUILD_CHANNEL': release['channel'],
         'PUPPYONE_BUILD_VERSION': release['version'],
@@ -93,9 +122,12 @@ def build_environment(release, feed=None):
         'PUPPYONE_BUILD_COMMIT': release['commitSha'],
         'PUPPYONE_BUILD_TIME': release['builtAt'],
         'PUPPYONE_BUILD_DIRTY': 'true' if release['sourceDirty'] else 'false',
-        'MACOSX_DEPLOYMENT_TARGET': MINIMUM_SYSTEM_VERSION,
     }
-    effective_feed = policy(release['channel'])['feed'] if feed is None else feed
+    if os_key == 'mac':
+        stamps['MACOSX_DEPLOYMENT_TARGET'] = MINIMUM_SYSTEM_VERSION
+    if os_key == 'linux' and release['channel'] != 'dev':
+        stamps['PUPPYONE_LINUX_RELEASE_MARKER'] = f'release:{release["channel"]}:{release["version"]}'
+    effective_feed = platform_feed(release['channel'], os_key) if feed is None else feed
     if effective_feed and release['channel'] != 'dev':
         stamps['PUPPYONE_UPDATE_FEED_URL'] = update_feed(effective_feed)
     return stamps

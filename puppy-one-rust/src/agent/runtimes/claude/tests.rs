@@ -1220,7 +1220,9 @@ fn temporary_root() -> tempfile::TempDir {
 }
 
 fn path(root: &tempfile::TempDir, relative: &str) -> String {
-    root.path().join(relative).to_string_lossy().into_owned()
+    crate::platform::paths::normalize(&root.path().join(relative))
+        .to_string_lossy()
+        .into_owned()
 }
 
 #[test]

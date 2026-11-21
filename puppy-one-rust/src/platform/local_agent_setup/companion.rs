@@ -178,7 +178,7 @@ fn executable_file(path: &Path) -> bool {
 }
 /// `readBundleMetadata`: `plutil` converts the property list (binary or
 /// XML) to JSON within half a second.
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 fn read_bundle_identity(plist: &Path) -> Option<(String, String)> {
     read_bundle_identity_with_cancel(plist, &AtomicBool::new(false))
 }

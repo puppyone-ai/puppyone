@@ -11,7 +11,7 @@ pub mod documents;
 pub mod editor;
 #[path = "../../src/render_service/mod.rs"]
 pub mod render_service;
-#[path = "../../src/web_host.rs"]
+#[path = "../../src/web_host/mod.rs"]
 pub mod web_host;
 
 // The modules below this crate, under the names the sources use.

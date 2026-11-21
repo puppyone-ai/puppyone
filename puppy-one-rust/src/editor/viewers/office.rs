@@ -12,7 +12,7 @@
 //! file in its default application, opening links, and Retry.
 use super::{
     html_visual::script_json,
-    web::{WebFrame, parse_find_result},
+    web::{WebFallbackAction, WebFrame, parse_find_result},
 };
 use crate::{
     editor::{
@@ -384,7 +384,14 @@ impl OfficeView {
         let content = self.content(Some(Ipc(tx)));
         self.load_epoch += 1;
         let epoch = self.load_epoch;
-        self.frame = Some(cx.new(|_| WebFrame::new(Some(content), self.dark)));
+        let local_path = self.local_path();
+        self.frame = Some(cx.new(|_| {
+            let mut frame = WebFrame::new(Some(content), self.dark);
+            if let Some(path) = local_path {
+                frame.set_fallback_actions(vec![WebFallbackAction::open_local_file(path)]);
+            }
+            frame
+        }));
         self._inbox = Some(cx.spawn(async move |this, cx| {
             while let Ok(body) = rx.recv().await {
                 if let Some(found) = parse_find_result(&body) {

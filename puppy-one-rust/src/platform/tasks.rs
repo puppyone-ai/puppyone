@@ -613,7 +613,10 @@ mod tests {
         let current = s.acquire(other).unwrap();
         let s2 = s.clone();
         let retire = std::thread::spawn(move || s2.retire("w", None, Some(1)));
-        std::thread::sleep(Duration::from_millis(20));
+        let deadline = Instant::now() + Duration::from_millis(500);
+        while !lease.cancelled() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(1));
+        }
         assert!(lease.cancelled() && !current.cancelled());
         drop(lease);
         assert!(retire.join().unwrap().is_ok());
