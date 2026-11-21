@@ -266,6 +266,7 @@ pub fn open_path_nofollow_private_write(path: &Path) -> io::Result<std::fs::File
         std::fs::OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(false)
             .open(path)
     }
 }

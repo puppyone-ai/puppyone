@@ -50,6 +50,7 @@ pub(super) fn open_path_nofollow_private_write(path: &Path) -> io::Result<std::f
     options
         .write(true)
         .create(true)
+        .truncate(false)
         .custom_flags(libc::O_NOFOLLOW)
         .mode(0o600);
     options.open(path)
