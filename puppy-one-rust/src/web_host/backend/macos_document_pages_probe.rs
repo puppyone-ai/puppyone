@@ -90,7 +90,7 @@ impl Kind {
 
 struct Fixture {
     kind: Kind,
-    host: super::super::WebHost,
+    host: crate::web_host::WebHost,
     _window: NativeWindow,
     received: async_channel::Receiver<String>,
     messages: Vec<Value>,
@@ -105,7 +105,7 @@ impl Fixture {
             &kind.text(marker),
             Ipc(tx),
         );
-        let host = super::super::WebHost::new_child(&window, 0, content, false).unwrap();
+        let host = crate::web_host::WebHost::new_child(&window, 0, content, false).unwrap();
         host.native()
             .view
             .set_bounds(wry::Rect {
@@ -311,7 +311,7 @@ fn run_html_preview() -> Value {
         let (tx, received) = async_channel::unbounded::<String>();
         let text = format!("<!doctype html><h1>{marker}</h1>");
         let content = crate::editor::viewers::html_interact::probe_content(&text, Ipc(tx));
-        let host = super::super::WebHost::new_child(&window, 0, content, false).unwrap();
+        let host = crate::web_host::WebHost::new_child(&window, 0, content, false).unwrap();
         host.native()
             .view
             .set_bounds(wry::Rect {

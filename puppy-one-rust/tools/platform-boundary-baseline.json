@@ -26,7 +26,6 @@
     "P1 src/editor/viewers/whiteboard.rs",
     "P1 src/features/settings/workspace_config.rs",
     "P1 src/features/updates.rs",
-    "P1 src/web_host.rs",
     "P1 src/workspace/hosts/control.rs",
     "P1 src/workspace/hosts/exec.rs",
     "P1 src/workspace/hosts/files.rs",
@@ -38,8 +37,6 @@
     "P2 src/agent/security/acp_workspace_files.rs",
     "P2 src/agent/security/authorized_project_instructions.rs",
     "P2 src/capture.rs",
-    "P2 src/web_host.rs",
-    "P2 src/web_host/macos.rs",
     "P3 Cargo.toml objc2",
     "P3 Cargo.toml objc2-app-kit",
     "P3 crates/po-agent/Cargo.toml libc"
