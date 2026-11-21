@@ -38,10 +38,13 @@ jobs:
             os: windows-2025
             run_tests: true
             run_clippy: true
+          # Rust desktop acceptance (rust-tests.yml) already runs strict clippy and
+          # the full workspace tests under llvm-cov on macos-15; here macOS only
+          # checks the build without dev-capture.
           - label: macos
             os: macos-15
-            run_tests: true
-            run_clippy: true
+            run_tests: false
+            run_clippy: false
     defaults:
       run:
         working-directory: rust/puppy-one-rust
@@ -134,6 +137,10 @@ jobs:
 
   windows-nsis-smoke:
     name: Windows NSIS install, update & uninstall smoke
+    # Installer and package smokes take 15-30 minutes: they run on every push
+    # to qubits/main, on a manual dispatch, and on pull requests labelled
+    # `ci:packages` (add the label, then push).
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci:packages')
     runs-on: windows-2025
     timeout-minutes: 60
     env:
@@ -185,6 +192,10 @@ jobs:
 
   linux-package-smoke:
     name: Linux packages smoke (${{ matrix.os }})
+    # Installer and package smokes take 15-30 minutes: they run on every push
+    # to qubits/main, on a manual dispatch, and on pull requests labelled
+    # `ci:packages` (add the label, then push).
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci:packages')
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:
