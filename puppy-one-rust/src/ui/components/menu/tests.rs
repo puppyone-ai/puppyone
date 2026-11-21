@@ -213,3 +213,45 @@ fn a_submenu_closes_once_the_pointer_leaves_it_and_its_row(cx: &mut TestAppConte
     draw(cx);
     assert!(cx.debug_bounds("provider-row").is_none());
 }
+
+/// Two rows with submenus, as the source picker's sources are.
+struct SiblingHarness;
+impl Render for SiblingHarness {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let mark = |name: &'static str| div().size(px(10.)).debug_selector(move || name.into());
+        let level = move |id: &'static str, leaf: &'static str| {
+            MenuItem::new(id)
+                .id(id)
+                .icon_element(mark(id))
+                .submenu(move |_, _| {
+                    Menu::new(SharedString::from(format!("{id}-level")))
+                        .item(MenuItem::new(leaf).id(leaf).icon_element(mark(leaf)))
+                })
+        };
+        div().size_full().child(
+            Menu::new("sibling-harness")
+                .w(px(200.))
+                .item(level("plans", "plan-provider"))
+                .item(level("keys", "key-provider")),
+        )
+    }
+}
+
+#[gpui::test]
+fn moving_to_a_sibling_row_closes_the_open_submenu_at_once(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    let (_view, cx) = cx.add_window_view(|_, _| SiblingHarness);
+    draw(cx);
+    let plans = cx.debug_bounds("plans").unwrap().center();
+    cx.simulate_mouse_move(plans, None, Modifiers::default());
+    cx.run_until_parked();
+    draw(cx);
+    assert!(cx.debug_bounds("plan-provider").is_some());
+    let keys = cx.debug_bounds("keys").unwrap().center();
+    cx.simulate_mouse_move(keys, None, Modifiers::default());
+    cx.run_until_parked();
+    draw(cx);
+    // No grace period: only the new row's submenu shows.
+    assert!(cx.debug_bounds("plan-provider").is_none());
+    assert!(cx.debug_bounds("key-provider").is_some());
+}

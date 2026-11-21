@@ -361,7 +361,9 @@ impl ModelConnections {
                 .when(open, |d| {
                     d.child(small("settings.modelConnections.keyHelp"))
                 });
-            rows.push(row(Some(details.into_any_element()), None));
+            // Across the whole field, not in the label track: the note is
+            // a sentence, not a label.
+            rows.push(details.into_any_element());
             basic.push(field(rows));
         }
         if form.driver == Driver::Unsloth {

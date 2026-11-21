@@ -506,12 +506,21 @@ impl RenderOnce for Menu {
                         .gap(px(gap))
                         .children(items.into_iter().enumerate().map(|(row_index, item)| {
                             let fallback = child_id(&id, format!("{index}-{row_index}"));
-                            row(fallback, item, s, t, dismiss.clone(), keyboard.as_ref())
+                            row(
+                                &id,
+                                fallback,
+                                item,
+                                s,
+                                t,
+                                dismiss.clone(),
+                                keyboard.as_ref(),
+                            )
                         })),
                 ),
                 MenuEntry::Item(item) => {
                     let fallback = child_id(&id, index.to_string());
                     surface.child(row(
+                        &id,
                         fallback,
                         *item,
                         s,
@@ -604,6 +613,9 @@ struct SubmenuState {
     trigger: Bounds<Pixels>,
     /// Where the open submenu is drawn ([`OpenSubmenus`]).
     surface: Bounds<Pixels>,
+    /// The menu its row is in: moving to another row of it closes this
+    /// submenu at once.
+    menu: Option<ElementId>,
 }
 
 /// The open submenus of the window's menus, so a menu that closes on a
@@ -621,6 +633,32 @@ impl OpenSubmenus {
             list.push(weak);
         }
     }
+    /// The pointer reached a row of `menu`: the submenus its other rows
+    /// opened close now, not after the grace period, so two never show.
+    fn close_siblings(menu: &ElementId, keep: Option<&Entity<SubmenuState>>, cx: &mut App) {
+        let Some(open) = cx.try_global::<OpenSubmenus>() else {
+            return;
+        };
+        let siblings: Vec<Entity<SubmenuState>> = open
+            .0
+            .iter()
+            .filter_map(WeakEntity::upgrade)
+            .filter(|s| keep != Some(s))
+            .filter(|s| {
+                let s = s.read(cx);
+                s.open && s.menu.as_ref() == Some(menu)
+            })
+            .collect();
+        for state in siblings {
+            state.update(cx, |s, cx| {
+                s.open = false;
+                s.over_row = false;
+                s.over_submenu = false;
+                s.epoch += 1;
+                cx.notify();
+            });
+        }
+    }
     fn contain(position: Point<Pixels>, cx: &App) -> bool {
         cx.try_global::<OpenSubmenus>().is_some_and(|open| {
             open.0.iter().filter_map(WeakEntity::upgrade).any(|s| {
@@ -632,6 +670,7 @@ impl OpenSubmenus {
 }
 /// `.desktop-menu-item`.
 fn row(
+    menu: &ElementId,
     fallback_id: ElementId,
     item: MenuItem,
     s: MenuStyle,
@@ -799,8 +838,17 @@ fn row(
                 })
                 .child(element)
         }));
+    let menu = menu.clone();
     let Some(submenu) = submenu else {
         return row
+            .on_hover({
+                let menu = menu.clone();
+                move |hovered, _, cx| {
+                    if *hovered {
+                        OpenSubmenus::close_siblings(&menu, None, cx);
+                    }
+                }
+            })
             .when_some(action.filter(|_| !disabled), |d, action| {
                 d.on_click(move |_, window, cx| {
                     cx.stop_propagation();
@@ -819,6 +867,7 @@ fn row(
     };
     SubmenuRow {
         id: element_id,
+        menu,
         row,
         build: submenu,
         open: open_submenu,
@@ -831,6 +880,8 @@ fn row(
 #[derive(IntoElement)]
 struct SubmenuRow {
     id: ElementId,
+    /// The menu this row is in.
+    menu: ElementId,
     row: Stateful<Div>,
     build: SubmenuBuilder,
     /// Open once without a hover.
@@ -842,6 +893,8 @@ impl RenderOnce for SubmenuRow {
         let state = window.use_keyed_state(child_id(&self.id, "submenu"), cx, |_, _| {
             SubmenuState::default()
         });
+        let menu = self.menu.clone();
+        state.update(cx, |s, _| s.menu = Some(menu.clone()));
         if self.open {
             state.update(cx, |s, _| {
                 if !s.requested {
@@ -854,6 +907,9 @@ impl RenderOnce for SubmenuRow {
         let hover = {
             let state = state.clone();
             move |on_row: bool, hovered: bool, window: &mut Window, cx: &mut App| {
+                if on_row && hovered {
+                    OpenSubmenus::close_siblings(&menu, Some(&state), cx);
+                }
                 let epoch = state.update(cx, |s, cx| {
                     if on_row {
                         s.over_row = hovered;
