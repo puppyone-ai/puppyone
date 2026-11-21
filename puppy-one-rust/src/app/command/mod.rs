@@ -1,7 +1,6 @@
 //! Shell commands. Keyboard shortcuts and the native menu bar dispatch typed
 //! GPUI actions; every action, button and protocol message resolves to one
 //! [`Command`] handled by `Shell::command`.
-use crate::{localization::t as tr, ui};
 use gpui::*;
 
 /// Everything the shell can be asked to do.
@@ -152,125 +151,7 @@ shell_actions! {
     CloseBackgroundProject => CloseBackgroundProject,
 }
 
-/// The Dock menu (`createDockMenuTemplate`).
-pub fn dock_menu() -> Vec<MenuItem> {
-    vec![MenuItem::action(tr("native.dock.newWindow"), NewWindow)]
-}
-
-pub fn bind_keys(cx: &mut App) {
-    super::home::import_sources::bind_keys(cx);
-    // The product's own shortcuts: the menu's primary+, primary+N primary+W
-    // primary+Q, primary+S in a document, primary+/ and Shift+primary+M for
-    // Markdown's view, primary+V on the Homepage. GPUI's `secondary-` maps to
-    // Cmd on macOS and Ctrl on Windows/Linux.
-    cx.bind_keys([
-        KeyBinding::new("secondary-,", OpenSettings, None),
-        KeyBinding::new("secondary-s", Save, None),
-        KeyBinding::new("secondary-w", CloseWindow, None),
-        KeyBinding::new("secondary-q", Quit, None),
-        KeyBinding::new("secondary-n", NewWindow, None),
-        KeyBinding::new("secondary-/", ToggleMarkdownSource, None),
-        KeyBinding::new("secondary-shift-m", ToggleMarkdownSource, None),
-        KeyBinding::new("secondary-v", PasteTemplateLink, Some("Homepage")),
-    ]);
-    cx.bind_keys([
-        KeyBinding::new("ctrl-tab", NextEditor, None),
-        KeyBinding::new("ctrl-shift-tab", PreviousEditor, None),
-    ]);
-    if crate::platform::os::Os::current().is_macos() {
-        cx.bind_keys([
-            KeyBinding::new("ctrl-secondary-f", ToggleFullScreen, None),
-            KeyBinding::new("secondary-h", HideApp, None),
-            KeyBinding::new("alt-secondary-h", HideOtherApps, None),
-            KeyBinding::new("secondary-m", Minimize, None),
-        ]);
-    } else {
-        cx.bind_keys([KeyBinding::new("f11", ToggleFullScreen, None)]);
-    }
-    cx.bind_keys([KeyBinding::new("escape", Escape, None)]);
-    super::explorer::bind_keys(cx);
-    super::file_mode::bind_keys(cx);
-}
-
-/// The native menu bar (`createApplicationMenuTemplate`); rebuilt when the
-/// locale changes. The product localizes its own commands; Electron's role
-/// items and menus (`menu-item-roles`) keep Electron's English labels, and
-/// the page-only View items (reload, developer tools, page zoom) have no
-/// native window to act on.
-pub fn app_menus() -> Vec<Menu> {
-    let app = super::windows::application_name();
-    vec![
-        Menu {
-            disabled: false,
-            name: app.into(),
-            items: vec![
-                MenuItem::action(format!("About {app}"), About),
-                MenuItem::action(tr("native.menu.checkForUpdates"), CheckForUpdates),
-                MenuItem::separator(),
-                MenuItem::action(tr("native.menu.settings"), OpenSettings),
-                MenuItem::separator(),
-                MenuItem::os_submenu("Services", SystemMenuType::Services),
-                MenuItem::separator(),
-                MenuItem::action(format!("Hide {app}"), HideApp),
-                MenuItem::action("Hide Others", HideOtherApps),
-                MenuItem::action("Show All", ShowAllApps),
-                MenuItem::separator(),
-                MenuItem::action(format!("Quit {app}"), Quit),
-            ],
-        },
-        Menu {
-            disabled: false,
-            name: tr("native.menu.file").into(),
-            items: vec![
-                MenuItem::action(tr("native.dock.newWindow"), NewWindow),
-                MenuItem::separator(),
-                MenuItem::action(tr("native.execution.title"), ManageExecutions),
-                MenuItem::action("Close Window", CloseWindow),
-            ],
-        },
-        ui::input::edit_menu(),
-        Menu {
-            disabled: false,
-            name: "View".into(),
-            items: vec![MenuItem::action("Toggle Full Screen", ToggleFullScreen)],
-        },
-        crate::features::sub_theme_catalog::theme_menu(|key| tr(key).into()),
-        // AppKit adds Bring All to Front and the window list to the menu
-        // named "Window".
-        Menu {
-            disabled: false,
-            name: "Window".into(),
-            items: vec![
-                MenuItem::action("Minimize", Minimize),
-                MenuItem::action("Zoom", Zoom),
-            ],
-        },
-        Menu {
-            disabled: false,
-            name: "Help".into(),
-            items: vec![],
-        },
-    ]
-}
-// App-level visibility commands need no window.
-actions!(shell, [HideApp, HideOtherApps, ShowAllApps]);
-/// The application-scoped menu actions (hide/show).
-pub fn on_app_actions(cx: &mut App) {
-    cx.on_action(|_: &HideApp, cx| cx.hide());
-    cx.on_action(|_: &HideOtherApps, cx| cx.hide_other_apps());
-    cx.on_action(|_: &ShowAllApps, cx| cx.unhide_other_apps());
-    // Theme menu: the selection belongs to the effective colour mode.
-    use crate::features::sub_theme_catalog::{self, OpenThemesFolder, SelectSubTheme};
-    use crate::ui::appearance::ActiveAppearance as _;
-    cx.on_action(|_: &OpenThemesFolder, cx| sub_theme_catalog::open_directory(cx));
-    cx.on_action(|action: &SelectSubTheme, cx| {
-        let Some(store) = super::windows::preferences(cx) else {
-            return;
-        };
-        let (dark, id) = (cx.is_dark(), action.id.clone());
-        store.update(cx, |p, cx| p.change(|p| p.sub_theme_ids.set(dark, id), cx));
-    });
-}
+pub use super::menus::app_menus;
 
 /// The window's command router: what each [`Command`] does to the window
 /// and the owners it routes to.

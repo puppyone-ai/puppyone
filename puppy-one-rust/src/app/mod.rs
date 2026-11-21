@@ -26,6 +26,7 @@ mod file_mode;
 mod header;
 mod home;
 mod host_sharing;
+pub(crate) mod menus;
 mod panes;
 mod project;
 mod project_actions;
@@ -36,13 +37,12 @@ mod sidebar;
 mod window_cloud;
 pub mod windows;
 use command::on_shell_actions;
-pub use command::{
-    Command, app_menus, bind_keys, dock_menu, on_app_actions, on_global_shell_actions,
-};
+pub use command::{Command, on_global_shell_actions};
 use dialogs::{DialogEvent, DialogKey, DialogLayer, Modal, Task};
 #[cfg(feature = "dev-capture")]
 pub(crate) use dialogs::{settings_dialog, task_backdrop};
 use explorer::{Explorer, ExplorerEvent, ExplorerSession, Host, SessionEvent};
+pub use menus::{app_menus, bind_keys, dock_menu, on_app_actions};
 use panes::{Layout, PaneEvent, PaneLayout, PaneStack, Side};
 use right_sidebar::Surface;
 use sidebar::{ExplorerColumn, SidebarFooter};

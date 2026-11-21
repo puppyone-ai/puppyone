@@ -2,13 +2,15 @@
 //! `create-terminal-agent-activity-host.mjs`, `terminal-agent-activity-host.mjs`).
 //! A terminal is prepared only while its provider's Hook is enabled (any
 //! Hook for a plain shell); the socket starts with the first such terminal.
+#[cfg(unix)]
+use super::transport::{self, Envelope};
 use super::{
     Phase, PublicEvent,
     adapters::{self, Normalized},
     env, now_millis,
     registration::{Bridge, Enrollment, ProviderStatus, Registration},
     service::{Service, Session},
-    transport::{self, Auth, Envelope, Server},
+    transport::{Auth, Server},
 };
 use std::{
     path::{Path, PathBuf},
@@ -148,6 +150,7 @@ impl Host {
         self.service.lock().unwrap().snapshot(owner)
     }
     fn start(&self) -> std::io::Result<PathBuf> {
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut server = self.server.lock().unwrap();
         if let Some(server) = server.as_ref() {
             return Ok(server.endpoint.clone());

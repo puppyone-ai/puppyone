@@ -1,7 +1,6 @@
 use raw_window_handle::HasWindowHandle;
-use windows::Win32::{
-    Foundation::BOOL,
-    UI::{
+use windows::{
+    Win32::UI::{
         Input::Ime::{
             CPS_CANCEL, ImmGetContext, ImmNotifyIME, ImmReleaseContext, NI_COMPOSITIONSTR,
         },
@@ -10,6 +9,7 @@ use windows::Win32::{
             SystemParametersInfoW,
         },
     },
+    core::BOOL,
 };
 
 pub(super) fn set_content_min_size(_window: &impl HasWindowHandle, _width: f32, _height: f32) {

@@ -32,10 +32,33 @@ fn electron_dir_prefers_lowercase_channel_name_before_legacy() {
     assert_eq!(picked, dir.path().join("puppyone"));
 
     std::fs::create_dir(dir.path().join("PuppyOne")).unwrap();
-    let legacy = pick_electron_dir(dir.path(), Channel::Stable);
-    assert_eq!(legacy, dir.path().join("PuppyOne"));
+    if dir.path().join("puppyone").is_dir() {
+        // Case-insensitive filesystem (macOS APFS / Windows NTFS): canonical lowercase matches.
+        assert_eq!(
+            pick_electron_dir(dir.path(), Channel::Stable),
+            dir.path().join("puppyone")
+        );
+    } else {
+        // Case-sensitive filesystem (Linux ext4): falls back to legacy `PuppyOne` until `puppyone` exists.
+        assert_eq!(
+            pick_electron_dir(dir.path(), Channel::Stable),
+            dir.path().join("PuppyOne")
+        );
+        std::fs::create_dir(dir.path().join("puppyone")).unwrap();
+        assert_eq!(
+            pick_electron_dir(dir.path(), Channel::Stable),
+            dir.path().join("puppyone")
+        );
+    }
 
-    std::fs::create_dir(dir.path().join("puppyone")).unwrap();
-    let canonical = pick_electron_dir(dir.path(), Channel::Stable);
-    assert_eq!(canonical, dir.path().join("puppyone"));
+    // Internal channel falls back to `puppyone`, then prefers `puppyone-internal`.
+    assert_eq!(
+        pick_electron_dir(dir.path(), Channel::Internal),
+        dir.path().join("puppyone")
+    );
+    std::fs::create_dir(dir.path().join("puppyone-internal")).unwrap();
+    assert_eq!(
+        pick_electron_dir(dir.path(), Channel::Internal),
+        dir.path().join("puppyone-internal")
+    );
 }

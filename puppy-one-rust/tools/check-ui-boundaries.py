@@ -134,9 +134,14 @@ for path in (root / 'src/platform').rglob('*.rs'):
 app_identity_src = (root / 'src/platform/application_identity.rs').read_text(encoding="utf-8").split('#[cfg(test)]')[0]
 if re.search(r'\b(?:gpui|objc2|objc2_app_kit|objc2_foundation)\s*::|\bstd\s*::\s*(?:fs|process|net|thread)\b', app_identity_src):
     errors.append('src/platform/application_identity.rs: application identity contract owns OS/UI side effects')
-desktop_src = (root / 'src/platform/desktop.rs').read_text(encoding="utf-8").split('#[cfg(test)]')[0]
-if re.search(r'\b(?:NSImage|setApplicationIconImage|CFBundleIconFile)\b', desktop_src):
-    errors.append('src/platform/desktop.rs: Dock icon or bundle assembly belongs in src/platform/app_icon.rs')
+desktop_dir = root / 'src/platform/desktop'
+desktop_files = list(desktop_dir.rglob('*.rs')) if desktop_dir.is_dir() else [root / 'src/platform/desktop.rs']
+for desktop_file in desktop_files:
+    if not desktop_file.is_file():
+        continue
+    desktop_src = desktop_file.read_text(encoding="utf-8").split('#[cfg(test)]')[0]
+    if re.search(r'\b(?:NSImage|setApplicationIconImage|CFBundleIconFile)\b', desktop_src):
+        errors.append(f'{desktop_file.relative_to(root)}: Dock icon or bundle assembly belongs in src/platform/app_icon.rs')
 for path in (root / 'src/features/workbench').rglob('*.rs'):
     if re.search(r'\bstd\s*::\s*(?:fs|process)|platform::git|source_control::', path.read_text(encoding="utf-8")):
         errors.append(f'{path.relative_to(root)}: workbench topology owns a feature operation')

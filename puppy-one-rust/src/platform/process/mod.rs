@@ -1,5 +1,12 @@
-//! Bounded, cancellable child processes. No process or pipe is owned by a view.
+//! Bounded, cancellable child processes, isolated process groups / Windows
+//! Job Objects, and bootstrap pipes (`capabilities.md`). No process or pipe is
+//! owned by a view.
 mod pipes;
+#[cfg(unix)]
+mod unix;
+#[cfg(windows)]
+mod windows;
+
 use std::{
     io::Read,
     path::Path,
@@ -12,27 +19,136 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(unix)]
-pub fn isolate(command: &mut Command) {
-    use std::os::unix::process::CommandExt;
-    command.process_group(0);
-}
-#[cfg(not(unix))]
-pub fn isolate(_: &mut Command) {}
+/// Environment variable naming an inheritable bootstrap handle on Windows
+/// (Unix children receive the bootstrap read end on fd 3).
+pub const WINDOWS_BOOTSTRAP_HANDLE_ENV: &str = "PUPPYONE_BOOTSTRAP_HANDLE";
 
+/// OS-owned subtree containment handle (Win32 Job Object on Windows; no-op on
+/// Unix where `process_group(0)` already isolates the subtree).
+pub struct SubtreeGuard {
+    #[cfg(windows)]
+    _job: Option<windows::JobHandle>,
+}
+
+impl SubtreeGuard {
+    /// Attaches a spawned child process to an OS subtree guard (Job Object on
+    /// Windows) so closing or terminating the guard reaps all descendants.
+    pub fn attach_pid(pid: Option<u32>) -> Self {
+        #[cfg(windows)]
+        {
+            Self {
+                _job: pid.and_then(windows::attach_job),
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = pid;
+            Self {}
+        }
+    }
+}
+
+/// Platform bootstrap pipe handed to a managed child process at spawn time.
+pub struct BootstrapPipe {
+    #[cfg(unix)]
+    inner: unix::BootstrapPipe,
+    #[cfg(windows)]
+    inner: windows::BootstrapPipe,
+}
+
+impl BootstrapPipe {
+    /// Creates an OS bootstrap pipe and configures `command` so the child
+    /// inherits the read end (fd 3 on Unix; inheritable handle + env var on Windows).
+    pub fn attach_tokio(command: &mut tokio::process::Command) -> std::io::Result<Self> {
+        #[cfg(unix)]
+        {
+            Ok(Self {
+                inner: unix::attach_bootstrap_pipe(command)?,
+            })
+        }
+        #[cfg(windows)]
+        {
+            Ok(Self {
+                inner: windows::attach_bootstrap_pipe(command)?,
+            })
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = command;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "A bootstrap pipe is unavailable on this platform.",
+            ))
+        }
+    }
+
+    /// Closes the parent's copy of the read end and writes `payload` to the
+    /// child on a detached background thread, then closes the write end.
+    pub fn deliver_async(self, payload: Vec<u8>) {
+        #[cfg(unix)]
+        self.inner.deliver_async(payload);
+        #[cfg(windows)]
+        self.inner.deliver_async(payload);
+    }
+}
+
+/// Configures a `std::process::Command` in its own isolated process group.
+pub fn isolate(command: &mut Command) {
+    #[cfg(unix)]
+    unix::isolate_std(command);
+    #[cfg(windows)]
+    windows::isolate_std(command);
+    #[cfg(not(any(unix, windows)))]
+    let _ = command;
+}
+
+/// Configures a `tokio::process::Command` in its own isolated process group.
+pub fn isolate_tokio(command: &mut tokio::process::Command) {
+    #[cfg(unix)]
+    unix::isolate_tokio(command);
+    #[cfg(windows)]
+    windows::isolate_tokio(command);
+    #[cfg(not(any(unix, windows)))]
+    let _ = command;
+}
+
+/// Terminates a spawned child and its isolated descendants.
 pub fn terminate(child: &mut std::process::Child) {
     #[cfg(unix)]
-    // Only signal the process group created by isolate(), never the GUI's group.
-    unsafe {
-        libc::kill(-(child.id() as i32), libc::SIGTERM);
+    unix::terminate_child(child);
+    #[cfg(windows)]
+    windows::terminate_child(child);
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = child.kill();
+        let _ = child.wait();
     }
-    thread::sleep(Duration::from_millis(100));
+}
+
+/// Terminates a managed process by PID (and its process group when `grouped`).
+pub fn terminate_pid(pid: u32, grouped: bool, force: bool) -> bool {
+    if pid == 0 {
+        return false;
+    }
     #[cfg(unix)]
-    unsafe {
-        libc::kill(-(child.id() as i32), libc::SIGKILL);
+    {
+        unix::terminate_pid(pid, grouped, force)
     }
-    let _ = child.kill();
-    let _ = child.wait();
+    #[cfg(windows)]
+    {
+        windows::terminate_pid(pid, grouped, force)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (grouped, force);
+        false
+    }
+}
+
+/// The Node name of a POSIX terminating signal (`"SIGTERM"`).
+#[cfg(unix)]
+pub fn signal_name(signal: i32) -> String {
+    unix::signal_name(signal)
 }
 
 pub fn bounded_read(mut reader: impl Read, max: usize) -> std::io::Result<Vec<u8>> {
@@ -138,6 +254,7 @@ pub fn run_output_with(
         .stderr(Stdio::piped());
     isolate(&mut command);
     let child = command.spawn().map_err(|e| e.to_string())?;
+    let _subtree = SubtreeGuard::attach_pid(Some(child.id()));
     thread::scope(move |scope| {
         // The owner lives inside the scope: any worker-start failure terminates
         // the child before scoped threads are joined, including blocked stdin.
@@ -236,8 +353,6 @@ pub fn run_output_with(
         if let Some(writer) = writer {
             let _ = writer.join();
         }
-        // Cancellation owns its result even when stopping a pipe interrupts its
-        // reader. All workers and the child are settled before returning it.
         let status = result?;
         let output = output?.map_err(|e| e.to_string())?;
         let errors = errors?.map_err(|e| e.to_string())?;
@@ -256,6 +371,7 @@ pub fn run_output_with(
         }
     })
 }
+
 struct ProcessOwner {
     child: std::process::Child,
     stop: Arc<AtomicBool>,
@@ -271,23 +387,7 @@ impl ProcessOwner {
         self.settled = true;
         #[cfg(unix)]
         {
-            // wait() only reaps the direct child. After its exit, SIGKILL can
-            // still be pending for descendants holding sockets or pipes.
-            let deadline = Instant::now() + Duration::from_secs(1);
-            loop {
-                if unsafe { libc::kill(-(self.child.id() as i32), 0) } != 0 {
-                    let error = std::io::Error::last_os_error();
-                    return if error.raw_os_error() == Some(libc::ESRCH) {
-                        Ok(())
-                    } else {
-                        Err(error.to_string())
-                    };
-                }
-                if Instant::now() >= deadline {
-                    return Err("Owned process group did not exit".into());
-                }
-                thread::sleep(Duration::from_millis(10));
-            }
+            unix::wait_process_group_gone(self.child.id())
         }
         #[cfg(not(unix))]
         Ok(())

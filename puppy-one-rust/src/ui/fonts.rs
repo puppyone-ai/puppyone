@@ -69,8 +69,23 @@ pub fn walk(css: &[&str], category: Category, installed: &mut dyn FnMut(&str) ->
             Some(_) => {}
         }
     }
-    if category == Category::Sans && !fallbacks.iter().any(|f| f == GENERIC_SANS) {
-        fallbacks.push(GENERIC_SANS.to_owned());
+    if category == Category::Sans {
+        if crate::platform::os::Os::current().is_macos() {
+            if !fallbacks.iter().any(|f| f == GENERIC_SANS) {
+                fallbacks.push(GENERIC_SANS.to_owned());
+            }
+        } else {
+            for os_fallback in
+                crate::platform::conventions::Conventions::current().ui_font_fallbacks
+            {
+                if !fallbacks.iter().any(|f| f == os_fallback) && installed(os_fallback) {
+                    fallbacks.push((*os_fallback).to_owned());
+                }
+            }
+            if !fallbacks.iter().any(|f| f == GENERIC_SANS) {
+                fallbacks.push(GENERIC_SANS.to_owned());
+            }
+        }
     }
     Stack {
         family: family.unwrap_or_else(|| match category {

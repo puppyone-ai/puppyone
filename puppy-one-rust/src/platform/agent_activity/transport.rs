@@ -4,14 +4,13 @@
 //! token issued to one prepared terminal session.
 use super::{SCHEMA_VERSION, identifier, limits, projector::Projected, valid_provider_id};
 use serde_json::Value;
+#[cfg(unix)]
+use std::sync::atomic::AtomicUsize;
 use std::{
     collections::HashMap,
     io::Read,
     path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::{Arc, atomic::Ordering},
     time::{Duration, Instant},
 };
 

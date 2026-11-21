@@ -368,11 +368,11 @@ pub fn library_path() -> Option<PathBuf> {
         candidates.push(dir.join("../Frameworks").join(name));
         candidates.push(dir.join(name));
     }
-    candidates.push(
-        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
-            .join("vendor/pdfium/lib")
-            .join(name),
-    );
+    let repo_root = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
+    if cfg!(target_os = "windows") {
+        candidates.push(repo_root.join("vendor/pdfium/bin").join(name));
+    }
+    candidates.push(repo_root.join("vendor/pdfium/lib").join(name));
     candidates.into_iter().find(|p| p.is_file())
 }
 

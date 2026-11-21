@@ -36,7 +36,7 @@ jobs:
             run_clippy: true
           - label: windows
             os: windows-2025
-            run_tests: false
+            run_tests: true
             run_clippy: true
           - label: macos
             os: macos-15

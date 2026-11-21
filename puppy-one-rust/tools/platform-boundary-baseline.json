@@ -33,21 +33,15 @@
     "P1 src/workspace/hosts/identity.rs",
     "P1 src/workspace/hosts/process.rs",
     "P1 src/workspace/local.rs",
-    "P1 src/workspace/local/rename.rs",
     "P2 src/agent/installation/executable_resolver.rs",
     "P2 src/agent/runtimes/claude/claude_spawn.rs",
     "P2 src/agent/security/acp_workspace_files.rs",
     "P2 src/agent/security/authorized_project_instructions.rs",
-    "P2 src/agent/transports/managed_agent_process.rs",
     "P2 src/capture.rs",
     "P2 src/web_host.rs",
     "P2 src/web_host/macos.rs",
-    "P2 src/workspace/hosts/exec.rs",
-    "P2 src/workspace/local.rs",
-    "P2 src/workspace/local/rename.rs",
     "P3 Cargo.toml objc2",
     "P3 Cargo.toml objc2-app-kit",
-    "P3 crates/po-agent/Cargo.toml libc",
-    "P3 crates/po-workspace/Cargo.toml libc"
+    "P3 crates/po-agent/Cargo.toml libc"
   ]
 }

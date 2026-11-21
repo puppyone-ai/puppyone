@@ -477,12 +477,8 @@ pub async fn bridge(
 
 /// Ends a session's whole process group (`stopAll`).
 fn end_group(pid: i32) {
-    #[cfg(unix)]
     if pid > 0 {
-        unsafe {
-            libc::kill(-pid, libc::SIGHUP);
-            libc::kill(-pid, libc::SIGKILL);
-        }
+        let _ = crate::platform::process::terminate_pid(pid as u32, true, true);
     }
 }
 
