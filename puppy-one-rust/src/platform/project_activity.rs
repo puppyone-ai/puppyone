@@ -248,7 +248,12 @@ mod tests {
             match kind {
                 "modified" => fs::write(temp.path().join("docs/note.md"), "edited").unwrap(),
                 "untracked" => {
-                    fs::write(temp.path().join("a file\nwith newline.md"), "new").unwrap()
+                    let name = if cfg!(windows) {
+                        "a file with spaces.md"
+                    } else {
+                        "a file\nwith newline.md"
+                    };
+                    fs::write(temp.path().join(name), "new").unwrap()
                 }
                 "deleted" => fs::remove_dir_all(temp.path().join("docs")).unwrap(),
                 _ => {

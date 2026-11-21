@@ -202,14 +202,9 @@ fn linked_worktrees_receive_shared_ref_changes_and_one_closing_does_not_stop_the
     command(&["commit", "-qm", "initial"]);
     let destination = tempfile::tempdir().unwrap();
     let linked = destination.path().canonicalize().unwrap().join("linked");
-    command(&[
-        "worktree",
-        "add",
-        "-q",
-        "-b",
-        "linked",
-        linked.to_str().unwrap(),
-    ]);
+    let linked_arg = linked.to_string_lossy();
+    let linked_arg = linked_arg.strip_prefix(r"\\?\").unwrap_or(&linked_arg);
+    command(&["worktree", "add", "-q", "-b", "linked", linked_arg]);
     let a = identity(&root).unwrap();
     let b = identity(&linked).unwrap();
     assert_eq!(a.common_dir, b.common_dir);

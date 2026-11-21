@@ -22,6 +22,7 @@ fn repository(root: &Path) {
         vec!["config", "user.name", "Host"],
         vec!["config", "user.email", "host@example.invalid"],
         vec!["config", "commit.gpgsign", "false"],
+        vec!["config", "core.autocrlf", "false"],
     ] {
         invoke(&PlainGit, root, &args);
     }

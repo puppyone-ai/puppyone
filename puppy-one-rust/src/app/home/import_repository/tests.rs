@@ -964,7 +964,15 @@ fn successful_repository_entry(
                     let source_arg = source_arg.strip_prefix(r"\\?\").unwrap_or(&source_arg);
                     crate::platform::process::run(
                         crate::platform::git::git_executable(),
-                        &["clone", "--quiet", "--", source_arg, "."],
+                        &[
+                            "-c",
+                            "core.autocrlf=false",
+                            "clone",
+                            "--quiet",
+                            "--",
+                            source_arg,
+                            ".",
+                        ],
                         staging,
                         None,
                         std::time::Duration::from_secs(10),
