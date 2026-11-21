@@ -1,10 +1,12 @@
 //! `tests/integration/agent/runtimes/pi/electron.pi-adapter.test.mjs` and
 //! `tests/unit/agent/runtimes/pi/electron.pi-discovery.test.mjs`.
+#[cfg(unix)]
 use super::pi_discovery::{PiDiscoveryOptions, discover_pi_executable};
 use super::pi_identity::PI_RUNTIME_DESCRIPTOR;
 use super::pi_rpc_adapter::pi_rpc_adapter;
 use crate::agent::agent_error::AgentError;
 use crate::agent::application::tests_support::run_local;
+#[cfg(unix)]
 use crate::agent::discovery::command_environment::{EnvMap, EnvironmentSnapshot};
 use crate::agent::domain::agent_session_actor::{ActorOptions, AgentSessionActor, EventInput};
 use crate::agent::protocols::pi_rpc::pi_rpc_client::fake::FakePiClient;

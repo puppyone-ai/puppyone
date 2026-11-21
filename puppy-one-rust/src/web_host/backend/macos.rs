@@ -14,7 +14,6 @@ use objc2::{
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
-    rc::Rc,
 };
 use wry::{WebViewBuilderExtMacos, WebViewExtMacOS};
 
@@ -255,9 +254,7 @@ impl BackendHost {
         let view: *const AnyObject = self.webview_ptr().cast();
         let (_, _, bw, bh) = self.bounds.get();
         let vp = viewport.unwrap_or((bw.max(1.), bh.max(1.)));
-        let callback: Rc<RefCell<Option<Box<dyn FnOnce(Option<Vec<u8>>)>>>> =
-            Rc::new(RefCell::new(Some(done)));
-        let slot = callback.clone();
+        let slot = RefCell::new(Some(done));
         let handler = block2::RcBlock::new(move |image: *mut AnyObject, _error: *mut AnyObject| {
             let mut bytes = unsafe { nsimage_to_png(image) };
             if let (Some(raw), Some(rect)) = (&bytes, crop) {
