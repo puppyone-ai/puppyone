@@ -44,16 +44,20 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Verify green main source
+      - name: Verify green source branch
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
-            echo "Internal releases must be built from the main branch." >&2
-            exit 1
-          fi
+          # qubits carries the Rust GPUI app until it replaces main.
+          case "${GITHUB_REF}" in
+            refs/heads/main | refs/heads/qubits) ;;
+            *)
+              echo "Internal releases must be built from main or qubits." >&2
+              exit 1
+              ;;
+          esac
           # The server-side status index can lag behind a completed run. Match
           # exact source, event and terminal success in the returned run records.
           SUCCESSFUL_CI_RUNS="$(
@@ -61,12 +65,12 @@ jobs:
               --method GET \
               -H "Accept: application/vnd.github+json" \
               "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
-              -f branch=main \
+              -f branch="${GITHUB_REF_NAME}" \
               -f head_sha="${GITHUB_SHA}" \
               --jq '[.workflow_runs[] | select(.event == "push" and .head_sha == env.GITHUB_SHA and .status == "completed" and .conclusion == "success")] | length'
           )"
           if [ "${SUCCESSFUL_CI_RUNS}" -lt 1 ]; then
-            echo "Internal releases require a successful CI push run for ${GITHUB_SHA} on main." >&2
+            echo "Internal releases require a successful CI push run for ${GITHUB_SHA} on ${GITHUB_REF_NAME}." >&2
             exit 1
           fi
 
