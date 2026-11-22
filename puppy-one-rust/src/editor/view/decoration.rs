@@ -262,12 +262,89 @@ pub struct BlockSplice {
     pub base_ptr: usize,
     pub old_blocks: Range<usize>,
     pub new_blocks: Range<usize>,
+    /// Block widget IDs unmounted by this splice so `EditorView` can evict
+    /// their [`super::widget::WidgetStateStore`] entries in `O(|removed|)`.
+    pub removed_widget_ids: Vec<BlockId>,
+}
+
+/// Deferred byte-offset shift applied lazily to untouched suffix slices of
+/// `marks`, `hidden`, `atomic`, `inline_widgets`, `underlines`, and
+/// `Block::Widget` anchors so incremental typing and IME stay
+/// `O(log N + |window|)` regardless of document length (`TA-13`, `TA-81`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DeferredByteShift {
+    pub delta: isize,
+    pub marks_split: usize,
+    pub hidden_split: usize,
+    pub atomic_split: usize,
+    pub inline_widgets_split: usize,
+    pub underlines_split: usize,
+    pub blocks_split: usize,
+    pub blocks_delta: isize,
+    pub blocks_revision: u64,
+}
+
+impl DeferredByteShift {
+    pub fn is_empty(&self) -> bool {
+        self.delta == 0 && self.blocks_delta == 0
+    }
 }
 
 pub fn next_decorations_id() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(1);
     NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
+#[inline]
+fn shift_usize(v: usize, delta: isize) -> usize {
+    (v as isize + delta) as usize
+}
+
+#[inline]
+fn shift_range_signed(r: &Range<usize>, delta: isize) -> Range<usize> {
+    shift_usize(r.start, delta)..shift_usize(r.end, delta)
+}
+
+#[inline]
+fn shift_inline_widget_in_place(w: &mut InlineWidget, delta: isize) {
+    w.range = shift_range_signed(&w.range, delta);
+    match &mut w.kind {
+        InlineWidgetKind::Text(_) => {}
+        InlineWidgetKind::Superscript { sup, .. } => sup.range = w.range.clone(),
+        InlineWidgetKind::Image { image, .. } => image.range = w.range.clone(),
+    }
+}
+
+#[inline]
+fn shift_inline_widget_owned(w: &InlineWidget, delta: isize) -> InlineWidget {
+    let mut out = w.clone();
+    shift_inline_widget_in_place(&mut out, delta);
+    out
+}
+
+#[inline]
+fn logical_pos(v: usize, idx: usize, split: usize, delta: isize) -> i128 {
+    if idx < split {
+        v as i128
+    } else {
+        v as i128 + delta as i128
+    }
+}
+
+#[inline]
+fn partition_index(len: usize, mut pred: impl FnMut(usize) -> bool) -> usize {
+    let mut lo = 0usize;
+    let mut hi = len;
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        if pred(mid) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    lo
 }
 
 pub struct Decorations {
@@ -292,6 +369,11 @@ pub struct Decorations {
     pub surface: Surface,
     /// Optional incremental splice descriptor for `HeightMap`.
     pub splice: Option<BlockSplice>,
+    /// Deferred suffix byte shift for `O(log N + |window|)` incremental splices.
+    pub deferred: DeferredByteShift,
+    /// Lowest block index at/after which all `Block::Widget`s are already
+    /// wrapped for lazy re-materialisation (`usize::MAX` when none wrapped).
+    pub lazy_wrapped_from: usize,
 }
 
 impl Default for Decorations {
@@ -306,6 +388,8 @@ impl Default for Decorations {
             underlines: Vec::new(),
             surface: Surface::default(),
             splice: None,
+            deferred: DeferredByteShift::default(),
+            lazy_wrapped_from: usize::MAX,
         }
     }
 }
@@ -322,6 +406,8 @@ impl Clone for Decorations {
             underlines: self.underlines.clone(),
             surface: self.surface.clone(),
             splice: self.splice.clone(),
+            deferred: self.deferred.clone(),
+            lazy_wrapped_from: self.lazy_wrapped_from,
         }
     }
 }
@@ -333,8 +419,79 @@ fn map_range(range: &Range<usize>, changes: &ChangeSet, doc: &Buffer) -> Option<
 }
 
 impl Decorations {
-    /// Marks intersecting `range`.
+    pub fn has_deferred_shift(&self) -> bool {
+        !self.deferred.is_empty()
+    }
+
+    /// Materialise deferred byte shifts on inline decoration vectors (`marks`,
+    /// `hidden`, `atomic`, `inline_widgets`, `underlines`) in place.
+    pub fn materialize_inline_vectors(&mut self) {
+        let delta = self.deferred.delta;
+        if delta == 0 {
+            self.deferred.marks_split = self.marks.len();
+            self.deferred.hidden_split = self.hidden.len();
+            self.deferred.atomic_split = self.atomic.len();
+            self.deferred.inline_widgets_split = self.inline_widgets.len();
+            self.deferred.underlines_split = self.underlines.len();
+            return;
+        }
+        let ms = self.deferred.marks_split.min(self.marks.len());
+        for m in &mut self.marks[ms..] {
+            m.range = shift_range_signed(&m.range, delta);
+        }
+        let hs = self.deferred.hidden_split.min(self.hidden.len());
+        for r in &mut self.hidden[hs..] {
+            *r = shift_range_signed(r, delta);
+        }
+        let ats = self.deferred.atomic_split.min(self.atomic.len());
+        for r in &mut self.atomic[ats..] {
+            *r = shift_range_signed(r, delta);
+        }
+        let iws = self
+            .deferred
+            .inline_widgets_split
+            .min(self.inline_widgets.len());
+        for w in &mut self.inline_widgets[iws..] {
+            shift_inline_widget_in_place(w, delta);
+        }
+        let us = self.deferred.underlines_split.min(self.underlines.len());
+        for u in &mut self.underlines[us..] {
+            u.range = shift_range_signed(&u.range, delta);
+        }
+        self.deferred.delta = 0;
+        self.deferred.marks_split = self.marks.len();
+        self.deferred.hidden_split = self.hidden.len();
+        self.deferred.atomic_split = self.atomic.len();
+        self.deferred.inline_widgets_split = self.inline_widgets.len();
+        self.deferred.underlines_split = self.underlines.len();
+    }
+
+    /// Materialise deferred byte shifts on `Block::Widget` anchors in place.
+    pub fn materialize_block_anchors(&mut self) {
+        let delta = self.deferred.blocks_delta;
+        if delta != 0 {
+            let bs = self.deferred.blocks_split.min(self.blocks.len());
+            let rev = self.deferred.blocks_revision;
+            for b in &mut self.blocks[bs..] {
+                if let Block::Widget { id, .. } = b {
+                    id.shift(delta, rev);
+                }
+            }
+        }
+        self.deferred.blocks_delta = 0;
+        self.deferred.blocks_split = self.blocks.len();
+    }
+
+    /// Materialise all deferred byte shifts so raw vector fields carry exact
+    /// document byte offsets.
+    pub fn materialize(&mut self) {
+        self.materialize_inline_vectors();
+        self.materialize_block_anchors();
+    }
+
+    /// Marks intersecting `range` (when no deferred shift applies).
     pub fn marks_in(&self, range: &Range<usize>) -> &[Mark] {
+        debug_assert_eq!(self.deferred.delta, 0);
         let first = self.marks.partition_point(|m| m.range.end <= range.start);
         let last = self
             .marks
@@ -343,8 +500,44 @@ impl Decorations {
         &self.marks[first..last]
     }
 
-    /// Inline widgets intersecting `range`.
+    /// Shift-aware marks intersecting `range` (`O(log N + |window|)`).
+    pub fn marks_in_cow(&self, range: &Range<usize>) -> Cow<'_, [Mark]> {
+        let delta = self.deferred.delta;
+        if delta == 0 {
+            return Cow::Borrowed(self.marks_in(range));
+        }
+        let split = self.deferred.marks_split.min(self.marks.len());
+        let rs = range.start as i128;
+        let re = range.end as i128;
+        let first = partition_index(self.marks.len(), |i| {
+            logical_pos(self.marks[i].range.end, i, split, delta) <= rs
+        });
+        let last = partition_index(self.marks.len(), |i| {
+            logical_pos(self.marks[i].range.start, i, split, delta) < re
+        })
+        .max(first);
+        if last <= split {
+            return Cow::Borrowed(&self.marks[first..last]);
+        }
+        let out = (first..last)
+            .map(|i| {
+                let m = &self.marks[i];
+                if i < split {
+                    m.clone()
+                } else {
+                    Mark {
+                        range: shift_range_signed(&m.range, delta),
+                        style: m.style.clone(),
+                    }
+                }
+            })
+            .collect();
+        Cow::Owned(out)
+    }
+
+    /// Inline widgets intersecting `range` (when no deferred shift applies).
     pub fn inline_widgets_in(&self, range: &Range<usize>) -> &[InlineWidget] {
+        debug_assert_eq!(self.deferred.delta, 0);
         let first = self
             .inline_widgets
             .partition_point(|w| w.range.end <= range.start);
@@ -355,8 +548,44 @@ impl Decorations {
         &self.inline_widgets[first..last]
     }
 
-    /// Hidden ranges touching `range` (empty ranges at its edges included).
+    /// Shift-aware inline widgets intersecting `range` (`O(log N + |window|)`).
+    pub fn inline_widgets_in_cow(&self, range: &Range<usize>) -> Cow<'_, [InlineWidget]> {
+        let delta = self.deferred.delta;
+        if delta == 0 {
+            return Cow::Borrowed(self.inline_widgets_in(range));
+        }
+        let split = self
+            .deferred
+            .inline_widgets_split
+            .min(self.inline_widgets.len());
+        let rs = range.start as i128;
+        let re = range.end as i128;
+        let first = partition_index(self.inline_widgets.len(), |i| {
+            logical_pos(self.inline_widgets[i].range.end, i, split, delta) <= rs
+        });
+        let last = partition_index(self.inline_widgets.len(), |i| {
+            logical_pos(self.inline_widgets[i].range.start, i, split, delta) < re
+        })
+        .max(first);
+        if last <= split {
+            return Cow::Borrowed(&self.inline_widgets[first..last]);
+        }
+        let out = (first..last)
+            .map(|i| {
+                let w = &self.inline_widgets[i];
+                if i < split {
+                    w.clone()
+                } else {
+                    shift_inline_widget_owned(w, delta)
+                }
+            })
+            .collect();
+        Cow::Owned(out)
+    }
+
+    /// Hidden ranges touching `range` (when no deferred shift applies).
     pub fn hidden_in(&self, range: &Range<usize>) -> &[Range<usize>] {
+        debug_assert_eq!(self.deferred.delta, 0);
         let first = self.hidden.partition_point(|r| r.end < range.start);
         let last = self
             .hidden
@@ -365,8 +594,41 @@ impl Decorations {
         &self.hidden[first..last]
     }
 
-    /// Underlines intersecting `range` (`TA-13` viewport binary search).
+    /// Shift-aware hidden ranges touching `range` (`O(log N + |window|)`).
+    pub fn hidden_in_cow(&self, range: &Range<usize>) -> Cow<'_, [Range<usize>]> {
+        let delta = self.deferred.delta;
+        if delta == 0 {
+            return Cow::Borrowed(self.hidden_in(range));
+        }
+        let split = self.deferred.hidden_split.min(self.hidden.len());
+        let rs = range.start as i128;
+        let re = range.end as i128;
+        let first = partition_index(self.hidden.len(), |i| {
+            logical_pos(self.hidden[i].end, i, split, delta) < rs
+        });
+        let last = partition_index(self.hidden.len(), |i| {
+            logical_pos(self.hidden[i].start, i, split, delta) <= re
+        })
+        .max(first);
+        if last <= split {
+            return Cow::Borrowed(&self.hidden[first..last]);
+        }
+        let out = (first..last)
+            .map(|i| {
+                let r = &self.hidden[i];
+                if i < split {
+                    r.clone()
+                } else {
+                    shift_range_signed(r, delta)
+                }
+            })
+            .collect();
+        Cow::Owned(out)
+    }
+
+    /// Underlines intersecting `range` (`TA-13` viewport binary search, unshifted).
     pub fn underlines_in(&self, range: &Range<usize>) -> &[Underline] {
+        debug_assert_eq!(self.deferred.delta, 0);
         let first = self
             .underlines
             .partition_point(|u| u.range.end <= range.start);
@@ -377,16 +639,75 @@ impl Decorations {
         &self.underlines[first..last]
     }
 
+    /// Shift-aware visitor over underlines intersecting `range`.
+    pub fn for_each_underline_in(&self, range: &Range<usize>, mut f: impl FnMut(&Underline)) {
+        let delta = self.deferred.delta;
+        if delta == 0 {
+            for u in self.underlines_in(range) {
+                f(u);
+            }
+            return;
+        }
+        let split = self.deferred.underlines_split.min(self.underlines.len());
+        let rs = range.start as i128;
+        let re = range.end as i128;
+        let first = partition_index(self.underlines.len(), |i| {
+            logical_pos(self.underlines[i].range.end, i, split, delta) <= rs
+        });
+        let last = partition_index(self.underlines.len(), |i| {
+            logical_pos(self.underlines[i].range.start, i, split, delta) < re
+        })
+        .max(first);
+        for i in first..last {
+            let u = &self.underlines[i];
+            if i < split {
+                f(u);
+            } else {
+                let shifted = Underline {
+                    range: shift_range_signed(&u.range, delta),
+                    ..u.clone()
+                };
+                f(&shifted);
+            }
+        }
+    }
+
     /// Binary-search atomic ranges containing `pos` strictly inside (`start < pos < end`).
     pub fn atomic_containing(&self, pos: usize) -> Option<&Range<usize>> {
+        debug_assert_eq!(self.deferred.delta, 0);
         let idx = self.atomic.partition_point(|r| r.start < pos);
         let r = self.atomic.get(idx.checked_sub(1)?)?;
+        (r.start < pos && pos < r.end).then_some(r)
+    }
+
+    /// Shift-aware atomic range containing `pos` strictly inside (`start < pos < end`).
+    pub fn atomic_containing_owned(&self, pos: usize) -> Option<Range<usize>> {
+        let delta = self.deferred.delta;
+        if delta == 0 {
+            return self.atomic_containing(pos).cloned();
+        }
+        let split = self.deferred.atomic_split.min(self.atomic.len());
+        let pos_i = pos as i128;
+        let idx = partition_index(self.atomic.len(), |i| {
+            logical_pos(self.atomic[i].start, i, split, delta) < pos_i
+        });
+        let prev = idx.checked_sub(1)?;
+        let r = if prev < split {
+            self.atomic[prev].clone()
+        } else {
+            shift_range_signed(&self.atomic[prev], delta)
+        };
         (r.start < pos && pos < r.end).then_some(r)
     }
 
     /// Translate decorations across `changes` onto `doc` (`TA-11`, `TA-12`,
     /// `TA-31` optimistic shift while async background syntax parses).
     pub fn map(&self, changes: &ChangeSet, doc: &Buffer, new_revision: u64) -> Self {
+        if self.has_deferred_shift() {
+            let mut materialized = self.clone();
+            materialized.materialize();
+            return materialized.map(changes, doc, new_revision);
+        }
         let line_count = doc.line_count();
         let plain_style = self
             .blocks
@@ -517,6 +838,8 @@ impl Decorations {
             underlines,
             surface: self.surface.clone(),
             splice: None,
+            deferred: DeferredByteShift::default(),
+            lazy_wrapped_from: usize::MAX,
         }
     }
 }
@@ -674,7 +997,7 @@ impl LayeredDecorations {
 
     pub fn marks_in<'a>(&'a self, range: &Range<usize>) -> Cow<'a, [Mark]> {
         if self.reveal.is_empty() {
-            return Cow::Borrowed(self.doc.marks_in(range));
+            return self.doc.marks_in_cow(range);
         }
         let overlaps = self
             .reveal
@@ -682,11 +1005,11 @@ impl LayeredDecorations {
             .iter()
             .any(|p| p.byte_range.start < range.end && p.byte_range.end > range.start);
         if !overlaps {
-            return Cow::Borrowed(self.doc.marks_in(range));
+            return self.doc.marks_in_cow(range);
         }
         let mut out: Vec<Mark> =
             self.doc
-                .marks_in(range)
+                .marks_in_cow(range)
                 .iter()
                 .filter(|m| {
                     !self.reveal.patches.iter().any(|p| {
@@ -711,7 +1034,7 @@ impl LayeredDecorations {
 
     pub fn hidden_in<'a>(&'a self, range: &Range<usize>) -> Cow<'a, [Range<usize>]> {
         if self.reveal.is_empty() {
-            return Cow::Borrowed(self.doc.hidden_in(range));
+            return self.doc.hidden_in_cow(range);
         }
         let overlaps = self
             .reveal
@@ -719,11 +1042,11 @@ impl LayeredDecorations {
             .iter()
             .any(|p| p.byte_range.start <= range.end && p.byte_range.end >= range.start);
         if !overlaps {
-            return Cow::Borrowed(self.doc.hidden_in(range));
+            return self.doc.hidden_in_cow(range);
         }
         let mut out: Vec<Range<usize>> = self
             .doc
-            .hidden_in(range)
+            .hidden_in_cow(range)
             .iter()
             .filter(|r| {
                 !self
@@ -750,7 +1073,7 @@ impl LayeredDecorations {
 
     pub fn inline_widgets_in<'a>(&'a self, range: &Range<usize>) -> Cow<'a, [InlineWidget]> {
         if self.reveal.is_empty() {
-            return Cow::Borrowed(self.doc.inline_widgets_in(range));
+            return self.doc.inline_widgets_in_cow(range);
         }
         let overlaps = self
             .reveal
@@ -758,11 +1081,11 @@ impl LayeredDecorations {
             .iter()
             .any(|p| p.byte_range.start < range.end && p.byte_range.end > range.start);
         if !overlaps {
-            return Cow::Borrowed(self.doc.inline_widgets_in(range));
+            return self.doc.inline_widgets_in_cow(range);
         }
         let mut out: Vec<InlineWidget> =
             self.doc
-                .inline_widgets_in(range)
+                .inline_widgets_in_cow(range)
                 .iter()
                 .filter(|w| {
                     !self.reveal.patches.iter().any(|p| {
@@ -787,12 +1110,10 @@ impl LayeredDecorations {
 
     pub fn for_each_underline_in(&self, range: &Range<usize>, mut f: impl FnMut(&Underline)) {
         if self.reveal.is_empty() {
-            for u in self.doc.underlines_in(range) {
-                f(u);
-            }
+            self.doc.for_each_underline_in(range, f);
             return;
         }
-        for u in self.doc.underlines_in(range) {
+        self.doc.for_each_underline_in(range, |u| {
             let overridden = self
                 .reveal
                 .patches
@@ -801,7 +1122,7 @@ impl LayeredDecorations {
             if !overridden {
                 f(u);
             }
-        }
+        });
         for p in &self.reveal.patches {
             if p.byte_range.start < range.end && p.byte_range.end > range.start {
                 for u in &p.underlines {
@@ -825,22 +1146,39 @@ impl LayeredDecorations {
                 }
             }
         }
-        self.doc.atomic_containing(pos).cloned()
+        self.doc.atomic_containing_owned(pos)
     }
 
     /// Materialise a flat `Cow<Decorations>` (zero-cost borrow when `reveal` is
-    /// empty, merged copy for tests inspecting revealed ranges).
+    /// empty and no deferred shift is pending; merged materialized copy
+    /// otherwise for tests and legacy callers).
     pub fn as_decorations(&self) -> Cow<'_, Decorations> {
         if self.reveal.is_empty() {
-            return Cow::Borrowed(&self.doc);
+            if !self.doc.has_deferred_shift() {
+                return Cow::Borrowed(&self.doc);
+            }
+            let mut owned = (*self.doc).clone();
+            owned.materialize();
+            owned.splice = None;
+            return Cow::Owned(owned);
         }
         let full = 0..usize::MAX;
         let mut underlines = Vec::new();
         self.for_each_underline_in(&full, |u| underlines.push(u.clone()));
+        let delta = self.doc.deferred.delta;
+        let atomic_split = self.doc.deferred.atomic_split.min(self.doc.atomic.len());
         let mut atomic: Vec<Range<usize>> = self
             .doc
             .atomic
             .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                if delta == 0 || i < atomic_split {
+                    r.clone()
+                } else {
+                    shift_range_signed(r, delta)
+                }
+            })
             .filter(|r| {
                 !self
                     .reveal
@@ -848,17 +1186,46 @@ impl LayeredDecorations {
                     .iter()
                     .any(|p| r.start < p.byte_range.end && r.end > p.byte_range.start)
             })
-            .cloned()
             .collect();
         for p in &self.reveal.patches {
             atomic.extend(p.atomic.iter().cloned());
         }
         atomic.sort_by_key(|r| (r.start, r.end));
+        let mut blocks: Vec<Block> = (0..self.block_len())
+            .map(|i| self.block(i).clone())
+            .collect();
+        if self.doc.deferred.blocks_delta != 0 {
+            let b_delta = self.doc.deferred.blocks_delta;
+            let b_rev = self.doc.deferred.blocks_revision;
+            let b_split = self.doc.deferred.blocks_split;
+            for (eff_idx, block) in blocks.iter_mut().enumerate() {
+                // Only shift doc-layer widgets originating at/after `blocks_split`.
+                let mut is_patch = false;
+                let mut delta_idx: isize = 0;
+                for span in &self.spans {
+                    if eff_idx < span.effective_range.start {
+                        break;
+                    }
+                    if eff_idx < span.effective_range.end {
+                        is_patch = true;
+                        break;
+                    }
+                    delta_idx +=
+                        span.effective_range.len() as isize - span.doc_blocks.len() as isize;
+                }
+                if !is_patch {
+                    let doc_idx = (eff_idx as isize - delta_idx) as usize;
+                    if doc_idx >= b_split
+                        && let Block::Widget { id, .. } = block
+                    {
+                        id.shift(b_delta, b_rev);
+                    }
+                }
+            }
+        }
         Cow::Owned(Decorations {
             id: next_decorations_id(),
-            blocks: (0..self.block_len())
-                .map(|i| self.block(i).clone())
-                .collect(),
+            blocks,
             marks: self.marks_in(&full).into_owned(),
             hidden: self.hidden_in(&full).into_owned(),
             atomic,
@@ -866,6 +1233,8 @@ impl LayeredDecorations {
             underlines,
             surface: self.doc.surface.clone(),
             splice: None,
+            deferred: DeferredByteShift::default(),
+            lazy_wrapped_from: usize::MAX,
         })
     }
 }
