@@ -30,19 +30,17 @@ mod tests;
 
 pub use self::{
     config::{
-        FORMAT_FEATURE_ID, SetAssets, SetDialect, SetLivePreview, SetReferences, ToggleLivePreview,
-        format_command,
+        FORMAT_FEATURE_ID, Heading0, Heading1, Heading2, Heading3, Heading4, Heading5, Heading6,
+        InsertLink, KEY_CONTEXT, SetAssets, SetDialect, SetLivePreview, SetReferences, ToggleBold,
+        ToggleBulletList, ToggleCode, ToggleItalic, ToggleLivePreview, ToggleOrderedList,
+        ToggleQuote, ToggleStrike, ToggleTaskList, ToggleUnderline, format_command,
     },
     core::{
         commands::{FormatCommand, block_move::set_enabled as set_block_drag_enabled},
         links::{find_links, find_wiki_links},
         presentation::source_highlight::source_highlights,
     },
-    extension::{
-        Heading0, Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, InsertLink,
-        KEY_CONTEXT, MarkdownExtension, ToggleBold, ToggleBulletList, ToggleCode, ToggleItalic,
-        ToggleOrderedList, ToggleQuote, ToggleStrike, ToggleTaskList, ToggleUnderline,
-    },
+    extension::MarkdownExtension,
 };
 
 #[cfg(test)]
