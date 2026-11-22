@@ -8,6 +8,8 @@
   },
   "budgets": [
     {"surface": "editor", "sections": 160, "maxMs": {"scrollMeanMs": 2.5, "resizeMeanMs": 2.5}},
+    {"surface": "editor", "sections": 1600, "maxMs": {"scrollMeanMs": 3.5, "resizeMeanMs": 3.5}},
+    {"surface": "editor", "sections": 16000, "maxMs": {"scrollMeanMs": 5.0, "resizeMeanMs": 5.0}},
     {"surface": "window", "sections": 160, "maxMs": {"scrollMeanMs": 6.0, "resizeMeanMs": 4.0}},
     {
       "surface": "edit",
@@ -19,6 +21,10 @@
         "findTypeMeanMs": 5.0
       }
     },
+    {"surface": "stress", "sections": "list_10k", "maxMs": {"typeMeanMs": 8.0, "arrowMeanMs": 4.0}},
+    {"surface": "stress", "sections": "single_line_100k", "maxMs": {"typeMeanMs": 12.0, "arrowMeanMs": 6.0}},
+    {"surface": "stress", "sections": "wide_table_200x2000", "maxMs": {"typeMeanMs": 12.0, "arrowMeanMs": 6.0}},
+    {"surface": "stress", "sections": "images_500", "maxMs": {"typeMeanMs": 8.0, "arrowMeanMs": 4.0}},
     {
       "surface": "csv",
       "sections": 10000,
@@ -52,6 +58,10 @@
     {"comment": "A frame costs what is on screen: a document 10x-100x longer may not cost twice as much.",
      "surface": "editor", "metric": "scrollMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
     {"surface": "editor", "metric": "resizeMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
+    {"surface": "editor", "metric": "scrollMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},
+    {"surface": "editor", "metric": "resizeMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},
+    {"surface": "editor", "metric": "scrollMeanMs", "small": 160, "large": 16000, "maxRatio": 2.0},
+    {"surface": "editor", "metric": "resizeMeanMs", "small": 160, "large": 16000, "maxRatio": 2.0},
     {"surface": "window", "metric": "scrollMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
     {"surface": "edit", "metric": "typeMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},
     {"surface": "edit", "metric": "arrowMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},

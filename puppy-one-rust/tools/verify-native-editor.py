@@ -86,6 +86,15 @@ suites = {
     'editor::markdown::tests::style_contracts::': [
         'typography_and_theme::t3_math_01_native_frontend_never_injects_font_into_math_render_requests',
     ],
+    'editor::view::heights::tests::': [
+        'incremental_splice_and_reveal_overlay_avoid_full_plan_rebuilds',
+        'width_resize_is_o1_with_zero_rehashes_and_width_keyed_known_cache',
+    ],
+    'editor::markdown::tests::scale_and_resize_acceptance::': [
+        't4_width_resize_on_1600_sections_does_zero_block_rehashes',
+        't4_single_list_10k_task_toggle_and_typing_patch_incrementally',
+        't4_extreme_documents_edit_and_navigate_cleanly',
+    ],
 }
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'tools/verify-native-editor.py']]
 paths.extend(p for folder in ['src', 'assets', 'crates'] for p in sorted((root / folder).rglob('*')) if p.is_file())

@@ -753,10 +753,9 @@ impl Syntax {
         changes: &ChangeSet,
         features: Features,
     ) -> Option<(Self, SyntaxSplice)> {
-        let (win_syntax, splice) =
-            Self::compute_incremental_window(doc, before_doc, prev, changes, features, true)?;
         let mut next = prev.clone();
-        Self::splice_syntax_in_place(&mut next, win_syntax, &splice);
+        let splice =
+            Self::try_parse_incremental_in_place(&mut next, doc, before_doc, changes, features)?;
         Some((next, splice))
     }
 
@@ -786,11 +785,388 @@ impl Syntax {
         features: Features,
         allow_eof: bool,
     ) -> Option<SyntaxSplice> {
+        if allow_eof
+            && let Some(splice) = Self::try_patch_single_list_item_in_place(
+                syntax, doc, before_doc, changes, features,
+            )
+        {
+            return Some(splice);
+        }
         let (win_syntax, splice) = Self::compute_incremental_window(
             doc, before_doc, syntax, changes, features, allow_eof,
         )?;
         Self::splice_syntax_in_place(syntax, win_syntax, &splice);
         Some(splice)
+    }
+
+    /// Fast path for single-line edits inside one existing flat single-line list
+    /// item (such as typing or toggling `- [ ]` <-> `- [x]` inside a 10,000-item
+    /// single-list document where `top_blocks.len() < 6`). Parses only the edited
+    /// line and patches `syntax` in place.
+    fn try_patch_single_list_item_in_place(
+        prev: &mut Syntax,
+        doc: &Buffer,
+        before_doc: &Buffer,
+        changes: &ChangeSet,
+        features: Features,
+    ) -> Option<SyntaxSplice> {
+        let cs = changes.changes();
+        if cs.len() != 1 {
+            return None;
+        }
+        let ch = &cs[0];
+        if ch.insert.contains(['\n', '\r']) {
+            return None;
+        }
+        let line_idx = before_doc.line_index(ch.range.start);
+        if before_doc.line_index(ch.range.end) != line_idx || line_idx >= doc.line_count() {
+            return None;
+        }
+        let old_line_content = before_doc.line_range(line_idx);
+        let new_line_content = doc.line_range(line_idx);
+        if ch.range.end > old_line_content.end {
+            return None;
+        }
+        let old_line_str = before_doc.slice_cow(old_line_content.clone());
+        let new_line_str = doc.slice_cow(new_line_content.clone());
+        if has_global_hazards(&old_line_str) || has_global_hazards(&new_line_str) {
+            return None;
+        }
+
+        let old_end_byte = if line_idx + 1 < before_doc.line_count() {
+            before_doc.line_range(line_idx + 1).start
+        } else {
+            before_doc.len()
+        };
+        let new_end_byte = if line_idx + 1 < doc.line_count() {
+            doc.line_range(line_idx + 1).start
+        } else {
+            doc.len()
+        };
+        let ob = old_line_content.start..old_end_byte;
+        let nb = new_line_content.start..new_end_byte;
+        let byte_delta = doc.len() as isize - before_doc.len() as isize;
+        if (nb.end as isize - ob.end as isize) != byte_delta {
+            return None;
+        }
+
+        // Locate the single-line top-level ListItem occupying `old_line_content`.
+        let item_idx = prev.items.partition_point(|it| it.range.start < ob.start);
+        let old_item = prev.items.get(item_idx)?;
+        if old_item.quoted
+            || !old_item.parents.is_empty()
+            || old_item.range.start < old_line_content.start
+            || old_item.range.end > old_line_content.end
+            || prev
+                .items
+                .get(item_idx + 1)
+                .is_some_and(|next| next.range.start < ob.end)
+        {
+            return None;
+        }
+        let list_idx = old_item.list;
+        let old_list = prev.lists.get(list_idx)?;
+        if old_list.parent.is_some()
+            || old_list.range.start > ob.start
+            || old_list.range.end < old_item.range.end
+        {
+            return None;
+        }
+        // Only handle simple flat lists (no nested child lists or block constructs
+        // overlapping this line).
+        if prev
+            .lists
+            .iter()
+            .any(|l| l.parent.is_some() && l.range.start < ob.end && l.range.end > ob.start)
+            || prev
+                .fences
+                .iter()
+                .any(|f| f.range.start < ob.end && f.range.end > ob.start)
+            || prev
+                .code_blocks
+                .iter()
+                .any(|r| r.start < ob.end && r.end > ob.start)
+            || prev
+                .tables
+                .iter()
+                .any(|r| r.start < ob.end && r.end > ob.start)
+            || prev
+                .html_blocks
+                .iter()
+                .any(|r| r.start < ob.end && r.end > ob.start)
+            || prev
+                .callouts
+                .iter()
+                .any(|c| c.first_line <= line_idx && line_idx <= c.last_line)
+            || prev
+                .link_defs
+                .iter()
+                .any(|(r, _)| r.start < ob.end && r.end > ob.start)
+            || span_straddles(&prev.comment_spans, ob.start)
+            || span_straddles(&prev.comment_spans, ob.end)
+            || span_straddles(&prev.footnote_spans, ob.start)
+            || span_straddles(&prev.footnote_spans, ob.end)
+        {
+            return None;
+        }
+        let el_pre = prev.elements.partition_point(|e| e.range.start < ob.start);
+        let el_suf = prev
+            .elements
+            .partition_point(|e| e.range.start < ob.end)
+            .max(el_pre);
+        if prev.elements[..el_pre]
+            .iter()
+            .rev()
+            .take(8)
+            .any(|e| e.range.end > ob.start)
+            || prev.elements[el_pre..el_suf].iter().any(|e| {
+                e.range.end > ob.end
+                    || matches!(
+                        e.kind,
+                        Kind::FootnoteReference | Kind::FootnoteDefinition | Kind::Comment
+                    )
+            })
+        {
+            return None;
+        }
+
+        let extra_defs: String = prev
+            .link_defs
+            .iter()
+            .map(|(_, raw)| raw.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let win = Self::parse_region(doc, line_idx..line_idx + 1, &extra_defs, features);
+
+        if win.items.len() != 1
+            || win.lists.len() != 1
+            || !win.fences.is_empty()
+            || !win.code_blocks.is_empty()
+            || !win.tables.is_empty()
+            || !win.html_blocks.is_empty()
+            || !win.callouts.is_empty()
+            || !win.link_defs.is_empty()
+            || !win.footnotes.is_empty()
+            || !win.block_delimiters.is_empty()
+            || !win.comment_spans.is_empty()
+            || !win.footnote_spans.is_empty()
+        {
+            return None;
+        }
+        let mut new_item = win.items[0].clone();
+        if new_item.quoted
+            || !new_item.parents.is_empty()
+            || new_item.marker != old_item.marker
+            || new_item.indent_columns != old_item.indent_columns
+            || win.lists[0].ordered != old_list.ordered
+            || new_item.range.start < nb.start
+            || new_item.range.end > new_line_content.end
+        {
+            return None;
+        }
+        let para_pre = prev.paragraphs.partition_point(|p| p.range.end <= ob.start);
+        let para_suf = prev
+            .paragraphs
+            .partition_point(|p| p.range.start < ob.end)
+            .max(para_pre);
+        if prev.paragraphs[para_pre..para_suf].len() != win.paragraphs.len() {
+            return None;
+        }
+        if let (Some(old_p), Some(new_p)) = (
+            prev.paragraphs[para_pre..para_suf].first(),
+            win.paragraphs.first(),
+        ) && (old_p.item != Some(item_idx) || old_p.direct != new_p.direct)
+        {
+            return None;
+        }
+        let bd_pre = prev.block_delimiters.partition_point(|&p| p < ob.start);
+        let bd_suf = prev
+            .block_delimiters
+            .partition_point(|&p| p < ob.end)
+            .max(bd_pre);
+        if bd_suf > bd_pre {
+            return None;
+        }
+
+        // Everything verified: patch `prev` in place!
+        new_item.list = list_idx;
+        prev.items[item_idx] = new_item;
+        if byte_delta != 0 {
+            for m in &mut prev.items[item_idx + 1..] {
+                m.range = shift_span_signed(&m.range, byte_delta);
+                m.marker_from = shift_signed(m.marker_from, byte_delta);
+                m.marker_to = shift_signed(m.marker_to, byte_delta);
+                m.content_from = shift_signed(m.content_from, byte_delta);
+                if let Some(t) = &mut m.task {
+                    t.line = shift_span_signed(&t.line, byte_delta);
+                    t.checkbox = shift_span_signed(&t.checkbox, byte_delta);
+                    t.prefix_to = shift_signed(t.prefix_to, byte_delta);
+                }
+                for (_, br) in &mut m.blocks {
+                    *br = shift_span_signed(br, byte_delta);
+                }
+            }
+            prev.lists[list_idx].range.end =
+                shift_signed(prev.lists[list_idx].range.end, byte_delta);
+            for l in &mut prev.lists[list_idx + 1..] {
+                l.range = shift_span_signed(&l.range, byte_delta);
+            }
+            for tb in &mut prev.top_blocks {
+                if tb.start <= ob.start && ob.start < tb.end {
+                    tb.end = shift_signed(tb.end, byte_delta);
+                } else if tb.start >= ob.end {
+                    *tb = shift_span_signed(tb, byte_delta);
+                }
+            }
+        }
+
+        let win_el_len = win.elements.len();
+        prev.elements.splice(el_pre..el_suf, win.elements);
+        if byte_delta != 0 {
+            for m in &mut prev.elements[el_pre + win_el_len..] {
+                m.range = shift_span_signed(&m.range, byte_delta);
+                for mk in &mut m.markers {
+                    *mk = shift_span_signed(mk, byte_delta);
+                }
+                if let Some(c) = &mut m.content {
+                    *c = shift_span_signed(c, byte_delta);
+                }
+                if let Some(l) = &mut m.line {
+                    *l = shift_span_signed(l, byte_delta);
+                }
+            }
+        }
+
+        let mut win_paras = win.paragraphs;
+        for p in &mut win_paras {
+            if p.item.is_some() {
+                p.item = Some(item_idx);
+            }
+        }
+        let win_para_len = win_paras.len();
+        prev.paragraphs.splice(para_pre..para_suf, win_paras);
+        if byte_delta != 0 {
+            for m in &mut prev.paragraphs[para_pre + win_para_len..] {
+                m.range = shift_span_signed(&m.range, byte_delta);
+            }
+        }
+
+        let hl_pre = prev.highlights.partition_point(|(r, _)| r.end <= ob.start);
+        let hl_suf = prev
+            .highlights
+            .partition_point(|(r, _)| r.start < ob.end)
+            .max(hl_pre);
+        let trailing_nl_hl = (old_line_content.end < ob.end && hl_pre < hl_suf)
+            .then(|| {
+                prev.highlights[hl_pre..hl_suf]
+                    .iter()
+                    .rev()
+                    .find(|(r, _)| r.start <= old_line_content.end && r.end >= ob.end)
+                    .map(|(_, c)| *c)
+            })
+            .flatten();
+        let mut replacement_hl: Vec<(Span, Hl)> = Vec::new();
+        if hl_pre < hl_suf && prev.highlights[hl_pre].0.start < ob.start {
+            replacement_hl.push((
+                prev.highlights[hl_pre].0.start..ob.start,
+                prev.highlights[hl_pre].1,
+            ));
+        }
+        replacement_hl.extend(
+            win.highlights
+                .into_iter()
+                .filter(|(r, c)| !r.is_empty() && *c != Hl::NONE),
+        );
+        if let Some(nl_hl) = trailing_nl_hl
+            && new_line_content.end < nb.end
+            && replacement_hl
+                .last()
+                .is_none_or(|(r, _)| r.end <= new_line_content.end)
+        {
+            replacement_hl.push((new_line_content.end..nb.end, nl_hl));
+        }
+        if hl_pre < hl_suf && prev.highlights[hl_suf - 1].0.end > ob.end {
+            let tail_start = shift_signed(ob.end, byte_delta);
+            let tail_end = shift_signed(prev.highlights[hl_suf - 1].0.end, byte_delta);
+            replacement_hl.push((tail_start..tail_end, prev.highlights[hl_suf - 1].1));
+        }
+        if byte_delta != 0 {
+            for (r, _) in &mut prev.highlights[hl_suf..] {
+                *r = shift_span_signed(r, byte_delta);
+            }
+        }
+        let rep_len = replacement_hl.len();
+        prev.highlights.splice(hl_pre..hl_suf, replacement_hl);
+        let check_start = hl_pre.saturating_sub(1);
+        let mut check_end = (hl_pre + rep_len + 1).min(prev.highlights.len());
+        let mut idx = check_start;
+        while idx + 1 < check_end {
+            if prev.highlights[idx].1 == prev.highlights[idx + 1].1
+                && prev.highlights[idx].0.end == prev.highlights[idx + 1].0.start
+            {
+                prev.highlights[idx].0.end = prev.highlights[idx + 1].0.end;
+                prev.highlights.remove(idx + 1);
+                check_end -= 1;
+            } else {
+                idx += 1;
+            }
+        }
+
+        let it_pre = prev.inline_tags.partition_point(|r| r.end <= ob.start);
+        let it_suf = prev
+            .inline_tags
+            .partition_point(|r| r.start < ob.end)
+            .max(it_pre);
+        let win_it_len = win.inline_tags.len();
+        prev.inline_tags.splice(it_pre..it_suf, win.inline_tags);
+        if byte_delta != 0 {
+            for r in &mut prev.inline_tags[it_pre + win_it_len..] {
+                *r = shift_span_signed(r, byte_delta);
+            }
+            let shift_after = |vec: &mut Vec<Span>| {
+                let pos = vec.partition_point(|r| r.start < ob.end);
+                for r in &mut vec[pos..] {
+                    *r = shift_span_signed(r, byte_delta);
+                }
+            };
+            shift_after(&mut prev.code_blocks);
+            shift_after(&mut prev.tables);
+            shift_after(&mut prev.table_cells);
+            shift_after(&mut prev.html_blocks);
+            shift_after(&mut prev.comment_spans);
+            shift_after(&mut prev.footnote_spans);
+            let f_pos = prev.fences.partition_point(|f| f.range.start < ob.end);
+            for f in &mut prev.fences[f_pos..] {
+                f.range = shift_span_signed(&f.range, byte_delta);
+                f.code = shift_span_signed(&f.code, byte_delta);
+            }
+            let nd_pos = prev.note_definitions.partition_point(|&p| p < ob.end);
+            for p in &mut prev.note_definitions[nd_pos..] {
+                *p = shift_signed(*p, byte_delta);
+            }
+            let c_pos = prev.callouts.partition_point(|c| c.first_line <= line_idx);
+            for c in &mut prev.callouts[c_pos..] {
+                c.marker = shift_span_signed(&c.marker, byte_delta);
+            }
+            let ld_pos = prev.link_defs.partition_point(|(r, _)| r.start < ob.end);
+            for (r, _) in &mut prev.link_defs[ld_pos..] {
+                *r = shift_span_signed(r, byte_delta);
+            }
+            for p in &mut prev.block_delimiters[bd_suf..] {
+                *p = shift_signed(*p, byte_delta);
+            }
+            prev.footnotes.shift_in_place(ob.end, byte_delta);
+        }
+
+        Some(SyntaxSplice {
+            old_bytes: ob,
+            new_bytes: nb,
+            old_lines: line_idx..line_idx + 1,
+            new_lines: line_idx..line_idx + 1,
+            byte_delta,
+            line_delta: 0,
+            old_had_delimiters: false,
+        })
     }
 
     fn compute_incremental_window(

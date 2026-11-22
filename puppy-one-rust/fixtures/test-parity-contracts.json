@@ -50459,6 +50459,28 @@
           "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_math_00_prose_fonts_do_not_reach_math_render_requests"
         }
       ]
+    },
+    {
+      "id": "markdown-single-list-incremental-reparse",
+      "acceptance": "Single-line edits and GFM task checkbox toggles inside a 10,000-line flat single-list document patch Syntax, Plans, Decorations, and HeightMap incrementally without full-document reparses or full height-map rebuilds.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/rendering/markdownPerformanceProjection.test.ts",
+          "sha256": "2a2facb5c7587df30f513f2ffbeacfa6a5ab0df5b8c4b5d03332089ac30da56f",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown incremental document projection > toggles one task token in 10,000 lines without scanning the document"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::scale_and_resize_acceptance::t4_single_list_10k_task_toggle_and_typing_patch_incrementally"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62633,24 +62655,6 @@
             {
               "index": 0,
               "name": "reconciles actual background parse progress without scanning the unparsed document and matches a full projection"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-single-block-documents-reparse",
-      "kind": "gap",
-      "reason": "The native incremental parse re-parses whole top-level blocks and needs at least six of them, so a document that is one long list (10,000 tasks) or has fewer than six top-level blocks is parsed in full on every edit — about 43 ms for 10,000 tasks in a release build, in the background above 512 KiB — instead of patching the edited item.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/pipeline.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/rendering/markdownPerformanceProjection.test.ts",
-          "sha256": "2a2facb5c7587df30f513f2ffbeacfa6a5ab0df5b8c4b5d03332089ac30da56f",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Markdown incremental document projection > toggles one task token in 10,000 lines without scanning the document"
             }
           ]
         }

@@ -331,3 +331,92 @@ fn code_edit_cost() {
 
     bench::report_code_edit(sections, lines, bytes, &adapter, &frame);
 }
+
+/// T4 extreme-shape typing and arrow-key frame cost (`list_10k`,
+/// `single_line_100k`, `wide_table_200x2000`, `images_500`).
+#[test]
+#[ignore = "benchmark: run in release through tools/bench-editor.py"]
+fn editor_stress_edit_cost() {
+    let shape = bench::stress_shape();
+    let steps = bench::edit_steps();
+    let text = bench::stress_markdown(&shape);
+    let mut app = bench::app();
+    app.update(bind_keys);
+    let (view, cx) = app.add_window_view(|_, cx| {
+        EditorView::new(
+            &text,
+            Box::new(MarkdownExtension::new(true, Scale::Medium)),
+            cx,
+        )
+    });
+    cx.simulate_resize(size(px(1000.), px(800.)));
+    let first = bench::draw(cx);
+    bench::draw(cx);
+    let lines = view.read_with(cx, |v, _| v.state.doc.line_count());
+
+    let anchor_pos = match shape.as_str() {
+        "list_10k" => text
+            .find("- List item 5000")
+            .map(|p| p + 18)
+            .unwrap_or(text.len() / 2),
+        "single_line_100k" => text.len() / 2,
+        "wide_table_200x2000" => view.read_with(cx, |v, _| {
+            let mid = (v.state.doc.line_count() / 2).max(2);
+            (v.state.doc.line_range(mid).start + 4).min(v.state.doc.len())
+        }),
+        "images_500" => text.find("![Image 250]").unwrap_or(0).min(text.len()),
+        _ => 0,
+    };
+
+    view.update_in(cx, |v, w, cx| {
+        v.focus(w, cx);
+        v.set_selection(Selection::cursor(anchor_pos), cx);
+    });
+    bench::draw(cx);
+    bench::draw(cx);
+
+    const CHARS: [&str; 5] = ["a", "b", "c", "d", " "];
+    for i in 0..3 {
+        let _ = time_input_frame(cx, |cx| cx.simulate_input(CHARS[i % CHARS.len()]));
+    }
+    let before_len = view.read_with(cx, |v, _| v.text().len());
+    let mut typing = Samples(Vec::with_capacity(steps));
+    for i in 0..steps {
+        typing.0.push(time_input_frame(cx, |cx| {
+            cx.simulate_input(CHARS[i % CHARS.len()])
+        }));
+    }
+    assert!(view.read_with(cx, |v, _| v.text().len()) > before_len);
+
+    // Arrow-key movement (horizontal on single line, vertical on multi-line docs).
+    let (fwd, back) = if shape == "single_line_100k" {
+        ("right", "left")
+    } else {
+        ("down", "up")
+    };
+    for i in 0..4 {
+        let key = if i % 2 == 0 { fwd } else { back };
+        let _ = time_input_frame(cx, |cx| cx.simulate_keystrokes(key));
+    }
+    let rev_before = view.read_with(cx, |v, _| v.state.revision);
+    let mut arrow = Samples(Vec::with_capacity(steps));
+    for i in 0..steps {
+        let key = if i % 2 == 0 { fwd } else { back };
+        let head_before = view.read_with(cx, |v, _| v.state.selection.head);
+        arrow
+            .0
+            .push(time_input_frame(cx, |cx| cx.simulate_keystrokes(key)));
+        let head_after = view.read_with(cx, |v, _| v.state.selection.head);
+        assert_ne!(
+            head_before, head_after,
+            "{shape}: arrow key must move selection"
+        );
+    }
+    assert_eq!(
+        rev_before,
+        view.read_with(cx, |v, _| v.state.revision),
+        "{shape}: arrow movement must not mutate the document"
+    );
+
+    bench::report_stress(&shape, lines, first, &typing, &arrow);
+}
