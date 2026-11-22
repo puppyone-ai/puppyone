@@ -443,10 +443,17 @@ impl AgentSessionRuntime {
                 || pending_references.as_array().is_some_and(|r| !r.is_empty())
             {
                 let state = session.state();
+                let model_name = state.selected_model.as_deref().and_then(|model| {
+                    crate::agent::application::turn::agent_start_transaction::model_label(
+                        &state.models,
+                        model,
+                    )
+                });
                 let payload = Obj::from(&event["payload"])
                     .set("prompt", pending_prompt)
                     .set("promptMentions", session.pending_prompt_mentions())
                     .set("model", state.selected_model.clone())
+                    .opt("modelName", model_name)
                     .set("effort", state.selected_effort.clone())
                     .set("referenceDisplays", pending_references)
                     .build();

@@ -276,7 +276,6 @@
   "status.completed": "완료",
   "status.stopped": "중지됨",
   "status.queued": "대기열에 추가됨",
-  "turn.modelSwitched": "{model}(으)로 전환함",
   "status.notSent": "전송되지 않음",
   "status.deliveryUnknown": "전송 확인 안 됨",
   "status.waitingForUser": "사용자 대기 중",

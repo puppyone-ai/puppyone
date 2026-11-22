@@ -276,7 +276,6 @@
   "status.completed": "完了",
   "status.stopped": "停止",
   "status.queued": "キュー済み",
-  "turn.modelSwitched": "{model} に切り替えました",
   "status.notSent": "未送信",
   "status.deliveryUnknown": "配信未確認",
   "status.waitingForUser": "ユーザーの操作待ち",

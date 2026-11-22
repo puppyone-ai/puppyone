@@ -276,7 +276,6 @@
   "status.completed": "Concluído",
   "status.stopped": "Parado",
   "status.queued": "Na fila",
-  "turn.modelSwitched": "Alterado para {model}",
   "status.notSent": "Não enviado",
   "status.deliveryUnknown": "Entrega não confirmada",
   "status.waitingForUser": "Aguardando o usuário",
