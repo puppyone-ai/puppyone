@@ -39,6 +39,9 @@ impl SettingsWorkspaceSurface {
             Page::Appearance => self.appearance(t, cx),
             Page::Typography => self.typography(t, cx),
             Page::CreateNew => self.create_new(t, cx),
+            Page::FileTypes => {
+                crate::features::plugins::render_file_types_settings(&self.preferences, cx)
+            }
             Page::OtherAppImports => self.other_app_imports(t, cx),
             Page::Privacy => self.privacy(t, cx),
             Page::OtherComputers => self.other_computers(t, cx),

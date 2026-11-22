@@ -6,10 +6,12 @@
 //! default app and close, then the editor's view toggles and commands.
 use crate::{
     localization::t,
+    plugin_contract::HandlerId,
     theme::{self, Theme, metric},
     ui::components::{Icon, Menu, MenuItem, SurfaceElevation, tooltip},
 };
 use gpui::{prelude::*, *};
+use gpui_kit::component::Sizable as _;
 use std::rc::Rc;
 
 /// `PANE_HANDLE_REVEAL_RATIO`.
@@ -74,8 +76,17 @@ pub struct Switch {
     pub checked: bool,
 }
 
+/// One selectable handler surfaced inside the pane's "Open with…" submenu.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OpenWithChoice {
+    pub handler: HandlerId,
+    pub label: SharedString,
+    pub active: bool,
+    pub installable: bool,
+}
+
 /// What the pane's editor contributes (`EditorPaneMenuContribution` plus
-/// the find command and the external opener).
+/// the find command, the external opener, and the "Open with…" choices).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Contribution {
     pub segmented: Option<Segmented>,
@@ -83,6 +94,7 @@ pub struct Contribution {
     pub items: Vec<Item>,
     pub find: bool,
     pub open_external: bool,
+    pub open_with: Vec<OpenWithChoice>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -92,6 +104,7 @@ pub enum Action {
     OpenExternal,
     Close,
     Item(&'static str),
+    OpenWith { handler: HandlerId, always: bool },
 }
 
 impl Contribution {
@@ -466,6 +479,65 @@ pub fn menu(
     if !rows.is_empty() {
         surface = surface.separator().list(2., rows);
     }
+    if !contribution.open_with.is_empty() {
+        let choices = contribution.open_with.clone();
+        let on_action_sub = on_action.clone();
+        let open_with_row = MenuItem::new(t("native.editor.openWith"))
+            .id("desktop-editor-pane-menu-open-with")
+            .icon("layers")
+            .trailing(Icon::new("chevron-right").small().stroke(2.).opacity(0.86))
+            .submenu(move |_, _| {
+                let mut sub = Menu::new("desktop-editor-pane-open-with-submenu").palette(t_);
+                for choice in &choices {
+                    let handler = choice.handler.clone();
+                    let on_action = on_action_sub.clone();
+                    sub = sub.item(
+                        MenuItem::new(choice.label.clone())
+                            .checked(choice.active)
+                            .on_click(move |window, cx| {
+                                on_action(
+                                    Action::OpenWith {
+                                        handler: handler.clone(),
+                                        always: false,
+                                    },
+                                    window,
+                                    cx,
+                                )
+                            }),
+                    );
+                }
+                let always_choices = choices.clone();
+                let on_action_always = on_action_sub.clone();
+                sub.separator().item(
+                    MenuItem::new(t("native.editor.alwaysOpenTypeWith"))
+                        .trailing(Icon::new("chevron-right").small().stroke(2.).opacity(0.86))
+                        .submenu(move |_, _| {
+                            let mut always_menu =
+                                Menu::new("desktop-editor-pane-always-open-with-submenu")
+                                    .palette(t_);
+                            for choice in &always_choices {
+                                let handler = choice.handler.clone();
+                                let on_action = on_action_always.clone();
+                                always_menu =
+                                    always_menu.item(MenuItem::new(choice.label.clone()).on_click(
+                                        move |window, cx| {
+                                            on_action(
+                                                Action::OpenWith {
+                                                    handler: handler.clone(),
+                                                    always: true,
+                                                },
+                                                window,
+                                                cx,
+                                            )
+                                        },
+                                    ));
+                            }
+                            always_menu
+                        }),
+                )
+            });
+        surface = surface.separator().item(open_with_row);
+    }
     Some(
         deferred(
             div()
@@ -525,6 +597,7 @@ mod tests {
             ],
             find: true,
             open_external: true,
+            open_with: vec![],
         }
     }
 

@@ -1223,3 +1223,158 @@ fn layout_metadata_writes_once_after_a_burst_and_at_once_at_a_boundary() {
     wait(&mut r, settled);
     assert_eq!(stored_ratio(), Some(0.25));
 }
+
+#[test]
+fn workbench_persists_restores_and_rebases_handlers_and_reads_old_records_without_handler() {
+    use super::super::resource_operations::Operation;
+    use crate::plugin_contract::HandlerId;
+
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("notes.md"), "# hello\n").unwrap();
+    std::fs::write(root.path().join("icon.svg"), "<svg></svg>\n").unwrap();
+
+    // 1. Per-type default lets `.svg` open as UTF-8 text (`builtin:text`), and
+    //    per-file override switches `notes.md` to `builtin:text` and persists `"handler"`.
+    let mut r = Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        ..Default::default()
+    };
+    let mut type_defaults = crate::editor::opening::FileTypeDefaults::new();
+    type_defaults.insert("svg".into(), HandlerId::builtin("text"));
+    r.set_file_type_defaults(type_defaults.clone());
+
+    open_root(&mut r, root.path());
+    open(&mut r, "icon.svg");
+    let svg_slot = r.active_slot();
+    assert!(
+        r.slot(svg_slot).unwrap().document.is_some(),
+        "per-type default builtin:text should load .svg as UTF-8 text content"
+    );
+    r.set_slot_handler(svg_slot, HandlerId::builtin("text"));
+
+    open(&mut r, "notes.md");
+    r.open_with_handler(
+        "notes.md".into(),
+        HandlerId::builtin("text"),
+        &Wake::default(),
+    );
+    wait(&mut r, |r| {
+        let slot = r.active_slot();
+        r.slot(slot)
+            .is_some_and(|f| !f.busy() && f.document.is_some())
+    });
+    let md_slot = r.active_slot();
+    let md_key = r.slot_resource_key(md_slot).unwrap().to_owned();
+    assert_eq!(r.slot_handler(md_slot), Some(&HandlerId::builtin("text")));
+    assert_eq!(
+        r.file_overrides().and_then(|m| m.get(&md_key)),
+        Some(&HandlerId::builtin("text"))
+    );
+
+    r.persist_metadata(&Wake::default(), true);
+    wait(&mut r, |r| {
+        r.metadata_inflight == 0 && r.hosts.values().all(|h| h.metadata_due.is_none())
+    });
+    let owner = r.workspace_key().unwrap().to_owned();
+    let meta_path = profile
+        .path()
+        .join(format!("{}.json", blake3::hash(owner.as_bytes()).to_hex()));
+    let stored: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&meta_path).unwrap()).unwrap();
+    let stored_editors = stored["group"]["editors"].as_array().unwrap();
+    assert!(
+        stored_editors
+            .iter()
+            .any(|e| { e["resource"] == "notes.md" && e["handler"] == "builtin:text" })
+    );
+    assert_eq!(stored["fileOverrides"][&md_key], "builtin:text");
+    drop(r);
+
+    // 2. Fresh runtime restores `"handler"` and local `"fileOverrides"`.
+    let mut restored = Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        ..Default::default()
+    };
+    restored.set_file_type_defaults(type_defaults);
+    open_root(&mut restored, root.path());
+    wait(&mut restored, |r| {
+        r.state().unwrap().catalog.editors.len() == 2
+    });
+    let restored_md_slot = restored
+        .slot_for_key(&md_key)
+        .expect("restored notes.md slot");
+    assert_eq!(
+        restored.slot_handler(restored_md_slot),
+        Some(&HandlerId::builtin("text"))
+    );
+    assert_eq!(
+        restored.file_overrides().and_then(|m| m.get(&md_key)),
+        Some(&HandlerId::builtin("text"))
+    );
+
+    // 3. Renaming `notes.md` -> `renamed.md` rebases `fileOverrides`.
+    restored
+        .resource_operation(
+            Operation::Rename {
+                path: "notes.md".into(),
+                name: "renamed.md".into(),
+            },
+            &Wake::default(),
+        )
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !restored.operations_idle() {
+        snapshots(&mut restored, |_| "# hello\n".into());
+        restored.poll(&Wake::default());
+        assert!(Instant::now() < deadline, "{:?}", restored.error);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let renamed_key = restored
+        .slot_resource_key(restored_md_slot)
+        .unwrap()
+        .to_owned();
+    assert_ne!(renamed_key, md_key);
+    assert!(restored.file_overrides().unwrap().get(&md_key).is_none());
+    assert_eq!(
+        restored.file_overrides().unwrap().get(&renamed_key),
+        Some(&HandlerId::builtin("text"))
+    );
+    drop(restored);
+
+    // 4. Old restore record WITHOUT `"handler"` or `"fileOverrides"` still loads cleanly.
+    let legacy_profile = tempfile::tempdir().unwrap();
+    let ws = workspace::Workspace::open(root.path()).unwrap();
+    let ws_key = resource_key(&ws.resource_id(std::path::Path::new("")).unwrap());
+    let file_key = resource_key(&ws.resource_id(std::path::Path::new("renamed.md")).unwrap());
+    let legacy_meta = serde_json::json!({
+        "version": 1,
+        "group": {
+            "editors": [
+                { "id": file_key, "resource": "renamed.md", "label": "renamed.md" }
+            ],
+            "activeEditorId": file_key,
+            "mostRecentlyUsed": [file_key]
+        },
+        "layout": {}
+    });
+    std::fs::write(
+        legacy_profile
+            .path()
+            .join(format!("{}.json", blake3::hash(ws_key.as_bytes()).to_hex())),
+        serde_json::to_vec(&legacy_meta).unwrap(),
+    )
+    .unwrap();
+    let mut legacy = Runtime {
+        storage: Some(Storage::at(legacy_profile.path().into())),
+        ..Default::default()
+    };
+    open_root(&mut legacy, root.path());
+    wait(&mut legacy, |r| {
+        r.state().unwrap().catalog.editors.len() == 1
+    });
+    let legacy_slot = legacy.active_slot();
+    assert_eq!(legacy.slot_handler(legacy_slot), None);
+    assert!(legacy.file_overrides().unwrap().is_empty());
+    assert!(legacy.slot(legacy_slot).unwrap().document.is_some());
+}

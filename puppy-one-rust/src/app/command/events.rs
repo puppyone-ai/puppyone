@@ -692,6 +692,39 @@ impl Shell {
     ) {
         match event {
             editor_area::EditorEvent::Command(command) => self.command(*command, window, cx),
+            editor_area::EditorEvent::OpenWith {
+                slot,
+                format_id,
+                handler,
+                always,
+            } => {
+                let path = self
+                    .session
+                    .docs
+                    .read(cx)
+                    .slot(*slot)
+                    .and_then(|f| f.opened().map(|(_, p)| p.to_path_buf()));
+                if *always {
+                    let (fmt, h) = (format_id.clone(), handler.clone());
+                    self.prefs.store.update(cx, |store, cx| {
+                        store.change(
+                            |p| {
+                                p.file_type_defaults.insert(fmt.clone(), h.clone());
+                            },
+                            cx,
+                        )
+                    });
+                    self.session.docs.update(cx, |d, _| {
+                        d.apply_type_default(format_id.clone(), handler.clone(), path)
+                    });
+                } else if let Some(path) = path {
+                    self.session
+                        .docs
+                        .update(cx, |d, _| d.open_with_handler(path, handler.clone()));
+                }
+                self.receive(window, cx);
+                cx.notify();
+            }
             editor_area::EditorEvent::Pump => {
                 self.receive(window, cx);
                 cx.notify();
@@ -795,6 +828,32 @@ impl Shell {
                     .docs
                     .update(cx, |d, _| d.begin(Intent::OpenFile(path)))
             }
+            ExplorerEvent::OpenWith {
+                path,
+                format_id,
+                handler,
+                always,
+            } => {
+                self.cloud.update(cx, |c, cx| c.close_screen(cx));
+                if *always {
+                    let (fmt, h) = (format_id.clone(), handler.clone());
+                    self.prefs.store.update(cx, |store, cx| {
+                        store.change(
+                            |p| {
+                                p.file_type_defaults.insert(fmt.clone(), h.clone());
+                            },
+                            cx,
+                        )
+                    });
+                    self.session.docs.update(cx, |d, _| {
+                        d.apply_type_default(format_id.clone(), handler.clone(), Some(path.clone()))
+                    });
+                } else {
+                    self.session.docs.update(cx, |d, _| {
+                        d.open_with_handler(path.clone(), handler.clone())
+                    });
+                }
+            }
             ExplorerEvent::Create { entry, parent } => {
                 self.start_create(*entry, parent.clone(), window, cx)
             }
@@ -823,6 +882,10 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         self.preferences_changed(window, cx);
+        let type_defaults = self.prefs.store.read(cx).state.file_type_defaults.clone();
+        self.session
+            .docs
+            .update(cx, |d, _| d.set_file_type_defaults(type_defaults));
         self.refresh_cloud_catalog(false, cx);
         self.guard_cloud_authority(window, cx);
         if self.session.project.read(cx).record.restore_last {

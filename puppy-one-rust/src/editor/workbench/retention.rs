@@ -25,6 +25,7 @@ pub struct HibernatedSlot {
     pub path: PathBuf,
     pub failed_at_navigation: Option<u64>,
     pub models: DocumentModels,
+    pub handler: Option<crate::plugin_contract::HandlerId>,
 }
 
 /// Snapshot of a live slot evaluated by the retention policy (`WB-01`).
