@@ -752,15 +752,19 @@ impl EditorView {
                 {
                     let mut store = self.caches.widget_states.borrow_mut();
                     if !store.is_empty() {
-                        let live: HashSet<BlockId> = doc_layer
-                            .blocks
-                            .iter()
-                            .filter_map(|b| match b {
-                                super::decoration::Block::Widget { id, .. } => Some(*id),
-                                _ => None,
-                            })
-                            .collect();
-                        store.retain_live(&live);
+                        if let Some(sp) = &doc_layer.splice {
+                            store.remove_ids(&sp.removed_widget_ids);
+                        } else {
+                            let live: HashSet<BlockId> = doc_layer
+                                .blocks
+                                .iter()
+                                .filter_map(|b| match b {
+                                    super::decoration::Block::Widget { id, .. } => Some(*id),
+                                    _ => None,
+                                })
+                                .collect();
+                            store.retain_live(&live);
+                        }
                     }
                 }
                 self.caches.doc_layer = doc_layer;
