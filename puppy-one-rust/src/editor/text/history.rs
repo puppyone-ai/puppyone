@@ -64,10 +64,14 @@ struct Step {
     sealed: bool,
 }
 
-/// An open IME composition: the `O(1)` rope snapshot and selection before it.
+/// An open IME composition: the `O(1)` rope snapshot and selection before it,
+/// plus the incrementally composed [`ChangeSet`] so `end_composition` stays
+/// `O(|edit|)` even when a rope leaf splits mid-composition (`TA-16`, `TA-81`).
 struct Composing {
     doc: Buffer,
     selection: Selection,
+    recorded_rev: u64,
+    changes: ChangeSet,
 }
 
 #[derive(Default)]
@@ -84,14 +88,66 @@ pub struct StepTicket {
     redo: bool,
 }
 
+/// Trim unchanged UTF-8 character-boundary prefix and suffix from a single
+/// composed change in `O(|old| + |insert|)` without touching untouched rope leaves.
+fn minimal_from_composed(before: &Buffer, changes: &ChangeSet) -> Option<ChangeSet> {
+    let slice = changes.changes();
+    if slice.is_empty() {
+        return None;
+    }
+    if slice.len() > 1 {
+        return Some(changes.clone());
+    }
+    let ch = &slice[0];
+    let old_cow = before.slice_cow(ch.range.clone());
+    let old = old_cow.as_ref();
+    let new = ch.insert.as_str();
+    if old == new {
+        return None;
+    }
+    let mut prefix = old
+        .as_bytes()
+        .iter()
+        .zip(new.as_bytes())
+        .take_while(|(a, b)| a == b)
+        .count();
+    while prefix > 0 && (!old.is_char_boundary(prefix) || !new.is_char_boundary(prefix)) {
+        prefix -= 1;
+    }
+    let room = (old.len() - prefix).min(new.len() - prefix);
+    let mut suffix = old.as_bytes()[old.len() - room..]
+        .iter()
+        .rev()
+        .zip(new.as_bytes()[new.len() - room..].iter().rev())
+        .take_while(|(a, b)| a == b)
+        .count();
+    while suffix > 0
+        && (!old.is_char_boundary(old.len() - suffix) || !new.is_char_boundary(new.len() - suffix))
+    {
+        suffix -= 1;
+    }
+    let old_end = old.len() - suffix;
+    let new_end = new.len() - suffix;
+    if prefix == old_end && prefix == new_end {
+        return None;
+    }
+    Some(ChangeSet::replace(
+        ch.range.start + prefix..ch.range.start + old_end,
+        new[prefix..new_end].to_owned(),
+    ))
+}
+
 /// The single replacement turning `before` into `after` (common prefix and
 /// suffix trimmed on character boundaries in `O(log n + |changed|)` without
 /// materialising `flat`); `None` when they are equal.
 pub fn minimal_diff_buffers(before: &Buffer, after: &Buffer) -> Option<ChangeSet> {
-    if before == after {
+    if before.rope().ptr_eq(after.rope()) {
         return None;
     }
     let raw_prefix = before.rope().common_prefix_bytes(after.rope());
+    if raw_prefix == before.len() && before.len() == after.len() {
+        return None;
+    }
     let mut prefix = before.clamp(raw_prefix.min(before.len()).min(after.len()));
     while prefix > 0 && after.clamp(prefix) != prefix {
         prefix = before.clamp(prefix - 1);
@@ -174,7 +230,11 @@ impl History {
             });
             return;
         }
-        if self.composing.is_some() {
+        if let Some(comp) = &mut self.composing {
+            if comp.recorded_rev + 1 == after.revision {
+                comp.changes = comp.changes.compose(&applied.changes);
+                comp.recorded_rev = after.revision;
+            }
             // Folded into one step by `end_composition`.
             return;
         }
@@ -250,6 +310,8 @@ impl History {
             self.composing = Some(Composing {
                 doc: state.doc.clone(),
                 selection: state.selection,
+                recorded_rev: state.revision,
+                changes: ChangeSet::default(),
             });
         }
     }
@@ -271,7 +333,12 @@ impl History {
         let Some(composing) = self.composing.take() else {
             return false;
         };
-        let Some(forward) = replacement(&composing.doc, &state.doc) else {
+        let forward = if composing.recorded_rev == state.revision {
+            minimal_from_composed(&composing.doc, &composing.changes)
+        } else {
+            replacement(&composing.doc, &state.doc)
+        };
+        let Some(forward) = forward else {
             return false;
         };
         self.redo.clear();

@@ -737,6 +737,7 @@ impl EditorExtension for CodeExtension {
                 base_ptr,
                 old_blocks: edit.old_lines,
                 new_blocks: edit.new_lines,
+                removed_widget_ids: Vec::new(),
             });
             let next_rc = Rc::new(owned);
             self.cache.borrow_mut().doc_decos = Some(CachedCodeDecos {
@@ -817,6 +818,7 @@ impl EditorExtension for CodeExtension {
             underlines: Vec::new(),
             surface: self.surface_style(dark),
             splice: None,
+            ..Default::default()
         });
         self.cache.borrow_mut().doc_decos = Some(CachedCodeDecos {
             doc_key,
