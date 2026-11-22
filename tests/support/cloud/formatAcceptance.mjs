@@ -225,11 +225,20 @@ async function acceptCloudVisualHtml({ window, evaluate, waitFor, assert }) {
   assert(preview.color === 'rgb(12, 34, 56)' && preview.image && !preview.host && preview.width > 0,
     `Cloud HTML projection failed: ${JSON.stringify(preview)}`);
   await frame.executeJavaScript("document.querySelector('#cloud-title').click()");
-  await waitFor("Boolean(document.querySelector('.html-editor-pencil'))");
-  await evaluate("document.querySelector('.html-editor-pencil').click()");
-  await waitFor("Boolean(document.querySelector('.html-editor-text-input'))");
-  await evaluate("document.querySelector('.html-editor-text-input').focus(); document.querySelector('.html-editor-text-input').select()");
-  window.webContents.insertText('Cloud visual edit accepted');
+  // A click selects the block and edits it in the page: no separate edit handle or text box.
+  await waitFor("Boolean(document.querySelector('.html-floating-toolbar')) && !document.querySelector('.html-editor-pencil, .html-editor-text-input')");
+  await evaluate(`document.querySelector(${JSON.stringify(`${active} .html-visual-editor iframe`)}).focus()`);
+  await frame.executeJavaScript(`(() => {
+    const title = document.querySelector('#cloud-title');
+    if (title.contentEditable !== 'true') throw new Error('The selected block is not editable in the page');
+    title.focus(); getSelection().selectAllChildren(title);
+  })()`);
+  // Type as a keyboard does. `webContents.insertText` into the isolated
+  // projection crashes this hidden window's renderer (exit 11).
+  const input = window.webContents.debugger;
+  input.attach('1.3');
+  try { await input.sendCommand('Input.insertText', { text: 'Cloud visual edit accepted' }); }
+  finally { input.detach(); }
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write=>write.path==='acceptance/visual.html'&&write.content.includes('Cloud visual edit accepted'))");
   const write = await evaluate("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.findLast(write=>write.path==='acceptance/visual.html')");
   assert(write.content.includes('styles/main.css') && write.content.includes('picture.svg')
