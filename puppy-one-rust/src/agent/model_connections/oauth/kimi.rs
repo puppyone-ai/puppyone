@@ -1,8 +1,8 @@
 //! Kimi Code sign-in (`kimi-coding.ts`): RFC 8628 device authorization at
-//! `auth.kimi.com`; the access token authenticates Anthropic Messages
-//! requests to `api.kimi.com/coding` as a bearer token.
+//! `auth.kimi.com`; the access token authenticates Chat Completions
+//! requests to `api.kimi.com/coding/v1` as a bearer token (Pi `main`).
 use super::device::{self, Device};
-use super::{Cancel, Progress, post_form, token_credential};
+use super::{Cancel, Progress, post_form, refresh_grant, token_credential};
 use crate::agent::model_connections::credentials::Credential;
 use std::sync::Arc;
 
@@ -53,19 +53,11 @@ pub async fn login(
 }
 
 pub async fn refresh(endpoints: &Endpoints, refresh_token: &str) -> Result<Credential, String> {
-    let (status, body) = post_form(
-        &format!("{}/api/oauth/token", endpoints.host),
-        &[
-            ("client_id", CLIENT_ID),
-            ("grant_type", "refresh_token"),
-            ("refresh_token", refresh_token),
-        ],
+    let token = format!("{}/api/oauth/token", endpoints.host);
+    token_credential(
+        &refresh_grant(&token, CLIENT_ID, refresh_token).await?,
+        true,
     )
-    .await?;
-    if !(200..300).contains(&status) {
-        return Err("OAUTH_REAUTH_REQUIRED".into());
-    }
-    token_credential(&body, true)
 }
 
 #[cfg(test)]

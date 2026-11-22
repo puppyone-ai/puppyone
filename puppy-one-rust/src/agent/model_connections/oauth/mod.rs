@@ -118,14 +118,8 @@ const LOGIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10 * 6
 
 /// The HTTP client sign-in requests use: system proxy, no redirects.
 fn client() -> Result<reqwest::Client, String> {
-    crate::platform::proxy::system(
-        reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
-    )
-    .redirect_policy(reqwest::redirect::Policy::none())
-    .connect_timeout(std::time::Duration::from_secs(15))
-    .timeout(std::time::Duration::from_secs(30))
-    .build()
-    .map_err(|_| "OAUTH_UNAVAILABLE".to_owned())
+    super::http_client(std::time::Duration::from_secs(30))
+        .map_err(|_| "OAUTH_UNAVAILABLE".to_owned())
 }
 
 /// A token endpoint's answer, read as JSON whatever its status.
@@ -148,15 +142,92 @@ async fn post_form(url: &str, form: &[(&str, &str)]) -> Result<(u16, serde_json:
     if !json {
         return Err("OAUTH_UNAVAILABLE".into());
     }
-    let body = response.json().await.unwrap_or(serde_json::Value::Null);
+    let body = super::read_limited(response, super::METADATA_LIMIT)
+        .await
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or(serde_json::Value::Null);
     Ok((status, body))
 }
 
 fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or_default()
+    super::credentials::now_ms()
+}
+
+/// A browser sign-in on a loopback callback: authorization code with PKCE
+/// (S256) and a `state`, then the code exchanged at the token endpoint. Each
+/// provider names its client, callback and authorization URL, and reads the
+/// token answer its own way.
+struct BrowserCode<'a> {
+    client_id: &'a str,
+    token: &'a str,
+    callback_port: u16,
+    callback_path: &'a str,
+    redirect_uri: fn(u16) -> String,
+}
+impl BrowserCode<'_> {
+    /// The token answer. `authorize` builds the authorization page from the
+    /// callback's port, the PKCE challenge and the state.
+    async fn sign_in(
+        &self,
+        authorize: impl FnOnce(u16, &str, &str) -> String,
+        progress: &Arc<dyn Fn(Progress) + Send + Sync>,
+        cancel: &Cancel,
+    ) -> Result<serde_json::Value, String> {
+        let callback = loopback::Callback::bind(self.callback_port)?;
+        let port = callback.port;
+        let pkce = pkce::Pkce::new();
+        let state = pkce::state();
+        progress(Progress::OpenBrowser {
+            url: authorize(port, &pkce.challenge, &state),
+        });
+        let authorization = callback
+            .wait(
+                self.callback_path.into(),
+                Some(state),
+                cancel.clone(),
+                LOGIN_TIMEOUT,
+            )
+            .await?;
+        progress(Progress::Exchanging);
+        let redirect = (self.redirect_uri)(port);
+        let (status, body) = post_form(
+            self.token,
+            &[
+                ("grant_type", "authorization_code"),
+                ("client_id", self.client_id),
+                ("code", &authorization.code),
+                ("code_verifier", &pkce.verifier),
+                ("redirect_uri", &redirect),
+            ],
+        )
+        .await?;
+        if !(200..300).contains(&status) {
+            return Err("OAUTH_EXCHANGE_FAILED".into());
+        }
+        Ok(body)
+    }
+}
+
+/// The refresh-token grant's answer; a refusal asks the user to sign in
+/// again (`OAUTH_REAUTH_REQUIRED`).
+async fn refresh_grant(
+    token: &str,
+    client_id: &str,
+    refresh_token: &str,
+) -> Result<serde_json::Value, String> {
+    let (status, body) = post_form(
+        token,
+        &[
+            ("grant_type", "refresh_token"),
+            ("client_id", client_id),
+            ("refresh_token", refresh_token),
+        ],
+    )
+    .await?;
+    if !(200..300).contains(&status) {
+        return Err("OAUTH_REAUTH_REQUIRED".into());
+    }
+    Ok(body)
 }
 
 /// A token response (`access_token`, `refresh_token`, `expires_in`) as a
@@ -182,7 +253,6 @@ fn token_credential(body: &serde_json::Value, require_refresh: bool) -> Result<C
         expires,
         account_id: None,
         label: None,
-        endpoint: None,
     })
 }
 

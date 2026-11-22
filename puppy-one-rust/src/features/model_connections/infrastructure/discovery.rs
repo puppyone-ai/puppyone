@@ -134,18 +134,37 @@ pub fn listeners() -> Vec<Listener> {
     else {
         return vec![];
     };
-    parse_lsof(&String::from_utf8_lossy(&out.stdout), std::process::id())
+    let found = parse_lsof(&String::from_utf8_lossy(&out.stdout), std::process::id());
+    if found.is_empty() {
+        return vec![];
+    }
+    // Every listener's command line in one `ps`, not one per port.
+    let pids: Vec<String> = found.iter().map(|(_, pid)| pid.to_string()).collect();
+    let commands = std::process::Command::new("/bin/ps")
+        .args(["-o", "pid=,command=", "-p", &pids.join(",")])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .map(|o| parse_ps(&String::from_utf8_lossy(&o.stdout)))
+        .unwrap_or_default();
+    found
         .into_iter()
         .map(|(port, pid)| Listener {
             port,
-            command: std::process::Command::new("/bin/ps")
-                .args(["-o", "command=", "-p", &pid.to_string()])
-                .stderr(std::process::Stdio::null())
-                .output()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
-                .unwrap_or_default(),
+            command: commands.get(&pid).cloned().unwrap_or_default(),
         })
         .filter(|l| !front_end(&l.command))
+        .collect()
+}
+
+/// `ps -o pid=,command=` output as each process's command line.
+fn parse_ps(output: &str) -> std::collections::HashMap<u32, String> {
+    output
+        .lines()
+        .filter_map(|line| {
+            let (pid, command) = line.trim_start().split_once(char::is_whitespace)?;
+            Some((pid.parse().ok()?, command.trim().to_owned()))
+        })
         .collect()
 }
 
@@ -481,7 +500,12 @@ pub(super) async fn ollama_show(
                 if !response.status().is_success() {
                     return None;
                 }
-                response.json::<serde_json::Value>().await.ok()
+                let body = crate::agent::model_connections::read_limited(
+                    response,
+                    crate::agent::model_connections::METADATA_LIMIT,
+                )
+                .await?;
+                serde_json::from_slice::<serde_json::Value>(&body).ok()
             };
             tokio::time::timeout(SHOW_TIMEOUT, answer)
                 .await
@@ -582,11 +606,14 @@ async fn probe(client: &reqwest::Client, port: u16, hint: Option<Driver>) -> Opt
             if !(200..300).contains(&status) {
                 return Some(Err(status));
             }
+            let body = crate::agent::model_connections::read_limited(
+                response,
+                crate::agent::model_connections::METADATA_LIMIT,
+            )
+            .await;
             Some(
-                response
-                    .json::<serde_json::Value>()
-                    .await
-                    .map_err(|_| status),
+                body.and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+                    .ok_or(status),
             )
         }
     };
@@ -644,12 +671,7 @@ async fn probe(client: &reqwest::Client, port: u16, hint: Option<Driver>) -> Opt
 
 /// Probe every port concurrently; one candidate per answering port.
 pub async fn discover_ports(ports: &[(u16, Option<String>)]) -> Vec<Candidate> {
-    let Ok(client) = crate::platform::proxy::system(
-        reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
-    )
-    .redirect_policy(reqwest::redirect::Policy::none())
-    .timeout(PROBE_TIMEOUT)
-    .build() else {
+    let Ok(client) = crate::agent::model_connections::http_client(PROBE_TIMEOUT) else {
         return vec![];
     };
     futures_util::future::join_all(
@@ -1062,6 +1084,22 @@ mod tests {
             ..answers()
         };
         assert!(candidate(9000, None, &refused).is_none());
+    }
+
+    #[test]
+    fn one_ps_names_every_listener_s_command() {
+        let commands = parse_ps(
+            "  4211 /Applications/Ollama.app/Contents/Resources/ollama serve\n62146 python -m mlx_lm.server --port 8024\n  bad\n",
+        );
+        assert_eq!(
+            commands.get(&4211).map(String::as_str),
+            Some("/Applications/Ollama.app/Contents/Resources/ollama serve")
+        );
+        assert_eq!(
+            commands.get(&62146).map(String::as_str),
+            Some("python -m mlx_lm.server --port 8024")
+        );
+        assert_eq!(commands.len(), 2);
     }
 
     #[test]

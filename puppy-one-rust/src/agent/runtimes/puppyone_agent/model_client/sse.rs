@@ -28,6 +28,9 @@ pub trait Events {
 #[derive(Default)]
 struct Framer {
     buffer: Vec<u8>,
+    /// How much of `buffer` is known to hold no line break: a long line
+    /// arriving in many chunks is searched once, not again per chunk.
+    scanned: usize,
     total: usize,
     event: String,
 }
@@ -44,12 +47,14 @@ impl Framer {
         }
         self.buffer.extend_from_slice(chunk);
         let mut start = 0;
-        while let Some(offset) = self.buffer[start..].iter().position(|c| *c == b'\n') {
-            let end = start + offset;
+        let mut from = self.scanned;
+        while let Some(offset) = self.buffer[from..].iter().position(|c| *c == b'\n') {
+            let end = from + offset;
             let line = std::str::from_utf8(&self.buffer[start..end])
                 .map_err(|_| "Invalid UTF-8 model stream")?
                 .trim();
             start = end + 1;
+            from = start;
             if line.is_empty() {
                 // A blank line ends the event: its name does not carry over.
                 self.event.clear();
@@ -64,10 +69,12 @@ impl Framer {
             };
             if on(&self.event, data)? {
                 self.buffer.drain(..start);
+                self.scanned = 0;
                 return Ok(true);
             }
         }
         self.buffer.drain(..start);
+        self.scanned = self.buffer.len();
         if self.buffer.len() > FRAME_LIMIT {
             return Err("Model event exceeded its frame limit".into());
         }
@@ -144,6 +151,28 @@ mod tests {
                 ]
             );
         }
+    }
+
+    /// A stream arriving one byte at a time reads the same lines: what was
+    /// searched before is not searched again, and not skipped either.
+    #[test]
+    fn a_stream_fed_byte_by_byte_reads_the_same_lines() {
+        let input = "event: one\r\ndata: {\"a\":1}\r\n\r\n: comment\ndata: plain\n\nevent: two\ndata: stop\n";
+        let mut stream = Stream::new(Seen::default());
+        let mut sink = |_: &str, _: &str| {};
+        let mut done = false;
+        for byte in input.as_bytes() {
+            done = stream.feed(std::slice::from_ref(byte), &mut sink).unwrap();
+        }
+        assert!(done);
+        assert_eq!(
+            stream.parser.0,
+            [
+                ("one".to_owned(), "{\"a\":1}".to_owned()),
+                (String::new(), "plain".to_owned()),
+                ("two".to_owned(), "stop".to_owned()),
+            ]
+        );
     }
 
     #[test]

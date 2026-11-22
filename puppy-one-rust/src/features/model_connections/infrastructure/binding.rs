@@ -41,13 +41,7 @@ fn budget(provider: Option<&Provider>, models: &[CatalogModel], model: &str) -> 
 }
 
 fn client() -> Result<reqwest::Client, String> {
-    crate::platform::proxy::system(
-        reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
-    )
-    .redirect_policy(reqwest::redirect::Policy::none())
-    .timeout(std::time::Duration::from_secs(15))
-    .build()
-    .map_err(|e| e.to_string())
+    super::catalog::metadata_client()
 }
 
 /// Fill `connection`'s default model and budget from its catalog (read with
@@ -61,10 +55,7 @@ pub async fn complete_binding(
     let models = match list_models(&client()?, connection, key).await {
         Ok(models) => models,
         // The service is up but lists nothing usable; a manual model serves.
-        Err(e) if connection.manual_model_id.is_some() => {
-            let _ = e;
-            project(connection, vec![])
-        }
+        Err(_) if connection.manual_model_id.is_some() => project(connection, vec![]),
         Err(e) => return Err(e),
     };
     if connection.default_model_id.is_none() {
@@ -200,13 +191,10 @@ pub async fn sign_in(
         cancel,
     )
     .await?;
-    // The provider answered: the user sees it at once, not after the save.
+    // The provider answered: the user sees it at once, not after the save
+    // (a device-code flow reports no step of its own after polling).
     progress(oauth::Progress::Exchanging);
     let mut connection = signed_in_connection(provider, existing.as_ref())?;
-    // A sign-in that assigns its own endpoint (Qwen Code) is served there.
-    if let Some(endpoint) = credential.endpoint() {
-        connection.endpoint = endpoint.to_owned();
-    }
     // Re-signing in with the same connection replaces its credential.
     let bearer = credential.bearer().to_owned();
     connection.account = credential.label().map(str::to_owned);

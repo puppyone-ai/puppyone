@@ -90,10 +90,12 @@ async fn get_json_as(
     if !response.status().is_success() {
         return Err(format!("HTTP_{}", response.status().as_u16()));
     }
-    let body = response
-        .bytes()
-        .await
-        .map_err(|_| "INVALID_RESPONSE".to_owned())?;
+    let body = crate::agent::model_connections::read_limited(
+        response,
+        crate::agent::model_connections::METADATA_LIMIT,
+    )
+    .await
+    .ok_or("INVALID_RESPONSE")?;
     // A catalog that echoes the key would show or keep it.
     if let Some(key) = key.filter(|k| !k.is_empty())
         && body.windows(key.len()).any(|w| w == key.as_bytes())
@@ -104,13 +106,8 @@ async fn get_json_as(
 }
 /// The client catalogs are read with: no redirect, bounded in time.
 pub(super) fn metadata_client() -> Result<reqwest::Client, String> {
-    crate::platform::proxy::system(
-        reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
-    )
-    .redirect_policy(reqwest::redirect::Policy::none())
-    .timeout(std::time::Duration::from_secs(15))
-    .build()
-    .map_err(|e| e.to_string())
+    crate::agent::model_connections::http_client(std::time::Duration::from_secs(15))
+        .map_err(|e| e.to_string())
 }
 /// `openaiCompatibleDriver.list`: `/models`; a service without one still
 /// serves an explicitly configured model.

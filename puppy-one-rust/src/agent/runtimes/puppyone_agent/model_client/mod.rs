@@ -151,7 +151,7 @@ pub async fn complete(
 /// characters. Never a credential: request headers are not echoed, and a
 /// bearer-looking token in the text is masked.
 async fn provider_message(response: reqwest::Response, secrets: &[String]) -> Option<String> {
-    let bytes = response.bytes().await.ok()?;
+    let bytes = crate::agent::model_connections::read_limited(response, 64 * 1024).await?;
     let head = &bytes[..bytes.len().min(16 * 1024)];
     let body: Value = serde_json::from_slice(head).ok()?;
     let text = [
@@ -223,14 +223,8 @@ fn status_error(status: u16, oauth: bool, protocol: Protocol, detail: Option<&st
 }
 
 fn client() -> Result<reqwest::Client, String> {
-    crate::platform::proxy::system(
-        reqwest::Client::builder().user_agent(crate::agent::model_connections::USER_AGENT),
-    )
-    .redirect_policy(reqwest::redirect::Policy::none())
-    .connect_timeout(std::time::Duration::from_secs(15))
-    .timeout(std::time::Duration::from_secs(300))
-    .build()
-    .map_err(|_| "Cannot initialize model client".into())
+    crate::agent::model_connections::http_client(std::time::Duration::from_secs(300))
+        .map_err(|_| "Cannot initialize model client".into())
 }
 
 async fn read<P: Events>(

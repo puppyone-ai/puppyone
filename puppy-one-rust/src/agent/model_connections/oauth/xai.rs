@@ -5,8 +5,7 @@
 //! and a `nonce`; no code to type, so no code can be refused. The token
 //! (scope `api:access`) calls the Responses API at `api.x.ai` as Pi does
 //! (`providers/xai.ts`).
-use super::loopback::Callback;
-use super::{Cancel, Progress, pkce, post_form, token_credential};
+use super::{BrowserCode, Cancel, Progress, pkce, refresh_grant, token_credential};
 use crate::agent::model_connections::credentials::Credential;
 use std::sync::Arc;
 
@@ -61,57 +60,29 @@ pub async fn login(
     progress: Arc<dyn Fn(Progress) + Send + Sync>,
     cancel: &Cancel,
 ) -> Result<Credential, String> {
-    let callback = Callback::bind(endpoints.callback_port)?;
-    let port = callback.port;
-    let pkce = pkce::Pkce::new();
-    let state = pkce::state();
-    let nonce = pkce::state();
-    progress(Progress::OpenBrowser {
-        url: authorize_url(endpoints, port, &pkce.challenge, &state, &nonce),
-    });
-    let authorization = callback
-        .wait(
-            CALLBACK_PATH.into(),
-            Some(state),
-            cancel.clone(),
-            super::LOGIN_TIMEOUT,
-        )
-        .await?;
-    progress(Progress::Exchanging);
-    let redirect = redirect_uri(port);
-    let (status, body) = post_form(
-        &endpoints.token,
-        &[
-            ("grant_type", "authorization_code"),
-            ("client_id", CLIENT_ID),
-            ("code", &authorization.code),
-            ("code_verifier", &pkce.verifier),
-            ("redirect_uri", &redirect),
-        ],
+    let body = BrowserCode {
+        client_id: CLIENT_ID,
+        token: &endpoints.token,
+        callback_port: endpoints.callback_port,
+        callback_path: CALLBACK_PATH,
+        redirect_uri,
+    }
+    .sign_in(
+        |port, challenge, state| authorize_url(endpoints, port, challenge, state, &pkce::state()),
+        &progress,
+        cancel,
     )
     .await?;
-    if !(200..300).contains(&status) {
-        return Err("OAUTH_EXCHANGE_FAILED".into());
-    }
     token_credential(&body, true)
 }
 
 /// xAI may omit the refresh token when it does not rotate it; the stored one
 /// is kept ([`crate::agent::model_connections::credentials::resolve`]).
 pub async fn refresh(endpoints: &Endpoints, refresh_token: &str) -> Result<Credential, String> {
-    let (status, body) = post_form(
-        &endpoints.token,
-        &[
-            ("grant_type", "refresh_token"),
-            ("client_id", CLIENT_ID),
-            ("refresh_token", refresh_token),
-        ],
+    token_credential(
+        &refresh_grant(&endpoints.token, CLIENT_ID, refresh_token).await?,
+        false,
     )
-    .await?;
-    if !(200..300).contains(&status) {
-        return Err("OAUTH_REAUTH_REQUIRED".into());
-    }
-    token_credential(&body, false)
 }
 
 #[cfg(test)]

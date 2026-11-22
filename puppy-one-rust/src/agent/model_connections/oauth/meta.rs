@@ -93,7 +93,13 @@ async fn mint(endpoints: &Endpoints, identity: &str) -> Result<Credential, Strin
     if !(200..300).contains(&status) {
         return Err("OAUTH_UNAVAILABLE".into());
     }
-    let body: serde_json::Value = response.json().await.unwrap_or(serde_json::Value::Null);
+    let body: serde_json::Value = crate::agent::model_connections::read_limited(
+        response,
+        crate::agent::model_connections::METADATA_LIMIT,
+    )
+    .await
+    .and_then(|b| serde_json::from_slice(&b).ok())
+    .unwrap_or(serde_json::Value::Null);
     // Without a key Meta may name a setup page (`action_url`); the account
     // has no Model API access yet, which only the user can fix.
     let api_key = body["api_key"]
@@ -106,7 +112,6 @@ async fn mint(endpoints: &Endpoints, identity: &str) -> Result<Credential, Strin
         expires: now_ms() + API_KEY_LIFETIME_MS,
         account_id: None,
         label: None,
-        endpoint: None,
     })
 }
 
