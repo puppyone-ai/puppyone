@@ -2,7 +2,7 @@
 //! highlights Markdown source directly from the Markdown pipeline's own
 //! [`Syntax`] tree (`TA-31`) without compiling a separate tree-sitter Markdown
 //! grammar.
-use super::core::syntax::{Hl, Syntax};
+use super::super::syntax::{Hl, Syntax};
 use crate::editor::{
     code::highlight::SyntaxColors,
     text::buffer::Buffer,

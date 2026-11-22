@@ -3,6 +3,8 @@
 //! so incremental edits and 1-line Reveal Layer patches compute rhythm in
 //! `O(|window|)` without allocating `doc.line_count()` entries or flattening
 //! `doc.flat` (`TA-01`, `TA-11`, `TA-13`).
+pub mod source_highlight;
+
 use super::{
     classes::Class,
     syntax::{BlockKind, Syntax},
@@ -247,7 +249,7 @@ mod tests {
 
     #[test]
     fn sample_rhythm_matches_the_product_line_classes() {
-        let doc = Buffer::new(include_str!("../../../../fixtures/editor/sample.md"));
+        let doc = Buffer::new(include_str!("../../../../../fixtures/editor/sample.md"));
         let syntax = Syntax::parse(&doc);
         let r = block_rhythm(&doc, &syntax, None);
         let has = |line: usize, c: Class| r[line].classes.has(c);
