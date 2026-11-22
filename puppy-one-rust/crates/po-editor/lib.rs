@@ -15,7 +15,7 @@ pub mod render_service;
 pub mod web_host;
 
 // The modules below this crate, under the names the sources use.
-pub(crate) use po_contracts::{formats, model, wake};
+pub(crate) use po_contracts::{formats, model, plugin_contract, wake};
 pub(crate) use po_platform::{localization, platform};
 pub(crate) use po_ui::{assets, theme, typography, ui};
 pub(crate) use po_workspace::{cloud, workspace};
