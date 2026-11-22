@@ -44,7 +44,7 @@ jobs:
   frame-budgets:
     name: Editor frame and scaling budgets
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: rust/puppy-one-rust
@@ -72,7 +72,7 @@ jobs:
         run: |
           python3 -B tools/check-editor-architecture.py --self-test
           python3 -B tools/check-editor-architecture.py
-          python3 -B tools/bench-editor.py --check
+          python3 -B tools/bench-editor.py --check --repeat 3
       - name: Upload editor benchmark results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
