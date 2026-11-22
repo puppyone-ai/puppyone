@@ -1054,7 +1054,11 @@ mod tests {
             ..local()
         }];
         let id = connections[0].id.clone();
-        let models = ["qwen3".to_owned(), "qwen3".to_owned(), "llama3.2".to_owned()];
+        let models = [
+            "qwen3".to_owned(),
+            "qwen3".to_owned(),
+            "llama3.2".to_owned(),
+        ];
         assert_eq!(offer_models(&mut connections, &id, &models), Ok(true));
         assert_eq!(connections[0].chat_models, ["qwen3", "llama3.2"]);
         assert_eq!(connections[0].generation, "bound");
@@ -1078,5 +1082,4 @@ mod tests {
             ["qwen3", "llama3.2", "gemma3"]
         );
     }
-
 }

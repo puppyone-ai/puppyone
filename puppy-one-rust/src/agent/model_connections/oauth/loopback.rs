@@ -333,7 +333,11 @@ mod tests {
             "abc"
         );
         assert_eq!(
-            run(vec!["/auth/callback?error=access_denied&state=s1"], Some("s1")).unwrap_err(),
+            run(
+                vec!["/auth/callback?error=access_denied&state=s1"],
+                Some("s1")
+            )
+            .unwrap_err(),
             "OAUTH_DENIED"
         );
         assert_eq!(
