@@ -502,15 +502,7 @@ fn decode_bitmap(
 ) -> Option<(Arc<RenderImage>, f32, f32, usize)> {
     let format = sniff_format(&bytes)?;
     if format == ImageFormat::Svg {
-        let image = svg.render_single_frame(&bytes, SVG_SCALE).ok()?;
-        let size = image.size(0);
-        let decoded_bytes = (size.width.0.max(1) as usize) * (size.height.0.max(1) as usize) * 4;
-        return Some((
-            image,
-            size.width.0 as f32 / SVG_SCALE,
-            size.height.0 as f32 / SVG_SCALE,
-            decoded_bytes,
-        ));
+        return decode_svg_bitmap(&bytes);
     }
     let image = gpui::Image::from_bytes(format, bytes)
         .to_image_data(svg.clone())
@@ -521,6 +513,21 @@ fn decode_bitmap(
         image,
         size.width.0 as f32,
         size.height.0 as f32,
+        decoded_bytes,
+    ))
+}
+
+/// Rasterizes untrusted SVG bytes through the restricted `platform::svg`
+/// pipeline (no local filesystem or network reads).
+pub(crate) fn decode_svg_bitmap(bytes: &[u8]) -> Option<(Arc<RenderImage>, f32, f32, usize)> {
+    let raster = crate::platform::svg::rasterize_svg(bytes, SVG_SCALE).ok()?;
+    let decoded_bytes = raster.bgra.len();
+    let buf = image::RgbaImage::from_raw(raster.pixel_width, raster.pixel_height, raster.bgra)?;
+    let image = Arc::new(RenderImage::new(vec![image::Frame::new(buf)]));
+    Some((
+        image,
+        raster.logical_width,
+        raster.logical_height,
         decoded_bytes,
     ))
 }

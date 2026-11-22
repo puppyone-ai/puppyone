@@ -31,6 +31,8 @@ fn show_source(cx: &mut VisualTestContext) {
     let button = cx
         .debug_bounds("md-html-widget")
         .expect("native HTML source button");
+    cx.simulate_mouse_move(button.center(), None, Modifiers::none());
+    draw(cx);
     cx.simulate_click(button.center(), Modifiers::none());
     draw(cx);
 }

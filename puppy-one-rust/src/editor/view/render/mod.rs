@@ -493,6 +493,10 @@ impl RenderCx<'_> {
             .border_0()
             .bg(transparent_black());
         refinement.text = style.refinement();
+        refinement.text.font_features = Some(FontFeatures(std::sync::Arc::new(vec![
+            ("liga".into(), 0),
+            ("calt".into(), 0),
+        ])));
         refinement.text.white_space = Some(WhiteSpace::Nowrap);
         let kit = self
             .kit

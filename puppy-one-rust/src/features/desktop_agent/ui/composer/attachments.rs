@@ -95,20 +95,54 @@ impl ComposerView {
             let id = reference.id.clone();
             let name = reference.display_name.clone();
             let preview = self.data.previews.get(&id).cloned();
-            let image: Option<ImageSource> = preview.map(|url| match object_url_bytes(&url) {
+            let image: Option<ImageSource> = preview.and_then(|url| match object_url_bytes(&url) {
                 Some(bytes) => {
+                    let is_svg = reference.mime.as_deref() == Some("image/svg+xml")
+                        || name.to_ascii_lowercase().ends_with(".svg");
+                    if is_svg {
+                        let raster = crate::platform::svg::rasterize_svg(&bytes, 2.0).ok()?;
+                        let buf = image::RgbaImage::from_raw(
+                            raster.pixel_width,
+                            raster.pixel_height,
+                            raster.bgra,
+                        )?;
+                        return Some(ImageSource::Render(std::sync::Arc::new(RenderImage::new(
+                            vec![image::Frame::new(buf)],
+                        ))));
+                    }
                     let format = match reference.mime.as_deref().unwrap_or_default() {
                         "image/jpeg" => ImageFormat::Jpeg,
                         "image/gif" => ImageFormat::Gif,
                         "image/webp" => ImageFormat::Webp,
                         _ => ImageFormat::Png,
                     };
-                    ImageSource::from(std::sync::Arc::new(Image::from_bytes(
+                    Some(ImageSource::from(std::sync::Arc::new(Image::from_bytes(
                         format,
                         (*bytes).clone(),
-                    )))
+                    ))))
                 }
-                None => ImageSource::from(PathBuf::from(url)),
+                None => {
+                    let path = PathBuf::from(url);
+                    let is_svg = reference.mime.as_deref() == Some("image/svg+xml")
+                        || path
+                            .extension()
+                            .and_then(|ext| ext.to_str())
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"));
+                    if is_svg {
+                        let bytes = std::fs::read(&path).ok()?;
+                        let raster = crate::platform::svg::rasterize_svg(&bytes, 2.0).ok()?;
+                        let buf = image::RgbaImage::from_raw(
+                            raster.pixel_width,
+                            raster.pixel_height,
+                            raster.bgra,
+                        )?;
+                        Some(ImageSource::Render(std::sync::Arc::new(RenderImage::new(
+                            vec![image::Frame::new(buf)],
+                        ))))
+                    } else {
+                        Some(ImageSource::from(path))
+                    }
+                }
             });
             let group = SharedString::from(format!("panel-visual-attachment-{id}"));
             let failed = reference.status == ReferenceStatus::Error;

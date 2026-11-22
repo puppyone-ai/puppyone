@@ -149,7 +149,8 @@ impl EditorElement {
         // is laid out and `place` can hold its row exactly.
         let scroll = match anchor {
             Some(a) if count > 0 => {
-                let i = decorations.block_index_for_line(doc.line_index(a.offset));
+                let offset = doc.clamp(a.offset());
+                let i = decorations.block_index_for_line(doc.line_index(offset));
                 if i < count && heights.valid(i) {
                     (heights.top(i) + a.within.min(heights.height(i)) - a.row).max(0.)
                 } else {

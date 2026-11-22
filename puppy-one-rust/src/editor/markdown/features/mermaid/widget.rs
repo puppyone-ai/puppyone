@@ -225,6 +225,7 @@ impl MermaidBlockWidget {
     ) -> (AnyElement, f32) {
         let (w, h) = (r.width * scale, r.height * scale);
         let image = img(ImageSource::Render(r.image.clone()))
+            .debug_selector(|| "md-mermaid-image".into())
             .w(px(w))
             .h(px(h))
             .flex_none();
@@ -241,7 +242,13 @@ impl MermaidBlockWidget {
                     .justify_center()
                     .child(image),
             );
-        let height = (h + 2. * PREVIEW_PAD + 2.).clamp(PREVIEW_MIN, PREVIEW_MAX);
+        let viewport_h = f32::from(cx.render.window.viewport_size().height);
+        let max_height = if viewport_h > 0. {
+            PREVIEW_MAX.min(viewport_h * 0.68).max(PREVIEW_MIN)
+        } else {
+            PREVIEW_MAX
+        };
+        let height = (h + 2. * PREVIEW_PAD + 2.).clamp(PREVIEW_MIN, max_height);
         (content.into_any_element(), height)
     }
 }
@@ -311,6 +318,7 @@ impl BlockWidget for MermaidBlockWidget {
         children.push(
             div()
                 .id(cx.id("mermaid-preview"))
+                .debug_selector(|| "md-mermaid-preview".into())
                 .absolute()
                 .left_0()
                 .top(px(y))

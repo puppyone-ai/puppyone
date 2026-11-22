@@ -11,6 +11,9 @@ pub mod cache;
 mod embed;
 pub mod source;
 
+#[cfg(test)]
+pub(crate) use embed::fit as fit_for_tests;
+
 use crate::editor::{
     markdown::{
         core::{

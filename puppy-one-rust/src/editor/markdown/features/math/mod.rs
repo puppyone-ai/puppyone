@@ -3,7 +3,7 @@
 //! TeX-to-Unicode fallback (`tex::convert`), and inline KaTeX `InlineWidget`
 //! construction all live here in `features/math` rather than in `core/`.
 pub mod tex;
-mod widget;
+pub(crate) mod widget;
 
 use crate::editor::{
     markdown::core::{

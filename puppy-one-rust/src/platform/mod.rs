@@ -48,6 +48,7 @@ pub mod repository_import;
 #[cfg(unix)]
 pub mod single_instance;
 pub mod stdio_guard;
+pub mod svg;
 pub mod tasks;
 pub mod telemetry;
 pub mod templates;

@@ -753,6 +753,11 @@ fn finish(window_id: WindowId, key: u64, state: State, bytes: usize, cx: &mut Ap
 }
 
 #[cfg(test)]
+pub(crate) fn payload_for_tests(request: &Request) -> String {
+    payload(1, request)
+}
+
+#[cfg(test)]
 pub(crate) fn seed_ready_for_tests(request: &Request, rendered: Rendered) {
     let k = key(request);
     let size = rendered.image.size(0);

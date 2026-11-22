@@ -667,6 +667,59 @@ impl EditorExtension for MarkdownExtension {
         changed
     }
 
+    fn filter_transaction(&self, tr: &mut Transaction, state: &EditorState, read_only: bool) {
+        if !self.live || read_only || tr.event != crate::editor::text::state::UserEvent::Paste {
+            return;
+        }
+        let changes = tr.changes.changes();
+        if changes.len() != 1 {
+            return;
+        }
+        let c = &changes[0];
+        if !c.insert.contains(['\n', '\r', '|']) {
+            return;
+        }
+        let mut cache = self.cache.borrow_mut();
+        let (_, plans) = self.ensure_parsed_in(&mut cache, state);
+        let in_table_cell = plans.iter().any(|plan| {
+            let Some(embed) = plan.embed().filter(|e| e.feature == features::table::ID) else {
+                return false;
+            };
+            if c.range.start < plan.source.start || c.range.end > plan.source.end {
+                return false;
+            }
+            let check_table = |table: &features::table::model::Table| {
+                table.range.start <= c.range.start
+                    && c.range.end <= table.range.end
+                    && table.rows.iter().any(|row| {
+                        row.cells.iter().any(|cell| {
+                            cell.editable
+                                && cell.range.start <= c.range.start
+                                && c.range.end <= cell.range.end
+                        })
+                    })
+            };
+            if embed.built_for(&state.doc, plan.source.start)
+                && let Some(table) = embed.model::<features::table::model::Table>()
+            {
+                check_table(table)
+            } else {
+                features::table::model::table_block(&state.doc, &plan.source)
+                    .is_some_and(|table| check_table(&table))
+            }
+        });
+        if !in_table_cell {
+            return;
+        }
+        let sanitized = sanitize_table_cell_paste(&c.insert);
+        if sanitized != c.insert {
+            let range = c.range.clone();
+            let cursor = range.start + sanitized.len();
+            tr.changes = crate::editor::text::change::ChangeSet::replace(range, sanitized);
+            tr.selection = Some(crate::editor::text::selection::Selection::cursor(cursor));
+        }
+    }
+
     fn link_at(
         &mut self,
         state: &EditorState,
@@ -1180,6 +1233,31 @@ impl EditorExtension for MarkdownExtension {
             )));
         }
         let (syntax, plans) = self.parse(state);
+        // Escape inside an active fenced code block keeps all typed text in the
+        // canonical buffer and exits focus from the code block to restore its
+        // resting decoration state.
+        if intent == EditIntent::Escape {
+            let from = state.selection.from();
+            let to = state.selection.to();
+            if let Some(block) = plans.iter().find_map(|p| {
+                let code = p.embed()?.model::<features::code_block::CodeBlock>()?;
+                (from <= code.range.end && to >= code.range.start).then_some(code)
+            }) {
+                let exit = if block.range.end < state.doc.len() {
+                    let end_line = state.doc.line_index(block.range.end);
+                    if end_line + 1 < state.doc.line_count() {
+                        state.doc.line_range(end_line + 1).start
+                    } else {
+                        state.doc.len()
+                    }
+                } else {
+                    block.range.start.saturating_sub(1)
+                };
+                return Some(Transaction::select(Selection::cursor(
+                    state.doc.clamp(exit),
+                )));
+            }
+        }
         commands::intercept(
             intent,
             &commands::Cx {
@@ -1276,6 +1354,7 @@ fn references_fingerprint(
             }
         };
     let mut h = std::collections::hash_map::DefaultHasher::new();
+    let mut entity_lines: std::collections::HashSet<usize> = std::collections::HashSet::new();
     for e in &syntax.elements {
         match e.kind {
             core::syntax::Kind::WikiLink
@@ -1292,6 +1371,24 @@ fn references_fingerprint(
                     hash_resolution(&mut h, refs.and_then(|r| r.markdown(href)));
                 }
             }
+            core::syntax::Kind::InlineHtml | core::syntax::Kind::Entity => {
+                let line = doc.line_index(e.range.start.min(doc.len()));
+                if entity_lines.insert(line) {
+                    let lr = doc.line_range(line);
+                    let raw = doc.slice_cow(lr.clone());
+                    if raw.contains('&') {
+                        let decoded = shared::dom::decode_entities(&raw);
+                        for w in find_wiki_links(&decoded) {
+                            (4u8, lr.start, w.range.start, w.target.as_str()).hash(&mut h);
+                            hash_resolution(&mut h, refs.map(|r| r.resolve(&w.target)));
+                        }
+                        for l in find_links(&decoded) {
+                            (5u8, lr.start, l.range.start, l.href.as_str()).hash(&mut h);
+                            hash_resolution(&mut h, refs.and_then(|r| r.markdown(&l.href)));
+                        }
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -1306,9 +1403,67 @@ fn references_fingerprint(
                 (3u8, plan.source.start + l.range.start, l.href.as_str()).hash(&mut h);
                 hash_resolution(&mut h, refs.and_then(|r| r.markdown(&l.href)));
             }
+            if slice.contains('&') {
+                let decoded = shared::dom::decode_entities(&slice);
+                for w in find_wiki_links(&decoded) {
+                    (6u8, plan.source.start, w.range.start, w.target.as_str()).hash(&mut h);
+                    hash_resolution(&mut h, refs.map(|r| r.resolve(&w.target)));
+                }
+                for l in find_links(&decoded) {
+                    (7u8, plan.source.start, l.range.start, l.href.as_str()).hash(&mut h);
+                    hash_resolution(&mut h, refs.and_then(|r| r.markdown(&l.href)));
+                }
+            }
         }
     }
     h.finish()
+}
+
+/// Sanitize clipboard text pasted directly into an editable Markdown table cell
+/// (`tableCommands.ts` `normalizeMarkdownTableCellInput` / `tableModel.ts`
+/// `sanitizeMarkdownTableCell`): fold internal line-break runs into a single
+/// space and escape unescaped pipes (`|`) as `\|` so the pipe table stays valid.
+fn sanitize_table_cell_paste(value: &str) -> String {
+    let normalized = value.replace("\r\n", "\n").replace('\r', "\n");
+    let trimmed = normalized.trim_matches('\n');
+    let mut folded = String::with_capacity(trimmed.len());
+    let mut in_newline = false;
+    for ch in trimmed.chars() {
+        if ch == '\n' {
+            if !in_newline {
+                folded.push(' ');
+            }
+            in_newline = true;
+        } else {
+            in_newline = false;
+            folded.push(ch);
+        }
+    }
+    let mut out = String::with_capacity(folded.len());
+    let mut backslashes = 0usize;
+    for ch in folded.chars() {
+        if ch == '\\' {
+            backslashes += 1;
+            out.push(ch);
+        } else if ch == '|' {
+            if backslashes.is_multiple_of(2) {
+                out.push('\\');
+            }
+            backslashes = 0;
+            out.push('|');
+        } else {
+            backslashes = 0;
+            out.push(ch);
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+impl MarkdownExtension {
+    pub(crate) fn config_epoch_for_tests(&self) -> u64 {
+        self.cache.borrow().config_epoch
+    }
 }
 
 #[cfg(test)]

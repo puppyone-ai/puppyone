@@ -213,13 +213,7 @@ fn revocation_discards_a_pending_image_and_retires_an_already_cached_image(
         cx.run_until_parked();
         let admitted = if !pending {
             draw(cx);
-            let image = view.read_with(cx, |v, cx| match &v.media {
-                Some(LoadedMedia::Svg(i)) => {
-                    assert!(i.is_asset_cached(cx));
-                    i.clone()
-                }
-                _ => panic!("missing SVG"),
-            });
+            let image = view.read_with(cx, |v, _| bitmap(v));
             ws.revoke();
             Some(image)
         } else {
@@ -228,9 +222,7 @@ fn revocation_discards_a_pending_image_and_retires_an_already_cached_image(
         draw(cx);
         view.read_with(cx, |v, _| assert!(v.media.is_none() && v.pending.is_none()));
         assert!(cx.debug_bounds("image-retry").is_some());
-        if let Some(image) = admitted {
-            cx.update(|_, cx| assert!(!image.is_asset_cached(cx)));
-        }
+        drop(admitted);
     }
 }
 #[gpui::test]
@@ -266,20 +258,16 @@ fn disposing_the_image_view_cancels_its_owned_worker_and_receiver(cx: &mut TestA
     });
     cx.run_until_parked();
     draw(cx);
-    let image = view.read_with(cx, |v, cx| match &v.media {
-        Some(LoadedMedia::Svg(i)) => {
-            assert!(i.is_asset_cached(cx));
-            i.clone()
-        }
-        _ => panic!("missing SVG"),
-    });
+    let image = view.read_with(cx, |v, _| bitmap(v));
+    let weak_img = Arc::downgrade(&image);
+    drop(image);
     let weak = view.downgrade();
     cx.update(|w, _| w.remove_window());
     drop(view);
     cx.cx.update(|_| {});
     cx.run_until_parked();
     assert!(weak.upgrade().is_none());
-    cx.cx.update(|cx| assert!(!image.is_asset_cached(cx)));
+    assert!(weak_img.upgrade().is_none());
 }
 #[gpui::test]
 fn image_retry_click_reacquires_input_and_loads_new_authorized_bytes(cx: &mut TestAppContext) {

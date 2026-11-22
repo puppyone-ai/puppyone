@@ -18,11 +18,13 @@ import sys
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--check', action='store_true', help='enforce tools/editor-frame-budgets.json')
-parser.add_argument('--sections', default='10,40,160', help='frame-surface sizes for editor/window (Markdown sections, ~24 lines each)')
+parser.add_argument('--sections', default='10,40,160', help='frame-surface sizes for window (Markdown sections, ~24 lines each)')
+parser.add_argument('--editor-sections', default='10,40,160,1600,16000', help='frame-surface sizes for editor scroll/resize scaling')
 parser.add_argument('--edit-sections', default='160,1600', help='edit-surface sizes for typing/arrow/IME/find+type')
+parser.add_argument('--stress-shapes', default='list_10k,single_line_100k,wide_table_200x2000,images_500', help='extreme Markdown stress shapes')
 parser.add_argument('--csv-shapes', default='500,10000,50000', help='CSV benchmark shapes (500=500x20, 10000=10000x20, 50000=500x100)')
 parser.add_argument('--code-sizes', default='1,100', help='code_edit sizes (1=160KiB, 100=16MiB)')
-parser.add_argument('--surfaces', default='editor,window,edit,csv,code_edit', help='comma-separated surfaces to run')
+parser.add_argument('--surfaces', default='editor,window,edit,stress,csv,code_edit', help='comma-separated surfaces to run')
 parser.add_argument('--repeat', type=int, default=1,
                     help='run the whole suite this many times and keep each metric at its best (lowest) value; '
                          'CI uses 3 because one slow stretch on a shared runner can push a single run over a budget')
@@ -32,9 +34,10 @@ root = Path(__file__).resolve().parents[1]
 if platform.system() != 'Darwin':
     sys.exit('The frame benchmarks shape text with Core Text: macOS only.')
 all_surfaces = {
-    'editor': ('po-editor', 'po_editor', 'editor::view::bench::editor_frame_cost', [int(s) for s in args.sections.split(',') if s]),
+    'editor': ('po-editor', 'po_editor', 'editor::view::bench::editor_frame_cost', [int(s) for s in args.editor_sections.split(',') if s]),
     'window': ('po-app', 'puppy-one-rust', 'app::dev::bench::window_frame_cost', [int(s) for s in args.sections.split(',') if s]),
     'edit': ('po-editor', 'po_editor', 'editor::view::bench::editor_edit_cost', [int(s) for s in args.edit_sections.split(',') if s]),
+    'stress': ('po-editor', 'po_editor', 'editor::view::bench::editor_stress_edit_cost', [s.strip() for s in args.stress_shapes.split(',') if s.strip()]),
     'csv': ('po-editor', 'po_editor', 'editor::csv::bench::csv_table_cost', [int(s) for s in args.csv_shapes.split(',') if s]),
     'code_edit': ('po-editor', 'po_editor', 'editor::view::bench::code_edit_cost', [int(s) for s in args.code_sizes.split(',') if s]),
 }
@@ -67,29 +70,25 @@ binaries = {
 # One pass runs every (surface, size) in order. Passes repeat the whole order so
 # a slow stretch of the machine lands on different sizes in different passes.
 jobs = []
-frame_surfaces = [s for s in ('editor', 'window') if s in selected]
-if frame_surfaces:
-    for sections in all_surfaces[frame_surfaces[0]][3]:
-        for surface in frame_surfaces:
+for surface in ('editor', 'window', 'edit', 'stress', 'csv', 'code_edit'):
+    if surface in selected:
+        for sections in all_surfaces[surface][3]:
             jobs.append((surface, sections))
-for extra_surface in ('edit', 'csv', 'code_edit'):
-    if extra_surface in selected:
-        for sections in all_surfaces[extra_surface][3]:
-            jobs.append((extra_surface, sections))
 
 runs = {job: [] for job in jobs}
 for _ in range(max(args.repeat, 1)):
     for surface, sections in jobs:
         _, target, test, _ = all_surfaces[surface]
+        env_key = 'PUPPYONE_BENCH_STRESS' if surface == 'stress' else 'PUPPYONE_BENCH_SECTIONS'
         run = subprocess.run(
             [binaries[target], test, '--exact', '--ignored', '--nocapture', '--test-threads=1'],
             cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            env={**os.environ, 'PUPPYONE_BENCH_SECTIONS': str(sections)},
+            env={**os.environ, env_key: str(sections)},
         )
         found = re.search(r'BENCH (\{.*\})', run.stdout)
         if run.returncode or found is None:
             sys.stdout.write(run.stdout)
-            sys.exit(f'{surface} benchmark failed at {sections} sections')
+            sys.exit(f'{surface} benchmark failed at {sections}')
         runs[(surface, sections)].append(json.loads(found.group(1)))
 
 
@@ -158,6 +157,20 @@ if code_rows:
             f"{r['surface']:<10}{r['lines']:>8}{r['bytes']:>11}"
             f"{r['keystrokeAdapterMeanMs']:>13.3f}m{r['keystrokeAdapterP95Ms']:>12.3f}m"
             f"{r['keystrokeFrameMeanMs']:>11.2f}m{r['keystrokeFrameP95Ms']:>10.2f}m"
+        )
+
+stress_rows = [r for r in results if r['surface'] == 'stress']
+if stress_rows:
+    print()
+    print(
+        f"{'surface':<8}{'shape':<22}{'lines':>7}{'first':>9}"
+        f"{'type mean':>11}{'type p95':>10}{'arrow mean':>12}{'arrow p95':>11}"
+    )
+    for r in stress_rows:
+        print(
+            f"{r['surface']:<8}{r['sections']:<22}{r['lines']:>7}{r['firstMs']:>8.1f}m"
+            f"{r['typeMeanMs']:>10.2f}m{r['typeP95Ms']:>9.2f}m"
+            f"{r['arrowMeanMs']:>11.2f}m{r['arrowP95Ms']:>10.2f}m"
         )
 
 cpu_brand = subprocess.run(

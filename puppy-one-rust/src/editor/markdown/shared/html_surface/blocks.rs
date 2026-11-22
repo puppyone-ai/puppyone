@@ -46,7 +46,7 @@ impl Surface<'_, '_, '_, '_> {
                 inherit.text.line_height =
                     crate::editor::view::style::LineHeight::Factor(t.heading.line_height);
                 d = d.mt(px(h.gap_before)).mb(px(h.gap_after));
-                if level <= 2 {
+                if level <= 2 && t.heading.border.a > 0. {
                     d = d.border_b_1().border_color(t.heading.border);
                 }
             }
@@ -196,7 +196,7 @@ impl Surface<'_, '_, '_, '_> {
                         }
                         body.push(self.block_element(sub, inherit, inner, depth + 1));
                     }
-                    _ => self.inline(node, inherit, &mut inline, depth + 1),
+                    _ => self.inline(node, inherit, &mut inline, inner, depth + 1),
                 }
             }
             if !inline.is_empty() {
@@ -357,7 +357,7 @@ impl Surface<'_, '_, '_, '_> {
         match summary {
             Some(s) => {
                 for child in &s.children {
-                    self.inline(child, inherit, &mut pieces, depth + 1);
+                    self.inline(child, inherit, &mut pieces, width, depth + 1);
                 }
             }
             None => pieces.push(Piece::Text("Details".into(), inherit.clone())),

@@ -41435,7 +41435,15 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::table_interaction_acceptance::menu_moves_keep_structural_selection_preserve_outside_focus_and_clear_on_escape"
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_row_moves_keep_structural_selection_and_clear_on_escape"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_column_moves_keep_structural_selection_and_clear_on_escape"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::cell_menu_column_move_preserves_outside_focus_while_selection_stays_active"
         },
         {
           "package": "po-editor",
@@ -41443,15 +41451,35 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::table_interaction_acceptance::menu_reflects_and_applies_exactly_three_column_alignments"
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_reflects_default_and_left_column_alignments_without_editing_on_open"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::table_interaction_acceptance::grip_menus_highlight_source_and_drag_cancel_or_commit_with_selection"
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_reflects_center_and_right_column_alignments_without_editing_on_open"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::table_interaction_acceptance::structural_edits_anchor_after_prefix_edits_and_keep_adjacent_prose_outside"
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_applies_left_center_and_right_column_alignments"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::grip_menus_open_row_toolbar_below_grip_and_highlight_source_column"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::drag_cancels_pressed_and_dragged_handles_on_escape_and_window_blur"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::drag_commits_moved_column_and_row_with_structural_selection"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::structural_edits_insert_rows_columns_and_anchor_after_prefix_edits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::adjacent_prose_stays_outside_table_widget_across_structural_edits_and_typing"
         },
         {
           "package": "po-editor",
@@ -41827,11 +41855,19 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_lifecycle_retains_folds_and_edits_revealed_source"
+          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_inline_source_retains_on_drag_folds_on_click_and_keeps_keyboard_range"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_backward_drag_release_cancellation_and_isolation"
+          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_block_source_retains_on_drag_folds_on_click_and_keeps_keyboard_range"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_releases_gesture_on_blur_escape_and_released_button"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_backward_drag_committed_edit_and_sibling_editor_isolation"
         }
       ]
     },
@@ -50113,6 +50149,526 @@
           "test": "app::header::update_tests::absent_capability_and_nonactionable_update_states_render_no_titlebar_command"
         }
       ]
+    },
+    {
+      "id": "markdown-svg-passive-isolation",
+      "acceptance": "SVG rendering across Markdown, HTML blocks, workspace SVG assets, and Image Viewer uses restricted usvg/resvg options that never read local files or network resources, preserve local paint/<use> references, and keep scripts, foreignObject, animation, event handlers, external <use>, and remote paint/style inert.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 76,
+              "name": "Markdown inline SVG and audio > keeps a passive drawing and scopes its local paint references"
+            },
+            {
+              "index": 77,
+              "name": "Markdown inline SVG and audio > removes script from a drawing"
+            },
+            {
+              "index": 78,
+              "name": "Markdown inline SVG and audio > removes foreign content from a drawing"
+            },
+            {
+              "index": 79,
+              "name": "Markdown inline SVG and audio > removes animation from a drawing"
+            },
+            {
+              "index": 80,
+              "name": "Markdown inline SVG and audio > removes a linked use from a drawing"
+            },
+            {
+              "index": 81,
+              "name": "Markdown inline SVG and audio > removes an event handler attribute"
+            },
+            {
+              "index": 82,
+              "name": "Markdown inline SVG and audio > removes a remote paint attribute"
+            },
+            {
+              "index": 83,
+              "name": "Markdown inline SVG and audio > removes a linked style attribute"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
+          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Markdown HTML profile convergence > turns Mermaid anchor navigation into brokered intents while preserving local paint references"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::svg_isolation_acceptance::svg_blocks_absolute_local_image_href_while_allowing_embedded_data_png"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::svg_isolation_acceptance::svg_blocks_relative_image_href_against_cwd_and_parent_traversal"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::svg_isolation_acceptance::svg_blocks_xlink_href_local_image_while_allowing_xlink_data_png"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::svg_isolation_acceptance::svg_blocks_nested_svg_file_and_nested_data_svg_local_image_reads"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::svg_isolation_acceptance::svg_blocks_fe_image_and_css_url_external_references"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::svg_isolation_acceptance::svg_blocks_external_use_href_while_preserving_local_use_paint_references"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::svg_isolation_acceptance::svg_ignores_script_foreign_object_animation_event_handlers_remote_paint_and_style_import"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::svg_isolation_acceptance::image_viewer_svg_decode_blocks_local_file_reads_while_rendering_safe_svg"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::svg_isolation_acceptance::markdown_document_svg_only_reads_policy_approved_workspace_assets_via_document_assets"
+        }
+      ]
+    },
+    {
+      "id": "markdown-mermaid-intrinsic-scale",
+      "acceptance": "Dense Mermaid diagrams mount at a readable intrinsic scale (minimum 70%) while unmeasurable fragments remain on the safe fit-width fallback.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
+          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Markdown HTML profile convergence > mounts dense Mermaid diagrams at a readable intrinsic scale"
+            },
+            {
+              "index": 6,
+              "name": "Markdown HTML profile convergence > keeps unmeasurable Mermaid fragments on the safe fit-width fallback"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::svg_isolation_acceptance::mermaid_dense_diagrams_use_readable_intrinsic_scale_and_unmeasurable_uses_fit_fallback"
+        }
+      ]
+    },
+    {
+      "id": "markdown-style-contracts",
+      "acceptance": "Markdown visual, contrast, typography, reading-rail geometry, task checkbox hit target, HTML/block image sizing, Mermaid viewport cap, rich-block state ring, code-block scrolling/metrics/tokens, HTML source toggle reveal/clickability, shared table/divider tokens, structure rail, drag grips, and math render-request font isolation contracts hold natively across Light/Dark themes and Small/Medium/Large scales.",
+      "typescript": [
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
+          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown editor layout > keeps supporting quotes quieter than body copy in every theme"
+            },
+            {
+              "index": 1,
+              "name": "Markdown editor layout > publishes one inline foreground context instead of quote-specific descendant overrides"
+            },
+            {
+              "index": 2,
+              "name": "Markdown editor layout > shares its reading width with other document-like product surfaces"
+            },
+            {
+              "index": 3,
+              "name": "Markdown editor layout > keeps the centered reading rail invariant when stacked panes cross the overflow threshold"
+            },
+            {
+              "index": 4,
+              "name": "Markdown editor layout > keeps canonical Markdown source invisible until Live Preview commits"
+            },
+            {
+              "index": 5,
+              "name": "Markdown editor layout > keeps Markdown source mode typography uniform"
+            },
+            {
+              "index": 6,
+              "name": "Markdown editor layout > shares the minimum document inset while only inline padding responds to width"
+            },
+            {
+              "index": 7,
+              "name": "Markdown editor layout > keeps the full-width block edge separate from the document reading rail"
+            },
+            {
+              "index": 8,
+              "name": "Markdown editor layout > keeps ordinary editable-line geometry independent of empty-line DOM"
+            },
+            {
+              "index": 9,
+              "name": "Markdown editor layout > keeps task checkbox visuals compact inside a reliable desktop hit target"
+            },
+            {
+              "index": 11,
+              "name": "Markdown HTML media layout > caps raw HTML images at the reading rail without replacing authored sizing"
+            },
+            {
+              "index": 12,
+              "name": "Markdown HTML media layout > uses one semantic presentation profile without a second HTML widget gap"
+            },
+            {
+              "index": 13,
+              "name": "Markdown HTML media layout > keeps emphasis weight consistent across Markdown presentation adapters"
+            },
+            {
+              "index": 14,
+              "name": "Markdown image presentation > fills the rich content rail for block images without a product pixel cap"
+            },
+            {
+              "index": 15,
+              "name": "Markdown Mermaid viewport > keeps dense diagrams inside a bounded two-axis scrollport"
+            },
+            {
+              "index": 16,
+              "name": "Markdown rich-block boundary affordance > paints state on the inner surface so wrapper spacing stays outside the ring"
+            },
+            {
+              "index": 17,
+              "name": "Markdown rich-block boundary affordance > keeps the outer table frame unchanged on hover and cell focus"
+            },
+            {
+              "index": 19,
+              "name": "Markdown rich-block boundary affordance > keeps vertical scrolling at the document level for code blocks"
+            },
+            {
+              "index": 20,
+              "name": "Markdown rich-block boundary affordance > keeps editable and highlighted code glyph metrics identical"
+            },
+            {
+              "index": 21,
+              "name": "Markdown rich-block boundary affordance > maps Markdown code tokens through theme-adaptive semantic colors"
+            },
+            {
+              "index": 22,
+              "name": "Markdown rich-block boundary affordance > keeps code panels free of language metadata and its reserved row"
+            },
+            {
+              "index": 23,
+              "name": "Markdown rich-block boundary affordance > reveals the HTML source control only for hover, keyboard focus, or selection"
+            },
+            {
+              "index": 24,
+              "name": "Markdown table affordance layout > uses Markdown colors for prose dividers and shared tokens for table lines"
+            },
+            {
+              "index": 26,
+              "name": "Markdown table affordance layout > uses one shared, pixel-centered structure control for Markdown and CSV"
+            },
+            {
+              "index": 27,
+              "name": "Markdown table affordance layout > keeps compact drag grips inside larger pointer targets"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownMathTypographyContract.test.ts",
+          "sha256": "5496569094b61dee444f1a5e9c795ec9192b37cc91796016cbd05791c52f23da",
+          "cases": [
+            {
+              "index": 0,
+              "name": "markdown math typography contract > keeps editor prose fonts from reaching math widgets"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_00_quotes_quieter_than_body_and_divider_in_every_theme"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_01_blockquote_publishes_single_inline_foreground_context"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_02_reading_width_matches_shared_document_token"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_03_reading_rail_stays_centered_across_vertical_overflow_threshold"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_04_live_preview_first_frame_hides_source_without_flash"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_05_source_mode_typography_is_uniform_across_all_syntax"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_06_minimum_document_inset_constant_with_chrome_inset_across_widths"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_07_full_width_blocks_stay_aligned_within_reading_rail"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_08_ordinary_line_geometry_independent_of_empty_lines"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_09_task_checkbox_compact_visual_inside_24px_hit_target_and_edge_clicks"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_11_html_images_cap_at_reading_rail_while_preserving_authored_size"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_12_html_and_native_markdown_share_one_presentation_profile"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_13_emphasis_weight_consistent_across_markdown_html_and_tables"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_14_block_images_fill_reading_rail_without_520px_cap"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_15_mermaid_dense_diagrams_stay_within_viewport_bounded_scrollport"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_16_rich_block_state_ring_paints_on_inner_surface_outside_rhythm_gaps"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_17_table_outer_frame_unchanged_on_hover_and_cell_focus"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_19_code_block_scrolls_horizontally_while_growing_vertically_with_document"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_20_code_block_editable_and_highlighted_glyph_metrics_identical"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_21_code_block_tokens_use_theme_adaptive_semantic_colors"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_22_code_panels_omit_language_metadata_and_reserved_header_row"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_23_html_source_toggle_hidden_unclickable_at_rest_and_revealed_on_hover_or_selection"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_24_prose_dividers_use_markdown_rule_and_tables_use_shared_tokens"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_26_markdown_and_csv_share_pixel_centered_structure_rail_controls"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_27_table_drag_grips_keep_compact_visuals_inside_larger_hit_targets"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_math_00_prose_fonts_do_not_reach_math_render_requests"
+        }
+      ]
+    },
+    {
+      "id": "markdown-single-list-incremental-reparse",
+      "acceptance": "Single-line edits and GFM task checkbox toggles inside a 10,000-line flat single-list document patch Syntax, Plans, Decorations, and HeightMap incrementally without full-document reparses or full height-map rebuilds.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/rendering/markdownPerformanceProjection.test.ts",
+          "sha256": "2a2facb5c7587df30f513f2ffbeacfa6a5ab0df5b8c4b5d03332089ac30da56f",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown incremental document projection > toggles one task token in 10,000 lines without scanning the document"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::scale_and_resize_acceptance::t4_single_list_10k_task_toggle_and_typing_patch_incrementally"
+        }
+      ]
+    },
+    {
+      "id": "markdown-reference-refresh",
+      "acceptance": "Dispatching SetReferences invalidates decorations and updates live missing/ambiguous link states across both inline prose and table cells only when a referenced target's resolution changes (including offscreen links, owning document directory, and HTML entity-decoded link candidates), leaving unrelated files, resolved media reads, and escaped wiki syntax untouched.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/links/inlinePreviewLinkIdentity.test.ts",
+          "sha256": "a003ca528a011a7f6379745ee9ecfa066796d51943edf7312b3c7cd59ddf9299",
+          "cases": [
+            {
+              "index": 0,
+              "name": "isolated inline preview link dependencies > ignores unrelated files for plain text, line breaks and ordinary anchors"
+            },
+            {
+              "index": 1,
+              "name": "isolated inline preview link dependencies > retains resolved wiki links and wiki media when only unrelated files change"
+            },
+            {
+              "index": 2,
+              "name": "isolated inline preview link dependencies > invalidates when a missing wiki target appears or disappears"
+            },
+            {
+              "index": 3,
+              "name": "isolated inline preview link dependencies > invalidates when a target becomes ambiguous"
+            },
+            {
+              "index": 4,
+              "name": "isolated inline preview link dependencies > considers fragments outside the currently mounted viewport"
+            },
+            {
+              "index": 5,
+              "name": "isolated inline preview link dependencies > resolves dependencies in the owning document's directory"
+            },
+            {
+              "index": 6,
+              "name": "isolated inline preview link dependencies > ignores escaped wiki syntax"
+            },
+            {
+              "index": 7,
+              "name": "isolated inline preview link dependencies > conservatively refreshes HTML with entity-decoded link candidates"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a0_unrelated_files_ignored_for_plain_breaks_and_ordinary_anchors"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a1_resolved_wiki_links_and_media_retain_identity_on_unrelated_files"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a2_missing_wiki_target_appearing_or_disappearing_invalidates_inline_and_table"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a3_wiki_target_becoming_ambiguous_invalidates_inline_and_table"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a4_offscreen_wiki_target_outside_viewport_still_invalidates_references"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a5_references_resolve_in_owning_document_directory"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a6_escaped_wiki_syntax_does_not_invalidate_on_reference_changes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a7_html_entity_decoded_link_candidates_conservatively_refresh"
+        }
+      ]
+    },
+    {
+      "id": "markdown-concurrent-edit-mapping",
+      "acceptance": "Concurrent external edits, offscreen detach/remount shifts, and block moves keep BlockId and code/table caret positions mapped cleanly, recover overwritten user edits on undo, and relocate contained/disjoint/overlapping selections safely.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/runtime-foundations.test.ts",
+          "sha256": "68ec68d25d34d3334bcf4be31eb9f9e14ceea429fce2d4752e971acda1c1d73a",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Markdown embed runtime foundations > keeps embedded edit sessions range-mapped and revision-aware"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownEmbedRuntime.test.ts",
+          "sha256": "c943fada9f9b389fc3cd0deb5d0acead7131d273ce149d64dc476fb1855ab0cd",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown embedded runtime > rebases an explicitly opted-in draft across a non-overlapping edit in one transaction"
+            },
+            {
+              "index": 2,
+              "name": "Markdown embedded runtime > rejects an overlapping edit even when explicit rebase is enabled"
+            },
+            {
+              "index": 3,
+              "name": "Markdown embedded runtime > keeps a stable edit-session id and draft across detach + range mapping"
+            },
+            {
+              "index": 4,
+              "name": "Markdown embedded runtime > mirrors code input into the store and restores it after a DOM remount"
+            },
+            {
+              "index": 20,
+              "name": "Markdown embedded runtime > restores and explicitly rebases a table-cell draft after its range moves"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/commands/markdownBlockMove.test.ts",
+          "sha256": "bffd6f47d0688bd108bf37ff4cc2252f26800fdbc8ed6c53f0e3a053b6778b04",
+          "cases": [
+            {
+              "index": 20,
+              "name": "embedded draft relocation > relocates contained drafts, maps disjoint drafts, and conflicts partial overlap"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b1_external_non_overlapping_edit_keeps_code_and_table_caret_mapped_and_editable"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b2_external_overlapping_overwrite_recovers_user_input_on_undo"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b3_b4_code_block_keeps_block_id_and_edits_across_offscreen_detach_and_prefix_shift"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b5_table_cell_keeps_block_id_and_edits_across_offscreen_detach_and_prefix_shift"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b6_block_move_relocates_contained_maps_disjoint_and_resolves_partial_overlap"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -55429,7 +55985,7 @@
     {
       "id": "ts-stylesheet-visual-contracts",
       "kind": "out-of-scope",
-      "reason": "These assert the declarations of particular CSS rules (a selector's shadow, gap, grid columns, weight, colour, scrollbar pseudo-elements, resize-lane widths) by reading the TS stylesheets as text. The native frontend has no stylesheet or cascade to read: each GPUI component sets its geometry and paint directly, with values ported from the cited TS rule, and visual parity is reviewed by capturing both products and comparing the captures (tools/capture-*.py, tools/compare.py, tools/compare-native-geometry.py) rather than by text assertions. Rules that carry product meaning beyond one selector have native tests in their rows: the elevation scale, the opaque selection paint, the typography role tables and the file-icon slot.",
+      "reason": "These assert the declarations of particular non-Markdown CSS rules (titlebar, sidebar, settings, code viewer, scrollbar pseudo-elements, resize-lane widths) by reading the TS stylesheets as text. The native frontend has no stylesheet or cascade to read: each GPUI component sets its geometry and paint directly, with values ported from the cited TS rule, and visual parity is reviewed by capturing both products and comparing the captures (tools/capture-*.py, tools/compare.py, tools/compare-native-geometry.py) rather than by text assertions. Product-meaningful Markdown visual and geometry contracts have native tests in markdown-style-contracts (plus existing gaps for unimplemented heading outline and wide-table scrollport).",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
       "typescript": [
         {
@@ -55651,120 +56207,6 @@
           ]
         },
         {
-          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
-          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown editor layout > keeps supporting quotes quieter than body copy in every theme"
-            },
-            {
-              "index": 1,
-              "name": "Markdown editor layout > publishes one inline foreground context instead of quote-specific descendant overrides"
-            },
-            {
-              "index": 2,
-              "name": "Markdown editor layout > shares its reading width with other document-like product surfaces"
-            },
-            {
-              "index": 3,
-              "name": "Markdown editor layout > keeps the centered reading rail invariant when stacked panes cross the overflow threshold"
-            },
-            {
-              "index": 4,
-              "name": "Markdown editor layout > keeps canonical Markdown source invisible until Live Preview commits"
-            },
-            {
-              "index": 5,
-              "name": "Markdown editor layout > keeps Markdown source mode typography uniform"
-            },
-            {
-              "index": 6,
-              "name": "Markdown editor layout > shares the minimum document inset while only inline padding responds to width"
-            },
-            {
-              "index": 7,
-              "name": "Markdown editor layout > keeps the full-width block edge separate from the document reading rail"
-            },
-            {
-              "index": 8,
-              "name": "Markdown editor layout > keeps ordinary editable-line geometry independent of empty-line DOM"
-            },
-            {
-              "index": 9,
-              "name": "Markdown editor layout > keeps task checkbox visuals compact inside a reliable desktop hit target"
-            },
-            {
-              "index": 10,
-              "name": "Markdown editor layout > keeps the visible dash separate from its pointer target without expandable chrome"
-            },
-            {
-              "index": 11,
-              "name": "Markdown HTML media layout > caps raw HTML images at the reading rail without replacing authored sizing"
-            },
-            {
-              "index": 12,
-              "name": "Markdown HTML media layout > uses one semantic presentation profile without a second HTML widget gap"
-            },
-            {
-              "index": 13,
-              "name": "Markdown HTML media layout > keeps emphasis weight consistent across Markdown presentation adapters"
-            },
-            {
-              "index": 14,
-              "name": "Markdown image presentation > fills the rich content rail for block images without a product pixel cap"
-            },
-            {
-              "index": 15,
-              "name": "Markdown Mermaid viewport > keeps dense diagrams inside a bounded two-axis scrollport"
-            },
-            {
-              "index": 16,
-              "name": "Markdown rich-block boundary affordance > paints state on the inner surface so wrapper spacing stays outside the ring"
-            },
-            {
-              "index": 17,
-              "name": "Markdown rich-block boundary affordance > keeps the outer table frame unchanged on hover and cell focus"
-            },
-            {
-              "index": 19,
-              "name": "Markdown rich-block boundary affordance > keeps vertical scrolling at the document level for code blocks"
-            },
-            {
-              "index": 20,
-              "name": "Markdown rich-block boundary affordance > keeps editable and highlighted code glyph metrics identical"
-            },
-            {
-              "index": 21,
-              "name": "Markdown rich-block boundary affordance > maps Markdown code tokens through theme-adaptive semantic colors"
-            },
-            {
-              "index": 22,
-              "name": "Markdown rich-block boundary affordance > keeps code panels free of language metadata and its reserved row"
-            },
-            {
-              "index": 23,
-              "name": "Markdown rich-block boundary affordance > reveals the HTML source control only for hover, keyboard focus, or selection"
-            },
-            {
-              "index": 24,
-              "name": "Markdown table affordance layout > uses Markdown colors for prose dividers and shared tokens for table lines"
-            },
-            {
-              "index": 25,
-              "name": "Markdown table affordance layout > splits the editor-edge scrollport from the reading-rail table track"
-            },
-            {
-              "index": 26,
-              "name": "Markdown table affordance layout > uses one shared, pixel-centered structure control for Markdown and CSV"
-            },
-            {
-              "index": 27,
-              "name": "Markdown table affordance layout > keeps compact drag grips inside larger pointer targets"
-            }
-          ]
-        },
-        {
           "path": "tests/architecture/editor/formats/code/codeEditorVisualArchitecture.test.ts",
           "sha256": "564c1699ef2e82d644fea101ef0e9592147fc34684c548257863ef89265507c7",
           "cases": [
@@ -55841,20 +56283,6 @@
             {
               "index": 0,
               "name": "binary fallback visual architecture > keeps the fallback surface flat and independent from the code preview frame"
-            }
-          ]
-        },
-        {
-          "path": "tests/architecture/editor/formats/markdown/rendering/markdownMathTypographyContract.test.ts",
-          "sha256": "5496569094b61dee444f1a5e9c795ec9192b37cc91796016cbd05791c52f23da",
-          "cases": [
-            {
-              "index": 0,
-              "name": "markdown math typography contract > keeps editor prose fonts from reaching math widgets"
-            },
-            {
-              "index": 1,
-              "name": "markdown math typography contract > leaves math font-role mapping to the upstream KaTeX stylesheet"
             }
           ]
         },
@@ -61639,7 +62067,7 @@
     {
       "id": "markdown-asset-broker-architecture",
       "kind": "out-of-scope",
-      "reason": "TS resolves Markdown assets through an AssetBroker that hands features capability URLs (including provider-resolved loopback URLs) under host leases it revokes, validates sinks and purposes, and runs trusted local HTML in revocable execution sessions. The native editor reads asset bytes itself through the workspace or provider after the same policy (no URLs, leases or capability purposes), and never executes HTML in Markdown (executable HTML is removed from the native flow), so its features are given no HTML trust mode. The rest of that embed runtime is likewise TS's own: embedded edit sessions that commit a draft against a base revision (native widget commands re-derive their edit from the current source, so no draft can go stale), widget sessions disposed by DOM node, web embeds bound to a capability principal and revision with single-flight native view creation (a native embed is keyed by its view, block and URL, and a loading one takes no second click), principal-scoped render deduplication (the native render service shares one job per drawing), and explicit grants for local active HTML. No authored source URL ever reaches a live browser sink either, because the native surface hands images bytes, not URLs. A media block therefore needs no broker at plan time (natively it renders and reads its bytes when shown), and remote badges load through the pinned HTTPS client rather than browser image sinks with referrer, CORS and lazy-loading attributes.",
+      "reason": "These test TS's browser-DOM Asset Broker and isolated-renderer protocol (explicit broker capability plumbing, inert HTML media placeholders before browser hydration, HTTPS privacy attributes on DOM img sinks, and revision-scoped WebView session grants). Native Rust loads media directly through DocumentAssets and safe usvg/image decoders without browser DOM sinks. Concurrent external edit mapping, offscreen detach/remount, and block-move selection relocation are covered natively in markdown-concurrent-edit-mapping.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/assets.md",
       "typescript": [
         {
@@ -61707,10 +62135,6 @@
               "name": "Markdown embed runtime foundations > disposes widget sessions by exact DOM node and disposeAll"
             },
             {
-              "index": 2,
-              "name": "Markdown embed runtime foundations > keeps embedded edit sessions range-mapped and revision-aware"
-            },
-            {
               "index": 4,
               "name": "Markdown embed runtime foundations > binds native web embeds to an exact capability revision and revokes stale sessions"
             },
@@ -61757,46 +62181,6 @@
             {
               "index": 62,
               "name": "Markdown HTML cross-surface conformance > reduces media to visible source when a surface lacks Asset Broker capability"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/embeds/markdownEmbedRuntime.test.ts",
-          "sha256": "c943fada9f9b389fc3cd0deb5d0acead7131d273ce149d64dc476fb1855ab0cd",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Markdown embedded runtime > rebases an explicitly opted-in draft across a non-overlapping edit in one transaction"
-            },
-            {
-              "index": 2,
-              "name": "Markdown embedded runtime > rejects an overlapping edit even when explicit rebase is enabled"
-            },
-            {
-              "index": 3,
-              "name": "Markdown embedded runtime > keeps a stable edit-session id and draft across detach + range mapping"
-            },
-            {
-              "index": 4,
-              "name": "Markdown embedded runtime > mirrors code input into the store and restores it after a DOM remount"
-            },
-            {
-              "index": 16,
-              "name": "Markdown embedded runtime > restores the original syntax layer when an edited draft is cancelled"
-            },
-            {
-              "index": 20,
-              "name": "Markdown embedded runtime > restores and explicitly rebases a table-cell draft after its range moves"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/commands/markdownBlockMove.test.ts",
-          "sha256": "bffd6f47d0688bd108bf37ff4cc2252f26800fdbc8ed6c53f0e3a053b6778b04",
-          "cases": [
-            {
-              "index": 20,
-              "name": "embedded draft relocation > relocates contained drafts, maps disjoint drafts, and conflicts partial overlap"
             }
           ]
         },
@@ -62259,7 +62643,7 @@
     {
       "id": "dom-inline-preview-fragments",
       "kind": "out-of-scope",
-      "reason": "TS renders isolated inline previews (table cells, MDX tab titles, HTML runs) by building DOM fragments and degrades a source over 32 KiB to one plain text node to bound that DOM. The native editor shapes those cells through the same text pipeline as every document line, so there is no separate fragment renderer or fragment budget. Nor is there the link-dependency identity that decides when such a fragment is rebuilt: native cells re-decorate with the document whenever the workspace's references change.",
+      "reason": "TS renders isolated inline previews (table cells, MDX tab titles, HTML runs) by building DOM fragments and degrades a source over 32 KiB to one plain text node to bound that DOM. The native editor shapes those cells through the same text pipeline as every document line, so there is no separate fragment renderer or fragment DOM budget. Reference-change refresh behavior is covered natively in markdown-reference-refresh.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/plans-and-decorations.md",
       "typescript": [
         {
@@ -62269,44 +62653,6 @@
             {
               "index": 2,
               "name": "Markdown inline complexity bounds > degrades over-budget isolated inline previews to exact plain text"
-            }
-          ]
-        },
-        {
-          "path": "tests/unit/editor/formats/markdown/links/inlinePreviewLinkIdentity.test.ts",
-          "sha256": "a003ca528a011a7f6379745ee9ecfa066796d51943edf7312b3c7cd59ddf9299",
-          "cases": [
-            {
-              "index": 0,
-              "name": "isolated inline preview link dependencies > ignores unrelated files for plain text, line breaks and ordinary anchors"
-            },
-            {
-              "index": 1,
-              "name": "isolated inline preview link dependencies > retains resolved wiki links and wiki media when only unrelated files change"
-            },
-            {
-              "index": 2,
-              "name": "isolated inline preview link dependencies > invalidates when a missing wiki target appears or disappears"
-            },
-            {
-              "index": 3,
-              "name": "isolated inline preview link dependencies > invalidates when a target becomes ambiguous"
-            },
-            {
-              "index": 4,
-              "name": "isolated inline preview link dependencies > considers fragments outside the currently mounted viewport"
-            },
-            {
-              "index": 5,
-              "name": "isolated inline preview link dependencies > resolves dependencies in the owning document's directory"
-            },
-            {
-              "index": 6,
-              "name": "isolated inline preview link dependencies > ignores escaped wiki syntax"
-            },
-            {
-              "index": 7,
-              "name": "isolated inline preview link dependencies > conservatively refreshes HTML with entity-decoded link candidates"
             }
           ]
         },
@@ -62421,24 +62767,6 @@
       ]
     },
     {
-      "id": "markdown-single-block-documents-reparse",
-      "kind": "gap",
-      "reason": "The native incremental parse re-parses whole top-level blocks and needs at least six of them, so a document that is one long list (10,000 tasks) or has fewer than six top-level blocks is parsed in full on every edit — about 43 ms for 10,000 tasks in a release build, in the background above 512 KiB — instead of patching the edited item.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/pipeline.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/rendering/markdownPerformanceProjection.test.ts",
-          "sha256": "2a2facb5c7587df30f513f2ffbeacfa6a5ab0df5b8c4b5d03332089ac30da56f",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Markdown incremental document projection > toggles one task token in 10,000 lines without scanning the document"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "markdown-table-horizontal-scroll",
       "kind": "gap",
       "reason": "A Markdown table wider than the reading column (columns at their readable minimum that still do not fit, or explicit tracks wider than the column) has no scrollport of its own natively: the editor clips it at the pane edge. Its horizontal scroll offset, the anchor kept across a widget replacement, RTL scroll normalisation and the proportional scrollbar mapping therefore do not exist.",
@@ -62501,6 +62829,16 @@
             {
               "index": 5,
               "name": "Markdown table EditorView interactions > reveals the focused column without scrolling the outer editor horizontally"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
+          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
+          "cases": [
+            {
+              "index": 25,
+              "name": "Markdown table affordance layout > splits the editor-edge scrollport from the reading-rail table track"
             }
           ]
         }
@@ -63623,70 +63961,6 @@
       ]
     },
     {
-      "id": "native-svg-raster-is-passive",
-      "kind": "out-of-scope",
-      "reason": "TS puts inline SVG into the live DOM, so it must remove scripts, foreign content, animation, linked uses, event handlers and remote paint or style references and prefix local ids. The native surface rasterizes a drawing into a passive image: nothing in it runs, animates or fetches, and its ids never meet the document's.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/html-block.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
-          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
-          "cases": [
-            {
-              "index": 76,
-              "name": "Markdown inline SVG and audio > keeps a passive drawing and scopes its local paint references"
-            },
-            {
-              "index": 77,
-              "name": "Markdown inline SVG and audio > removes script from a drawing"
-            },
-            {
-              "index": 78,
-              "name": "Markdown inline SVG and audio > removes foreign content from a drawing"
-            },
-            {
-              "index": 79,
-              "name": "Markdown inline SVG and audio > removes animation from a drawing"
-            },
-            {
-              "index": 80,
-              "name": "Markdown inline SVG and audio > removes a linked use from a drawing"
-            },
-            {
-              "index": 81,
-              "name": "Markdown inline SVG and audio > removes an event handler attribute"
-            },
-            {
-              "index": 82,
-              "name": "Markdown inline SVG and audio > removes a remote paint attribute"
-            },
-            {
-              "index": 83,
-              "name": "Markdown inline SVG and audio > removes a linked style attribute"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
-          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
-          "cases": [
-            {
-              "index": 4,
-              "name": "Markdown HTML profile convergence > turns Mermaid anchor navigation into brokered intents while preserving local paint references"
-            },
-            {
-              "index": 5,
-              "name": "Markdown HTML profile convergence > mounts dense Mermaid diagrams at a readable intrinsic scale"
-            },
-            {
-              "index": 6,
-              "name": "Markdown HTML profile convergence > keeps unmeasurable Mermaid fragments on the safe fit-width fallback"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "markdown-conformance-surfaces",
       "kind": "out-of-scope",
       "reason": "TS projects one HTML classification onto five surfaces (live editable, live read-only, isolated fragment, export and index), each only reducing capability, and checks that none upgrades an unsupported result. The native editor has only the two live surfaces, which share one plan set (covered by the policy and README header tests); there is no fragment, export or index projection.",
@@ -64081,6 +64355,16 @@
             {
               "index": 9,
               "name": "Markdown heading outline > preserves a focused directory dash while scroll state is measured"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
+          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
+          "cases": [
+            {
+              "index": 10,
+              "name": "Markdown editor layout > keeps the visible dash separate from its pointer target without expandable chrome"
             }
           ]
         }
@@ -66025,6 +66309,42 @@
             {
               "index": 2,
               "name": "desktop update visual preview > prefers an explicit environment request over the URL helper"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "katex-owns-math-font-mapping",
+      "kind": "out-of-scope",
+      "reason": "KaTeX renders formulas inside the render service using its own bundled stylesheet; the native Rust frontend never sets or overrides math font families on render requests (verified by t3_math_01_native_frontend_never_injects_font_into_math_render_requests).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/math.md",
+      "typescript": [
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownMathTypographyContract.test.ts",
+          "sha256": "5496569094b61dee444f1a5e9c795ec9192b37cc91796016cbd05791c52f23da",
+          "cases": [
+            {
+              "index": 1,
+              "name": "markdown math typography contract > leaves math font-role mapping to the upstream KaTeX stylesheet"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "code-block-edits-canonical-document-without-detached-draft",
+      "kind": "out-of-scope",
+      "reason": "Native Rust code blocks edit the canonical document buffer directly instead of holding a detached widget draft that Escape rolls back (verified by t5_b7_code_block_escape_and_blur_keep_typed_text_and_leave_editing_state, Escape and blur preserve typed text and restore non-editing decoration state).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/code-block.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownEmbedRuntime.test.ts",
+          "sha256": "c943fada9f9b389fc3cd0deb5d0acead7131d273ce149d64dc476fb1855ab0cd",
+          "cases": [
+            {
+              "index": 16,
+              "name": "Markdown embedded runtime > restores the original syntax layer when an edited draft is cancelled"
             }
           ]
         }

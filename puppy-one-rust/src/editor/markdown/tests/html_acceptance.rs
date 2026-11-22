@@ -123,6 +123,8 @@ fn html_source_button_reveals_the_entire_authored_flow_without_editing(cx: &mut 
     let button = visual
         .debug_bounds("md-html-widget")
         .expect("HTML source control");
+    visual.simulate_mouse_move(button.center(), None, Modifiers::none());
+    draw(visual);
     visual.simulate_click(button.center(), Modifiers::none());
     draw(visual);
     view.read_with(visual, |v, _| {

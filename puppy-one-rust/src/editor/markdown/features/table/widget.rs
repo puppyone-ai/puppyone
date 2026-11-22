@@ -229,7 +229,13 @@ impl BlockWidget for TableWidget {
         } else {
             m.document_selection_inactive
         });
+        let frame_state = if selected.is_some() {
+            "md-table-frame:selected"
+        } else {
+            "md-table-frame:resting"
+        };
         let frame = div()
+            .debug_selector(move || frame_state.into())
             .absolute()
             .left_0()
             .top_0()

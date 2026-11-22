@@ -6,7 +6,9 @@ mod blocks;
 mod inline;
 mod media;
 
-pub use media::{best_candidate, serialize};
+#[cfg(test)]
+pub(crate) use inline::resolved_strong_weight;
+pub use media::{best_candidate, html_image_dimensions, serialize};
 
 use super::{
     dom::{Element, MAX_HTML_DEPTH, Node},
@@ -303,7 +305,11 @@ impl<'s, 'r, 'a, 'p> Surface<'s, 'r, 'a, 'p> {
             strike: false,
         };
         let children = self.flow(nodes, &base, width, 0);
-        let mut root = div().w(px(width)).flex().flex_col();
+        let mut root = div()
+            .debug_selector(|| "md-html-rendered-surface".into())
+            .w(px(width))
+            .flex()
+            .flex_col();
         base.text.apply(root.style());
         root.children(children).into_any_element()
     }
@@ -330,7 +336,7 @@ impl<'s, 'r, 'a, 'p> Surface<'s, 'r, 'a, 'p> {
                     }
                     out.push(self.block_element(e, inherit, width, depth + 1));
                 }
-                _ => self.inline(node, inherit, &mut inline, depth + 1),
+                _ => self.inline(node, inherit, &mut inline, width, depth + 1),
             }
         }
         if !inline.is_empty() {

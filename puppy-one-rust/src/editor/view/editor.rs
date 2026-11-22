@@ -347,6 +347,13 @@ impl EditorView {
             .flatten()
     }
 
+    #[cfg(test)]
+    pub(crate) fn active_held_anchor_for_tests(&self) -> Option<super::layout::ScrollAnchor> {
+        self.held_anchor.and_then(|(anchor, scroll, revision)| {
+            (scroll == self.scroll_y && revision == self.state.revision).then_some(anchor)
+        })
+    }
+
     pub(super) fn estimated_block_of(&self, offset: usize) -> Option<(f32, f32)> {
         let layered = &self.caches.decorations;
         let line = self.state.doc.line_index(offset);
@@ -488,6 +495,7 @@ impl EditorView {
         self.abandon_composition(cx);
         self.state = EditorState::new(text);
         self.secondary.clear();
+        self.held_anchor = None;
         self.committed_rev = self.committed_rev.wrapping_add(1);
         self.history.clear();
         self.caches.doc_deco_key = None;
@@ -575,8 +583,17 @@ impl EditorView {
         let is_compose = tr.is_annotation(Annotation::INPUT_COMPOSE);
         let is_multicursor = tr.is_annotation(MULTICURSOR_ANNOTATION);
         let effects = tr.effects.clone();
+        let pre_anchor = self.scroll_anchor();
         let applied = self.state.apply(tr);
         if let Some(ref applied) = applied {
+            if !applied.changes.is_empty() {
+                self.held_anchor = pre_anchor.and_then(|mut a| {
+                    a.map(&applied.changes, self.state.revision).then(|| {
+                        a.anchor.offset = a.anchor.resolve(&self.state.doc);
+                        (a, self.scroll_y, self.state.revision)
+                    })
+                });
+            }
             self.extensions.prepare_applied(applied, &self.state);
             if !is_multicursor && !self.secondary.is_empty() {
                 for sec in &mut self.secondary {
@@ -708,6 +725,8 @@ impl EditorView {
     /// Restore vertical scroll offset (`WB-10`).
     pub fn set_scroll_top(&mut self, y: f32, cx: &mut Context<Self>) {
         let clamped = y.max(0.);
+        self.pointer.reveal_caret = false;
+        self.held_anchor = None;
         if self.scroll_y != clamped {
             self.scroll_y = clamped;
             cx.notify();

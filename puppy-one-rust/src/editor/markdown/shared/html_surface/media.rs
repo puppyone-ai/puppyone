@@ -52,7 +52,7 @@ impl Surface<'_, '_, '_, '_> {
         )
     }
 
-    pub(super) fn image(&mut self, e: &Element, inherit: &Inherit) -> AnyElement {
+    pub(super) fn image(&mut self, e: &Element, inherit: &Inherit, available: f32) -> AnyElement {
         let (src, attrs) = match e.tag.as_str() {
             "picture" => {
                 let img = e.children.iter().find_map(|c| match c {
@@ -108,13 +108,13 @@ impl Surface<'_, '_, '_, '_> {
                 width,
                 height,
             } => {
-                let (w, h) = match (number("width"), number("height")) {
-                    (Some(w), Some(h)) => (w, h),
-                    (Some(w), None) => (w, height * w / width.max(1.)),
-                    (None, Some(h)) => (width * h / height.max(1.), h),
-                    (None, None) => (width, height),
-                };
+                let (w, h) = html_image_dimensions(
+                    (width, height),
+                    (number("width"), number("height")),
+                    available,
+                );
                 img(ImageSource::Render(image))
+                    .debug_selector(|| "md-html-img".into())
                     .w(px(w))
                     .h(px(h))
                     .max_w_full()
@@ -128,6 +128,30 @@ impl Surface<'_, '_, '_, '_> {
             ImageLoad::Failed(None) => self.chip(&label, inherit),
         }
     }
+}
+
+/// Computes rendered `(width, height)` for an HTML `<img>` inside `available`,
+/// preserving authored pixel sizes while capping oversized images to the
+/// reading column without distorting aspect ratio (`max-width: 100%`).
+pub fn html_image_dimensions(
+    natural: (f32, f32),
+    authored: (Option<f32>, Option<f32>),
+    available: f32,
+) -> (f32, f32) {
+    let (nw, nh) = (natural.0.max(1.), natural.1.max(1.));
+    let (mut w, mut h) = match authored {
+        (Some(w), Some(h)) => (w, h),
+        (Some(w), None) => (w, nh * w / nw),
+        (None, Some(h)) => (nw * h / nh, h),
+        (None, None) => (nw, nh),
+    };
+    if available > 0. && w > available {
+        if authored.1.is_none() {
+            h *= available / w;
+        }
+        w = available;
+    }
+    (w, h)
 }
 
 /// Picks the densest `srcset` candidate up to `2x` (else the smallest above `2x`).
