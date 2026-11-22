@@ -184,16 +184,19 @@ fn answer(
             .find(|(k, _)| k == key)
             .map(|(_, v)| v.into_owned())
     };
-    if query("error").is_some() {
-        page(&mut stream, "400 Bad Request", FAILURE, origin);
-        return Some(Err("OAUTH_DENIED".into()));
-    }
+    // Only the answer to this sign-in (its state) ends it: any other
+    // request to the port, from a page or a process, is refused and the
+    // wait goes on.
     let returned = query("state");
     if let Some(expected) = state
         && returned.as_deref() != Some(expected)
     {
         page(&mut stream, "400 Bad Request", FAILURE, origin);
-        return Some(Err("OAUTH_STATE_MISMATCH".into()));
+        return None;
+    }
+    if query("error").is_some() {
+        page(&mut stream, "400 Bad Request", FAILURE, origin);
+        return Some(Err("OAUTH_DENIED".into()));
     }
     let Some(code) = query("code").filter(|c| !c.is_empty()) else {
         page(&mut stream, "400 Bad Request", FAILURE, origin);
@@ -320,10 +323,25 @@ mod tests {
     }
 
     #[test]
-    fn a_mismatched_state_or_a_denial_fails_the_sign_in() {
+    fn another_pages_request_neither_ends_nor_answers_the_sign_in() {
+        // A forged state or a forged denial is refused, and the real
+        // answer that follows still signs in.
         assert_eq!(
-            run(vec!["/auth/callback?code=abc&state=forged"], Some("s1")).unwrap_err(),
-            "OAUTH_STATE_MISMATCH"
+            run(
+                vec![
+                    "/auth/callback?code=forged&state=forged",
+                    "/auth/callback?error=access_denied&state=forged",
+                    "/auth/callback?code=abc&state=s1",
+                ],
+                Some("s1")
+            )
+            .unwrap()
+            .code,
+            "abc"
+        );
+        assert_eq!(
+            run(vec!["/auth/callback?error=access_denied&state=s1"], Some("s1")).unwrap_err(),
+            "OAUTH_DENIED"
         );
         assert_eq!(
             run(vec!["/auth/callback?error=access_denied"], None).unwrap_err(),

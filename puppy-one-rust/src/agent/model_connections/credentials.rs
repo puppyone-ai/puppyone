@@ -283,17 +283,42 @@ pub async fn resolve_fresh(
     }
 }
 
+/// One refresh per credential at a time: a provider that rotates its
+/// refresh token (ChatGPT) refuses the second of two refreshes made with
+/// the same one.
+fn refresh_lock(id: &str) -> std::sync::Arc<tokio::sync::Mutex<()>> {
+    static LOCKS: LazyLock<Mutex<HashMap<String, std::sync::Arc<tokio::sync::Mutex<()>>>>> =
+        LazyLock::new(Default::default);
+    let mut locks = LOCKS.lock().unwrap_or_else(|e| e.into_inner());
+    locks.retain(|_, lock| std::sync::Arc::strong_count(lock) > 1);
+    locks.entry(id.to_owned()).or_default().clone()
+}
+
 async fn resolve_with(
     id: &str,
     provider: Option<OauthProvider>,
     force: bool,
 ) -> Result<Resolved, String> {
     let credential = read(id)?;
-    let stale = credential.needs_refresh(now_ms())
-        || (force
-            && matches!(&credential, Credential::Oauth { refresh, .. } if !refresh.is_empty()));
+    let refreshable =
+        |c: &Credential| matches!(c, Credential::Oauth { refresh, .. } if !refresh.is_empty());
+    let stale = credential.needs_refresh(now_ms()) || (force && refreshable(&credential));
     let credential = match (provider, stale) {
         (Some(provider), true) => {
+            let lock = refresh_lock(id);
+            let _refreshing = lock.lock().await;
+            // Another request may have refreshed it while this one waited:
+            // its token serves, and the rotated refresh token is not spent
+            // twice.
+            let current = read(id)?;
+            if current.bearer() != credential.bearer() || !current.needs_refresh(now_ms()) && !force
+            {
+                return Ok(Resolved {
+                    bearer: current.bearer().to_owned(),
+                    account_id: current.account_id().map(str::to_owned),
+                });
+            }
+            let credential = current;
             let Credential::Oauth {
                 refresh,
                 account_id,
@@ -304,9 +329,14 @@ async fn resolve_with(
             else {
                 unreachable!("only OAuth credentials need a refresh")
             };
+            // Only a refusal asks the user to sign in again; a network or
+            // gateway failure is reported as what it is.
             let fresh = oauth::refresh(provider, refresh, account_id.as_deref())
                 .await
-                .map_err(|_| "OAUTH_REAUTH_REQUIRED".to_owned())?;
+                .map_err(|e| match e.as_str() {
+                    "OAUTH_UNREACHABLE" | "OAUTH_UNAVAILABLE" | "OAUTH_TIMEOUT" => e,
+                    _ => "OAUTH_REAUTH_REQUIRED".to_owned(),
+                })?;
             // A provider that does not rotate the refresh token, or omits
             // the account, keeps the ones it issued at sign-in.
             let fresh = match fresh {
@@ -331,7 +361,11 @@ async fn resolve_with(
                 },
                 other => other,
             };
-            write(id, &fresh)?;
+            // A credential retired while the refresh was in flight (the
+            // user signed in again) is not written back.
+            if !super::configuration::keep_credential(id, || write(id, &fresh))? {
+                return Err("OAUTH_REAUTH_REQUIRED".into());
+            }
             fresh
         }
         _ => credential,

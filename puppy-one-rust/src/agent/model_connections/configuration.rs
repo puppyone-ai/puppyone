@@ -169,9 +169,9 @@ pub struct ModelConnection {
     /// A model the service may not list (`manualModelId`).
     #[serde(default)]
     pub manual_model_id: Option<String>,
-    /// More models of this connection offered in Chat besides the default
-    /// (Cherry Studio's enabled models): the user picks them on the
-    /// connection's page, across services.
+    /// More models of this connection offered in Chat besides the default:
+    /// the text models its service lists, kept current from its catalog
+    /// ([`set_chat_models`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub chat_models: Vec<String>,
     /// The context budget used when the service reports none.
@@ -685,16 +685,7 @@ fn parse_save(
     connection.endpoint = normalize_endpoint(&connection.endpoint, connection.driver)?;
     connection.default_model_id = model_id(connection.default_model_id.as_deref())?;
     connection.manual_model_id = model_id(connection.manual_model_id.as_deref())?;
-    let mut chat_models: Vec<String> = vec![];
-    for id in &connection.chat_models {
-        if let Some(id) = model_id(Some(id))?
-            && !chat_models.contains(&id)
-            && chat_models.len() < 64
-        {
-            chat_models.push(id);
-        }
-    }
-    connection.chat_models = chat_models;
+    connection.chat_models = chat_models(&connection.chat_models)?;
     if connection.auth != Auth::Oauth {
         connection.oauth_provider = None;
     }
@@ -779,6 +770,72 @@ pub fn save_credential(
         delete_credential(id);
     }
     result
+}
+/// Runs `write` (storing credential `id` again, as a refresh does) only
+/// while a saved connection still refers to `id`, under the configuration
+/// lock: a credential retired meanwhile is never brought back. `Ok(false)`
+/// when it was retired.
+pub fn keep_credential(
+    id: &str,
+    write: impl FnOnce() -> Result<(), String>,
+) -> Result<bool, String> {
+    let _guard = WRITES
+        .lock()
+        .map_err(|_| crate::localization::t("native.modelConnections.lockFailed"))?;
+    if !load()?
+        .iter()
+        .any(|c| c.credential_id.as_deref() == Some(id))
+    {
+        return Ok(false);
+    }
+    write().map(|()| true)
+}
+/// Valid, distinct model IDs, at most 64.
+fn chat_models(ids: &[String]) -> Result<Vec<String>, String> {
+    let mut models: Vec<String> = vec![];
+    for id in ids {
+        if let Some(id) = model_id(Some(id))?
+            && !models.contains(&id)
+            && models.len() < 64
+        {
+            models.push(id);
+        }
+    }
+    Ok(models)
+}
+/// Replace the models connection `id` offers in Chat. Unlike [`save`], the
+/// generation stays: which models a service lists does not change what a
+/// session is bound to, so a catalog read never interrupts a conversation.
+/// `Ok(false)` when nothing changed.
+pub fn set_chat_models(id: &str, models: &[String]) -> Result<bool, String> {
+    let _guard = WRITES
+        .lock()
+        .map_err(|_| crate::localization::t("native.modelConnections.lockFailed"))?;
+    let mut connections = load()?;
+    if !offer_models(&mut connections, id, models)? {
+        return Ok(false);
+    }
+    let result = write_json(&data_dir().join("model-connections.json"), &connections);
+    invalidate_snapshot();
+    result.map(|()| true)
+}
+/// `models` become what connection `id` offers; nothing else changes, the
+/// generation included. `Ok(false)` when they already were.
+fn offer_models(
+    connections: &mut [ModelConnection],
+    id: &str,
+    models: &[String],
+) -> Result<bool, String> {
+    let connection = connections
+        .iter_mut()
+        .find(|c| c.id == id)
+        .ok_or(crate::localization::t("native.modelConnections.missing"))?;
+    let models = chat_models(models)?;
+    if connection.chat_models == models {
+        return Ok(false);
+    }
+    connection.chat_models = models;
+    Ok(true)
 }
 pub fn remove(id: &str, generation: &str) -> Result<(), String> {
     let _guard = WRITES
@@ -1017,6 +1074,20 @@ mod tests {
         assert!(stored.get("model").is_none());
     }
 
+    #[test]
+    fn offering_a_catalog_keeps_the_generation_a_session_is_bound_to() {
+        let mut connections = vec![ModelConnection {
+            generation: "bound".into(),
+            ..local()
+        }];
+        let id = connections[0].id.clone();
+        let models = ["qwen3".to_owned(), "qwen3".to_owned(), "llama3.2".to_owned()];
+        assert_eq!(offer_models(&mut connections, &id, &models), Ok(true));
+        assert_eq!(connections[0].chat_models, ["qwen3", "llama3.2"]);
+        assert_eq!(connections[0].generation, "bound");
+        assert_eq!(offer_models(&mut connections, &id, &models), Ok(false));
+        assert!(offer_models(&mut connections, "missing", &models).is_err());
+    }
     #[test]
     fn models_picked_for_chat_are_offered_besides_the_default() {
         let connection = ModelConnection {

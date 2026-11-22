@@ -92,6 +92,15 @@ struct SigningIn {
     /// The last step the provider asked of the user.
     step: Option<Progress>,
 }
+/// A sign-in nobody waits for any more (the page went away) stops: its
+/// worker and the callback port it holds (fixed for ChatGPT and xAI) are
+/// released at once, not when the ten-minute wait runs out. Cancelling one
+/// that already finished does nothing.
+impl Drop for SigningIn {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+    }
+}
 
 /// A connection's catalog, or why it could not be read.
 type CatalogResult = Result<Vec<client::CatalogModel>, String>;
@@ -320,13 +329,18 @@ impl ModelConnections {
             return;
         };
         let mut done = None;
+        let mut heard = false;
         while let Ok(update) = signing.rx.try_recv() {
+            heard = true;
             match update {
                 SignIn::Progress(step) => signing.step = Some(step),
                 SignIn::Done(result) => done = Some(result),
             }
         }
-        cx.notify();
+        // A wake for another receiver redraws nothing here.
+        if heard {
+            cx.notify();
+        }
         if let Some(result) = done {
             let cancelled = signing.cancel.cancelled();
             let provider = signing.provider;
@@ -513,8 +527,8 @@ impl ModelConnections {
     }
 
     fn cancel_sign_in(&mut self, cx: &mut Context<Self>) {
-        if let Some(signing) = self.signing_in.take() {
-            signing.cancel.cancel();
+        // Dropping it cancels the sign-in (`SigningIn`'s `Drop`).
+        if self.signing_in.take().is_some() {
             cx.notify();
         }
     }
@@ -542,7 +556,7 @@ impl ModelConnections {
         };
         let offered = client::offered(&item, models);
         if offered != item.chat_models {
-            self.rx = client::set_chat_models(item, offered, self.wake.clone());
+            self.rx = client::set_chat_models(item.id, offered, self.wake.clone());
             self.busy = true;
         }
     }

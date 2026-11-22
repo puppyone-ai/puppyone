@@ -115,9 +115,7 @@ pub async fn quick_connect(candidate: Candidate, model: Option<String>) -> Resul
     };
     connection.default_model_id = model;
     complete_binding(&mut connection, key.as_deref()).await?;
-    tokio::task::spawn_blocking(move || configuration::save(connection, key))
-        .await
-        .map_err(|e| e.to_string())?
+    configuration::save(connection, key)
 }
 
 /// Save an API-key connection, choosing its default model first when the
@@ -146,9 +144,7 @@ pub async fn save_and_bind(
                 .or(probing.manual_context_window);
         }
     }
-    tokio::task::spawn_blocking(move || configuration::save(connection, key))
-        .await
-        .map_err(|e| e.to_string())?
+    configuration::save(connection, key)
 }
 
 /// The connection a sign-in with `provider` becomes (the existing one when
@@ -237,11 +233,7 @@ pub async fn sign_in(
 }
 
 async fn store(connection: ModelConnection, credential: Credential) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || {
-        configuration::save_credential(connection, Some(credential))
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    configuration::save_credential(connection, Some(credential))
 }
 
 #[cfg(test)]

@@ -16,14 +16,17 @@ use std::sync::mpsc::{self, Receiver};
 /// Saved connections after a change.
 pub type Connections = Result<Vec<ModelConnection>, String>;
 
-/// Run `job` on its own current-thread runtime and answer once.
+/// Run `job` on its own current-thread runtime and answer once. The worker
+/// is `localization::spawn`'s: it speaks the window's language (errors are
+/// shown as they are) and a panic in it is contained. Configuration reads
+/// and writes are called directly on it: it is a thread of its own.
 fn run<T: Send + 'static>(
     wake: Wake,
     job: impl std::future::Future<Output = T> + Send + 'static,
     fallback: impl FnOnce(String) -> T + Send + 'static,
 ) -> Receiver<T> {
     let (tx, rx) = mpsc::sync_channel(1);
-    std::thread::spawn(move || {
+    crate::localization::spawn(move || {
         let result = match tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -46,9 +49,7 @@ fn change(
         wake,
         async move {
             job.await?;
-            tokio::task::spawn_blocking(configuration::load)
-                .await
-                .map_err(|e| e.to_string())?
+            configuration::load()
         },
         Err,
     )
@@ -83,11 +84,7 @@ pub fn use_as_default(
     if let Some(context) = context {
         connection.manual_context_window = Some(context.clamp(1024, 10_000_000));
     }
-    change(wake, async move {
-        tokio::task::spawn_blocking(move || configuration::save(connection, None))
-            .await
-            .map_err(|e| e.to_string())?
-    })
+    change(wake, async move { configuration::save(connection, None) })
 }
 
 /// The models `connection` offers in Chat besides its default: every text
@@ -172,28 +169,20 @@ pub fn sync_offered() -> bool {
         },
     )));
     let mut saved = false;
-    for (mut connection, models) in read {
+    for (connection, models) in read {
         let Ok(models) = models else { continue };
         let models = offered(&connection, &models);
-        if models != connection.chat_models {
-            connection.chat_models = models;
-            saved |= configuration::save(connection, None).is_ok();
-        }
+        // The generation stays: a session on this connection goes on.
+        saved |= configuration::set_chat_models(&connection.id, &models).unwrap_or(false);
     }
     saved
 }
 
-/// The models a connection offers in Chat besides its default.
-pub fn set_chat_models(
-    mut connection: ModelConnection,
-    models: Vec<String>,
-    wake: Wake,
-) -> Receiver<Connections> {
-    connection.chat_models = models;
+/// The models connection `id` offers in Chat besides its default (the
+/// generation stays: [`configuration::set_chat_models`]).
+pub fn set_chat_models(id: String, models: Vec<String>, wake: Wake) -> Receiver<Connections> {
     change(wake, async move {
-        tokio::task::spawn_blocking(move || configuration::save(connection, None))
-            .await
-            .map_err(|e| e.to_string())?
+        configuration::set_chat_models(&id, &models).map(|_| ())
     })
 }
 
@@ -294,7 +283,7 @@ pub fn sign_in(
     wake: Wake,
 ) -> Receiver<SignIn> {
     let (tx, rx) = mpsc::sync_channel(8);
-    std::thread::spawn(move || {
+    crate::localization::spawn(move || {
         let progress_tx = tx.clone();
         let progress_wake = wake.clone();
         let result = tokio::runtime::Builder::new_current_thread()
@@ -313,9 +302,7 @@ pub fn sign_in(
                         cancel,
                     )
                     .await?;
-                    tokio::task::spawn_blocking(configuration::load)
-                        .await
-                        .map_err(|e| e.to_string())?
+                    configuration::load()
                 })
             });
         let _ = tx.send(SignIn::Done(result));
@@ -351,7 +338,7 @@ pub fn catalog(
 /// the worker thread itself.
 pub fn verify(connection: ModelConnection, wake: Wake) -> Receiver<Result<(), String>> {
     let (tx, rx) = mpsc::sync_channel(1);
-    std::thread::spawn(move || {
+    crate::localization::spawn(move || {
         let result = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -379,7 +366,7 @@ pub fn verify(connection: ModelConnection, wake: Wake) -> Receiver<Result<(), St
 /// directory).
 pub fn managed_status(wake: Wake) -> Receiver<Option<(bool, bool)>> {
     let (tx, rx) = mpsc::sync_channel(1);
-    std::thread::spawn(move || {
+    crate::localization::spawn(move || {
         let snapshot = crate::features::desktop_agent::read_managed_status();
         let _ = tx.send(snapshot);
         wake.notify();
