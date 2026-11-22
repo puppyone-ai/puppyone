@@ -183,7 +183,7 @@ fn pair_container(
         // (`compileInlineHtmlRenderPlan`: unsupported).
         if opening.name == "a"
             && attribute("href")
-                .is_some_and(|h| crate::editor::markdown::navigation::safe_href(h).is_none())
+                .is_some_and(|h| crate::editor::markdown::platform::link::safe_href(h).is_none())
         {
             continue;
         }

@@ -21,7 +21,7 @@ pub use footnotes::Footnotes;
 pub use inline_html::InlineTag;
 pub use lines::{Fence, blockquote_marker, heading_marker, is_fence_line, is_rule_line};
 
-use super::feature::{self, Features};
+use super::features::{self, Features};
 use crate::editor::markdown::shared::dom;
 use crate::editor::text::{buffer::Buffer, change::ChangeSet};
 use std::ops::Range;
@@ -551,7 +551,7 @@ impl Syntax {
         let mut blocks: Vec<Range<usize>> = syntax.code_lines.clone();
         for f in features {
             let mut extra_blocks = Vec::new();
-            if feature::catch_feature_panic(f.id(), "recognize_blocks", || {
+            if features::catch_feature_panic(f.id(), "recognize_blocks", || {
                 f.recognize_blocks(doc, &syntax.code_lines, &mut extra_blocks);
             })
             .is_some()
@@ -632,13 +632,13 @@ impl Syntax {
             let Kind::FeatureInline(id) = e.kind else {
                 return false;
             };
-            let Some(owner) = feature::find(features, id) else {
+            let Some(owner) = features::find(features, id) else {
                 return false;
             };
             let owns_all = overlaps.iter().all(|c| {
                 e.range.start < c.range.start
                     && c.range.end < e.range.end
-                    && feature::catch_feature_panic(id, "owns_inline_code", || {
+                    && features::catch_feature_panic(id, "owns_inline_code", || {
                         owner.owns_inline_code(e, c)
                     })
                     .unwrap_or(false)
@@ -680,7 +680,7 @@ impl Syntax {
 
         let mut block_delimiters = Vec::new();
         for f in features {
-            let _ = feature::catch_feature_panic(f.id(), "scan_block_delimiters", || {
+            let _ = features::catch_feature_panic(f.id(), "scan_block_delimiters", || {
                 f.scan_block_delimiters(
                     doc,
                     start_line..end_line,

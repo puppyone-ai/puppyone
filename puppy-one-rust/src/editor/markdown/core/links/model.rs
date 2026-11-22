@@ -1,6 +1,6 @@
-//! Link token scanners (core/links/markdownLinkModel.ts, wikiLinkModel.ts,
-//! shared/inlineTokenScan.ts). Only links these scanners recognise are
-//! decorated; everything else stays visible source, as in the product.
+//! Standard inline link and image token scanners
+//! (product `core/links/markdownLinkModel.ts`).
+use crate::editor::markdown::shared::token_scan::{closing_paren, is_escaped, scan_delimiter};
 use std::{collections::HashMap, ops::Range};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -17,78 +17,6 @@ pub struct ImageToken {
     pub alt: Range<usize>,
     pub href: String,
     pub title: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct WikiLinkToken {
-    pub range: Range<usize>,
-    /// The visible part: alias if present, else the target.
-    pub visible: Range<usize>,
-    pub target: String,
-}
-
-/// Whether the character at `index` is escaped by an odd backslash run.
-pub fn is_escaped(source: &[u8], index: usize) -> bool {
-    source[..index]
-        .iter()
-        .rev()
-        .take_while(|&&b| b == b'\\')
-        .count()
-        % 2
-        == 1
-}
-
-/// Find an unescaped `delimiter` from `start` without crossing a line.
-/// Returns (closing index, next scan index).
-fn scan_delimiter(source: &[u8], start: usize, delimiter: &[u8]) -> (Option<usize>, usize) {
-    let mut escaped = false;
-    let mut i = start;
-    while i < source.len() {
-        let c = source[i];
-        if c == b'\n' {
-            return (None, i + 1);
-        }
-        if escaped {
-            escaped = false;
-        } else if c == b'\\' {
-            escaped = true;
-        } else if source[i..].starts_with(delimiter) {
-            return (Some(i), i + delimiter.len());
-        }
-        i += 1;
-    }
-    (None, source.len())
-}
-
-fn closing_paren(source: &[u8], start: usize) -> (Option<usize>, usize) {
-    let (mut escaped, mut quote, mut depth) = (false, None::<u8>, 0usize);
-    for (i, &c) in source.iter().enumerate().skip(start) {
-        if c == b'\n' {
-            return (None, i + 1);
-        }
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if c == b'\\' {
-            escaped = true;
-            continue;
-        }
-        if let Some(q) = quote {
-            if c == q {
-                quote = None;
-            }
-            continue;
-        }
-        match c {
-            b'"' | b'\'' => quote = Some(c),
-            b'(' => depth += 1,
-            b')' if depth == 0 => return (Some(i), i + 1),
-            b')' => depth -= 1,
-            _ => {}
-        }
-    }
-    (None, source.len())
 }
 
 fn trailing_title_start(value: &str) -> Option<usize> {
@@ -251,48 +179,10 @@ pub fn find_images(source: &str) -> Vec<ImageToken> {
     tokens
 }
 
-/// `[[target]]` / `[[target|alias]]` tokens of one source string.
-pub fn find_wiki_links(source: &str) -> Vec<WikiLinkToken> {
-    let bytes = source.as_bytes();
-    let mut tokens = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        if !bytes[i..].starts_with(b"[[") || is_escaped(bytes, i) {
-            i += 1;
-            continue;
-        }
-        let (close, next) = scan_delimiter(bytes, i + 2, b"]]");
-        if let Some(close) = close {
-            let content_from = i + 2;
-            let content = &source[content_from..close];
-            let (target, alias) = match content.find('|') {
-                Some(bar) => (
-                    content_from..content_from + bar,
-                    Some(content_from + bar + 1..close),
-                ),
-                None => (content_from..close, None),
-            };
-            let trimmed = source[target.clone()].trim();
-            if !trimmed.is_empty() && !trimmed.contains(['[', ']']) {
-                let visible = match alias {
-                    Some(a) if !source[a.clone()].trim().is_empty() => a,
-                    _ => target.clone(),
-                };
-                tokens.push(WikiLinkToken {
-                    range: i..close + 2,
-                    visible,
-                    target: trimmed.to_owned(),
-                });
-            }
-        }
-        i = next;
-    }
-    tokens
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::editor::markdown::core::links::find_wiki_links;
 
     #[test]
     fn links_follow_the_product_scanner() {

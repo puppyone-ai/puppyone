@@ -4,7 +4,7 @@
 use crate::editor::{
     markdown::core::{
         decorations::{BlockDecoration, LineDecoration},
-        feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+        features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
         plans::{BlockEmbed, Plan, Presentation},
         state::{FeatureStateValue, PreviewState},
         syntax::Callout,

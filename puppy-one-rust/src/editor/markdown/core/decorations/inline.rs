@@ -5,10 +5,10 @@
 use super::builder::{Builder, ClassSpan};
 use crate::editor::{
     markdown::core::{
-        classes::{Class, SourceSyntax},
-        feature::{self, InlineWidgetCx},
+        features::{self, InlineWidgetCx},
         links,
         plans::{Atom, Plan, Presentation},
+        presentation::classes::{Class, SourceSyntax},
         syntax::{Element, Kind},
     },
     view::decoration::{InlineWidget, Superscript, Underline},
@@ -173,9 +173,9 @@ impl Builder<'_> {
                 Kind::InlineHtml => self.inline_html(plan, e, reveal),
                 Kind::FeatureInline(fid) => {
                     if !reveal
-                        && let Some(feat) = feature::find(cx.features, fid)
+                        && let Some(feat) = features::find(cx.features, fid)
                         && let Some(Some((mut widget, classes))) =
-                            feature::catch_feature_panic(feat.id(), "inline_widget", || {
+                            features::catch_feature_panic(feat.id(), "inline_widget", || {
                                 feat.inline_widget(e, plan, &widget_cx)
                             })
                     {

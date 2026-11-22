@@ -1,9 +1,9 @@
 //! Format-agnostic Markdown pipeline (product `editor/markdown/core`).
-pub mod classes;
 pub mod commands;
-pub mod content_language;
 pub mod decorations;
-pub mod feature;
+pub mod dialect;
+pub mod features;
+pub mod interaction;
 pub mod links;
 pub mod plans;
 pub mod presentation;
@@ -15,3 +15,4 @@ pub mod state;
     reason = "marker lists are Vec<Range<usize>>; one-marker lists are intended"
 )]
 pub mod syntax;
+pub mod widgets;

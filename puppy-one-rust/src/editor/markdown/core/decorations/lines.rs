@@ -8,8 +8,8 @@
 use super::builder::Builder;
 use crate::editor::markdown::{
     core::{
-        classes::{Class, SourceSyntax},
         plans::{Atom, Plan, Presentation},
+        presentation::classes::{Class, SourceSyntax},
         syntax::{Syntax, blockquote_marker, is_fence_line, is_rule_line},
     },
     style::cascade::LineInput,

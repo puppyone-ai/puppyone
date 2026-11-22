@@ -2,7 +2,7 @@
 //! `self.line_window` into Kit marks (`TA-13`, `TA-01`).
 use super::builder::Builder;
 use crate::editor::{
-    markdown::{core::classes::Class, style::marks as mark_style},
+    markdown::{core::presentation::classes::Class, style::marks as mark_style},
     view::decoration::Mark,
 };
 use gpui::SharedString;

@@ -7,10 +7,10 @@ pub(crate) mod widget;
 
 use crate::editor::{
     markdown::core::{
-        classes::Class,
         decorations::BlockDecoration,
-        feature::{CompileCx, InlineWidgetCx, MarkdownFeature, WidgetFactoryCx},
+        features::{CompileCx, InlineWidgetCx, MarkdownFeature, WidgetFactoryCx},
         plans::{Atom, BlockEmbed, Plan, Presentation},
+        presentation::classes::Class,
         syntax::{Element, Kind},
     },
     text::buffer::Buffer,

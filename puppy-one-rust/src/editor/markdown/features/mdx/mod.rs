@@ -10,7 +10,7 @@ use crate::editor::{
     markdown::{
         core::{
             decorations::BlockDecoration,
-            feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+            features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
             plans::{BlockEmbed, Plan, Presentation},
             state::{FeatureStateValue, PreviewState},
         },
@@ -569,7 +569,7 @@ mod tests {
 
     fn compiled(
         source: &str,
-        features: crate::editor::markdown::core::feature::Features,
+        features: crate::editor::markdown::core::features::Features,
     ) -> Vec<Plan> {
         use crate::editor::markdown::core::{plans, state::CalloutFolds, syntax::Syntax};
         let doc = Buffer::new(source);
@@ -587,7 +587,7 @@ mod tests {
     /// The hidden ranges and widget count of `source` in live preview.
     fn decorated(
         source: &str,
-        features: crate::editor::markdown::core::feature::Features,
+        features: crate::editor::markdown::core::features::Features,
     ) -> (Vec<Range<usize>>, usize) {
         use crate::{
             editor::{

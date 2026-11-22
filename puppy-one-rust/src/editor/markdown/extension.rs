@@ -9,7 +9,7 @@ use super::{
     },
     core::{
         commands::{self, FormatCommand},
-        feature::{self as contract, CommandCx, Features},
+        features::{self as contract, CommandCx, Features},
         plans::Plan,
         state::PreviewState,
         syntax::{
@@ -185,6 +185,44 @@ impl MarkdownExtension {
     pub(super) fn heading_position(&mut self, state: &EditorState, key: &str) -> Option<usize> {
         let mut cache = self.cache.borrow_mut();
         cache.heading_position(state, &self.preview.features, self.features(), key)
+    }
+
+    pub(crate) fn link_activation(
+        &mut self,
+        state: &EditorState,
+        offset: usize,
+        release: bool,
+    ) -> Option<LinkActivation> {
+        if !self.live || self.read_only {
+            return None;
+        }
+        let (syntax, _) = self.parse(state);
+        let reveal = self.preview.reveal.clone();
+        let references = self.references.clone();
+        super::core::links::interaction::link_activation(
+            &state.doc,
+            &syntax,
+            reveal.as_ref(),
+            references.as_ref(),
+            offset,
+            release,
+            |key| self.heading_position(state, key),
+        )
+    }
+
+    pub(crate) fn link_action(
+        &mut self,
+        state: &EditorState,
+        target: &str,
+        wiki: bool,
+    ) -> Option<LinkAction> {
+        let references = self.references.clone();
+        super::core::links::interaction::resolve_link_action(
+            references.as_ref(),
+            target,
+            wiki,
+            |key| self.heading_position(state, key),
+        )
     }
 }
 

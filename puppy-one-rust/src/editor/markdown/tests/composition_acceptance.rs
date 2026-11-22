@@ -7,7 +7,7 @@ use crate::{
         markdown::{
             composition::{FEATURES, MDX_FEATURES},
             core::{
-                feature::{self, Features, WidgetFactoryCx},
+                features::{self, Features, WidgetFactoryCx},
                 plans,
                 state::FeatureStateStore,
                 syntax::Syntax,
@@ -85,7 +85,7 @@ fn block_constructs_compile_to_their_features_widget() {
                     references: None,
                     state: &state,
                 };
-                feature::find(FEATURES, embed.feature)
+                features::find(FEATURES, embed.feature)
                     .and_then(|f| f.block_widget(embed, &factory))
                     .is_some()
             })

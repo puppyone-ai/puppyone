@@ -1,15 +1,15 @@
 //! Cached parse → plan → decoration pipeline and incremental scheduling (`TA-11`, `TA-31`, `TA-81`).
 use super::{
     core::{
-        content_language::ReadingLanguage,
         decorations::{self, DecorateCx},
-        feature::Features,
+        features::Features,
+        links::Headings,
         plans::{self, Plan, PlanCache},
         presentation::block_rhythm,
+        presentation::content_language::ReadingLanguage,
         state::{FeatureStateStore, PreviewState},
         syntax::{Syntax, SyntaxSplice},
     },
-    navigation,
     style::MarkdownTheme,
 };
 use crate::{
@@ -67,7 +67,7 @@ pub(super) struct Parsed {
     pub(super) folds: FeatureStateStore,
     pub(super) plan_cache: PlanCache,
     pub(super) plans: Rc<Vec<Plan>>,
-    pub(super) headings: OnceCell<navigation::Headings>,
+    pub(super) headings: OnceCell<Headings>,
     pub(super) last_splice: Option<(u64, SyntaxSplice)>,
     pub(super) tail: Option<DeferredTail>,
 }
@@ -318,7 +318,7 @@ impl PipelineCache {
         let p = self.parsed.as_ref()?;
         let headings = p
             .headings
-            .get_or_init(|| navigation::Headings::from_syntax(&state.doc, &p.syntax));
+            .get_or_init(|| Headings::from_syntax(&state.doc, &p.syntax));
         headings.get(key)
     }
 

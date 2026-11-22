@@ -2,7 +2,7 @@
 //! the only lists of them, one per dialect. Order matters where features
 //! claim the same source (earlier wins).
 use super::{
-    core::feature::{Features, MarkdownFeature},
+    core::features::{Features, MarkdownFeature},
     features::{
         callout, code_block, front_matter, html, image, math, mdx, mermaid, rule, table, task,
         video,

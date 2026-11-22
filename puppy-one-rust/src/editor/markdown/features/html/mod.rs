@@ -14,7 +14,7 @@ use crate::editor::{
     markdown::{
         core::{
             decorations::BlockDecoration,
-            feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+            features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
             plans::{BlockEmbed, Plan, Presentation},
             state::PreviewState,
         },
@@ -68,7 +68,7 @@ fn admission_failure(html: &str, nodes: &[dom::Node]) -> Option<&'static str> {
         if let dom::Node::Element(element) = node {
             if element.tag == "a"
                 && let Some(href) = element.attribute("href")
-                && crate::editor::markdown::navigation::safe_href(href).is_none()
+                && crate::editor::markdown::platform::link::safe_href(href).is_none()
             {
                 return Some("htmlBlock.unsafe-href");
             }

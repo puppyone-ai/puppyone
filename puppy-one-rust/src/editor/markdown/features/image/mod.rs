@@ -18,7 +18,7 @@ use crate::editor::{
     markdown::{
         core::{
             decorations::{InlineDecoration, LineDecoration},
-            feature::MarkdownFeature,
+            features::MarkdownFeature,
             state::PreviewState,
             syntax::{Element, Kind},
         },
