@@ -69,40 +69,6 @@ pub enum Platform {
 }
 
 impl Platform {
-    /// Target platform of the running build.
-    pub const fn current() -> Self {
-        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        {
-            Self::MacosArm64
-        }
-        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-        {
-            Self::MacosX64
-        }
-        #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-        {
-            Self::WindowsX64
-        }
-        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-        {
-            Self::LinuxX64
-        }
-        #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-        {
-            Self::LinuxArm64
-        }
-        #[cfg(not(any(
-            all(target_os = "macos", target_arch = "aarch64"),
-            all(target_os = "macos", target_arch = "x86_64"),
-            all(target_os = "windows", target_arch = "x86_64"),
-            all(target_os = "linux", target_arch = "x86_64"),
-            all(target_os = "linux", target_arch = "aarch64"),
-        )))]
-        {
-            Self::Any
-        }
-    }
-
     pub fn supports(platforms: &[Self], target: Self) -> bool {
         platforms.contains(&Self::Any) || platforms.contains(&target)
     }
