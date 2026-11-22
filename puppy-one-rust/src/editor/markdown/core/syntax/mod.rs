@@ -27,7 +27,6 @@ pub use lines::{Fence, blockquote_marker, heading_marker, is_fence_line, is_rule
 pub use list_structure::{BlockKind, List, ListItem, Paragraph, TaskLine};
 
 use super::features::{self, Features};
-use crate::editor::markdown::shared::dom;
 use crate::editor::text::{buffer::Buffer, change::ChangeSet};
 use std::ops::Range;
 
@@ -65,9 +64,95 @@ pub(super) fn link_defs_overlap(defs: &[(Span, String)], range: &Span) -> bool {
 
 /// Whether an HTML block's tags fail to balance on their own, so it can open or
 /// close a flow with another HTML block (`<div>` … `</div>`) across the blocks
-/// between them. A balanced block never pairs.
+/// between them. A strictly balanced block never pairs.
+///
+/// Self-contained conservative check so `core/syntax` stays independent of
+/// `features/html` (`R4`, `MA-13`).
 pub(super) fn html_unbalanced(source: &str) -> bool {
-    !matches!(dom::parse(source), dom::Parsed::Complete(_))
+    const VOID: &[&str] = &[
+        "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
+        "track", "wbr",
+    ];
+    const MAX_DEPTH: usize = 64;
+
+    let trimmed = source.trim_start();
+    if trimmed.starts_with("<!") || trimmed.starts_with("<?") {
+        return true;
+    }
+
+    let mut stack: Vec<String> = Vec::new();
+    let mut saw_open = false;
+    let mut rest = source;
+    while let Some(at) = rest.find('<') {
+        rest = &rest[at..];
+        if let Some(comment) = rest.strip_prefix("<!--") {
+            let Some(end) = comment.find("-->") else {
+                return true;
+            };
+            rest = &comment[end + 3..];
+            continue;
+        }
+        if rest.starts_with("<!") || rest.starts_with("<?") {
+            let Some(end) = rest.find('>') else {
+                return true;
+            };
+            rest = &rest[end + 1..];
+            continue;
+        }
+        let closing = rest.starts_with("</");
+        let name_start = if closing { 2 } else { 1 };
+        let is_tag = rest[name_start..]
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic());
+        if !is_tag {
+            rest = &rest[1..];
+            continue;
+        }
+        let mut quote = None;
+        let mut end = None;
+        for (i, c) in rest.char_indices().skip(1) {
+            match (quote, c) {
+                (Some(q), c) if c == q => quote = None,
+                (Some(_), _) => {}
+                (None, '"' | '\'') => quote = Some(c),
+                (None, '>') => {
+                    end = Some(i + 1);
+                    break;
+                }
+                (None, '<') => return true,
+                _ => {}
+            }
+        }
+        let Some(end) = end else {
+            return true;
+        };
+        let inner = &rest[name_start..end - 1];
+        let (inner, self_closing) = match inner.strip_suffix('/') {
+            Some(i) => (i, true),
+            None => (inner, false),
+        };
+        let name_end = inner
+            .find(|c: char| c.is_whitespace())
+            .unwrap_or(inner.len());
+        let tag = inner[..name_end].to_ascii_lowercase();
+        if closing {
+            if stack.pop().as_deref() != Some(tag.as_str()) {
+                return true;
+            }
+        } else {
+            saw_open = true;
+            let void = self_closing || VOID.contains(&tag.as_str());
+            if !void {
+                if stack.len() >= MAX_DEPTH {
+                    return true;
+                }
+                stack.push(tag);
+            }
+        }
+        rest = &rest[end..];
+    }
+    !saw_open || !stack.is_empty()
 }
 
 pub(super) fn has_global_hazards(slice: &str) -> bool {

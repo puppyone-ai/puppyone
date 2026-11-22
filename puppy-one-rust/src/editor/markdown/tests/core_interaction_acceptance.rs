@@ -547,12 +547,12 @@ fn markdown_convergence_plans_html_and_oversized_limits(cx: &mut TestAppContext)
         .iter()
         .find_map(|p| p.embed()?.model::<HtmlBlock>())
         .expect("safe HTML block admitted");
-    let crate::editor::markdown::shared::dom::Parsed::Complete(nodes) =
-        crate::editor::markdown::shared::dom::parse(&html_block.html)
+    let crate::editor::markdown::features::html::dom::Parsed::Complete(nodes) =
+        crate::editor::markdown::features::html::dom::parse(&html_block.html)
     else {
         panic!("expected complete parsed HTML");
     };
-    let crate::editor::markdown::shared::dom::Node::Element(root) = &nodes[0] else {
+    let crate::editor::markdown::features::html::dom::Node::Element(root) = &nodes[0] else {
         panic!("expected div");
     };
     assert_eq!(root.attribute("onclick"), None);

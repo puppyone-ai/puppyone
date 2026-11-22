@@ -459,6 +459,7 @@ impl PipelineCache {
                 features: cfg.features,
                 assets: cfg.assets,
                 references: cfg.references,
+                inline_preview: Some(&super::composition::preview::PREVIEW),
             };
             let owned_prev = Rc::unwrap_or_clone(prev_cached.decorations);
             let built = decorations::decorate_incremental_in_place(
@@ -505,6 +506,7 @@ impl PipelineCache {
                 features: cfg.features,
                 assets: cfg.assets,
                 references: cfg.references,
+                inline_preview: Some(&super::composition::preview::PREVIEW),
             };
             let built =
                 decorations::decorate_with_registry(&cx, registry, state.revision, prev_widgets);
@@ -550,6 +552,7 @@ impl PipelineCache {
             features: cfg.features,
             assets: cfg.assets,
             references: cfg.references,
+            inline_preview: Some(&super::composition::preview::PREVIEW),
         };
         Rc::new(decorations::decorate_reveal_with_fallbacks(
             doc_layer,

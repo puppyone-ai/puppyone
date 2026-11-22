@@ -9,7 +9,7 @@ use super::{
 };
 use crate::{
     editor::{
-        markdown::shared::html_surface::MediaKind,
+        markdown::shared::media::MediaKind,
         registry::{AssetReader, DocumentAssets},
     },
     platform::webview::{Content, Entry, Ipc, ResourceSource, Source, SourceError, url_for},

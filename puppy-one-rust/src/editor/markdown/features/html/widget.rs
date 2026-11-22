@@ -1,16 +1,14 @@
 //! `.cm-md-html-widget`: the rendered surface in `.cm-md-html-widget-content`
-//! (the block radius and rings) with the toolbar's source toggle. Uses the
-//! shared bounded height cache and [`HtmlPlatformBridge`] (`TA-41`, `TA-42`,
-//! `TODO-31`).
-use super::{ID, ShowSource, dom};
+//! (the block radius and rings) with the toolbar's source toggle. Uses
+//! `features::html::render::Surface` and shared widget chrome (`ring`,
+//! `source_toggle`).
+use super::{
+    ID, ShowSource, dom,
+    render::{Surface, measured_height, record_measured_height},
+};
 use crate::editor::{
     markdown::{
-        platform::HtmlPlatformBridge,
-        shared::{
-            html_surface::{Surface, measured_height, record_measured_height},
-            ring,
-            source_toggle::source_toggle,
-        },
+        shared::widgets::{ring, source_toggle::source_toggle},
         style::MarkdownTheme,
     },
     registry::DocumentAssets,
@@ -67,23 +65,15 @@ impl BlockWidget for HtmlBlockWidget {
                 cx.render.window,
                 cx.render.app,
             ),
-            None => {
-                let mut bridge = HtmlPlatformBridge::new(
-                    &self.theme,
-                    self.assets.as_ref(),
-                    view.clone(),
-                    self.range.start,
-                );
-                Surface::new(
-                    &self.theme,
-                    Path::new(&document),
-                    view,
-                    self.range.start,
-                    cx.render,
-                    &mut bridge,
-                )
-                .render(&self.nodes, width)
-            }
+            None => Surface::new(
+                &self.theme,
+                Path::new(&document),
+                self.assets.as_ref(),
+                view,
+                self.range.start,
+                cx.render,
+            )
+            .render(&self.nodes, width),
         };
         let surface = div()
             .absolute()

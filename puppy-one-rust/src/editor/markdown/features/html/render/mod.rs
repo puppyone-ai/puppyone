@@ -1,7 +1,8 @@
 //! `.cm-md-html-rendered-surface` (`markdown-content.css`): renders sanitized
-//! HTML DOM subtrees into GPUI elements with the product's prose roles, shared
-//! by HTML blocks (`features/html`) and MDX `<Tabs>` panels (`features/mdx`)
-//! without cross-feature imports (`TA-41`, `R5`, `R6`).
+//! HTML DOM subtrees into GPUI elements with the product's prose roles, owned
+//! by `features/html` and exposed to sibling features (such as MDX `<Tabs>`)
+//! solely through `composition::preview` and the `shared::preview` port
+//! (`MA-07`, `MA-12`, `R5`, `R13`).
 mod blocks;
 mod inline;
 mod media;
@@ -10,59 +11,20 @@ mod media;
 pub(crate) use inline::resolved_strong_weight;
 pub use media::{best_candidate, html_image_dimensions, serialize};
 
-use super::{
-    dom::{Element, MAX_HTML_DEPTH, Node},
-    media_source::MediaSource,
-};
+use super::sanitize::{Element, MAX_HTML_DEPTH, Node};
 use crate::editor::{
     markdown::style::MarkdownTheme,
+    registry::DocumentAssets,
     tokens::{Tokens, parse_css_color},
     view::{editor::EditorView, render::RenderCx, style::TextStyle},
 };
 use gpui::{prelude::*, *};
-use std::{cell::RefCell, collections::HashMap, path::Path, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, path::Path};
 
 /// Maximum `<details>` toggle entries kept in session view state (`TODO-31`).
 pub const MAX_OPEN_DETAILS: usize = 512;
 /// Maximum measured HTML/MDX surface heights cached in memory (`TODO-31`).
 pub const MAX_MEASURED_HEIGHTS: usize = 512;
-
-/// Image decoding result supplied by a platform bridge to [`Surface`].
-#[derive(Clone)]
-pub enum ImageLoad {
-    Loading,
-    Ready {
-        image: Arc<RenderImage>,
-        width: f32,
-        height: f32,
-    },
-    Failed(Option<SharedString>),
-}
-
-/// Media element kind inside an HTML block (`<video>` or `<audio>`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MediaKind {
-    Video,
-    Audio,
-}
-
-/// Platform port injected into [`Surface`] so `markdown/shared/` stays free of
-/// `platform` and `features` dependencies (`R6`, `TA-41`, `TA-42`).
-pub trait HtmlMediaPort {
-    fn load_image(&mut self, source: &MediaSource, app: &mut App) -> ImageLoad;
-
-    #[allow(clippy::too_many_arguments)]
-    fn render_media(
-        &mut self,
-        kind: MediaKind,
-        path: Option<&Path>,
-        title: Option<&str>,
-        dims: (Option<f32>, Option<f32>),
-        index: usize,
-        available: f32,
-        render: &mut RenderCx,
-    ) -> Option<AnyElement>;
-}
 
 /// Bounded LRU map used for session `<details>` toggles and measured heights.
 pub struct BoundedMap<K, V> {
@@ -179,14 +141,14 @@ pub(super) enum Piece {
     Atom(AnyElement),
 }
 
-pub struct Surface<'s, 'r, 'a, 'p> {
+pub struct Surface<'s, 'r, 'a> {
     pub theme: &'s MarkdownTheme,
     pub document: &'s Path,
+    pub assets: Option<&'s DocumentAssets>,
     pub view: WeakEntity<EditorView>,
     /// Block identity (source start offset) for element IDs and `<details>` state.
     pub block: usize,
     pub render: &'r mut RenderCx<'a>,
-    pub port: &'p mut dyn HtmlMediaPort,
     pub(super) details: usize,
     pub(super) ids: usize,
     pub(super) media: usize,
@@ -262,22 +224,22 @@ pub(super) fn style_color(e: &Element, property: &str) -> Option<Rgba> {
     })
 }
 
-impl<'s, 'r, 'a, 'p> Surface<'s, 'r, 'a, 'p> {
+impl<'s, 'r, 'a> Surface<'s, 'r, 'a> {
     pub fn new(
         theme: &'s MarkdownTheme,
         document: &'s Path,
+        assets: Option<&'s DocumentAssets>,
         view: WeakEntity<EditorView>,
         block: usize,
         render: &'r mut RenderCx<'a>,
-        port: &'p mut dyn HtmlMediaPort,
     ) -> Self {
         Self {
             theme,
             document,
+            assets,
             view,
             block,
             render,
-            port,
             details: 0,
             ids: 0,
             media: 0,

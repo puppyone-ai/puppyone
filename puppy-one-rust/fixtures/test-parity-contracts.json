@@ -38981,11 +38981,11 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::shared::media_source::tests::markdown_assets_follow_the_products_image_and_video_settings"
+          "test": "editor::markdown::shared::media::tests::markdown_assets_follow_the_products_image_and_video_settings"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::shared::media_source::tests::media_sources_and_oversized_data_urls_follow_policy"
+          "test": "editor::markdown::shared::media::tests::media_sources_and_oversized_data_urls_follow_policy"
         },
         {
           "package": "po-editor",
@@ -40749,7 +40749,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::shared::html_surface::media::tests::pixel_dimensions_apply_and_expressions_are_left_out"
+          "test": "editor::markdown::features::html::render::media::tests::pixel_dimensions_apply_and_expressions_are_left_out"
         },
         {
           "package": "po-editor",
@@ -40903,7 +40903,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::shared::html_surface::tests::readme_align_attributes_become_alignment_and_invalid_ones_inherit"
+          "test": "editor::markdown::features::html::render::tests::readme_align_attributes_become_alignment_and_invalid_ones_inherit"
         },
         {
           "package": "po-editor",

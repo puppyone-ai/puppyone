@@ -15,7 +15,7 @@ use crate::{
     editor::{
         markdown::{
             platform::render as render_broker,
-            shared::ring,
+            shared::widgets::ring,
             style::{BlockStyle, MarkdownTheme},
         },
         tokens::Tokens,

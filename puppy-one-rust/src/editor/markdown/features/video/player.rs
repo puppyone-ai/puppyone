@@ -5,7 +5,7 @@
 pub use crate::editor::markdown::platform::embed::{
     AUDIO_SIZE, MediaKey as Key, MediaPlayer as Player, media_page,
 };
-pub use crate::editor::markdown::shared::html_surface::MediaKind as Media;
+pub use crate::editor::markdown::shared::media::MediaKind as Media;
 
 use crate::editor::{markdown::platform::embed, registry::DocumentAssets};
 use gpui::{App, Rgba, Window};

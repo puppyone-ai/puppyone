@@ -1,13 +1,93 @@
 //! HTML media (`<img>`, `<picture>`, `<svg>`, `<video>`, `<audio>`) rendered
-//! through the injected [`super::HtmlMediaPort`].
-use super::{ImageLoad, Inherit, MediaKind, Surface};
-use crate::editor::markdown::shared::{
-    dom::{Element, MAX_HTML_DEPTH, Node},
-    media_source::{self, MediaSource},
+//! directly through `platform::assets` and `platform::embed` (`MA-09`, `MA-14`).
+use super::{Inherit, Surface};
+use crate::editor::{
+    markdown::{
+        features::html::sanitize::{Element, MAX_HTML_DEPTH, Node},
+        platform::{assets, embed},
+        shared::media::{self, MediaKind, MediaSource, MediaSourceError},
+    },
+    tokens::Tokens,
 };
 use gpui::{prelude::*, *};
+use std::path::Path;
 
-impl Surface<'_, '_, '_, '_> {
+impl Surface<'_, '_, '_> {
+    fn render_media_player(
+        &mut self,
+        kind: MediaKind,
+        path: Option<&Path>,
+        title: Option<&str>,
+        dims: (Option<f32>, Option<f32>),
+        index: usize,
+        available: f32,
+    ) -> Option<AnyElement> {
+        let (path, doc_assets, view) = (path?, self.assets?, self.view.upgrade()?);
+        let t = Tokens::get(self.theme.dark, self.theme.scale);
+        let background = match kind {
+            MediaKind::Video => t.color("--po-md-media-background"),
+            MediaKind::Audio => t.color("--po-editor-bg"),
+        };
+        let player = embed::get_media_player(
+            embed::MediaRequest {
+                key: (view.entity_id(), self.block, index, path.to_path_buf()),
+                kind,
+                title,
+                background,
+                assets: doc_assets,
+                dark: self.theme.dark,
+            },
+            self.render.window,
+            self.render.app,
+        );
+        if player.failure().is_some() {
+            return None;
+        }
+        let (width, height, radius) = match kind {
+            MediaKind::Audio => (embed::AUDIO_SIZE.0.min(available), embed::AUDIO_SIZE.1, 0.),
+            MediaKind::Video => {
+                let (nw, nh) = player.size.get().unwrap_or((300., 150.));
+                let (mut w, mut h) = match dims {
+                    (Some(w), Some(h)) => (w, h),
+                    (Some(w), None) => (w, w * nh / nw),
+                    (None, Some(h)) => (h * nw / nh, h),
+                    (None, None) => (nw, nh),
+                };
+                if w > available {
+                    h *= available / w;
+                    w = available;
+                }
+                let viewport = f32::from(self.render.window.viewport_size().height);
+                let cap = (viewport * 0.7).min(720.);
+                if h > cap {
+                    w *= cap / h;
+                    h = cap;
+                }
+                (w, h, self.theme.block.radius)
+            }
+        };
+        let ready = player.size.get().is_some();
+        Some(
+            div()
+                .w(px(width))
+                .h(px(height))
+                .rounded(px(radius))
+                .bg(background)
+                .child(
+                    canvas(
+                        |_, _, _| {},
+                        move |bounds, _, window, _| {
+                            if ready {
+                                player.place(bounds, window.content_mask().bounds, radius);
+                            }
+                        },
+                    )
+                    .size_full(),
+                )
+                .into_any_element(),
+        )
+    }
+
     pub(super) fn media(&mut self, e: &Element, inherit: &Inherit, available: f32) -> AnyElement {
         let src = e.attribute("src").map(str::to_owned).or_else(|| {
             e.children.iter().find_map(|c| match c {
@@ -19,7 +99,7 @@ impl Surface<'_, '_, '_, '_> {
         self.media += 1;
         let path = match src
             .as_deref()
-            .and_then(|s| media_source::markdown(self.document, s))
+            .and_then(|s| media::markdown(self.document, s))
         {
             Some(MediaSource::Workspace(path)) => Some(path),
             _ => None,
@@ -30,14 +110,13 @@ impl Surface<'_, '_, '_, '_> {
             MediaKind::Audio
         };
         let number = |name: &str| e.attribute(name).and_then(dimension);
-        if let Some(rendered) = self.port.render_media(
+        if let Some(rendered) = self.render_media_player(
             kind,
             path.as_deref(),
             e.attribute("title"),
             (number("width"), number("height")),
             index,
             available,
-            self.render,
         ) {
             return rendered;
         }
@@ -83,8 +162,8 @@ impl Surface<'_, '_, '_, '_> {
             Ok(MediaSource::Data(serialize(e).into_bytes()))
         } else {
             match src.as_deref() {
-                Some(s) => media_source::resolve_markdown_media(self.document, s),
-                None => Err(media_source::MediaSourceError::Empty),
+                Some(s) => media::resolve_markdown_media(self.document, s),
+                None => Err(MediaSourceError::Empty),
             }
         };
         let label = attrs
@@ -92,40 +171,42 @@ impl Surface<'_, '_, '_, '_> {
             .map(str::to_owned)
             .or(src)
             .unwrap_or_else(|| e.tag.clone());
-        let state = match &resolved {
-            Ok(source) => self.port.load_image(source, self.render.app),
-            Err(media_source::MediaSourceError::DataTooLarge { limit_bytes }) => {
-                ImageLoad::Failed(Some(SharedString::from(format!(
-                    "Exceeds {}",
+        match &resolved {
+            Ok(source) => match assets::get(source, self.assets, self.render.app) {
+                assets::AssetState::Ready {
+                    image,
+                    width,
+                    height,
+                } => {
+                    let (w, h) = html_image_dimensions(
+                        (width, height),
+                        (number("width"), number("height")),
+                        available,
+                    );
+                    img(ImageSource::Render(image))
+                        .debug_selector(|| "md-html-img".into())
+                        .w(px(w))
+                        .h(px(h))
+                        .max_w_full()
+                        .into_any_element()
+                }
+                assets::AssetState::Loading => div()
+                    .w(px(number("width").unwrap_or(96.)))
+                    .h(px(number("height").unwrap_or(54.)))
+                    .into_any_element(),
+                assets::AssetState::Failed(reason) => {
+                    let msg = reason.user_reason("editor.resource.kind.image");
+                    self.chip(&format!("{label} · {msg}"), inherit)
+                }
+            },
+            Err(MediaSourceError::DataTooLarge { limit_bytes }) => self.chip(
+                &format!(
+                    "{label} · Exceeds {}",
                     crate::editor::registry::format_byte_limit(*limit_bytes)
-                ))))
-            }
-            Err(_) => ImageLoad::Failed(None),
-        };
-        match state {
-            ImageLoad::Ready {
-                image,
-                width,
-                height,
-            } => {
-                let (w, h) = html_image_dimensions(
-                    (width, height),
-                    (number("width"), number("height")),
-                    available,
-                );
-                img(ImageSource::Render(image))
-                    .debug_selector(|| "md-html-img".into())
-                    .w(px(w))
-                    .h(px(h))
-                    .max_w_full()
-                    .into_any_element()
-            }
-            ImageLoad::Loading => div()
-                .w(px(number("width").unwrap_or(96.)))
-                .h(px(number("height").unwrap_or(54.)))
-                .into_any_element(),
-            ImageLoad::Failed(Some(reason)) => self.chip(&format!("{label} · {reason}"), inherit),
-            ImageLoad::Failed(None) => self.chip(&label, inherit),
+                ),
+                inherit,
+            ),
+            Err(_) => self.chip(&label, inherit),
         }
     }
 }

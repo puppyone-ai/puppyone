@@ -6,7 +6,7 @@
 //! lines, so the source stays the one document.
 use super::{CodeBlock, highlight, style::CodeBlockStyle};
 use crate::editor::{
-    markdown::{shared::ring, style::BlockStyle},
+    markdown::{shared::widgets::ring, style::BlockStyle},
     view::{
         style::TextStyle,
         widget::{BlockWidget, WidgetCx},

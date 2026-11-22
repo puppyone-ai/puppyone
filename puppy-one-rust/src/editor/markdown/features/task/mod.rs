@@ -170,6 +170,7 @@ mod tests {
             features: FEATURES,
             assets: None,
             references: None,
+            inline_preview: None,
         });
         let Block::Line {
             style: checked_line,

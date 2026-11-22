@@ -5,9 +5,8 @@
 //! - Workspace symlink & canonical containment verification (`<= 32 MiB`);
 //! - Public IP validation & DNS-pinned HTTPS client construction (`TA-50`).
 use crate::editor::{
-    markdown::shared::{
-        dom::{self, MAX_HTML_DEPTH, Parsed},
-        media_source::{self, MAX_DATA_BYTES, MAX_DATA_ENCODED_LEN, MediaSource, MediaSourceError},
+    markdown::shared::media::{
+        self, MAX_DATA_BYTES, MAX_DATA_ENCODED_LEN, MediaSource, MediaSourceError,
     },
     registry::format_byte_limit,
 };
@@ -19,9 +18,27 @@ use std::{
     time::{Duration, UNIX_EPOCH},
 };
 
-pub use dom::MAX_HTML_DEPTH as HTML_MAX_DEPTH;
-pub use dom::is_blocked_tag as is_blocked_html_tag;
-pub use media_source::{
+/// Maximum HTML element nesting depth accepted by the parser and renderer (`TA-51`).
+pub const MAX_HTML_DEPTH: usize = 64;
+pub const HTML_MAX_DEPTH: usize = MAX_HTML_DEPTH;
+
+/// `BLOCKED_EXECUTABLE_TAGS`: dropped whether opened/closed, void, or self-closing.
+pub const BLOCKED_TAGS: &[&str] = &[
+    "base", "embed", "form", "iframe", "input", "link", "meta", "object", "script", "style",
+    "template",
+];
+
+/// `BLOCKED_TAGS_DROPPED_WITH_CONTENT`: their payload never surfaces as text.
+/// The other blocked tags (such as a `form` wrapper) unwrap to their children.
+pub const DROPPED_WITH_CONTENT: &[&str] =
+    &["embed", "iframe", "object", "script", "style", "template"];
+
+pub fn is_blocked_tag(tag: &str) -> bool {
+    BLOCKED_TAGS.contains(&tag.to_ascii_lowercase().as_str())
+}
+
+pub use is_blocked_tag as is_blocked_html_tag;
+pub use media::{
     MAX_DATA_BYTES as DATA_URL_MAX_BYTES, MAX_DATA_ENCODED_LEN as DATA_URL_MAX_ENCODED_LEN,
 };
 
@@ -106,22 +123,16 @@ pub enum ContentStamp {
     Immutable,
 }
 
-/// Sanitizes and validates an HTML snippet under `MAX_HTML_DEPTH` and `BLOCKED_TAGS`.
-pub fn parse_sanitized_html(source: &str) -> Parsed {
-    debug_assert_eq!(MAX_HTML_DEPTH, 64);
-    dom::parse(source)
-}
-
 /// Validates and decodes a `data:image/*` URL (`<= 2 MiB`), rejecting oversized
 /// encoded strings in $O(1)$ before Base64/percent decoding (`TA-51`).
 pub fn validate_data_image_url(href: &str) -> Result<Vec<u8>, AssetFailure> {
     debug_assert_eq!(MAX_DATA_ENCODED_LEN, MAX_DATA_BYTES * 4 / 3 + 64);
-    media_source::decode_raster_data_url(href).map_err(AssetFailure::from_source_error)
+    media::decode_raster_data_url(href).map_err(AssetFailure::from_source_error)
 }
 
 /// Resolves a Markdown image `href` against policy rules.
 pub fn resolve_image_reference(document: &Path, href: &str) -> Result<MediaSource, AssetFailure> {
-    media_source::resolve_markdown_media(document, href).map_err(AssetFailure::from_source_error)
+    media::resolve_markdown_media(document, href).map_err(AssetFailure::from_source_error)
 }
 
 /// Extracts a local filesystem root directory from `DocumentAssets.workspace`
@@ -366,31 +377,6 @@ pub fn build_pinned_https_client(
 mod tests {
     use super::*;
     use core::prelude::v1::test;
-
-    #[test]
-    fn html_policy_blocks_void_and_self_closing_tags_and_deep_trees() {
-        for snippet in [
-            "<div><embed src=\"a.swf\"/></div>",
-            "<div><base href=\"https://evil.test/\"/></div>",
-            "<div><link rel=\"stylesheet\" href=\"x.css\"/></div>",
-            "<div><meta charset=\"utf-8\"/></div>",
-            "<div><input value=\"x\"/></div>",
-        ] {
-            let Parsed::Complete(nodes) = parse_sanitized_html(snippet) else {
-                panic!("expected complete parse for {snippet}");
-            };
-            let dom::Node::Element(div) = &nodes[0] else {
-                panic!("expected div");
-            };
-            assert!(
-                div.children.is_empty(),
-                "blocked tag survived in {snippet}: {div:?}"
-            );
-        }
-
-        let deep = format!("{}ok{}", "<div>".repeat(200), "</div>".repeat(200));
-        assert_eq!(parse_sanitized_html(&deep), Parsed::Unsupported);
-    }
 
     #[test]
     fn oversized_data_image_url_is_rejected_before_decode() {

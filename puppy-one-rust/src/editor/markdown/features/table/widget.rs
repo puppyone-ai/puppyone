@@ -13,7 +13,7 @@ use super::{
     style::TableStyle,
 };
 use crate::editor::{
-    markdown::shared::ring,
+    markdown::shared::widgets::ring,
     view::{
         style::TextStyle,
         widget::{BlockWidget, WidgetCx},

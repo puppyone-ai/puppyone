@@ -3,18 +3,13 @@
 //! one in text colour on a 2px rule, and `</>` (Source) at the end, showing
 //! while the block is hovered or focused — over the panel of the shown tab
 //! (`padding: 18px 2px 8px`, at least 54px), its Markdown rendered through
-//! [`shared::html_surface::Surface`] and [`platform::HtmlPlatformBridge`],
-//! with zero cross-feature imports (`TA-41`, `R5`).
+//! [`shared::preview::InlinePreview`] with zero cross-feature imports
+//! (`MA-07`, `MA-12`, `R5`, `R13`).
 use super::{Action, ID, TabsBlock};
 use crate::{
     editor::{
         markdown::{
-            platform::HtmlPlatformBridge,
-            shared::{
-                dom::markdown_nodes,
-                html_surface::{Surface, measured_height, record_measured_height},
-                ring,
-            },
+            shared::{preview::InlinePreview, widgets::ring},
             style::MarkdownTheme,
         },
         registry::DocumentAssets,
@@ -50,6 +45,7 @@ pub struct TabsWidget {
     theme: MarkdownTheme,
     assets: Option<DocumentAssets>,
     active: usize,
+    inline_preview: Option<&'static dyn InlinePreview>,
 }
 
 impl TabsWidget {
@@ -58,6 +54,7 @@ impl TabsWidget {
         theme: &MarkdownTheme,
         assets: Option<DocumentAssets>,
         active: usize,
+        inline_preview: Option<&'static dyn InlinePreview>,
     ) -> Self {
         let active = active.min(block.tabs.len().saturating_sub(1));
         Self {
@@ -65,6 +62,7 @@ impl TabsWidget {
             theme: theme.clone(),
             assets,
             active,
+            inline_preview,
         }
     }
 }
@@ -80,7 +78,11 @@ impl BlockWidget for TabsWidget {
         let mut h = std::hash::DefaultHasher::new();
         ("mdx-tabs", at, self.active, &tab.content, width.to_bits()).hash(&mut h);
         let key = h.finish();
-        let panel_height = measured_height(key).unwrap_or(PANEL_MIN).max(PANEL_MIN);
+        let panel_height = self
+            .inline_preview
+            .and_then(|p| p.measured_height(key))
+            .unwrap_or(PANEL_MIN)
+            .max(PANEL_MIN);
         let height = TOOLBAR + panel_height;
 
         let text = &self.theme.body.text;
@@ -184,21 +186,21 @@ impl BlockWidget for TabsWidget {
             .as_ref()
             .map(|a| a.document.clone())
             .unwrap_or_default();
-        let nodes = markdown_nodes(tab.content.trim());
         let inner = (width - 2. * PANEL_X).max(0.);
-        let view = cx.render.view.clone();
         let block_id = at + 1 + self.active;
-        let mut bridge =
-            HtmlPlatformBridge::new(&self.theme, self.assets.as_ref(), view.clone(), block_id);
-        let content = Surface::new(
-            &self.theme,
-            Path::new(&document),
-            view,
-            block_id,
-            cx.render,
-            &mut bridge,
-        )
-        .render(&nodes, inner);
+        let inline_preview = self.inline_preview;
+        let content = match inline_preview {
+            Some(preview) => preview.render_markdown(
+                tab.content.trim(),
+                inner,
+                Path::new(&document),
+                block_id,
+                &self.theme,
+                self.assets.as_ref(),
+                cx.render,
+            ),
+            None => div().into_any_element(),
+        };
         let measured = div()
             .absolute()
             .left(px(PANEL_X))
@@ -208,7 +210,7 @@ impl BlockWidget for TabsWidget {
             .on_children_prepainted(move |bounds, window, _| {
                 let Some(b) = bounds.first() else { return };
                 let h = f32::from(b.size.height) + PANEL_TOP + PANEL_BOTTOM;
-                if record_measured_height(key, h) {
+                if inline_preview.is_some_and(|p| p.record_measured_height(key, h)) {
                     window.refresh();
                 }
             });

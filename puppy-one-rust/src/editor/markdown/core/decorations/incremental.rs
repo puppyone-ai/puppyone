@@ -161,6 +161,7 @@ pub fn decorate_incremental_in_place(
             feature_state: cx.preview.features.clone(),
             assets: cx.assets.cloned(),
             references: cx.references.cloned(),
+            inline_preview: cx.inline_preview,
         }));
     }
 

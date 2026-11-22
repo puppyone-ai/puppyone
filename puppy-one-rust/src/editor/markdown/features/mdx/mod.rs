@@ -517,6 +517,7 @@ impl MarkdownFeature for MdxFeature {
             cx.theme,
             cx.assets.cloned(),
             active,
+            cx.inline_preview,
         )))
     }
 
@@ -619,6 +620,7 @@ mod tests {
             features,
             assets: None,
             references: None,
+            inline_preview: None,
         });
         let widgets = decorations
             .blocks
@@ -949,6 +951,7 @@ mod tests {
             features: MDX_FEATURES,
             assets: None,
             references: None,
+            inline_preview: None,
         });
         assert!(
             decorated.hidden.is_empty(),

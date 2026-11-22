@@ -1,13 +1,10 @@
 //! Helpers shared by Markdown feature widgets (product `markdown/shared`):
-//! media reference parsing, sanitized HTML DOM & rendering surface, fenced
-//! block budget helpers, inline token scanning, focus/selection rings,
-//! toolbar source toggle, and visible fallback primitives. Never imports
-//! `core`, `features`, `platform`, `composition`, or `addons` (`R6`, `TA-41`).
-pub mod dom;
-pub mod fallback;
+//! media reference parsing, isolated preview port, fenced block helpers,
+//! inline token scanning, and shared widget chrome (`ring`, `source_toggle`,
+//! `fallback`). Never imports `core`, `features`, `platform`, `composition`,
+//! or `addons` (`R6`, `MA-08`).
 pub mod fence;
-pub mod html_surface;
-pub mod media_source;
-pub mod ring;
-pub mod source_toggle;
+pub mod media;
+pub mod preview;
 pub mod token_scan;
+pub mod widgets;

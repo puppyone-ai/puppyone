@@ -1,5 +1,5 @@
-//! Single-line delimiter scanning, balanced parentheses, and backslash escape
-//! helpers (product `shared/inlineTokenScan.ts`).
+//! Single-line delimiter scanning, balanced parentheses, backslash escape, and
+//! HTML character-entity decoding helpers (product `shared/inlineTokenScan.ts`).
 //!
 //! Floor-layer utility: depends only on `std` (`R6`, `MA-08`).
 
@@ -68,4 +68,63 @@ pub fn closing_paren(source: &[u8], start: usize) -> (Option<usize>, usize) {
         }
     }
     (None, source.len())
+}
+
+/// Decodes `&name;`, `&#n;` and `&#xh;` HTML character references.
+pub fn decode_entities(text: &str) -> String {
+    if !text.contains('&') {
+        return text.to_owned();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('&') {
+        out.push_str(&rest[..at]);
+        rest = &rest[at..];
+        let end = rest[1..].find(';').map(|i| i + 1).filter(|&i| i <= 12);
+        let decoded = end.and_then(|end| {
+            let name = &rest[1..end];
+            let c = if let Some(num) = name.strip_prefix('#') {
+                let n = match num.strip_prefix(['x', 'X']) {
+                    Some(hex) => u32::from_str_radix(hex, 16).ok()?,
+                    None => num.parse().ok()?,
+                };
+                char::from_u32(n)?
+            } else {
+                match name {
+                    "amp" => '&',
+                    "lt" => '<',
+                    "gt" => '>',
+                    "quot" => '"',
+                    "apos" => '\'',
+                    "nbsp" => '\u{a0}',
+                    "copy" => '©',
+                    "reg" => '®',
+                    "trade" => '™',
+                    "hellip" => '…',
+                    "mdash" => '—',
+                    "ndash" => '–',
+                    "middot" => '·',
+                    "times" => '×',
+                    "rarr" => '→',
+                    "larr" => '←',
+                    "laquo" => '«',
+                    "raquo" => '»',
+                    _ => return None,
+                }
+            };
+            Some((c, end + 1))
+        });
+        match decoded {
+            Some((c, len)) => {
+                out.push(c);
+                rest = &rest[len..];
+            }
+            None => {
+                out.push('&');
+                rest = &rest[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }

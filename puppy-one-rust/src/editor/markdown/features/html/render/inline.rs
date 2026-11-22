@@ -2,7 +2,7 @@
 //! for [`Surface`].
 use super::{Inherit, Piece, Surface, style_color};
 use crate::editor::{
-    markdown::shared::dom::{MAX_HTML_DEPTH, Node},
+    markdown::features::html::sanitize::{MAX_HTML_DEPTH, Node},
     view::render::RenderCx,
 };
 use gpui::{prelude::*, *};
@@ -13,7 +13,7 @@ pub(crate) fn resolved_strong_weight(inherited: f32, strong: f32) -> f32 {
     inherited.max(strong)
 }
 
-impl Surface<'_, '_, '_, '_> {
+impl Surface<'_, '_, '_> {
     /// `.cm-md-image-placeholder`: muted meta text in a bordered chip.
     pub(super) fn chip(&mut self, label: &str, inherit: &Inherit) -> AnyElement {
         let t = crate::theme::Theme::new(self.theme.dark);

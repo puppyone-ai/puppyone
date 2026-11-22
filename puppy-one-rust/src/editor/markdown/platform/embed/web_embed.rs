@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     editor::{
-        markdown::{shared::fallback::action_pill, style::MarkdownTheme},
+        markdown::{shared::widgets::fallback::action_pill, style::MarkdownTheme},
         view::editor::EditorView,
     },
     localization::{t, tf},

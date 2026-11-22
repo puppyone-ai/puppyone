@@ -9,18 +9,19 @@
 pub mod dom;
 pub mod embed;
 pub mod inline;
+pub mod render;
+pub mod sanitize;
+pub mod structure;
+pub mod tokenizer;
 mod widget;
 
 use crate::editor::{
-    markdown::{
-        core::{
-            decorations::BlockDecoration,
-            features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
-            plans::{BlockEmbed, Plan, Presentation},
-            state::PreviewState,
-            syntax::{Element, Syntax},
-        },
-        shared::dom::markdown_html,
+    markdown::core::{
+        decorations::BlockDecoration,
+        features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+        plans::{BlockEmbed, Plan, Presentation},
+        state::PreviewState,
+        syntax::{Element, Syntax},
     },
     text::{
         buffer::Buffer,
@@ -30,6 +31,7 @@ use crate::editor::{
     view::{command::Command, widget::BlockWidget},
 };
 use std::{ops::Range, rc::Rc};
+use structure::markdown_html;
 use widget::HtmlBlockWidget;
 
 pub struct HtmlFeature;

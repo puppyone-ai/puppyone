@@ -11,7 +11,7 @@ use crate::{
         markdown::{
             MarkdownExtension, SetAssets, SetDialect,
             features::{code_block::highlight, mermaid},
-            shared::source_toggle::toggle_left,
+            shared::widgets::source_toggle::toggle_left,
             style::MarkdownTheme,
             tests::{setup, setup_with_focus},
         },

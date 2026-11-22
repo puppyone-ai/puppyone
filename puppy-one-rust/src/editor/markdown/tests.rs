@@ -628,6 +628,7 @@ fn random_markdown_and_edits_never_panic_the_pipeline() {
             features,
             assets: None,
             references: None,
+            inline_preview: Some(&super::composition::preview::PREVIEW),
         });
         let _ = preview.normalize(&state.doc, &syntax, state.selection);
     };
@@ -1931,6 +1932,7 @@ fn assert_matches_full_pipeline(
         features: FEATURES,
         assets: None,
         references: None,
+        inline_preview: Some(&super::composition::preview::PREVIEW),
     });
     let full_rev = decorations::decorate_reveal(
         &full_doc,
@@ -1945,6 +1947,7 @@ fn assert_matches_full_pipeline(
             features: FEATURES,
             assets: None,
             references: None,
+            inline_preview: Some(&super::composition::preview::PREVIEW),
         },
         state.revision,
     );

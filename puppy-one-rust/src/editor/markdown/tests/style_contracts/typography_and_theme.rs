@@ -12,8 +12,8 @@ use crate::{
         markdown::{
             SetLivePreview,
             core::{decorations, presentation::classes::Class},
+            features::html::render::resolved_strong_weight,
             features::{math, mermaid},
-            shared::html_surface::resolved_strong_weight,
             style::{
                 cascade::{self, LineInput},
                 marks,

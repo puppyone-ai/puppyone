@@ -7,7 +7,7 @@ use crate::{
         markdown::{
             MarkdownExtension, SetAssets,
             features::html::HtmlBlock,
-            shared::dom::{self, Element, Node},
+            features::html::dom::{self, Element, Node},
         },
         registry::DocumentAssets,
         text::{selection::Selection, state::EditorState},

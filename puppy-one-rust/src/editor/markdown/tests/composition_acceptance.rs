@@ -84,6 +84,7 @@ fn block_constructs_compile_to_their_features_widget() {
                     assets: None,
                     references: None,
                     state: &state,
+                    inline_preview: Some(&crate::editor::markdown::composition::preview::PREVIEW),
                 };
                 features::find(FEATURES, embed.feature)
                     .and_then(|f| f.block_widget(embed, &factory))

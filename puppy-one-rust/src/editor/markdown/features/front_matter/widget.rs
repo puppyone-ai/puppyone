@@ -5,7 +5,7 @@
 //! reveals the metadata's source in place.
 use super::{FrontMatter, ID, ShowSource};
 use crate::editor::{
-    markdown::{shared::source_toggle::source_toggle, style::MarkdownTheme},
+    markdown::{shared::widgets::source_toggle::source_toggle, style::MarkdownTheme},
     view::{
         command::Command,
         style::TextStyle,

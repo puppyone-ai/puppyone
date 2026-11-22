@@ -27,7 +27,7 @@ use crate::{
                 assets as md_assets,
                 render::{LastGoodCache, RenderQueueCore},
             },
-            shared::media_source::{self, MediaSource},
+            shared::media::{self, MediaSource},
         },
         navigation::{Document as NavDocument, ReferenceContext, ReferenceIndex},
         registry::DocumentAssets,
@@ -300,12 +300,12 @@ fn markdown_image_readiness_resolves_embeds_keeps_sessions_and_owns_clicks(
     });
 
     // 3. Remote HTTPS badge URLs resolve as Remote, never forwarding to workspace asset reads.
-    let badge = media_source::markdown(
+    let badge = media::markdown(
         Path::new("README.md"),
         "https://img.shields.io/badge/Docs-Read-blue",
     );
     assert!(matches!(badge, Some(MediaSource::Remote(_))));
-    let local = media_source::markdown(
+    let local = media::markdown(
         Path::new("Puppyone — One Pager.md"),
         "asserts/market-unbundling-chart.png",
     );

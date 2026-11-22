@@ -18,7 +18,7 @@ use crate::editor::{
             syntax::Kind,
         },
         platform::policy::AssetFailure,
-        shared::media_source::{MediaSource, parse_video_size, resolve_embed_media},
+        shared::media::{MediaSource, parse_video_size, resolve_embed_media},
     },
     text::{
         selection::Selection,
