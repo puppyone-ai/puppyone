@@ -1,7 +1,11 @@
-//! The product's `inline-syntax` parser extension (inlineSyntaxParser.ts) and
-//! Lezer's `Emoji` extension, as source scans: `==highlight==`,
-//! `%%comment%%` and `:shortcode:` (`assets/markdown/emoji-shortcodes.json`,
-//! imported by `tools/import-emoji-shortcodes.py`).
+//! The product's `inline-syntax` parser extension (`inlineSyntaxParser.ts`) and
+//! Lezer's `Emoji` extension: `==highlight==`, `%%comment%%`, and `:shortcode:`
+//! (`assets/markdown/emoji-shortcodes.json`, imported by
+//! `tools/import-emoji-shortcodes.py`).
+use crate::editor::{
+    markdown::core::syntax::{Element, Kind, Span, Syntax},
+    text::buffer::Buffer,
+};
 use std::{collections::HashMap, ops::Range, sync::OnceLock};
 
 fn table() -> &'static HashMap<String, String> {
@@ -57,6 +61,7 @@ fn flanked(text: &str, at: usize, before: bool) -> bool {
     };
     c.is_some_and(|c| !c.is_whitespace())
 }
+
 /// `==text==` on one line (`HighlightDelimiter`): an opening `==` before
 /// non-space, the nearest closing `==` after non-space; `===` is neither.
 /// (opening, closing) byte offsets of the two delimiters.
@@ -87,71 +92,6 @@ pub fn highlights(text: &str) -> Vec<(usize, usize)> {
     out
 }
 
-#[cfg(test)]
-fn escaped(bytes: &[u8], at: usize) -> bool {
-    bytes[..at]
-        .iter()
-        .rev()
-        .take_while(|b| **b == b'\\')
-        .count()
-        % 2
-        == 1
-}
-
-#[cfg(test)]
-pub fn inline_math(text: &str) -> Vec<(usize, usize)> {
-    let bytes = text.as_bytes();
-    let space = |i: usize| bytes.get(i).is_none_or(|b| b.is_ascii_whitespace());
-    let mut out = Vec::new();
-    let mut open = 0;
-    while open < bytes.len() {
-        if bytes[open] != b'$'
-            || bytes.get(open + 1) == Some(&b'$')
-            || escaped(bytes, open)
-            || space(open + 1)
-        {
-            open += 1;
-            continue;
-        }
-        let mut next = open;
-        let mut close = open + 1;
-        while close < bytes.len() {
-            if bytes[close] != b'$' || escaped(bytes, close) {
-                close += 1;
-                continue;
-            }
-            if bytes[close - 1] == b'$'
-                || bytes.get(close + 1) == Some(&b'$')
-                || bytes[close - 1].is_ascii_whitespace()
-            {
-                next = if bytes.get(close + 1) == Some(&b'$') {
-                    close + 1
-                } else {
-                    close - 1
-                };
-                break;
-            }
-            let source = &text[open + 1..close];
-            let currency = bytes.get(close + 1).is_some_and(u8::is_ascii_digit)
-                && source
-                    .trim_start_matches(['+', '-'])
-                    .trim_end_matches(['-', '–', '—'])
-                    .chars()
-                    .all(|c| c.is_ascii_digit() || c == ',' || c == '.')
-                && source
-                    .trim_start_matches(['+', '-'])
-                    .starts_with(|c: char| c.is_ascii_digit());
-            if !currency {
-                out.push((open, close));
-            }
-            next = close;
-            break;
-        }
-        open = next.max(open) + 1;
-    }
-    out
-}
-
 /// `%%comment%%` on one line (`PercentComment`).
 pub fn percent_comments(text: &str) -> Vec<Range<usize>> {
     let mut out = Vec::new();
@@ -170,6 +110,89 @@ pub fn percent_comments(text: &str) -> Vec<Range<usize>> {
     out
 }
 
+/// Emit `Kind::Highlight` (`==text==`) and `Kind::Comment` (`%%comment%%`)
+/// elements on one eligible line or table cell.
+pub fn recognize_line(line_start: usize, line_text: &str, out: &mut Vec<Element>) {
+    if line_text.contains("==") {
+        for (open, close) in highlights(line_text) {
+            let (from, to) = (line_start + open, line_start + close + 2);
+            out.push(Element::new(
+                Kind::Highlight,
+                from..to,
+                vec![from..from + 2, to - 2..to],
+                Some(from + 2..to - 2),
+            ));
+        }
+    }
+    if line_text.contains("%%") {
+        for comment in percent_comments(line_text) {
+            let r = line_start + comment.start..line_start + comment.end;
+            out.push(Element::new(Kind::Comment, r.clone(), vec![], Some(r)));
+        }
+    }
+}
+
+/// Collect `:shortcode:` (`Kind::Emoji`) elements inside `window`, respecting
+/// CommonMark code blocks, inline code, HTML tags/blocks, link destinations,
+/// comments, and link definitions.
+pub fn collect_emoji_in_range(
+    doc: &Buffer,
+    syntax: &Syntax,
+    window: Range<usize>,
+    out: &mut Vec<Element>,
+) {
+    let ranges = syntax.inline_ranges_in(doc, window);
+    if ranges.is_empty() {
+        return;
+    }
+    let overlaps = |spans: &[Span], r: &Span| -> bool {
+        let i = spans.partition_point(|s| s.end <= r.start);
+        spans.get(i).is_some_and(|s| s.start < r.end)
+    };
+    let link_def_overlaps = |r: &Span| -> bool {
+        let i = syntax.link_defs.partition_point(|(s, _)| s.end <= r.start);
+        syntax
+            .link_defs
+            .get(i)
+            .is_some_and(|(s, _)| s.start < r.end)
+    };
+    for region in ranges {
+        let text_cow = doc.slice_cow(region.clone());
+        let text = text_cow.as_ref();
+        if !text.contains(':') {
+            continue;
+        }
+        for (rel, glyph) in emoji(text) {
+            let r = region.start + rel.start..region.start + rel.end;
+            if overlaps(&syntax.inline_tags, &r)
+                || overlaps(&syntax.html_blocks, &r)
+                || link_def_overlaps(&r)
+            {
+                continue;
+            }
+            let suppressed = syntax.elements_in(r.clone()).any(|e| {
+                if e.range.start >= r.end || e.range.end <= r.start {
+                    return false;
+                }
+                match e.kind {
+                    Kind::InlineCode | Kind::Comment => true,
+                    Kind::Link | Kind::Image => !e
+                        .content
+                        .as_ref()
+                        .is_some_and(|c| c.start <= r.start && r.end <= c.end),
+                    _ => false,
+                }
+            });
+            if suppressed {
+                continue;
+            }
+            let mut e = Element::new(Kind::Emoji, r.clone(), vec![r], None);
+            e.text = Some(glyph.to_owned());
+            out.push(e);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,9 +208,5 @@ mod tests {
         assert_eq!(highlights("a ==b c== d === e"), vec![(2, 7)]);
         assert!(highlights("== spaced ==").is_empty());
         assert_eq!(percent_comments("x %%hidden%% y %%open"), vec![2..12]);
-        assert_eq!(inline_math("a $x^2$ b"), vec![(2, 6)]);
-        assert!(inline_math("costs $5 and $10").is_empty());
-        assert!(inline_math("$$x$$ and $ y$").is_empty());
-        assert!(inline_math(r"\$x$").is_empty());
     }
 }

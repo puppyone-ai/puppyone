@@ -1,11 +1,11 @@
-//! The built-in Markdown features (composition/markdownFeatureComposition.ts):
+//! The built-in Markdown features (`composition/markdownFeatureComposition.ts`):
 //! the only lists of them, one per dialect. Order matters where features
 //! claim the same source (earlier wins).
 use super::{
     core::features::{Features, MarkdownFeature},
     features::{
-        callout, code_block, front_matter, html, image, math, mdx, mermaid, rule, table, task,
-        video,
+        callout, code_block, footnote, front_matter, html, image, inline_syntax, math, mdx, media,
+        mermaid, rule, table, task, video,
     },
 };
 
@@ -23,6 +23,9 @@ pub static FEATURES: Features = &[
     &callout::FEATURE,
     &image::FEATURE,
     &video::FEATURE,
+    &footnote::FEATURE,
+    &inline_syntax::FEATURE,
+    &media::FEATURE,
 ];
 
 /// `openKnowledgeMdxFeatures`: the OpenKnowledge dialect, components claiming
@@ -40,4 +43,58 @@ pub static MDX_FEATURES: Features = &[
     &callout::FEATURE,
     &image::FEATURE,
     &video::FEATURE,
+    &footnote::FEATURE,
+    &inline_syntax::FEATURE,
+    &media::FEATURE,
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn dialect_feature_lists_preserve_exact_claim_order() {
+        let gfm: Vec<&str> = FEATURES.iter().map(|f| f.id()).collect();
+        assert_eq!(
+            gfm,
+            [
+                "front-matter",
+                "math",
+                "mermaid",
+                "code-block",
+                "html",
+                "table",
+                "rule",
+                "task",
+                "callout",
+                "image",
+                "video",
+                "footnote",
+                "inline-syntax",
+                "media",
+            ]
+        );
+        let mdx: Vec<&str> = MDX_FEATURES.iter().map(|f| f.id()).collect();
+        assert_eq!(
+            mdx,
+            [
+                "front-matter",
+                "math",
+                "mermaid",
+                "code-block",
+                "mdx-component",
+                "html",
+                "table",
+                "rule",
+                "task",
+                "callout",
+                "image",
+                "video",
+                "footnote",
+                "inline-syntax",
+                "media",
+            ]
+        );
+    }
+}

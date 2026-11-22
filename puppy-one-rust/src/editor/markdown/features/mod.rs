@@ -5,11 +5,14 @@
 //! `markdown/composition.rs`.
 pub mod callout;
 pub mod code_block;
+pub mod footnote;
 pub mod front_matter;
 pub mod html;
 pub mod image;
+pub mod inline_syntax;
 pub mod math;
 pub mod mdx;
+pub mod media;
 pub mod mermaid;
 pub mod rule;
 pub mod table;

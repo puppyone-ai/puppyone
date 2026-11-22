@@ -7,16 +7,6 @@ use std::{
     hash::{DefaultHasher, Hash, Hasher},
 };
 
-/// Plain view-state value of a rendered diagram (`mermaid/widget.rs` reads it).
-/// Moves to `features/mermaid/state.rs` in Step M3.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct DiagramView {
-    /// The zoom chosen here, in percent; `None` keeps the fitted default.
-    pub zoom: Option<u16>,
-    /// A deferred diagram the person asked to render.
-    pub activated: bool,
-}
-
 /// Trait implemented by per-feature pane state values (`TA-40`).
 pub trait FeatureStateValue: Clone + fmt::Debug + PartialEq + Hash + Default + 'static {
     fn map_changes(&mut self, changes: &ChangeSet, doc: &Buffer, new_revision: u64);
@@ -69,11 +59,6 @@ pub struct FeatureStateStore {
     slots: BTreeMap<&'static str, Box<dyn FeatureStateSlot>>,
     mapped_revision: Option<u64>,
 }
-
-/// Type alias kept for untouched feature unit tests (`video/mod.rs`, `html/mod.rs`)
-/// that pass `&CalloutFolds::default()` into `plans::compile`.
-/// Moves to `features/callout/state.rs` in Step M3.
-pub type CalloutFolds = FeatureStateStore;
 
 impl Clone for FeatureStateStore {
     fn clone(&self) -> Self {

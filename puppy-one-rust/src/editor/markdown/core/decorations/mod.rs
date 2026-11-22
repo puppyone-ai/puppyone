@@ -1139,7 +1139,7 @@ pub fn decorate_incremental_in_place(
 }
 
 /// Build the Reveal Layer (`TA-11`) for ONLY the 0–3 line spans intersecting
-/// active `preview.revealed`, `preview.composing`, or `preview.callout_title`.
+/// active `preview.revealed`, `preview.composing`, or `preview.reveal_line`.
 /// Never rebuilds Document-Layer blocks!
 pub fn decorate_reveal(doc_decos: &Decorations, cx: &DecorateCx, revision: u64) -> RevealLayer {
     decorate_reveal_with_fallbacks(doc_decos, cx, revision, None)
@@ -1175,10 +1175,10 @@ pub fn decorate_reveal_with_fallbacks(
         let l = cx.doc.line_index(cx.doc.clamp(comp));
         line_spans.push(l..(l + 1).min(total));
     }
-    if let Some(ct) = cx.preview.callout_title
-        && ct < total
+    if let Some(rl) = cx.preview.reveal_line
+        && rl < total
     {
-        line_spans.push(ct..ct + 1);
+        line_spans.push(rl..rl + 1);
     }
     if line_spans.is_empty() {
         return RevealLayer::empty();

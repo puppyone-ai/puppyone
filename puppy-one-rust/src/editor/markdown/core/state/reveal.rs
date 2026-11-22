@@ -1,6 +1,6 @@
 //! Inline reveal range calculation (product `core/state/livePreviewReveal.ts`).
 use crate::editor::{
-    markdown::core::syntax::Syntax,
+    markdown::core::syntax::{Kind, Syntax},
     text::{
         change::Assoc,
         state::{Applied, EditorState},
@@ -8,8 +8,11 @@ use crate::editor::{
 };
 use std::ops::Range;
 
-/// Callout title line reveal check; moves to `features/callout/state.rs` in Step M3.
-pub(super) fn callout_title_at(
+/// Feature-agnostic block-header reveal line: when a focused, editable caret
+/// sits on the opening line of a top-level blockquote, record that line so
+/// features decorating quote headers (e.g. callouts) can reveal raw syntax
+/// without leaking feature types into `core/state`.
+pub(super) fn reveal_line_at(
     state: &EditorState,
     syntax: &Syntax,
     focused: bool,
@@ -19,10 +22,16 @@ pub(super) fn callout_title_at(
         return None;
     }
     let line = state.doc.line_index(state.selection.head);
-    syntax
-        .callout_at(line)
-        .is_some_and(|c| c.first_line == line)
-        .then_some(line)
+    let line_range = state.doc.line_range(line);
+    let outer_quote = syntax
+        .elements_in(line_range.clone())
+        .filter(|e| e.kind == Kind::Blockquote)
+        .min_by_key(|e| (e.range.start, std::cmp::Reverse(e.range.end)))?;
+    let first = outer_quote
+        .line
+        .as_ref()
+        .map(|l| state.doc.line_index(l.start))?;
+    (first == line).then_some(line)
 }
 
 pub(super) fn reveal_at(

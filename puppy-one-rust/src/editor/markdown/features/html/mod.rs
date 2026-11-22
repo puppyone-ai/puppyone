@@ -8,6 +8,7 @@
 //! that is only an `https:` `<iframe>` is a web embed (`embed`).
 pub mod dom;
 pub mod embed;
+pub mod inline;
 mod widget;
 
 use crate::editor::{
@@ -17,10 +18,12 @@ use crate::editor::{
             features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
             plans::{BlockEmbed, Plan, Presentation},
             state::PreviewState,
+            syntax::{Element, Syntax},
         },
         shared::dom::markdown_html,
     },
     text::{
+        buffer::Buffer,
         selection::Selection,
         state::{EditorState, Transaction},
     },
@@ -190,6 +193,16 @@ fn blocks(cx: &CompileCx, fallbacks: &mut Vec<Plan>) -> Vec<HtmlBlock> {
 impl MarkdownFeature for HtmlFeature {
     fn id(&self) -> &'static str {
         ID
+    }
+
+    fn collect_range(
+        &self,
+        doc: &Buffer,
+        syntax: &Syntax,
+        window: Range<usize>,
+        out: &mut Vec<Element>,
+    ) {
+        inline::collect_range(doc, syntax, window, out);
     }
 
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {

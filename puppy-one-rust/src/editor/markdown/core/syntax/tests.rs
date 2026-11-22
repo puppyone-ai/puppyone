@@ -158,54 +158,98 @@ fn sample_fixture_parses_every_construct() {
     assert!(s.paragraphs.iter().any(|p| p.item.is_none()));
 }
 
-/// O-6: the product's inline projections — bare URLs are links, a single
-/// `~` strikes, `==` highlights, comments, link definitions, shortcodes and
-/// entities, and reference links open their definition.
+/// `MarkdownFeature::collect_range` produces byte-for-byte identical elements
+/// on incremental re-parse (`Syntax::try_parse_incremental`) vs full parse
+/// (`Syntax::parse_with`) across localized edits in a multi-block document.
 #[test]
-fn inline_syntax_projects_like_the_product() {
-    let text = "see www.x.org and ~gone~ ==hot== %%note%% :smile: &amp; [r][d]\n\n[d]: https://d.example\n";
-    let (_, s) = parse(text);
-    let find = |kind: Kind| s.elements.iter().find(|e| e.kind == kind).unwrap();
-    let bare = s
-        .elements
-        .iter()
-        .find(|e| e.kind == Kind::Link && e.markers.is_empty())
-        .unwrap();
-    assert_eq!(&text[bare.range.clone()], "www.x.org");
-    assert_eq!(bare.href.as_deref(), Some("https://www.x.org"));
-    let strike = find(Kind::Strike);
-    assert_eq!(&text[strike.content.clone().unwrap()], "gone");
-    let highlight = find(Kind::Highlight);
-    assert_eq!(&text[highlight.content.clone().unwrap()], "hot");
-    assert_eq!(&text[find(Kind::Comment).range.clone()], "%%note%%");
-    assert_eq!(find(Kind::Emoji).text.as_deref(), Some("😄"));
-    let entity = find(Kind::Entity);
-    assert_eq!(
-        (&text[entity.range.clone()], entity.text.as_deref()),
-        ("&amp;", Some("&"))
-    );
-    let reference = s
-        .elements
-        .iter()
-        .find(|e| e.kind == Kind::Link && e.range.start == text.find("[r]").unwrap())
-        .unwrap();
-    assert_eq!(reference.href.as_deref(), Some("https://d.example"));
-    let definition = find(Kind::LinkDefinition);
-    assert_eq!(&text[definition.content.clone().unwrap()], "d");
-    // Code keeps its source; a spaced single tilde is no strike.
-    let (_, s) = parse("`==x==` ~a b~ <!-- c -->");
-    assert!(!s.elements.iter().any(|e| e.kind == Kind::Highlight));
-    assert!(!s.elements.iter().any(|e| e.kind == Kind::Strike));
-    assert!(s.elements.iter().any(|e| e.kind == Kind::Comment));
-}
+fn collect_range_incremental_matches_full_parse() {
+    use crate::editor::{
+        markdown::core::features::MarkdownFeature,
+        text::{
+            change::ChangeSet,
+            state::{EditorState, Transaction, UserEvent},
+        },
+    };
 
-/// `keeps image and video policy capabilities distinct`: an embed is an
-/// image or a video by its extension, never both.
-#[test]
-fn images_and_videos_are_distinct_kinds() {
-    use super::lines::{is_image_path, is_video_path};
-    assert!(is_video_path("assets/clip.mp4") && !is_image_path("assets/clip.mp4"));
-    assert!(is_image_path("assets/poster.png") && !is_video_path("assets/poster.png"));
+    struct AtTagFeature;
+    impl MarkdownFeature for AtTagFeature {
+        fn id(&self) -> &'static str {
+            "at-tag"
+        }
+
+        fn collect_range(
+            &self,
+            doc: &Buffer,
+            syntax: &Syntax,
+            window: Range<usize>,
+            out: &mut Vec<Element>,
+        ) {
+            for region in syntax.inline_ranges_in(doc, window) {
+                let text = doc.slice_cow(region.clone());
+                let bytes = text.as_bytes();
+                let mut i = 0;
+                while i < bytes.len() {
+                    if bytes[i] == b'@' {
+                        let len = bytes[i + 1..]
+                            .iter()
+                            .take_while(|b| b.is_ascii_alphanumeric())
+                            .count();
+                        if len > 0 {
+                            let r = region.start + i..region.start + i + 1 + len;
+                            let mut e = Element::new(
+                                Kind::FeatureInline("at-tag"),
+                                r.clone(),
+                                vec![],
+                                None,
+                            );
+                            e.text = Some(text[i + 1..i + 1 + len].to_owned());
+                            out.push(e);
+                            i += 1 + len;
+                            continue;
+                        }
+                    }
+                    i += 1;
+                }
+            }
+        }
+    }
+
+    static FEAT: AtTagFeature = AtTagFeature;
+    static FEAT_LIST: &[&dyn MarkdownFeature] = &[&FEAT];
+    let features: Features = FEAT_LIST;
+
+    let initial = (0..10)
+        .map(|i| format!("Paragraph {i} mentions @user{i} and `code @ignored{i}`."))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let mut state = EditorState::new(&initial);
+    let prev = Syntax::parse_with(&state.doc, features);
+    assert_eq!(
+        prev.elements
+            .iter()
+            .filter(|e| e.kind == Kind::FeatureInline("at-tag"))
+            .count(),
+        10,
+        "code-span suppression must still hide @ignored inside inline code"
+    );
+
+    let needle = "@user5";
+    let pos = initial.find(needle).unwrap();
+    let changes = ChangeSet::replace(pos..pos + needle.len(), "@alice and @bob");
+    let applied = state
+        .apply(Transaction::edit(changes, None, UserEvent::Input))
+        .unwrap();
+    let (inc, _splice) = Syntax::try_parse_incremental(
+        &state.doc,
+        &applied.before_doc,
+        &prev,
+        &applied.changes,
+        features,
+    )
+    .expect("mid-document edit must take the incremental window path");
+    let full = Syntax::parse_with(&state.doc, features);
+    assert_eq!(inc.elements, full.elements);
+    assert_eq!(inc, full);
 }
 
 /// `markdownElements.test.ts`: `normalizes heading marker ranges`, `task

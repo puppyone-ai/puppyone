@@ -392,7 +392,7 @@ impl EditorExtension for MarkdownExtension {
         if changed && !self.live {
             self.preview.reveal = None;
             self.preview.composing = None;
-            self.preview.callout_title = None;
+            self.preview.reveal_line = None;
             self.preview.revealed_source = None;
         } else if changed && self.live {
             let (syntax, _) = self.parse(state);

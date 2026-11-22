@@ -1,29 +1,30 @@
 //! pulldown-cmark offset events → the parts of the Lezer Markdown tree the
-//! product reads: semantic elements (markdownElements.ts), list items
-//! (markdownListStructure.ts), paragraph / item / list boundaries
-//! (markdownBlockRhythm.ts) and the classes `puppyMarkdownHighlightStyle`
-//! assigns through Lezer's style tags (markdownCodeMirrorExtensions.ts).
+//! product reads: semantic elements (`markdownElements.ts`), list items
+//! (`markdownListStructure.ts`), paragraph / item / list boundaries
+//! (`markdownBlockRhythm.ts`), and `puppyMarkdownHighlightStyle` classes.
 //!
-//! Lezer marks delimiters as child nodes (`EmphasisMark`, `LinkMark`, …);
-//! pulldown-cmark reports container ranges only, so those children are
-//! derived from the source here with the same extents.
+//! Table, list, and inline helpers are split into `tree_table.rs`,
+//! `tree_list.rs`, and `tree_inline.rs`.
 use super::{
-    BlockKind, Element, Hl, Kind, List, ListItem, Paragraph, Span, Syntax, TaskLine, autolink,
-    inline_syntax,
+    BlockKind, Element, Hl, Kind, List, Paragraph, Span, Syntax, autolink,
+    tree_inline::{
+        blockquote_element, fence_marks, flatten, heading_element, heading_marks, shift_syntax_base,
+    },
+    tree_list::list_element,
 };
-use pulldown_cmark::{CodeBlockKind, Event, LinkType, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 /// A Lezer node that carries (or blocks) a highlight class.
-struct HlNode {
-    range: Span,
-    own: Hl,
+pub(super) struct HlNode {
+    pub(super) range: Span,
+    pub(super) own: Hl,
     /// `Node/...` style rules: descendants inherit the class.
-    inherit: bool,
-    children: Vec<HlNode>,
+    pub(super) inherit: bool,
+    pub(super) children: Vec<HlNode>,
 }
 
 impl HlNode {
-    fn new(range: Span, own: Hl, inherit: bool) -> Self {
+    pub(super) fn new(range: Span, own: Hl, inherit: bool) -> Self {
         Self {
             range,
             own,
@@ -31,12 +32,13 @@ impl HlNode {
             children: Vec::new(),
         }
     }
-    fn leaf(range: Span, own: Hl) -> Self {
+
+    pub(super) fn leaf(range: Span, own: Hl) -> Self {
         Self::new(range, own, false)
     }
 }
 
-enum Frame {
+pub(super) enum Frame {
     Root,
     Heading,
     Quote,
@@ -58,16 +60,16 @@ enum Frame {
     Other,
 }
 
-struct Walker<'a> {
-    doc: &'a str,
-    syntax: Syntax,
-    stack: Vec<(Frame, HlNode)>,
+pub(super) struct Walker<'a> {
+    pub(super) doc: &'a str,
+    pub(super) syntax: Syntax,
+    pub(super) stack: Vec<(Frame, HlNode)>,
     /// The end of the HTML comment being read (its later events are inside).
-    comment_end: usize,
+    pub(super) comment_end: usize,
 }
 
 /// `trimEnd`: container ranges end at their last content byte, as Lezer's do.
-fn trim(doc: &str, range: Span) -> Span {
+pub(super) fn trim(doc: &str, range: Span) -> Span {
     let end = range.start
         + doc[range.clone()]
             .trim_end_matches(['\n', '\r', ' ', '\t'])
@@ -76,21 +78,21 @@ fn trim(doc: &str, range: Span) -> Span {
 }
 
 /// CodeMirror `countColumn` with tab size 4.
-fn columns(text: &str) -> usize {
+pub(super) fn columns(text: &str) -> usize {
     text.chars()
         .fold(0, |n, c| if c == '\t' { n + 4 - n % 4 } else { n + 1 })
 }
 
-fn line_start(doc: &str, offset: usize) -> usize {
+pub(super) fn line_start(doc: &str, offset: usize) -> usize {
     doc[..offset].rfind('\n').map_or(0, |i| i + 1)
 }
 
-fn line_end(doc: &str, offset: usize) -> usize {
+pub(super) fn line_end(doc: &str, offset: usize) -> usize {
     doc[offset..].find('\n').map_or(doc.len(), |i| offset + i)
 }
 
 /// Whitespace (spaces / tabs) from `at` to the end of its line.
-fn blank_run(doc: &str, at: usize) -> usize {
+pub(super) fn blank_run(doc: &str, at: usize) -> usize {
     doc[at..]
         .bytes()
         .take_while(|&b| b == b' ' || b == b'\t')
@@ -107,7 +109,7 @@ impl<'a> Walker<'a> {
         }
     }
 
-    fn push(&mut self, frame: Frame, node: HlNode) {
+    pub(super) fn push(&mut self, frame: Frame, node: HlNode) {
         self.stack.push((frame, node));
     }
 
@@ -117,20 +119,19 @@ impl<'a> Walker<'a> {
         frame
     }
 
-    fn attach(&mut self, mut node: HlNode) {
+    pub(super) fn attach(&mut self, mut node: HlNode) {
         let parent = &mut self.stack.last_mut().expect("root").1;
-        // Clamp to the parent: pulldown ranges may include a trailing break.
         node.range.start = node.range.start.max(parent.range.start);
         node.range.end = node.range.end.min(parent.range.end).max(node.range.start);
         parent.children.push(node);
     }
 
-    fn quoted(&self) -> bool {
+    pub(super) fn quoted(&self) -> bool {
         self.stack.iter().any(|(f, _)| matches!(f, Frame::Quote))
     }
 
     /// Ancestor item indices, outermost first.
-    fn items(&self) -> Vec<usize> {
+    pub(super) fn items(&self) -> Vec<usize> {
         self.stack
             .iter()
             .filter_map(|(f, _)| {
@@ -153,12 +154,28 @@ impl<'a> Walker<'a> {
         })
     }
 
-    fn in_code(&self) -> bool {
+    pub(super) fn in_code(&self) -> bool {
         matches!(self.stack.last(), Some((Frame::Code, _)))
     }
 
-    fn in_link(&self) -> bool {
+    pub(super) fn in_link(&self) -> bool {
         self.stack.iter().any(|(f, _)| matches!(f, Frame::Link))
+    }
+
+    /// A bare URL is a link only as direct inline content of a paragraph or
+    /// heading (`BARE_URL_PARENTS`).
+    pub(super) fn bare_url_parent(&self) -> bool {
+        matches!(
+            self.stack.last(),
+            Some((Frame::Paragraph | Frame::Heading, _))
+                | Some((
+                    Frame::Item {
+                        implicit: Some(_),
+                        ..
+                    },
+                    _
+                ))
+        )
     }
 
     /// Inline content directly inside a tight list item belongs to an
@@ -222,7 +239,6 @@ impl<'a> Walker<'a> {
             self.inline_content(&range);
         } else {
             self.end_implicit();
-            // Document children (`markdownBlockBoundaries` root blocks).
             if self.stack.len() == 1 {
                 self.syntax.top_blocks.push(trim(self.doc, range.clone()));
             }
@@ -265,10 +281,6 @@ impl<'a> Walker<'a> {
                         self.syntax.elements.push(e);
                     }
                 } else {
-                    // Setext heading: emit `Kind::Heading` with `line = None`
-                    // and empty prefix markers so `Headings` (`TA-34`) and
-                    // `decorations/lines` (`TODO-45`) derive Setext headings
-                    // directly from `Syntax` without affecting ATX prefix rules.
                     let text_slice = &doc[range.clone()];
                     let title_len = text_slice.rfind('\n').map_or(text_slice.len(), |i| {
                         text_slice[..i].trim_end_matches('\r').len()
@@ -295,7 +307,6 @@ impl<'a> Walker<'a> {
                     self.syntax.elements.push(e);
                 }
                 let mut node = HlNode::new(range.clone(), Hl::QUOTE, true);
-                // QuoteMark children: the `>` run starting each covered line.
                 let mut at = range.start;
                 while at < range.end {
                     let end = line_end(doc, at);
@@ -345,132 +356,10 @@ impl<'a> Walker<'a> {
                 );
             }
             Tag::Emphasis | Tag::Strong => {
-                let strong = matches!(tag, Tag::Strong);
-                let n = if strong { 2 } else { 1 };
-                let mut node = HlNode::new(
-                    range.clone(),
-                    if strong { Hl::STRONG } else { Hl::EMPHASIS },
-                    true,
-                );
-                if range.len() >= 2 * n {
-                    let markers = vec![range.start..range.start + n, range.end - n..range.end];
-                    for m in &markers {
-                        node.children.push(HlNode::leaf(m.clone(), Hl::MARKUP));
-                    }
-                    let content = range.start + n..range.end - n;
-                    let kind = if strong { Kind::Strong } else { Kind::Emphasis };
-                    self.syntax
-                        .elements
-                        .push(Element::new(kind, range, markers, Some(content)));
-                }
-                self.push(
-                    if strong {
-                        Frame::Strong
-                    } else {
-                        Frame::Emphasis
-                    },
-                    node,
-                );
+                self.start_emphasis_or_strong(matches!(tag, Tag::Strong), range)
             }
-            Tag::Strikethrough => {
-                // `~~` comes from the product's line expression (lines.rs);
-                // a single `~` is Lezer's `Subscript`, which the product
-                // reads as strikethrough when its content has no space.
-                let double = doc[range.clone()].starts_with("~~") && range.len() >= 4;
-                let mut node = HlNode::new(
-                    range.clone(),
-                    if double { Hl::STRIKE } else { Hl::NONE },
-                    true,
-                );
-                if double {
-                    node.children
-                        .push(HlNode::leaf(range.start..range.start + 2, Hl::MARKUP));
-                    node.children
-                        .push(HlNode::leaf(range.end - 2..range.end, Hl::MARKUP));
-                } else if range.len() >= 3
-                    && doc[range.clone()].starts_with('~')
-                    && doc[range.clone()].ends_with('~')
-                    && !doc[range.start + 1..range.end - 1]
-                        .chars()
-                        .any(char::is_whitespace)
-                {
-                    let markers = vec![range.start..range.start + 1, range.end - 1..range.end];
-                    for m in &markers {
-                        node.children.push(HlNode::leaf(m.clone(), Hl::MARKUP));
-                    }
-                    self.syntax.elements.push(Element::new(
-                        Kind::Strike,
-                        range.clone(),
-                        markers,
-                        Some(range.start + 1..range.end - 1),
-                    ));
-                }
-                self.push(Frame::Strike, node);
-            }
-            Tag::Link {
-                link_type,
-                ref dest_url,
-                ..
-            }
-            | Tag::Image {
-                link_type,
-                ref dest_url,
-                ..
-            } => {
-                // pulldown-cmark excludes the consumed `[]` from collapsed
-                // reference event ranges. Native source hiding and image-line
-                // ownership need the entire authored token.
-                let range = if link_type == LinkType::Collapsed
-                    && doc.as_bytes().get(range.end..range.end + 2) == Some(b"[]")
-                {
-                    range.start..range.end + 2
-                } else {
-                    range
-                };
-                let image = matches!(tag, Tag::Image { .. });
-                // A reference link opens what its definition names.
-                let reference = matches!(
-                    link_type,
-                    LinkType::Reference | LinkType::Collapsed | LinkType::Shortcut
-                )
-                .then(|| dest_url.to_string());
-                let autolink = matches!(link_type, LinkType::Autolink | LinkType::Email);
-                let marks = if autolink {
-                    vec![range.start..range.start + 1, range.end - 1..range.end]
-                } else {
-                    link_marks(doc, &range, image, link_type)
-                };
-                let mut node = HlNode::new(range.clone(), Hl::LINK, !autolink);
-                for m in &marks {
-                    node.children.push(HlNode::leaf(m.clone(), Hl::MARKUP));
-                }
-                if autolink && marks.len() == 2 {
-                    node.children
-                        .insert(1, HlNode::leaf(marks[0].end..marks[1].start, Hl::LINK));
-                }
-                if !image && marks.len() >= 2 {
-                    let content = marks[0].end..marks[1].start.max(marks[0].end);
-                    let mut e =
-                        Element::new(Kind::Link, range.clone(), marks.clone(), Some(content));
-                    e.href = autolink
-                        .then(|| doc[marks[0].end..marks[1].start].trim().to_owned())
-                        .or(reference);
-                    self.syntax.elements.push(e);
-                }
-                // `![alt](src "title")` and reference images: the source is
-                // the destination, the title its own.
-                if let Tag::Image { ref title, .. } = tag
-                    && marks.len() >= 2
-                {
-                    let content = marks[0].end..marks[1].start.max(marks[0].end);
-                    let mut e =
-                        Element::new(Kind::Image, range.clone(), marks.clone(), Some(content));
-                    e.href = Some(dest_url.to_string());
-                    e.text = (!title.is_empty()).then(|| title.to_string());
-                    self.syntax.elements.push(e);
-                }
-                self.push(Frame::Link, node);
-            }
+            Tag::Strikethrough => self.start_strikethrough(range),
+            Tag::Link { .. } | Tag::Image { .. } => self.start_link_or_image(tag, range),
             Tag::CodeBlock(kind) => {
                 self.syntax.code_blocks.push(trim(doc, range.clone()));
                 let mut node = HlNode::new(range.clone(), Hl::NONE, false);
@@ -486,47 +375,10 @@ impl<'a> Walker<'a> {
                 }
                 self.push(Frame::Code, node);
             }
-            Tag::Table(_) => {
-                let range = trim(doc, range);
-                self.syntax.tables.push(range.clone());
-                let mut node = HlNode::new(range.clone(), Hl::NONE, false);
-                // TableDelimiter: the delimiter row and every cell pipe.
-                let mut at = range.start;
-                let mut row = 0;
-                while at < range.end {
-                    let end = line_end(doc, at).min(range.end);
-                    if row == 1 {
-                        node.children.push(HlNode::leaf(at..end, Hl::MARKUP));
-                    } else if row > 1 {
-                        for (i, _) in doc[at..end].match_indices('|') {
-                            if !super::super::links::is_escaped(doc.as_bytes(), at + i) {
-                                node.children
-                                    .push(HlNode::leaf(at + i..at + i + 1, Hl::MARKUP));
-                            }
-                        }
-                    }
-                    row += 1;
-                    at = end + 1;
-                }
-                self.push(Frame::Table, node);
-            }
-            Tag::TableHead => {
-                let range = trim(self.doc, range);
-                let mut node = HlNode::new(range.clone(), Hl::HEADING, true);
-                for (i, _) in doc[range.clone()].match_indices('|') {
-                    node.children.push(HlNode::leaf(
-                        range.start + i..range.start + i + 1,
-                        Hl::MARKUP,
-                    ));
-                }
-                self.push(Frame::TableHead, node);
-            }
-            Tag::TableCell => {
-                self.syntax.table_cells.push(trim(doc, range.clone()));
-                self.push(Frame::Other, HlNode::new(range, Hl::NONE, false));
-            }
+            Tag::Table(_) => self.start_table(range),
+            Tag::TableHead => self.start_table_head(range),
+            Tag::TableCell => self.start_table_cell(range),
             Tag::HtmlBlock => {
-                // Lezer `HTMLBlock` children of the document.
                 if self.stack.len() == 1 {
                     self.syntax.html_blocks.push(trim(self.doc, range.clone()));
                 }
@@ -572,503 +424,10 @@ impl<'a> Walker<'a> {
             _ => {}
         }
     }
-
-    fn list_item(&self, range: Span, list: usize) -> ListItem {
-        let doc = self.doc;
-        let bytes = doc.as_bytes();
-        let line_from = line_start(doc, range.start);
-        let line_to = line_end(doc, range.start);
-        // The marker: skip indentation (and quote markers of quoted items).
-        let mut at = range.start;
-        while at < line_to && matches!(bytes[at], b' ' | b'\t' | b'>') {
-            at += 1;
-        }
-        let digits = bytes[at..line_to]
-            .iter()
-            .take_while(|b| b.is_ascii_digit())
-            .count();
-        let marker_len = if digits > 0 && matches!(bytes.get(at + digits), Some(b'.' | b')')) {
-            digits + 1
-        } else {
-            1
-        };
-        let mark_to = (at + marker_len).min(line_to);
-        let marker_to = mark_to + blank_run(doc, mark_to).min(line_to - mark_to);
-        let parents = self.items();
-        let quoted = self.quoted();
-        let marker_end_column = columns(&doc[line_from..mark_to]);
-        let after_column = columns(&doc[line_from..marker_to]);
-        let padding = after_column - marker_end_column;
-        ListItem {
-            range,
-            list,
-            parents: parents.clone(),
-            quoted,
-            marker: doc[at..mark_to].to_owned(),
-            marker_from: at,
-            marker_to,
-            content_from: marker_to,
-            task: None,
-            blocks: Vec::new(),
-            indent_columns: columns(&doc[line_from..at]),
-            content_column: marker_end_column
-                + if (1..=4).contains(&padding) {
-                    padding
-                } else {
-                    1
-                },
-        }
-    }
-
-    fn task_marker(&mut self, range: Span, checked: bool) {
-        let doc = self.doc;
-        let Some(&item_index) = self.items().last() else {
-            return;
-        };
-        let depth = self.syntax.items[item_index].parents.len();
-        let line_from = line_start(doc, range.start);
-        let line_to = line_end(doc, range.start);
-        let content_from = range.end + blank_run(doc, range.end).min(line_to - range.end);
-        let item = &mut self.syntax.items[item_index];
-        item.content_from = content_from;
-        item.task = Some(TaskLine {
-            line: line_from..line_to,
-            depth,
-            checked,
-            checkbox: range.clone(),
-            prefix_to: content_from,
-        });
-        // The paragraph holding the marker is a `Task` block, not a Paragraph.
-        if let Some(first) = item.blocks.first_mut() {
-            first.0 = BlockKind::Task;
-            first.1.start = first.1.start.min(range.start);
-        } else {
-            item.blocks.push((BlockKind::Task, range.start..line_to));
-        }
-        let start = range.start;
-        // The item's first direct paragraph (implicit or explicit).
-        if let Some(p) = self
-            .syntax
-            .paragraphs
-            .iter_mut()
-            .find(|p| p.item == Some(item_index) && p.direct)
-        {
-            p.task = true;
-            p.range.start = p.range.start.min(start);
-        }
-        // Task (style `tags.list`, not inherited) from the marker to the end
-        // of its paragraph; the TaskMarker child carries no class.
-        let mut node = HlNode::new(range.start..line_to, Hl::LIST, false);
-        node.children.push(HlNode::leaf(range, Hl::NONE));
-        self.attach(node);
-    }
-
-    /// A bare URL is a link only as direct inline content of a paragraph or
-    /// heading (`BARE_URL_PARENTS`).
-    fn bare_url_parent(&self) -> bool {
-        matches!(
-            self.stack.last(),
-            Some((Frame::Paragraph | Frame::Heading, _))
-                | Some((
-                    Frame::Item {
-                        implicit: Some(_),
-                        ..
-                    },
-                    _
-                ))
-        )
-    }
-
-    fn text(&mut self, range: Span, shown: &str) {
-        let doc = self.doc;
-        if !self.in_code() {
-            let source = &doc[range.clone()];
-            // pulldown-cmark reports a character reference as its own text.
-            if source.len() > 2
-                && source.starts_with('&')
-                && source.ends_with(';')
-                && shown != source
-            {
-                let mut e = Element::new(Kind::Entity, range.clone(), vec![range.clone()], None);
-                e.text = Some(shown.to_owned());
-                self.syntax.elements.push(e);
-                return;
-            }
-            for (r, emoji) in inline_syntax::emoji(source) {
-                let r = range.start + r.start..range.start + r.end;
-                let mut e = Element::new(Kind::Emoji, r.clone(), vec![r], None);
-                e.text = Some(emoji.to_owned());
-                self.syntax.elements.push(e);
-            }
-        }
-        // A backslash escape: pulldown-cmark drops the backslash, so the text
-        // starts right after an uncovered `\` followed by punctuation.
-        if !self.in_code()
-            && range.start > 0
-            && doc.as_bytes()[range.start - 1] == b'\\'
-            && doc.as_bytes()[range.start].is_ascii_punctuation()
-        {
-            let b = range.start - 1;
-            let e = Element::new(Kind::Escape, b..b + 2, vec![b..b + 1], Some(b + 1..b + 2));
-            self.syntax.elements.push(e);
-            self.attach(HlNode::leaf(b..b + 2, Hl::NONE));
-        }
-        if !self.in_code() && !self.in_link() {
-            let bare = self.bare_url_parent();
-            for r in autolink::find(&doc[range.clone()]) {
-                let r = range.start + r.start..range.start + r.end;
-                self.attach(HlNode::leaf(r.clone(), Hl::LINK));
-                if bare {
-                    let mut e = Element::new(Kind::Link, r.clone(), vec![], Some(r.clone()));
-                    e.href = Some(autolink::href(&doc[r]));
-                    self.syntax.elements.push(e);
-                }
-            }
-        }
-    }
-    /// `<!-- … -->` (Lezer `Comment` / `CommentBlock`): one element over the
-    /// whole comment, however many events it arrives in.
-    fn html(&mut self, range: Span) {
-        if range.start < self.comment_end {
-            return;
-        }
-        let doc = self.doc;
-        let source = doc[range.clone()].trim_start();
-        if !source.starts_with("<!--") {
-            return;
-        }
-        let start = range.end - doc[range.clone()].trim_start().len();
-        let end = doc[start + 4..]
-            .find("-->")
-            .map_or(trim(doc, range.clone()).end, |i| start + 4 + i + 3);
-        self.comment_end = end;
-        self.syntax.elements.push(Element::new(
-            Kind::Comment,
-            start..end,
-            vec![],
-            Some(start..end),
-        ));
-    }
-
-    fn code(&mut self, range: Span) {
-        let doc = self.doc;
-        let ticks = doc[range.clone()]
-            .bytes()
-            .take_while(|&b| b == b'`')
-            .count();
-        let mut node = HlNode::new(range.clone(), Hl::MONOSPACE, false);
-        if ticks > 0 && range.len() >= 2 * ticks {
-            let markers = vec![
-                range.start..range.start + ticks,
-                range.end - ticks..range.end,
-            ];
-            for m in &markers {
-                node.children.push(HlNode::leaf(m.clone(), Hl::MARKUP));
-            }
-            let content = range.start + ticks..range.end - ticks;
-            self.syntax.elements.push(Element::new(
-                Kind::InlineCode,
-                range,
-                markers,
-                Some(content),
-            ));
-        }
-        self.attach(node);
-    }
-}
-
-fn heading_marks(doc: &str, range: &Span, atx: bool) -> Vec<Span> {
-    let text = &doc[range.clone()];
-    if !atx {
-        // Setext: the underline is the HeaderMark.
-        let last = text.rfind('\n').map_or(0, |i| i + 1);
-        let underline = text[last..].trim();
-        let at = range.start + last + text[last..].find(underline).unwrap_or(0);
-        return vec![at..at + underline.len()];
-    }
-    let lead = text.len() - text.trim_start_matches(' ').len();
-    let hashes = text[lead..].bytes().take_while(|&b| b == b'#').count();
-    let mut marks = vec![range.start + lead..range.start + lead + hashes];
-    // An optional closing sequence ` ###`.
-    let body = text.trim_end();
-    let closing = body.len() - body.trim_end_matches('#').len();
-    if closing > 0
-        && body.len() - closing > lead + hashes
-        && body[..body.len() - closing].ends_with([' ', '\t'])
-    {
-        marks.push(range.start + body.len() - closing..range.start + body.len());
-    }
-    marks
-}
-
-/// createHeadingElement: the first HeaderMark plus one following space.
-fn heading_element(doc: &str, mark: Span, line: Span) -> Option<Element> {
-    if mark.is_empty() {
-        return None;
-    }
-    let marker_to = if doc.as_bytes().get(mark.end) == Some(&b' ') {
-        mark.end + 1
-    } else {
-        mark.end
-    };
-    let level = mark.len() as u8;
-    let mut e = Element::new(
-        Kind::Heading,
-        mark.start..line.end,
-        vec![mark.start..marker_to],
-        Some(marker_to..line.end),
-    );
-    e.line = Some(line);
-    e.level = level;
-    Some(e)
-}
-
-/// createBlockquoteElement: one marker per `>` of `^(\s*)(>+)(\s?)`.
-fn blockquote_element(doc: &str, range: Span, line: Span) -> Option<Element> {
-    let text = &doc[line.clone()];
-    let lead = text.len() - text.trim_start().len();
-    let quotes = text[lead..].bytes().take_while(|&b| b == b'>').count();
-    if quotes == 0 {
-        return None;
-    }
-    let space = text[lead + quotes..]
-        .chars()
-        .next()
-        .filter(|c| c.is_whitespace())
-        .map_or(0, char::len_utf8);
-    let markers: Vec<Span> = (0..quotes)
-        .map(|i| {
-            let from = line.start + lead + i;
-            from..from + 1 + if i == quotes - 1 { space } else { 0 }
-        })
-        .collect();
-    let marker_to = markers.iter().map(|m| m.end).max().unwrap_or(line.start);
-    let mut e = Element::new(
-        Kind::Blockquote,
-        range.clone(),
-        markers,
-        Some(marker_to..range.end.max(marker_to)),
-    );
-    e.line = Some(line);
-    Some(e)
-}
-
-/// createListElement: tasks own two markers (indent + list marker, checkbox).
-fn list_element(doc: &str, item: &ListItem) -> Option<Element> {
-    if item.quoted {
-        return None;
-    }
-    let line = line_start(doc, item.marker_from)..line_end(doc, item.marker_from);
-    let mut e = match &item.task {
-        Some(task) => {
-            let mut e = Element::new(
-                Kind::Task,
-                item.range.clone(),
-                vec![
-                    line.start..task.checkbox.start,
-                    task.checkbox.start..task.prefix_to,
-                ],
-                Some(task.prefix_to..item.range.end.max(task.prefix_to)),
-            );
-            e.checked = task.checked;
-            e
-        }
-        None => Element::new(
-            Kind::List,
-            item.range.clone(),
-            vec![line.start..item.marker_to],
-            Some(item.marker_to..item.range.end.max(item.marker_to)),
-        ),
-    };
-    e.line = Some(line);
-    Some(e)
-}
-
-/// LinkMark children of a link or image: `[` (or `![`), the label's `]`,
-/// then `(` … `)` for inline links or the reference label's brackets.
-fn link_marks(doc: &str, range: &Span, image: bool, link_type: LinkType) -> Vec<Span> {
-    let bytes = doc.as_bytes();
-    let open = range.start..range.start + if image { 2 } else { 1 };
-    if open.end > range.end {
-        return Vec::new();
-    }
-    // The matching `]`, skipping escapes and code spans.
-    let mut depth = 0usize;
-    let mut i = open.end;
-    let mut close = None;
-    while i < range.end {
-        match bytes[i] {
-            b'\\' => i += 1,
-            b'`' => {
-                let n = bytes[i..].iter().take_while(|&&b| b == b'`').count();
-                let fence = &doc[i..i + n];
-                if let Some(end) = doc[i + n..range.end].find(fence) {
-                    i += n + end + n;
-                    continue;
-                }
-                i += n - 1;
-            }
-            b'[' => depth += 1,
-            b']' if depth == 0 => {
-                close = Some(i);
-                break;
-            }
-            b']' => depth -= 1,
-            _ => {}
-        }
-        i += 1;
-    }
-    let Some(close) = close else {
-        return vec![open];
-    };
-    let mut marks = vec![open, close..close + 1];
-    match link_type {
-        LinkType::Inline
-            if bytes.get(close + 1) == Some(&b'(')
-                && range.end > close + 2
-                && bytes[range.end - 1] == b')' =>
-        {
-            marks.push(close + 1..close + 2);
-            marks.push(range.end - 1..range.end);
-        }
-        LinkType::Reference
-        | LinkType::Collapsed
-        | LinkType::ReferenceUnknown
-        | LinkType::CollapsedUnknown
-            if bytes.get(close + 1) == Some(&b'[') && bytes[range.end - 1] == b']' =>
-        {
-            marks.push(close + 1..close + 2);
-            marks.push(range.end - 1..range.end);
-        }
-        _ => {}
-    }
-    marks
-}
-
-/// Fenced code as Lezer sees it: CodeMark fences, CodeText body.
-fn fence_marks(doc: &str, range: &Span) -> Vec<HlNode> {
-    let mut out = Vec::new();
-    let text = &doc[range.clone()];
-    let mut at = range.start;
-    let lines: Vec<&str> = text.split('\n').collect();
-    let last = lines
-        .iter()
-        .rposition(|l| !l.trim().is_empty())
-        .unwrap_or(0);
-    for (k, line) in lines.iter().enumerate() {
-        let lead = line.len() - line.trim_start().len();
-        let fence = line[lead..]
-            .bytes()
-            .take_while(|&b| b == b'`' || b == b'~')
-            .count();
-        if (k == 0 || k == last) && fence >= 3 {
-            out.push(HlNode::leaf(at + lead..at + lead + fence, Hl::MARKUP));
-        } else if !line.is_empty() && k < last {
-            out.push(HlNode::leaf(at..at + line.len(), Hl::MONOSPACE));
-        }
-        at += line.len() + 1;
-    }
-    out
-}
-
-/// Flatten the class tree like `highlightTree`: a node's text gets inherited
-/// classes plus its own; only `/...` rules pass a class to descendants.
-fn flatten(node: &HlNode, inherited: Hl, out: &mut Vec<(Span, Hl)>) {
-    let cls = inherited | node.own;
-    let pass = if node.inherit { cls } else { inherited };
-    let emit = |range: Span, cls: Hl, out: &mut Vec<(Span, Hl)>| {
-        if range.is_empty() || cls == Hl::NONE {
-            return;
-        }
-        match out.last_mut() {
-            Some((last, c)) if *c == cls && last.end == range.start => last.end = range.end,
-            _ => out.push((range, cls)),
-        }
-    };
-    let mut children: Vec<&HlNode> = node.children.iter().collect();
-    children.sort_by_key(|c| (c.range.start, std::cmp::Reverse(c.range.end)));
-    let mut pos = node.range.start;
-    for child in children {
-        if child.range.start < pos {
-            continue; // Overlapping synthesized child; the first one wins.
-        }
-        emit(pos..child.range.start, cls, out);
-        flatten(child, pass, out);
-        pos = child.range.end;
-    }
-    emit(pos..node.range.end.max(pos), cls, out);
-}
-
-fn shift_span(span: &mut Span, delta: usize) {
-    span.start += delta;
-    span.end += delta;
-}
-
-fn shift_syntax_base(syntax: &mut Syntax, base: usize) {
-    if base == 0 {
-        return;
-    }
-    for e in &mut syntax.elements {
-        shift_span(&mut e.range, base);
-        for m in &mut e.markers {
-            shift_span(m, base);
-        }
-        if let Some(c) = &mut e.content {
-            shift_span(c, base);
-        }
-        if let Some(l) = &mut e.line {
-            shift_span(l, base);
-        }
-    }
-    for item in &mut syntax.items {
-        shift_span(&mut item.range, base);
-        item.marker_from += base;
-        item.marker_to += base;
-        item.content_from += base;
-        if let Some(task) = &mut item.task {
-            shift_span(&mut task.line, base);
-            shift_span(&mut task.checkbox, base);
-            task.prefix_to += base;
-        }
-        for (_, r) in &mut item.blocks {
-            shift_span(r, base);
-        }
-    }
-    for list in &mut syntax.lists {
-        shift_span(&mut list.range, base);
-    }
-    for p in &mut syntax.paragraphs {
-        shift_span(&mut p.range, base);
-    }
-    for (r, _) in &mut syntax.highlights {
-        shift_span(r, base);
-    }
-    for r in &mut syntax.code_blocks {
-        shift_span(r, base);
-    }
-    for r in &mut syntax.tables {
-        shift_span(r, base);
-    }
-    for r in &mut syntax.table_cells {
-        shift_span(r, base);
-    }
-    for n in &mut syntax.note_definitions {
-        *n += base;
-    }
-    for r in &mut syntax.inline_tags {
-        shift_span(r, base);
-    }
-    for r in &mut syntax.html_blocks {
-        shift_span(r, base);
-    }
-    for r in &mut syntax.top_blocks {
-        shift_span(r, base);
-    }
 }
 
 /// Parse a slice `doc_slice` starting at byte `base` in the document, supplying
-/// `extra_link_defs` (newline-separated external `[label]: url` definitions) so
-/// reference links inside the slice resolve identically to a full parse (`TA-31`).
+/// `extra_link_defs` so reference links resolve identically to a full parse (`TA-31`).
 pub(super) fn walk_slice(
     doc_slice: &str,
     base: usize,
@@ -1167,8 +526,6 @@ pub(super) fn walk_slice(
             continue;
         }
         link_defs.push((base + span.start..base + span.end, source.to_owned()));
-        // Definitions are not emitted as inline text events. Their direct
-        // destination still follows the same bare-link policy as prose.
         let tail = &source[close + 2..];
         if let Some(url) = autolink::find(tail).into_iter().next()
             && matches!(tail[..url.start].trim(), "" | "<")
