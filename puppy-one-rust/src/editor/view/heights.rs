@@ -657,6 +657,7 @@ mod tests {
                 base_ptr: base_decos.id as usize,
                 old_blocks: 100..101,
                 new_blocks: 100..101,
+                removed_widget_ids: Vec::new(),
             }),
             ..Default::default()
         });
