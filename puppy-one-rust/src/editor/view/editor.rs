@@ -216,6 +216,11 @@ impl Focusable for EditorView {
 }
 
 impl EditorView {
+    /// Returns the view-scoped [`WidgetStateStore`] shared with `RenderCx` (`TA-14`).
+    pub fn widget_states(&self) -> Rc<RefCell<WidgetStateStore>> {
+        Rc::clone(&self.caches.widget_states)
+    }
+
     pub fn new(text: &str, extension: Box<dyn EditorExtension>, cx: &mut Context<Self>) -> Self {
         Self::with_extensions(text, ExtensionSet::single(extension), cx)
     }

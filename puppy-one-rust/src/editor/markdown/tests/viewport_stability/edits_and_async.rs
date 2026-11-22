@@ -9,11 +9,8 @@ use super::{
 use crate::editor::{
     markdown::{
         SetAssets,
-        features::html::{
-            dom,
-            render::{measured_height, record_measured_height},
-        },
-        platform::assets as md_assets,
+        features::html::dom,
+        platform::{brokers::assets as md_assets, sessions::measure},
         shared::media::MediaSource,
         tests::setup,
     },
@@ -395,8 +392,22 @@ fn t2_14_html_block_measured_height_above_viewport_holds_top_text(cx: &mut TestA
     settle(&view, visual);
 
     let html_start = doc.find(html_block).unwrap();
-    let col_width = view.read_with(visual, |v, _| {
-        f32::from(v.layout().unwrap().blocks[0].bounds.size.width)
+    let (col_width, html_block_id, widget_states) = view.read_with(visual, |v, _| {
+        let col_width = f32::from(v.layout().unwrap().blocks[0].bounds.size.width);
+        let html_block_id = v
+            .decorations()
+            .blocks
+            .iter()
+            .find_map(|b| match b {
+                crate::editor::view::decoration::Block::Widget { id, lines, .. }
+                    if v.state().doc.line_range(lines.start).start == html_start =>
+                {
+                    Some(*id)
+                }
+                _ => None,
+            })
+            .expect("expected HTML Block::Widget");
+        (col_width, html_block_id, v.widget_states())
     });
     let dom::Parsed::Complete(nodes) = dom::parse(html_block) else {
         panic!("expected Complete HTML block");
@@ -405,7 +416,8 @@ fn t2_14_html_block_measured_height_above_viewport_holds_top_text(cx: &mut TestA
     (html_start, col_width.to_bits()).hash(&mut h);
     dom::hash_nodes(&nodes, &mut h);
     let key = h.finish();
-    let measured_before = measured_height(key).unwrap_or(40.0);
+    let measured_before =
+        measure::get(&mut widget_states.borrow_mut(), html_block_id, key).unwrap_or(40.0);
 
     // Scroll ~1.5 screens past the HTML block so it sits above the viewport.
     view.update(visual, |v, cx| {
@@ -419,8 +431,13 @@ fn t2_14_html_block_measured_height_above_viewport_holds_top_text(cx: &mut TestA
 
     // Record a significantly taller real measured height for the off-screen HTML block.
     assert!(
-        record_measured_height(key, measured_before + 240.0),
-        "positive control: record_measured_height must accept taller height"
+        measure::record(
+            &mut widget_states.borrow_mut(),
+            html_block_id,
+            key,
+            measured_before + 240.0,
+        ),
+        "positive control: measure::record must accept taller height"
     );
     visual.update(|_, cx| cx.refresh_windows());
     settle(&view, visual);

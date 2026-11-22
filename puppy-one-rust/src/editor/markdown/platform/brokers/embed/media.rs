@@ -2,8 +2,8 @@
 //! managed by [`super::WindowHostPool`] (`TA-42`, `TA-51`, `TA-52`, `TODO-35`).
 use super::{
     super::{
+        super::policy::{self, AssetFailure, MAX_WORKSPACE_ASSET_BYTES},
         assets,
-        policy::{self, AssetFailure, MAX_WORKSPACE_ASSET_BYTES},
     },
     WindowHostPool,
 };

@@ -1,9 +1,10 @@
-//! Link broker (`TA-50`): validates Markdown link and embed targets through
-//! the format's canonical URL and workspace-reference policy.
-//! Moves into `platform/brokers/link.rs` and `platform/policy/url.rs` in Step M6.
-use super::policy;
+//! Markdown URL and href safety policy (`platform/policy/url.rs`, `TA-50`,
+//! `MA-14`, TS `markdownUrlPolicy.ts`).
+use super::network::is_public_ip;
 use regex::Regex;
-use std::sync::LazyLock;
+use std::{net::IpAddr, sync::LazyLock};
+
+const LOCAL_HOST_SUFFIXES: &[&str] = &[".localhost", ".local", ".home.arpa"];
 
 /// `getSafeMarkdownHref`: validate the canonical value that will be opened.
 pub fn safe_href(value: &str) -> Option<String> {
@@ -69,15 +70,41 @@ pub fn safe_href(value: &str) -> Option<String> {
     Some(url.into())
 }
 
-/// Validates an external `https:` embed URL against private/loopback host rules.
-pub fn allowed_embed_href(href: &str) -> Option<String> {
-    let clean = safe_href(href)?;
-    policy::allowed_https_href(&clean)
+/// `assertMarkdownWebEmbedHref`: accepts only credential-free `https:` URLs
+/// targeting public non-local hostnames or public IP literals.
+pub fn allowed_https_url(href: &str) -> Option<url::Url> {
+    let url = url::Url::parse(href).ok()?;
+    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
+        return None;
+    }
+    let ip = match url.host()? {
+        url::Host::Domain(name) => {
+            let name = name.trim_end_matches('.').to_ascii_lowercase();
+            if name.is_empty()
+                || name == "localhost"
+                || LOCAL_HOST_SUFFIXES.iter().any(|s| name.ends_with(s))
+            {
+                return None;
+            }
+            None
+        }
+        url::Host::Ipv4(ip) => Some(IpAddr::V4(ip)),
+        url::Host::Ipv6(ip) => Some(IpAddr::V6(ip)),
+    };
+    if ip.is_some_and(|addr| !is_public_ip(addr)) {
+        return None;
+    }
+    Some(url)
+}
+
+pub fn allowed_https_href(href: &str) -> Option<String> {
+    allowed_https_url(href).map(|u| u.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::prelude::v1::test;
 
     /// `markdownUrlPolicy.test.ts`: control characters (raw, entity-encoded
     /// or percent-encoded), `javascript:` behind an entity colon,

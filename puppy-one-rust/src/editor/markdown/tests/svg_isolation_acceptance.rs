@@ -13,14 +13,16 @@ use crate::{
         markdown::{
             SetAssets,
             features::mermaid,
-            platform::assets::{AssetState, decode_svg_bitmap},
+            platform::{
+                brokers::assets::{AssetState, decode_svg_bitmap},
+                policy::svg::rasterize_svg,
+            },
             shared::media::MediaSource,
         },
         registry::DocumentAssets,
         view::extension::config_transaction,
         viewers::image::decode_resource_for_tests,
     },
-    platform::svg::rasterize_svg,
     render_service::{self, Rendered},
     typography::Scale,
     workspace::Workspace,
@@ -529,7 +531,7 @@ fn markdown_document_svg_only_reads_policy_approved_workspace_assets_via_documen
 
     // Positive control: `ok.png` settles Ready with opaque red pixels.
     let ok_state = visual.update(|_, cx| {
-        crate::editor::markdown::platform::assets::get(
+        crate::editor::markdown::platform::brokers::assets::get(
             &MediaSource::Workspace(PathBuf::from("ok.png")),
             Some(&assets),
             cx,
@@ -554,7 +556,7 @@ fn markdown_document_svg_only_reads_policy_approved_workspace_assets_via_documen
 
     // Security assertion: cached decoded bitmap of `safe.svg` did NOT pull in `outside_png`.
     let svg_state = visual.update(|_, cx| {
-        crate::editor::markdown::platform::assets::get(
+        crate::editor::markdown::platform::brokers::assets::get(
             &MediaSource::Workspace(PathBuf::from("safe.svg")),
             Some(&assets),
             cx,

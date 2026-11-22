@@ -147,7 +147,7 @@ impl MarkdownFeature for MathFeature {
         let Presentation::InlineAtom(Atom::Text(fallback)) = &plan.presentation else {
             return None;
         };
-        use crate::editor::markdown::platform::render::{
+        use crate::editor::markdown::platform::brokers::render::{
             self as render_broker, Kind as RenderKind, Request, hex,
         };
         let range = cx.doc.clamp_range(element.range.clone());

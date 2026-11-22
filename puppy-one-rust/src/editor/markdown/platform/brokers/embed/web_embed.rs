@@ -3,7 +3,7 @@
 //! bounded per-window `WebHost` pool (`TODO-35`), and visible fallback + Retry
 //! (`TA-52`).
 use super::{
-    super::{assets, link, policy},
+    super::{super::policy, assets, link},
     WindowHostPool,
 };
 use crate::{

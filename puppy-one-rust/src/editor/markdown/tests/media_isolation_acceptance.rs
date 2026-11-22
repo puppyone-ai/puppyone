@@ -23,7 +23,7 @@ use crate::{
         markdown::{
             SetAssets, SetDialect, SetReferences,
             features::video::VideoBlock,
-            platform::{
+            platform::brokers::{
                 assets as md_assets,
                 render::{LastGoodCache, RenderQueueCore},
             },

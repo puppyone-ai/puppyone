@@ -38989,11 +38989,11 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::platform::policy::tests::workspace_containment_refuses_escaping_symlinks_and_oversized_files"
+          "test": "editor::markdown::platform::policy::asset::tests::workspace_containment_refuses_escaping_symlinks_and_oversized_files"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::platform::policy::tests::oversized_data_image_url_is_rejected_before_decode"
+          "test": "editor::markdown::platform::policy::asset::tests::oversized_data_image_url_is_rejected_before_decode"
         },
         {
           "package": "po-editor",
@@ -39039,15 +39039,15 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::platform::policy::tests::one_private_dns_answer_fails_the_whole_resolution"
+          "test": "editor::markdown::platform::policy::network::tests::one_private_dns_answer_fails_the_whole_resolution"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::platform::embed::web_embed::tests::lone_https_iframe_and_pinned_client_follow_policy"
+          "test": "editor::markdown::platform::brokers::embed::web_embed::tests::lone_https_iframe_and_pinned_client_follow_policy"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::platform::embed::tests::window_host_pool_bounds_per_window_and_evicts_lru_invisible"
+          "test": "editor::markdown::platform::brokers::embed::tests::window_host_pool_bounds_per_window_and_evicts_lru_invisible"
         }
       ]
     },
@@ -39653,7 +39653,7 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::platform::link::tests::the_url_policy_refuses_obfuscated_and_unsafe_targets"
+          "test": "editor::markdown::platform::policy::url::tests::the_url_policy_refuses_obfuscated_and_unsafe_targets"
         },
         {
           "package": "po-editor",
@@ -40753,7 +40753,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::platform::embed::media::tests::media_page_and_clip_enforce_single_file_and_protocol"
+          "test": "editor::markdown::platform::brokers::embed::media::tests::media_page_and_clip_enforce_single_file_and_protocol"
         }
       ]
     },
@@ -42369,11 +42369,11 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::platform::render::tests::render_broker_deduplicates_cancels_superseded_and_retries_unavailable"
+          "test": "editor::markdown::platform::brokers::render::tests::render_broker_deduplicates_cancels_superseded_and_retries_unavailable"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::platform::render::tests::last_good_cache_enforces_entry_and_byte_lru_bounds"
+          "test": "editor::markdown::platform::brokers::render::tests::last_good_cache_enforces_entry_and_byte_lru_bounds"
         }
       ]
     },

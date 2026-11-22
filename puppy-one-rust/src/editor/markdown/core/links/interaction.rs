@@ -4,7 +4,7 @@ use super::{model::find_links, references::resolve_reference, wiki::find_wiki_li
 use crate::editor::{
     markdown::{
         core::syntax::{Kind, Syntax},
-        platform::link::safe_href,
+        platform::brokers::link::safe_href,
     },
     navigation::{self, ReferenceContext},
     text::buffer::Buffer,

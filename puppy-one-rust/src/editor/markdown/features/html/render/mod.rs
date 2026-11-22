@@ -16,111 +16,10 @@ use crate::editor::{
     markdown::style::MarkdownTheme,
     registry::DocumentAssets,
     tokens::{Tokens, parse_css_color},
-    view::{editor::EditorView, render::RenderCx, style::TextStyle},
+    view::{editor::EditorView, render::RenderCx, style::TextStyle, widget::BlockId},
 };
 use gpui::{prelude::*, *};
-use std::{cell::RefCell, collections::HashMap, path::Path};
-
-/// Maximum `<details>` toggle entries kept in session view state (`TODO-31`).
-pub const MAX_OPEN_DETAILS: usize = 512;
-/// Maximum measured HTML/MDX surface heights cached in memory (`TODO-31`).
-pub const MAX_MEASURED_HEIGHTS: usize = 512;
-
-/// Bounded LRU map used for session `<details>` toggles and measured heights.
-pub struct BoundedMap<K, V> {
-    entries: HashMap<K, (V, u64)>,
-    clock: u64,
-    cap: usize,
-}
-
-impl<K: Eq + std::hash::Hash + Copy, V: Copy> BoundedMap<K, V> {
-    pub fn new(cap: usize) -> Self {
-        Self {
-            entries: HashMap::new(),
-            clock: 0,
-            cap: cap.max(1),
-        }
-    }
-
-    pub fn get(&mut self, key: &K) -> Option<V> {
-        self.clock += 1;
-        let now = self.clock;
-        let entry = self.entries.get_mut(key)?;
-        entry.1 = now;
-        Some(entry.0)
-    }
-
-    pub fn contains(&mut self, key: &K) -> bool {
-        self.get(key).is_some()
-    }
-
-    pub fn remove(&mut self, key: &K) -> Option<V> {
-        self.entries.remove(key).map(|(v, _)| v)
-    }
-
-    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
-        self.clock += 1;
-        let now = self.clock;
-        let previous = self.entries.insert(key, (value, now)).map(|(v, _)| v);
-        while self.entries.len() > self.cap {
-            let Some(oldest) = self
-                .entries
-                .iter()
-                .min_by_key(|(_, (_, used))| *used)
-                .map(|(k, _)| *k)
-            else {
-                break;
-            };
-            self.entries.remove(&oldest);
-        }
-        previous
-    }
-
-    #[cfg(test)]
-    pub fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    #[cfg(test)]
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-}
-
-thread_local! {
-    /// `<details>` opened/closed overrides in this session, bounded by LRU.
-    static OPEN_DETAILS: RefCell<BoundedMap<(usize, usize), ()>> =
-        RefCell::new(BoundedMap::new(MAX_OPEN_DETAILS));
-    /// Measured HTML/MDX surface heights keyed by content/width hash, bounded by LRU.
-    static MEASURED_HEIGHTS: RefCell<BoundedMap<u64, f32>> =
-        RefCell::new(BoundedMap::new(MAX_MEASURED_HEIGHTS));
-}
-
-pub(super) fn is_details_toggled(key: (usize, usize)) -> bool {
-    OPEN_DETAILS.with(|o| o.borrow_mut().contains(&key))
-}
-
-pub(super) fn toggle_details_state(key: (usize, usize)) {
-    OPEN_DETAILS.with(|o| {
-        let mut o = o.borrow_mut();
-        if o.remove(&key).is_none() {
-            o.insert(key, ());
-        }
-    });
-}
-
-/// Reads a previously measured block/panel height from the bounded store.
-pub fn measured_height(key: u64) -> Option<f32> {
-    MEASURED_HEIGHTS.with(|m| m.borrow_mut().get(&key))
-}
-
-/// Records a measured height, returning `true` when it changed by `> 0.25px`.
-pub fn record_measured_height(key: u64, height: f32) -> bool {
-    MEASURED_HEIGHTS.with(|m| {
-        let old = m.borrow_mut().insert(key, height);
-        old.is_none_or(|o| (o - height).abs() > 0.25)
-    })
-}
+use std::path::Path;
 
 /// Inherited text and inline decoration attributes of a DOM subtree.
 #[derive(Clone)]
@@ -146,7 +45,9 @@ pub struct Surface<'s, 'r, 'a> {
     pub document: &'s Path,
     pub assets: Option<&'s DocumentAssets>,
     pub view: WeakEntity<EditorView>,
-    /// Block identity (source start offset) for element IDs and `<details>` state.
+    /// Stable view-scoped block identity for per-pane sessions (`disclosure`).
+    pub block_id: BlockId,
+    /// Block source start offset for element IDs and media player keys.
     pub block: usize,
     pub render: &'r mut RenderCx<'a>,
     pub(super) details: usize,
@@ -230,6 +131,7 @@ impl<'s, 'r, 'a> Surface<'s, 'r, 'a> {
         document: &'s Path,
         assets: Option<&'s DocumentAssets>,
         view: WeakEntity<EditorView>,
+        block_id: BlockId,
         block: usize,
         render: &'r mut RenderCx<'a>,
     ) -> Self {
@@ -238,6 +140,7 @@ impl<'s, 'r, 'a> Surface<'s, 'r, 'a> {
             document,
             assets,
             view,
+            block_id,
             block,
             render,
             details: 0,
@@ -310,22 +213,7 @@ impl<'s, 'r, 'a> Surface<'s, 'r, 'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::BoundedMap;
     use core::prelude::v1::test;
-
-    #[test]
-    fn bounded_map_evicts_least_recently_used_entry() {
-        let mut map = BoundedMap::new(3);
-        map.insert(1u64, 10.0f32);
-        map.insert(2, 20.0);
-        map.insert(3, 30.0);
-        assert_eq!(map.get(&1), Some(10.0));
-        map.insert(4, 40.0);
-        assert_eq!(map.len(), 3);
-        assert_eq!(map.get(&2), None, "key 2 was least recently used");
-        assert_eq!(map.get(&1), Some(10.0));
-        assert_eq!(map.get(&4), Some(40.0));
-    }
 
     /// `markdownHtmlConformance.test.ts`: `normalizes conventional README
     /// align attributes into safe presentation`; `reduces invalid legacy

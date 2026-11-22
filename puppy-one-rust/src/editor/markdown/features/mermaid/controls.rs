@@ -3,7 +3,9 @@
 use super::{Action, ID, MermaidBlock};
 use crate::{
     editor::{
-        markdown::{platform::render as render_broker, shared::widgets::fallback::action_pill},
+        markdown::{
+            platform::brokers::render as render_broker, shared::widgets::fallback::action_pill,
+        },
         view::{
             command::Command,
             widget::{CommandSender, WidgetCx},
