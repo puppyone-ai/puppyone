@@ -31,6 +31,7 @@ mod math_acceptance;
 mod mdx_acceptance;
 mod media_isolation_acceptance;
 mod projection_acceptance;
+mod svg_isolation_acceptance;
 mod table_inline_acceptance;
 mod table_interaction_acceptance;
 mod table_media_acceptance;

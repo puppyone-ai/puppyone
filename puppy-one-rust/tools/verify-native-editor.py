@@ -53,6 +53,17 @@ suites = {
         'code_find_wraps_without_changing_the_document',
         'code_find_starts_at_selection_and_updates_after_edits',
     ],
+    'editor::markdown::tests::svg_isolation_acceptance::': [
+        'svg_blocks_absolute_local_image_href_while_allowing_embedded_data_png',
+        'svg_blocks_relative_image_href_against_cwd_and_parent_traversal',
+        'svg_blocks_xlink_href_local_image_while_allowing_xlink_data_png',
+        'svg_blocks_nested_svg_file_and_nested_data_svg_local_image_reads',
+        'svg_blocks_fe_image_and_css_url_external_references',
+        'svg_blocks_external_use_href_while_preserving_local_use_paint_references',
+        'svg_ignores_script_foreign_object_animation_event_handlers_remote_paint_and_style_import',
+        'image_viewer_svg_decode_blocks_local_file_reads_while_rendering_safe_svg',
+        'markdown_document_svg_only_reads_policy_approved_workspace_assets_via_document_assets',
+    ],
 }
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'tools/verify-native-editor.py']]
 paths.extend(p for folder in ['src', 'assets', 'crates'] for p in sorted((root / folder).rglob('*')) if p.is_file())
