@@ -11,8 +11,15 @@ pub fn body(model: &str, context: &[Value], tools: Value, keep_reasoning: bool) 
         .iter()
         .map(|message| {
             let mut message = message.clone();
-            if !keep_reasoning && let Some(m) = message.as_object_mut() {
-                m.remove("reasoning_content");
+            if let Some(m) = message.as_object_mut() {
+                if !keep_reasoning {
+                    m.remove("reasoning_content");
+                } else if m.get("role").and_then(Value::as_str) == Some("assistant") {
+                    // A turn from another model carries no thinking; these
+                    // providers refuse an assistant turn without the field
+                    // (Pi: `reasoning_content = ""`).
+                    m.entry("reasoning_content").or_insert_with(|| json!(""));
+                }
             }
             message
         })
@@ -228,5 +235,14 @@ mod tests {
         let dropped = body("d", &context, serde_json::json!([]), false);
         assert!(dropped["messages"][0].get("reasoning_content").is_none());
         assert_eq!(dropped["messages"][0]["tool_calls"][0]["id"], "c1");
+        // Another model's turn reaches Kimi with an empty field, never
+        // without one.
+        let foreign = vec![
+            serde_json::json!({"role": "user", "content": "Hi"}),
+            serde_json::json!({"role": "assistant", "content": "Hello"}),
+        ];
+        let kept = body("k", &foreign, serde_json::json!([]), true);
+        assert!(kept["messages"][0].get("reasoning_content").is_none());
+        assert_eq!(kept["messages"][1]["reasoning_content"], "");
     }
 }

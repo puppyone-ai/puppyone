@@ -164,6 +164,46 @@ impl ModelConnectionBinding {
         Ok(())
     }
 
+    /// Whether `route` names a connection other than the leased one (the
+    /// session continues on it after [`Self::rebind`]).
+    pub fn names_other_connection(&self, route: Option<&str>) -> bool {
+        let Ok(selection) = parse_model_route(route) else {
+            return false;
+        };
+        self.lease.borrow().as_ref().is_some_and(|lease| {
+            lease["configuration"]["connectionId"] != selection.connection_id.as_str()
+        })
+    }
+
+    /// Moves the lease to `route`'s connection: the new lease is acquired
+    /// first, so a refused connection leaves the current one in place, and
+    /// the previous lease is released after.
+    pub async fn rebind(&self, route: Option<&str>) -> AgentResult<()> {
+        if self.disposed.get() || self.read_only.get() {
+            return Err(connection_error("LEASE_REVOKED"));
+        }
+        let acquired = self.port.acquire(route.map(str::to_string)).await?;
+        if self.disposed.get() {
+            let _ = self
+                .port
+                .release(crate::agent::contract::js::to_js_string(
+                    acquired.get("leaseId"),
+                ))
+                .await;
+            return Err(connection_error("LEASE_REVOKED"));
+        }
+        let previous = self.lease.borrow_mut().replace(acquired);
+        if let Some(previous) = previous {
+            let _ = self
+                .port
+                .release(crate::agent::contract::js::to_js_string(
+                    previous.get("leaseId"),
+                ))
+                .await;
+        }
+        self.validate(route).await
+    }
+
     /// `binding.validate(route)`.
     pub async fn validate(&self, route: Option<&str>) -> AgentResult<()> {
         let lease = self.lease.borrow().clone();

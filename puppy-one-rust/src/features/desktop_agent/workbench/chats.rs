@@ -474,6 +474,56 @@ impl AgentChats {
         })
     }
 
+    /// Dev captures: the first chat of `root` selects the model whose route
+    /// or name contains `text` (case-insensitive); `false` until the chat
+    /// lists one.
+    #[cfg(feature = "dev-capture")]
+    pub fn capture_model(&self, root: &Path, text: &str, cx: &App) -> bool {
+        let Some(controller) = self.capture_controller(root, cx) else {
+            return false;
+        };
+        let needle = text.to_lowercase();
+        let state = controller.get_snapshot();
+        let Some(model) = state.inspection.as_ref().and_then(|inspection| {
+            inspection
+                .models
+                .iter()
+                .find(|m| {
+                    m.model.to_lowercase().contains(&needle)
+                        || m.display_name.to_lowercase().contains(&needle)
+                })
+                .map(|m| m.model.clone())
+        }) else {
+            return false;
+        };
+        controller.select_model(Some(&model));
+        controller.get_snapshot().selected_model.as_deref() == Some(model.as_str())
+    }
+
+    /// Dev captures: the first chat of `root` has `count` settled answers
+    /// and no turn running.
+    #[cfg(feature = "dev-capture")]
+    pub fn capture_turns(&self, root: &Path, count: usize, cx: &App) -> bool {
+        self.capture_controller(root, cx).is_some_and(|controller| {
+            let state = controller.get_snapshot();
+            state.running_turn_id().is_none()
+                && !state.submitting
+                && state.pending_prompt.as_deref().is_none_or(str::is_empty)
+                && state
+                    .projection
+                    .messages
+                    .iter()
+                    .filter(|m| m.role == "user")
+                    .count()
+                    >= count
+                && state
+                    .projection
+                    .messages
+                    .last()
+                    .is_some_and(|m| m.role == "assistant" && !m.streaming)
+        })
+    }
+
     #[cfg(feature = "dev-capture")]
     fn capture_controller(&self, root: &Path, cx: &App) -> Option<AgentSessionController> {
         self.live_panels(Some(root))

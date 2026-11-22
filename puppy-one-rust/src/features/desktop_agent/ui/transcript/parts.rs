@@ -180,24 +180,35 @@ impl TranscriptView {
                 PromptPart::Mention { text, .. } => body.child(mention_chip(a, text, false)),
             };
         }
+        // A turn sent to another model than the one before says so above
+        // the prompt; the conversation continues on that model.
+        let switched = part.switched_to_model.as_deref().map(|model| {
+            div()
+                .mb(px(6.))
+                .text_size(px(m.left.meta))
+                .line_height(px(m.right.meta_line_height))
+                .text_color(a.text_muted)
+                .child(tf(
+                    "native.agent.turn.modelSwitched",
+                    &[("model", Arg::Text(model.to_string()))],
+                ))
+        });
         let selector = format!("agent-user-message:{}", part.id);
-        v_flex()
-            .debug_selector(move || selector)
-            .w_full()
-            .min_w_0()
-            .overflow_hidden()
-            .px(px(12.))
-            .py(px(8.))
-            .rounded(px(8.))
-            .border_1()
-            .border_color(a.user_message_border)
-            .bg(a.user_message_surface)
-            .when(!media.is_empty(), |d| {
-                d.child(
-                    h_flex()
-                        .gap(px(6.))
-                        .mb(px(6.))
-                        .children(media.iter().map(|reference| {
+        let bubble =
+            v_flex()
+                .debug_selector(move || selector)
+                .w_full()
+                .min_w_0()
+                .overflow_hidden()
+                .px(px(12.))
+                .py(px(8.))
+                .rounded(px(8.))
+                .border_1()
+                .border_color(a.user_message_border)
+                .bg(a.user_message_surface)
+                .when(!media.is_empty(), |d| {
+                    d.child(h_flex().gap(px(6.)).mb(px(6.)).children(media.iter().map(
+                        |reference| {
                             let selector = format!("agent-media:{}", reference.display_name);
                             div()
                                 .debug_selector(move || selector)
@@ -209,30 +220,35 @@ impl TranscriptView {
                                 .text_size(px(m.left.meta))
                                 .text_color(a.text_muted)
                                 .child(reference.display_name.clone())
-                        })),
-                )
-            })
-            .when(!text.is_empty(), |d| {
-                d.child(
+                        },
+                    )))
+                })
+                .when(!text.is_empty(), |d| {
+                    d.child(
+                        div()
+                            .w_full()
+                            .min_w_0()
+                            .text_size(px(m.left.content))
+                            .line_height(px(m.left.content * 1.6))
+                            .text_color(a.text)
+                            .child(body),
+                    )
+                })
+                .children(delivery.map(|label| {
+                    let selector = format!("agent-delivery:{label}");
                     div()
-                        .w_full()
-                        .min_w_0()
-                        .text_size(px(m.left.content))
-                        .line_height(px(m.left.content * 1.6))
-                        .text_color(a.text)
-                        .child(body),
-                )
-            })
-            .children(delivery.map(|label| {
-                let selector = format!("agent-delivery:{label}");
-                div()
-                    .debug_selector(move || selector)
-                    .mt(px(4.))
-                    .text_size(px(m.left.meta))
-                    .line_height(px(m.right.meta_line_height))
-                    .text_color(a.text_muted)
-                    .child(label)
-            }))
+                        .debug_selector(move || selector)
+                        .mt(px(4.))
+                        .text_size(px(m.left.meta))
+                        .line_height(px(m.right.meta_line_height))
+                        .text_color(a.text_muted)
+                        .child(label)
+                }));
+        v_flex()
+            .w_full()
+            .min_w_0()
+            .children(switched)
+            .child(bubble)
             .into_any_element()
     }
 

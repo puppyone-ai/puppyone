@@ -556,7 +556,7 @@ fn keeps_stop_feedback_independent_and_retries_the_same_command_identity() {
 }
 
 #[test]
-fn requires_a_fresh_conversation_for_a_model_connection_change() {
+fn continues_the_conversation_on_another_model_connection() {
     run(async {
         let f = bridge_fixture(json!({ "modelConnections": true }));
         let overrides = json!({ "modelConnections": true });
@@ -567,40 +567,44 @@ fn requires_a_fresh_conversation_for_a_model_connection_change() {
             .expect("models")
             .push(second_model.clone());
         f.bridge.resolve_once("resumeAgentSession", first.clone());
-        let mut next = snapshot("session-2", Vec::new(), &overrides);
-        next["session"]["selectedModel"] = second_model["model"].clone();
-        next["models"] = first["models"].clone();
-        f.bridge.resolve_once("createAgentSession", next);
         let controller = f.controller();
         controller.initialize(false).await.expect("initialize");
-        controller.set_draft("private old draft");
-        assert!(controller.requires_new_model_connection_session(Some("local/test")));
+        controller.set_draft("keep this draft");
+        controller.select_model(Some("local/test"));
+        assert_match(
+            &state(&controller),
+            &json!({ "draft": "keep this draft", "selectedModel": "local/test" }),
+        );
+        assert_eq!(f.bridge.count("closeAgentSession"), 0);
+        assert_eq!(f.bridge.count("createAgentSession"), 0);
+        assert!(submit(&controller, "Next step").await);
+        let calls = f.bridge.calls("startAgentTurn");
+        assert_eq!(calls.len(), 1);
+        assert_match(
+            &calls[0],
+            &json!({ "sessionId": "session-1", "model": "local/test", "prompt": "Next step" }),
+        );
+        controller.dispose(false);
+    });
+}
+
+#[test]
+fn keeps_the_model_while_a_turn_runs() {
+    run(async {
+        let f = bridge_fixture(json!({ "modelConnections": true }));
+        let overrides = json!({ "modelConnections": true });
+        let mut first = snapshot("session-1", Vec::new(), &overrides);
+        first["models"].as_array_mut().expect("models").push(json!({ "id": "local/test", "model": "local/test", "connectionId": "local", "providerId": "local", "displayName": "Local test", "description": "", "isDefault": false }));
+        f.bridge.resolve_once("resumeAgentSession", first);
+        let controller = f.controller();
+        controller.initialize(false).await.expect("initialize");
+        f.emit(turn_started(2, "Running", "turn-running"));
+        settle().await;
         controller.select_model(Some("local/test"));
         assert_eq!(
             controller.get_snapshot().selected_model.as_deref(),
             Some("openai/gpt-5")
         );
-        controller.start_new_model_connection("local/test").await;
-        assert!(
-            f.bridge
-                .calls("closeAgentSession")
-                .iter()
-                .any(|request| matches(
-                    request,
-                    &json!({ "sessionId": "session-1", "removePersistence": false })
-                ))
-        );
-        assert!(
-            f.bridge
-                .calls("createAgentSession")
-                .iter()
-                .any(|request| matches(request, &json!({ "model": "local/test" })))
-        );
-        assert_match(
-            &state(&controller),
-            &json!({ "draft": "", "references": [], "selectedModel": "local/test", "submitting": false }),
-        );
-        assert_eq!(f.bridge.count("startAgentTurn"), 0);
         controller.dispose(false);
     });
 }
@@ -747,36 +751,6 @@ fn keeps_attachment_only_steer_submissions_busy_until_acknowledgement() {
 }
 
 #[test]
-fn does_not_restore_a_late_rejected_steer_into_a_replacement_conversation() {
-    run(async {
-        let f = bridge_fixture(json!({ "steer": true }));
-        let receipt = Deferred::new();
-        f.bridge.handle_once("steerAgentTurn", receipt.handler());
-        let controller = f.controller();
-        controller.initialize(false).await.expect("initialize");
-        f.emit(turn_started(2, "Running", "turn-running"));
-        let pending = controller.submit("old instruction");
-        f.emit(event(
-            3,
-            "turn.completed",
-            json!({}),
-            Some("turn-running"),
-            None,
-            "session-1",
-        ));
-        controller.new_session().await;
-        controller.set_draft("new conversation draft");
-        receipt.reject(AgentError::new("late rejection"));
-        assert!(!pending.await.expect("submit"));
-        assert_match(
-            &state(&controller),
-            &json!({ "draft": "new conversation draft", "error": null, "submitting": false, "pendingIntent": null }),
-        );
-        controller.dispose(false);
-    });
-}
-
-#[test]
 fn ignores_receipts_and_new_submissions_after_disposal() {
     run(async {
         let f = bridge_fixture(json!({ "steer": true }));
@@ -896,7 +870,7 @@ fn begins_direct_recipe_discovery_without_blocking_admission() {
 }
 
 #[test]
-fn renders_main_display_revisions_and_preserves_the_old_locator_on_new_chat() {
+fn renders_main_display_revisions_and_remembers_the_viewport() {
     run(async {
         let f = bridge_fixture(json!({}));
         let controller = f.controller();
@@ -956,12 +930,6 @@ fn renders_main_display_revisions_and_preserves_the_old_locator_on_new_chat() {
         );
         assert!(!viewport.pinned);
         assert_eq!(viewport.geometry, None);
-
-        controller.new_session().await;
-        assert!(f.bridge.calls("closeAgentSession").contains(
-            &json!({ "rootPath": ROOT, "sessionId": "session-1", "removePersistence": false })
-        ));
-        assert_eq!(controller.get_snapshot().session_id(), Some("session-2"));
     });
 }
 

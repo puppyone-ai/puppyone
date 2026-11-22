@@ -28,7 +28,8 @@
 //! `agent-chat:<runtime id>` (a new chat on a detected
 //! Agent), `agent-settled` (its session prepared or failed),
 //! `agent-prompt:<text>` (the chat sends it), `agent-idle` (no turn
-//! running), `agent-history` (History with discovery allowed) and
+//! running), `agent-model:<text>` (the chat picks the model whose route or
+//! name contains it), `agent-turns:<n>` (n turns settled), `agent-history` (History with discovery allowed) and
 //! `agent-history-open` (its first chat opens), and in a file window `file-menu:<view|settings>` (a
 //! title bar menu), `file-edit` (a space typed at the end of the first
 //! line) and `blur` (focus leaves the document). The capture waits
@@ -128,6 +129,10 @@ enum Step {
     AgentPrompt(String),
     /// `agent-idle`: no chat has a running turn.
     AgentIdle,
+    /// `agent-model:<text>`: the chat picks the model matching `text`.
+    AgentModel(String),
+    /// `agent-turns:<n>`: the chat has `n` settled turns.
+    AgentTurns(usize),
     /// `agent-history`: the History browser, with discovery allowed.
     AgentHistory,
     /// `agent-history-open`: History opens its first chat.
@@ -215,6 +220,8 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "agent-settled" => Step::AgentSettled,
                 "agent-prompt" => Step::AgentPrompt(arg.to_string()),
                 "agent-idle" => Step::AgentIdle,
+                "agent-model" => Step::AgentModel(arg.to_string()),
+                "agent-turns" => Step::AgentTurns(arg.parse().unwrap_or(1)),
                 "agent-history" => Step::AgentHistory,
                 "agent-history-open" => Step::AgentHistoryOpen,
                 other => {
@@ -269,7 +276,12 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
-        let timed_out = scenario.started.elapsed() > std::time::Duration::from_secs(20);
+        // `PUPPYONE_CAPTURE_SCENARIO_SECS` lengthens it for live model turns.
+        let limit = std::env::var("PUPPYONE_CAPTURE_SCENARIO_SECS")
+            .ok()
+            .and_then(|secs| secs.parse().ok())
+            .unwrap_or(20);
+        let timed_out = scenario.started.elapsed() > std::time::Duration::from_secs(limit);
         // The real workspace and its Git status must be in place first.
         // A file window has no Explorer rows or Git; its file must be open.
         let file = self.file_mode();
@@ -595,6 +607,28 @@ impl Shell {
                     .launcher
                     .read(cx)
                     .capture_agent_idle(cx)
+                {
+                    return false;
+                }
+            }
+            Step::AgentModel(text) => {
+                if !self
+                    .sidebar
+                    .read(cx)
+                    .launcher
+                    .read(cx)
+                    .capture_agent_model(text, cx)
+                {
+                    return false;
+                }
+            }
+            Step::AgentTurns(count) => {
+                if !self
+                    .sidebar
+                    .read(cx)
+                    .launcher
+                    .read(cx)
+                    .capture_agent_turns(*count, cx)
                 {
                     return false;
                 }

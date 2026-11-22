@@ -276,6 +276,7 @@
   "status.completed": "完成",
   "status.stopped": "已停止",
   "status.queued": "已排队",
+  "turn.modelSwitched": "已切换到 {model}",
   "status.notSent": "未发送",
   "status.deliveryUnknown": "发送结果未确认",
   "status.waitingForUser": "等待用户",

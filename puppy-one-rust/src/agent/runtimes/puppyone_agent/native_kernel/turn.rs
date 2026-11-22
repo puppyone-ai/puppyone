@@ -10,6 +10,7 @@ use crate::clock;
 use futures_util::future::LocalBoxFuture;
 use serde_json::{Value, json};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use tokio::sync::watch;
@@ -76,14 +77,101 @@ fn text_of(content: &Value) -> String {
 
 const INTERRUPTED_RECEIPT: &str = "The turn was interrupted before a durable tool receipt. Inspect the workspace before retrying; no action was replayed.";
 
-/// The session as OpenAI chat messages, from its last compaction summary.
-pub fn chat_context(cwd: &std::path::Path, messages: &[Value]) -> Vec<Value> {
+/// The note a user image becomes for a model without image input (Pi's
+/// `downgradeUnsupportedImages`).
+const IMAGE_OMITTED: &str = "(image omitted: model does not support images)";
+
+/// The share of a model's context window one request may fill; the rest is
+/// left for the answer and for the estimate's error.
+const CONTEXT_BUDGET_PERCENT: u64 = 75;
+
+/// What the request lost on its way to the current model.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ContextLosses {
+    /// Earlier messages left out to fit the model's context window.
+    pub omitted_messages: usize,
+    /// User images replaced with a note.
+    pub omitted_images: usize,
+}
+
+/// The model a request is built for: `provider` (the connection) and `id`
+/// as the kernel's `get_available_models` lists them.
+fn same_model(message: &Value, model: &Value) -> bool {
+    message["provider"] == model["provider"] && message["model"] == model["id"]
+}
+
+fn accepts_images(model: &Value) -> bool {
+    model["input"]
+        .as_array()
+        .is_some_and(|input| input.iter().any(|kind| kind == "image"))
+}
+
+/// A tool call id every protocol accepts (`^[A-Za-z0-9_-]{1,64}$`, the
+/// strictest, Anthropic's); other ids keep a hash of the original so two
+/// calls never collapse into one.
+pub fn portable_tool_call_id(id: &str) -> String {
+    let valid = |b: u8| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-');
+    if !id.is_empty() && id.len() <= 64 && id.bytes().all(valid) {
+        return id.to_string();
+    }
+    let stem: String = id
+        .bytes()
+        .map(|b| if valid(b) { b as char } else { '_' })
+        .take(48)
+        .collect();
+    let hash = blake3::hash(id.as_bytes()).to_hex();
+    format!("{stem}_{}", &hash.as_str()[..12])
+}
+
+/// The request's rough size in tokens: four characters a token, an image
+/// counted at a flat cost instead of its encoded bytes.
+fn estimated_tokens(context: &[Value]) -> u64 {
+    const IMAGE_TOKENS: u64 = 1_200;
+    context
+        .iter()
+        .map(|message| match &message["content"] {
+            Value::Array(parts) => {
+                let mut tokens = 0;
+                let mut rest = message.clone();
+                rest["content"] = Value::Null;
+                tokens += serde_json::to_string(&rest).map_or(0, |s| s.len() as u64 / 4);
+                for part in parts {
+                    tokens += if part["type"] == "image_url" {
+                        IMAGE_TOKENS
+                    } else {
+                        serde_json::to_string(part).map_or(0, |s| s.len() as u64 / 4)
+                    };
+                }
+                tokens
+            }
+            _ => serde_json::to_string(message).map_or(0, |s| s.len() as u64 / 4),
+        })
+        .sum()
+}
+
+/// The session as OpenAI chat messages for `model`, from its last
+/// compaction summary, with what the request lost. History from another model (the
+/// session may switch connections between turns, Pi's `transformMessages`)
+/// is made portable: its thinking is dropped, since reasoning, signatures
+/// and encrypted content are valid only for the model that produced them,
+/// and its tool call ids become ids every protocol accepts. Images become a
+/// note for a model without image input, and the oldest turns are left out
+/// when the history does not fit the model's context window.
+pub fn request_context(
+    cwd: &std::path::Path,
+    messages: &[Value],
+    model: &Value,
+) -> (Vec<Value>, ContextLosses) {
+    let mut losses = ContextLosses::default();
+    let images_accepted = accepts_images(model);
     let start = messages
         .iter()
         .rposition(|m| m["role"] == "compactionSummary")
         .unwrap_or(0);
     let mut context = vec![json!({ "role": "system", "content": system_prompt(cwd) })];
     let mut open: Vec<String> = Vec::new();
+    // Original id -> the id sent, for the calls of other models.
+    let mut renamed: HashMap<String, String> = HashMap::new();
     let close = |context: &mut Vec<Value>, open: &mut Vec<String>| {
         for id in open.drain(..) {
             context.push(
@@ -106,8 +194,16 @@ pub fn chat_context(cwd: &std::path::Path, messages: &[Value]) -> Vec<Value> {
                     .as_array()
                     .map(|parts| parts.iter().filter(|p| p["type"] == "image").collect())
                     .unwrap_or_default();
-                let text = text_of(&message["content"]);
-                if images.is_empty() {
+                let mut text = text_of(&message["content"]);
+                if !images.is_empty() && !images_accepted {
+                    losses.omitted_images += images.len();
+                    text = if text.is_empty() {
+                        IMAGE_OMITTED.to_string()
+                    } else {
+                        format!("{text}\n{IMAGE_OMITTED}")
+                    };
+                }
+                if images.is_empty() || !images_accepted {
                     context.push(json!({ "role": "user", "content": text }));
                 } else {
                     let mut parts = vec![json!({ "type": "text", "text": text })];
@@ -126,6 +222,7 @@ pub fn chat_context(cwd: &std::path::Path, messages: &[Value]) -> Vec<Value> {
             }
             Some("assistant") => {
                 close(&mut context, &mut open);
+                let own = same_model(message, model);
                 let text = text_of(&message["content"]);
                 let calls: Vec<Value> = message["content"]
                     .as_array()
@@ -133,8 +230,18 @@ pub fn chat_context(cwd: &std::path::Path, messages: &[Value]) -> Vec<Value> {
                     .flatten()
                     .filter(|part| part["type"] == "toolCall")
                     .map(|call| {
+                        let original = call["id"].as_str().unwrap_or_default();
+                        let id = if own {
+                            original.to_string()
+                        } else {
+                            let id = portable_tool_call_id(original);
+                            if id != original {
+                                renamed.insert(original.to_string(), id.clone());
+                            }
+                            id
+                        };
                         json!({
-                            "id": call["id"],
+                            "id": id,
                             "type": "function",
                             "function": {
                                 "name": call["name"],
@@ -147,13 +254,14 @@ pub fn chat_context(cwd: &std::path::Path, messages: &[Value]) -> Vec<Value> {
                     continue;
                 }
                 let mut entry = json!({ "role": "assistant", "content": text });
-                // The model's thinking, for providers that require it back
-                // (Kimi); `openai_chat::body` drops it for the others.
+                // The model's own thinking, for providers that require it
+                // back (Kimi); `openai_chat::body` drops it for the others.
+                // Another model's thinking is never replayed.
                 let thinking: String = message["content"]
                     .as_array()
                     .into_iter()
                     .flatten()
-                    .filter(|part| part["type"] == "thinking")
+                    .filter(|part| own && part["type"] == "thinking")
                     .filter_map(|part| part["thinking"].as_str())
                     .collect();
                 if !thinking.is_empty() {
@@ -169,10 +277,11 @@ pub fn chat_context(cwd: &std::path::Path, messages: &[Value]) -> Vec<Value> {
                 context.push(entry);
             }
             Some("toolResult") => {
-                let id = message["toolCallId"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_string();
+                let original = message["toolCallId"].as_str().unwrap_or_default();
+                let id = renamed
+                    .get(original)
+                    .cloned()
+                    .unwrap_or_else(|| original.to_string());
                 if let Some(index) = open.iter().position(|open| *open == id) {
                     open.remove(index);
                     context.push(json!({
@@ -186,7 +295,66 @@ pub fn chat_context(cwd: &std::path::Path, messages: &[Value]) -> Vec<Value> {
         }
     }
     close(&mut context, &mut open);
-    context
+    losses.omitted_messages = fit_context_window(&mut context, model);
+    (context, losses)
+}
+
+/// Leaves out the oldest whole turns (a user message and what answered it)
+/// until the request fits the model's context window, keeping the latest
+/// turn. The system prompt says what was left out. Returns how many
+/// messages were left out.
+fn fit_context_window(context: &mut Vec<Value>, model: &Value) -> usize {
+    let Some(window) = model["contextWindow"].as_u64().filter(|w| *w > 0) else {
+        return 0;
+    };
+    let budget = window * CONTEXT_BUDGET_PERCENT / 100;
+    let mut omitted = 0;
+    while estimated_tokens(context) > budget {
+        // A turn starts at a user message; the first one stays the history's
+        // start once everything before it is gone.
+        let Some(next) = context
+            .iter()
+            .enumerate()
+            .skip(2)
+            .find(|(_, m)| m["role"] == "user")
+            .map(|(index, _)| index)
+        else {
+            break;
+        };
+        context.drain(1..next);
+        omitted += next - 1;
+    }
+    if omitted > 0 {
+        let note = format!(
+            "\nEarlier parts of this conversation ({omitted} messages) were left out because they do not fit this model's context window. If they matter, ask the user instead of guessing."
+        );
+        if let Some(system) = context[0]["content"].as_str().map(|s| format!("{s}{note}")) {
+            context[0]["content"] = Value::from(system);
+        }
+    }
+    omitted
+}
+
+/// What the user is told when a request left something out.
+fn losses_notice(losses: ContextLosses, model: &Value) -> Option<String> {
+    let name = model["name"]
+        .as_str()
+        .or_else(|| model["id"].as_str())
+        .unwrap_or("this model");
+    let mut parts = Vec::new();
+    if losses.omitted_messages > 0 {
+        parts.push(format!(
+            "{} earlier messages don't fit {name}'s context window and were left out of this request. Compact the conversation or choose a model with a larger window to keep them.",
+            losses.omitted_messages
+        ));
+    }
+    if losses.omitted_images > 0 {
+        parts.push(format!(
+            "{} images in this conversation were replaced with a note because {name} doesn't accept images.",
+            losses.omitted_images
+        ));
+    }
+    (!parts.is_empty()).then(|| parts.join(" "))
 }
 
 fn usage(completion: &Completion) -> Value {
@@ -202,6 +370,19 @@ fn usage(completion: &Completion) -> Value {
 }
 
 impl Kernel {
+    /// Tells the user what the request left out (a warning in the chat).
+    fn notify_losses(&self, losses: ContextLosses, model: &Value) {
+        if let Some(message) = losses_notice(losses, model) {
+            self.emit(json!({
+                "type": "extension_ui_request",
+                "id": uuid::Uuid::new_v4().to_string(),
+                "method": "notify",
+                "message": message,
+                "notifyType": "warning",
+            }));
+        }
+    }
+
     /// Appends `message` to the session (`message_start` / `message_end`).
     fn record(&self, message: Value, produced: &mut Vec<Value>) {
         self.emit(json!({ "type": "message_start", "message": message }));
@@ -355,6 +536,7 @@ pub(super) async fn run(
 ) {
     let cwd = kernel.launch.cwd.clone();
     let mut produced = Vec::new();
+    let mut reported = ContextLosses::default();
     kernel.emit(json!({ "type": "agent_start" }));
     kernel.record(user, &mut produced);
     let _ = kernel.persist();
@@ -367,7 +549,11 @@ pub(super) async fn run(
             break;
         }
         kernel.emit(json!({ "type": "turn_start" }));
-        let context = chat_context(&cwd, &kernel.session.borrow().messages);
+        let (context, losses) = request_context(&cwd, &kernel.session.borrow().messages, &model);
+        if losses != reported {
+            reported = losses;
+            kernel.notify_losses(losses, &model);
+        }
         let mut assistant = infer(kernel, aborted.clone(), &model, context, tools::schema()).await;
         let calls: Vec<Value> = assistant["content"]
             .as_array()
@@ -507,7 +693,12 @@ pub(super) async fn compact(kernel: &Rc<Kernel>) -> Result<Value, String> {
     }
     kernel.compacting.set(true);
     kernel.emit(json!({ "type": "compaction_start", "reason": "manual" }));
-    let mut context = chat_context(&kernel.launch.cwd, &kernel.session.borrow().messages);
+    let (mut context, losses) = request_context(
+        &kernel.launch.cwd,
+        &kernel.session.borrow().messages,
+        &model,
+    );
+    kernel.notify_losses(losses, &model);
     let tokens_before: usize = context
         .iter()
         .map(|m| serde_json::to_string(m).map(|s| s.len() / 4).unwrap_or(0))
