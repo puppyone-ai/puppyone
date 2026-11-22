@@ -94,9 +94,7 @@ async function clickElement(selector, hover = false) {
 
 async function editElement(selector) {
   await clickElement(selector);
-  await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), 'pencil available');
-  await control('.html-editor-pencil');
-  await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), 'explicit edit mode');
+  await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), 'click edits in place');
 }
 async function moveAway() {
   await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 500 });
@@ -196,36 +194,21 @@ app.whenReady().then(async () => {
       'pointer movement does not reveal or measure editing UI');
     assert.equal(await disk(), original, 'pointer movement is source inert');
     await clickElement("#title");
-    await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), 'click reveals pencil');
-    assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'page click does not start editing');
-    assert.equal(await disk(), original);
-    const outsideSurface = await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=getComputedStyle(b),selection=getComputedStyle(document.querySelector('.html-editor-selection'));return {count:document.querySelectorAll('.html-editor-pencil').length,icons:b.querySelectorAll('svg').length,background:s.backgroundColor,shadow:s.boxShadow,border:s.borderTopWidth,borderColor:s.borderTopColor,borderRadius:s.borderRadius,selectionColor:selection.borderTopColor,width:b.offsetWidth,height:b.offsetHeight,stroke:selection.borderTopWidth}})()");
-    assert.equal(outsideSurface.count, 1, 'one edit handle');
-    assert.equal(outsideSurface.icons, 1, 'one pencil glyph');
-    assert.equal(outsideSurface.background, outsideSurface.selectionColor, 'edit handle uses the block selection color');
-    assert.equal(outsideSurface.borderColor, outsideSurface.selectionColor, 'handle border and surface share one theme token');
-    assert.notEqual(outsideSurface.shadow, 'none', 'outside surface is visually separated from page content');
-    assert.equal(outsideSurface.border, '1px');
-    assert.equal(outsideSurface.borderRadius, '50%', 'edit affordance is a circle');
-    assert.deepEqual([outsideSurface.width, outsideSurface.height], [26, 26], 'edit affordance stays compact');
-    assert.equal(outsideSurface.stroke, '2px', 'block stroke remains clear');
-    const handleGeometry = () => evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),s=document.querySelector('.html-editor-selection');return {handle:b.getBoundingClientRect().toJSON(),selection:s.getBoundingClientRect().toJSON(),placement:b.dataset.placement}})()");
-    const initialHandle = await handleGeometry();
-    assert.equal(initialHandle.placement, 'below', 'the shared horizontal rail uses the available outside edge');
-    assert.ok(initialHandle.handle.top >= initialHandle.selection.bottom);
+    // A click selects the block and edits it in the page itself: there is no
+    // separate edit handle and no text box over the page.
+    await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), 'click selects and edits in place');
+    assert.equal(await evaluate("!!document.querySelector('.html-editor-pencil,.html-editor-text-input')"), false, 'the page is the editing surface');
+    await until(() => preview().executeJavaScript("document.activeElement?.id==='title'&&document.activeElement.isContentEditable"), 'the clicked block takes the caret');
+    assert.equal(await disk(), original, 'a click writes nothing');
+    const selectionStroke = await evaluate("(()=>({count:document.querySelectorAll('.html-editor-selection').length,stroke:getComputedStyle(document.querySelector('.html-editor-selection')).borderTopWidth}))()");
+    assert.deepEqual(selectionStroke, { count: 1, stroke: '2px' }, 'one clear block stroke');
     await visibleSelectionBorder();
-    await fsp.writeFile(path.join(output, 'puppyone-html-handle-outside-below.png'), (await win.webContents.capturePage()).toPNG());
+    await fsp.writeFile(path.join(output, 'puppyone-html-selection.png'), (await win.webContents.capturePage()).toPNG());
     await evaluate("document.getElementById('root').style.setProperty('--po-accent','#14b8a6')");
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderTopColor"), 'rgb(20, 184, 166)', 'selection follows theme changes');
-    await until(() => evaluate("getComputedStyle(document.querySelector('.html-editor-pencil')).backgroundColor==='rgb(20, 184, 166)'"), 'edit affordance follows the same theme change');
     await evaluate("document.getElementById('root').style.removeProperty('--po-accent')");
-    await control('.html-editor-pencil');
-    await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "element selection");
-    await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "text input");
-    assert.equal(await evaluate("!!document.querySelector('.html-editor-pencil')"), false, 'edit affordance yields to the active format panel');
     assert.equal(await evaluate("(()=>{const t=document.querySelector('.html-floating-toolbar').getBoundingClientRect(),s=document.querySelector('.html-editor-selection').getBoundingClientRect();return Math.abs((t.left+t.right-s.left-s.right)/2)<2})()"), true,
       'active format panel owns the visual center');
-    assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).backgroundColor"), "rgba(0, 0, 0, 0)");
     const toolbarInside = () => evaluate("(()=>{const frame=document.querySelector('iframe'),toolbar=document.querySelector('.html-floating-toolbar');if(!frame||!toolbar)return false;const p=frame.getBoundingClientRect(),t=toolbar.getBoundingClientRect();return t.left>=p.left && t.right<=p.right && t.top>=p.top && t.bottom<=p.bottom})()");
     await until(toolbarInside, 'floating toolbar remains in pane');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderTopColor"), 'rgb(37, 99, 235)', 'product theme accent');
@@ -234,15 +217,16 @@ app.whenReady().then(async () => {
     await visibleSelectionBorder();
     await fsp.writeFile(path.join(output, 'puppyone-html-selection-dark.png'), (await win.webContents.capturePage()).toPNG());
     await preview().executeJavaScript("document.body.style.background=''");
+    await preview().executeJavaScript("getSelection().selectAllChildren(document.querySelector('#title'))");
     await fsp.writeFile(path.join(output, 'puppyone-html-inline-text.png'), (await win.webContents.capturePage()).toPNG());
-    await win.webContents.debugger.sendCommand('Input.imeSetComposition', { text: 'nihao', selectionStart: 5, selectionEnd: 5, replacementStart: 0, replacementEnd: 6 });
+    await win.webContents.debugger.sendCommand('Input.imeSetComposition', { text: 'nihao', selectionStart: 5, selectionEnd: 5 });
     await moveAway(); await wait(600);
-    assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), true, 'moving away must not discard IME');
+    assert.equal(await evaluate("!!document.querySelector('.html-floating-toolbar')"), true, 'moving away must not discard IME');
     assert.equal(await disk(), original, 'unconfirmed composition must not be persisted');
     await win.webContents.debugger.sendCommand('Input.insertText', { text: '你好 😀 & title' });
     await mode("preview");
-    await until(() => evaluate("document.querySelector('[data-html-interactive=true]')?.getAttribute('aria-busy')==='false'"), 'leave active text input for interaction');
-    assert.equal(await preview().executeJavaScript("document.querySelector('#title').textContent"), '你好 😀 & title', 'mode switch commits active input');
+    await until(() => evaluate("document.querySelector('[data-html-interactive=true]')?.getAttribute('aria-busy')==='false'"), 'leave in-page editing for interaction');
+    assert.equal(await preview().executeJavaScript("document.querySelector('#title').textContent"), '你好 😀 & title', 'mode switch commits in-page input');
     await mode("edit");
     await until(() => evaluate("document.querySelector('.html-visual-editor iframe')?.getAttribute('aria-busy')==='false'"), 'editing resumes after input commit');
     await until(async () => (await disk()).includes("你好 😀 &amp; title"), "text persisted");
@@ -297,13 +281,11 @@ app.whenReady().then(async () => {
     await fsp.writeFile(path.join(output, 'puppyone-html-pencil-palette.png'), (await win.webContents.capturePage()).toPNG());
     await control('[aria-label="Choose #2563eb"]');
     await until(async () => (await disk()).includes('style="color: #2563eb"'), "style persisted");
-    assert.equal(await evaluate("document.activeElement?.classList.contains('html-editor-text-input')"), true, 'formatting keeps text focus');
+    assert.equal(await evaluate("document.activeElement?.tagName==='IFRAME'") && await preview().executeJavaScript("document.activeElement?.id==='title'"), true, 'formatting keeps text focus');
     await visibleSelectionBorder();
-    await until(() => evaluate("getComputedStyle(document.querySelector('.html-editor-text-input')).color==='rgb(37, 99, 235)'"), "inline text mirrors formatting");
-    await evaluate("document.querySelector('.html-editor-text-input').blur()");
     await until(() => preview().executeJavaScript("getComputedStyle(document.querySelector('#title')).color==='rgb(37, 99, 235)'"), "rendered text color");
     await editElement("#locked");
-    await until(() => evaluate("document.querySelector('.html-editor-text-input')?.value==='Locked'"), "locked text");
+    await until(() => preview().executeJavaScript("document.activeElement?.id==='locked'&&document.activeElement.textContent==='Locked'"), "locked text");
     const beforeLocked = await disk();
     await control('[aria-label="Text color"]');
     await control('[aria-label="Choose #2563eb"]');
@@ -326,56 +308,28 @@ app.whenReady().then(async () => {
     await until(async () => (await disk()).includes(imported), 'image redo');
     await until(() => evaluate("document.querySelector('iframe')?.getAttribute('aria-busy')==='false'"), 'image redo projection');
     await clickElement('#card');
-    await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='above'"), 'outside top handle');
-    const above = await handleGeometry();
-    assert.ok(above.handle.bottom < above.selection.top, 'handle is completely outside the block');
-    const start = {x:above.selection.left+above.selection.width*.25,y:above.selection.top+above.selection.height*.5};
-    const end = {x:above.handle.x+above.handle.width/2,y:above.handle.y+above.handle.height/2};
-    for (let step=0; step<=20; step++) {
-      await win.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {type:'mouseMoved',x:start.x+(end.x-start.x)*step/20,y:start.y+(end.y-start.y)*step/20});
-      await wait(40);
-    }
-    await wait(400);
-    assert.equal((await handleGeometry()).selection.y, above.selection.y, 'slow diagonal approach keeps the original block');
-    assert.equal(await disk(), beforeLocked.replace('src="old.png"', `src="${imported}"`), 'selection and docking never write the source');
-    await fsp.writeFile(path.join(output, 'puppyone-html-handle-outside-above.png'), (await win.webContents.capturePage()).toPNG());
-    // Exercise a flush viewport edge without changing the document model or fixture file.
-    await preview().executeJavaScript("document.querySelector('#card').style.cssText='position:fixed;inset:0;margin:0;padding:24px;background:#f7f8fa'");
-    await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='inside'"), 'inside fallback only when both outside edges are unavailable');
-    await wait(180);
-    const inside = await handleGeometry();
-    assert.ok(inside.handle.left >= inside.selection.left && inside.handle.right <= inside.selection.right && inside.handle.top >= inside.selection.top, 'fallback stays in its block');
-    assert.equal(await evaluate("(()=>{const s=getComputedStyle(document.querySelector('.html-editor-pencil')),selection=getComputedStyle(document.querySelector('.html-editor-selection'));return s.backgroundColor===selection.borderTopColor&&s.borderTopColor===selection.borderTopColor})()"),
-      true, 'inside fallback preserves the selection color relationship');
-    await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
-    assert.ok(await evaluate("(()=>{const b=document.querySelector('.html-editor-pencil'),r=b.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('.html-editor-pencil')===b})()"), 'inside handle remains reachable beside the standalone source menu');
-    await fsp.writeFile(path.join(output, 'puppyone-html-handle-inside-fallback.png'), (await win.webContents.capturePage()).toPNG());
-    await preview().executeJavaScript("document.querySelector('#card').style.cssText='margin-top:24px;padding:24px;height:160px;box-sizing:border-box;border-radius:18px;background:#f7f8fa'");
-    await until(() => evaluate("document.querySelector('.html-editor-pencil')?.dataset.placement==='above'"), 'return outside when room becomes available');
-    await control('.html-editor-pencil');
     await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), 'block action menu');
-    assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil'),t=document.querySelector('.html-floating-toolbar').getBoundingClientRect(),s=document.querySelector('.html-editor-selection').getBoundingClientRect();return !p&&t.bottom<s.top&&Math.abs((t.left+t.right-s.left-s.right)/2)<2})()"),
-      true, 'active menu is centered above the block after the pencil disappears');
+    assert.equal(await evaluate("(()=>{const t=document.querySelector('.html-floating-toolbar').getBoundingClientRect(),s=document.querySelector('.html-editor-selection').getBoundingClientRect();return t.bottom<s.top&&Math.abs((t.left+t.right-s.left-s.right)/2)<2})()"),
+      true, 'active menu is centered above the block');
+    assert.equal(await disk(), beforeLocked.replace('src="old.png"', `src="${imported}"`), 'selecting a container never writes the source');
     await fsp.writeFile(path.join(output, 'puppyone-html-action-rail.png'), (await win.webContents.capturePage()).toPNG());
-    assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, 'container editing keeps its child structure');
+    assert.equal(await preview().executeJavaScript("document.querySelector('#card').isContentEditable"), false, 'container editing keeps its child structure');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.html-editor-selection')).borderRadius"), '18px', 'border follows card corners');
     await clickElement('#card-title');
-    await until(() => evaluate("document.querySelector('.html-editor-text-input')?.value==='Card title'"), 'select text inside the active block');
+    await until(() => preview().executeJavaScript("document.activeElement?.id==='card-title'&&document.activeElement.isContentEditable"), 'select text inside the active block');
+    await preview().executeJavaScript("getSelection().selectAllChildren(document.querySelector('#card-title'))");
     await win.webContents.debugger.sendCommand('Input.insertText', { text: 'Card edited' });
-    await moveAway();
-    await until(() => evaluate("!document.querySelector('.html-floating-toolbar,.html-editor-selection,.html-editor-text-input')"), 'leave normal input');
-    await until(async () => (await disk()).includes('>Card edited</h2><p style="margin:0">Card detail</p>'), 'leaving persists only the edited child');
+    await until(async () => (await disk()).includes('>Card edited</h2><p style="margin:0">Card detail</p>'), 'in-page input persists only the edited child');
+    await moveAway(); await wait(450);
+    assert.equal(await evaluate("!!document.querySelector('.html-floating-toolbar')"), true, 'moving away keeps the selection');
+    for (const type of ['keyDown', 'keyUp']) await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await until(() => evaluate("!document.querySelector('.html-floating-toolbar,.html-editor-selection')"), 'Escape dismisses editing');
     await preview().executeJavaScript("document.querySelector('#card-title').focus()");
     await until(() => evaluate("document.activeElement?.tagName==='IFRAME'"), 'keyboard focus enters preview');
-    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' });
-    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-    await until(() => evaluate("document.activeElement?.classList.contains('html-editor-pencil')"), 'keyboard reaches pencil');
-    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' });
-    await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-    await until(() => evaluate("document.activeElement?.classList.contains('html-editor-text-input')"), 'keyboard activates pencil');
-    await clickElement('#card-title', true);
-    await moveAway();
-    await until(() => evaluate("!document.querySelector('.html-floating-toolbar')"), 'keyboard editing also dismisses on leave');
+    await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), 'keyboard focus edits the focused block');
+    assert.equal(await preview().executeJavaScript("document.querySelector('#card-title').isContentEditable"), true, 'keyboard focus edits in the page');
+    for (const type of ['keyDown', 'keyUp']) await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await until(() => evaluate("!document.querySelector('.html-floating-toolbar')"), 'keyboard editing also dismisses on Escape');
     await preview().executeJavaScript("document.querySelector('#bottom').scrollIntoView()");
     await editElement('#bottom');
     await until(() => evaluate("!!document.querySelector('.html-editor-selection')"), 'scrolled selection');
@@ -415,7 +369,7 @@ app.whenReady().then(async () => {
       return projectionSources.get(url)?.includes("Agent version");
     }, "reopened disk");
     const result = { passed: true, electron: process.versions.electron, platform: process.platform,
-      checks: ["default interaction and native page scripts", "interactive form input does not write source", "mode switching commits input and retains scroll", "pointer movement is idle and click reveals selection", "single circular theme-colored action handle", "edit handle yields to a centered active panel", "shared aligned rail above the selected block with bounded fallbacks", "slow diagonal handle approach without target jumps", "2px clicked border", "click is read-only until pencil activation", "theme inheritance", "nested block editing preserves siblings", "keyboard pencil activation", "leave commits and dismisses; IME is protected", "semantic color controls and separate circular palette", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
+      checks: ["default interaction and native page scripts", "interactive form input does not write source", "mode switching commits input and retains scroll", "pointer movement is idle; a click selects and edits in the page", "no edit handle or overlay text box", "a click writes nothing until text changes", "centered active panel above the selected block", "2px clicked border", "theme inheritance", "nested block editing preserves siblings", "keyboard focus edits in place", "Escape dismisses; moving away keeps the selection; IME is protected", "semantic color controls and separate circular palette", "safe bridge", "native IME and Unicode input", "lossless source", "stable iframe", "shared source and undo", "style and cascade",
         "native image import and rendering", "image undo preserves asset", "scroll and zoom geometry", "visible block border on light and dark backgrounds while typing and formatting", "bounded visual fallback", "disk-first external update", "close and reopen"] };
     checks = result.checks; code = 0; console.log(JSON.stringify(result));
   } catch (error) {
