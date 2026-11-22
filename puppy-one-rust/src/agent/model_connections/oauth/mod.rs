@@ -6,7 +6,7 @@
 //! sign-ins are not ported.
 //!
 //! Every flow runs in the app process: the browser is opened by the caller
-//! from [`Progress::OpenBrowser`], the callback listens on `127.0.0.1` only,
+//! from [`Progress::OpenBrowser`], the callback listens on loopback only,
 //! and the tokens it yields go straight to the Keychain
 //! ([`super::credentials`]).
 mod chatgpt;
@@ -14,10 +14,8 @@ mod device;
 mod kimi;
 mod loopback;
 mod meta;
-mod openai_api;
 mod openrouter;
 pub mod pkce;
-mod qwen;
 mod xai;
 
 use super::credentials::Credential;
@@ -37,15 +35,8 @@ pub enum OauthProvider {
     KimiCode,
     /// SuperGrok / X Premium.
     Xai,
-    /// Qwen Code. Its current sign-in is a paid Qwen plan's and is not
-    /// offered; the variant keeps older saved sign-ins readable.
-    QwenCode,
     /// Meta Model API through Meta's sign-in (Pi `meta.ts`).
     Meta,
-    /// The OpenAI API through "Sign in with ChatGPT" for agents (Pi
-    /// `openai-chatgpt.ts`): a client registered for this app. Not offered
-    /// in Settings (ChatGPT's own sign-in covers the plan).
-    OpenaiApi,
 }
 
 impl OauthProvider {
@@ -63,18 +54,13 @@ impl OauthProvider {
             Self::Openrouter => "openrouter",
             Self::KimiCode => "kimi-code",
             Self::Xai => "xai",
-            Self::QwenCode => "qwen-code",
             Self::Meta => "meta",
-            Self::OpenaiApi => "openai-api",
         }
     }
     /// The flow opens a browser and waits on a loopback callback (else it is
     /// a device-code flow the user completes on any device).
     pub fn uses_browser_callback(self) -> bool {
-        matches!(
-            self,
-            Self::Chatgpt | Self::Openrouter | Self::Xai | Self::OpenaiApi
-        )
+        matches!(self, Self::Chatgpt | Self::Openrouter | Self::Xai)
     }
 }
 
@@ -220,14 +206,8 @@ pub async fn login(
                 kimi::login(&kimi::Endpoints::default(), progress, &cancel).await
             }
             OauthProvider::Xai => xai::login(&xai::Endpoints::default(), progress, &cancel).await,
-            OauthProvider::QwenCode => {
-                qwen::login(&qwen::Endpoints::default(), progress, &cancel).await
-            }
             OauthProvider::Meta => {
                 meta::login(&meta::Endpoints::default(), progress, &cancel).await
-            }
-            OauthProvider::OpenaiApi => {
-                openai_api::login(&openai_api::Endpoints::default(), progress, &cancel).await
             }
         }
     };
@@ -236,13 +216,8 @@ pub async fn login(
         .map_err(|_| "OAUTH_TIMEOUT".to_owned())?
 }
 
-/// A fresh access token for `refresh_token`; `account_id` is what the
-/// sign-in stored beside it (OpenAI's issued client ID).
-pub async fn refresh(
-    provider: OauthProvider,
-    refresh_token: &str,
-    account_id: Option<&str>,
-) -> Result<Credential, String> {
+/// A fresh access token for `refresh_token`.
+pub async fn refresh(provider: OauthProvider, refresh_token: &str) -> Result<Credential, String> {
     match provider {
         OauthProvider::Chatgpt => {
             chatgpt::refresh(&chatgpt::Endpoints::default(), refresh_token).await
@@ -251,12 +226,7 @@ pub async fn refresh(
         OauthProvider::Openrouter => Err("OAUTH_REAUTH_REQUIRED".into()),
         OauthProvider::KimiCode => kimi::refresh(&kimi::Endpoints::default(), refresh_token).await,
         OauthProvider::Xai => xai::refresh(&xai::Endpoints::default(), refresh_token).await,
-        OauthProvider::QwenCode => qwen::refresh(&qwen::Endpoints::default(), refresh_token).await,
         OauthProvider::Meta => meta::refresh(&meta::Endpoints::default(), refresh_token).await,
-        OauthProvider::OpenaiApi => {
-            let client = account_id.ok_or("OAUTH_REAUTH_REQUIRED")?;
-            openai_api::refresh(&openai_api::Endpoints::default(), client, refresh_token).await
-        }
     }
 }
 

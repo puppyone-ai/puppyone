@@ -189,7 +189,6 @@ fn known_errors_read_as_sentences() {
         "OAUTH_EXCHANGE_FAILED",
         "OAUTH_STATE_MISMATCH",
         "OAUTH_PASTE_INVALID",
-        "OAUTH_SCOPE_DENIED",
     ] {
         assert!(!ModelConnections::error_text(code).contains(code), "{code}");
     }

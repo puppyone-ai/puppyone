@@ -273,26 +273,6 @@ pub const API_PROVIDERS: &[Provider] = &[
 /// the provider's own OAuth (ported from Pi Coding Agent).
 pub const ACCOUNT_PROVIDERS: &[Provider] = &[
     Provider {
-        id: "openai-api",
-        name: "OpenAI",
-        mark: Some("openai.svg"),
-        monochrome: true,
-        source: SourceKind::Api,
-        // "Sign in with ChatGPT" for agents: the token calls the OpenAI API
-        // (Responses) directly; `/models` lists what it may use.
-        driver: Driver::OpenaiResponses,
-        base_url: "https://api.openai.com/v1",
-        context: 400_000,
-        api_key: false,
-        oauth: Some((
-            OauthProvider::OpenaiApi,
-            Driver::OpenaiResponses,
-            "https://api.openai.com/v1",
-        )),
-        recommended: &[],
-        known: &[],
-    },
-    Provider {
         id: "meta",
         name: "Meta",
         mark: Some("meta-color.svg"),
@@ -350,26 +330,6 @@ pub const ACCOUNT_PROVIDERS: &[Provider] = &[
         )),
         recommended: &["kimi-for-coding"],
         known: &[known("kimi-for-coding", 262_144)],
-    },
-    Provider {
-        id: "qwen-code",
-        name: "Qwen Code",
-        mark: Some("qwen-color.svg"),
-        monochrome: false,
-        source: SourceKind::Api,
-        driver: Driver::OpenaiCompatible,
-        // Qwen Code's subscription API (`oauth-config.ts`): a Plus or Pro
-        // plan; its `/models` lists what the plan serves.
-        base_url: "https://api.qwen.ai/compatible-mode/v1",
-        context: 262_144,
-        api_key: false,
-        oauth: Some((
-            OauthProvider::QwenCode,
-            Driver::OpenaiCompatible,
-            "https://api.qwen.ai/compatible-mode/v1",
-        )),
-        recommended: &["qwen3.8-max"],
-        known: &[known("qwen3.8-max", 262_144)],
     },
 ];
 

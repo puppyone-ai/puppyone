@@ -627,7 +627,6 @@ impl ModelConnections {
             "OAUTH_EXPIRED" | "OAUTH_TIMEOUT" => "native.modelConnections.error.expired",
             "OAUTH_PORT_IN_USE" => "native.modelConnections.error.portInUse",
             "OAUTH_PASTE_INVALID" => "native.modelConnections.error.pasteInvalid",
-            "OAUTH_SCOPE_DENIED" => "native.modelConnections.error.scopeDenied",
             "OAUTH_UNAVAILABLE" | "OAUTH_UNREACHABLE" => {
                 "native.modelConnections.error.signInUnavailable"
             }

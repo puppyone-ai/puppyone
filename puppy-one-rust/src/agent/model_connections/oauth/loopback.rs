@@ -19,9 +19,6 @@ pub struct Callback {
 pub struct Authorization {
     pub code: String,
     pub state: Option<String>,
-    /// The client the provider registered for this sign-in (OpenAI's
-    /// dynamic client), when the callback names one.
-    pub client_id: Option<String>,
 }
 
 impl Callback {
@@ -206,7 +203,6 @@ fn answer(
     Some(Ok(Authorization {
         code,
         state: returned,
-        client_id: query("client_id").filter(|c| !c.is_empty()),
     }))
 }
 
@@ -242,7 +238,6 @@ pub fn pasted(text: &str, path: &str, state: Option<&str>) -> Result<Authorizati
         return Ok(Authorization {
             code,
             state: returned,
-            client_id: query("client_id").filter(|c| !c.is_empty()),
         });
     }
     // A bare code: one token of URL-safe characters.
@@ -256,7 +251,6 @@ pub fn pasted(text: &str, path: &str, state: Option<&str>) -> Result<Authorizati
     Ok(Authorization {
         code: text.to_owned(),
         state: None,
-        client_id: None,
     })
 }
 
@@ -317,7 +311,6 @@ mod tests {
             Authorization {
                 code: "abc".into(),
                 state: Some("s1".into()),
-                client_id: None,
             }
         );
     }
@@ -409,12 +402,9 @@ mod tests {
             ("emxx9CrrsAIvpPfvLpJuiC8_6vr-5C2u", None)
         );
         // The final callback URL is checked like the callback.
-        let url = "http://127.0.0.1:56121/callback?code=c1&state=st&client_id=app_9";
+        let url = "http://127.0.0.1:56121/callback?code=c1&state=st";
         let got = pasted(url, "/callback", Some("st")).unwrap();
-        assert_eq!(
-            (got.code.as_str(), got.client_id.as_deref()),
-            ("c1", Some("app_9"))
-        );
+        assert_eq!(got.code, "c1");
         assert_eq!(
             pasted(
                 "http://127.0.0.1:56121/callback?code=c1&state=other",

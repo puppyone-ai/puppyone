@@ -331,7 +331,7 @@ async fn resolve_with(
             };
             // Only a refusal asks the user to sign in again; a network or
             // gateway failure is reported as what it is.
-            let fresh = oauth::refresh(provider, refresh, account_id.as_deref())
+            let fresh = oauth::refresh(provider, refresh)
                 .await
                 .map_err(|e| match e.as_str() {
                     "OAUTH_UNREACHABLE" | "OAUTH_UNAVAILABLE" | "OAUTH_TIMEOUT" => e,
