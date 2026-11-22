@@ -7,7 +7,7 @@ use crate::editor::{
         plans::{BlockEmbed, Plan},
         presentation::classes::Class,
         state::PreviewState,
-        syntax::{Element, Kind},
+        syntax::{Element, Kind, Syntax},
     },
     text::{
         buffer::Buffer,
@@ -25,6 +25,21 @@ pub trait MarkdownFeature: Sync {
     /// in `features/math`. Called per non-code line or table cell; ranges are
     /// validated and clamped to `doc` boundaries (`TA-33`).
     fn recognize_inline(&self, _line_start: usize, _line_text: &str, _out: &mut Vec<Element>) {}
+
+    /// Window-scoped syntax collection hook (`TA-30`, `TA-31`, `TA-40`), called
+    /// by `core/syntax` after base CommonMark/GFM parsing and line-level inline
+    /// scanning for the parsed byte `window`. Features that need full `Syntax`
+    /// context (such as footnotes, inline HTML pairing, or AST-aware emoji
+    /// shortcodes) push elements into `out`; returned ranges are validated and
+    /// clamped to `doc` boundaries (`TA-33`).
+    fn collect_range(
+        &self,
+        _doc: &Buffer,
+        _syntax: &Syntax,
+        _window: Range<usize>,
+        _out: &mut Vec<Element>,
+    ) {
+    }
 
     /// Whether a recognized feature uses a fully enclosed code span as its
     /// own delimiter syntax. Other code intersections always suppress it.

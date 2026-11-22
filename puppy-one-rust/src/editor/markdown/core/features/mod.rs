@@ -11,4 +11,5 @@ pub mod isolation;
 
 pub use context::{CommandCx, CompileCx, FeatureKeybinding, InlineWidgetCx, WidgetFactoryCx};
 pub use contract::{Features, MarkdownFeature, find};
+pub use data::{Footnotes, InlineTag};
 pub use isolation::{FEATURE_PANIC_EVENT, catch_feature_panic};

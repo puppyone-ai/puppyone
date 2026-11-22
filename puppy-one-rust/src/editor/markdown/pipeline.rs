@@ -698,8 +698,8 @@ impl PipelineCache {
         if let Some(comp) = cfg.preview.composing {
             max_line = max_line.max(state.doc.line_index(state.doc.clamp(comp)));
         }
-        if let Some(ct) = cfg.preview.callout_title {
-            max_line = max_line.max(state.doc.line_index(state.doc.clamp(ct)));
+        if let Some(rl) = cfg.preview.reveal_line {
+            max_line = max_line.max(rl.min(total.saturating_sub(1)));
         }
         let b_last = doc_layer
             .blocks

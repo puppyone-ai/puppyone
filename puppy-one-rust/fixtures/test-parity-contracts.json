@@ -16578,7 +16578,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::syntax::footnotes::tests::notes_are_numbered_by_first_reference"
+          "test": "editor::markdown::features::footnote::model::tests::notes_are_numbered_by_first_reference"
         },
         {
           "package": "po-editor",
@@ -17872,11 +17872,11 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::syntax::inline_html::tests::allowed_tags_pair_within_a_paragraph"
+          "test": "editor::markdown::features::html::inline::model::tests::allowed_tags_pair_within_a_paragraph"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::syntax::inline_html::tests::quoted_attribute_tokens_preserve_greater_than_and_unquoted_url_slashes"
+          "test": "editor::markdown::features::html::inline::model::tests::quoted_attribute_tokens_preserve_greater_than_and_unquoted_url_slashes"
         }
       ],
       "environment": "local"
@@ -38997,7 +38997,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::syntax::tests::images_and_videos_are_distinct_kinds"
+          "test": "editor::markdown::features::media::syntax::tests::images_and_videos_are_distinct_kinds"
         }
       ]
     },

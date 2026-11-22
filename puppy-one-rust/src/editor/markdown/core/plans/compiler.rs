@@ -119,17 +119,14 @@ pub fn window_syntax_view(
         .max(code_start);
     let code_lines = syntax.code_lines[code_start..code_end].to_vec();
 
-    let c_a = syntax
-        .callouts
-        .partition_point(|c| c.last_line < line_window.start);
-    let c_b = syntax
-        .callouts
-        .partition_point(|c| c.first_line < line_window.end)
-        .max(c_a);
-    let callouts = syntax.callouts[c_a..c_b].to_vec();
+    let elements: Vec<Element> = syntax
+        .elements_in(byte_window.clone())
+        .filter(|e| e.range.start < byte_window.end && e.range.end > byte_window.start)
+        .cloned()
+        .collect();
 
     Syntax {
-        elements: Vec::new(),
+        elements,
         items: Vec::new(),
         lists: Vec::new(),
         paragraphs: Vec::new(),
@@ -139,7 +136,6 @@ pub fn window_syntax_view(
         highlights: Vec::new(),
         tables: slice_spans(&syntax.tables),
         table_cells: slice_spans(&syntax.table_cells),
-        callouts,
         note_definitions: Vec::new(),
         inline_tags: Vec::new(),
         html_blocks: slice_spans(&syntax.html_blocks),

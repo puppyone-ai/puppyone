@@ -2,6 +2,9 @@
 //! parser tree: heading / quote / rule line shapes (`blockDecorations.ts`),
 //! fenced code blocks (`codeBlockModel.ts`), wiki links, `~~strike~~`, and
 //! feature-registered line recognizers (`TA-30`, `TA-33`, `TA-40`).
+//!
+//! Feature-specific inline syntax (`==highlight==`, `%%comment%%`, `:emoji:`,
+//! `![[media]]`, `$math$`) lives in its own feature slice (`MA-13`).
 use super::{Element, Kind, Span};
 use crate::editor::{
     markdown::core::{
@@ -148,7 +151,7 @@ pub fn fences(doc: &Buffer) -> Vec<Fence> {
     fences_in_lines(doc, 0..doc.line_count())
 }
 
-fn clamp_element(doc: &Buffer, mut e: Element) -> Option<Element> {
+pub(super) fn clamp_element(doc: &Buffer, mut e: Element) -> Option<Element> {
     e.range = doc.clamp_range(e.range);
     if e.range.is_empty() {
         return None;
@@ -161,8 +164,7 @@ fn clamp_element(doc: &Buffer, mut e: Element) -> Option<Element> {
 
 /// The source ranges that share the page's inline policy. Table cells are
 /// separate regions, so delimiters in neighboring cells cannot form a pair.
-/// Code and feature-owned blocks remain excluded. All inputs are sorted;
-/// walking their cursors keeps this pass linear in the parsed window.
+/// Code and feature-owned blocks remain excluded.
 pub fn inline_ranges(
     doc: &Buffer,
     line_window: Range<usize>,
@@ -205,10 +207,8 @@ pub fn inline_ranges(
     out
 }
 
-/// Wiki links, standard images the CommonMark parser leaves as text (a
-/// destination with spaces), `~~strike~~`, `==highlight==`, `%%comment%%`,
-/// and feature `recognize_inline` hooks over each eligible line or table
-/// cell.
+/// Wiki links, standard images with spaced destinations, `~~strike~~`, and
+/// feature `recognize_inline` hooks over each eligible line or table cell.
 pub fn add_inline_elements(
     doc: &Buffer,
     ranges: &[Span],
@@ -220,28 +220,11 @@ pub fn add_inline_elements(
         let text = text_cow.as_ref();
         let bytes = text.as_bytes();
         for token in links::find_wiki_links(text) {
+            // Unescaped `![[...]]` belongs to `features/media`, never a plain wiki link.
             if token.range.start > 0
                 && bytes[token.range.start - 1] == b'!'
                 && !links::is_escaped(bytes, token.range.start - 1)
             {
-                let kind = if is_image_path(&token.target) {
-                    Some(Kind::ImageEmbed)
-                } else if is_video_path(&token.target) {
-                    Some(Kind::VideoEmbed)
-                } else {
-                    None
-                };
-                if let Some(kind) = kind {
-                    let from = range.start + token.range.start - 1;
-                    let to = range.start + token.range.end;
-                    let mut e = Element::new(kind, from..to, vec![from..to], None);
-                    e.href = Some(token.target.clone());
-                    let inner = &text[token.range.start + 2..token.range.end - 2];
-                    e.text = inner
-                        .split_once('|')
-                        .map(|(_, alias)| alias.trim().to_owned());
-                    elements.push(e);
-                }
                 continue;
             }
             let base = range.start;
@@ -282,19 +265,6 @@ pub fn add_inline_elements(
                 elements.push(e);
             }
         }
-        for (open, close) in super::inline_syntax::highlights(text) {
-            let (from, to) = (range.start + open, range.start + close + 2);
-            elements.push(Element::new(
-                Kind::Highlight,
-                from..to,
-                vec![from..from + 2, to - 2..to],
-                Some(from + 2..to - 2),
-            ));
-        }
-        for comment in super::inline_syntax::percent_comments(text) {
-            let r = range.start + comment.start..range.start + comment.end;
-            elements.push(Element::new(Kind::Comment, r.clone(), vec![], Some(r)));
-        }
         for (open, close) in strikes(text) {
             let (from, to) = (range.start + open, range.start + close + 2);
             elements.push(Element::new(
@@ -321,29 +291,6 @@ pub fn add_inline_elements(
             }
         }
     }
-}
-
-/// An image file by its extension (`OBSIDIAN_IMAGE_EXTENSIONS`).
-pub fn is_image_path(target: &str) -> bool {
-    let path = target.split(['#', '?']).next().unwrap_or(target);
-    path.rsplit_once('.').is_some_and(|(_, ext)| {
-        matches!(
-            ext.to_ascii_lowercase().as_str(),
-            "avif" | "bmp" | "gif" | "jpeg" | "jpg" | "png" | "svg" | "webp"
-        )
-    })
-}
-
-/// A video file by its extension (`VIDEO_EXTENSIONS`: what the engine
-/// plays).
-pub fn is_video_path(target: &str) -> bool {
-    let path = target.split(['#', '?']).next().unwrap_or(target);
-    path.rsplit_once('.').is_some_and(|(_, ext)| {
-        matches!(
-            ext.to_ascii_lowercase().as_str(),
-            "3g2" | "3gp" | "3gpp" | "m4v" | "mov" | "mp4" | "ogv" | "qt" | "webm"
-        )
-    })
 }
 
 /// `/(~~)(\S(?:.*?\S)?)(~~)/g` over one line: (opening, closing) indices.

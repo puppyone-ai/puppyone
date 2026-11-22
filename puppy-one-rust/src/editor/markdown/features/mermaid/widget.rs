@@ -5,7 +5,7 @@
 //! an error strip under it with `Retry` and `Source code` (`TA-52`), backed
 //! by the bounded LRU last-good cache in [`platform::render`] (`TODO-34`).
 use super::{
-    Action, ID, MermaidBlock,
+    Action, DiagramView, ID, MermaidBlock,
     controls::{
         ERROR_BANNER_HEIGHT, deferred_offer, edit_button, error_banner, h_row, source_fallback,
         zoom_controls,
@@ -14,7 +14,6 @@ use super::{
 use crate::{
     editor::{
         markdown::{
-            core::state::DiagramView,
             platform::render as render_broker,
             shared::ring,
             style::{BlockStyle, MarkdownTheme},

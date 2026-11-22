@@ -571,10 +571,10 @@ mod tests {
         source: &str,
         features: crate::editor::markdown::core::features::Features,
     ) -> Vec<Plan> {
-        use crate::editor::markdown::core::{plans, state::CalloutFolds, syntax::Syntax};
+        use crate::editor::markdown::core::{plans, state::FeatureStateStore, syntax::Syntax};
         let doc = Buffer::new(source);
         let syntax = Syntax::parse(&doc);
-        plans::compile(&doc, &syntax, &CalloutFolds::default(), features)
+        plans::compile(&doc, &syntax, &FeatureStateStore::default(), features)
     }
 
     fn tabs_blocks(plans: &[Plan]) -> Vec<TabsBlock> {
@@ -874,13 +874,13 @@ mod tests {
     fn tabs_render_in_the_mdx_dialect_only() {
         use crate::editor::markdown::{
             composition::{FEATURES, MDX_FEATURES},
-            core::{plans, state::CalloutFolds, syntax::Syntax},
+            core::{plans, state::FeatureStateStore, syntax::Syntax},
         };
         use crate::editor::text::buffer::Buffer;
         let doc = Buffer::new(format!("Intro\n\n{TABS}\n"));
         let syntax = Syntax::parse(&doc);
         let tabs_in = |features| {
-            plans::compile(&doc, &syntax, &CalloutFolds::default(), features)
+            plans::compile(&doc, &syntax, &FeatureStateStore::default(), features)
                 .iter()
                 .filter_map(|p| p.embed()?.model::<TabsBlock>().cloned())
                 .collect::<Vec<_>>()
@@ -913,7 +913,7 @@ mod tests {
                         decorations::{self, DecorateCx},
                         plans,
                         presentation::block_rhythm,
-                        state::{CalloutFolds, PreviewState},
+                        state::{FeatureStateStore, PreviewState},
                         syntax::Syntax,
                     },
                     style::MarkdownTheme,
@@ -928,7 +928,7 @@ mod tests {
         }
         let doc = Buffer::new("<Tabs/>\n\n<Tabs />\n");
         let syntax = Syntax::parse(&doc);
-        let compiled = plans::compile(&doc, &syntax, &CalloutFolds::default(), MDX_FEATURES);
+        let compiled = plans::compile(&doc, &syntax, &FeatureStateStore::default(), MDX_FEATURES);
         assert!(
             compiled
                 .iter()

@@ -14,9 +14,7 @@ pub mod selection;
 pub mod store;
 
 pub use composing::list_input_prefix;
-pub use store::{
-    CalloutFolds, DiagramView, FeatureStateSlot, FeatureStateStore, FeatureStateValue,
-};
+pub use store::{FeatureStateSlot, FeatureStateStore, FeatureStateValue};
 
 use super::syntax::Syntax;
 use crate::editor::text::{
@@ -38,8 +36,9 @@ pub struct PreviewState {
     /// A pointer selection is in progress (line boxes stay as they are).
     pub selecting: bool,
     focused: bool,
-    /// The callout title line holding the caret: its marker shows as source.
-    pub callout_title: Option<usize>,
+    /// Opening line of a blockquote holding the focused editable caret: features
+    /// decorating quote headers (e.g. callouts) reveal raw markers on this line.
+    pub reveal_line: Option<usize>,
     /// `markdownRevealedSourceField` (block presentation): a rich block a
     /// widget asked to show as source, while the caret stays inside it.
     pub revealed_source: Option<Range<usize>>,
@@ -75,18 +74,18 @@ impl PreviewState {
             self.composing,
             self.selecting,
             self.focused,
-            self.callout_title,
+            self.reveal_line,
             self.revealed_source.as_ref().map(|r| (r.start, r.end)),
         )
             .hash(&mut h);
         h.finish()
     }
 
-    /// True when any reveal/composing/callout-title/revealed-source override is active.
+    /// True when any reveal/composing/reveal-line/revealed-source override is active.
     pub fn has_reveal_overrides(&self) -> bool {
         self.reveal.is_some()
             || self.composing.is_some()
-            || self.callout_title.is_some()
+            || self.reveal_line.is_some()
             || self.revealed_source.is_some()
     }
 
@@ -120,7 +119,7 @@ impl PreviewState {
             read_only,
         );
         self.focused = focused;
-        self.callout_title = reveal::callout_title_at(state, syntax, focused, read_only);
+        self.reveal_line = reveal::reveal_line_at(state, syntax, focused, read_only);
     }
 
     /// Selection or focus changed without a document change.
@@ -135,7 +134,7 @@ impl PreviewState {
         let transition = pointer::transition(self.focused, self.selecting, focused, selecting);
         self.selecting = selecting;
         self.focused = focused;
-        self.callout_title = reveal::callout_title_at(state, syntax, focused, read_only);
+        self.reveal_line = reveal::reveal_line_at(state, syntax, focused, read_only);
         self.revealed_source = revealed_source::settle(
             self.revealed_source.take(),
             state,

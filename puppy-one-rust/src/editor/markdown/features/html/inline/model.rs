@@ -1,25 +1,16 @@
-//! Inline HTML (features/html/inlineHtmlModel.ts, the `inline-editable`
-//! profile): an opening tag the profile allows and its closing tag in the
-//! same paragraph style their content as the element would, and the tags
-//! hide like Markdown delimiters. Anything else stays source.
-use super::{Element, Kind, Span, Syntax};
+//! Inline HTML tag pairing (`features/html/inlineHtmlModel.ts`, the
+//! `inline-editable` profile).
+use crate::editor::{
+    markdown::core::syntax::{Element, InlineTag, Kind, Span, Syntax},
+    text::buffer::Buffer,
+};
+use std::ops::Range;
 
 /// `INLINE_EDITABLE_TAGS` with content (`br` is the profile's one void).
 const TAGS: &[&str] = &[
     "a", "abbr", "b", "cite", "code", "del", "em", "i", "ins", "kbd", "mark", "q", "s", "samp",
     "small", "span", "strike", "strong", "sub", "sup", "time", "tt", "u", "var",
 ];
-
-/// What an inline element shows: its tag, and the attributes that style it.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct InlineTag {
-    pub name: String,
-    /// `a href` as authored (the URL policy applies when it is followed).
-    pub href: Option<String>,
-    /// `style` colours (`color`, `background-color`), as CSS colours.
-    pub color: Option<String>,
-    pub background: Option<String>,
-}
 
 /// One tag: `<name attrs>`, `</name>` or `<name/>`.
 struct Tag {
@@ -103,12 +94,13 @@ fn style_value(style: &str, property: &str) -> Option<String> {
     })
 }
 
-/// Pair the inline HTML tags of a document (sorted, from the parser's
-/// inline HTML) into elements using `Buffer::slice_cow` without flattening
-/// `doc.flat` (`TA-01`).
-pub(super) fn elements_in_buffer(
-    doc: &crate::editor::text::buffer::Buffer,
+/// Pair the inline HTML tags of a parsed window (sorted, from the parser's
+/// inline HTML) into `Kind::InlineHtml` elements without flattening `doc.flat`
+/// (`TA-01`). Enforces table-cell containment so paired tags cannot span cells.
+pub(super) fn elements_in_window(
+    doc: &Buffer,
     syntax: &Syntax,
+    window: Range<usize>,
 ) -> Vec<Element> {
     let tags = &syntax.inline_tags;
     if tags.is_empty() {
@@ -128,6 +120,7 @@ pub(super) fn elements_in_buffer(
                 .map(|e| e.range.clone()),
         )
         .chain(syntax.table_cells.iter().cloned())
+        .filter(|r| r.end > window.start && r.start < window.end)
         .collect();
     containers.sort_by_key(|r| (r.start, r.end));
     containers.dedup();
@@ -136,17 +129,27 @@ pub(super) fn elements_in_buffer(
         let first = tags.partition_point(|r| r.start < container.start);
         let last = tags.partition_point(|r| r.start < container.end);
         if first < last {
-            out.extend(pair_container(doc, &tags[first..last], container.end));
+            for element in pair_container(doc, &tags[first..last], container.end) {
+                // Inline HTML may span soft line breaks in a paragraph, but a
+                // table cell is its own inline context. Any tag pair touching a
+                // cell must fit wholly inside that one cell.
+                let index = syntax
+                    .table_cells
+                    .partition_point(|cell| cell.end <= element.range.start);
+                let fits_cell = syntax.table_cells.get(index).is_none_or(|cell| {
+                    cell.start >= element.range.end
+                        || (cell.start <= element.range.start && cell.end >= element.range.end)
+                });
+                if fits_cell {
+                    out.push(element);
+                }
+            }
         }
     }
     out
 }
 
-fn pair_container(
-    doc: &crate::editor::text::buffer::Buffer,
-    tags: &[Span],
-    end: usize,
-) -> Vec<Element> {
+fn pair_container(doc: &Buffer, tags: &[Span], end: usize) -> Vec<Element> {
     let mut open: Vec<Tag> = Vec::new();
     let mut out = Vec::new();
     for range in tags {
@@ -216,6 +219,7 @@ fn pair_container(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::editor::markdown::{core::features::MarkdownFeature, features::html::FEATURE};
     use core::prelude::v1::test;
 
     #[test]
@@ -237,7 +241,8 @@ mod tests {
     #[test]
     fn allowed_tags_pair_within_a_paragraph() {
         let source = "a <b>bold</b> <span style=\"color: red\">red</span> <a href=\"https://x.org\">x</a> <script>s</script> <i>open\n\n</i>";
-        let syntax = Syntax::parse(&crate::editor::text::buffer::Buffer::new(source));
+        static F: &[&dyn MarkdownFeature] = &[&FEATURE];
+        let syntax = Syntax::parse_with(&Buffer::new(source), F);
         let found: Vec<_> = syntax
             .elements
             .iter()

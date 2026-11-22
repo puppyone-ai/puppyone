@@ -1,20 +1,20 @@
-//! Callouts (product `features/callout`, `TA-40`): fold state lives in a
-//! feature-owned [`CalloutFoldState`] slot inside `FeatureStateStore` mapped via
-//! [`Anchor`] across document edits and undo/redo (`TA-06`).
+//! Callouts (product `features/callout`, `TA-40`): model parsing lives in
+//! [`model`], fold and title-reveal state in [`state`] (`CalloutFoldState`
+//! stored inside `FeatureStateStore` mapped via `Anchor` across edits/undo).
+pub mod model;
+pub mod state;
+
+pub use model::{Callout, callout_at, collect_callouts, parse_callout};
+pub use state::{CalloutFoldState, CalloutFolds};
+
 use crate::editor::{
     markdown::core::{
         decorations::{BlockDecoration, LineDecoration},
         features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
         plans::{BlockEmbed, Plan, Presentation},
-        state::{FeatureStateValue, PreviewState},
-        syntax::Callout,
+        state::PreviewState,
     },
-    text::{
-        anchor::Anchor,
-        buffer::Buffer,
-        change::ChangeSet,
-        state::{EditorState, Transaction},
-    },
+    text::state::{EditorState, Transaction},
     view::{
         command::Command,
         style::{Paint, Rect, Trailing},
@@ -39,46 +39,6 @@ const FOLD_GAP: f32 = 6.;
 pub struct Fold {
     pub at: usize,
     pub folded: bool,
-}
-
-/// Per-feature callout fold state (`TA-40`), tracked via [`Anchor::after`] so
-/// edits at or above a callout (including undo/redo) preserve its fold toggle.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct CalloutFoldState(Vec<(Anchor, bool)>);
-
-impl FeatureStateValue for CalloutFoldState {
-    fn map_changes(&mut self, changes: &ChangeSet, _doc: &Buffer, new_revision: u64) {
-        for (anchor, _) in &mut self.0 {
-            anchor.map(changes, new_revision);
-        }
-    }
-}
-
-impl CalloutFoldState {
-    pub fn get(&self, at: usize) -> Option<bool> {
-        self.0.iter().find(|(a, _)| a.offset == at).map(|(_, f)| *f)
-    }
-
-    pub fn folded(&self, callout: &Callout) -> bool {
-        callout.fold.is_some()
-            && self
-                .0
-                .iter()
-                .find(|(a, _)| a.offset == callout.marker.start)
-                .map_or(callout.fold == Some(true), |(_, folded)| *folded)
-    }
-
-    pub fn set(&mut self, at: usize, folded: bool, revision: u64) {
-        self.0.retain(|(a, _)| a.offset != at);
-        self.0.push((Anchor::after(at, revision), folded));
-    }
-}
-
-fn is_folded(callout: &Callout, state: Option<&CalloutFoldState>) -> bool {
-    match state {
-        Some(s) => s.folded(callout),
-        None => callout.fold == Some(true),
-    }
 }
 
 use crate::editor::tokens::callout_color as color;
@@ -110,9 +70,9 @@ impl MarkdownFeature for CalloutFeature {
     }
 
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        let state = cx.state::<CalloutFoldState>(ID);
-        for callout in &cx.syntax.callouts {
-            if is_folded(callout, state) && callout.last_line > callout.first_line {
+        let fold_state = cx.state::<CalloutFoldState>(ID);
+        for callout in model::collect_callouts(cx.doc, cx.syntax) {
+            if state::is_folded(&callout, fold_state) && callout.last_line > callout.first_line {
                 let range = cx.doc.line_range(callout.first_line + 1).start
                     ..cx.doc.line_range(callout.last_line).end;
                 out.push(Plan {
@@ -153,10 +113,10 @@ impl MarkdownFeature for CalloutFeature {
     }
 
     fn decorate_line(&self, cx: &mut LineDecoration) {
-        let Some(callout) = cx.syntax.callout_at(cx.line) else {
+        let Some(callout) = model::callout_at(cx.doc, cx.syntax, cx.line) else {
             return;
         };
-        let folded = is_folded(callout, cx.preview.state::<CalloutFoldState>(ID));
+        let folded = state::is_folded(&callout, cx.preview.state::<CalloutFoldState>(ID));
         let last = if folded {
             callout.first_line
         } else {
@@ -184,7 +144,7 @@ impl MarkdownFeature for CalloutFeature {
             style.background_radii[2] = radius;
             style.background_radii[3] = radius;
         }
-        if title && cx.preview.callout_title != Some(cx.line) {
+        if title && !state::is_title_revealed(cx.preview, cx.line) {
             let icon = Paint::Icon {
                 rect: Rect::new(
                     style.border.left + style.padding.left,
@@ -231,6 +191,7 @@ impl MarkdownFeature for CalloutFeature {
 
 #[cfg(test)]
 mod tests {
+    use super::model::collect_callouts;
     use crate::editor::{markdown::core::syntax::Syntax, text::buffer::Buffer};
     use core::prelude::v1::test;
 
@@ -239,8 +200,9 @@ mod tests {
         let doc =
             Buffer::new("> [!TIP]- Remember\n> body\n> more\n\n> [!unknown]\n> x\n\n> plain\n");
         let s = Syntax::parse(&doc);
-        assert_eq!(s.callouts.len(), 2);
-        let tip = &s.callouts[0];
+        let callouts = collect_callouts(&doc, &s);
+        assert_eq!(callouts.len(), 2);
+        let tip = &callouts[0];
         assert_eq!(
             (
                 tip.appearance,
@@ -252,7 +214,7 @@ mod tests {
             ("tip", true, Some(true), 0, 2)
         );
         assert_eq!(&doc.as_str()[tip.marker.clone()], "[!TIP]- ");
-        let other = &s.callouts[1];
+        let other = &callouts[1];
         assert_eq!(
             (
                 other.appearance,
