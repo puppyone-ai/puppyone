@@ -16,6 +16,7 @@ use gpui::{Entity, TestAppContext, VisualTestContext};
 
 mod block_acceptance;
 mod block_move_acceptance;
+mod clipboard_acceptance;
 mod code_isolation_acceptance;
 mod composition_acceptance;
 mod concurrent_edit_acceptance;

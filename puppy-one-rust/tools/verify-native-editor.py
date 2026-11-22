@@ -99,6 +99,15 @@ suites = {
         't5_b7_code_block_escape_and_blur_keep_typed_text_and_leave_editing_state',
         't5_b8_ime_composition_inside_code_block_abandoned_cleanly_on_external_edit',
     ],
+    'editor::markdown::tests::clipboard_acceptance::': [
+        't6_01_live_preview_copy_writes_exact_raw_markdown_including_hidden_markers',
+        't6_02_cross_block_selection_copy_across_paragraph_table_and_next_paragraph',
+        't6_03_cut_removes_exact_slice_and_single_undo_restores_text_and_selection',
+        't6_04_multiline_paste_in_list_item_inserts_verbatim_and_undoes_in_one_step',
+        't6_05_multiline_paste_in_table_cell_preserves_table_structure',
+        't6_06_read_only_allows_copy_and_blocks_cut_and_paste',
+        't6_07_selecting_entire_table_block_copies_exact_table_source',
+    ],
 }
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'tools/verify-native-editor.py']]
 paths.extend(p for folder in ['src', 'assets', 'crates'] for p in sorted((root / folder).rglob('*')) if p.is_file())

@@ -667,6 +667,59 @@ impl EditorExtension for MarkdownExtension {
         changed
     }
 
+    fn filter_transaction(&self, tr: &mut Transaction, state: &EditorState, read_only: bool) {
+        if !self.live || read_only || tr.event != crate::editor::text::state::UserEvent::Paste {
+            return;
+        }
+        let changes = tr.changes.changes();
+        if changes.len() != 1 {
+            return;
+        }
+        let c = &changes[0];
+        if !c.insert.contains(['\n', '\r', '|']) {
+            return;
+        }
+        let mut cache = self.cache.borrow_mut();
+        let (_, plans) = self.ensure_parsed_in(&mut cache, state);
+        let in_table_cell = plans.iter().any(|plan| {
+            let Some(embed) = plan.embed().filter(|e| e.feature == features::table::ID) else {
+                return false;
+            };
+            if c.range.start < plan.source.start || c.range.end > plan.source.end {
+                return false;
+            }
+            let check_table = |table: &features::table::model::Table| {
+                table.range.start <= c.range.start
+                    && c.range.end <= table.range.end
+                    && table.rows.iter().any(|row| {
+                        row.cells.iter().any(|cell| {
+                            cell.editable
+                                && cell.range.start <= c.range.start
+                                && c.range.end <= cell.range.end
+                        })
+                    })
+            };
+            if embed.built_for(&state.doc, plan.source.start)
+                && let Some(table) = embed.model::<features::table::model::Table>()
+            {
+                check_table(table)
+            } else {
+                features::table::model::table_block(&state.doc, &plan.source)
+                    .is_some_and(|table| check_table(&table))
+            }
+        });
+        if !in_table_cell {
+            return;
+        }
+        let sanitized = sanitize_table_cell_paste(&c.insert);
+        if sanitized != c.insert {
+            let range = c.range.clone();
+            let cursor = range.start + sanitized.len();
+            tr.changes = crate::editor::text::change::ChangeSet::replace(range, sanitized);
+            tr.selection = Some(crate::editor::text::selection::Selection::cursor(cursor));
+        }
+    }
+
     fn link_at(
         &mut self,
         state: &EditorState,
@@ -1364,6 +1417,46 @@ fn references_fingerprint(
         }
     }
     h.finish()
+}
+
+/// Sanitize clipboard text pasted directly into an editable Markdown table cell
+/// (`tableCommands.ts` `normalizeMarkdownTableCellInput` / `tableModel.ts`
+/// `sanitizeMarkdownTableCell`): fold internal line-break runs into a single
+/// space and escape unescaped pipes (`|`) as `\|` so the pipe table stays valid.
+fn sanitize_table_cell_paste(value: &str) -> String {
+    let normalized = value.replace("\r\n", "\n").replace('\r', "\n");
+    let trimmed = normalized.trim_matches('\n');
+    let mut folded = String::with_capacity(trimmed.len());
+    let mut in_newline = false;
+    for ch in trimmed.chars() {
+        if ch == '\n' {
+            if !in_newline {
+                folded.push(' ');
+            }
+            in_newline = true;
+        } else {
+            in_newline = false;
+            folded.push(ch);
+        }
+    }
+    let mut out = String::with_capacity(folded.len());
+    let mut backslashes = 0usize;
+    for ch in folded.chars() {
+        if ch == '\\' {
+            backslashes += 1;
+            out.push(ch);
+        } else if ch == '|' {
+            if backslashes.is_multiple_of(2) {
+                out.push('\\');
+            }
+            backslashes = 0;
+            out.push('|');
+        } else {
+            backslashes = 0;
+            out.push(ch);
+        }
+    }
+    out
 }
 
 #[cfg(test)]
