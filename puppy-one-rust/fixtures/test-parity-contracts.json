@@ -50481,6 +50481,158 @@
           "test": "editor::markdown::tests::scale_and_resize_acceptance::t4_single_list_10k_task_toggle_and_typing_patch_incrementally"
         }
       ]
+    },
+    {
+      "id": "markdown-reference-refresh",
+      "acceptance": "Dispatching SetReferences invalidates decorations and updates live missing/ambiguous link states across both inline prose and table cells only when a referenced target's resolution changes (including offscreen links, owning document directory, and HTML entity-decoded link candidates), leaving unrelated files, resolved media reads, and escaped wiki syntax untouched.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/links/inlinePreviewLinkIdentity.test.ts",
+          "sha256": "a003ca528a011a7f6379745ee9ecfa066796d51943edf7312b3c7cd59ddf9299",
+          "cases": [
+            {
+              "index": 0,
+              "name": "isolated inline preview link dependencies > ignores unrelated files for plain text, line breaks and ordinary anchors"
+            },
+            {
+              "index": 1,
+              "name": "isolated inline preview link dependencies > retains resolved wiki links and wiki media when only unrelated files change"
+            },
+            {
+              "index": 2,
+              "name": "isolated inline preview link dependencies > invalidates when a missing wiki target appears or disappears"
+            },
+            {
+              "index": 3,
+              "name": "isolated inline preview link dependencies > invalidates when a target becomes ambiguous"
+            },
+            {
+              "index": 4,
+              "name": "isolated inline preview link dependencies > considers fragments outside the currently mounted viewport"
+            },
+            {
+              "index": 5,
+              "name": "isolated inline preview link dependencies > resolves dependencies in the owning document's directory"
+            },
+            {
+              "index": 6,
+              "name": "isolated inline preview link dependencies > ignores escaped wiki syntax"
+            },
+            {
+              "index": 7,
+              "name": "isolated inline preview link dependencies > conservatively refreshes HTML with entity-decoded link candidates"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a0_unrelated_files_ignored_for_plain_breaks_and_ordinary_anchors"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a1_resolved_wiki_links_and_media_retain_identity_on_unrelated_files"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a2_missing_wiki_target_appearing_or_disappearing_invalidates_inline_and_table"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a3_wiki_target_becoming_ambiguous_invalidates_inline_and_table"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a4_offscreen_wiki_target_outside_viewport_still_invalidates_references"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a5_references_resolve_in_owning_document_directory"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a6_escaped_wiki_syntax_does_not_invalidate_on_reference_changes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::reference_refresh_acceptance::t5_a7_html_entity_decoded_link_candidates_conservatively_refresh"
+        }
+      ]
+    },
+    {
+      "id": "markdown-concurrent-edit-mapping",
+      "acceptance": "Concurrent external edits, offscreen detach/remount shifts, and block moves keep BlockId and code/table caret positions mapped cleanly, recover overwritten user edits on undo, and relocate contained/disjoint/overlapping selections safely.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/runtime-foundations.test.ts",
+          "sha256": "68ec68d25d34d3334bcf4be31eb9f9e14ceea429fce2d4752e971acda1c1d73a",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Markdown embed runtime foundations > keeps embedded edit sessions range-mapped and revision-aware"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownEmbedRuntime.test.ts",
+          "sha256": "c943fada9f9b389fc3cd0deb5d0acead7131d273ce149d64dc476fb1855ab0cd",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown embedded runtime > rebases an explicitly opted-in draft across a non-overlapping edit in one transaction"
+            },
+            {
+              "index": 2,
+              "name": "Markdown embedded runtime > rejects an overlapping edit even when explicit rebase is enabled"
+            },
+            {
+              "index": 3,
+              "name": "Markdown embedded runtime > keeps a stable edit-session id and draft across detach + range mapping"
+            },
+            {
+              "index": 4,
+              "name": "Markdown embedded runtime > mirrors code input into the store and restores it after a DOM remount"
+            },
+            {
+              "index": 20,
+              "name": "Markdown embedded runtime > restores and explicitly rebases a table-cell draft after its range moves"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/commands/markdownBlockMove.test.ts",
+          "sha256": "bffd6f47d0688bd108bf37ff4cc2252f26800fdbc8ed6c53f0e3a053b6778b04",
+          "cases": [
+            {
+              "index": 20,
+              "name": "embedded draft relocation > relocates contained drafts, maps disjoint drafts, and conflicts partial overlap"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b1_external_non_overlapping_edit_keeps_code_and_table_caret_mapped_and_editable"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b2_external_overlapping_overwrite_recovers_user_input_on_undo"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b3_b4_code_block_keeps_block_id_and_edits_across_offscreen_detach_and_prefix_shift"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b5_table_cell_keeps_block_id_and_edits_across_offscreen_detach_and_prefix_shift"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b6_block_move_relocates_contained_maps_disjoint_and_resolves_partial_overlap"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -61879,7 +62031,7 @@
     {
       "id": "markdown-asset-broker-architecture",
       "kind": "out-of-scope",
-      "reason": "TS resolves Markdown assets through an AssetBroker that hands features capability URLs (including provider-resolved loopback URLs) under host leases it revokes, validates sinks and purposes, and runs trusted local HTML in revocable execution sessions. The native editor reads asset bytes itself through the workspace or provider after the same policy (no URLs, leases or capability purposes), and never executes HTML in Markdown (executable HTML is removed from the native flow), so its features are given no HTML trust mode. The rest of that embed runtime is likewise TS's own: embedded edit sessions that commit a draft against a base revision (native widget commands re-derive their edit from the current source, so no draft can go stale), widget sessions disposed by DOM node, web embeds bound to a capability principal and revision with single-flight native view creation (a native embed is keyed by its view, block and URL, and a loading one takes no second click), principal-scoped render deduplication (the native render service shares one job per drawing), and explicit grants for local active HTML. No authored source URL ever reaches a live browser sink either, because the native surface hands images bytes, not URLs. A media block therefore needs no broker at plan time (natively it renders and reads its bytes when shown), and remote badges load through the pinned HTTPS client rather than browser image sinks with referrer, CORS and lazy-loading attributes.",
+      "reason": "These test TS's browser-DOM Asset Broker and isolated-renderer protocol (explicit broker capability plumbing, inert HTML media placeholders before browser hydration, HTTPS privacy attributes on DOM img sinks, and revision-scoped WebView session grants). Native Rust loads media directly through DocumentAssets and safe usvg/image decoders without browser DOM sinks. Concurrent external edit mapping, offscreen detach/remount, and block-move selection relocation are covered natively in markdown-concurrent-edit-mapping.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/assets.md",
       "typescript": [
         {
@@ -61947,10 +62099,6 @@
               "name": "Markdown embed runtime foundations > disposes widget sessions by exact DOM node and disposeAll"
             },
             {
-              "index": 2,
-              "name": "Markdown embed runtime foundations > keeps embedded edit sessions range-mapped and revision-aware"
-            },
-            {
               "index": 4,
               "name": "Markdown embed runtime foundations > binds native web embeds to an exact capability revision and revokes stale sessions"
             },
@@ -61997,46 +62145,6 @@
             {
               "index": 62,
               "name": "Markdown HTML cross-surface conformance > reduces media to visible source when a surface lacks Asset Broker capability"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/embeds/markdownEmbedRuntime.test.ts",
-          "sha256": "c943fada9f9b389fc3cd0deb5d0acead7131d273ce149d64dc476fb1855ab0cd",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Markdown embedded runtime > rebases an explicitly opted-in draft across a non-overlapping edit in one transaction"
-            },
-            {
-              "index": 2,
-              "name": "Markdown embedded runtime > rejects an overlapping edit even when explicit rebase is enabled"
-            },
-            {
-              "index": 3,
-              "name": "Markdown embedded runtime > keeps a stable edit-session id and draft across detach + range mapping"
-            },
-            {
-              "index": 4,
-              "name": "Markdown embedded runtime > mirrors code input into the store and restores it after a DOM remount"
-            },
-            {
-              "index": 16,
-              "name": "Markdown embedded runtime > restores the original syntax layer when an edited draft is cancelled"
-            },
-            {
-              "index": 20,
-              "name": "Markdown embedded runtime > restores and explicitly rebases a table-cell draft after its range moves"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/commands/markdownBlockMove.test.ts",
-          "sha256": "bffd6f47d0688bd108bf37ff4cc2252f26800fdbc8ed6c53f0e3a053b6778b04",
-          "cases": [
-            {
-              "index": 20,
-              "name": "embedded draft relocation > relocates contained drafts, maps disjoint drafts, and conflicts partial overlap"
             }
           ]
         },
@@ -62499,7 +62607,7 @@
     {
       "id": "dom-inline-preview-fragments",
       "kind": "out-of-scope",
-      "reason": "TS renders isolated inline previews (table cells, MDX tab titles, HTML runs) by building DOM fragments and degrades a source over 32 KiB to one plain text node to bound that DOM. The native editor shapes those cells through the same text pipeline as every document line, so there is no separate fragment renderer or fragment budget. Nor is there the link-dependency identity that decides when such a fragment is rebuilt: native cells re-decorate with the document whenever the workspace's references change.",
+      "reason": "TS renders isolated inline previews (table cells, MDX tab titles, HTML runs) by building DOM fragments and degrades a source over 32 KiB to one plain text node to bound that DOM. The native editor shapes those cells through the same text pipeline as every document line, so there is no separate fragment renderer or fragment DOM budget. Reference-change refresh behavior is covered natively in markdown-reference-refresh.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/plans-and-decorations.md",
       "typescript": [
         {
@@ -62509,44 +62617,6 @@
             {
               "index": 2,
               "name": "Markdown inline complexity bounds > degrades over-budget isolated inline previews to exact plain text"
-            }
-          ]
-        },
-        {
-          "path": "tests/unit/editor/formats/markdown/links/inlinePreviewLinkIdentity.test.ts",
-          "sha256": "a003ca528a011a7f6379745ee9ecfa066796d51943edf7312b3c7cd59ddf9299",
-          "cases": [
-            {
-              "index": 0,
-              "name": "isolated inline preview link dependencies > ignores unrelated files for plain text, line breaks and ordinary anchors"
-            },
-            {
-              "index": 1,
-              "name": "isolated inline preview link dependencies > retains resolved wiki links and wiki media when only unrelated files change"
-            },
-            {
-              "index": 2,
-              "name": "isolated inline preview link dependencies > invalidates when a missing wiki target appears or disappears"
-            },
-            {
-              "index": 3,
-              "name": "isolated inline preview link dependencies > invalidates when a target becomes ambiguous"
-            },
-            {
-              "index": 4,
-              "name": "isolated inline preview link dependencies > considers fragments outside the currently mounted viewport"
-            },
-            {
-              "index": 5,
-              "name": "isolated inline preview link dependencies > resolves dependencies in the owning document's directory"
-            },
-            {
-              "index": 6,
-              "name": "isolated inline preview link dependencies > ignores escaped wiki syntax"
-            },
-            {
-              "index": 7,
-              "name": "isolated inline preview link dependencies > conservatively refreshes HTML with entity-decoded link candidates"
             }
           ]
         },
@@ -66221,6 +66291,24 @@
             {
               "index": 1,
               "name": "markdown math typography contract > leaves math font-role mapping to the upstream KaTeX stylesheet"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "code-block-edits-canonical-document-without-detached-draft",
+      "kind": "out-of-scope",
+      "reason": "Native Rust code blocks edit the canonical document buffer directly instead of holding a detached widget draft that Escape rolls back (verified by t5_b7_code_block_escape_and_blur_keep_typed_text_and_leave_editing_state, Escape and blur preserve typed text and restore non-editing decoration state).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/code-block.md",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownEmbedRuntime.test.ts",
+          "sha256": "c943fada9f9b389fc3cd0deb5d0acead7131d273ce149d64dc476fb1855ab0cd",
+          "cases": [
+            {
+              "index": 16,
+              "name": "Markdown embedded runtime > restores the original syntax layer when an edited draft is cancelled"
             }
           ]
         }

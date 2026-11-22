@@ -95,14 +95,21 @@ impl BlockWidget for CodeBlockWidget {
                     .h(px(panel_height))
                     .child(code),
             );
+        let focused = cx.state.focus_within();
+        let panel_state = if focused {
+            "md-code-panel:focused"
+        } else {
+            "md-code-panel:resting"
+        };
         let panel = div()
+            .debug_selector(move || panel_state.into())
             .absolute()
             .left_0()
             .top_0()
             .w(px(width))
             .h(px(panel_height))
             .rounded(px(s.radius))
-            .bg(if cx.state.focus_within() {
+            .bg(if focused {
                 crate::editor::tokens::over(s.focus_background, s.background)
             } else {
                 s.background

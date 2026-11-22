@@ -95,6 +95,10 @@ suites = {
         't4_single_list_10k_task_toggle_and_typing_patch_incrementally',
         't4_extreme_documents_edit_and_navigate_cleanly',
     ],
+    'editor::markdown::tests::concurrent_edit_acceptance::': [
+        't5_b7_code_block_escape_and_blur_keep_typed_text_and_leave_editing_state',
+        't5_b8_ime_composition_inside_code_block_abandoned_cleanly_on_external_edit',
+    ],
 }
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'tools/verify-native-editor.py']]
 paths.extend(p for folder in ['src', 'assets', 'crates'] for p in sorted((root / folder).rglob('*')) if p.is_file())

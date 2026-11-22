@@ -1180,6 +1180,31 @@ impl EditorExtension for MarkdownExtension {
             )));
         }
         let (syntax, plans) = self.parse(state);
+        // Escape inside an active fenced code block keeps all typed text in the
+        // canonical buffer and exits focus from the code block to restore its
+        // resting decoration state.
+        if intent == EditIntent::Escape {
+            let from = state.selection.from();
+            let to = state.selection.to();
+            if let Some(block) = plans.iter().find_map(|p| {
+                let code = p.embed()?.model::<features::code_block::CodeBlock>()?;
+                (from <= code.range.end && to >= code.range.start).then_some(code)
+            }) {
+                let exit = if block.range.end < state.doc.len() {
+                    let end_line = state.doc.line_index(block.range.end);
+                    if end_line + 1 < state.doc.line_count() {
+                        state.doc.line_range(end_line + 1).start
+                    } else {
+                        state.doc.len()
+                    }
+                } else {
+                    block.range.start.saturating_sub(1)
+                };
+                return Some(Transaction::select(Selection::cursor(
+                    state.doc.clamp(exit),
+                )));
+            }
+        }
         commands::intercept(
             intent,
             &commands::Cx {
@@ -1276,6 +1301,7 @@ fn references_fingerprint(
             }
         };
     let mut h = std::collections::hash_map::DefaultHasher::new();
+    let mut entity_lines: std::collections::HashSet<usize> = std::collections::HashSet::new();
     for e in &syntax.elements {
         match e.kind {
             core::syntax::Kind::WikiLink
@@ -1292,6 +1318,24 @@ fn references_fingerprint(
                     hash_resolution(&mut h, refs.and_then(|r| r.markdown(href)));
                 }
             }
+            core::syntax::Kind::InlineHtml | core::syntax::Kind::Entity => {
+                let line = doc.line_index(e.range.start.min(doc.len()));
+                if entity_lines.insert(line) {
+                    let lr = doc.line_range(line);
+                    let raw = doc.slice_cow(lr.clone());
+                    if raw.contains('&') {
+                        let decoded = shared::dom::decode_entities(&raw);
+                        for w in find_wiki_links(&decoded) {
+                            (4u8, lr.start, w.range.start, w.target.as_str()).hash(&mut h);
+                            hash_resolution(&mut h, refs.map(|r| r.resolve(&w.target)));
+                        }
+                        for l in find_links(&decoded) {
+                            (5u8, lr.start, l.range.start, l.href.as_str()).hash(&mut h);
+                            hash_resolution(&mut h, refs.and_then(|r| r.markdown(&l.href)));
+                        }
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -1306,9 +1350,27 @@ fn references_fingerprint(
                 (3u8, plan.source.start + l.range.start, l.href.as_str()).hash(&mut h);
                 hash_resolution(&mut h, refs.and_then(|r| r.markdown(&l.href)));
             }
+            if slice.contains('&') {
+                let decoded = shared::dom::decode_entities(&slice);
+                for w in find_wiki_links(&decoded) {
+                    (6u8, plan.source.start, w.range.start, w.target.as_str()).hash(&mut h);
+                    hash_resolution(&mut h, refs.map(|r| r.resolve(&w.target)));
+                }
+                for l in find_links(&decoded) {
+                    (7u8, plan.source.start, l.range.start, l.href.as_str()).hash(&mut h);
+                    hash_resolution(&mut h, refs.and_then(|r| r.markdown(&l.href)));
+                }
+            }
         }
     }
     h.finish()
+}
+
+#[cfg(test)]
+impl MarkdownExtension {
+    pub(crate) fn config_epoch_for_tests(&self) -> u64 {
+        self.cache.borrow().config_epoch
+    }
 }
 
 #[cfg(test)]
