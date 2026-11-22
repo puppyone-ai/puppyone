@@ -314,6 +314,40 @@ impl WorkbenchLauncher {
         // `terminalEnabled={false}`: a Cloud launcher offers no shell.
         entries = entries.child(bundled).when(!cloud, |e| e.child(shell));
 
+        // At the chat limit the Agents above are unavailable: say why, and
+        // how to make room (closing a chat), instead of rows that only dim.
+        let limit =
+            context.chat_limit.then(|| {
+                h_flex()
+                    .debug_selector(|| "launcher-chat-limit".into())
+                    .min_w_0()
+                    .items_start()
+                    .gap(px(6.))
+                    .px(px(8.))
+                    .text_color(t.subtle)
+                    .text_size(px(m.right.caption))
+                    .line_height(px(m.right.caption_line_height))
+                    .child(
+                        div().mt(px(1.)).flex_shrink_0().child(
+                            Icon::new("info")
+                                .with_size(px(13.))
+                                .stroke(1.7)
+                                .color(t.subtle),
+                        ),
+                    )
+                    .child(div().flex_1().min_w_0().whitespace_normal().child(
+                        crate::localization::tf(
+                            "native.terminal.launcher.chatLimit",
+                            &[(
+                                "count",
+                                crate::localization::Arg::Number(
+                                    crate::features::workbench::ItemKind::Chat.maximum_items()
+                                        as i64,
+                                ),
+                            )],
+                        ),
+                    ))
+            });
         // `.desktop-terminal-launcher-error`.
         let error = self.launch_errors.get(&group).map(|message| {
             h_flex()
@@ -402,11 +436,23 @@ impl WorkbenchLauncher {
                             .w(px(content_width(width)))
                             .p(px(18.))
                             .gap(px(8.))
-                            .border_1()
-                            .border_color(t.border)
+                            // The frame is its first child, not the box's own
+                            // border: GPUI paints a border after the children,
+                            // so the heading and the history button could not
+                            // mask it (`legend` over a `fieldset` border).
+                            .child(
+                                div()
+                                    .absolute()
+                                    .top_0()
+                                    .left_0()
+                                    .size_full()
+                                    .border_1()
+                                    .border_color(t.border),
+                            )
                             .child(heading)
                             .child(history)
                             .children(error)
+                            .children(limit)
                             .child(entries),
                     ),
             )

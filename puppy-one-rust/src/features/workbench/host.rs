@@ -21,6 +21,9 @@ pub struct LauncherContext {
     pub width: f32,
     pub can_chat: bool,
     pub can_terminal: bool,
+    /// The project holds `ItemKind::Chat.maximum_items()` chats: the
+    /// launcher says why its Agents are unavailable.
+    pub chat_limit: bool,
 }
 
 /// What the workbench shows after a change. The host hears it once the

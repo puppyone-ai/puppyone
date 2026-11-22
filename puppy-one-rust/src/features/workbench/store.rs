@@ -449,6 +449,17 @@ impl Workbench {
         })
     }
 
+    /// The project holds as many items of `kind` as it admits.
+    pub fn at_limit(&self, kind: ItemKind) -> bool {
+        self.project().is_some_and(|p| {
+            p.content
+                .values()
+                .filter(|c| c.kind() == Some(kind))
+                .count()
+                >= kind.maximum_items()
+        })
+    }
+
     /// Focus within `group`'s content (`activate-group`): it becomes the
     /// active group, so its shown item is the command target.
     pub(super) fn activate_group(&mut self, group: Id, cx: &mut Context<Self>) {

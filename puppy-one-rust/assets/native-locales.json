@@ -300,7 +300,8 @@
       "native.space.nameRule": "Names can be up to {count} characters.",
       "native.space.ownerDescription": "The owner manages members, the plan and these settings.",
       "native.space.transferRule": "Transferring makes you a member of {space}.",
-      "native.space.transferAction": "Transfer"
+      "native.space.transferAction": "Transfer",
+      "native.terminal.launcher.chatLimit": "{count} chats are open, the most a project allows. Close one to start another."
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -601,7 +602,8 @@
       "native.space.nameRule": "名称最多 {count} 个字符。",
       "native.space.ownerDescription": "所有者管理成员、套餐和这些设置。",
       "native.space.transferRule": "转让后，你会成为 {space} 的成员。",
-      "native.space.transferAction": "转让"
+      "native.space.transferAction": "转让",
+      "native.terminal.launcher.chatLimit": "已打开 {count} 个聊天，达到本项目上限。关闭一个后即可新建。"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -902,7 +904,8 @@
       "native.space.nameRule": "名前は {count} 文字までです。",
       "native.space.ownerDescription": "オーナーはメンバー、プラン、これらの設定を管理します。",
       "native.space.transferRule": "譲渡すると、あなたは {space} のメンバーになります。",
-      "native.space.transferAction": "譲渡"
+      "native.space.transferAction": "譲渡",
+      "native.terminal.launcher.chatLimit": "チャットが {count} 件開いており、このプロジェクトの上限です。1 件閉じると新しく始められます。"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -1203,7 +1206,8 @@
       "native.space.nameRule": "이름은 최대 {count}자입니다.",
       "native.space.ownerDescription": "소유자는 멤버, 플랜, 이 설정을 관리합니다.",
       "native.space.transferRule": "이전하면 내가 {space}의 멤버가 됩니다.",
-      "native.space.transferAction": "이전"
+      "native.space.transferAction": "이전",
+      "native.terminal.launcher.chatLimit": "채팅이 {count}개 열려 있어 이 프로젝트의 한도에 도달했습니다. 하나를 닫으면 새로 시작할 수 있습니다."
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -1504,7 +1508,8 @@
       "native.space.nameRule": "Los nombres pueden tener hasta {count} caracteres.",
       "native.space.ownerDescription": "El propietario gestiona los miembros, el plan y estos ajustes.",
       "native.space.transferRule": "Al transferirlo pasas a ser miembro de {space}.",
-      "native.space.transferAction": "Transferir"
+      "native.space.transferAction": "Transferir",
+      "native.terminal.launcher.chatLimit": "Hay {count} chats abiertos, el máximo por proyecto. Cierra uno para empezar otro."
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -1805,7 +1810,8 @@
       "native.space.nameRule": "Os nomes podem ter até {count} caracteres.",
       "native.space.ownerDescription": "O proprietário gerencia os membros, o plano e estas configurações.",
       "native.space.transferRule": "Ao transferir, você passa a ser membro de {space}.",
-      "native.space.transferAction": "Transferir"
+      "native.space.transferAction": "Transferir",
+      "native.terminal.launcher.chatLimit": "Há {count} chats abertos, o máximo por projeto. Feche um para começar outro."
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -2106,7 +2112,8 @@
       "native.space.nameRule": "Les noms peuvent comporter jusqu’à {count} caractères.",
       "native.space.ownerDescription": "Le propriétaire gère les membres, la formule et ces réglages.",
       "native.space.transferRule": "Après le transfert, vous devenez membre de {space}.",
-      "native.space.transferAction": "Transférer"
+      "native.space.transferAction": "Transférer",
+      "native.terminal.launcher.chatLimit": "{count} chats sont ouverts, le maximum par projet. Fermez-en un pour en démarrer un autre."
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -2407,7 +2414,8 @@
       "native.space.nameRule": "Namen können bis zu {count} Zeichen lang sein.",
       "native.space.ownerDescription": "Der Eigentümer verwaltet Mitglieder, den Tarif und diese Einstellungen.",
       "native.space.transferRule": "Nach der Übertragung bist du Mitglied von {space}.",
-      "native.space.transferAction": "Übertragen"
+      "native.space.transferAction": "Übertragen",
+      "native.terminal.launcher.chatLimit": "{count} Chats sind geöffnet, das Maximum pro Projekt. Schließe einen, um einen neuen zu starten."
     }
   }
 }

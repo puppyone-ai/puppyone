@@ -76,6 +76,7 @@ impl Workbench {
                         width,
                         can_chat: self.can_create(ItemKind::Chat),
                         can_terminal: self.can_create(ItemKind::Terminal),
+                        chat_limit: self.at_limit(ItemKind::Chat),
                     };
                     host.launcher(context, cx)
                 }
