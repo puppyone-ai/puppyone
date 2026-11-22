@@ -44,12 +44,7 @@ pub(crate) fn derive_compute(
     selected_model: Option<&str>,
     access_prompt: bool,
 ) -> ComputeView {
-    let source_of = |model: &Model| {
-        model
-            .connection_id
-            .as_deref()
-            .and_then(|id| snapshot.and_then(|s| s.sources.get(id)).copied())
-    };
+    let source_of = |model: &Model| snapshot.and_then(|s| s.source(model));
     let ready_models: Vec<&Model> = models.iter().filter(|m| source_of(m).is_some()).collect();
     let is_managed = |model: &Model| source_of(model) == Some("managed");
     let current = ready_models
@@ -126,12 +121,7 @@ pub(crate) fn compute_sources<'a>(
     offered: &'a [Model],
     payments: bool,
 ) -> Vec<(&'static str, Option<&'a Model>)> {
-    let source_of = |model: &Model| {
-        model
-            .connection_id
-            .as_deref()
-            .and_then(|id| snapshot.and_then(|s| s.sources.get(id)).copied())
-    };
+    let source_of = |model: &Model| snapshot.and_then(|s| s.source(model));
     ["managed", "oauth", "api", "local"]
         .into_iter()
         .filter(|kind| payments || *kind != "managed")
@@ -189,7 +179,7 @@ impl AgentChatTabPanel {
             this.update(cx, |s, cx| s.apply_compute(snapshot, cx)).ok();
             // Each provider offers its whole text catalog: a catalog that
             // grew since the last read is saved, then read again.
-            let synced = cx.background_spawn(async { sync_offered_models() }).await;
+            let synced = sync_offered_models().await;
             if synced {
                 this.update(cx, |s, cx| s.reload_model_connections(cx)).ok();
             }
@@ -234,25 +224,12 @@ impl AgentChatTabPanel {
         let mut section = v_flex().gap(px(8.));
         if !(compute.setup_prompt || compute.paid_prompt) {
             let (icon, _) = source_presentation(compute.source);
-            let source_of = |model: &Model| {
-                self.compute
-                    .as_ref()
-                    .and_then(|s| {
-                        s.sources
-                            .get(model.connection_id.as_deref().unwrap_or_default())
-                    })
-                    .copied()
-            };
-            // The source switcher, in levels as Cursor's model picker:
-            // source → provider (each signed-in plan, API or local service)
-            // → its models; a source without a ready model opens Settings.
             let snapshot = self.compute.as_ref();
-            let name_of = |id: &str| {
-                snapshot
-                    .and_then(|s| s.names.get(id).cloned())
-                    .unwrap_or_default()
-            };
-            let mark_of = |id: &str| snapshot.and_then(|s| s.marks.get(id).copied());
+            let source_of = |model: &Model| snapshot.and_then(|s| s.source(model));
+            // The source switcher, in two levels as Cursor's model picker:
+            // source → provider (each signed-in plan, API or local service);
+            // the provider's models are switched in the model picker beside,
+            // and a source without a ready model opens Settings.
             let mut sources: Vec<AgentSessionControlOption> =
                 compute_sources(self.compute.as_ref(), &compute.offered, self.payments)
                     .into_iter()
@@ -287,14 +264,14 @@ impl AgentChatTabPanel {
                                         .or(models.first())
                                         .map(|m| m.model.clone())
                                         .unwrap_or_default(),
-                                    label: name_of(&id),
-                                    description: None,
-                                    keywords: None,
+                                    label: snapshot
+                                        .and_then(|s| s.name(&id))
+                                        .unwrap_or_default()
+                                        .to_owned(),
                                     icon: Some(icon),
-                                    mark: mark_of(&id),
+                                    mark: snapshot.and_then(|s| s.mark(&id)),
                                     current: current.is_some(),
-                                    sets: Some(AgentSessionControlId::Model),
-                                    children: vec![],
+                                    ..Default::default()
                                 }
                             })
                             .collect();
@@ -307,12 +284,9 @@ impl AgentChatTabPanel {
                                 }
                                 _ => None,
                             },
-                            keywords: None,
                             icon: Some(icon),
-                            mark: None,
-                            current: !compute.own_compute_only && compute.source == kind,
-                            sets: None,
                             children,
+                            ..Default::default()
                         }
                     })
                     .collect();
@@ -381,25 +355,19 @@ impl AgentChatTabPanel {
                             label: model.display_name.clone(),
                             // The service it runs on (models of several
                             // services share a source).
-                            description: self
-                                .compute
-                                .as_ref()
-                                .and_then(|s| {
-                                    s.names
-                                        .get(model.connection_id.as_deref().unwrap_or_default())
-                                        .cloned()
-                                })
+                            description: snapshot
+                                .zip(model.connection_id.as_deref())
+                                .and_then(|(s, id)| s.name(id))
+                                .map(str::to_owned)
                                 .or_else(|| {
                                     (!model.description.is_empty())
                                         .then(|| model.description.clone())
                                 }),
                             keywords: Some(format!("{} {}", model.id, model.model)),
                             icon: Some(source_presentation(compute.source).0),
-                            mark: self.compute.as_ref().and_then(|s| {
-                                s.marks
-                                    .get(model.connection_id.as_deref().unwrap_or_default())
-                                    .copied()
-                            }),
+                            mark: snapshot
+                                .zip(model.connection_id.as_deref())
+                                .and_then(|(s, id)| s.mark(id)),
                             ..Default::default()
                         })
                         .collect(),

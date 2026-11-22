@@ -3,13 +3,13 @@
 //! installed apps that are stopped with the models they downloaded
 //! (`Start`), and where to get a model app when there is none.
 use super::super::infrastructure::{Candidate, Installed, SourceKind};
-use super::rows::{identity, table, table_row, text_action};
+use super::rows::{identity, row_mark, table, table_row, text_action};
 use super::{ErrorAt, ModelConnections, PageState};
 use crate::agent::model_connections::providers as registry;
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::components::{Button, ButtonVariant, Icon, SettingsCategory, tooltip},
+    ui::components::{Button, ButtonVariant, Icon, SettingsCategory},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex};
@@ -114,7 +114,7 @@ impl ModelConnections {
         for (index, candidate) in candidates.into_iter().enumerate() {
             rows.extend(self.candidate_rows(index, candidate, t, cx));
         }
-        for (index, stopped) in self.discovery.stopped.clone().into_iter().enumerate() {
+        for (index, stopped) in self.discovery.stopped.iter().enumerate() {
             rows.extend(self.stopped_rows(index, stopped, t, cx));
         }
         rows.extend(self.inline_error(ErrorAt::Local, t));
@@ -138,7 +138,7 @@ impl ModelConnections {
                     })
                     .into(),
                 )
-                .tooltip(tooltip(tr("settings.modelConnections.discoveryHelp")))
+                .tooltip(tr("settings.modelConnections.discoveryHelp"))
                 .on_click(cx.listener(|s, _, _, cx| s.discover(cx))),
             )
             .child(
@@ -149,7 +149,7 @@ impl ModelConnections {
                     14.,
                     tr("settings.modelConnections.add").into(),
                 )
-                .tooltip(tooltip(tr("settings.modelConnections.add.local")))
+                .tooltip(tr("settings.modelConnections.add.local"))
                 .on_click(cx.listener(|s, _, _, cx| {
                     s.navigate(PageState::Add(SourceKind::Local, None, None), cx)
                 })),
@@ -192,7 +192,7 @@ impl ModelConnections {
         let mut rows = vec![
             table_row(t)
                 .id(("candidate", index))
-                .child(super::mark(provider, SourceKind::Local, 18., t.text.into()))
+                .child(row_mark(t, provider, SourceKind::Local))
                 .child(identity(t, candidate.name.clone().into(), detail))
                 .child(
                     text_action(
@@ -305,7 +305,7 @@ impl ModelConnections {
     fn stopped_rows(
         &self,
         index: usize,
-        stopped: Installed,
+        stopped: &Installed,
         t: Theme,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
@@ -326,12 +326,7 @@ impl ModelConnections {
         let mut rows = vec![
             table_row(t)
                 .id(("stopped", index))
-                .child(super::mark(
-                    registry::local_for(driver),
-                    SourceKind::Local,
-                    18.,
-                    t.text.into(),
-                ))
+                .child(row_mark(t, registry::local_for(driver), SourceKind::Local))
                 .child(identity(t, stopped.name.into(), detail))
                 .child(
                     Button::new(("start-service", index))
@@ -368,7 +363,12 @@ impl ModelConnections {
 
     /// Where to get a local model app: one row per app with its page, and
     /// a first model to pull. Open when no local model exists, else folded.
-    pub(super) fn guide_category(&self, t: Theme, cx: &mut Context<Self>) -> SettingsCategory {
+    pub(super) fn guide_category(
+        &self,
+        t: Theme,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> SettingsCategory {
         // A model to use exists: a saved local connection, or a service or
         // app with models. Services without any keep the guide open.
         let local = self
@@ -437,6 +437,8 @@ impl ModelConnections {
                     "starter",
                     "native.modelConnections.guide.copyCommand",
                     starter().into(),
+                    window,
+                    cx,
                 ))
                 .into_any_element(),
         ];
@@ -445,7 +447,7 @@ impl ModelConnections {
             rows.push(
                 table_row(t)
                     .id(("guide", index))
-                    .child(super::mark(provider, SourceKind::Local, 18., t.text.into()))
+                    .child(row_mark(t, provider, SourceKind::Local))
                     .child(identity(
                         t,
                         provider.map(|p| p.name).unwrap_or(id).into(),

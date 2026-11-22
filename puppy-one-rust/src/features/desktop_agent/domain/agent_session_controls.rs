@@ -25,13 +25,13 @@ pub struct AgentSessionControlOption {
     /// A brand mark (`assets/providers/<file>`, one colour or not) drawn
     /// before the label instead of `icon`.
     pub mark: Option<(&'static str, bool)>,
-    /// A next level, opened by hovering the option (source → provider →
-    /// model); the option itself is then not a choice.
+    /// A submenu, opened by hovering the option or entering it from the
+    /// keyboard (a source's providers); the option itself is then not a
+    /// choice. Its rows are leaves, and choosing one always sets the Model
+    /// control to the row's value.
     pub children: Vec<AgentSessionControlOption>,
-    /// The control a choice in a next level sets (a model chosen from the
-    /// source picker); its own control when `None`.
-    pub sets: Option<AgentSessionControlId>,
-    /// Whether this option, or one below it, is the current choice.
+    /// A submenu row is the current choice (top-level options are selected
+    /// by their control's value).
     pub current: bool,
 }
 
@@ -77,7 +77,6 @@ pub fn derive_agent_session_controls(
                     icon: None,
                     mark: None,
                     children: vec![],
-                    sets: None,
                     current: false,
                     keywords: Some(format!(
                         "{} {} {}",

@@ -1,6 +1,7 @@
 //! What Chat reads of the app's model connections (`useModelConnections`):
 //! each ready connection's source and PuppyOne compute's state, read from
 //! the Built-in Agent's connection catalog.
+use crate::agent::contract::dto::Model;
 use crate::agent::model_connections::ComputeAccount as _;
 use crate::agent::model_connections::configuration;
 use crate::agent::runtimes::puppyone_agent::native_model_connections::{
@@ -32,6 +33,21 @@ pub(crate) struct ComputeSnapshot {
     pub managed: Option<ManagedCompute>,
 }
 
+impl ComputeSnapshot {
+    /// The source kind of `model`'s connection, while it is ready.
+    pub fn source(&self, model: &Model) -> Option<&'static str> {
+        self.sources.get(model.connection_id.as_deref()?).copied()
+    }
+    /// The name of the connection `id`.
+    pub fn name(&self, id: &str) -> Option<&str> {
+        self.names.get(id).map(String::as_str)
+    }
+    /// The brand mark of the connection `id`.
+    pub fn mark(&self, id: &str) -> Option<(&'static str, bool)> {
+        self.marks.get(id).copied()
+    }
+}
+
 /// PuppyOne compute for Settings: `(signed in, credit available)`, or
 /// `None` while Payments is off and compute is not offered (blocking: the
 /// account's cached directory).
@@ -43,9 +59,15 @@ pub fn read_managed_status() -> Option<(bool, bool)> {
 }
 
 /// Brings every connection's Chat models up to its service's catalog
-/// (blocking, throttled per connection); `true` when one was saved.
-pub(crate) fn sync_offered_models() -> bool {
-    crate::features::model_connections::sync_offered()
+/// (throttled per connection); `true` when one was saved. The reads block
+/// on the network (up to 15s), so they run on a thread of their own, not on
+/// GPUI's shared background executor.
+pub(crate) async fn sync_offered_models() -> bool {
+    let (tx, rx) = async_channel::bounded(1);
+    crate::localization::spawn(move || {
+        let _ = tx.send_blocking(crate::features::model_connections::sync_offered());
+    });
+    rx.recv().await.unwrap_or(false)
 }
 
 /// Reads the connections (blocking: the configuration file and PuppyOne

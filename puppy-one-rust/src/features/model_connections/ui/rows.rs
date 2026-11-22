@@ -1,8 +1,11 @@
 //! The list card and its rows (`.model-connections-list`), shared by the
 //! source list, the provider picker and the details page.
+use super::super::infrastructure::SourceKind;
+use crate::agent::model_connections::providers::Provider;
 use crate::{
     theme::{self, Theme},
-    ui::components::Icon,
+    ui::components::{Button, ButtonVariant, Icon},
+    ui::form_input::TextInput,
 };
 use gpui::{prelude::*, *};
 use gpui_kit::{
@@ -53,14 +56,15 @@ pub(super) fn identity(t: Theme, name: SharedString, detail: SharedString) -> Di
                 .child(detail),
         )
 }
-/// `.model-connections-text-action`: 20px, 4px inline, caption type.
+/// `.model-connections-text-action`: 20px, 4px inline, caption type; a
+/// ghost `Button`, so it takes focus and the keyboard.
 pub(super) fn text_action(
     t: Theme,
     id: impl Into<ElementId>,
     icon: &'static str,
     size: f32,
     label: SharedString,
-) -> Stateful<Div> {
+) -> Button {
     let id: ElementId = id.into();
     // A pending action's loader turns (`.is-spinning`).
     let mut glyph = Icon::new(icon)
@@ -70,20 +74,57 @@ pub(super) fn text_action(
     if icon == "loader-circle" {
         glyph = glyph.spinning(id.clone());
     }
-    div()
-        .id(id)
-        .h(px(theme::control_micro()))
+    Button::new(id)
+        .variant(ButtonVariant::Ghost)
+        .with_size(px(theme::control_micro()))
+        .leading(glyph)
+        .label(label)
         .px(px(4.))
-        .flex()
-        .items_center()
         .gap(px(5.))
         .rounded(px(6.))
         .text_size(px(theme::ty().ui.caption))
         .text_color(t.subtle)
-        .cursor(theme::clickable_cursor())
-        .hover(move |s| s.bg(t.hover).text_color(t.text))
-        .child(glyph)
-        .child(label)
+}
+/// A row that opens a page: the hover backplate, a trailing chevron and
+/// `open` on click.
+pub(super) fn link_row(
+    t: Theme,
+    row: Stateful<Div>,
+    open: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    row.cursor(theme::clickable_cursor())
+        .hover(move |s| s.bg(t.hover))
+        .child(chevron(t))
+        .on_click(open)
+}
+/// A row's 18px brand mark (a local service's falls back to the server
+/// glyph).
+pub(super) fn row_mark(t: Theme, provider: Option<&Provider>, source: SourceKind) -> AnyElement {
+    super::mark(provider, source, 18., t.text.into())
+}
+/// `.desktop-settings-text-input`'s shell around `input`, which draws only
+/// its text (meta type on a 17px line).
+pub(super) fn text_field(t: Theme, input: &Entity<TextInput>, cx: &mut App) -> Div {
+    let m = theme::ty();
+    input.update(cx, |i, _| {
+        i.appearance = false;
+        i.prompt_text = Some((m.ui.meta, 17.));
+        i.placeholder_color = Some(|t| t.subtle);
+        i.min_height = 17.;
+    });
+    div()
+        .h(px(theme::control_compact()))
+        // The value starts where a `Select`'s does (12px in, after the
+        // input's own 4px inset).
+        .pl(px(8.))
+        .pr(px(5.))
+        .flex()
+        .items_center()
+        .border_1()
+        .border_color(t.divider)
+        .rounded(px(6.))
+        .bg(t.input)
+        .child(div().w_full().child(input.clone()))
 }
 /// A caption status at a row's end.
 pub(super) fn status(t: Theme, text: SharedString) -> Div {

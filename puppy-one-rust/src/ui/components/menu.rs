@@ -296,7 +296,8 @@ impl MenuItem {
         self
     }
     /// Opens the submenu without a hover, as keyboard navigation does; the
-    /// pointer closes it as usual afterwards.
+    /// pointer closes it as usual afterwards. Withdrawing the request
+    /// (`false` after `true`) closes the submenu it opened.
     pub fn open_submenu(mut self, open: bool) -> Self {
         self.open_submenu = open;
         self
@@ -616,7 +617,7 @@ fn separator(t: Theme) -> Div {
 #[derive(Default)]
 struct SubmenuState {
     open: bool,
-    /// An `open_submenu` request was honoured.
+    /// An `open_submenu` request is in force (and was honoured).
     requested: bool,
     epoch: u64,
     over_row: bool,
@@ -627,30 +628,38 @@ struct SubmenuState {
     menu: Option<ElementId>,
 }
 
-/// The open submenus of the window's menus, so moving to another row of a
-/// menu closes the submenu its sibling opened.
+/// The open submenus of the windows' menus, each with its window, so moving
+/// to another row of a menu closes the submenu its sibling opened (and only
+/// in that window: two windows may show menus with the same id).
 #[derive(Default)]
-struct OpenSubmenus(Vec<WeakEntity<SubmenuState>>);
+struct OpenSubmenus(Vec<(WindowId, WeakEntity<SubmenuState>)>);
 impl Global for OpenSubmenus {}
 impl OpenSubmenus {
-    fn register(state: &Entity<SubmenuState>, cx: &mut App) {
+    fn register(window: WindowId, state: &Entity<SubmenuState>, cx: &mut App) {
         let list = &mut cx.default_global::<OpenSubmenus>().0;
-        list.retain(|s| s.upgrade().is_some());
-        let weak = state.downgrade();
-        if !list.contains(&weak) {
-            list.push(weak);
+        list.retain(|(_, s)| s.upgrade().is_some());
+        let entry = (window, state.downgrade());
+        if !list.contains(&entry) {
+            list.push(entry);
         }
     }
-    /// The pointer reached a row of `menu`: the submenus its other rows
-    /// opened close now, not after the grace period, so two never show.
-    fn close_siblings(menu: &ElementId, keep: Option<&Entity<SubmenuState>>, cx: &mut App) {
+    /// The pointer reached a row of `menu` in `window`: the submenus its
+    /// other rows opened close now, not after the grace period, so two never
+    /// show.
+    fn close_siblings(
+        window: WindowId,
+        menu: &ElementId,
+        keep: Option<&Entity<SubmenuState>>,
+        cx: &mut App,
+    ) {
         let Some(open) = cx.try_global::<OpenSubmenus>() else {
             return;
         };
         let siblings: Vec<Entity<SubmenuState>> = open
             .0
             .iter()
-            .filter_map(WeakEntity::upgrade)
+            .filter(|(id, _)| *id == window)
+            .filter_map(|(_, s)| s.upgrade())
             .filter(|s| keep != Some(s))
             .filter(|s| {
                 let s = s.read(cx);
@@ -707,10 +716,11 @@ fn sibling_closer(menu: ElementId, keep: Option<WeakEntity<SubmenuState>>) -> im
         |_, _, _| {},
         move |bounds, _, window, _| {
             let (menu, keep) = (menu.clone(), keep.clone());
-            window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
+            window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, cx| {
                 if phase == DispatchPhase::Bubble && bounds.contains(&e.position) {
                     let keep = keep.as_ref().and_then(WeakEntity::upgrade);
-                    OpenSubmenus::close_siblings(&menu, keep.as_ref(), cx);
+                    let id = window.window_handle().window_id();
+                    OpenSubmenus::close_siblings(id, &menu, keep.as_ref(), cx);
                 }
             });
         },
@@ -940,14 +950,14 @@ impl RenderOnce for SubmenuRow {
         });
         let menu = self.menu.clone();
         state.update(cx, |s, _| s.menu = Some(menu.clone()));
-        if self.open {
-            state.update(cx, |s, _| {
-                if !s.requested {
-                    s.requested = true;
-                    s.open = true;
-                }
-            });
-        }
+        // A request opens the submenu once; withdrawing it closes what it
+        // opened, so the next request opens it again (keyboard in and out).
+        state.update(cx, |s, _| {
+            if self.open != s.requested {
+                s.requested = self.open;
+                s.open = self.open;
+            }
+        });
         // `on_row` says which of the two the pointer entered or left.
         let hover = {
             let state = state.clone();
@@ -1023,7 +1033,7 @@ impl RenderOnce for SubmenuRow {
                 });
             });
         if open {
-            OpenSubmenus::register(&state, cx);
+            OpenSubmenus::register(window.window_handle().window_id(), &state, cx);
             let mut menu = (self.build)(window, cx);
             menu.dismiss_handler(self.dismiss);
             let corner = corner_cell.get();

@@ -92,10 +92,14 @@ impl Icon {
         }
     }
     fn path(&self) -> SharedString {
-        match self.stroke {
-            Some(stroke) => format!("icons/{}@{stroke}.svg", self.name).into(),
-            None => format!("icons/{}.svg", self.name).into(),
-        }
+        icon_path(&self.name, self.stroke)
+    }
+}
+/// `icons/<name>.svg`, or its redraw at `stroke`.
+fn icon_path(name: &str, stroke: Option<f32>) -> SharedString {
+    match stroke {
+        Some(stroke) => format!("icons/{name}@{stroke}.svg").into(),
+        None => format!("icons/{name}.svg").into(),
     }
 }
 impl Sizable for Icon {
@@ -110,7 +114,7 @@ impl Styled for Icon {
     }
 }
 impl RenderOnce for Icon {
-    fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let color = self.color.unwrap_or(window.text_style().color);
         let pixels = self.pixels();
         let disclosure = crate::asset_catalog::is_disclosure(&self.name);
@@ -129,28 +133,17 @@ impl RenderOnce for Icon {
         let copied = self
             .copy
             .as_ref()
-            .and_then(|key| crate::ui::copy_feedback::started(key).map(|at| (key.clone(), at)));
+            .and_then(|key| crate::ui::copy_feedback::started(key, window, cx));
         let stroke = self.stroke;
         let icon = match (self.spin, copied) {
-            (_, Some((key, at))) => {
-                let path = move |name: &str| -> SharedString {
-                    match stroke {
-                        Some(stroke) => format!("icons/{name}@{stroke}.svg").into(),
-                        None => format!("icons/{name}.svg").into(),
-                    }
-                };
-                // Keyed by the copy's start, so a new copy flips again.
-                let id = SharedString::from(format!("{key}@{:?}", at));
-                icon.with_animation(
-                    ElementId::Name(id),
-                    Animation::new(crate::ui::copy_feedback::SHOWN_FOR),
-                    move |svg, delta| {
-                        let (name, scale) = crate::ui::copy_feedback::flip(delta);
-                        svg.path(path(name))
-                            .with_transformation(Transformation::scale(size(scale, 1.)))
-                    },
-                )
-                .into_any_element()
+            (_, Some(at)) => {
+                let (name, scale, turning) = crate::ui::copy_feedback::face(at, cx.reduce_motion());
+                if turning {
+                    window.request_animation_frame();
+                }
+                icon.path(icon_path(name, stroke))
+                    .with_transformation(Transformation::scale(size(scale, 1.)))
+                    .into_any_element()
             }
             (Some(id), None) => icon
                 .with_animation(

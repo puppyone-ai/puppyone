@@ -462,8 +462,10 @@ impl ModelConnections {
         key: &'static str,
         label: &'static str,
         text: String,
+        window: &Window,
+        cx: &App,
     ) -> Button {
-        let copied = crate::ui::copy_feedback::copied(key);
+        let copied = crate::ui::copy_feedback::copied(key, window, cx);
         Button::new(id)
             .icon(crate::ui::components::Icon::copy(key))
             .label(tr(if copied {
@@ -700,7 +702,7 @@ impl Render for ModelConnections {
             );
         }
         let content = match self.page.clone() {
-            PageState::List => self.list(t, cx).into_any_element(),
+            PageState::List => self.list(t, window, cx).into_any_element(),
             PageState::ChooseProvider => self.provider_picker(t, cx).into_any_element(),
             PageState::Detail(id) => self.detail(&id, t, cx).into_any_element(),
             PageState::Edit(_) | PageState::Add(..) => self
