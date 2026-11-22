@@ -83,6 +83,9 @@ suites = {
         'edits_and_async::t2_13_async_image_decode_above_viewport_holds_top_text',
         'edits_and_async::t2_14_html_block_measured_height_above_viewport_holds_top_text',
     ],
+    'editor::markdown::tests::style_contracts::': [
+        'typography_and_theme::t3_math_01_native_frontend_never_injects_font_into_math_render_requests',
+    ],
 }
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'tools/verify-native-editor.py']]
 paths.extend(p for folder in ['src', 'assets', 'crates'] for p in sorted((root / folder).rglob('*')) if p.is_file())

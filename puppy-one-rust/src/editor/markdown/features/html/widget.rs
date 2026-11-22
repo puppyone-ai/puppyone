@@ -109,16 +109,24 @@ impl BlockWidget for HtmlBlockWidget {
             ring::outline(size, b.radius, b.ring_width)
                 .group_hover("md-html-widget", move |s| s.border_color(hover))
         };
+        let hovered =
+            cx.render
+                .window
+                .use_keyed_state(cx.id("md-html-hovered"), cx.render.app, |_, _| false);
+        let is_hovered = *hovered.read(cx.render.app);
+        let visible = state.focus_within() || state.selected || is_hovered;
         let toggle = source_toggle(
             cx.id("md-html-source"),
             "md-html-widget",
             width,
             self.theme.dark,
-            state.focus_within() || state.selected,
+            visible,
             cx.sender(),
             Command::new(ID, ShowSource(self.range.clone())),
         );
+        let owner_view = cx.render.view.clone();
         let widget = div()
+            .id(cx.id("md-html-box"))
             .absolute()
             .left_0()
             .top_0()
@@ -126,6 +134,19 @@ impl BlockWidget for HtmlBlockWidget {
             .h(px(height))
             .group("md-html-widget")
             .rounded(px(b.radius))
+            .on_hover(move |&now, _, app| {
+                let changed = hovered.update(app, |h, _| {
+                    if *h != now {
+                        *h = now;
+                        true
+                    } else {
+                        false
+                    }
+                });
+                if changed {
+                    let _ = owner_view.update(app, |_, cx| cx.notify());
+                }
+            })
             .child(surface)
             .child(frame)
             .child(toggle);

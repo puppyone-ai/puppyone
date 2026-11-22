@@ -50231,6 +50231,234 @@
           "test": "editor::markdown::tests::svg_isolation_acceptance::mermaid_dense_diagrams_use_readable_intrinsic_scale_and_unmeasurable_uses_fit_fallback"
         }
       ]
+    },
+    {
+      "id": "markdown-style-contracts",
+      "acceptance": "Markdown visual, contrast, typography, reading-rail geometry, task checkbox hit target, HTML/block image sizing, Mermaid viewport cap, rich-block state ring, code-block scrolling/metrics/tokens, HTML source toggle reveal/clickability, shared table/divider tokens, structure rail, drag grips, and math render-request font isolation contracts hold natively across Light/Dark themes and Small/Medium/Large scales.",
+      "typescript": [
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
+          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown editor layout > keeps supporting quotes quieter than body copy in every theme"
+            },
+            {
+              "index": 1,
+              "name": "Markdown editor layout > publishes one inline foreground context instead of quote-specific descendant overrides"
+            },
+            {
+              "index": 2,
+              "name": "Markdown editor layout > shares its reading width with other document-like product surfaces"
+            },
+            {
+              "index": 3,
+              "name": "Markdown editor layout > keeps the centered reading rail invariant when stacked panes cross the overflow threshold"
+            },
+            {
+              "index": 4,
+              "name": "Markdown editor layout > keeps canonical Markdown source invisible until Live Preview commits"
+            },
+            {
+              "index": 5,
+              "name": "Markdown editor layout > keeps Markdown source mode typography uniform"
+            },
+            {
+              "index": 6,
+              "name": "Markdown editor layout > shares the minimum document inset while only inline padding responds to width"
+            },
+            {
+              "index": 7,
+              "name": "Markdown editor layout > keeps the full-width block edge separate from the document reading rail"
+            },
+            {
+              "index": 8,
+              "name": "Markdown editor layout > keeps ordinary editable-line geometry independent of empty-line DOM"
+            },
+            {
+              "index": 9,
+              "name": "Markdown editor layout > keeps task checkbox visuals compact inside a reliable desktop hit target"
+            },
+            {
+              "index": 11,
+              "name": "Markdown HTML media layout > caps raw HTML images at the reading rail without replacing authored sizing"
+            },
+            {
+              "index": 12,
+              "name": "Markdown HTML media layout > uses one semantic presentation profile without a second HTML widget gap"
+            },
+            {
+              "index": 13,
+              "name": "Markdown HTML media layout > keeps emphasis weight consistent across Markdown presentation adapters"
+            },
+            {
+              "index": 14,
+              "name": "Markdown image presentation > fills the rich content rail for block images without a product pixel cap"
+            },
+            {
+              "index": 15,
+              "name": "Markdown Mermaid viewport > keeps dense diagrams inside a bounded two-axis scrollport"
+            },
+            {
+              "index": 16,
+              "name": "Markdown rich-block boundary affordance > paints state on the inner surface so wrapper spacing stays outside the ring"
+            },
+            {
+              "index": 17,
+              "name": "Markdown rich-block boundary affordance > keeps the outer table frame unchanged on hover and cell focus"
+            },
+            {
+              "index": 19,
+              "name": "Markdown rich-block boundary affordance > keeps vertical scrolling at the document level for code blocks"
+            },
+            {
+              "index": 20,
+              "name": "Markdown rich-block boundary affordance > keeps editable and highlighted code glyph metrics identical"
+            },
+            {
+              "index": 21,
+              "name": "Markdown rich-block boundary affordance > maps Markdown code tokens through theme-adaptive semantic colors"
+            },
+            {
+              "index": 22,
+              "name": "Markdown rich-block boundary affordance > keeps code panels free of language metadata and its reserved row"
+            },
+            {
+              "index": 23,
+              "name": "Markdown rich-block boundary affordance > reveals the HTML source control only for hover, keyboard focus, or selection"
+            },
+            {
+              "index": 24,
+              "name": "Markdown table affordance layout > uses Markdown colors for prose dividers and shared tokens for table lines"
+            },
+            {
+              "index": 26,
+              "name": "Markdown table affordance layout > uses one shared, pixel-centered structure control for Markdown and CSV"
+            },
+            {
+              "index": 27,
+              "name": "Markdown table affordance layout > keeps compact drag grips inside larger pointer targets"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownMathTypographyContract.test.ts",
+          "sha256": "5496569094b61dee444f1a5e9c795ec9192b37cc91796016cbd05791c52f23da",
+          "cases": [
+            {
+              "index": 0,
+              "name": "markdown math typography contract > keeps editor prose fonts from reaching math widgets"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_00_quotes_quieter_than_body_and_divider_in_every_theme"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_01_blockquote_publishes_single_inline_foreground_context"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_02_reading_width_matches_shared_document_token"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_03_reading_rail_stays_centered_across_vertical_overflow_threshold"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_04_live_preview_first_frame_hides_source_without_flash"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_05_source_mode_typography_is_uniform_across_all_syntax"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_06_minimum_document_inset_constant_with_chrome_inset_across_widths"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_07_full_width_blocks_stay_aligned_within_reading_rail"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_08_ordinary_line_geometry_independent_of_empty_lines"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_09_task_checkbox_compact_visual_inside_24px_hit_target_and_edge_clicks"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_11_html_images_cap_at_reading_rail_while_preserving_authored_size"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_12_html_and_native_markdown_share_one_presentation_profile"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_13_emphasis_weight_consistent_across_markdown_html_and_tables"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_14_block_images_fill_reading_rail_without_520px_cap"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::layout_and_widgets::t3_15_mermaid_dense_diagrams_stay_within_viewport_bounded_scrollport"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_16_rich_block_state_ring_paints_on_inner_surface_outside_rhythm_gaps"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_17_table_outer_frame_unchanged_on_hover_and_cell_focus"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_19_code_block_scrolls_horizontally_while_growing_vertically_with_document"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_20_code_block_editable_and_highlighted_glyph_metrics_identical"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_21_code_block_tokens_use_theme_adaptive_semantic_colors"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_22_code_panels_omit_language_metadata_and_reserved_header_row"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_23_html_source_toggle_hidden_unclickable_at_rest_and_revealed_on_hover_or_selection"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_24_prose_dividers_use_markdown_rule_and_tables_use_shared_tokens"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_26_markdown_and_csv_share_pixel_centered_structure_rail_controls"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::blocks_and_tables::t3_27_table_drag_grips_keep_compact_visuals_inside_larger_hit_targets"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::style_contracts::typography_and_theme::t3_math_00_prose_fonts_do_not_reach_math_render_requests"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -55547,7 +55775,7 @@
     {
       "id": "ts-stylesheet-visual-contracts",
       "kind": "out-of-scope",
-      "reason": "These assert the declarations of particular CSS rules (a selector's shadow, gap, grid columns, weight, colour, scrollbar pseudo-elements, resize-lane widths) by reading the TS stylesheets as text. The native frontend has no stylesheet or cascade to read: each GPUI component sets its geometry and paint directly, with values ported from the cited TS rule, and visual parity is reviewed by capturing both products and comparing the captures (tools/capture-*.py, tools/compare.py, tools/compare-native-geometry.py) rather than by text assertions. Rules that carry product meaning beyond one selector have native tests in their rows: the elevation scale, the opaque selection paint, the typography role tables and the file-icon slot.",
+      "reason": "These assert the declarations of particular non-Markdown CSS rules (titlebar, sidebar, settings, code viewer, scrollbar pseudo-elements, resize-lane widths) by reading the TS stylesheets as text. The native frontend has no stylesheet or cascade to read: each GPUI component sets its geometry and paint directly, with values ported from the cited TS rule, and visual parity is reviewed by capturing both products and comparing the captures (tools/capture-*.py, tools/compare.py, tools/compare-native-geometry.py) rather than by text assertions. Product-meaningful Markdown visual and geometry contracts have native tests in markdown-style-contracts (plus existing gaps for unimplemented heading outline and wide-table scrollport).",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/verification/test-layout.md",
       "typescript": [
         {
@@ -55769,120 +55997,6 @@
           ]
         },
         {
-          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
-          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown editor layout > keeps supporting quotes quieter than body copy in every theme"
-            },
-            {
-              "index": 1,
-              "name": "Markdown editor layout > publishes one inline foreground context instead of quote-specific descendant overrides"
-            },
-            {
-              "index": 2,
-              "name": "Markdown editor layout > shares its reading width with other document-like product surfaces"
-            },
-            {
-              "index": 3,
-              "name": "Markdown editor layout > keeps the centered reading rail invariant when stacked panes cross the overflow threshold"
-            },
-            {
-              "index": 4,
-              "name": "Markdown editor layout > keeps canonical Markdown source invisible until Live Preview commits"
-            },
-            {
-              "index": 5,
-              "name": "Markdown editor layout > keeps Markdown source mode typography uniform"
-            },
-            {
-              "index": 6,
-              "name": "Markdown editor layout > shares the minimum document inset while only inline padding responds to width"
-            },
-            {
-              "index": 7,
-              "name": "Markdown editor layout > keeps the full-width block edge separate from the document reading rail"
-            },
-            {
-              "index": 8,
-              "name": "Markdown editor layout > keeps ordinary editable-line geometry independent of empty-line DOM"
-            },
-            {
-              "index": 9,
-              "name": "Markdown editor layout > keeps task checkbox visuals compact inside a reliable desktop hit target"
-            },
-            {
-              "index": 10,
-              "name": "Markdown editor layout > keeps the visible dash separate from its pointer target without expandable chrome"
-            },
-            {
-              "index": 11,
-              "name": "Markdown HTML media layout > caps raw HTML images at the reading rail without replacing authored sizing"
-            },
-            {
-              "index": 12,
-              "name": "Markdown HTML media layout > uses one semantic presentation profile without a second HTML widget gap"
-            },
-            {
-              "index": 13,
-              "name": "Markdown HTML media layout > keeps emphasis weight consistent across Markdown presentation adapters"
-            },
-            {
-              "index": 14,
-              "name": "Markdown image presentation > fills the rich content rail for block images without a product pixel cap"
-            },
-            {
-              "index": 15,
-              "name": "Markdown Mermaid viewport > keeps dense diagrams inside a bounded two-axis scrollport"
-            },
-            {
-              "index": 16,
-              "name": "Markdown rich-block boundary affordance > paints state on the inner surface so wrapper spacing stays outside the ring"
-            },
-            {
-              "index": 17,
-              "name": "Markdown rich-block boundary affordance > keeps the outer table frame unchanged on hover and cell focus"
-            },
-            {
-              "index": 19,
-              "name": "Markdown rich-block boundary affordance > keeps vertical scrolling at the document level for code blocks"
-            },
-            {
-              "index": 20,
-              "name": "Markdown rich-block boundary affordance > keeps editable and highlighted code glyph metrics identical"
-            },
-            {
-              "index": 21,
-              "name": "Markdown rich-block boundary affordance > maps Markdown code tokens through theme-adaptive semantic colors"
-            },
-            {
-              "index": 22,
-              "name": "Markdown rich-block boundary affordance > keeps code panels free of language metadata and its reserved row"
-            },
-            {
-              "index": 23,
-              "name": "Markdown rich-block boundary affordance > reveals the HTML source control only for hover, keyboard focus, or selection"
-            },
-            {
-              "index": 24,
-              "name": "Markdown table affordance layout > uses Markdown colors for prose dividers and shared tokens for table lines"
-            },
-            {
-              "index": 25,
-              "name": "Markdown table affordance layout > splits the editor-edge scrollport from the reading-rail table track"
-            },
-            {
-              "index": 26,
-              "name": "Markdown table affordance layout > uses one shared, pixel-centered structure control for Markdown and CSV"
-            },
-            {
-              "index": 27,
-              "name": "Markdown table affordance layout > keeps compact drag grips inside larger pointer targets"
-            }
-          ]
-        },
-        {
           "path": "tests/architecture/editor/formats/code/codeEditorVisualArchitecture.test.ts",
           "sha256": "564c1699ef2e82d644fea101ef0e9592147fc34684c548257863ef89265507c7",
           "cases": [
@@ -55959,20 +56073,6 @@
             {
               "index": 0,
               "name": "binary fallback visual architecture > keeps the fallback surface flat and independent from the code preview frame"
-            }
-          ]
-        },
-        {
-          "path": "tests/architecture/editor/formats/markdown/rendering/markdownMathTypographyContract.test.ts",
-          "sha256": "5496569094b61dee444f1a5e9c795ec9192b37cc91796016cbd05791c52f23da",
-          "cases": [
-            {
-              "index": 0,
-              "name": "markdown math typography contract > keeps editor prose fonts from reaching math widgets"
-            },
-            {
-              "index": 1,
-              "name": "markdown math typography contract > leaves math font-role mapping to the upstream KaTeX stylesheet"
             }
           ]
         },
@@ -62621,6 +62721,16 @@
               "name": "Markdown table EditorView interactions > reveals the focused column without scrolling the outer editor horizontally"
             }
           ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
+          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
+          "cases": [
+            {
+              "index": 25,
+              "name": "Markdown table affordance layout > splits the editor-edge scrollport from the reading-rail table track"
+            }
+          ]
         }
       ]
     },
@@ -64135,6 +64245,16 @@
             {
               "index": 9,
               "name": "Markdown heading outline > preserves a focused directory dash while scroll state is measured"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
+          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
+          "cases": [
+            {
+              "index": 10,
+              "name": "Markdown editor layout > keeps the visible dash separate from its pointer target without expandable chrome"
             }
           ]
         }
@@ -66079,6 +66199,24 @@
             {
               "index": 2,
               "name": "desktop update visual preview > prefers an explicit environment request over the URL helper"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "katex-owns-math-font-mapping",
+      "kind": "out-of-scope",
+      "reason": "KaTeX renders formulas inside the render service using its own bundled stylesheet; the native Rust frontend never sets or overrides math font families on render requests (verified by t3_math_01_native_frontend_never_injects_font_into_math_render_requests).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/math.md",
+      "typescript": [
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownMathTypographyContract.test.ts",
+          "sha256": "5496569094b61dee444f1a5e9c795ec9192b37cc91796016cbd05791c52f23da",
+          "cases": [
+            {
+              "index": 1,
+              "name": "markdown math typography contract > leaves math font-role mapping to the upstream KaTeX stylesheet"
             }
           ]
         }

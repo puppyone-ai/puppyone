@@ -7,6 +7,12 @@ use crate::editor::{
 };
 use gpui::{prelude::*, *};
 
+/// Resolves `<b>` / `<strong>` weight inside an HTML surface: never downgrades
+/// a heavier inherited container weight (such as `<th>` at `650` or headings).
+pub(crate) fn resolved_strong_weight(inherited: f32, strong: f32) -> f32 {
+    inherited.max(strong)
+}
+
 impl Surface<'_, '_, '_, '_> {
     /// `.cm-md-image-placeholder`: muted meta text in a bordered chip.
     pub(super) fn chip(&mut self, label: &str, inherit: &Inherit) -> AnyElement {
@@ -42,6 +48,7 @@ impl Surface<'_, '_, '_, '_> {
         node: &Node,
         inherit: &Inherit,
         out: &mut Vec<Piece>,
+        available: f32,
         depth: usize,
     ) {
         if depth > MAX_HTML_DEPTH {
@@ -72,10 +79,13 @@ impl Surface<'_, '_, '_, '_> {
         match e.tag.as_str() {
             "br" => return out.push(Piece::Break),
             "img" | "picture" | "svg" => {
-                let atom = self.image(e, &inherit);
+                let atom = self.image(e, &inherit, available);
                 return out.push(Piece::Atom(atom));
             }
-            "b" | "strong" => inherit.text.weight = t.inline.strong_weight,
+            "b" | "strong" => {
+                inherit.text.weight =
+                    resolved_strong_weight(inherit.text.weight, t.inline.strong_weight);
+            }
             "i" | "em" | "cite" | "var" | "dfn" => inherit.text.italic = true,
             "s" | "del" | "strike" => inherit.strike = true,
             "u" | "ins" => inherit.underline = true,
@@ -110,7 +120,7 @@ impl Surface<'_, '_, '_, '_> {
             out.push(Piece::Text("\u{201c}".into(), inherit.clone()));
         }
         for child in &e.children {
-            self.inline(child, &inherit, out, depth + 1);
+            self.inline(child, &inherit, out, available, depth + 1);
         }
         if e.tag == "q" {
             out.push(Piece::Text("\u{201d}".into(), inherit.clone()));
