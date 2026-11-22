@@ -1175,9 +1175,10 @@ pub fn decorate_reveal_with_fallbacks(
         let l = cx.doc.line_index(cx.doc.clamp(comp));
         line_spans.push(l..(l + 1).min(total));
     }
-    if let Some(ct) = cx.preview.callout_title {
-        let l = cx.doc.line_index(cx.doc.clamp(ct));
-        line_spans.push(l..(l + 1).min(total));
+    if let Some(ct) = cx.preview.callout_title
+        && ct < total
+    {
+        line_spans.push(ct..ct + 1);
     }
     if line_spans.is_empty() {
         return RevealLayer::empty();

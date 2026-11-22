@@ -35,6 +35,7 @@ mod svg_isolation_acceptance;
 mod table_inline_acceptance;
 mod table_interaction_acceptance;
 mod table_media_acceptance;
+mod viewport_stability;
 
 #[test]
 fn dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans() {

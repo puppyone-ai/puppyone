@@ -64,6 +64,25 @@ suites = {
         'image_viewer_svg_decode_blocks_local_file_reads_while_rendering_safe_svg',
         'markdown_document_svg_only_reads_policy_approved_workspace_assets_via_document_assets',
     ],
+    'editor::markdown::tests::viewport_stability::': [
+        'layout_and_modes::t2_01_width_resize_cycles_hold_across_all_top_kinds',
+        'layout_and_modes::t2_02_height_resize_holds_across_all_top_kinds',
+        'layout_and_modes::t2_03_bottom_height_growth_clamps_last_line_flush',
+        'layout_and_modes::t2_04_font_scale_switches_hold_viewport_top',
+        'layout_and_modes::t2_05_theme_switches_hold_viewport_top',
+        'layout_and_modes::t2_06_live_preview_source_round_trips_hold_viewport_top',
+        'layout_and_modes::t2_15_blur_and_refocus_with_caret_above_viewport_holds_top_text',
+        'layout_and_modes::t2_16_scroll_jump_then_immediate_width_resize_holds_jumped_top_text',
+        'layout_and_modes::t2_17_page_down_caret_reveal_then_width_resize_holds_revealed_top_text',
+        'edits_and_async::t2_07_external_insert_above_viewport_holds_top_text',
+        'edits_and_async::t2_08_external_delete_above_viewport_holds_top_text',
+        'edits_and_async::t2_09_external_append_below_viewport_holds_top_text',
+        'edits_and_async::t2_10_external_delete_of_anchored_paragraph_falls_back_cleanly',
+        'edits_and_async::t2_11_typing_inside_viewport_holds_top_text',
+        'edits_and_async::t2_12_edit_undo_redo_above_viewport_holds_top_text',
+        'edits_and_async::t2_13_async_image_decode_above_viewport_holds_top_text',
+        'edits_and_async::t2_14_html_block_measured_height_above_viewport_holds_top_text',
+    ],
 }
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'tools/verify-native-editor.py']]
 paths.extend(p for folder in ['src', 'assets', 'crates'] for p in sorted((root / folder).rglob('*')) if p.is_file())

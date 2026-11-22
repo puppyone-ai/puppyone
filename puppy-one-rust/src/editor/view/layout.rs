@@ -4,6 +4,7 @@
 //! of the frame that produced them; `scroll` records that frame's offset so
 //! later pointer events can be mapped after a scroll.
 use super::render::LeafEntry;
+use crate::editor::text::{anchor::Anchor, change::ChangeSet};
 use gpui::{Bounds, Pixels, Point, point, px};
 use gpui_kit::base::text::editor_host::LeafGeometry;
 use std::ops::Range;
@@ -65,14 +66,38 @@ pub struct BlockGeometry {
 /// anchor's row instead of keeping a pixel offset.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollAnchor {
-    /// The first offset of the row at the viewport top.
-    pub offset: usize,
+    /// The first offset of the row at the viewport top, tracked as an `Anchor`
+    /// so it maps cleanly across edits above the viewport.
+    pub anchor: Anchor,
     pub upstream: bool,
     /// That row's top minus the viewport top (negative when the row is
     /// partly scrolled past).
     pub row: f32,
     /// That row's top minus its block's top.
     pub within: f32,
+}
+
+impl ScrollAnchor {
+    pub fn offset(&self) -> usize {
+        self.anchor.offset
+    }
+
+    /// Maps the anchor across `changes` to `new_revision`.
+    /// Returns `false` if a deletion strictly removed the anchored text itself,
+    /// signalling the caller to drop `held_anchor` and fall back to block height
+    /// compensation.
+    pub fn map(&mut self, changes: &ChangeSet, new_revision: u64) -> bool {
+        let pos = self.anchor.offset;
+        let deleted = changes
+            .changes()
+            .iter()
+            .any(|c| c.range.start < c.range.end && c.range.start <= pos && pos < c.range.end);
+        if deleted {
+            return false;
+        }
+        self.anchor.map(changes, new_revision);
+        true
+    }
 }
 
 /// Where a caret is drawn (window coordinates of the layout frame).
@@ -364,11 +389,16 @@ impl DocLayout {
         if top < first.bounds.top() || top >= last.bounds.bottom() {
             return None;
         }
-        let (offset, upstream) = self.offset_at(point(first.bounds.left(), top));
+        // Probe 2px below the viewport top so a sub-pixel sliver of a mostly
+        // scrolled-off row does not steal the anchor from the first visible row.
+        let probe = (top + px(2.))
+            .min(last.bounds.bottom() - px(1.))
+            .max(first.bounds.top());
+        let (offset, upstream) = self.offset_at(point(first.bounds.left(), probe));
         let row = self.caret(offset, upstream).row_top;
         let block = self.block_of(offset)?;
         Some(ScrollAnchor {
-            offset,
+            anchor: Anchor::after(offset, self.revision),
             upstream,
             row: f32::from(row - top),
             within: f32::from(row - block.bounds.top()),
@@ -378,10 +408,11 @@ impl DocLayout {
     /// The scroll that puts `anchor`'s row back where it was in the
     /// viewport, if this layout laid it out.
     pub fn anchored_scroll(&self, anchor: &ScrollAnchor) -> Option<f32> {
-        if !self.covers(anchor.offset) {
+        let offset = anchor.offset();
+        if !self.covers(offset) {
             return None;
         }
-        let row = self.caret(anchor.offset, anchor.upstream).row_top;
+        let row = self.caret(offset, anchor.upstream).row_top;
         Some(f32::from(row - self.bounds.top() + self.scroll) - anchor.row)
     }
 
