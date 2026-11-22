@@ -2,10 +2,13 @@
 //! (the block radius and rings) with the toolbar's source toggle. Uses
 //! `features::html::render::Surface` and shared widget chrome (`ring`,
 //! `source_toggle`).
-use super::{ID, ShowSource, dom, render::Surface};
+use super::{
+    super::{ID, render::Surface, sanitize},
+    model::ShowSource,
+};
 use crate::editor::{
     markdown::{
-        platform::sessions::measure,
+        platform::{brokers::embed as embed_broker, sessions::measure},
         shared::widgets::{ring, source_toggle::source_toggle},
         style::MarkdownTheme,
     },
@@ -25,7 +28,7 @@ use std::{
 
 pub struct HtmlBlockWidget {
     pub range: Range<usize>,
-    pub nodes: Vec<dom::Node>,
+    pub nodes: Vec<sanitize::Node>,
     pub theme: MarkdownTheme,
     pub assets: Option<DocumentAssets>,
     /// A web embed's page, in place of the surface.
@@ -37,7 +40,7 @@ impl BlockWidget for HtmlBlockWidget {
         let width = cx.width;
         let mut h = std::hash::DefaultHasher::new();
         (self.range.start, width.to_bits()).hash(&mut h);
-        dom::hash_nodes(&self.nodes, &mut h);
+        sanitize::hash_nodes(&self.nodes, &mut h);
         let key = h.finish();
         let lines = cx
             .render
@@ -57,7 +60,7 @@ impl BlockWidget for HtmlBlockWidget {
             .unwrap_or_default();
         let view = cx.render.view.clone();
         let content = match &self.embed {
-            Some(href) => super::embed::render(
+            Some(href) => embed_broker::render_web_embed(
                 &view,
                 self.range.start,
                 href,

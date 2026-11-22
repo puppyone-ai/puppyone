@@ -1,10 +1,14 @@
 //! Math (product `features/math`, `TA-30`, `TA-40`): `$formula$` inline and
-//! `$$` … `$$` or a fence labelled `math` as a block. Inline math recognition,
-//! TeX-to-Unicode fallback (`tex::convert`), and inline KaTeX `InlineWidget`
-//! construction all live here in `features/math` rather than in `core/`.
+//! `$$` … `$$` or a fence labelled `math` as a block. Inline math recognition
+//! lives in [`syntax`], model/budget validation in [`model`], plan compilation
+//! in [`plan`], TeX-to-Unicode fallback in [`tex`], and block widget in [`widget`].
+pub mod model;
+pub mod plan;
 pub mod syntax;
 pub mod tex;
 pub(crate) mod widget;
+
+pub use model::MathBlock;
 
 use crate::editor::{
     markdown::core::{
@@ -27,37 +31,6 @@ pub struct MathFeature;
 pub static FEATURE: MathFeature = MathFeature;
 pub const ID: &str = "math";
 const KINDS: &[Kind] = &[Kind::FeatureInline(ID)];
-// The product's rich-preview budget is measured in JS UTF-16 code units,
-// independently of the raster service's byte and image-size limits.
-const MAX_RICH_SOURCE_UNITS: usize = 32 * 1024;
-
-fn source_diagnostic(source: &str) -> Option<&'static str> {
-    if source.trim().is_empty() {
-        Some("math.empty-source")
-    } else if source
-        .encode_utf16()
-        .take(MAX_RICH_SOURCE_UNITS + 1)
-        .count()
-        > MAX_RICH_SOURCE_UNITS
-    {
-        Some("math.source-too-large")
-    } else {
-        None
-    }
-}
-
-/// A display formula (`MarkdownMathBlock`).
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct MathBlock {
-    /// Opening delimiter line start to closing line end.
-    pub range: Range<usize>,
-    /// The formula's source between the delimiters.
-    pub content: Range<usize>,
-    /// The Unicode rendering shown until the typeset formula arrives.
-    pub text: String,
-    /// The TeX source KaTeX typesets.
-    pub source: String,
-}
 
 #[cfg(test)]
 fn blocks(doc: &Buffer, code_lines: &[Range<usize>]) -> Vec<MathBlock> {
@@ -125,17 +98,7 @@ impl MarkdownFeature for MathFeature {
     }
 
     fn compile_element(&self, index: usize, element: &Element, cx: &CompileCx) -> Option<Plan> {
-        let source = cx.doc.slice_cow(element.content.clone()?);
-        let presentation = match source_diagnostic(&source) {
-            Some(code) => Presentation::SourceFallback { code },
-            None => Presentation::InlineAtom(Atom::Text(element.text.clone()?)),
-        };
-        Some(Plan {
-            element: Some(index),
-            source: element.range.clone(),
-            presentation,
-            delete_units: Vec::new(),
-        })
+        plan::compile_element(index, element, cx)
     }
 
     fn inline_widget(
@@ -186,39 +149,7 @@ impl MarkdownFeature for MathFeature {
     }
 
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        let line_bounds = match (cx.syntax.top_blocks.first(), cx.syntax.top_blocks.last()) {
-            (Some(first), Some(last)) => {
-                cx.doc.line_index(first.start)..cx.doc.line_index(last.end) + 1
-            }
-            _ => 0..0,
-        };
-        let mut found = syntax::blocks_in_range(cx.doc, &cx.syntax.code_lines, line_bounds);
-        for fence in &cx.syntax.fences {
-            if fence.language.eq_ignore_ascii_case("math")
-                && fence.info.trim().eq_ignore_ascii_case("math")
-            {
-                let code_cow = cx.doc.slice_cow(fence.code.clone());
-                if !code_cow.trim().is_empty() {
-                    found.push(MathBlock {
-                        range: fence.range.clone(),
-                        content: fence.code.clone(),
-                        text: tex::convert(&code_cow),
-                        source: code_cow.into_owned(),
-                    });
-                }
-            }
-        }
-        for block in found {
-            out.push(Plan {
-                element: None,
-                source: block.range.clone(),
-                presentation: match source_diagnostic(&block.source) {
-                    Some(code) => Presentation::SourceFallback { code },
-                    None => Presentation::BlockAtom(BlockEmbed::new(ID, block)),
-                },
-                delete_units: Vec::new(),
-            });
-        }
+        plan::compile_blocks(cx, out);
     }
 
     fn block_widget(

@@ -10,6 +10,7 @@ pub mod primitives;
 pub mod types;
 
 pub use compiler::{compile, compile_blocks_in_window, window_syntax_view};
+pub use execution::{DocumentProfile, FenceExecution, decide_fence_execution};
 pub use incremental::{
     append_shifted_tail, compile_incremental, compile_incremental_in_place,
     refresh_shifted_block_plans,

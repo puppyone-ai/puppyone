@@ -10,6 +10,7 @@ use super::{
         ERROR_BANNER_HEIGHT, deferred_offer, edit_button, error_banner, h_row, source_fallback,
         zoom_controls,
     },
+    viewport::{PREVIEW_MIN, PREVIEW_PAD, bucket, clamped_preview_height, compute_scale},
 };
 use crate::{
     editor::{
@@ -35,12 +36,8 @@ const PAD_TOP: f32 = 14.;
 const PAD_BOTTOM: f32 = 18.;
 const GAP: f32 = 8.;
 const EDITING_TOP: f32 = 18.;
-const PREVIEW_PAD: f32 = 16.;
-const PREVIEW_MIN: f32 = 132.;
-const PREVIEW_MAX: f32 = 720.;
 const SOURCE_MIN: f32 = 120.;
 const SOURCE_MAX: f32 = 420.;
-const DEFAULT_MIN_SCALE: f32 = 0.7;
 
 #[cfg(test)]
 pub(crate) fn request_for_tests(
@@ -88,10 +85,6 @@ fn markdown_theme(t: &Tokens) -> MermaidTheme<'_> {
         font_family: t.raw("--po-md-mermaid-font"),
         font_size: t.len("--po-md-mermaid-font-size", 15.),
     }
-}
-
-fn bucket(scale: f32) -> f32 {
-    ((scale * 4.).ceil() / 4.).max(0.25)
 }
 
 struct DiagramEvaluation {
@@ -173,11 +166,7 @@ impl MermaidBlockWidget {
             State::Ready(r) => Some((r.width, r.height)),
             _ => render_broker::last_good(editor, at).map(|r| (r.width, r.height)),
         };
-        let fit = intrinsic.map_or(1., |(w, _)| (inner_width / w).min(1.));
-        let scale = self
-            .view
-            .zoom
-            .map_or(fit.clamp(DEFAULT_MIN_SCALE, 1.), |p| p as f32 / 100.);
+        let (fit, scale) = compute_scale(inner_width, intrinsic.map(|(w, _)| w), self.view.zoom);
         let (drawn, zoomed_request) = if bucket(scale) == 1. {
             (natural, None)
         } else {
@@ -242,12 +231,7 @@ impl MermaidBlockWidget {
                     .child(image),
             );
         let viewport_h = f32::from(cx.render.window.viewport_size().height);
-        let max_height = if viewport_h > 0. {
-            PREVIEW_MAX.min(viewport_h * 0.68).max(PREVIEW_MIN)
-        } else {
-            PREVIEW_MAX
-        };
-        let height = (h + 2. * PREVIEW_PAD + 2.).clamp(PREVIEW_MIN, max_height);
+        let height = clamped_preview_height(h, viewport_h);
         (content.into_any_element(), height)
     }
 }

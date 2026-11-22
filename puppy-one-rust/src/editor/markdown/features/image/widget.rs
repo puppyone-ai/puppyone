@@ -6,11 +6,17 @@
 //! focused and the selected ring while the selection covers it. Failed images
 //! degrade visibly along `Rendered -> Card/Chip Fallback -> Source` (`TA-52`)
 //! with a localized reason plus `Retry` / `Source code` controls (`TODO-37`).
-use super::{ID, ShowSource, cache, source::Source};
+use super::{
+    ID,
+    model::{Item, ShowSource, fit},
+};
 use crate::{
     editor::{
         markdown::{
-            platform::policy::AssetFailure,
+            platform::{
+                brokers::assets::{self as asset_broker, AssetState},
+                policy::AssetFailure,
+            },
             shared::widgets::{
                 fallback::{FallbackSummary, action_pill},
                 ring,
@@ -29,24 +35,10 @@ use crate::{
 use gpui::{prelude::*, *};
 use std::ops::Range;
 
-/// `.cm-md-image-widget img { max-height: 320px }` (inline images).
-const INLINE_MAX_HEIGHT: f32 = 320.;
 /// `.cm-md-image-placeholder`: `min-height: 22px; padding: 0 8px`, 1px border.
 const PLACEHOLDER_MIN: f32 = 22.;
 const PLACEHOLDER_PADDING: f32 = 8.;
 const BLOCK_FALLBACK_MIN_HEIGHT: f32 = 72.;
-
-pub struct Item {
-    /// The image's (or its link's) source.
-    pub range: Range<usize>,
-    /// What a placeholder says: the alt text, else the source.
-    pub label: String,
-    pub size: Option<(f32, Option<f32>)>,
-    pub source: Result<Source, AssetFailure>,
-    pub link: Option<String>,
-    /// The image's own source (inside its link, if linked).
-    pub image: Range<usize>,
-}
 
 pub struct ImageEmbed {
     pub items: Vec<Item>,
@@ -127,34 +119,6 @@ pub fn describe_failure(label: &str, failure: &AssetFailure) -> FallbackSummary 
     }
 }
 
-/// Width and height of an image of natural size `natural` in `available`:
-/// its `alt|size`, an inline one at most 320px tall, within the column.
-pub fn fit(
-    size: Option<(f32, Option<f32>)>,
-    block: bool,
-    natural: (f32, f32),
-    available: f32,
-) -> (f32, f32) {
-    let (nw, nh) = (natural.0.max(1.), natural.1.max(1.));
-    let (mut w, mut h) = match size {
-        Some((w, Some(h))) => (w, h),
-        Some((w, None)) => (w, nh * w / nw),
-        None => (nw, nh),
-    };
-    let auto_height = !matches!(size, Some((_, Some(_))));
-    if !block && auto_height && h > INLINE_MAX_HEIGHT {
-        w *= INLINE_MAX_HEIGHT / h;
-        h = INLINE_MAX_HEIGHT;
-    }
-    if w > available {
-        if auto_height {
-            h *= available / w;
-        }
-        w = available;
-    }
-    (w, h)
-}
-
 impl ImageEmbed {
     fn measure_items(
         &self,
@@ -167,11 +131,11 @@ impl ImageEmbed {
         let mut boxes = Vec::with_capacity(self.items.len());
         for item in &self.items {
             let state = match &item.source {
-                Ok(source) => cache::get(source, self.assets.as_ref(), cx.render.app),
-                Err(failure) => cache::State::Failed(failure.clone()),
+                Ok(source) => asset_broker::get(source, self.assets.as_ref(), cx.render.app),
+                Err(failure) => AssetState::Failed(failure.clone()),
             };
             boxes.push(match state {
-                cache::State::Ready {
+                AssetState::Ready {
                     image,
                     width,
                     height,
@@ -179,18 +143,18 @@ impl ImageEmbed {
                     let (w, h) = fit(item.size, self.block, (width, height), available);
                     (Shown::Image(image), w, h)
                 }
-                cache::State::Loading if self.block => {
+                AssetState::Loading if self.block => {
                     (Shown::Loading, available, clamp(54., 10. * vw, 96.))
                 }
-                cache::State::Loading => (
+                AssetState::Loading => (
                     Shown::Loading,
                     clamp(96., 18. * vw, 180.),
                     clamp(54., 10. * vw, 96.),
                 ),
-                cache::State::Failed(failure) if self.block => {
+                AssetState::Failed(failure) if self.block => {
                     (Shown::Failed(failure), available, BLOCK_FALLBACK_MIN_HEIGHT)
                 }
-                cache::State::Failed(failure) => {
+                AssetState::Failed(failure) => {
                     let summary = describe_failure(&item.label, &failure);
                     let inline_text = format!("{} — {}", summary.title, summary.reason);
                     let text_w = cx.render.plain_extent(&inline_text, meta, None).1;
@@ -318,7 +282,7 @@ impl ImageEmbed {
                             ),
                             t("common.action.retry"),
                             self.dark,
-                            move |_, app_cx| cache::retry(&source, assets.as_ref(), app_cx),
+                            move |_, app_cx| asset_broker::retry(&source, assets.as_ref(), app_cx),
                         ))
                     })
                     .child(action_pill(

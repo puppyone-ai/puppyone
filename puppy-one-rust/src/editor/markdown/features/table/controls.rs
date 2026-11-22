@@ -3,6 +3,7 @@
 use super::{
     commands,
     interaction::{Frame, Geometry, TableUi},
+    menu as table_menu,
     operation::{can_insert_column, can_insert_row},
     widget::{GROUP, TableWidget},
 };
@@ -355,15 +356,7 @@ impl TableWidget {
         let measure =
             build_pointer_capture_canvas(&ui, resizing, drag.map(|d| (d.axis, d.source)), widths);
         let dragging = drag.is_some_and(|d| d.moved);
-        let overlay = menu.map(|(position, menu, _)| {
-            deferred(
-                anchored()
-                    .position(position)
-                    .snap_to_window_with_margin(px(8.))
-                    .child(menu),
-            )
-            .with_priority(1)
-        });
+        let overlay = menu.map(|(position, menu, _)| table_menu::overlay_element(position, menu));
         block
             .child(measure)
             .child(surface)
