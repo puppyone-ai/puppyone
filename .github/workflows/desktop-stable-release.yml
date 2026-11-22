@@ -134,9 +134,8 @@ jobs:
           # checkout beside the repository, llvm-cov and the verification Python.
           rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools-preview
           rustup default 1.97.1
-          # The reference fixtures name sibling checkouts (../../<name> from
-          # puppy-one-rust), as on a developer machine: the pinned product
-          # baseline, and puppyone-qubits, which is this repository itself.
+          # The reference fixtures name the pinned product baseline as a
+          # sibling checkout (../../<name> from puppy-one-rust).
           SIBLINGS="$(dirname "${GITHUB_WORKSPACE}")"
           BASELINE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).commit")"
           BASELINE_NAME="$(basename "$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).checkout")")"
@@ -145,7 +144,6 @@ jobs:
           npm --prefix "${BASELINE_DIR}" ci
           export PUPPYONE_PRODUCT_ROOT="${BASELINE_DIR}"
           echo "PUPPYONE_PRODUCT_ROOT=${BASELINE_DIR}" >> "${GITHUB_ENV}"
-          ln -s "${GITHUB_WORKSPACE}" "${SIBLINGS}/puppyone-qubits"
           # The reviewed TS acceptance cases are pinned to their own commit.
           REFERENCE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/fixtures/test-parity-reference.json', 'utf8')).commit")"
           REFERENCE_DIR="${RUNNER_TEMP}/puppyone-parity-reference"
