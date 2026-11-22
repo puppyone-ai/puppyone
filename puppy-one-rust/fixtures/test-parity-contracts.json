@@ -41435,7 +41435,15 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::table_interaction_acceptance::menu_moves_keep_structural_selection_preserve_outside_focus_and_clear_on_escape"
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_row_moves_keep_structural_selection_and_clear_on_escape"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_column_moves_keep_structural_selection_and_clear_on_escape"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::cell_menu_column_move_preserves_outside_focus_while_selection_stays_active"
         },
         {
           "package": "po-editor",
@@ -41443,15 +41451,35 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::table_interaction_acceptance::menu_reflects_and_applies_exactly_three_column_alignments"
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_reflects_default_and_left_column_alignments_without_editing_on_open"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::table_interaction_acceptance::grip_menus_highlight_source_and_drag_cancel_or_commit_with_selection"
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_reflects_center_and_right_column_alignments_without_editing_on_open"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::table_interaction_acceptance::structural_edits_anchor_after_prefix_edits_and_keep_adjacent_prose_outside"
+          "test": "editor::markdown::tests::table_interaction_acceptance::menu_applies_left_center_and_right_column_alignments"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::grip_menus_open_row_toolbar_below_grip_and_highlight_source_column"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::drag_cancels_pressed_and_dragged_handles_on_escape_and_window_blur"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::drag_commits_moved_column_and_row_with_structural_selection"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::structural_edits_insert_rows_columns_and_anchor_after_prefix_edits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_interaction_acceptance::adjacent_prose_stays_outside_table_widget_across_structural_edits_and_typing"
         },
         {
           "package": "po-editor",
@@ -41827,11 +41855,19 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_lifecycle_retains_folds_and_edits_revealed_source"
+          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_inline_source_retains_on_drag_folds_on_click_and_keeps_keyboard_range"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_backward_drag_release_cancellation_and_isolation"
+          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_block_source_retains_on_drag_folds_on_click_and_keeps_keyboard_range"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_releases_gesture_on_blur_escape_and_released_button"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::pointer_selection_backward_drag_committed_edit_and_sibling_editor_isolation"
         }
       ]
     },
