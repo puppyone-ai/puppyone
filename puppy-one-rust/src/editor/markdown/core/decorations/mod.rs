@@ -381,7 +381,7 @@ fn decorate_window(
             })
             .and_then(|p| Some((p.source.clone(), p.embed()?.clone())))
             .map(|(source, embed)| {
-                if embed.built_at == source.start {
+                if embed.built_for(doc, source.start) {
                     return (source, embed);
                 }
                 let last_l = doc
@@ -748,7 +748,7 @@ pub fn decorate_incremental_in_place(
         rhythm: &window_rhythm,
         ..*cx
     };
-    let win = decorate_window(
+    let mut win = decorate_window(
         &win_cx,
         aligned_new_start..aligned_new_end,
         aligned_new_start,
@@ -916,6 +916,19 @@ pub fn decorate_incremental_in_place(
     };
     let old_win_bytes_start = new_win_bytes_start;
     let old_win_bytes_end = ((new_win_bytes_end as isize) - byte_delta).max(0) as usize;
+
+    // The window decorates whole lines, but an element on its first or last
+    // line can reach into the unchanged lines around it (emphasis wrapping onto
+    // the next line). The prefix and suffix keep their own copies of those
+    // ranges, so the window contributes only the ones starting inside it;
+    // otherwise they would appear twice and break the sorted order.
+    let to_eof = aligned_new_end >= new_total;
+    let in_window =
+        |start: usize| start >= new_win_bytes_start && (to_eof || start < new_win_bytes_end);
+    win.marks.retain(|m| in_window(m.range.start));
+    win.atomic.retain(|r| in_window(r.start));
+    win.inline_widgets.retain(|w| in_window(w.range.start));
+    win.underlines.retain(|u| in_window(u.range.start));
 
     let d0 = prev.deferred.delta;
     let ms0 = prev.deferred.marks_split.min(prev.marks.len());

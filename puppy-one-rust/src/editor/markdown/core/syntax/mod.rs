@@ -22,6 +22,7 @@ pub use inline_html::InlineTag;
 pub use lines::{Fence, blockquote_marker, heading_marker, is_fence_line, is_rule_line};
 
 use super::feature::{self, Features};
+use crate::editor::markdown::shared::dom;
 use crate::editor::text::{buffer::Buffer, change::ChangeSet};
 use std::ops::Range;
 
@@ -470,6 +471,13 @@ fn shift_span_signed(span: &Span, delta: isize) -> Span {
     shift_signed(span.start, delta)..shift_signed(span.end, delta)
 }
 
+/// Whether an HTML block's tags fail to balance on their own, so it can open or
+/// close a flow with another HTML block (`<div>` … `</div>`) across the blocks
+/// between them. A balanced block never pairs.
+fn html_unbalanced(source: &str) -> bool {
+    !matches!(dom::parse(source), dom::Parsed::Complete(_))
+}
+
 fn has_global_hazards(slice: &str) -> bool {
     slice.contains("[^") || slice.contains("]:") || slice.contains("<!--") || slice.contains("-->")
 }
@@ -838,22 +846,24 @@ impl Syntax {
         }
 
         let last_hit = prev.top_blocks.partition_point(|b| b.start <= max_old);
-        let mut b_end = (last_hit + 1).min(n_blocks);
-
-        loop {
-            if b_end >= n_blocks {
-                break;
+        // The window never ends inside an old fence, HTML block or comment:
+        // the line after it could read differently once the window changed.
+        // Checked again every time the window grows.
+        let past_straddles = |mut b_end: usize| {
+            while b_end < n_blocks {
+                let anchor_end = prev.top_blocks[b_end - 1].end;
+                if fence_straddles(&prev.fences, anchor_end)
+                    || span_straddles(&prev.html_blocks, anchor_end)
+                    || span_straddles(&prev.comment_spans, anchor_end)
+                {
+                    b_end += 1;
+                } else {
+                    break;
+                }
             }
-            let anchor_end = prev.top_blocks[b_end - 1].end;
-            let straddles = fence_straddles(&prev.fences, anchor_end)
-                || span_straddles(&prev.html_blocks, anchor_end)
-                || span_straddles(&prev.comment_spans, anchor_end);
-            if straddles {
-                b_end += 1;
-            } else {
-                break;
-            }
-        }
+            b_end
+        };
+        let mut b_end = past_straddles((last_hit + 1).min(n_blocks));
 
         let mut step = 1usize;
         let mut tried_eof = false;
@@ -865,7 +875,7 @@ impl Syntax {
                 }
                 tried_eof = true;
             } else if prev.top_blocks[b_end - 1].start <= max_old {
-                b_end = (b_end + step).min(n_blocks);
+                b_end = past_straddles((b_end + step).min(n_blocks));
                 step *= 2;
                 continue;
             }
@@ -942,6 +952,32 @@ impl Syntax {
                 && end_aligned;
 
             if aligned {
+                // A window that holds or held an unbalanced HTML block may pair
+                // differently with the unbalanced HTML outside it, so the whole
+                // document is parsed again.
+                let html_before = prev
+                    .html_blocks
+                    .partition_point(|h| h.end <= old_start_byte);
+                let html_upto = prev
+                    .html_blocks
+                    .partition_point(|h| h.start < old_end_byte)
+                    .max(html_before);
+                let old_html = |h: &Span| html_unbalanced(&before_doc.slice_cow(h.clone()));
+                let window_unbalanced = prev.html_blocks[html_before..html_upto]
+                    .iter()
+                    .any(old_html)
+                    || win_syntax
+                        .html_blocks
+                        .iter()
+                        .any(|h| html_unbalanced(&doc.slice_cow(h.clone())));
+                if window_unbalanced
+                    && prev.html_blocks[..html_before]
+                        .iter()
+                        .chain(&prev.html_blocks[html_upto..])
+                        .any(old_html)
+                {
+                    return None;
+                }
                 let old_end_line = if new_end_line >= doc.line_count() {
                     before_doc.line_count()
                 } else {
@@ -970,7 +1006,7 @@ impl Syntax {
             if at_eof || step > 16 {
                 break;
             }
-            b_end = (b_end + step).min(n_blocks);
+            b_end = past_straddles((b_end + step).min(n_blocks));
             step *= 2;
         }
 
@@ -1537,6 +1573,13 @@ impl Syntax {
         self.comment_spans.append(&mut tail.comment_spans);
         self.footnote_spans.append(&mut tail.footnote_spans);
         self.note_definitions.append(&mut tail.note_definitions);
+    }
+
+    /// Whether an HTML block could pair with another across the document.
+    pub fn has_unbalanced_html(&self, doc: &Buffer) -> bool {
+        self.html_blocks
+            .iter()
+            .any(|h| html_unbalanced(&doc.slice_cow(h.clone())))
     }
 
     pub fn callout_at(&self, line: usize) -> Option<&Callout> {

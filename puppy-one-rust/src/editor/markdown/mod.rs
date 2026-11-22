@@ -195,12 +195,15 @@ impl Parsed {
     /// Detach the untouched suffix starting `+4` top-level blocks past
     /// `splice_new_end` so subsequent edits in the prefix shift only a small
     /// guard window instead of the entire remainder of the document (`TA-81`).
+    /// Not while anything pairs across the document (definitions, footnotes,
+    /// multi-block delimiters, HTML flows): the head alone could not pair it.
     fn maybe_detach_tail(&mut self, doc: &Buffer, splice_new_end: usize) {
         if self.tail.is_some()
             || self.syntax.top_blocks.len() < 16
             || !self.syntax.link_defs.is_empty()
             || !self.syntax.footnotes.is_empty()
             || !self.syntax.block_delimiters.is_empty()
+            || self.syntax.has_unbalanced_html(doc)
         {
             return;
         }
@@ -1220,9 +1223,10 @@ impl EditorExtension for MarkdownExtension {
             let mut cache = self.cache.borrow_mut();
             let (syntax, plans) = self.ensure_parsed_in(&mut cache, state);
             // Refresh any byte-shifted BlockEmbed models if needed before running a document command.
-            let needs_refresh = plans
-                .iter()
-                .any(|p| p.embed().is_some_and(|e| e.built_at != p.source.start));
+            let needs_refresh = plans.iter().any(|p| {
+                p.embed()
+                    .is_some_and(|e| !e.built_for(&state.doc, p.source.start))
+            });
             if needs_refresh && let Some(p) = cache.parsed.as_mut() {
                 let mut vec = (*p.plans).clone();
                 plans::refresh_shifted_block_plans(

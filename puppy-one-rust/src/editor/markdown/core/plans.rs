@@ -34,7 +34,10 @@ pub struct BlockEmbed {
     pub feature: &'static str,
     key: u64,
     /// Start byte offset when `model` was compiled (detects shifted suffix embeds).
-    pub built_at: usize,
+    built_at: usize,
+    /// Start line when `model` was compiled: models such as tables keep line
+    /// numbers, which a shift can change while the start byte comes back.
+    built_line: usize,
     model: Rc<dyn Any>,
 }
 
@@ -46,8 +49,14 @@ impl BlockEmbed {
             feature,
             key: h.finish(),
             built_at: usize::MAX,
+            built_line: usize::MAX,
             model: Rc::new(model),
         }
+    }
+
+    /// Whether `model` was compiled for a block starting at `start` in `doc`.
+    pub fn built_for(&self, doc: &Buffer, start: usize) -> bool {
+        self.built_at == start && self.built_line == doc.line_index(start)
     }
 
     pub fn key(&self) -> u64 {
@@ -114,12 +123,13 @@ impl Plan {
         }
     }
 
-    fn finalize_built_at(mut self) -> Self {
+    fn finalize_built_at(mut self, doc: &Buffer) -> Self {
         let start = self.source.start;
         if let Presentation::BlockAtom(embed) = &mut self.presentation
             && embed.built_at == usize::MAX
         {
             embed.built_at = start;
+            embed.built_line = doc.line_index(start);
         }
         self
     }
@@ -137,7 +147,7 @@ impl Plan {
                 *m = doc.clamp_range(m.clone());
             }
         }
-        self.finalize_built_at()
+        self.finalize_built_at(doc)
     }
 }
 
@@ -676,7 +686,7 @@ pub fn refresh_shifted_block_plans(
     let needs_refresh = plans.iter().any(|p| {
         p.source.end >= byte_range.start
             && p.source.start <= byte_range.end
-            && p.embed().is_some_and(|e| e.built_at != p.source.start)
+            && p.embed().is_some_and(|e| !e.built_for(doc, p.source.start))
     });
     if !needs_refresh {
         return;
@@ -693,7 +703,7 @@ pub fn refresh_shifted_block_plans(
     );
     for p in plans.iter_mut() {
         if let Some(embed) = p.embed()
-            && embed.built_at != p.source.start
+            && !embed.built_for(doc, p.source.start)
             && let Some(replacement) = fresh.iter().find(|f| {
                 f.source == p.source && f.embed().is_some_and(|fe| fe.feature == embed.feature)
             })
