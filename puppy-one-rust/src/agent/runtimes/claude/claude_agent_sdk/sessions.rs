@@ -562,8 +562,7 @@ fn project_candidates(
         return exact();
     }
     let projects = projects_dir(root);
-    let windows = cfg!(windows);
-    let fold = |value: String| if windows { value.to_lowercase() } else { value };
+    let fold = crate::platform::fs::fold_path_key;
     let mut prefixes: Vec<(String, String)> = worktrees
         .iter()
         .map(|path| (path.clone(), fold(sanitize_path(path))))
@@ -1161,14 +1160,7 @@ pub fn fork_session(
     };
     let (entries, forked) = fork_entries(&bytes, session_id, options)?;
     let path = project_dir.join(format!("{forked}.jsonl"));
-    let mut file_options = std::fs::OpenOptions::new();
-    file_options.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        file_options.mode(0o600);
-    }
-    let mut file = file_options.open(&path)?;
+    let mut file = crate::platform::fs::open_private_truncate(&path)?;
     for entry in &entries {
         file.write_all(format!("{}\n", js::stringify(entry)).as_bytes())?;
     }

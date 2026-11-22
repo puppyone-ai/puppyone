@@ -116,14 +116,14 @@ async function reopenPage() {
 async function anchorReady(id) {
   await until(() => frame().executeJavaScript(`(()=>{const r=document.getElementById(${JSON.stringify(id)})?.getBoundingClientRect();return scrollY>0&&location.hash===${JSON.stringify(`#${id}`)}&&r&&r.top>=0&&r.bottom<=innerHeight+1})()`), `visible anchor ${id}`);
 }
+// A click selects a block and edits it in the page itself: there is no
+// separate edit handle and no text box over the page.
 async function activate(selector) {
   await nativeClick(selector, true);
-  assert.equal(await evaluate("!!document.querySelector('.html-editor-text-input')"), false, "page click is read-only");
-  await until(() => evaluate("!!document.querySelector('.html-editor-pencil')"), "pencil entry");
-  await nativeClick('.html-editor-pencil');
   await until(() => evaluate("!!document.querySelector('.html-floating-toolbar')"), "shared block action rail");
-  assert.equal(await evaluate("(()=>{const p=document.querySelector('.html-editor-pencil'),t=document.querySelector('.html-floating-toolbar'),v=document.querySelector('.html-visual-editor__viewport');if(p||!t||!v)return false;const tr=t.getBoundingClientRect(),vr=v.getBoundingClientRect();return tr.left>=vr.left&&tr.right<=vr.right&&tr.top>=vr.top&&tr.bottom<=vr.bottom})()"),
-    true, "production rail replaces its pencil with a bounded active panel");
+  assert.equal(await evaluate("!!document.querySelector('.html-editor-pencil, .html-editor-text-input')"), false, "the page is the editing surface");
+  assert.equal(await evaluate("(()=>{const t=document.querySelector('.html-floating-toolbar'),v=document.querySelector('.html-visual-editor__viewport');if(!t||!v)return false;const tr=t.getBoundingClientRect(),vr=v.getBoundingClientRect();return tr.left>=vr.left&&tr.right<=vr.right&&tr.top>=vr.top&&tr.bottom<=vr.bottom})()"),
+    true, "the active panel stays inside the editor viewport");
 }
 async function mode(label) {
   await click('.desktop-editor-pane-handle');
@@ -237,7 +237,8 @@ app.whenReady().then(async () => {
     await nativeClick('#external', true);
     assert.equal(openedExternal.length, beforeEdit, 'edit-mode clicks select content instead of opening links');
     await activate('#title');
-    await until(() => evaluate("!!document.querySelector('.html-editor-text-input')"), "native text input reached from workbench");
+    await until(() => frame().executeJavaScript("document.activeElement?.id==='title'&&document.activeElement.isContentEditable"), "native text input reached from workbench");
+    await frame().executeJavaScript("getSelection().selectAllChildren(document.querySelector('#title'))");
     const routing = frame().routingId;
     await window.webContents.debugger.sendCommand("Input.insertText", { text: "Edited from Explorer 中文" });
     await until(async () => (await disk()).includes("Edited from Explorer 中文"), "production autosave");

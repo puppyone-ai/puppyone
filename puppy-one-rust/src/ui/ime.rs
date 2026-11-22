@@ -21,17 +21,7 @@ use std::cell::Cell;
 /// main thread outside any input-handler callback (the input method may
 /// call back into the view).
 pub fn discard_marked_text() {
-    #[cfg(all(target_os = "macos", not(test)))]
-    // SAFETY: main thread (GPUI foreground executor); `currentInputContext`
-    // returns an autoreleased context or nil, and `discardMarkedText` takes
-    // no arguments and returns nothing.
-    unsafe {
-        use objc2::{class, msg_send, runtime::AnyObject};
-        let context: *mut AnyObject = msg_send![class!(NSTextInputContext), currentInputContext];
-        if let Some(context) = context.as_ref() {
-            let _: () = msg_send![context, discardMarkedText];
-        }
-    }
+    crate::platform::window::discard_marked_text();
 }
 
 thread_local! {

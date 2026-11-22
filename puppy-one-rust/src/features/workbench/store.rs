@@ -294,6 +294,7 @@ impl Workbench {
     }
 
     pub(super) fn restore_results(&mut self, cx: &mut Context<Self>) {
+        let mut changed = false;
         while let Ok(event) = self.store_rx.try_recv() {
             match event {
                 ResultEvent::Loaded(root, result) => {
@@ -301,6 +302,7 @@ impl Workbench {
                         && project.loading
                     {
                         project.loading = false;
+                        changed = true;
                         match result {
                             Ok(Some(saved)) => match StoredProject::read(saved) {
                                 Some(stored) => {
@@ -337,9 +339,12 @@ impl Workbench {
                         && let Err(e) = result
                     {
                         project.storage_error = Some(e);
+                        changed = true;
                     }
                 }
             }
+        }
+        if changed {
             cx.notify();
         }
     }

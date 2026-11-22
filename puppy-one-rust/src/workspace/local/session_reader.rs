@@ -11,6 +11,7 @@ impl Workspace {
         let (dir, name) = self.parent(relative)?;
         let (file, before) = Self::open_regular(&dir, &name)?;
         let size = before.len();
+        let before_id = crate::platform::fs::file_identity(&file);
         let before = StatFingerprint::from_metadata(&before);
         let observed = file.try_clone().map_err(io)?;
         let validate = Arc::new(move || {
@@ -22,9 +23,13 @@ impl Workspace {
                 }
             })?;
             let opened = observed.metadata().map_err(io)?;
+            let identity_changed = before_id.is_some()
+                && (crate::platform::fs::dir_entry_identity(&dir, &name) != before_id
+                    || crate::platform::fs::file_identity(&observed) != before_id);
             if !current.is_file()
                 || current.len() != size
                 || opened.len() != size
+                || identity_changed
                 || StatFingerprint::from_metadata(&current) != before
                 || StatFingerprint::from_metadata(&opened) != before
             {

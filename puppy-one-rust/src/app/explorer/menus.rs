@@ -83,13 +83,9 @@ type MenuFill = Box<dyn FnOnce(Menu) -> Menu>;
 /// A menu command against the Explorer.
 type Action = Box<dyn Fn(&mut Explorer, &mut Window, &mut Context<Explorer>)>;
 
-/// `getPlatformShortcut`: the primary modifier glyph on macOS.
+/// `getPlatformShortcut`: the primary modifier glyph from platform conventions.
 fn shortcut(key: &str) -> String {
-    if cfg!(target_os = "macos") {
-        format!("⌘{key}")
-    } else {
-        format!("Ctrl+{key}")
-    }
+    crate::platform::conventions::Conventions::current().format_primary_shortcut(key)
 }
 
 impl Explorer {
@@ -611,13 +607,20 @@ impl Explorer {
         if single {
             if let Some(reveal) = absolute.clone() {
                 rows.push(Some(
-                    MenuItem::new(tr("workspace.node.revealInFinder"))
-                        .product_icon(crate::ui::components::ProductIcon::Folder)
-                        .on_click(act(Box::new(move |_, _, cx| {
-                            if let Err(e) = crate::platform::desktop::reveal(&reveal) {
-                                cx.emit(ExplorerEvent::Error(e))
-                            }
-                        }))),
+                    MenuItem::new(tr(
+                        crate::platform::conventions::Conventions::current().reveal_label_key
+                    ))
+                    .product_icon(crate::ui::components::ProductIcon::Folder)
+                    .disabled(
+                        !crate::platform::capabilities::Capabilities::probe()
+                            .file_reveal
+                            .is_available(),
+                    )
+                    .on_click(act(Box::new(move |_, _, cx| {
+                        if let Err(e) = crate::platform::desktop::reveal(&reveal) {
+                            cx.emit(ExplorerEvent::Error(e))
+                        }
+                    }))),
                 ));
             }
             let path = primary.clone();

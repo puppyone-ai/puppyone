@@ -515,7 +515,7 @@ mod tests {
         let source = temp.path().join("source");
         std::fs::create_dir(&source).unwrap();
         let git = |dir: &Path, args: &[&str]| {
-            std::process::Command::new("/usr/bin/git")
+            std::process::Command::new(crate::platform::git::git_executable())
                 .args(args)
                 .current_dir(dir)
                 .output()

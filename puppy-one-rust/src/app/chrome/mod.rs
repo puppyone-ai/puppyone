@@ -13,6 +13,7 @@ mod account;
 pub(super) mod navigation;
 mod project_menu;
 mod rail;
+pub(super) mod window_frame;
 
 use super::{
     Command,

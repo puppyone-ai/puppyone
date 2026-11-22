@@ -395,9 +395,11 @@ impl std::fmt::Debug for Ipc {
 }
 impl Ipc {
     /// Accept a message only from the entry document itself, not a frame
-    /// inside it (WebKit exposes message handlers to every frame).
+    /// inside it (WebKit exposes message handlers to every frame, and
+    /// WebView2 reports the synthetic `http://puppyone-preview.local/__entry__`
+    /// origin for custom schemes).
     pub fn accept(&self, frame_url: &str, body: String) -> bool {
-        frame_url == entry_url() && self.0.try_send(body).is_ok()
+        is_entry_url(frame_url) && self.0.try_send(body).is_ok()
     }
 }
 #[derive(Clone, Debug)]
@@ -582,6 +584,32 @@ pub fn url_for(relative: &str) -> String {
 }
 pub fn entry_url() -> String {
     format!("{SCHEME}://local/{ENTRY}")
+}
+/// Synthetic WebView2 entry URL produced by `wry` on Windows when custom
+/// schemes map onto `http://<scheme>.local/...`.
+pub fn webview2_entry_url() -> String {
+    format!("http://{SCHEME}.local/{ENTRY}")
+}
+/// Whether `url` is the exact entry document URL on either WKWebView
+/// (`puppyone-preview://local/__entry__`) or WebView2
+/// (`http://puppyone-preview.local/__entry__`).
+pub fn is_entry_url(url: &str) -> bool {
+    url == entry_url() || url == webview2_entry_url()
+}
+/// Whether `url` is the entry document or an in-document `#fragment` navigation.
+pub fn is_entry_navigation_url(url: &str) -> bool {
+    let matches_base = |base: String| {
+        url == base
+            || url
+                .strip_prefix(&base)
+                .is_some_and(|rest| rest.starts_with('#'))
+    };
+    matches_base(entry_url()) || matches_base(webview2_entry_url())
+}
+/// Whether `url` addresses the preview custom protocol on either WKWebView or WebView2.
+pub fn is_protocol_url(url: &str) -> bool {
+    url.starts_with(&format!("{SCHEME}://local/"))
+        || url.starts_with(&format!("http://{SCHEME}.local/"))
 }
 /// `url_for` under [`LOCAL_SCHEME`].
 pub fn local_url_for(relative: &str) -> String {

@@ -99,7 +99,7 @@ fn git(
     timeout: Duration,
 ) -> Result<String, String> {
     crate::platform::process::run(
-        Path::new("/usr/bin/git"),
+        crate::platform::git::git_executable(),
         args,
         root,
         input,
@@ -716,7 +716,11 @@ impl GitOps for Cli {
                     .chain(general)
                     .find(|h| secure_helper(h))
                     .map(|h| h.trim().to_lowercase())
-                    .or_else(|| cfg!(target_os = "macos").then(|| "osxkeychain".into()))
+                    .or_else(|| {
+                        crate::platform::conventions::Conventions::current()
+                            .default_git_credential_helper
+                            .map(str::to_owned)
+                    })
                     .ok_or_else(|| {
                         PublishError::new(
                             Code::RemoteConfigFailed,

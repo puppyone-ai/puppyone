@@ -55,7 +55,11 @@ impl Homepage {
             .map(|d| d.name.clone())
             .collect();
         self.shared_ids = own.or_else(|| hosts.offered_here().filter(|_| on && !hosts.error()));
-        self.local_share = on && account.is_some() && cfg!(target_os = "macos");
+        self.local_share = on
+            && account.is_some()
+            && crate::platform::capabilities::Capabilities::probe()
+                .host_sharing
+                .is_available();
         self.presence = link.read(cx).status.as_ref().filter(|_| on).and_then(|s| {
             let key = if s.state == "outdated" {
                 Some("hosts.sharing.outdated")

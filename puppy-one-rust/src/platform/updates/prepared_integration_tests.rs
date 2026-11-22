@@ -116,17 +116,13 @@ impl World {
         prepared
     }
 
-    /// The app's process, owned by the test. It runs a copy of the bundle's
-    /// executable from outside the bundle: the updater acts on the process
-    /// id alone, and macOS App Management would otherwise refuse the
-    /// relaunch's `touch` on a bundle whose own executable ran.
+    /// The app's process, owned by the test. Runs `/bin/sleep` directly rather
+    /// than a re-signed copy of it: on Apple Silicon macOS 15, re-signing a
+    /// copied `arm64e` `/bin/sleep` ad hoc fails with `SIGILL` on launch, and
+    /// the updater acts on the process id alone.
     fn running(&self) -> OwnedChild {
-        let executable = self.root.path().join("prepared-test-process");
-        if !executable.exists() {
-            std::fs::copy(self.app.join("Contents/MacOS/prepared-test"), &executable).unwrap();
-        }
         OwnedChild(
-            Command::new(executable)
+            Command::new("/bin/sleep")
                 .arg("60")
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())

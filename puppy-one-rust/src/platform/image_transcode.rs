@@ -921,8 +921,15 @@ mod decoding_tests {
         assert!(!needs_transcode("photo.png"));
         let fixture = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
             .join("fixtures/media/red.avif");
-        let png = to_png(&fixture, 1 << 20).unwrap();
-        assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+        #[cfg(target_os = "macos")]
+        {
+            let png = to_png(&fixture, 1 << 20).unwrap();
+            assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            assert!(to_png(&fixture, 1 << 20).is_err());
+        }
         assert!(to_png(&fixture, 10).is_err());
     }
 
@@ -979,6 +986,7 @@ mod decoding_tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn avif_decodes_in_process_to_bgra_frames() {
         let fixture = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
             .join("fixtures/media/red.avif");
@@ -1166,6 +1174,7 @@ fn read_regular(path: &Path, max_bytes: u64) -> Result<Vec<u8>, String> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use super::*;
 
     #[cfg(unix)]
@@ -1316,8 +1325,15 @@ mod tests {
         assert!(!needs_transcode("photo.png"));
         let fixture = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
             .join("fixtures/media/red.avif");
-        let png = to_png(&fixture, 1 << 20).unwrap();
-        assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+        #[cfg(target_os = "macos")]
+        {
+            let png = to_png(&fixture, 1 << 20).unwrap();
+            assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            assert!(to_png(&fixture, 1 << 20).is_err());
+        }
         assert!(to_png(&fixture, 10).is_err());
     }
 }

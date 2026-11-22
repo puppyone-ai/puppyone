@@ -9,6 +9,7 @@ use std::{
     },
 };
 
+#[cfg(unix)]
 #[test]
 fn local_reader_retains_its_root_and_open_file_when_paths_are_replaced() {
     let temp = tempfile::tempdir().unwrap();
@@ -274,6 +275,7 @@ fn cached_snapshot_reader_preserves_its_input_version_and_checks_lease_on_seek()
     assert!(reader.seek(SeekFrom::End(0)).is_err());
 }
 
+#[cfg(unix)]
 #[test]
 fn session_readers_keep_provider_roots_and_validate_identity_without_loading_the_file() {
     let temp = tempfile::tempdir().unwrap();

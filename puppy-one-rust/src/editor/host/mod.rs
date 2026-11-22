@@ -55,10 +55,7 @@ const KEY_CONTEXT: &str = "DocumentEditor";
 const FALLBACK_ASSET_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
 pub fn bind_keys(cx: &mut App) {
-    cx.bind_keys([
-        KeyBinding::new("cmd-f", OpenFind, Some(KEY_CONTEXT)),
-        KeyBinding::new("ctrl-f", OpenFind, Some(KEY_CONTEXT)),
-    ]);
+    cx.bind_keys([KeyBinding::new("secondary-f", OpenFind, Some(KEY_CONTEXT))]);
 }
 
 pub(super) fn panic_payload_summary(payload: Box<dyn Any + Send>) -> String {

@@ -57,7 +57,13 @@ impl Row {
 }
 /// A status row's path: a child no real entry can have.
 fn status_path(folder: &Path) -> PathBuf {
-    folder.join("\u{0}error")
+    if folder.as_os_str().is_empty() {
+        PathBuf::from("\u{0}error")
+    } else {
+        let mut s = folder.as_os_str().to_os_string();
+        s.push("/\u{0}error");
+        PathBuf::from(s)
+    }
 }
 
 /// `DEFAULT_EXPLORER_EXCLUDE_PATTERNS`: what the Explorer hides unless hidden

@@ -52,7 +52,7 @@ impl<'a> OpeningContext<'a> {
             preferences,
             installed,
             catalog,
-            platform: Platform::current(),
+            platform: crate::platform::os::plugin_platform(),
             host_api: HOST_API_VERSION,
             app_version: env!("CARGO_PKG_VERSION"),
         }

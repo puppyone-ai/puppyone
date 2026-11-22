@@ -85,13 +85,15 @@ fn discovers_only_the_bundled_exact_version_sdk_worker() {
             args[0]
                 .as_str()
                 .unwrap()
+                .replace('\\', "/")
                 .ends_with("puppyone-agent/worker/main.mjs")
         );
         assert_eq!(
             readiness["profilePath"],
             user_data
                 .path()
-                .join("agent-runtime/puppyone-agent")
+                .join("agent-runtime")
+                .join("puppyone-agent")
                 .to_string_lossy()
                 .as_ref()
         );

@@ -136,10 +136,14 @@ pub fn seatbelt_profile(
     let mut allow: Vec<PathBuf> = vec![real_or_self(root)];
     allow.extend(temp.iter().map(|p| real_or_self(p)));
     allow.extend(writable.iter().map(|p| real_or_self(p)));
-    allow.extend(CACHE_HOME_PATHS.iter().map(|p| home.join(p)));
+    allow.extend(
+        CACHE_HOME_PATHS
+            .iter()
+            .map(|p| crate::platform::paths::resolve(home, p)),
+    );
     let protected: Vec<PathBuf> = PROTECTED_HOME_PATHS
         .iter()
-        .map(|p| home.join(p))
+        .map(|p| crate::platform::paths::resolve(home, p))
         .chain(app_data.iter().cloned())
         .map(|p| real_or_self(&p))
         .collect();
@@ -235,36 +239,10 @@ impl Mechanism {
     }
     /// `detectSandbox`: a sandbox that actually runs, or none.
     pub fn detect() -> Option<Self> {
-        let works = |program: &Path, args: &[&str]| {
-            std::process::Command::new(program)
-                .args(args)
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .is_ok_and(|s| s.success())
-        };
-        if cfg!(target_os = "macos") {
-            let seatbelt = PathBuf::from("/usr/bin/sandbox-exec");
-            return (seatbelt.exists()
-                && works(
-                    &seatbelt,
-                    &["-p", "(version 1)(allow default)", "/usr/bin/true"],
-                ))
-            .then_some(Self::Seatbelt(seatbelt));
+        match crate::platform::process::detect_sandbox()? {
+            crate::platform::process::SandboxTool::Seatbelt(path) => Some(Self::Seatbelt(path)),
+            crate::platform::process::SandboxTool::Bubblewrap(path) => Some(Self::Bubblewrap(path)),
         }
-        if cfg!(target_os = "linux") {
-            let bwrap = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"]
-                .iter()
-                .map(PathBuf::from)
-                .find(|p| p.exists())?;
-            // Unprivileged user namespaces may be off; then bubblewrap cannot run.
-            return works(
-                &bwrap,
-                &["--ro-bind", "/", "/", "--dev", "/dev", "/bin/true"],
-            )
-            .then_some(Self::Bubblewrap(bwrap));
-        }
-        None
     }
 }
 
@@ -459,7 +437,12 @@ pub async fn bridge(
                 None => {}
             },
             code = status.recv() => {
-                while let Ok((stderr, bytes)) = outputs.try_recv() {
+                while let Ok(Some((stderr, bytes))) = tokio::time::timeout(
+                    std::time::Duration::from_millis(250),
+                    outputs.recv(),
+                )
+                .await
+                {
                     let _ = if stderr {
                         write.extended_data_bytes(1, bytes).await
                     } else {
@@ -477,12 +460,8 @@ pub async fn bridge(
 
 /// Ends a session's whole process group (`stopAll`).
 fn end_group(pid: i32) {
-    #[cfg(unix)]
     if pid > 0 {
-        unsafe {
-            libc::kill(-pid, libc::SIGHUP);
-            libc::kill(-pid, libc::SIGKILL);
-        }
+        let _ = crate::platform::process::terminate_pid(pid as u32, true, true);
     }
 }
 
@@ -569,8 +548,7 @@ fn spawn_plain(
     done: mpsc::UnboundedSender<u32>,
 ) -> Result<i32, &'static str> {
     let mut command = std::process::Command::new(&prepared.program);
-    #[cfg(unix)]
-    std::os::unix::process::CommandExt::process_group(&mut command, 0);
+    crate::platform::process::isolate(&mut command);
     let mut child = command
         .args(&prepared.args)
         .current_dir(&root)
@@ -637,7 +615,7 @@ mod tests {
             &[PathBuf::from(
                 "/Users/someone/Library/Application Support/PuppyOne GPUI",
             )],
-            &[home.join(".codex")],
+            &[PathBuf::from("/Users/someone/.codex")],
             &[PathBuf::from("/tmp")],
         )
         .unwrap();

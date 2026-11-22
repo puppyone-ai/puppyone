@@ -337,6 +337,7 @@ pub struct SourceControl {
     /// Refresh scheduling (`gitRefreshScheduler`, `remoteRefreshPolicy`):
     /// the metadata watcher and its flag, the pending debounce, window
     /// focus, and the remote fetch's last attempt and loop.
+    metadata_watcher: MetadataWatcher,
     git_watch: Option<crate::platform::git_watch::GitWatch>,
     metadata_changed: Arc<AtomicBool>,
     debounce: Option<Task<()>>,
@@ -378,6 +379,11 @@ pub struct SourceControl {
 }
 type RemoteFetcher = Arc<dyn Fn(PathBuf, String, &AtomicBool) -> Result<(), String> + Send + Sync>;
 type StatusReader = Arc<dyn Fn(PathBuf, Arc<AtomicBool>) -> Result<Snapshot, String> + Send + Sync>;
+type MetadataWatcher = Arc<
+    dyn Fn(PathBuf, Box<dyn Fn() + Send>) -> Option<crate::platform::git_watch::GitWatch>
+        + Send
+        + Sync,
+>;
 impl EventEmitter<SourceControlEvent> for SourceControl {}
 impl SourceControl {
     /// Appearance → Git sidebar layout and file icon theme.
@@ -440,6 +446,9 @@ impl SourceControl {
             status_reader: Arc::new(|root, cancel| git::status(&root, &cancel)),
             refresh_retry: None,
             retry_delay: refresh::RETRY_INITIAL,
+            metadata_watcher: Arc::new(|root, changed| {
+                crate::platform::git_watch::watch(&root, refresh::metadata_noise, changed).ok()
+            }),
             git_watch: None,
             metadata_changed: Arc::new(AtomicBool::new(false)),
             debounce: None,
@@ -533,14 +542,15 @@ impl SourceControl {
         // resolves the directories, so the watch starts on a worker.
         self.git_watch = None;
         let (flag, wake) = (self.metadata_changed.clone(), self.wake.clone());
+        let watcher = self.metadata_watcher.clone();
         self.task(move |root, _| {
-            ResultValue::Watching(
-                crate::platform::git_watch::watch(&root, refresh::metadata_noise, move || {
+            ResultValue::Watching(watcher(
+                root,
+                Box::new(move || {
                     flag.store(true, Ordering::Relaxed);
                     wake.notify();
-                })
-                .ok(),
-            )
+                }),
+            ))
         });
         // Read-only OS connectivity sampling replaces the browser's online
         // event. It runs no network probe and only samples in the foreground.
@@ -2262,7 +2272,7 @@ mod tests {
         // An index change from outside (a terminal's `git add`) arrives
         // through the metadata watch alone.
         assert!(
-            std::process::Command::new("/usr/bin/git")
+            std::process::Command::new(crate::platform::git::git_executable())
                 .arg("-C")
                 .arg(&root)
                 .args(["add", "b.md"])

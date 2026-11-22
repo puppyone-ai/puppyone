@@ -135,11 +135,13 @@ pub fn build_puppyone_agent_environment(
     );
     environment.insert(
         "PI_CODING_AGENT_DIR".into(),
-        home.join("pi").to_string_lossy().into_owned(),
+        paths::resolve(&home, "pi").to_string_lossy().into_owned(),
     );
     environment.insert(
         "PI_CODING_AGENT_SESSION_DIR".into(),
-        home.join("sessions").to_string_lossy().into_owned(),
+        paths::resolve(&home, "sessions")
+            .to_string_lossy()
+            .into_owned(),
     );
     environment.insert("ELECTRON_RUN_AS_NODE".into(), "1".into());
     if platform == "win32" {

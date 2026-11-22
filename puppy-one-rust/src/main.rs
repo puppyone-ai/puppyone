@@ -7,7 +7,6 @@ mod capture;
 mod features;
 #[cfg(feature = "dev-capture")]
 mod lab;
-mod native_window;
 #[cfg(test)]
 mod test_support;
 
@@ -20,9 +19,8 @@ use po_platform::{localization, platform};
 use po_ui::{assets, theme, typography, ui};
 use po_workspace::{cloud, workspace};
 /// `createCliControlServer` + `createCliControlRequests`: `puppyone open`
-/// over the per-user socket, answered by this app's windows. The first
+/// over the per-user endpoint, answered by this app's windows. The first
 /// answer settles a launch by the command line: whether anything opened.
-#[cfg(unix)]
 fn serve_cli(outcome: async_channel::Sender<bool>, cx: &mut App) {
     use platform::cli_control::{self, Incoming, Request};
     let identity = platform::build_identity::current();
@@ -31,8 +29,7 @@ fn serve_cli(outcome: async_channel::Sender<bool>, cx: &mut App) {
         version: identity.version.clone(),
         channel: identity.channel.key().into(),
     };
-    let endpoint = cli_control::endpoint(&platform::data_dir(), unsafe { libc::getuid() });
-    let incoming = match cli_control::serve(&endpoint, info.clone()) {
+    let incoming = match platform::app_link::serve_control(&platform::data_dir(), info.clone()) {
         Ok(incoming) => incoming,
         Err(error) => {
             po_platform::diagnosticln!("Unable to accept command-line requests: {error}");
@@ -97,20 +94,18 @@ fn main() {
     }
     // `requestSingleInstanceLock`: a later launch hands its command line to
     // the running app and exits (captures and the lab run on their own).
-    #[cfg(unix)]
     let instance = {
         let args: Vec<_> = std::env::args_os().skip(1).collect();
         let cwd = std::env::current_dir().unwrap_or_default();
         if isolated {
             None
         } else {
-            platform::single_instance::acquire(&platform::data_dir(), &args, &cwd)
+            platform::app_link::acquire_single_instance(&platform::data_dir(), &args, &cwd)
         }
     };
-    #[cfg(unix)]
     if matches!(
         instance,
-        Some(platform::single_instance::Instance::Forwarded)
+        Some(platform::app_link::SingleInstance::Forwarded)
     ) {
         return;
     }
@@ -265,7 +260,9 @@ fn main() {
         // A packaged app answers its channel's return links.
         let identity = platform::build_identity::current();
         if identity.packaged {
-            platform::url_scheme::claim(platform::templates::link::scheme(identity.channel));
+            platform::app_link::register_scheme(platform::templates::link::scheme(
+                identity.channel,
+            ));
         }
         // What the launch itself was asked to open (a file or folder from
         // Finder) arrives before launching finishes and replaces the window
@@ -298,8 +295,7 @@ fn main() {
         let launched_by_cli =
             std::env::args_os().any(|arg| arg == platform::cli_control::LAUNCH_ARGUMENT);
         let (cli_outcome_tx, cli_outcome) = async_channel::bounded::<bool>(1);
-        #[cfg(unix)]
-        if let Some(platform::single_instance::Instance::Primary(launches)) = instance {
+        if let Some(platform::app_link::SingleInstance::Primary(launches)) = instance {
             cx.spawn(async move |cx| {
                 while let Ok((args, cwd)) = launches.recv().await {
                     cx.update(|cx| app::windows::second_instance(args, cwd, cx));

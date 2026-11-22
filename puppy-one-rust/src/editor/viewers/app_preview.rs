@@ -11,7 +11,7 @@
 use super::{
     html_visual::script_json,
     structured::{theme_css, theme_update_script},
-    web::WebFrame,
+    web::{WebFallbackAction, WebFrame},
     workspace_port,
 };
 use crate::{
@@ -243,7 +243,9 @@ impl AppPreviewView {
         };
         self.ready = false;
         let weak = cx.weak_entity();
+        let weak_open = cx.weak_entity();
         let dark = self.dark;
+        let has_local_root = self.root().is_some();
         self.frame = Some(cx.new(|_| {
             let mut f = WebFrame::new(Some(content), dark);
             f.set_on_recreated(Some(std::rc::Rc::new(move |cx| {
@@ -251,6 +253,18 @@ impl AppPreviewView {
                     view.ready = false;
                 });
             })));
+            if has_local_root {
+                f.set_fallback_actions(vec![WebFallbackAction::custom(
+                    "web-fallback-app-preview-browser",
+                    "native.web.openInBrowser",
+                    move |_, cx| {
+                        let _ = weak_open.update(cx, |view, cx| {
+                            let path = view.name.clone();
+                            view.run(0, path, 4, cx);
+                        });
+                    },
+                )]);
+            }
             f
         }));
         self._inbox = Some(cx.spawn(async move |this, cx| {

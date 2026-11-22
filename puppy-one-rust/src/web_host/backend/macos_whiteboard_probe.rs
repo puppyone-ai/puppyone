@@ -112,7 +112,7 @@ impl Drop for NativeWindow {
 }
 
 struct Fixture {
-    host: super::super::WebHost,
+    host: crate::web_host::WebHost,
     window: NativeWindow,
     received: async_channel::Receiver<String>,
     messages: Vec<Value>,
@@ -124,7 +124,7 @@ impl Fixture {
         let pack = viewer_packs::load_excalidraw_from(root).expect("verified installed SDK");
         let (tx, received) = async_channel::unbounded();
         let content = crate::editor::viewers::whiteboard::probe_content(pack, text.into(), Ipc(tx));
-        let host = super::super::WebHost::new_child(&window, 0, content, false).unwrap();
+        let host = crate::web_host::WebHost::new_child(&window, 0, content, false).unwrap();
         host.native()
             .view
             .set_bounds(wry::Rect {

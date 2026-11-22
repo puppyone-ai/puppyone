@@ -26,7 +26,7 @@ fn source_panel_keyboard_edits_and_shared_undo_preserve_crlf_on_disk(cx: &mut Te
                 .any(|t| { t.id == "document-editing" && !t.checked })
         );
     });
-    cx.simulate_keystrokes("cmd-down");
+    cx.simulate_keystrokes("secondary-down");
     cx.simulate_input("c🦀");
     settle_cloud(&view, cx, "CRLF source save", &|s, cx| {
         !s.files(cx).dirty
@@ -39,13 +39,13 @@ fn source_panel_keyboard_edits_and_shared_undo_preserve_crlf_on_disk(cx: &mut Te
     // The native buffer is LF-only; the provider owns re-encoding CRLF.
     // Undo and redo from the source must use the page's one history and
     // preserve that original storage representation on every actual save.
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     settle_cloud(&view, cx, "CRLF source undo", &|s, cx| {
         !s.files(cx).dirty
             && !s.files(cx).saving()
             && std::fs::read(&path).is_ok_and(|bytes| bytes == b"a\r\nb")
     });
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     settle_cloud(&view, cx, "CRLF source redo", &|s, cx| {
         !s.files(cx).dirty
             && !s.files(cx).saving()

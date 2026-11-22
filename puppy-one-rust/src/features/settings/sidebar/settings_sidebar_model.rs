@@ -99,11 +99,8 @@ const fn item(page: Page, key: &'static str, icon: &'static str) -> Item {
 }
 /// "This Mac" (or "This computer"): what applies to this computer in every
 /// space.
-pub const THIS_COMPUTER: &str = if cfg!(target_os = "macos") {
-    "shell.workspaceSwitcher.location.thisMac"
-} else {
-    "shell.workspaceSwitcher.location.thisComputer"
-};
+pub const THIS_COMPUTER: &str =
+    crate::platform::conventions::Conventions::current().this_computer_label_key;
 pub fn groups(visibility: Visibility) -> Vec<Group> {
     use Page::*;
     let mut groups = vec![];
