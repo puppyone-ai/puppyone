@@ -422,17 +422,18 @@ def scan_repository(root: Path) -> list[Violation]:
                     f"[R9] {rel}: external module reaches into `editor::markdown::{md_sub}`; use `editor::markdown` root exports",
                 )
 
-            # R8 (host install): outside `markdown/addons/`, only `src/editor/markdown/mod.rs`
-            # may reference `markdown::addons`, and only through each add-on's root module.
+            # R8 (host install): outside `markdown/addons/`, only the Markdown extension
+            # host (`mod.rs` / `extension.rs`) may reference `markdown::addons`, and only
+            # through each add-on's root module.
             if not in_md_addons and md_sub == "addons":
                 addon_name = segs[4] if len(segs) >= 5 else "*"
                 sub_name = segs[5] if len(segs) >= 6 else None
-                if rel != "src/editor/markdown/mod.rs":
+                if rel not in ("src/editor/markdown/mod.rs", "src/editor/markdown/extension.rs"):
                     key = f"addon-boundary {rel} -> addons/{addon_name}"
                     record(
                         "R8",
                         key,
-                        f"[R8] {rel}: only `src/editor/markdown/mod.rs` may install `markdown::addons::{addon_name}`",
+                        f"[R8] {rel}: only `src/editor/markdown/{{mod,extension}}.rs` may install `markdown::addons::{addon_name}`",
                     )
                 elif addon_name != "*" and sub_name and sub_name in addon_submodules(root, addon_name):
                     key = f"addon-boundary {rel} -> addons/{addon_name}/{sub_name}"
@@ -593,9 +594,13 @@ def run_self_tests() -> None:
             {
                 "src/editor/markdown/mod.rs": (
                     "pub mod addons;\n"
-                    "use self::addons::block_drag::internal::State;\n"
+                    "mod extension;\n"
                 ),
-                "src/editor/markdown/addons/block_drag/mod.rs": "pub mod internal;\n",
+                "src/editor/markdown/extension.rs": (
+                    "use super::addons::block_drag::BlockDragAddon;\n"
+                    "use super::addons::block_drag::internal::State;\n"
+                ),
+                "src/editor/markdown/addons/block_drag/mod.rs": "pub mod internal;\npub struct BlockDragAddon;\n",
                 "src/editor/markdown/addons/block_drag/internal.rs": "pub struct State;\n",
                 "src/editor/markdown/addons/other/mod.rs": "use super::block_drag::State;\n",
             },
