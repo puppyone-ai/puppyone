@@ -92,38 +92,61 @@ pub fn block_rhythm_in_lines(
         }
     }
 
-    // The enclosing top-level block's start: lists and items nest, so their
-    // ends are only ordered across top-level blocks, and a binary search
-    // over ends must start from there (a nested list ending before the
-    // window does not end its parent list).
-    let block_min = syntax
-        .top_blocks
-        .partition_point(|b| b.start <= byte_start)
-        .checked_sub(1)
-        .and_then(|i| syntax.top_blocks.get(i))
-        .map_or(byte_start, |b| b.start.min(byte_start));
-
-    // 2. Top-level lists intersecting `[byte_start..=byte_end]`.
-    let l_first = syntax.lists.partition_point(|l| l.range.end < block_min);
+    // 2. Top-level lists intersecting `[byte_start..=byte_end]` in O(log N + |window|).
+    // Top-level non-quoted lists are strictly disjoint, so the only one that can
+    // start before `byte_start` and still reach `byte_start` is the root ancestor
+    // list of the last item starting before `byte_start`.
+    let i_at = syntax.items.partition_point(|i| i.range.start < byte_start);
+    let i_last = syntax
+        .items
+        .partition_point(|i| i.range.start <= byte_end)
+        .max(i_at);
+    let l_at = syntax.lists.partition_point(|l| l.range.start < byte_start);
     let l_last = syntax
         .lists
         .partition_point(|l| l.range.start <= byte_end)
-        .max(l_first);
-    for list in &syntax.lists[l_first..l_last] {
+        .max(l_at);
+    if i_at > 0 {
+        let cand = i_at - 1;
+        let root = syntax.items[cand].parents.first().copied().unwrap_or(cand);
+        let root_list = syntax.items[root].list;
+        if root_list < l_at {
+            let list = &syntax.lists[root_list];
+            if list.parent.is_none() && !list.quoted && list.range.end >= byte_start {
+                set_class(&mut lines, line_of(list.range.start), Class::LIST_START);
+                set_class(&mut lines, line_of(list.range.end), Class::LIST_END);
+            }
+        }
+    }
+    for list in &syntax.lists[l_at..l_last] {
         if list.parent.is_none() && !list.quoted {
             set_class(&mut lines, line_of(list.range.start), Class::LIST_START);
             set_class(&mut lines, line_of(list.range.end), Class::LIST_END);
         }
     }
 
-    // 3. Items in tree (pre-)order intersecting `[byte_start..=byte_end]`.
-    // Start from the enclosing top-level block so outer parent items are included!
-    let i_first = syntax.items.partition_point(|i| i.range.end < block_min);
-    let i_last = syntax
-        .items
-        .partition_point(|i| i.range.start <= byte_end)
-        .max(i_first);
-    for item in syntax.items[i_first..i_last].iter().filter(|i| !i.quoted) {
+    // 3. Items in tree (pre-)order intersecting `[byte_start..=byte_end]` in
+    // O(log N + depth + |window|). Because list items form a proper nesting
+    // tree, the only items starting before `byte_start` whose range can reach
+    // `byte_start` are `items[i_at - 1]` and its `parents` (already in
+    // outermost-first pre-order).
+    let mut active_indices: Vec<usize> = Vec::with_capacity(8);
+    if i_at > 0 {
+        let cand = i_at - 1;
+        for &p in &syntax.items[cand].parents {
+            if syntax.items[p].range.end >= byte_start {
+                active_indices.push(p);
+            }
+        }
+        if syntax.items[cand].range.end >= byte_start {
+            active_indices.push(cand);
+        }
+    }
+    let active_items = active_indices
+        .into_iter()
+        .map(|idx| &syntax.items[idx])
+        .chain(syntax.items[i_at..i_last].iter());
+    for item in active_items.filter(|i| !i.quoted) {
         let item_start_line = line_of(item.range.start);
         let item_end_line = line_of(item.range.end);
         set_class(&mut lines, item_start_line, Class::LIST_ITEM_START);

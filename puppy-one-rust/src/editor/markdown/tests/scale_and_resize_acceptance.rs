@@ -199,6 +199,51 @@ fn t4_single_list_10k_task_toggle_and_typing_patch_incrementally(cx: &mut TestAp
         "10k list task toggle must hash <= 4 blocks, not full document (delta={})",
         hashed_after - hashed_before
     );
+    // 3. Single-row incremental patch on a wide oversized GFM table: verifies
+    // typing in a body row of a 200-column table patches `Syntax` incrementally
+    // and equals a full `Syntax::parse_with` rebuild bit-for-bit.
+    let wide_header = (0..200)
+        .map(|c| format!("C{c}"))
+        .collect::<Vec<_>>()
+        .join("|");
+    let wide_sep = (0..200).map(|_| "---").collect::<Vec<_>>().join("|");
+    let wide_row = (0..200)
+        .map(|c| format!("v{c}"))
+        .collect::<Vec<_>>()
+        .join("|");
+    let mut wide_src = format!("|{wide_header}|\n|{wide_sep}|\n");
+    for _ in 0..40 {
+        wide_src.push('|');
+        wide_src.push_str(&wide_row);
+        wide_src.push_str("|\n");
+    }
+    let wide_before = Buffer::new(wide_src);
+    let mut wide_syn = Syntax::parse_with(&wide_before, FEATURES);
+    assert_eq!(
+        wide_syn.tables.len(),
+        1,
+        "positive control: 200-column table parses as one GFM table"
+    );
+    let row20_start = wide_before.line_range(22).start + 2;
+    let mut wide_after = wide_before.clone();
+    let wide_cs = ChangeSet::replace(row20_start..row20_start, "X");
+    wide_after.replace(row20_start..row20_start, "X");
+    let wide_splice = Syntax::try_parse_incremental_in_place(
+        &mut wide_syn,
+        &wide_after,
+        &wide_before,
+        &wide_cs,
+        FEATURES,
+    )
+    .expect("wide table body-row insert must use single-table-row incremental patch");
+    assert_eq!(wide_splice.old_lines, 22..23);
+    assert_eq!(wide_splice.new_lines, 22..23);
+    assert_eq!(wide_splice.byte_delta, 1);
+    assert_eq!(
+        wide_syn,
+        Syntax::parse_with(&wide_after, FEATURES),
+        "incremental single-table-row patch must equal full Syntax::parse_with"
+    );
 }
 
 /// T4 extreme-shape contract: verifies opening, typing, and arrow navigation

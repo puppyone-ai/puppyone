@@ -785,12 +785,17 @@ impl Syntax {
         features: Features,
         allow_eof: bool,
     ) -> Option<SyntaxSplice> {
-        if allow_eof
-            && let Some(splice) = Self::try_patch_single_list_item_in_place(
+        if allow_eof {
+            if let Some(splice) = Self::try_patch_single_list_item_in_place(
                 syntax, doc, before_doc, changes, features,
-            )
-        {
-            return Some(splice);
+            ) {
+                return Some(splice);
+            }
+            if let Some(splice) = Self::try_patch_single_table_row_in_place(
+                syntax, doc, before_doc, changes, features,
+            ) {
+                return Some(splice);
+            }
         }
         let (win_syntax, splice) = Self::compute_incremental_window(
             doc, before_doc, syntax, changes, features, allow_eof,
@@ -1135,6 +1140,447 @@ impl Syntax {
             shift_after(&mut prev.html_blocks);
             shift_after(&mut prev.comment_spans);
             shift_after(&mut prev.footnote_spans);
+            let f_pos = prev.fences.partition_point(|f| f.range.start < ob.end);
+            for f in &mut prev.fences[f_pos..] {
+                f.range = shift_span_signed(&f.range, byte_delta);
+                f.code = shift_span_signed(&f.code, byte_delta);
+            }
+            let nd_pos = prev.note_definitions.partition_point(|&p| p < ob.end);
+            for p in &mut prev.note_definitions[nd_pos..] {
+                *p = shift_signed(*p, byte_delta);
+            }
+            let c_pos = prev.callouts.partition_point(|c| c.first_line <= line_idx);
+            for c in &mut prev.callouts[c_pos..] {
+                c.marker = shift_span_signed(&c.marker, byte_delta);
+            }
+            let ld_pos = prev.link_defs.partition_point(|(r, _)| r.start < ob.end);
+            for (r, _) in &mut prev.link_defs[ld_pos..] {
+                *r = shift_span_signed(r, byte_delta);
+            }
+            for p in &mut prev.block_delimiters[bd_suf..] {
+                *p = shift_signed(*p, byte_delta);
+            }
+            prev.footnotes.shift_in_place(ob.end, byte_delta);
+        }
+
+        Some(SyntaxSplice {
+            old_bytes: ob,
+            new_bytes: nb,
+            old_lines: line_idx..line_idx + 1,
+            new_lines: line_idx..line_idx + 1,
+            byte_delta,
+            line_delta: 0,
+            old_had_delimiters: false,
+        })
+    }
+
+    /// Fast path for single-line edits inside an existing body row (`row >= 2`)
+    /// of a top-level GFM table (such as typing in a 200x2000 wide table where
+    /// the table spans one giant top-level block). Parses only a 3-line
+    /// synthetic mini-table (`header\nsep\nrow`) and patches `prev` in place so
+    /// keystrokes avoid reparsing hundreds of thousands of table cells.
+    fn try_patch_single_table_row_in_place(
+        prev: &mut Syntax,
+        doc: &Buffer,
+        before_doc: &Buffer,
+        changes: &ChangeSet,
+        features: Features,
+    ) -> Option<SyntaxSplice> {
+        let cs = changes.changes();
+        if cs.len() != 1 {
+            return None;
+        }
+        let ch = &cs[0];
+        if ch.insert.contains(['\n', '\r']) {
+            return None;
+        }
+        let line_idx = before_doc.line_index(ch.range.start);
+        if before_doc.line_index(ch.range.end) != line_idx || line_idx >= doc.line_count() {
+            return None;
+        }
+        let old_line_content = before_doc.line_range(line_idx);
+        let new_line_content = doc.line_range(line_idx);
+        if ch.range.end > old_line_content.end {
+            return None;
+        }
+        let old_line_str = before_doc.slice_cow(old_line_content.clone());
+        let new_line_str = doc.slice_cow(new_line_content.clone());
+        if old_line_str.trim().is_empty()
+            || new_line_str.trim().is_empty()
+            || has_global_hazards(&old_line_str)
+            || has_global_hazards(&new_line_str)
+        {
+            return None;
+        }
+
+        let old_end_byte = if line_idx + 1 < before_doc.line_count() {
+            before_doc.line_range(line_idx + 1).start
+        } else {
+            before_doc.len()
+        };
+        let new_end_byte = if line_idx + 1 < doc.line_count() {
+            doc.line_range(line_idx + 1).start
+        } else {
+            doc.len()
+        };
+        let ob = old_line_content.start..old_end_byte;
+        let nb = new_line_content.start..new_end_byte;
+        let byte_delta = doc.len() as isize - before_doc.len() as isize;
+        if (nb.end as isize - ob.end as isize) != byte_delta {
+            return None;
+        }
+
+        // Locate the enclosing top-level GFM table and confirm `line_idx` is a body row.
+        let table_idx = prev
+            .tables
+            .partition_point(|t| t.end < old_line_content.start);
+        let old_table = prev.tables.get(table_idx)?.clone();
+        if old_table.start > old_line_content.start || old_line_content.start > old_table.end {
+            return None;
+        }
+        let tb_idx = prev
+            .top_blocks
+            .partition_point(|b| b.start < old_table.start);
+        let old_tb = prev.top_blocks.get(tb_idx)?;
+        if old_tb.start != old_table.start || old_tb.end != old_table.end {
+            return None;
+        }
+        let table_first_line = before_doc.line_index(old_table.start);
+        let table_last_line =
+            before_doc.line_index(old_table.end.saturating_sub(1).max(old_table.start));
+        if line_idx < table_first_line + 2 || line_idx > table_last_line {
+            return None;
+        }
+
+        // Verify no other structural constructs overlap this line (O(log N) checks).
+        let fence_overlaps = {
+            let i = prev.fences.partition_point(|f| f.range.end <= ob.start);
+            prev.fences.get(i).is_some_and(|f| f.range.start < ob.end)
+        };
+        let list_overlaps = {
+            let i = prev.lists.partition_point(|l| l.range.end <= ob.start);
+            prev.lists.get(i).is_some_and(|l| l.range.start < ob.end)
+        };
+        let item_overlaps = {
+            let i = prev.items.partition_point(|it| it.range.end <= ob.start);
+            prev.items.get(i).is_some_and(|it| it.range.start < ob.end)
+        };
+        let callout_overlaps = {
+            let i = prev.callouts.partition_point(|c| c.last_line < line_idx);
+            prev.callouts
+                .get(i)
+                .is_some_and(|c| c.first_line <= line_idx)
+        };
+        let bd_pre = prev.block_delimiters.partition_point(|&p| p < ob.start);
+        let bd_suf = prev
+            .block_delimiters
+            .partition_point(|&p| p < ob.end)
+            .max(bd_pre);
+        if fence_overlaps
+            || list_overlaps
+            || item_overlaps
+            || callout_overlaps
+            || bd_suf > bd_pre
+            || spans_overlap(&prev.code_blocks, &ob)
+            || spans_overlap(&prev.html_blocks, &ob)
+            || link_defs_overlap(&prev.link_defs, &ob)
+            || span_straddles(&prev.comment_spans, ob.start)
+            || span_straddles(&prev.comment_spans, ob.end)
+            || span_straddles(&prev.footnote_spans, ob.start)
+            || span_straddles(&prev.footnote_spans, ob.end)
+            || spans_overlap(&prev.comment_spans, &ob)
+            || spans_overlap(&prev.footnote_spans, &ob)
+        {
+            return None;
+        }
+
+        let el_pre = prev.elements.partition_point(|e| e.range.start < ob.start);
+        let el_suf = prev
+            .elements
+            .partition_point(|e| e.range.start < ob.end)
+            .max(el_pre);
+        if prev.elements[..el_pre]
+            .iter()
+            .rev()
+            .take(8)
+            .any(|e| e.range.end > ob.start)
+            || prev.elements[el_pre..el_suf].iter().any(|e| {
+                e.range.end > ob.end
+                    || matches!(
+                        e.kind,
+                        Kind::FootnoteReference | Kind::FootnoteDefinition | Kind::Comment
+                    )
+            })
+        {
+            return None;
+        }
+
+        // Parse a 3-line synthetic mini-table (`header\nsep\nnew_row`).
+        let header_line = doc.line_cow(table_first_line);
+        let sep_line = doc.line_cow(table_first_line + 1);
+        let trailing_nl = if new_line_content.end < nb.end {
+            "\n"
+        } else {
+            ""
+        };
+        let mut mini_str =
+            String::with_capacity(header_line.len() + sep_line.len() + new_line_str.len() + 3);
+        mini_str.push_str(&header_line);
+        mini_str.push('\n');
+        mini_str.push_str(&sep_line);
+        mini_str.push('\n');
+        let row_offset = mini_str.len();
+        mini_str.push_str(&new_line_str);
+        mini_str.push_str(trailing_nl);
+        let mini_buf = Buffer::new(mini_str);
+
+        let extra_defs: String = prev
+            .link_defs
+            .iter()
+            .map(|(_, raw)| raw.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mini = Self::parse_region(&mini_buf, 0..3, &extra_defs, features);
+
+        let expected_mini_start = old_table.start - before_doc.line_range(table_first_line).start;
+        let trimmed_row_end = row_offset + new_line_str.trim_end().len();
+        if mini.tables.len() != 1
+            || mini.tables[0].start != expected_mini_start
+            || mini.tables[0].end < trimmed_row_end
+            || !mini.lists.is_empty()
+            || !mini.items.is_empty()
+            || !mini.paragraphs.is_empty()
+            || !mini.fences.is_empty()
+            || !mini.code_blocks.is_empty()
+            || !mini.html_blocks.is_empty()
+            || !mini.callouts.is_empty()
+            || !mini.link_defs.is_empty()
+            || !mini.footnotes.is_empty()
+            || !mini.block_delimiters.is_empty()
+            || !mini.comment_spans.is_empty()
+            || !mini.footnote_spans.is_empty()
+        {
+            return None;
+        }
+        // Defensively confirm nothing from header/sep spills across `row_offset`.
+        if mini
+            .elements
+            .iter()
+            .any(|e| e.range.start < row_offset && e.range.end > row_offset)
+            || mini
+                .table_cells
+                .iter()
+                .any(|c| c.start < row_offset && c.end > row_offset)
+            || mini
+                .highlights
+                .iter()
+                .any(|(r, _)| r.start < row_offset && r.end > row_offset)
+            || mini
+                .inline_tags
+                .iter()
+                .any(|r| r.start < row_offset && r.end > row_offset)
+        {
+            return None;
+        }
+
+        let coord_delta = nb.start as isize - row_offset as isize;
+        let row_elements: Vec<Element> = mini
+            .elements
+            .into_iter()
+            .filter(|e| e.range.start >= row_offset)
+            .map(|mut e| {
+                e.range = shift_span_signed(&e.range, coord_delta);
+                for mk in &mut e.markers {
+                    *mk = shift_span_signed(mk, coord_delta);
+                }
+                if let Some(c) = &mut e.content {
+                    *c = shift_span_signed(c, coord_delta);
+                }
+                if let Some(l) = &mut e.line {
+                    *l = shift_span_signed(l, coord_delta);
+                }
+                e
+            })
+            .collect();
+        let header_cells = mini
+            .table_cells
+            .iter()
+            .filter(|c| c.start < row_offset)
+            .count();
+        let row_cells: Vec<Span> = mini
+            .table_cells
+            .into_iter()
+            .filter(|c| c.start >= row_offset)
+            .map(|c| shift_span_signed(&c, coord_delta))
+            .collect();
+        if row_cells.len() != header_cells {
+            return None;
+        }
+        let row_highlights: Vec<(Span, Hl)> = mini
+            .highlights
+            .into_iter()
+            .filter(|(r, c)| r.start >= row_offset && !r.is_empty() && *c != Hl::NONE)
+            .map(|(r, c)| (shift_span_signed(&r, coord_delta), c))
+            .collect();
+        let row_inline_tags: Vec<Span> = mini
+            .inline_tags
+            .into_iter()
+            .filter(|r| r.start >= row_offset)
+            .map(|r| shift_span_signed(&r, coord_delta))
+            .collect();
+
+        let tc_pre = prev.table_cells.partition_point(|r| r.end <= ob.start);
+        let tc_suf = prev
+            .table_cells
+            .partition_point(|r| r.start < ob.end)
+            .max(tc_pre);
+        // Ragged/short rows cause pulldown-cmark to synthesize zero-length
+        // padding `TableCell` spans at `ob.end`/`nb.end` depending on trailing
+        // newlines; fall back whenever old or new row has cells at/past line end.
+        if tc_suf - tc_pre != header_cells
+            || prev.table_cells[tc_pre..tc_suf].iter().any(|c| {
+                c.end > old_line_content.end || (c.is_empty() && c.start >= old_line_content.end)
+            })
+            || prev
+                .table_cells
+                .get(tc_suf)
+                .is_some_and(|c| c.is_empty() && c.start == ob.end)
+            || row_cells.iter().any(|c| {
+                c.end > new_line_content.end || (c.is_empty() && c.start >= new_line_content.end)
+            })
+        {
+            return None;
+        }
+
+        let new_table_end = if line_idx < table_last_line {
+            shift_signed(old_table.end, byte_delta)
+        } else {
+            shift_signed(mini.tables[0].end, coord_delta)
+        };
+
+        // Patch `prev` in place!
+        prev.tables[table_idx].end = new_table_end;
+        prev.top_blocks[tb_idx].end = new_table_end;
+
+        // 1. Elements
+        let win_el_len = row_elements.len();
+        prev.elements.splice(el_pre..el_suf, row_elements);
+        if byte_delta != 0 {
+            for m in &mut prev.elements[el_pre + win_el_len..] {
+                m.range = shift_span_signed(&m.range, byte_delta);
+                for mk in &mut m.markers {
+                    *mk = shift_span_signed(mk, byte_delta);
+                }
+                if let Some(c) = &mut m.content {
+                    *c = shift_span_signed(c, byte_delta);
+                }
+                if let Some(l) = &mut m.line {
+                    *l = shift_span_signed(l, byte_delta);
+                }
+            }
+        }
+
+        // 2. Table cells
+        let win_tc_len = row_cells.len();
+        prev.table_cells.splice(tc_pre..tc_suf, row_cells);
+        if byte_delta != 0 {
+            for r in &mut prev.table_cells[tc_pre + win_tc_len..] {
+                *r = shift_span_signed(r, byte_delta);
+            }
+        }
+
+        // 3. Highlights (coalescing adjacent equal classes)
+        let hl_pre = prev.highlights.partition_point(|(r, _)| r.end <= ob.start);
+        let hl_suf = prev
+            .highlights
+            .partition_point(|(r, _)| r.start < ob.end)
+            .max(hl_pre);
+        let mut replacement_hl: Vec<(Span, Hl)> = Vec::with_capacity(row_highlights.len() + 2);
+        if hl_pre < hl_suf && prev.highlights[hl_pre].0.start < ob.start {
+            replacement_hl.push((
+                prev.highlights[hl_pre].0.start..ob.start,
+                prev.highlights[hl_pre].1,
+            ));
+        }
+        replacement_hl.extend(row_highlights);
+        if hl_pre < hl_suf && prev.highlights[hl_suf - 1].0.end > ob.end {
+            let tail_start = shift_signed(ob.end, byte_delta);
+            let tail_end = shift_signed(prev.highlights[hl_suf - 1].0.end, byte_delta);
+            replacement_hl.push((tail_start..tail_end, prev.highlights[hl_suf - 1].1));
+        }
+        if byte_delta != 0 {
+            for (r, _) in &mut prev.highlights[hl_suf..] {
+                *r = shift_span_signed(r, byte_delta);
+            }
+        }
+        let rep_len = replacement_hl.len();
+        prev.highlights.splice(hl_pre..hl_suf, replacement_hl);
+        let check_start = hl_pre.saturating_sub(1);
+        let mut check_end = (hl_pre + rep_len + 1).min(prev.highlights.len());
+        let mut idx = check_start;
+        while idx + 1 < check_end {
+            if prev.highlights[idx].1 == prev.highlights[idx + 1].1
+                && prev.highlights[idx].0.end == prev.highlights[idx + 1].0.start
+            {
+                prev.highlights[idx].0.end = prev.highlights[idx + 1].0.end;
+                prev.highlights.remove(idx + 1);
+                check_end -= 1;
+            } else {
+                idx += 1;
+            }
+        }
+
+        // 4. Inline tags
+        let it_pre = prev.inline_tags.partition_point(|r| r.end <= ob.start);
+        let it_suf = prev
+            .inline_tags
+            .partition_point(|r| r.start < ob.end)
+            .max(it_pre);
+        let win_it_len = row_inline_tags.len();
+        prev.inline_tags.splice(it_pre..it_suf, row_inline_tags);
+        if byte_delta != 0 {
+            for r in &mut prev.inline_tags[it_pre + win_it_len..] {
+                *r = shift_span_signed(r, byte_delta);
+            }
+            for t in &mut prev.tables[table_idx + 1..] {
+                *t = shift_span_signed(t, byte_delta);
+            }
+            for tb in &mut prev.top_blocks[tb_idx + 1..] {
+                *tb = shift_span_signed(tb, byte_delta);
+            }
+            let shift_after = |vec: &mut Vec<Span>| {
+                let pos = vec.partition_point(|r| r.start < ob.end);
+                for r in &mut vec[pos..] {
+                    *r = shift_span_signed(r, byte_delta);
+                }
+            };
+            shift_after(&mut prev.code_blocks);
+            shift_after(&mut prev.html_blocks);
+            shift_after(&mut prev.comment_spans);
+            shift_after(&mut prev.footnote_spans);
+            let l_pos = prev.lists.partition_point(|l| l.range.start < ob.end);
+            for l in &mut prev.lists[l_pos..] {
+                l.range = shift_span_signed(&l.range, byte_delta);
+            }
+            let i_pos = prev.items.partition_point(|i| i.range.start < ob.end);
+            for m in &mut prev.items[i_pos..] {
+                m.range = shift_span_signed(&m.range, byte_delta);
+                m.marker_from = shift_signed(m.marker_from, byte_delta);
+                m.marker_to = shift_signed(m.marker_to, byte_delta);
+                m.content_from = shift_signed(m.content_from, byte_delta);
+                if let Some(t) = &mut m.task {
+                    t.line = shift_span_signed(&t.line, byte_delta);
+                    t.checkbox = shift_span_signed(&t.checkbox, byte_delta);
+                    t.prefix_to = shift_signed(t.prefix_to, byte_delta);
+                }
+                for (_, br) in &mut m.blocks {
+                    *br = shift_span_signed(br, byte_delta);
+                }
+            }
+            let p_pos = prev.paragraphs.partition_point(|p| p.range.start < ob.end);
+            for p in &mut prev.paragraphs[p_pos..] {
+                p.range = shift_span_signed(&p.range, byte_delta);
+            }
             let f_pos = prev.fences.partition_point(|f| f.range.start < ob.end);
             for f in &mut prev.fences[f_pos..] {
                 f.range = shift_span_signed(&f.range, byte_delta);
@@ -1966,10 +2412,68 @@ impl Syntax {
 
     fn enclosing_block_start(&self, offset: usize) -> usize {
         let idx = self.top_blocks.partition_point(|b| b.start <= offset);
-        idx.checked_sub(1)
+        let Some(tb) = idx
+            .checked_sub(1)
             .and_then(|i| self.top_blocks.get(i))
             .filter(|b| offset <= b.end)
-            .map_or(offset, |b| b.start)
+        else {
+            return offset;
+        };
+        let mut min_start = tb.start;
+        // Inside a huge top-level non-quoted list (e.g., 10,000 items), narrow
+        // `min_start` to the enclosing root item so `elements_in` stays O(log N)
+        // instead of scanning all earlier items in the list.
+        let li = self.lists.partition_point(|l| l.range.start < tb.start);
+        if self.lists.get(li).is_some_and(|l| {
+            l.parent.is_none() && !l.quoted && l.range.start == tb.start && offset <= l.range.end
+        }) {
+            let i_at = self.items.partition_point(|i| i.range.start <= offset);
+            if i_at > 0 {
+                let root = self.items[i_at - 1]
+                    .parents
+                    .first()
+                    .copied()
+                    .unwrap_or(i_at - 1);
+                let root_item = &self.items[root];
+                if root_item.range.start >= tb.start {
+                    min_start = if root_item.range.end >= offset {
+                        root_item.range.start
+                    } else {
+                        root_item.range.end
+                    };
+                }
+            }
+        } else {
+            // Inside a huge top-level table, inline elements never cross table cells.
+            let ti = self.tables.partition_point(|t| t.start < tb.start);
+            if self
+                .tables
+                .get(ti)
+                .is_some_and(|t| t.start == tb.start && offset <= t.end)
+            {
+                let ci = self.table_cells.partition_point(|c| c.start <= offset);
+                if ci > 0 {
+                    let prev_cell = &self.table_cells[ci - 1];
+                    if prev_cell.start >= tb.start {
+                        min_start = if prev_cell.end >= offset {
+                            prev_cell.start
+                        } else {
+                            prev_cell.end
+                        };
+                    }
+                }
+            }
+        }
+        for spans in [&self.comment_spans, &self.footnote_spans] {
+            let i = spans.partition_point(|r| r.end < offset);
+            if let Some(s) = spans.get(i)
+                && s.start < min_start
+                && offset <= s.end
+            {
+                min_start = s.start;
+            }
+        }
+        min_start
     }
 
     pub fn elements_in(&self, range: Span) -> impl Iterator<Item = &Element> {
@@ -2059,22 +2563,19 @@ impl Syntax {
             .take_while(|b| *b == b' ' || *b == b'\t')
             .count();
         let inside = (range.start + lead + 1).min(range.end);
-        let min_start = self.enclosing_block_start(range.start);
-        let first = self.items.partition_point(|i| i.range.end < min_start);
-        let last = self
-            .items
-            .partition_point(|i| i.range.start <= inside)
-            .max(first);
-        self.items[first..last]
-            .iter()
-            .enumerate()
-            .filter(|(_, i)| {
+        let last = self.items.partition_point(|i| i.range.start <= inside);
+        if last == 0 {
+            return None;
+        }
+        let cand = last - 1;
+        std::iter::once(cand)
+            .chain(self.items[cand].parents.iter().rev().copied())
+            .find(|&idx| {
+                let i = &self.items[idx];
                 i.range.start <= inside
                     && inside <= i.range.end.max(i.marker_to)
                     && doc.line_index(i.marker_from) <= line
             })
-            .max_by_key(|(_, i)| i.range.start)
-            .map(|(k, _)| first + k)
     }
 
     pub fn highlights_in(&self, range: Span) -> &[(Span, Hl)] {
