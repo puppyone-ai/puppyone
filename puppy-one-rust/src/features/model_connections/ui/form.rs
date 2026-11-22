@@ -242,27 +242,9 @@ impl ModelConnections {
         let fields = |items: Vec<AnyElement>| v_flex().gap(px(16.)).children(items);
         // `.desktop-settings-text-input` at `width: 100%`.
         let input = |entity: &Entity<TextInput>, cx: &mut Context<Self>| {
-            entity.update(cx, |i, _| {
-                i.appearance = false;
-                i.prompt_text = Some((m.ui.meta, 17.));
-                i.placeholder_color = Some(|t| t.subtle);
-                i.min_height = 17.;
-            });
-            div()
+            super::rows::text_field(t, entity, cx)
                 .w_full()
-                .h(px(theme::control_compact()))
-                // The value starts where a `Select`'s does (12px in, after
-                // the input's own 4px inset).
-                .pl(px(8.))
-                .pr(px(5.))
-                .flex()
-                .items_center()
-                .border_1()
-                .border_color(t.divider)
-                .rounded(px(6.))
-                .bg(t.input)
                 .when(busy, |d| d.opacity(0.62))
-                .child(div().w_full().child(entity.clone()))
                 .into_any_element()
         };
         // A `<details>` summary: the disclosure triangle and its text.

@@ -2,7 +2,9 @@
 //! provider sign-ins, API keys, local model services — each a
 //! `.model-connections-list` card of 34px rows with quiet text actions.
 use super::super::infrastructure::{Auth, ModelConnection, OauthProvider, Progress, SourceKind};
-use super::rows::{chevron, identity, status, table, table_row, text_action};
+use super::rows::{
+    identity, link_row, row_mark, status, table, table_row, text_action, text_field,
+};
 use super::{ErrorAt, ModelConnections, OpenAccount, PageState};
 use crate::agent::model_connections::providers as registry;
 use crate::{
@@ -10,25 +12,28 @@ use crate::{
     theme::{self, Theme},
     ui::{
         appearance::ActiveAppearance,
-        components::{
-            Button, ButtonVariant, MutedRow, SettingsCategory, SettingsCategoryList, tooltip,
-        },
+        components::{Button, ButtonVariant, MutedRow, SettingsCategory, SettingsCategoryList},
     },
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 
 impl ModelConnections {
-    pub(super) fn list(&self, t: Theme, cx: &mut Context<Self>) -> SettingsCategoryList {
+    pub(super) fn list(
+        &self,
+        t: Theme,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> SettingsCategoryList {
         let mut categories = vec![];
         if let Some(managed) = self.managed.filter(|_| self.payments) {
             categories.push(self.managed_category(managed, t, cx));
         }
-        categories.push(self.accounts_category(t, cx));
+        categories.push(self.accounts_category(t, window, cx));
         categories.push(self.api_category(t, cx));
         categories.push(self.local_category(t, cx));
         if self.loaded {
-            categories.push(self.guide_category(t, cx));
+            categories.push(self.guide_category(t, window, cx));
         }
         SettingsCategoryList::new()
             .children(categories)
@@ -64,16 +69,23 @@ impl ModelConnections {
     }
 
     /// Provider sign-ins (Pi's OAuth flows): one row per provider.
-    fn accounts_category(&self, t: Theme, cx: &mut Context<Self>) -> SettingsCategory {
+    fn accounts_category(
+        &self,
+        t: Theme,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> SettingsCategory {
         let mut rows: Vec<AnyElement> = vec![];
         for (index, provider) in OauthProvider::ALL.into_iter().enumerate() {
             let home = registry::for_oauth(provider);
             let name: SharedString = home.map(|p| p.name).unwrap_or_default().into();
             let saved = self.signed_in(provider).cloned();
             let signing = self.signing_in.as_ref().filter(|s| s.provider == provider);
-            let mut row = table_row(t)
-                .id(("connection-oauth", index))
-                .child(super::mark(home, SourceKind::Api, 18., t.text.into()));
+            let mut row = table_row(t).id(("connection-oauth", index)).child(row_mark(
+                t,
+                home,
+                SourceKind::Api,
+            ));
             row = match (&saved, signing) {
                 (_, Some(signing)) => {
                     let waiting = match &signing.step {
@@ -101,16 +113,18 @@ impl ModelConnections {
                             .to_string()
                         })
                         .unwrap_or_else(|| tr("native.modelConnections.signedIn").into());
-                    row.cursor(theme::clickable_cursor())
-                        .hover(move |s| s.bg(t.hover))
+                    let row = row
                         .child(identity(t, name, detail.into()))
                         .when_some(saved.default_model_id.clone(), |row, model| {
                             row.child(status(t, model.into()))
-                        })
-                        .child(chevron(t))
-                        .on_click(cx.listener(move |s, _, _, cx| {
+                        });
+                    link_row(
+                        t,
+                        row,
+                        cx.listener(move |s, _, _, cx| {
                             s.navigate(PageState::Detail(id.clone()), cx)
-                        }))
+                        }),
+                    )
                 }
                 (None, None) => row
                     .child(identity(
@@ -140,7 +154,7 @@ impl ModelConnections {
                 verification_uri,
             }) = signing.and_then(|s| s.step.clone())
             {
-                rows.push(self.device_code(index, user_code, verification_uri, t));
+                rows.push(self.device_code(index, user_code, verification_uri, t, window, cx));
             }
         }
         rows.extend(self.inline_error(ErrorAt::Accounts, t));
@@ -151,12 +165,7 @@ impl ModelConnections {
     /// shows, or the final address it opened.
     fn paste_row(&self, index: usize, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let m = theme::ty();
-        self.paste.update(cx, |i, _| {
-            i.appearance = false;
-            i.prompt_text = Some((m.ui.meta, 17.));
-            i.placeholder_color = Some(|t| t.subtle);
-            i.min_height = 17.;
-        });
+        let field = text_field(t, &self.paste, cx).flex_1().min_w_0();
         v_flex()
             .id(("paste-code", index))
             .w_full()
@@ -171,36 +180,26 @@ impl ModelConnections {
                     .child(tr("native.modelConnections.pasteHint")),
             )
             .child(
-                h_flex()
-                    .w_full()
-                    .gap(px(8.))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .h(px(theme::control_compact()))
-                            .pl(px(8.))
-                            .pr(px(5.))
-                            .flex()
-                            .items_center()
-                            .border_1()
-                            .border_color(t.divider)
-                            .rounded(px(6.))
-                            .bg(t.input)
-                            .child(div().w_full().child(self.paste.clone())),
-                    )
-                    .child(
-                        Button::new(("paste-continue", index))
-                            .variant(ButtonVariant::OutlinePrimary)
-                            .label(tr("native.modelConnections.pasteContinue"))
-                            .on_click(cx.listener(|s, _, _, cx| s.paste_code(cx))),
-                    ),
+                h_flex().w_full().gap(px(8.)).child(field).child(
+                    Button::new(("paste-continue", index))
+                        .variant(ButtonVariant::OutlinePrimary)
+                        .label(tr("native.modelConnections.pasteContinue"))
+                        .on_click(cx.listener(|s, _, _, cx| s.paste_code(cx))),
+                ),
             )
             .into_any_element()
     }
 
     /// The code the user types on the provider's page.
-    fn device_code(&self, index: usize, code: String, uri: String, t: Theme) -> AnyElement {
+    fn device_code(
+        &self,
+        index: usize,
+        code: String,
+        uri: String,
+        t: Theme,
+        window: &Window,
+        cx: &App,
+    ) -> AnyElement {
         let m = theme::ty();
         let copy = code.clone();
         h_flex()
@@ -235,6 +234,8 @@ impl ModelConnections {
                 "device-code",
                 "native.modelConnections.copyCode",
                 copy,
+                window,
+                cx,
             ))
             .child(
                 Button::new(("open-device-page", index))
@@ -271,7 +272,7 @@ impl ModelConnections {
             14.,
             tr("settings.modelConnections.add").into(),
         )
-        .tooltip(tooltip(tr("settings.modelConnections.add.api")))
+        .tooltip(tr("settings.modelConnections.add.api"))
         .on_click(cx.listener(|s, _, _, cx| s.navigate(PageState::ChooseProvider, cx)));
         SettingsCategory::new(tr("settings.modelConnections.source.api"))
             .action(add)
@@ -291,16 +292,9 @@ impl ModelConnections {
             Some(model) => format!("{model} · {}", item.endpoint).into(),
             None => item.endpoint.clone().into(),
         };
-        table_row(t)
+        let row = table_row(t)
             .id(id)
-            .cursor(theme::clickable_cursor())
-            .hover(move |s| s.bg(t.hover))
-            .child(super::mark(
-                item.provider(),
-                item.source_kind,
-                18.,
-                t.text.into(),
-            ))
+            .child(row_mark(t, item.provider(), item.source_kind))
             .child(identity(t, item.name.clone().into(), detail))
             .child(status(
                 t,
@@ -309,11 +303,12 @@ impl ModelConnections {
                     self.catalog_key(&item.id)
                 ))
                 .into(),
-            ))
-            .child(chevron(t))
-            .on_click(
-                cx.listener(move |s, _, _, cx| s.navigate(PageState::Detail(target.clone()), cx)),
-            )
-            .into_any_element()
+            ));
+        link_row(
+            t,
+            row,
+            cx.listener(move |s, _, _, cx| s.navigate(PageState::Detail(target.clone()), cx)),
+        )
+        .into_any_element()
     }
 }

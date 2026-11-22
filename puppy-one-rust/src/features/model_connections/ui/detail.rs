@@ -13,10 +13,10 @@ use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 
 impl ModelConnections {
     /// The models of the connection's catalog, once read.
-    fn listed_models(&self, item: &ModelConnection) -> Vec<client::CatalogModel> {
+    fn listed_models(&self, item: &ModelConnection) -> &[client::CatalogModel] {
         match &self.catalog {
-            Some((id, Ok(models))) if *id == item.id => models.clone(),
-            _ => vec![],
+            Some((id, Ok(models))) if *id == item.id => models,
+            _ => &[],
         }
     }
     /// `catalog.status` of the shown connection, when not ready.
@@ -138,14 +138,14 @@ impl ModelConnections {
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let route = format!("{}/{}", item.id, model.id);
+        let mut connection = item.clone();
+        connection.model = model.id.clone();
+        let route = connection.route();
         let verifying = self.verify_rx.as_ref().is_some_and(|(r, _)| *r == route);
         let blocked = self.busy
             || self.verify_rx.is_some()
             || model.context.is_none()
             || (item.driver == Driver::Unsloth && !item.server_tools_disabled);
-        let mut connection = item.clone();
-        connection.model = model.id.clone();
         let context = model.context;
         let start = cx.listener(move |s, _, _, cx| {
             if s.verify_rx.is_none() {
@@ -189,52 +189,59 @@ impl ModelConnections {
         };
         let key = SharedString::from(format!("verify-chip-{route}@{at:?}"));
         let icon = if passed { "check" } else { "x" };
+        // The glyph turns over about its vertical axis as it arrives, and
+        // the fill washes in from clear to the result's tint; with reduced
+        // motion the chip shows its end at once.
+        let turn = |svg: Svg, delta: f32| {
+            let scale = (std::f32::consts::PI * (1. - delta) / 2.).cos().max(0.02);
+            svg.with_transformation(Transformation::scale(size(scale, 1.)))
+        };
+        let wash = move |chip: Button, delta: f32| {
+            chip.bg(tone.opacity(0.12 * delta))
+                .border_color(tone.opacity(0.18 + 0.22 * delta))
+        };
+        let still = cx.reduce_motion();
+        let arrive = Animation::new(std::time::Duration::from_millis(360));
         let glyph = svg()
             .path(format!("icons/{icon}@2.4.svg"))
             .size(px(12.))
             .flex_shrink_0()
-            .text_color(tone)
-            .with_animation(
-                ElementId::Name(format!("{key}-glyph").into()),
-                Animation::new(std::time::Duration::from_millis(360)),
-                |svg, delta| {
-                    // Turns over about its vertical axis as it arrives.
-                    let scale = (std::f32::consts::PI * (1. - delta) / 2.).cos().max(0.02);
-                    svg.with_transformation(Transformation::scale(size(scale, 1.)))
-                },
-            );
-        div()
-            .id(("verify-chip", index))
+            .text_color(tone);
+        let glyph = if still {
+            turn(glyph, 1.).into_any_element()
+        } else {
+            glyph
+                .with_animation(
+                    ElementId::Name(format!("{key}-glyph").into()),
+                    arrive.clone(),
+                    turn,
+                )
+                .into_any_element()
+        };
+        let chip = Button::new(("verify-chip", index))
+            .variant(ButtonVariant::Ghost)
+            .leading(glyph)
+            .label(tr(if passed {
+                "native.modelConnections.verifyPassed"
+            } else {
+                "native.modelConnections.verifyFailed"
+            }))
+            .tooltip(reason)
             .flex_none()
-            .h(px(theme::control_compact()))
             .px(px(8.))
-            .flex()
-            .items_center()
             .gap(px(5.))
             .rounded(px(theme::metric::CONTROL_RADIUS))
             .border_1()
             .text_size(px(theme::ty().ui.caption))
             .font_weight(FontWeight::MEDIUM)
             .text_color(tone)
-            .cursor(theme::clickable_cursor())
-            .tooltip(crate::ui::components::tooltip(reason))
-            .when(!blocked, |d| d.on_click(start))
-            .child(glyph)
-            .child(tr(if passed {
-                "native.modelConnections.verifyPassed"
-            } else {
-                "native.modelConnections.verifyFailed"
-            }))
-            // The fill washes in from clear to the result's tint.
-            .with_animation(
-                ElementId::Name(key),
-                Animation::new(std::time::Duration::from_millis(360)),
-                move |d, delta| {
-                    d.bg(tone.opacity(0.12 * delta))
-                        .border_color(tone.opacity(0.18 + 0.22 * delta))
-                },
-            )
-            .into_any_element()
+            .when(!blocked, |chip| chip.on_click(start));
+        if still {
+            wash(chip, 1.).into_any_element()
+        } else {
+            chip.with_animation(ElementId::Name(key), arrive, wash)
+                .into_any_element()
+        }
     }
 
     pub(super) fn detail(&self, id: &str, t: Theme, cx: &mut Context<Self>) -> Div {
@@ -409,10 +416,9 @@ impl ModelConnections {
             )
             .child(
                 div().px(px(10.)).child(
-                    SettingsCategory::new(format!(
-                        "{} {}",
-                        tr("settings.modelConnections.models"),
-                        model_count
+                    SettingsCategory::new(tf(
+                        "native.modelConnections.modelCount",
+                        &[("count", model_count.to_string().into())],
                     ))
                     .action(refresh)
                     .children(status.map(|s| hint(s.into()).into_any_element()))

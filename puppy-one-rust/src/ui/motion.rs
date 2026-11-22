@@ -20,8 +20,13 @@ pub struct Timeline {
 impl Timeline {
     /// A motion starting now.
     pub fn start(duration: Duration) -> Self {
+        Self::since(Instant::now(), duration)
+    }
+    /// A motion that started (or starts) at `started`: for an owner that
+    /// keeps only the instant of the event the motion follows.
+    pub fn since(started: Instant, duration: Duration) -> Self {
         Self {
-            started: Instant::now(),
+            started,
             duration,
             #[cfg(any(test, feature = "test-support"))]
             controlled_elapsed: None,
