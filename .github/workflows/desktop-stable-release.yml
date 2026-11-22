@@ -37,7 +37,7 @@ jobs:
     name: Build signed and notarized macOS release once
     needs: resolve
     runs-on: macos-15
-    timeout-minutes: 120
+    timeout-minutes: 240
     environment:
       name: desktop-signing
     permissions:
@@ -128,8 +128,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rustup toolchain install stable --profile minimal --component rustfmt clippy
-          rustup default stable
+          # The toolchain Rust CI verifies (rust-tests.yml, rust-cross-platform.yml).
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
+          rustup default 1.97.1
           BASELINE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).commit")"
           BASELINE_DIR="${RUNNER_TEMP}/puppyone-product-baseline"
           git worktree add --detach "${BASELINE_DIR}" "${BASELINE_COMMIT}"
