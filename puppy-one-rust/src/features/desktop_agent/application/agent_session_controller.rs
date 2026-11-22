@@ -501,6 +501,13 @@ impl AgentSessionController {
         self.0.refresh_model_connections()
     }
 
+    /// Whether [`Self::refresh_model_connections`] would read the catalog
+    /// now: not during a turn or a submission (it is skipped then, and the
+    /// caller asks again once the turn is over).
+    pub fn can_refresh_model_connections(&self) -> bool {
+        self.0.can_refresh_model_connections()
+    }
+
     pub fn select_runtime(&self, runtime_id: &str) -> Task<bool> {
         self.0.select_runtime(runtime_id)
     }
@@ -810,13 +817,16 @@ impl Inner {
         })
     }
 
+    fn can_refresh_model_connections(&self) -> bool {
+        self.read(|state| {
+            state.capability(Capability::ModelConnections)
+                && state.running_turn_id().is_none()
+                && !state.submitting
+        })
+    }
+
     fn refresh_model_connections(self: &Rc<Self>) -> Task<()> {
-        let blocked = self.read(|state| {
-            !state.capability(Capability::ModelConnections)
-                || state.running_turn_id().is_some()
-                || state.submitting
-        });
-        if blocked {
+        if !self.can_refresh_model_connections() {
             return resolved(());
         }
         let (runtime_id, session_id) = self.read(|state| {

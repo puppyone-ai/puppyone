@@ -192,12 +192,24 @@ impl AgentChatTabPanel {
     pub(super) fn apply_compute(&mut self, snapshot: ComputeSnapshot, cx: &mut Context<Self>) {
         let revision = Some(snapshot.revision.clone());
         if self.compute_revision.is_some() && self.compute_revision != revision {
-            drop(self.controller.refresh_model_connections());
+            self.connections_changed = true;
         }
         self.compute_revision = revision;
         self.compute = Some(snapshot);
+        self.refresh_model_catalog();
         self.refresh_views();
         cx.notify();
+    }
+
+    /// Connections changed (a sign-in, a new key, a catalog sync): this
+    /// chat's model list is read again, at once, or after the turn running
+    /// now ends — the controller reads no catalog mid-turn, and a change it
+    /// skipped is not forgotten ([`Self::on_state_change`] asks again).
+    pub(super) fn refresh_model_catalog(&mut self) {
+        if self.connections_changed && self.controller.can_refresh_model_connections() {
+            self.connections_changed = false;
+            drop(self.controller.refresh_model_connections());
+        }
     }
 
     pub(super) fn compute_view(&self, models: &[Model], selected: Option<&str>) -> ComputeView {

@@ -111,6 +111,8 @@ pub struct AgentChatTabPanel {
     /// send asked for compute access (`computeAccessPrompt`).
     compute: Option<compute::ComputeSnapshot>,
     compute_revision: Option<String>,
+    /// The connections changed and this chat has not read them yet.
+    connections_changed: bool,
     compute_access_prompt: bool,
     /// `usePaymentsExperience()`.
     payments: bool,
@@ -218,6 +220,7 @@ impl AgentChatTabPanel {
             last_presentation: None,
             compute: None,
             compute_revision: None,
+            connections_changed: false,
             compute_access_prompt: false,
             payments: false,
             routing: AgentRouting::default(),
@@ -297,6 +300,8 @@ impl AgentChatTabPanel {
         let state = self.state();
         let view = self.view_model(&state);
         self.sync_composer(&state, &view, window, cx);
+        // A turn that kept the connections from being read has ended.
+        self.refresh_model_catalog();
         // `useAgentRoutingPreferences`: the command target initializes its
         // controller.
         if self.command_target && !state.initialized && state.phase == AgentControllerPhase::Idle {

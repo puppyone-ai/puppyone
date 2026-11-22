@@ -470,6 +470,36 @@ fn recovers_the_bound_model_after_a_temporary_empty_catalog() {
     });
 }
 
+/// A sign-in during a reply is not read mid-turn: the chat is told it may
+/// not refresh until the turn ends, and asks again then (the panel keeps
+/// the change pending instead of dropping it).
+#[test]
+fn connections_are_read_once_the_running_turn_ends() {
+    run(async {
+        let f = bridge_fixture(json!({ "modelConnections": true }));
+        let controller = f.controller();
+        controller.initialize(false).await.expect("initialize");
+        assert!(controller.can_refresh_model_connections());
+        f.emit(turn_started(2, "Running", "turn-running"));
+        assert!(!controller.can_refresh_model_connections());
+        f.bridge.clear("discoverAgentRuntimes");
+        controller.refresh_model_connections().await;
+        assert_eq!(f.bridge.count("discoverAgentRuntimes"), 0);
+        f.emit(event(
+            3,
+            "turn.completed",
+            json!({}),
+            Some("turn-running"),
+            None,
+            "session-1",
+        ));
+        assert!(controller.can_refresh_model_connections());
+        controller.refresh_model_connections().await;
+        assert_eq!(f.bridge.count("discoverAgentRuntimes"), 1);
+        controller.dispose(false);
+    });
+}
+
 #[test]
 fn updates_model_inspection_without_executable_discovery_or_a_new_session() {
     run(async {
