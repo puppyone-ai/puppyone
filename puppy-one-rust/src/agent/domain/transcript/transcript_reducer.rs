@@ -740,11 +740,18 @@ fn mark_turn_model(messages: &mut [Entry], index: usize, event: &Value) {
         .rev()
         .filter(|m| m["role"] == "user")
         .find_map(|m| m.get("model").and_then(Value::as_str).map(str::to_string));
+    // A report without a name keeps the one an earlier report of this turn
+    // gave; with neither, the model id stands in for its connection route.
+    let earlier = messages[index]
+        .get("switchedToModel")
+        .and_then(Value::as_str)
+        .filter(|_| messages[index]["model"] == model);
     let name = event
         .field("modelName")
         .and_then(Value::as_str)
         .filter(|n| !n.is_empty())
-        .unwrap_or(model);
+        .or(earlier)
+        .unwrap_or_else(|| route_model_id(model));
     let name = text::head16(name, 200).to_string();
     let switched = previous.is_some_and(|previous| previous != model);
     messages[index] = revise(&messages[index], |m| {
@@ -755,6 +762,15 @@ fn mark_turn_model(messages: &mut [Entry], index: usize, event: &Value) {
             m.shift_remove("switchedToModel");
         }
     });
+}
+
+/// `mc_<connection>/<model>` names a model connection's model; the reader
+/// knows it by `<model>`. Other model ids are shown as they are.
+fn route_model_id(model: &str) -> &str {
+    model
+        .strip_prefix("mc_")
+        .and_then(|rest| rest.split_once('/'))
+        .map_or(model, |(_, id)| id)
 }
 
 fn set_or_remove(map: &mut Map<String, Value>, key: &str, value: Option<Value>) {

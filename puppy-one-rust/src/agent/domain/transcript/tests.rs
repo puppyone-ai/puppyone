@@ -243,23 +243,45 @@ fn marks_a_turn_sent_to_another_model_than_the_turn_before() {
             Some("turn-3"),
             None,
         ),
+        // The adapter reports the same start again, with the route only.
         event(
             6,
+            "turn.started",
+            json!({"model": "xai/grok"}),
+            Some("turn-3"),
+            None,
+        ),
+        event(
+            7,
             "turn.completed",
             json!({"status": "completed"}),
             Some("turn-3"),
             None,
         ),
         event(
-            7,
+            8,
             "turn.started",
             json!({"prompt": "Four", "model": "local/mlx"}),
             Some("turn-4"),
             None,
         ),
+        event(
+            9,
+            "turn.completed",
+            json!({"status": "completed"}),
+            Some("turn-4"),
+            None,
+        ),
+        event(
+            10,
+            "turn.started",
+            json!({"prompt": "Five", "model": "mc_2bc9caeb-2fb5-4189-997f-ef838e9a2446/grok-4.7"}),
+            Some("turn-5"),
+            None,
+        ),
     ]);
     let users = of(&projection.display.messages, "role", "user");
-    assert_eq!(users.len(), 4);
+    assert_eq!(users.len(), 5);
     assert!(users[0].get("switchedToModel").is_none());
     assert!(users[1].get("switchedToModel").is_none());
     assert_match!(*users[1], json!({"model": "kimi/k3"}));
@@ -269,6 +291,8 @@ fn marks_a_turn_sent_to_another_model_than_the_turn_before() {
     );
     // A model without a display name is shown by its route.
     assert_match!(*users[3], json!({"switchedToModel": "local/mlx"}));
+    // A model connection's route is shown by its model id, never the route.
+    assert_match!(*users[4], json!({"switchedToModel": "grok-4.7"}));
     let part = projection
         .display
         .parts

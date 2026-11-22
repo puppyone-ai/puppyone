@@ -443,22 +443,27 @@ impl AgentSessionRuntime {
                 || pending_references.as_array().is_some_and(|r| !r.is_empty())
             {
                 let state = session.state();
-                let model_name = state.selected_model.as_deref().and_then(|model| {
-                    crate::agent::application::turn::agent_start_transaction::model_label(
-                        &state.models,
-                        model,
-                    )
-                });
                 let payload = Obj::from(&event["payload"])
                     .set("prompt", pending_prompt)
                     .set("promptMentions", session.pending_prompt_mentions())
                     .set("model", state.selected_model.clone())
-                    .opt("modelName", model_name)
                     .set("effort", state.selected_effort.clone())
                     .set("referenceDisplays", pending_references)
                     .build();
                 drop(state);
                 event["payload"] = payload;
+            }
+            // Every report of a turn names its model, so a later one (the
+            // adapter's own start after the transaction's) never leaves the
+            // transcript with the route.
+            let model_name = event["payload"]["model"].as_str().and_then(|model| {
+                crate::agent::application::turn::agent_start_transaction::model_label(
+                    &session.state().models,
+                    model,
+                )
+            });
+            if let Some(name) = model_name.filter(|_| event["payload"].get("modelName").is_none()) {
+                event["payload"]["modelName"] = name.into();
             }
         }
         if matches!(
