@@ -10271,7 +10271,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans"
+          "test": "editor::markdown::tests::composition_acceptance::dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans"
         },
         {
           "package": "po-editor",
@@ -16523,19 +16523,19 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::a_callout_folds_in_the_pane_without_an_edit"
+          "test": "editor::markdown::tests::block_acceptance::a_callout_folds_in_the_pane_without_an_edit"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::callout_fold_and_mdx_tabs_map_accurately_across_edits_undo_and_redo"
+          "test": "editor::markdown::tests::block_acceptance::callout_fold_and_mdx_tabs_map_accurately_across_edits_undo_and_redo"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::run_command_commits_active_ime_composition_before_executing_command"
+          "test": "editor::markdown::tests::core_interaction_acceptance::run_command_commits_active_ime_composition_before_executing_command"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::read_only_allows_view_commands_and_blocks_document_edits"
+          "test": "editor::markdown::tests::core_interaction_acceptance::read_only_allows_view_commands_and_blocks_document_edits"
         }
       ],
       "environment": "local"
@@ -16582,11 +16582,11 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::a_footnote_marker_jumps_to_its_counterpart"
+          "test": "editor::markdown::tests::block_acceptance::a_footnote_marker_jumps_to_its_counterpart"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::markers_hide_and_reveal_with_the_caret"
+          "test": "editor::markdown::tests::core_interaction_acceptance::markers_hide_and_reveal_with_the_caret"
         }
       ],
       "environment": "local"
@@ -16633,7 +16633,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::front_matter_source_shows_until_the_caret_leaves"
+          "test": "editor::markdown::tests::block_acceptance::front_matter_source_shows_until_the_caret_leaves"
         }
       ],
       "environment": "local"
@@ -16696,7 +16696,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::incremental_syntax_and_plans_match_full_parse_across_random_edits"
+          "test": "editor::markdown::tests::pipeline_acceptance::incremental_syntax_and_plans_match_full_parse_across_random_edits"
         },
         {
           "package": "po-editor",
@@ -37913,7 +37913,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::lists_continue_and_tasks_toggle_with_history"
+          "test": "editor::markdown::tests::core_interaction_acceptance::lists_continue_and_tasks_toggle_with_history"
         }
       ]
     },
@@ -39529,7 +39529,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::cursor_movement_rebuilds_zero_document_layer_blocks_and_zero_full_height_plans"
+          "test": "editor::markdown::tests::pipeline_acceptance::cursor_movement_rebuilds_zero_document_layer_blocks_and_zero_full_height_plans"
         }
       ]
     },
@@ -39753,7 +39753,7 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::format_shortcuts_follow_the_product_contract"
+          "test": "editor::markdown::tests::core_interaction_acceptance::format_shortcuts_follow_the_product_contract"
         }
       ]
     },
@@ -39775,7 +39775,7 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::a_web_embed_waits_for_a_click_and_only_https_embeds"
+          "test": "editor::markdown::tests::embed_runtime_acceptance::a_web_embed_waits_for_a_click_and_only_https_embeds"
         },
         {
           "package": "po-editor",
@@ -42399,7 +42399,7 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::tests::dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans"
+          "test": "editor::markdown::tests::composition_acceptance::dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans"
         }
       ]
     },

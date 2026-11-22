@@ -5,6 +5,7 @@ use super::setup;
 use crate::{
     editor::{
         markdown::{
+            MarkdownExtension,
             composition::{FEATURES, MDX_FEATURES},
             core::{
                 features::{self, Features, WidgetFactoryCx},
@@ -232,4 +233,60 @@ fn fences_and_tables_compile_their_payload_and_tables_end_before_prose() {
         code(&plans, source),
         Some(("json".into(), "{\"private\": true}".into()))
     );
+}
+
+#[test]
+fn dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans() {
+    use crate::editor::markdown::{
+        composition::{FEATURES, MDX_FEATURES},
+        features::mdx::TabsBlock,
+    };
+    use crate::{
+        editor::{
+            text::state::EditorState,
+            view::extension::{DecorateInput, EditorExtension},
+        },
+        formats::markdown::MarkdownDialect,
+    };
+    let source = "Intro\n\n<Tabs><Tab label=\"One\">content</Tab></Tabs>\n";
+    let state = EditorState::new(source);
+    let mut markdown = MarkdownExtension::new(false, Scale::Medium);
+    let (_, plain) = markdown.parse(&state);
+    assert!(std::ptr::eq(markdown.features(), FEATURES));
+    assert!(
+        !plain
+            .iter()
+            .any(|p| p.embed().is_some_and(|e| e.model::<TabsBlock>().is_some()))
+    );
+    let plain_key = markdown.decoration_key();
+    assert!(markdown.set_dialect(MarkdownDialect::OpenKnowledgeMdx));
+    assert_ne!(markdown.decoration_key(), plain_key);
+    assert!(std::ptr::eq(markdown.features(), MDX_FEATURES));
+    let (syntax, rich) = markdown.parse(&state);
+    assert_eq!(
+        rich.iter()
+            .filter(|p| p.embed().is_some_and(|e| e.model::<TabsBlock>().is_some()))
+            .count(),
+        1
+    );
+    let decorate = |md: &mut MarkdownExtension| {
+        md.decorate(&DecorateInput {
+            state: &state,
+            focused: false,
+            pointer_selecting: false,
+            dark: false,
+        })
+        .blocks
+        .iter()
+        .any(|b| matches!(b, crate::editor::view::decoration::Block::Widget { .. }))
+    };
+    assert!(decorate(&mut markdown));
+    assert!(!markdown.set_dialect(MarkdownDialect::OpenKnowledgeMdx));
+    let (same_syntax, same_plans) = markdown.parse(&state);
+    assert!(std::rc::Rc::ptr_eq(&syntax, &same_syntax));
+    assert!(std::rc::Rc::ptr_eq(&rich, &same_plans));
+    assert!(markdown.set_dialect(MarkdownDialect::PuppyGfm));
+    assert!(!decorate(&mut markdown));
+    assert_eq!(state.doc.as_str(), source);
+    assert_eq!(state.revision, 0);
 }

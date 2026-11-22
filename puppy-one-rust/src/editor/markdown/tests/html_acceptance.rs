@@ -1,7 +1,7 @@
 //! HTML flow acceptance at the production plan, sanitized surface, native
 //! widget and input boundaries. DOM structure, not HTML whitespace, is the
 //! contract shared with the pinned TS markdownBlockSyntax suite.
-use super::{setup, setup_with_focus};
+use super::{blocks, setup, setup_with_focus};
 use crate::{
     editor::{
         markdown::{
@@ -789,4 +789,20 @@ fn details_disclosure_is_isolated_between_two_documents_with_same_block_offset(
     });
     draw(visual);
     assert!(!disclosure::is_toggled(&mut store_a.borrow_mut(), id_a, 0));
+}
+
+#[gpui::test]
+fn an_html_block_renders_until_its_source_is_shown(cx: &mut TestAppContext) {
+    use crate::editor::markdown::features::html::{ID, ShowSource};
+    use crate::editor::view::command::Command;
+    let text = "<div align=\"center\">\n<b>hi</b>\n</div>\n\nafter";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    assert_eq!(blocks(&view, cx), vec![0..3, 3..4, 4..5]);
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(&Command::new(ID, ShowSource(0..35)), w, cx)
+    });
+    assert_eq!(blocks(&view, cx), vec![0..1, 1..2, 2..3, 3..4, 4..5]);
 }
