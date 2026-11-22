@@ -522,6 +522,31 @@ pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new("tab", NextField, Some("PuppyForm")),
         KeyBinding::new("shift-tab", PreviousField, Some("PuppyForm")),
+        KeyBinding::new(
+            "secondary-shift-z",
+            gpui_kit::base::input::Redo,
+            Some("Input"),
+        ),
+        KeyBinding::new(
+            "secondary-up",
+            gpui_kit::base::input::MoveToStart,
+            Some("Input"),
+        ),
+        KeyBinding::new(
+            "secondary-down",
+            gpui_kit::base::input::MoveToEnd,
+            Some("Input"),
+        ),
+        KeyBinding::new(
+            "secondary-shift-up",
+            gpui_kit::base::input::SelectToStart,
+            Some("Input"),
+        ),
+        KeyBinding::new(
+            "secondary-shift-down",
+            gpui_kit::base::input::SelectToEnd,
+            Some("Input"),
+        ),
     ]);
 }
 

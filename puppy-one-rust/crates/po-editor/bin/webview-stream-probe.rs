@@ -1,7 +1,7 @@
 //! An isolated native-engine fixture process, never part of the packaged app.
 fn main() {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     po_editor::web_host::run_stream_probe();
-    #[cfg(not(target_os = "macos"))]
-    panic!("The WebKit streaming probe requires macOS");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    panic!("The native WebView stream probe requires macOS (WebKit) or Windows (WebView2)");
 }

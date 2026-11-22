@@ -1,6 +1,9 @@
-#[cfg(target_os = "macos")]
-use super::http::Http;
-use super::{callback, http::Remote, model::*, store::Store};
+use super::{
+    callback,
+    http::{Http, Remote},
+    model::*,
+    store::Store,
+};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
@@ -68,19 +71,15 @@ impl Broker {
     pub fn native(
         environment: Environment,
     ) -> Result<(Arc<Self>, async_channel::Receiver<BrowserEvent>)> {
-        #[cfg(target_os = "macos")]
-        {
-            Ok(Self::new(
-                environment,
-                Arc::new(Http::new()?),
-                Arc::new(super::store::Keychain::new()),
-            ))
+        let keychain = super::store::Keychain::new();
+        if !keychain.is_available() {
+            return Err(Error::Unsupported);
         }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = environment;
-            Err(Error::Unsupported)
-        }
+        Ok(Self::new(
+            environment,
+            Arc::new(Http::new()?),
+            Arc::new(keychain),
+        ))
     }
     pub(super) fn new(
         environment: Environment,

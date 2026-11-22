@@ -1,7 +1,10 @@
-#![cfg(all(target_os = "macos", feature = "dev-capture"))]
+#![cfg(all(
+    any(target_os = "macos", target_os = "windows"),
+    feature = "dev-capture"
+))]
 
 #[test]
-#[ignore = "requires the macOS WebKit processes; run the document pages acceptance gate"]
+#[ignore = "requires macOS WebKit or Windows WebView2 runtime; run the document pages acceptance gate"]
 fn real_webkit_document_pages_follow_resets_edits_and_history() {
     let profile = tempfile::tempdir().unwrap();
     let output = po_platform::platform::process::run_output(

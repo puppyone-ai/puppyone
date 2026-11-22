@@ -95,7 +95,14 @@ impl RelativePath {
         {
             return Err(Error::from("A workspace-relative path is required"));
         }
-        Ok(Self(path.components().collect()))
+        let mut normalized = std::ffi::OsString::new();
+        for (index, component) in path.components().enumerate() {
+            if index > 0 {
+                normalized.push("/");
+            }
+            normalized.push(component.as_os_str());
+        }
+        Ok(Self(PathBuf::from(normalized)))
     }
     pub fn as_path(&self) -> &Path {
         &self.0

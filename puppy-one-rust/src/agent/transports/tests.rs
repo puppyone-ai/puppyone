@@ -307,6 +307,7 @@ fn an_unexpected_exit_rejects_pending_requests_and_reports_the_exit() {
     });
 }
 
+#[cfg(unix)]
 #[test]
 fn delivers_a_private_bootstrap_envelope_on_fd_3_only() {
     crate::agent::application::tests_support::run_local(async {

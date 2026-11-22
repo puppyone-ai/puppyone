@@ -105,7 +105,7 @@ fn a_path_reference_becomes_a_mention_and_leaves_with_it(cx: &mut TestAppContext
         "{inserted}"
     );
     // Deleting the mention takes its reference with it.
-    cx.simulate_keystrokes("cmd-a backspace");
+    cx.simulate_keystrokes("secondary-a backspace");
     let removed = log.borrow().last().cloned().unwrap_or_default();
     assert!(removed.contains("removed [\"ref-file\"]"), "{removed}");
 }

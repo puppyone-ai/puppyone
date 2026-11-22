@@ -63,7 +63,7 @@ fn the_rails_and_menu_operations_rewrite_the_table(cx: &mut TestAppContext) {
         assert_eq!(&v.text()[..caret], "| Name  | Qty  |\n| ---   | ---: |\n| apple | 3    |\n| pear  | 5    |\n| ");
     });
     // One undo step restores the original source.
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     view.update(cx, |v, _| assert_eq!(v.text(), TABLE));
     // The add-column rail, then alignment from the menu.
     run(&view, cx, Operation::InsertColumnRight, 0, 1);

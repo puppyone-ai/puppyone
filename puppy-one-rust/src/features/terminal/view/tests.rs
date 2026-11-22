@@ -122,7 +122,7 @@ fn native_pointer_selection_copy_and_shift_override(cx: &mut TestAppContext) {
     cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
     cx.simulate_mouse_move(end, MouseButton::Left, Modifiers::none());
     cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::none());
-    cx.simulate_keystrokes("cmd-c");
+    cx.simulate_keystrokes("secondary-c");
     cx.update(|_, cx| {
         assert_eq!(
             cx.read_from_clipboard().and_then(|c| c.text()).as_deref(),

@@ -1,7 +1,13 @@
-//! Dates in the system's own regional format: `Intl.DateTimeFormat(undefined,
-//! …)`, which follows the operating system's region rather than the app's
-//! language. macOS asks `NSDateFormatter` for the localized pattern of the
-//! same skeleton; elsewhere the en-US rendering stands in.
+//! Regional date/time formatting matching the operating system's locale settings:
+//! macOS uses `NSDateFormatter`, Windows uses `GetDateFormatEx` / `GetTimeFormatEx`,
+//! and Linux/fallback uses local `chrono` short form.
+
+#[cfg(target_os = "macos")]
+#[path = "macos.rs"]
+mod imp;
+#[cfg(target_os = "windows")]
+#[path = "windows.rs"]
+mod imp;
 
 /// `{ month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }`
 /// in local time ("Jan 15, 3:55 PM", "1月15日 15:55").
@@ -10,33 +16,14 @@ pub fn month_day_time(unix_ms: i64) -> String {
     if std::env::var_os("PUPPYONE_LAB").is_some() {
         return fallback(unix_ms);
     }
-    #[cfg(target_os = "macos")]
-    if let Some(text) = macos::format(unix_ms, "MMMdjmm") {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    if let Some(text) = imp::format_month_day_time(unix_ms) {
         return text;
     }
     fallback(unix_ms)
 }
 
-#[cfg(target_os = "macos")]
-mod macos {
-    use objc2_foundation::{NSDate, NSDateFormatter, NSLocale, NSString};
-
-    pub fn format(unix_ms: i64, skeleton: &str) -> Option<String> {
-        let locale = NSLocale::currentLocale();
-        let pattern = NSDateFormatter::dateFormatFromTemplate_options_locale(
-            &NSString::from_str(skeleton),
-            0,
-            Some(&locale),
-        )?;
-        let formatter = NSDateFormatter::new();
-        formatter.setLocale(Some(&locale));
-        formatter.setDateFormat(Some(&pattern));
-        let date = NSDate::dateWithTimeIntervalSince1970(unix_ms as f64 / 1000.);
-        Some(formatter.stringFromDate(&date).to_string())
-    }
-}
-
-/// en-US in local time.
+/// en-US short form in local time.
 fn fallback(unix_ms: i64) -> String {
     use chrono::{Datelike, Local, TimeZone, Timelike};
     const MONTHS: [&str; 12] = [

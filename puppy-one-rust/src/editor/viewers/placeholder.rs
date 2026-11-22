@@ -234,7 +234,9 @@ impl Render for OversizedCard {
             actions.push(
                 Button::new("oversized-reveal-finder")
                     .variant(ButtonVariant::Secondary)
-                    .label(t("workspace.node.revealInFinder"))
+                    .label(t(
+                        crate::platform::conventions::Conventions::current().reveal_label_key
+                    ))
                     .on_click(move |_, _, _| {
                         let _ = crate::platform::desktop::reveal(&path);
                     })
@@ -828,7 +830,12 @@ mod tests {
             assert!(v.local_path.is_some());
             assert_eq!(v.byte_size, Some(expected_len));
             assert_eq!(v.file_type.as_deref(), Some("QQQQ"));
-            assert!(v.thumbnail.is_some());
+            if crate::platform::capabilities::Capabilities::probe()
+                .quick_look_thumbnails
+                .is_available()
+            {
+                assert!(v.thumbnail.is_some());
+            }
         });
     }
 }

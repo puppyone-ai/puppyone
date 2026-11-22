@@ -309,14 +309,7 @@ impl Coordinator {
                 false,
             )
         })?;
-        #[cfg(unix)]
-        let (dev, ino) = {
-            use std::os::unix::fs::MetadataExt;
-            (metadata.dev(), metadata.ino())
-        };
-        #[cfg(not(unix))]
-        let (dev, ino) = (0u64, 0u64);
-        let _ = &metadata;
+        let (dev, ino) = crate::platform::fs::metadata_device_inode(&metadata);
         let fingerprint = format!(
             "{:x}",
             sha2::Sha256::digest(

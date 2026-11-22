@@ -26,6 +26,7 @@ icu_collator = "=2.3.0"
 icu_normalizer = "=2.3.0"
 image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 pulldown-cmark = "0.13"
+raw-window-handle = { version = "0.6", features = ["std"] }
 regex = "1.13.1"
 reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls", "macos-system-configuration"] }
 semver = "1"

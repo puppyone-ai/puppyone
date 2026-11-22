@@ -8,6 +8,7 @@ fn setup(bytes: &[u8]) -> (tempfile::TempDir, Arc<Workspace>) {
     (temp, ws)
 }
 
+#[cfg(unix)]
 #[test]
 fn deferred_preview_reads_stay_bound_to_the_admitted_root_after_a_rename() {
     let temp = tempdir().unwrap();
@@ -836,8 +837,13 @@ fn copy_keeps_exact_names_compound_extensions_and_every_recursive_source_byte() 
     let dir = tempdir().unwrap();
     std::fs::create_dir(dir.path().join("target")).unwrap();
     let ws = Workspace::open(dir.path()).unwrap();
+    let spaced = if cfg!(windows) {
+        (" note", " note copy")
+    } else {
+        (" note ", " note  copy")
+    };
     for (name, duplicate) in [
-        (" note ", " note  copy"),
+        spaced,
         (".env", ".env copy"),
         ("archive.tar.gz", "archive copy.tar.gz"),
     ] {

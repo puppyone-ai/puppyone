@@ -357,9 +357,13 @@ fn publish(f: &UiFixture, op: Operation, cx: &mut VisualTestContext) {
 }
 #[gpui::test]
 fn rendered_suggestion_toggle_preserves_other_settings_and_running_tasks(cx: &mut TestAppContext) {
+    let cursor_supported = crate::platform::local_agent_setup::route("cursor").is_some_and(|r| {
+        r.platforms
+            .contains(&crate::platform::local_agent_setup::platform())
+    });
     let (f, cx) = ui(cx);
     assert!(has(cx, "agent-setup-activate:codex"));
-    assert!(has(cx, "agent-setup-activate:cursor"));
+    assert_eq!(has(cx, "agent-setup-activate:cursor"), cursor_supported);
     f.preferences.update(cx, |p, cx| {
         p.change(
             |p| {
@@ -370,7 +374,7 @@ fn rendered_suggestion_toggle_preserves_other_settings_and_running_tasks(cx: &mu
         )
     });
     assert!(!has(cx, "agent-setup-activate:codex"));
-    assert!(has(cx, "agent-setup-activate:cursor"));
+    assert_eq!(has(cx, "agent-setup-activate:cursor"), cursor_supported);
     f.section.update(cx, |s, cx| {
         s.presentation = Presentation::Settings;
         cx.notify();
@@ -688,7 +692,7 @@ fn closing_a_native_window_revokes_only_its_plans_and_keeps_application_work(
         .plan(&owner(first), "claude", Surface::Chat)
         .unwrap();
     let second_plan = service
-        .plan(&owner(second), "hermes", Surface::Chat)
+        .plan(&owner(second), "opencode", Surface::Chat)
         .unwrap();
     service.start(&owner(first), &first_plan.plan_id).unwrap();
     service.settle_for_test();

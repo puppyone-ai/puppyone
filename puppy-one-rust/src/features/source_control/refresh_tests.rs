@@ -56,6 +56,10 @@ impl<'a> Fixture<'a> {
         let worker = reads.clone();
         let (view, cx) = cx.add_window_view(move |window, cx| {
             let mut view = SourceControl::new(window, cx);
+            // The owner's real metadata watcher would see the `git init` and
+            // file writes these tests perform and start reads the test never
+            // answers; metadata changes reach the owner only as the test raises them.
+            view.metadata_watcher = Arc::new(|_, _| None);
             view.status_reader = Arc::new(move |root, cancel| {
                 worker.started.fetch_add(1, Ordering::SeqCst);
                 let active = worker.active.fetch_add(1, Ordering::SeqCst) + 1;

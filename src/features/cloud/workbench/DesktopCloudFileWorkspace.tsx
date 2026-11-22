@@ -123,9 +123,11 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
       setWakeSignal(value => value + 1);
     });
   }, [workbench]);
-  const openPath = (path: string | null) => {
+  // Keep the node the explorer opened: without it the path is resolved again
+  // through the Cloud before the editor can show the file loading.
+  const openPath: RemoteFolderWorkbench["onActivePathChange"] = (path, node) => {
     setScreenOpen(false);
-    workbench.onActivePathChange(path);
+    return workbench.onActivePathChange(path, node);
   };
   const createItems = useMemo(() => {
     const items = resolveVisibleCreateNewMenuItems(createNewMenuSettings, { enablePuppyFlowFiles });

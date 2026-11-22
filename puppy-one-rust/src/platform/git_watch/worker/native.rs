@@ -50,7 +50,11 @@ impl WatchHandle for Vec<Lease> {
 impl Drop for Lease {
     fn drop(&mut self) {
         let close = {
-            let mut listeners = self.native.listeners.lock().unwrap();
+            let mut listeners = self
+                .native
+                .listeners
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             listeners.entries.remove(&self.id);
             if listeners.entries.is_empty() {
                 listeners.closing = true;
@@ -62,7 +66,12 @@ impl Drop for Lease {
         if close {
             // Dispose on the owning worker, never on notify's callback thread
             // just because an in-flight weak upgrade held the final Arc.
-            let watcher = self.native.watcher.lock().unwrap().take();
+            let watcher = self
+                .native
+                .watcher
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .take();
             drop(watcher);
         }
     }
@@ -320,7 +329,8 @@ mod tests {
         );
         worker.install(now);
         worker.last = worker.read();
-        assert_eq!(retained.native.listeners.lock().unwrap().entries.len(), 2);
+        let count = retained.native.listeners.lock().unwrap().entries.len();
+        assert_eq!(count, 2);
         // No queued OS notification is consumed: this path must repair a
         // silently dead shared stream through metadata reconciliation alone.
         std::fs::write(root.join(".git/HEAD"), "ref: refs/heads/renamed\n").unwrap();

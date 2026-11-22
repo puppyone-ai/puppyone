@@ -15,7 +15,7 @@ pub enum Step {
 
 fn git(root: &Path, args: &[&str]) -> Result<String, String> {
     crate::platform::process::run(
-        Path::new("/usr/bin/git"),
+        crate::platform::git::git_executable(),
         args,
         root,
         None,
@@ -95,7 +95,7 @@ mod tests {
     use core::prelude::v1::test;
 
     fn run(root: &Path, args: &[&str]) -> String {
-        let out = std::process::Command::new("/usr/bin/git")
+        let out = std::process::Command::new(crate::platform::git::git_executable())
             .args(args)
             .current_dir(root)
             .output()

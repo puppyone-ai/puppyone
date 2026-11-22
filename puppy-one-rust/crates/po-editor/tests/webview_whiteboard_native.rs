@@ -1,7 +1,10 @@
-#![cfg(all(target_os = "macos", feature = "dev-capture"))]
+#![cfg(all(
+    any(target_os = "macos", target_os = "windows"),
+    feature = "dev-capture"
+))]
 
 #[test]
-#[ignore = "requires macOS WebKit and the pinned pack; run verify-viewer-pack.py"]
+#[ignore = "requires macOS WebKit or Windows WebView2 and the pinned pack; run verify-viewer-pack.py"]
 fn real_webkit_whiteboard_draws_and_preserves_document_boundaries() {
     use po_platform::platform::{process, viewer_packs};
     let profile = tempfile::tempdir().unwrap();
@@ -25,7 +28,8 @@ fn real_webkit_whiteboard_draws_and_preserves_document_boundaries() {
     )
     .unwrap();
     let receipt: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    for key in [
+    #[cfg(target_os = "macos")]
+    let required: &[&str] = &[
         "passed",
         "ephemeral",
         "initialBytes",
@@ -38,7 +42,10 @@ fn real_webkit_whiteboard_draws_and_preserves_document_boundaries() {
         "resize",
         "invalidPreserved",
         "offlineFonts",
-    ] {
+    ];
+    #[cfg(target_os = "windows")]
+    let required: &[&str] = &["passed", "ephemeral", "theme", "resize", "invalidPreserved"];
+    for key in required {
         assert_eq!(
             receipt[key], true,
             "missing native acceptance: {key}: {receipt}"

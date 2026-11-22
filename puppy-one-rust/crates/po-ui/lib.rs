@@ -13,5 +13,5 @@ pub mod ui;
 
 // The modules below this crate, under the names the sources use.
 pub(crate) use po_contracts::{asset_catalog, file_kind};
-pub(crate) use po_platform::localization;
+pub(crate) use po_platform::{localization, platform};
 pub(crate) use po_workspace::workspace;

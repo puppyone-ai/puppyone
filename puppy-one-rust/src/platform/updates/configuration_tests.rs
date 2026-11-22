@@ -252,13 +252,23 @@ fn preflight_rejections_are_ordered_and_never_inspect_signatures_when_disabled_e
         )),
         None
     );
-    #[cfg(target_os = "macos")]
     for (signature, message) in [
         (Signature::AdHoc, "ad-hoc signed"),
-        (Signature::Unsigned, "not code signed"),
+        (
+            Signature::Unsigned,
+            if cfg!(target_os = "linux") {
+                "not a signed release build"
+            } else {
+                "not code signed"
+            },
+        ),
         (
             Signature::OtherCertificate,
-            "not signed with a release certificate",
+            if cfg!(target_os = "macos") {
+                "not signed with a release certificate"
+            } else {
+                "not signed with a trusted release certificate"
+            },
         ),
         (
             Signature::Unreadable("inspection failed".into()),

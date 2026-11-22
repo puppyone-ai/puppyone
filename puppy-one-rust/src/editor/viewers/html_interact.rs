@@ -222,6 +222,22 @@ impl Interact {
     pub fn set_on_edit(&self, on_edit: Rc<dyn Fn(&mut App)>) {
         self.state.borrow_mut().on_edit = Some(on_edit);
     }
+    pub fn set_fallback_actions(&self, actions: Vec<super::web::WebFallbackAction>, cx: &mut App) {
+        self.frame
+            .update(cx, |frame, _| frame.set_fallback_actions(actions));
+    }
+    /// Local document path when this HTML viewer is backed by a local folder
+    /// (never returns a path for Cloud documents).
+    pub fn local_file_path(&self) -> Option<PathBuf> {
+        if self.assets.is_some() {
+            return None;
+        }
+        let folder = self.folder.as_ref()?;
+        let name = self.name.borrow();
+        let file_name = Path::new(name.as_str()).file_name()?;
+        let candidate = folder.join(file_name);
+        candidate.is_file().then_some(candidate)
+    }
     /// The surface is closing: the edit callback holds its parts (this page
     /// among them), so it goes first.
     pub fn retire(&self) {
@@ -994,7 +1010,8 @@ fn preview_content(
 }
 
 /// The native acceptance process loads the preview a lone document shows.
-#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+#[cfg(feature = "dev-capture")]
+#[allow(dead_code)]
 pub(crate) fn probe_content(text: &str, ipc: Ipc) -> Content {
     let mut scripts = html_page::link_script(None);
     scripts.push_str(&preview_scroll_script(0.));

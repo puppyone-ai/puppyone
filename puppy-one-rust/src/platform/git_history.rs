@@ -191,7 +191,7 @@ mod tests {
         let root = temp.path();
         let run = |args: &[&str]| {
             assert!(
-                std::process::Command::new("/usr/bin/git")
+                std::process::Command::new(crate::platform::git::git_executable())
                     .args(args)
                     .current_dir(root)
                     .output()

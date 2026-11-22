@@ -24,6 +24,18 @@ impl Kind {
     }
 }
 
+/// Platform-appropriate `git` executable path.
+pub fn git_executable() -> &'static Path {
+    #[cfg(windows)]
+    {
+        Path::new("git")
+    }
+    #[cfg(not(windows))]
+    {
+        Path::new("/usr/bin/git")
+    }
+}
+
 pub(super) fn execute(
     root: &Path,
     args: &[&str],
@@ -36,7 +48,7 @@ pub(super) fn execute(
     execute_prepared(
         root,
         Invocation {
-            program: Path::new("/usr/bin/git"),
+            program: git_executable(),
             args: &args,
             environment: &[],
         },
@@ -196,7 +208,9 @@ mod tests {
         git(root, &["commit", "-qm", "initial"], None, &cancel).unwrap();
         let index = root.join(".git/index");
         let before = std::fs::read(&index).unwrap();
-        std::fs::File::open(&file)
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&file)
             .unwrap()
             .set_modified(std::time::UNIX_EPOCH + Duration::from_secs(1_000))
             .unwrap();

@@ -318,11 +318,7 @@ impl WindowCloud {
                     .bg(theme::alpha(t.accent, 0.05))
                     .child(paste_art::drawing(t)),
             );
-        let paste_key = tr(if cfg!(target_os = "macos") {
-            "cloud.share.agent.invite.scene.pasteMac"
-        } else {
-            "cloud.share.agent.invite.scene.pasteOther"
-        });
+        let paste_key = tr(crate::platform::conventions::Conventions::current().paste_shortcut_key);
         let remaining = agents.remaining_secs();
         let next = waiting.then(|| {
             v_flex()
