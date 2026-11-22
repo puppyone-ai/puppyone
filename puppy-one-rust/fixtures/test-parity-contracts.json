@@ -37831,19 +37831,19 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::tests::a_typed_or_deleted_task_prefix_keeps_its_list_rail"
+          "test": "editor::markdown::core::presentation::rhythm::tests::a_typed_or_deleted_task_prefix_keeps_its_list_rail"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::tests::every_nested_item_block_shares_its_depth"
+          "test": "editor::markdown::core::presentation::rhythm::tests::every_nested_item_block_shares_its_depth"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::tests::literal_content_has_no_task"
+          "test": "editor::markdown::core::presentation::rhythm::tests::literal_content_has_no_task"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::tests::a_task_transition_reprojects_the_whole_item"
+          "test": "editor::markdown::core::presentation::rhythm::tests::a_task_transition_reprojects_the_whole_item"
         }
       ]
     },
@@ -39125,23 +39125,23 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::tests::paragraph_edges_span_soft_lines_and_skip_blank_ones"
+          "test": "editor::markdown::core::presentation::rhythm::tests::paragraph_edges_span_soft_lines_and_skip_blank_ones"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::tests::nesting_follows_parsed_ownership"
+          "test": "editor::markdown::core::presentation::rhythm::tests::nesting_follows_parsed_ownership"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::tests::ordered_lists_share_their_widest_marker_column_with_descendants"
+          "test": "editor::markdown::core::presentation::rhythm::tests::ordered_lists_share_their_widest_marker_column_with_descendants"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::tests::an_edited_line_keeps_its_ordered_columns_in_its_own_window"
+          "test": "editor::markdown::core::presentation::rhythm::tests::an_edited_line_keeps_its_ordered_columns_in_its_own_window"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::tests::edits_match_a_fresh_projection"
+          "test": "editor::markdown::core::presentation::rhythm::tests::edits_match_a_fresh_projection"
         }
       ]
     },
@@ -39223,7 +39223,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::links::tests::a_link_title_stays_out_of_the_href"
+          "test": "editor::markdown::core::links::model::tests::a_link_title_stays_out_of_the_href"
         }
       ]
     },
@@ -39305,7 +39305,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::links::tests::standard_images_keep_spaced_destinations_and_their_titles"
+          "test": "editor::markdown::core::links::model::tests::standard_images_keep_spaced_destinations_and_their_titles"
         }
       ]
     },
@@ -39453,7 +39453,7 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::content_language::tests::reading_weight_follows_content_then_interface_and_stays_latched"
+          "test": "editor::markdown::core::presentation::content_language::tests::reading_weight_follows_content_then_interface_and_stays_latched"
         }
       ]
     },
@@ -39479,7 +39479,7 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::links::tests::a_malformed_line_neither_stalls_nor_hides_the_next_lines_token"
+          "test": "editor::markdown::core::links::model::tests::a_malformed_line_neither_stalls_nor_hides_the_next_lines_token"
         },
         {
           "package": "po-editor",
@@ -39653,7 +39653,7 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::navigation::tests::the_url_policy_refuses_obfuscated_and_unsafe_targets"
+          "test": "editor::markdown::platform::link::tests::the_url_policy_refuses_obfuscated_and_unsafe_targets"
         },
         {
           "package": "po-editor",
@@ -39705,11 +39705,11 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::navigation::tests::links_navigate_only_to_executable_targets_and_headings_stay_exact"
+          "test": "editor::markdown::core::links::interaction::tests::links_navigate_only_to_executable_targets_and_headings_stay_exact"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::navigation::tests::markdown_navigation_uses_syntax_and_reveal_state"
+          "test": "editor::markdown::core::links::interaction::tests::markdown_navigation_uses_syntax_and_reveal_state"
         },
         {
           "package": "po-editor",

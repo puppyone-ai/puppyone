@@ -17,9 +17,9 @@ mod marks;
 pub use builder::{BlockDecoration, InlineDecoration, LineDecoration};
 
 use super::{
-    classes::Class,
-    feature::{self, Features, WidgetFactoryCx},
+    features::{self, Features, WidgetFactoryCx},
     plans::{self, Plan, Presentation},
+    presentation::classes::Class,
     presentation::{LineRhythm, block_rhythm_in_lines},
     state::{FeatureStateStore, PreviewState},
     syntax::{Kind, Syntax, SyntaxSplice},
@@ -146,9 +146,9 @@ impl LazyBlockWidget {
             state: &env.feature_state,
         };
         let built = best
-            .and_then(|embed| Some((feature::find(env.features, embed.feature)?, embed)))
+            .and_then(|embed| Some((features::find(env.features, embed.feature)?, embed)))
             .and_then(|(f, embed)| {
-                feature::catch_feature_panic(f.id(), "block_widget", || {
+                features::catch_feature_panic(f.id(), "block_widget", || {
                     f.block_widget(embed, &factory)
                 })
                 .flatten()
@@ -407,9 +407,9 @@ fn decorate_window(
             });
         let widget = block
             .as_ref()
-            .and_then(|(_, embed)| Some((feature::find(cx.features, embed.feature)?, embed)));
+            .and_then(|(_, embed)| Some((features::find(cx.features, embed.feature)?, embed)));
         if let Some((f, embed)) = widget
-            && let Some(built_view) = feature::catch_feature_panic(f.id(), "block_widget", || {
+            && let Some(built_view) = features::catch_feature_panic(f.id(), "block_widget", || {
                 f.block_widget(embed, &factory)
             })
             .flatten()
@@ -452,7 +452,7 @@ fn decorate_window(
                 b.colors.len(),
                 b.spans.len(),
             );
-            let ok = feature::catch_feature_panic(f.id(), "decorate_block", || {
+            let ok = features::catch_feature_panic(f.id(), "decorate_block", || {
                 f.decorate_block(
                     embed,
                     &mut BlockDecoration {

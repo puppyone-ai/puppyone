@@ -295,7 +295,7 @@ fn panicking_inline_content_hooks_discard_partial_output_and_preserve_healthy_me
                 MarkdownExtension,
                 core::{
                     decorations::InlineDecoration,
-                    feature::{Features, MarkdownFeature},
+                    features::{Features, MarkdownFeature},
                 },
                 features::{image, table},
             },

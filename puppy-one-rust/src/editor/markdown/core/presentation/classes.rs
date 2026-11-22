@@ -1,7 +1,7 @@
 //! The CSS classes the product's Markdown pipeline puts on `.cm-line` boxes
 //! and inline spans. Decorations produce class sets; the stylesheet
 //! (`markdown::stylesheet`) resolves them with the product's CSS cascade.
-use super::syntax::Hl;
+use super::super::syntax::Hl;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Class(pub u64);

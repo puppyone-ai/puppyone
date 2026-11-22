@@ -5,7 +5,7 @@
 use super::{Element, Kind, Span};
 use crate::editor::{
     markdown::core::{
-        feature::{self, Features},
+        features::{self, Features},
         links,
     },
     text::buffer::Buffer,
@@ -308,7 +308,7 @@ pub fn add_inline_elements(
         // against panics and clamped to valid document UTF-8 boundaries.
         for f in features {
             let mut stage = Vec::new();
-            if feature::catch_feature_panic(f.id(), "recognize_inline", || {
+            if features::catch_feature_panic(f.id(), "recognize_inline", || {
                 f.recognize_inline(range.start, text, &mut stage);
             })
             .is_some()

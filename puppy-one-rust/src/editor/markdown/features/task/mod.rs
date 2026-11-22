@@ -9,7 +9,7 @@ pub mod style;
 use crate::editor::{
     markdown::core::{
         decorations::LineDecoration,
-        feature::{CommandCx, CompileCx, MarkdownFeature},
+        features::{CommandCx, CompileCx, MarkdownFeature},
         plans::{Atom, Plan, Presentation},
         syntax::{Element, Kind},
     },
@@ -234,7 +234,7 @@ mod tests {
     /// a nested task toggle exactly their `[ ]` and back.
     #[test]
     fn a_toggle_flips_exactly_the_parsers_checkbox() {
-        use crate::editor::{markdown::core::feature::CommandCx, text::state::EditorState};
+        use crate::editor::{markdown::core::features::CommandCx, text::state::EditorState};
         for text in ["-   [ ] task", "-\t[ ] task", "- parent\n    - [ ] task"] {
             let mut state = EditorState::new(text);
             let line = state.doc.line_count() - 1;

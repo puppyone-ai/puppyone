@@ -21,7 +21,6 @@ mod config;
 pub mod core;
 mod extension;
 pub mod features;
-mod navigation;
 mod pipeline;
 pub mod platform;
 pub mod shared;

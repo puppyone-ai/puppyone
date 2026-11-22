@@ -8,7 +8,7 @@ mod widget;
 use crate::editor::{
     markdown::core::{
         decorations::BlockDecoration,
-        feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+        features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
         plans::{BlockEmbed, Plan, Presentation},
         state::PreviewState,
     },

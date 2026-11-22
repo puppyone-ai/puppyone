@@ -519,7 +519,7 @@ fn random_markdown_and_edits_never_panic_the_pipeline() {
         composition::{FEATURES, MDX_FEATURES},
         core::{
             decorations::{self, DecorateCx},
-            feature::Features,
+            features::Features,
             plans,
             presentation::block_rhythm,
             state::PreviewState,
@@ -1192,7 +1192,7 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
     use super::{
         core::{
             decorations::{BlockDecoration, LineDecoration},
-            feature::{
+            features::{
                 CommandCx, CompileCx, FEATURE_PANIC_EVENT, Features, MarkdownFeature,
                 WidgetFactoryCx,
             },

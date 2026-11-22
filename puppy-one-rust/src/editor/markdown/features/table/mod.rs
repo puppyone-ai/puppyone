@@ -29,7 +29,7 @@ use crate::editor::{
     markdown::{
         core::{
             decorations::BlockDecoration,
-            feature::{CommandCx, CompileCx, MarkdownFeature, WidgetFactoryCx},
+            features::{CommandCx, CompileCx, MarkdownFeature, WidgetFactoryCx},
             plans::{BlockEmbed, Plan, Presentation},
         },
         style::cascade::LineContext,

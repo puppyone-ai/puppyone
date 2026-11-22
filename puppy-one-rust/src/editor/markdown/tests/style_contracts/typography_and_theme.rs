@@ -11,7 +11,7 @@ use crate::{
     editor::{
         markdown::{
             SetLivePreview,
-            core::{classes::Class, decorations},
+            core::{decorations, presentation::classes::Class},
             features::{math, mermaid},
             shared::html_surface::resolved_strong_weight,
             style::{
