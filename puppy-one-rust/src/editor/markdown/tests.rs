@@ -789,8 +789,11 @@ fn incremental_syntax_and_plans_match_full_parse_across_random_edits() {
             }
         }
     }
+    // An edit beside an unbalanced HTML block parses the whole document when
+    // another one lies outside the window (they may pair as an HTML flow), and
+    // the `<Tabs>` blocks here are often cut open by these edits.
     assert!(
-        incremental_hits >= 200,
+        incremental_hits >= 190,
         "expected majority of localized edits to take incremental path, got {incremental_hits}"
     );
 }
@@ -1640,4 +1643,414 @@ fn resizing_keeps_the_markdown_at_the_viewport_top(cx: &mut TestAppContext) {
             now - row
         );
     }
+}
+
+/// Deferred suffix tail splitting (`Parsed::tail`) and deferred inline
+/// decoration byte shifting (`Decorations::deferred`) must stay bit-for-bit
+/// equivalent to a full fresh parse + compile + decorate across repeated
+/// typing, IME composition, newline edits, forward/backward jumps, unclosed
+/// fences, and full materialisation (`TA-81`).
+#[test]
+fn deferred_tail_and_deferred_byte_shift_match_full_pipeline_across_edits() {
+    use crate::editor::{
+        markdown::{
+            composition::FEATURES,
+            core::{plans, syntax::Syntax},
+        },
+        text::state::{EditorState, UserEvent},
+        view::extension::EditorExtension,
+    };
+
+    let mut ext = MarkdownExtension::new(true, Scale::Medium);
+    let mut state = EditorState::new(&sectioned_document(40));
+
+    // Initial full build.
+    let _ = ext.decorate_document(&state, true);
+
+    // 1. Typing & IME cycle in Section 15 (middle): detaches tail and defers byte shift.
+    let mut pos = state.doc.as_str().find("Paragraph 15 with").unwrap() + "Paragraph 15 ".len();
+    for ch in ["a", "b", "c"] {
+        apply_markdown_edit(&mut ext, &mut state, pos..pos, ch, UserEvent::Input);
+        pos += ch.len();
+        let doc_rc = ext.decorate_document(&state, true);
+        assert!(
+            doc_rc.has_deferred_shift(),
+            "typing must use deferred suffix byte shift"
+        );
+        drop(doc_rc);
+    }
+    assert!(
+        ext.cache.borrow().parsed.as_ref().unwrap().tail.is_some(),
+        "repeated middle edits must retain detached suffix tail"
+    );
+    // IME preedit -> multi-byte CJK commit.
+    let ime_start = pos;
+    let mut ime_end = pos;
+    for s in ["n", "ni", "nihao", "你好"] {
+        apply_markdown_edit(
+            &mut ext,
+            &mut state,
+            ime_start..ime_end,
+            s,
+            UserEvent::Compose,
+        );
+        ime_end = ime_start + s.len();
+        assert_matches_full_pipeline(&ext, &state, &format!("ime-{s}"));
+    }
+
+    // 2. Insert and delete a newline in Section 15 (tests line_delta != 0 with detached tail).
+    apply_markdown_edit(
+        &mut ext,
+        &mut state,
+        ime_end..ime_end,
+        "\nSecond line",
+        UserEvent::Input,
+    );
+    assert_matches_full_pipeline(&ext, &state, "newline-insert");
+    apply_markdown_edit(
+        &mut ext,
+        &mut state,
+        ime_end..ime_end + "\nSecond line".len(),
+        "",
+        UserEvent::Delete,
+    );
+    assert_matches_full_pipeline(&ext, &state, "newline-delete");
+
+    // 3. Jump forward into the detached tail (Section 30) and edit.
+    let fwd = state.doc.as_str().find("Paragraph 30 with").unwrap() + "Paragraph 30 ".len();
+    apply_markdown_edit(&mut ext, &mut state, fwd..fwd, "FORWARD ", UserEvent::Input);
+    assert_matches_full_pipeline(&ext, &state, "jump-forward");
+
+    // 4. Jump backward before the deferred split (Section 3) and edit.
+    let bwd = state.doc.as_str().find("Paragraph 3 with").unwrap() + "Paragraph 3 ".len();
+    apply_markdown_edit(&mut ext, &mut state, bwd..bwd, "BACK ", UserEvent::Input);
+    assert_matches_full_pipeline(&ext, &state, "jump-backward");
+
+    // 5. Type an unclosed fence inside prefix (must gracefully materialise tail, never duplicate it).
+    let fence_pos = state.doc.as_str().find("Paragraph 5 with").unwrap();
+    apply_markdown_edit(
+        &mut ext,
+        &mut state,
+        fence_pos..fence_pos,
+        "```rust\n",
+        UserEvent::Input,
+    );
+    assert_matches_full_pipeline(&ext, &state, "unclosed-fence");
+    apply_markdown_edit(
+        &mut ext,
+        &mut state,
+        fence_pos..fence_pos + "```rust\n".len(),
+        "",
+        UserEvent::Delete,
+    );
+    assert_matches_full_pipeline(&ext, &state, "remove-unclosed-fence");
+
+    // 6. Full syntax & plans equivalence after materialisation via `parse()`.
+    let (syn, pl) = ext.parse(&state);
+    let expected_syn = Syntax::parse_with(&state.doc, FEATURES);
+    let expected_pl = plans::compile(&state.doc, &expected_syn, &ext.preview.features, FEATURES);
+    assert_eq!(
+        *syn, expected_syn,
+        "materialised Syntax must equal fresh parse"
+    );
+    assert_eq!(pl.len(), expected_pl.len(), "materialised Plan count");
+    let mut refreshed_pl = (*pl).clone();
+    plans::refresh_shifted_block_plans(
+        &state.doc,
+        &syn,
+        &ext.preview.features,
+        FEATURES,
+        &mut refreshed_pl,
+        0..state.doc.len(),
+    );
+    assert_eq!(
+        refreshed_pl, expected_pl,
+        "materialised Plans after shifted-block refresh must equal fresh compile"
+    );
+}
+
+/// Random edits anywhere in a long document (in the prefix, inside the
+/// detached tail, across block boundaries) keep the incremental pipeline equal
+/// to a full rebuild after every step. Reproduce a failure with the printed seed
+/// (`PUPPYONE_PIPELINE_DIFF_SEED`); `PUPPYONE_PIPELINE_DIFF_EDITS` runs longer.
+#[test]
+fn random_edits_keep_the_incremental_pipeline_equal_to_a_full_rebuild() {
+    use crate::editor::{
+        text::state::{EditorState, UserEvent},
+        view::extension::EditorExtension,
+    };
+    const FRAGMENTS: &[&str] = &[
+        "a",
+        "word ",
+        "中文",
+        "🧪",
+        " ",
+        "\n",
+        "\n\n",
+        "**",
+        "`",
+        "[link](x)",
+        "- ",
+        "- [ ] ",
+        "1. ",
+        "## ",
+        "> ",
+        "```\n",
+        "```rust\n",
+        "| a | b |\n| - | - |\n",
+        "$$\n",
+        "[^1]",
+        "[^1]: note\n",
+        "<div>\n",
+        "</div>\n",
+        "%%",
+        "---\n",
+    ];
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
+            let mut z = self.0;
+            z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+            z ^ (z >> 31)
+        }
+        fn below(&mut self, bound: usize) -> usize {
+            if bound <= 1 {
+                0
+            } else {
+                (self.next() as usize) % bound
+            }
+        }
+    }
+    let edits = std::env::var("PUPPYONE_PIPELINE_DIFF_EDITS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(120);
+    let seed = std::env::var("PUPPYONE_PIPELINE_DIFF_SEED")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0x0d1f_f5ee_d000_0134);
+    let mut rng = Rng(seed);
+    let mut ext = MarkdownExtension::new(true, Scale::Medium);
+    let mut state = EditorState::new(&sectioned_document(40));
+    let _ = ext.decorate_document(&state, true);
+    for step in 0..edits {
+        let len = state.doc.len();
+        let at = state.doc.clamp(rng.below(len + 1));
+        let fragment = FRAGMENTS[rng.below(FRAGMENTS.len())];
+        let (range, insert, event) = match rng.below(4) {
+            0 | 1 => (at..at, fragment, UserEvent::Input),
+            2 => (
+                at..state.doc.clamp((at + 1 + rng.below(40)).min(len)),
+                "",
+                UserEvent::Delete,
+            ),
+            _ => (
+                at..state.doc.clamp((at + rng.below(12)).min(len)),
+                fragment,
+                UserEvent::Input,
+            ),
+        };
+        if range.is_empty() && insert.is_empty() {
+            continue;
+        }
+        let label = format!("seed {seed} step {step}: {range:?} -> {insert:?}");
+        apply_markdown_edit(&mut ext, &mut state, range, insert, event);
+        assert_matches_full_pipeline(&ext, &state, &label);
+    }
+}
+
+/// `sections` repetitions of a heading, a paragraph with inline marks, a list,
+/// a fenced block and a table: long enough for the pipeline to detach its tail.
+fn sectioned_document(sections: usize) -> String {
+    (0..sections)
+        .map(|i| {
+            format!(
+                "## Section {i}\n\nParagraph {i} with **bold**, *italic*, `code`, and [link](https://example.com/{i}) text.\n\n- item one {i}\n- [x] task {i}\n\n```rust\nfn s_{i}() {{}}\n```\n\n| A | B |\n| - | - |\n| {i} | val |\n"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The incremental pipeline (detached tail, deferred byte shift) decorates a
+/// document exactly as a fresh parse, compile and decorate of the same text.
+fn assert_matches_full_pipeline(
+    ext: &MarkdownExtension,
+    state: &crate::editor::text::state::EditorState,
+    label: &str,
+) {
+    use super::{
+        composition::FEATURES,
+        core::{
+            decorations::{self, DecorateCx},
+            plans,
+            presentation::block_rhythm,
+            state::PreviewState,
+            syntax::Syntax,
+        },
+        style::MarkdownTheme,
+    };
+    use crate::editor::view::{
+        decoration::{Block, LayeredDecorations},
+        extension::{DecorateInput, EditorExtension},
+    };
+    let theme = MarkdownTheme::resolve(true, Scale::Medium);
+    let doc_rc = ext.decorate_document(state, true);
+    let rev_rc = ext.decorate_reveal(
+        &DecorateInput {
+            state,
+            focused: true,
+            pointer_selecting: false,
+            dark: true,
+        },
+        &doc_rc,
+    );
+    let layered = LayeredDecorations::new(doc_rc, rev_rc);
+
+    // Fresh ground-truth full parse -> compile -> decorate.
+    let full_syntax = Syntax::parse_with(&state.doc, FEATURES);
+    let full_plans = plans::compile(&state.doc, &full_syntax, &ext.preview.features, FEATURES);
+    let full_rhythm = block_rhythm(&state.doc, &full_syntax, None);
+    let full_doc = decorations::decorate(&DecorateCx {
+        doc: &state.doc,
+        syntax: &full_syntax,
+        plans: &full_plans,
+        rhythm: &full_rhythm,
+        theme: &theme,
+        preview: &PreviewState::document_only(ext.preview.features.clone()),
+        live: true,
+        features: FEATURES,
+        assets: None,
+        references: None,
+    });
+    let full_rev = decorations::decorate_reveal(
+        &full_doc,
+        &DecorateCx {
+            doc: &state.doc,
+            syntax: &full_syntax,
+            plans: &full_plans,
+            rhythm: &[],
+            theme: &theme,
+            preview: &ext.preview,
+            live: true,
+            features: FEATURES,
+            assets: None,
+            references: None,
+        },
+        state.revision,
+    );
+    let full_layered =
+        LayeredDecorations::new(std::rc::Rc::new(full_doc), std::rc::Rc::new(full_rev));
+
+    // Check viewport-style range queries spanning prefix, edited window, and shifted suffix.
+    for probe_line in [
+        0,
+        5,
+        100,
+        200,
+        state.doc.line_count() / 2,
+        state.doc.line_count() - 2,
+    ] {
+        let r = state
+            .doc
+            .line_range(probe_line.min(state.doc.line_count() - 1));
+        assert_eq!(
+            layered.marks_in(&r).as_ref(),
+            full_layered.marks_in(&r).as_ref(),
+            "{label}: marks_in mismatch at line {probe_line}"
+        );
+        assert_eq!(
+            layered.hidden_in(&r).as_ref(),
+            full_layered.hidden_in(&r).as_ref(),
+            "{label}: hidden_in mismatch at line {probe_line}"
+        );
+        let a_iw: Vec<_> = layered
+            .inline_widgets_in(&r)
+            .iter()
+            .map(|w| (w.range.clone(), w.display_text().clone()))
+            .collect();
+        let b_iw: Vec<_> = full_layered
+            .inline_widgets_in(&r)
+            .iter()
+            .map(|w| (w.range.clone(), w.display_text().clone()))
+            .collect();
+        assert_eq!(
+            a_iw, b_iw,
+            "{label}: inline_widgets_in mismatch at line {probe_line}"
+        );
+        let mid_pos = (r.start + r.end) / 2;
+        assert_eq!(
+            layered.atomic_containing(mid_pos),
+            full_layered.atomic_containing(mid_pos),
+            "{label}: atomic_containing mismatch at line {probe_line}"
+        );
+    }
+
+    // Check full materialised decorations match ground truth 100%.
+    let mat = layered.as_decorations();
+    let exp = full_layered.as_decorations();
+    assert_eq!(mat.blocks.len(), exp.blocks.len(), "{label}: block count");
+    for (i, (a, b)) in mat.blocks.iter().zip(&exp.blocks).enumerate() {
+        assert_eq!(a.lines(), b.lines(), "{label}: block[{i}] lines");
+        assert_eq!(
+            matches!(a, Block::Widget { .. }),
+            matches!(b, Block::Widget { .. }),
+            "{label}: block[{i}] kind"
+        );
+    }
+    assert_same_items(&mat.marks, &exp.marks, &format!("{label}: full marks"));
+    assert_same_items(&mat.hidden, &exp.hidden, &format!("{label}: full hidden"));
+    assert_same_items(&mat.atomic, &exp.atomic, &format!("{label}: full atomic"));
+    assert_eq!(mat.underlines, exp.underlines, "{label}: full underlines");
+}
+
+/// One edit through the same path the editor view takes.
+/// Fails at the first item where `incremental` and `full` differ, showing
+/// only the neighbourhood instead of both whole lists.
+fn assert_same_items<T: PartialEq + std::fmt::Debug>(incremental: &[T], full: &[T], label: &str) {
+    let Some(at) =
+        (0..incremental.len().max(full.len())).find(|&i| incremental.get(i) != full.get(i))
+    else {
+        return;
+    };
+    let near = |items: &[T]| {
+        let from = at.saturating_sub(2);
+        format!(
+            "{:?}",
+            &items[from.min(items.len())..(at + 3).min(items.len())]
+        )
+    };
+    panic!(
+        "{label}: first difference at index {at} (incremental {} items, full {})\n incremental: {}\n        full: {}",
+        incremental.len(),
+        full.len(),
+        near(incremental),
+        near(full)
+    );
+}
+
+fn apply_markdown_edit(
+    ext: &mut MarkdownExtension,
+    state: &mut crate::editor::text::state::EditorState,
+    range: std::ops::Range<usize>,
+    insert: &str,
+    event: crate::editor::text::state::UserEvent,
+) {
+    use crate::editor::{
+        text::{change::ChangeSet, state::Transaction},
+        view::extension::EditorExtension,
+    };
+    let caret = range.start + insert.len();
+    let applied = state
+        .apply(Transaction::edit(
+            ChangeSet::replace(range, insert),
+            Some(Selection::cursor(caret)),
+            event,
+        ))
+        .unwrap();
+    ext.prepare_applied(&applied, state);
+    let _ = ext.normalize_selection(state);
+    ext.applied(&applied, state, true);
 }

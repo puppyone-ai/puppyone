@@ -34,7 +34,10 @@ pub struct BlockEmbed {
     pub feature: &'static str,
     key: u64,
     /// Start byte offset when `model` was compiled (detects shifted suffix embeds).
-    pub built_at: usize,
+    built_at: usize,
+    /// Start line when `model` was compiled: models such as tables keep line
+    /// numbers, which a shift can change while the start byte comes back.
+    built_line: usize,
     model: Rc<dyn Any>,
 }
 
@@ -46,8 +49,14 @@ impl BlockEmbed {
             feature,
             key: h.finish(),
             built_at: usize::MAX,
+            built_line: usize::MAX,
             model: Rc::new(model),
         }
+    }
+
+    /// Whether `model` was compiled for a block starting at `start` in `doc`.
+    pub fn built_for(&self, doc: &Buffer, start: usize) -> bool {
+        self.built_at == start && self.built_line == doc.line_index(start)
     }
 
     pub fn key(&self) -> u64 {
@@ -114,12 +123,13 @@ impl Plan {
         }
     }
 
-    fn finalize_built_at(mut self) -> Self {
+    fn finalize_built_at(mut self, doc: &Buffer) -> Self {
         let start = self.source.start;
         if let Presentation::BlockAtom(embed) = &mut self.presentation
             && embed.built_at == usize::MAX
         {
             embed.built_at = start;
+            embed.built_line = doc.line_index(start);
         }
         self
     }
@@ -137,7 +147,7 @@ impl Plan {
                 *m = doc.clamp_range(m.clone());
             }
         }
-        self.finalize_built_at()
+        self.finalize_built_at(doc)
     }
 }
 
@@ -212,17 +222,122 @@ fn compile_one_element(index: usize, e: &Element, cx: &CompileCx, features: Feat
     compile_core_element(index, e)
 }
 
+/// Lookback byte window for `O(log N)` plan boundary straddle checks; plans
+/// longer than this threshold are indexed separately in `PlanCache::large_plans`.
+const PLAN_STRADDLE_LOOKBACK: usize = 4096;
+
 /// Per-block compiled `Plan` cache (`TA-32`), keyed by `(block_start,
-/// block_content_hash, state_hash)` so unchanged blocks skip recompilation.
+/// block_content_hash, state_hash)` so unchanged blocks skip recompilation,
+/// plus incremental straddle and `SourceFallback` indexes (`TA-81`).
 #[derive(Clone, Default)]
 pub struct PlanCache {
     entries: HashMap<(usize, u64, u64), Vec<Plan>>,
     pub block_compiles: u64,
+    large_plans: Vec<Range<usize>>,
+    source_fallbacks: Vec<(bool, Range<usize>)>,
+    indexed: bool,
 }
 
 impl PlanCache {
     pub fn clear(&mut self) {
         self.entries.clear();
+        self.large_plans.clear();
+        self.source_fallbacks.clear();
+        self.indexed = false;
+    }
+
+    pub fn rebuild_index(&mut self, plans: &[Plan]) {
+        self.large_plans.clear();
+        self.source_fallbacks.clear();
+        for p in plans {
+            if p.source.len() > PLAN_STRADDLE_LOOKBACK {
+                self.large_plans.push(p.source.clone());
+            }
+            if matches!(p.presentation, Presentation::SourceFallback { .. }) {
+                self.source_fallbacks
+                    .push((p.element.is_none(), p.source.clone()));
+            }
+        }
+        self.indexed = true;
+    }
+
+    pub fn source_fallbacks(&self) -> Option<&[(bool, Range<usize>)]> {
+        self.indexed.then_some(self.source_fallbacks.as_slice())
+    }
+
+    /// Exact `O(log N)` check whether any plan in `plans` strictly straddles
+    /// `pos` (`p.source.start < pos && p.source.end > pos`).
+    pub fn any_straddles(&mut self, plans: &[Plan], pos: usize) -> bool {
+        if !self.indexed {
+            self.rebuild_index(plans);
+        }
+        if self
+            .large_plans
+            .iter()
+            .any(|r| r.start < pos && r.end > pos)
+        {
+            return true;
+        }
+        let lo =
+            plans.partition_point(|p| p.source.start < pos.saturating_sub(PLAN_STRADDLE_LOOKBACK));
+        let hi = plans.partition_point(|p| p.source.start < pos).max(lo);
+        plans[lo..hi].iter().any(|p| p.source.end > pos)
+    }
+
+    /// Drop indexed entries at/after `split_byte` when detaching a deferred tail.
+    pub fn truncate_at(&mut self, split_byte: usize) {
+        if !self.indexed {
+            return;
+        }
+        let lp = self.large_plans.partition_point(|r| r.start < split_byte);
+        self.large_plans.truncate(lp);
+        let sf = self
+            .source_fallbacks
+            .partition_point(|(_, r)| r.start < split_byte);
+        self.source_fallbacks.truncate(sf);
+    }
+
+    fn splice_indexes(&mut self, ob: &Range<usize>, win_plans: &[Plan], bd: isize) {
+        if !self.indexed {
+            return;
+        }
+        let lp_pre = self.large_plans.partition_point(|r| r.start < ob.start);
+        let lp_suf = self
+            .large_plans
+            .partition_point(|r| r.start < ob.end)
+            .max(lp_pre);
+        let new_large: Vec<Range<usize>> = win_plans
+            .iter()
+            .filter(|p| p.source.len() > PLAN_STRADDLE_LOOKBACK)
+            .map(|p| p.source.clone())
+            .collect();
+        let new_large_len = new_large.len();
+        self.large_plans.splice(lp_pre..lp_suf, new_large);
+        if bd != 0 {
+            for r in &mut self.large_plans[lp_pre + new_large_len..] {
+                *r = shift_range(r, bd);
+            }
+        }
+
+        let sf_pre = self
+            .source_fallbacks
+            .partition_point(|(_, r)| r.start < ob.start);
+        let sf_suf = self
+            .source_fallbacks
+            .partition_point(|(_, r)| r.start < ob.end)
+            .max(sf_pre);
+        let new_sf: Vec<(bool, Range<usize>)> = win_plans
+            .iter()
+            .filter(|p| matches!(p.presentation, Presentation::SourceFallback { .. }))
+            .map(|p| (p.element.is_none(), p.source.clone()))
+            .collect();
+        let new_sf_len = new_sf.len();
+        self.source_fallbacks.splice(sf_pre..sf_suf, new_sf);
+        if bd != 0 {
+            for (_, r) in &mut self.source_fallbacks[sf_pre + new_sf_len..] {
+                *r = shift_range(r, bd);
+            }
+        }
     }
 }
 
@@ -283,6 +398,8 @@ pub fn window_syntax_view(
         footnotes: Default::default(),
         link_defs: Vec::new(),
         block_delimiters: Vec::new(),
+        comment_spans: Vec::new(),
+        footnote_spans: Vec::new(),
     }
 }
 
@@ -464,12 +581,11 @@ pub fn compile_incremental_in_place(
     if splice.old_had_delimiters
         || end_delims > pre_delims
         || pre_delims % 2 == 1
-        || plans.iter().any(|p| {
-            (p.source.start < ob.start && p.source.end > ob.start)
-                || (p.source.start < ob.end && p.source.end > ob.end)
-        })
+        || cache.any_straddles(plans, ob.start)
+        || cache.any_straddles(plans, ob.end)
     {
         *plans = compile(doc, syntax, folds, features);
+        cache.rebuild_index(plans);
         return;
     }
 
@@ -498,6 +614,7 @@ pub fn compile_incremental_in_place(
         .any(|p| p.source.start < nb.start || p.source.end > nb.end)
     {
         *plans = compile(doc, syntax, folds, features);
+        cache.rebuild_index(plans);
         return;
     }
     win_plans.sort_by(|a, b| {
@@ -507,6 +624,7 @@ pub fn compile_incremental_in_place(
             .then(a.source.end.cmp(&b.source.end))
     });
     cache.block_compiles += 1;
+    cache.splice_indexes(ob, &win_plans, bd);
 
     let p_pre = plans.partition_point(|p| p.source.start < ob.start);
     let p_suf = plans
@@ -516,24 +634,42 @@ pub fn compile_incremental_in_place(
     plans.splice(p_pre..p_suf, win_plans);
 
     if bd != 0 || elem_delta != 0 {
-        for m in &mut plans[p_pre + win_len..] {
-            m.source = shift_range(&m.source, bd);
-            if let Some(el) = &mut m.element {
-                *el = shift_signed(*el, elem_delta);
+        shift_plans_slice(&mut plans[p_pre + win_len..], bd, elem_delta);
+    }
+}
+
+fn shift_plans_slice(plans: &mut [Plan], bd: isize, elem_delta: isize) {
+    for m in plans {
+        m.source = shift_range(&m.source, bd);
+        if let Some(el) = &mut m.element {
+            *el = shift_signed(*el, elem_delta);
+        }
+        if bd != 0 {
+            for du in &mut m.delete_units {
+                *du = shift_range(du, bd);
             }
-            if bd != 0 {
-                for du in &mut m.delete_units {
-                    *du = shift_range(du, bd);
-                }
-                if let Presentation::InlineMark { content, markers } = &mut m.presentation {
-                    *content = shift_range(content, bd);
-                    for mk in markers {
-                        *mk = shift_range(mk, bd);
-                    }
+            if let Presentation::InlineMark { content, markers } = &mut m.presentation {
+                *content = shift_range(content, bd);
+                for mk in markers {
+                    *mk = shift_range(mk, bd);
                 }
             }
         }
     }
+}
+
+/// Re-attach a previously detached suffix tail of plans after shifting byte and
+/// element indices by their accumulated deltas (`TA-81`).
+pub fn append_shifted_tail(
+    plans: &mut Vec<Plan>,
+    mut tail: Vec<Plan>,
+    bd: isize,
+    elem_delta: isize,
+) {
+    if bd != 0 || elem_delta != 0 {
+        shift_plans_slice(&mut tail, bd, elem_delta);
+    }
+    plans.append(&mut tail);
 }
 
 /// Ensure any `BlockAtom` plan intersecting `byte_range` has a fresh `model`
@@ -550,7 +686,7 @@ pub fn refresh_shifted_block_plans(
     let needs_refresh = plans.iter().any(|p| {
         p.source.end >= byte_range.start
             && p.source.start <= byte_range.end
-            && p.embed().is_some_and(|e| e.built_at != p.source.start)
+            && p.embed().is_some_and(|e| !e.built_for(doc, p.source.start))
     });
     if !needs_refresh {
         return;
@@ -567,7 +703,7 @@ pub fn refresh_shifted_block_plans(
     );
     for p in plans.iter_mut() {
         if let Some(embed) = p.embed()
-            && embed.built_at != p.source.start
+            && !embed.built_for(doc, p.source.start)
             && let Some(replacement) = fresh.iter().find(|f| {
                 f.source == p.source && f.embed().is_some_and(|fe| fe.feature == embed.feature)
             })

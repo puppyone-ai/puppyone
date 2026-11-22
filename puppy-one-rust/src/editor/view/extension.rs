@@ -445,9 +445,18 @@ impl ExtensionSet {
             [single] => single.decorate_document(state, dark),
             many => {
                 let mut merged = (*many[0].decorate_document(state, dark)).clone();
+                merged.materialize();
                 merged.splice = None;
                 for extra in &many[1..] {
-                    let other = extra.decorate_document(state, dark);
+                    let other_rc = extra.decorate_document(state, dark);
+                    let other_cow = if other_rc.has_deferred_shift() {
+                        let mut owned = (*other_rc).clone();
+                        owned.materialize();
+                        std::borrow::Cow::Owned(owned)
+                    } else {
+                        std::borrow::Cow::Borrowed(&*other_rc)
+                    };
+                    let other = other_cow.as_ref();
                     merged.marks.extend(other.marks.iter().cloned());
                     merged.hidden.extend(other.hidden.iter().cloned());
                     merged.atomic.extend(other.atomic.iter().cloned());

@@ -296,6 +296,7 @@ fn decorate_window(
     mut registry: Option<&mut BlockIdRegistry>,
     revision: u64,
     prev_widgets: Option<&HashMap<BlockId, Rc<dyn BlockWidget>>>,
+    indexed_source_fallbacks: Option<&[(bool, Range<usize>)]>,
 ) -> WindowArtifacts {
     let doc = cx.doc;
     let total = doc.line_count();
@@ -339,17 +340,25 @@ fn decorate_window(
     // A diagnosed source fallback owns its authored text even if the base
     // parser also produced nested Markdown elements. Keep these ranges across
     // viewport/reveal windows, including windows starting inside the block.
-    let source_fallbacks: Vec<_> = cx
-        .plans
-        .iter()
-        .filter(|p| matches!(p.presentation, Presentation::SourceFallback { .. }))
-        .collect();
+    let owned_source_fallbacks;
+    let source_fallbacks: &[(bool, Range<usize>)] = match indexed_source_fallbacks {
+        Some(indexed) => indexed,
+        None => {
+            owned_source_fallbacks = cx
+                .plans
+                .iter()
+                .filter(|p| matches!(p.presentation, Presentation::SourceFallback { .. }))
+                .map(|p| (p.element.is_none(), p.source.clone()))
+                .collect::<Vec<_>>();
+            &owned_source_fallbacks
+        }
+    };
     let mut line = start_line;
     while line < end_line {
         let local = line - start_line;
         let range = doc.line_range(line);
-        if source_fallbacks.iter().any(|p| {
-            p.element.is_none() && p.source.start <= range.start && range.start < p.source.end
+        if source_fallbacks.iter().any(|(is_block, source)| {
+            *is_block && source.start <= range.start && range.start < source.end
         }) {
             b.source_line(line);
             line += 1;
@@ -370,7 +379,32 @@ fn decorate_window(
                 Some(best) if best.source.end >= p.source.end => Some(best),
                 _ => Some(p),
             })
-            .and_then(|p| Some((p.source.clone(), p.embed()?.clone())));
+            .and_then(|p| Some((p.source.clone(), p.embed()?.clone())))
+            .map(|(source, embed)| {
+                if embed.built_for(doc, source.start) {
+                    return (source, embed);
+                }
+                let last_l = doc
+                    .line_index(source.end.saturating_sub(1).max(source.start))
+                    .min(end_line.saturating_sub(1))
+                    .max(line);
+                let refreshed = plans::compile_blocks_in_window(
+                    doc,
+                    cx.syntax,
+                    &cx.preview.features,
+                    cx.features,
+                    source.clone(),
+                    line..last_l + 1,
+                );
+                let fresh = refreshed
+                    .into_iter()
+                    .find(|p| {
+                        p.source == source && p.embed().is_some_and(|e| e.feature == embed.feature)
+                    })
+                    .and_then(|p| p.embed().cloned())
+                    .unwrap_or(embed);
+                (source, fresh)
+            });
         let widget = block
             .as_ref()
             .and_then(|(_, embed)| Some((feature::find(cx.features, embed.feature)?, embed)));
@@ -455,7 +489,7 @@ fn decorate_window(
         let literal = |range: &Range<usize>| {
             source_fallbacks
                 .iter()
-                .any(|p| p.source.start < range.end && range.start < p.source.end)
+                .any(|(_, source)| source.start < range.end && range.start < source.end)
         };
         b.hidden.retain(|r| !literal(r));
         b.atomic.retain(|r| !literal(r));
@@ -469,19 +503,13 @@ fn decorate_window(
         // Restore only the semantic dimming of a whole literal comment after
         // removing nested projections. Whitespace belongs to the block range,
         // while the comment's exact span excludes indentation and line endings.
-        for plan in &source_fallbacks {
-            if let Some(comment) = cx.syntax.elements_in(plan.source.clone()).find(|e| {
+        for (_, source) in source_fallbacks {
+            if let Some(comment) = cx.syntax.elements_in(source.clone()).find(|e| {
                 e.kind == Kind::Comment
-                    && plan.source.start <= e.range.start
-                    && e.range.end <= plan.source.end
-                    && doc
-                        .slice_cow(plan.source.start..e.range.start)
-                        .trim()
-                        .is_empty()
-                    && doc
-                        .slice_cow(e.range.end..plan.source.end)
-                        .trim()
-                        .is_empty()
+                    && source.start <= e.range.start
+                    && e.range.end <= source.end
+                    && doc.slice_cow(source.start..e.range.start).trim().is_empty()
+                    && doc.slice_cow(e.range.end..source.end).trim().is_empty()
             }) {
                 b.spans.push(builder::ClassSpan {
                     range: comment.range.clone(),
@@ -538,7 +566,7 @@ fn decorate_window(
 }
 
 pub fn decorate(cx: &DecorateCx) -> Decorations {
-    let win = decorate_window(cx, 0..cx.doc.line_count(), 0, None, 0, None);
+    let win = decorate_window(cx, 0..cx.doc.line_count(), 0, None, 0, None, None);
     Decorations {
         id: crate::editor::view::decoration::next_decorations_id(),
         blocks: win.blocks,
@@ -549,6 +577,7 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
         underlines: win.underlines,
         surface: surface(cx.theme),
         splice: None,
+        ..Default::default()
     }
 }
 
@@ -565,6 +594,7 @@ pub fn decorate_with_registry(
         Some(registry),
         revision,
         Some(prev_widgets),
+        None,
     );
     let live_ids: HashSet<BlockId> = win
         .blocks
@@ -585,6 +615,7 @@ pub fn decorate_with_registry(
         underlines: win.underlines,
         surface: surface(cx.theme),
         splice: None,
+        ..Default::default()
     }
 }
 
@@ -594,36 +625,41 @@ fn shift_range(r: &Range<usize>, delta: isize) -> Range<usize> {
     s..e
 }
 
-fn shift_inline_widget(w: &InlineWidget, delta: isize) -> InlineWidget {
-    if delta == 0 {
-        return w.clone();
+fn shift_inline_widget_in_place(w: &mut InlineWidget, delta: isize) {
+    w.range = shift_range(&w.range, delta);
+    match &mut w.kind {
+        InlineWidgetKind::Text(_) => {}
+        InlineWidgetKind::Superscript { sup, .. } => sup.range = w.range.clone(),
+        InlineWidgetKind::Image { image, .. } => image.range = w.range.clone(),
     }
-    let range = shift_range(&w.range, delta);
-    let kind = match &w.kind {
-        InlineWidgetKind::Text(t) => InlineWidgetKind::Text(t.clone()),
-        InlineWidgetKind::Superscript { room_text, sup } => {
-            let mut sup = sup.clone();
-            sup.range = range.clone();
-            InlineWidgetKind::Superscript {
-                room_text: room_text.clone(),
-                sup,
-            }
+}
+
+#[inline]
+fn logical_partition(
+    len: usize,
+    split: usize,
+    delta: isize,
+    key: impl Fn(usize) -> usize,
+    bound: usize,
+) -> usize {
+    let b = bound as i128;
+    let mut lo = 0usize;
+    let mut hi = len;
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        let v = key(mid) as i128 + if mid < split { 0 } else { delta as i128 };
+        if v < b {
+            lo = mid + 1;
+        } else {
+            hi = mid;
         }
-        InlineWidgetKind::Image { fallback, image } => {
-            let mut image = image.clone();
-            image.range = range.clone();
-            InlineWidgetKind::Image {
-                fallback: fallback.clone(),
-                image,
-            }
-        }
-    };
-    InlineWidget { range, kind }
+    }
+    lo
 }
 
 /// Incrementally splice Document-Layer decorations across `splice` (`TA-11`,
-/// `TA-13`, `TA-32`). `cx.rhythm` is ignored in favour of bounded
-/// `block_rhythm_in_lines` over only the dirty block-aligned window!
+/// `TA-13`, `TA-32`). Clones `prev` when shared; prefer
+/// [`decorate_incremental_in_place`] when the caller owns `prev`.
 #[allow(clippy::too_many_arguments)]
 pub fn decorate_incremental(
     prev: &Rc<Decorations>,
@@ -634,6 +670,38 @@ pub fn decorate_incremental(
     prev_widgets: &HashMap<BlockId, Rc<dyn BlockWidget>>,
     lazy_env_slot: &LazyEnvSlot,
 ) -> Decorations {
+    let base_id = prev.id;
+    let mut built = decorate_incremental_in_place(
+        (**prev).clone(),
+        splice,
+        cx,
+        registry,
+        revision,
+        prev_widgets,
+        lazy_env_slot,
+        None,
+    );
+    if let Some(sp) = &mut built.splice {
+        sp.base_ptr = base_id as usize;
+    }
+    built
+}
+
+/// In-place `O(log N + |window|)` incremental Document-Layer decoration splice
+/// (`TA-11`, `TA-13`, `TA-32`, `TA-81`). Moves `prev` vectors in place and
+/// defers downstream byte shifts via `Decorations::deferred`.
+#[allow(clippy::too_many_arguments)]
+pub fn decorate_incremental_in_place(
+    mut prev: Decorations,
+    splice: &SyntaxSplice,
+    cx: &DecorateCx,
+    registry: &mut BlockIdRegistry,
+    revision: u64,
+    prev_widgets: &HashMap<BlockId, Rc<dyn BlockWidget>>,
+    lazy_env_slot: &LazyEnvSlot,
+    source_fallbacks: Option<&[(bool, Range<usize>)]>,
+) -> Decorations {
+    let base_id = prev.id;
     let new_total = cx.doc.line_count();
     let line_delta: isize = (splice.new_lines.end as isize - splice.new_lines.start as isize)
         - (splice.old_lines.end as isize - splice.old_lines.start as isize);
@@ -680,13 +748,14 @@ pub fn decorate_incremental(
         rhythm: &window_rhythm,
         ..*cx
     };
-    let win = decorate_window(
+    let mut win = decorate_window(
         &win_cx,
         aligned_new_start..aligned_new_end,
         aligned_new_start,
         Some(registry),
         revision,
         Some(prev_widgets),
+        source_fallbacks,
     );
 
     let byte_delta: isize = (splice.new_bytes.end as isize - splice.new_bytes.start as isize)
@@ -716,56 +785,13 @@ pub fn decorate_incremental(
         }));
     }
 
-    let new_block_count = b_start + win.blocks.len() + (prev.blocks.len() - b_end);
-    let mut blocks = Vec::with_capacity(new_block_count);
-    blocks.extend_from_slice(&prev.blocks[..b_start]);
-    let new_blocks_range = b_start..b_start + win.blocks.len();
-    blocks.extend(win.blocks);
-    for block in &prev.blocks[b_end..] {
-        match block {
-            Block::Line { line, style } => {
-                blocks.push(Block::Line {
-                    line: ((*line as isize) + line_delta) as usize,
-                    style: Rc::clone(style),
-                });
-            }
-            Block::Widget { id, lines, widget } => {
-                let shifted_lines = (((lines.start as isize) + line_delta) as usize)
-                    ..(((lines.end as isize) + line_delta) as usize);
-                let mut shifted_id = *id;
-                shifted_id.shift(byte_delta, revision);
-                let next_widget: Rc<dyn BlockWidget> = if needs_lazy_wrap {
-                    if widget
-                        .as_widget_any()
-                        .and_then(|a| a.downcast_ref::<LazyBlockWidget>())
-                        .is_some()
-                    {
-                        Rc::clone(widget)
-                    } else {
-                        Rc::new(LazyBlockWidget {
-                            env_slot: Rc::clone(lazy_env_slot),
-                            fallback: Rc::clone(widget),
-                            resolved: RefCell::new(None),
-                        })
-                    }
-                } else {
-                    Rc::clone(widget)
-                };
-                blocks.push(Block::Widget {
-                    id: shifted_id,
-                    lines: shifted_lines,
-                    widget: next_widget,
-                });
-            }
-        }
-    }
-
     // Evict ONLY widget IDs removed from the replaced `prev.blocks[b_start..b_end]`
     // window (`O(|window|)` instead of scanning all document blocks!).
     let mut dead_ids: Vec<BlockId> = Vec::new();
     for old_b in &prev.blocks[b_start..b_end] {
         if let Block::Widget { id: old_id, .. } = old_b {
-            let kept = blocks[new_blocks_range.clone()]
+            let kept = win
+                .blocks
                 .iter()
                 .any(|nb| matches!(nb, Block::Widget { id, .. } if id == old_id));
             if !kept {
@@ -774,6 +800,107 @@ pub fn decorate_incremental(
         }
     }
     registry.remove_ids(&dead_ids);
+
+    let win_blocks_len = win.blocks.len();
+    let new_blocks_range = b_start..b_start + win_blocks_len;
+    let block_count_delta = win_blocks_len as isize - (b_end - b_start) as isize;
+
+    if line_delta != 0 {
+        prev.materialize_block_anchors();
+        let old_lazy = if prev.lazy_wrapped_from == usize::MAX {
+            usize::MAX
+        } else if prev.lazy_wrapped_from <= b_end {
+            b_start + win_blocks_len
+        } else {
+            ((prev.lazy_wrapped_from as isize) + block_count_delta) as usize
+        };
+        prev.blocks.splice(b_start..b_end, win.blocks);
+        let suffix_start = b_start + win_blocks_len;
+        for (offset, block) in prev.blocks[suffix_start..].iter_mut().enumerate() {
+            let idx = suffix_start + offset;
+            match block {
+                Block::Line { line, .. } => {
+                    *line = ((*line as isize) + line_delta) as usize;
+                }
+                Block::Widget { id, lines, widget } => {
+                    lines.start = ((lines.start as isize) + line_delta) as usize;
+                    lines.end = ((lines.end as isize) + line_delta) as usize;
+                    id.shift(byte_delta, revision);
+                    if idx < old_lazy
+                        && widget
+                            .as_widget_any()
+                            .and_then(|a| a.downcast_ref::<LazyBlockWidget>())
+                            .is_none()
+                    {
+                        *widget = Rc::new(LazyBlockWidget {
+                            env_slot: Rc::clone(lazy_env_slot),
+                            fallback: Rc::clone(widget),
+                            resolved: RefCell::new(None),
+                        });
+                    }
+                }
+            }
+        }
+        prev.lazy_wrapped_from = suffix_start.min(old_lazy);
+    } else {
+        if prev.deferred.blocks_delta != 0 {
+            let b_split = prev.deferred.blocks_split.min(prev.blocks.len());
+            if b_end < b_split {
+                prev.materialize_block_anchors();
+            } else if b_split < b_start {
+                let bd = prev.deferred.blocks_delta;
+                let rev = prev.deferred.blocks_revision;
+                for block in &mut prev.blocks[b_split..b_start] {
+                    if let Block::Widget { id, .. } = block {
+                        id.shift(bd, rev);
+                    }
+                }
+                prev.deferred.blocks_split = b_start;
+            }
+        }
+        let old_lazy = if prev.lazy_wrapped_from == usize::MAX {
+            usize::MAX
+        } else if prev.lazy_wrapped_from <= b_end {
+            b_start + win_blocks_len
+        } else {
+            ((prev.lazy_wrapped_from as isize) + block_count_delta) as usize
+        };
+        prev.blocks.splice(b_start..b_end, win.blocks);
+        let suffix_start = b_start + win_blocks_len;
+        if byte_delta != 0 {
+            let wrap_end = old_lazy.min(prev.blocks.len());
+            if suffix_start < wrap_end {
+                for block in &mut prev.blocks[suffix_start..wrap_end] {
+                    if let Block::Widget { widget, .. } = block
+                        && widget
+                            .as_widget_any()
+                            .and_then(|a| a.downcast_ref::<LazyBlockWidget>())
+                            .is_none()
+                    {
+                        *widget = Rc::new(LazyBlockWidget {
+                            env_slot: Rc::clone(lazy_env_slot),
+                            fallback: Rc::clone(widget),
+                            resolved: RefCell::new(None),
+                        });
+                    }
+                }
+            }
+            prev.lazy_wrapped_from = suffix_start.min(old_lazy);
+            let next_b_delta = prev.deferred.blocks_delta + byte_delta;
+            prev.deferred.blocks_delta = next_b_delta;
+            prev.deferred.blocks_revision = revision;
+            prev.deferred.blocks_split = if next_b_delta == 0 {
+                prev.blocks.len()
+            } else {
+                suffix_start
+            };
+        } else {
+            prev.lazy_wrapped_from = old_lazy;
+            if prev.deferred.blocks_delta != 0 {
+                prev.deferred.blocks_split = suffix_start;
+            }
+        }
+    }
 
     let new_win_bytes_start = if aligned_new_start < new_total {
         cx.doc.line_range(aligned_new_start).start
@@ -790,145 +917,240 @@ pub fn decorate_incremental(
     let old_win_bytes_start = new_win_bytes_start;
     let old_win_bytes_end = ((new_win_bytes_end as isize) - byte_delta).max(0) as usize;
 
-    let splice_vec_ranges = |old: &[Range<usize>], mid: Vec<Range<usize>>| -> Vec<Range<usize>> {
-        let p_end = old.partition_point(|r| r.start < old_win_bytes_start);
-        let s_start = old
-            .partition_point(|r| r.start < old_win_bytes_end)
-            .max(p_end);
-        let mut out = Vec::with_capacity(p_end + mid.len() + (old.len() - s_start));
-        out.extend_from_slice(&old[..p_end]);
-        out.extend(mid);
-        if byte_delta == 0 {
-            out.extend_from_slice(&old[s_start..]);
-        } else {
-            out.extend(old[s_start..].iter().map(|r| shift_range(r, byte_delta)));
-        }
-        out
-    };
+    // The window decorates whole lines, but an element on its first or last
+    // line can reach into the unchanged lines around it (emphasis wrapping onto
+    // the next line). The prefix and suffix keep their own copies of those
+    // ranges, so the window contributes only the ones starting inside it;
+    // otherwise they would appear twice and break the sorted order.
+    let to_eof = aligned_new_end >= new_total;
+    let in_window =
+        |start: usize| start >= new_win_bytes_start && (to_eof || start < new_win_bytes_end);
+    win.marks.retain(|m| in_window(m.range.start));
+    win.atomic.retain(|r| in_window(r.start));
+    win.inline_widgets.retain(|w| in_window(w.range.start));
+    win.underlines.retain(|u| in_window(u.range.start));
 
-    let marks = {
-        let p_end = prev
-            .marks
-            .partition_point(|m| m.range.start < old_win_bytes_start);
-        let s_start = prev
-            .marks
-            .partition_point(|m| m.range.start < old_win_bytes_end)
-            .max(p_end);
-        let mut out = Vec::with_capacity(p_end + win.marks.len() + (prev.marks.len() - s_start));
-        out.extend_from_slice(&prev.marks[..p_end]);
-        out.extend(win.marks);
-        if byte_delta == 0 {
-            out.extend_from_slice(&prev.marks[s_start..]);
-        } else {
-            out.extend(prev.marks[s_start..].iter().map(|m| Mark {
-                range: shift_range(&m.range, byte_delta),
-                ..m.clone()
-            }));
-        }
-        out
-    };
+    let d0 = prev.deferred.delta;
+    let ms0 = prev.deferred.marks_split.min(prev.marks.len());
+    let hs0 = prev.deferred.hidden_split.min(prev.hidden.len());
+    let as0 = prev.deferred.atomic_split.min(prev.atomic.len());
+    let iws0 = prev
+        .deferred
+        .inline_widgets_split
+        .min(prev.inline_widgets.len());
+    let us0 = prev.deferred.underlines_split.min(prev.underlines.len());
 
-    // Single-pass sorted coalesce for `hidden` (both `prev.hidden` and `win.hidden`
-    // are already sorted & non-overlapping — avoids O(N log N) re-sort!).
-    let hidden = {
-        let p_end = prev
-            .hidden
-            .partition_point(|r| r.start < old_win_bytes_start);
-        let s_start = prev
-            .hidden
-            .partition_point(|r| r.start < old_win_bytes_end)
-            .max(p_end);
-        let mut out = Vec::with_capacity(p_end + win.hidden.len() + (prev.hidden.len() - s_start));
-        out.extend_from_slice(&prev.hidden[..p_end]);
-        let push_coalesced = |dst: &mut Vec<Range<usize>>, r: Range<usize>| match dst.last_mut() {
-            Some(last) if r.start <= last.end => last.end = last.end.max(r.end),
-            _ => dst.push(r),
-        };
-        for r in win.hidden {
-            push_coalesced(&mut out, r);
-        }
-        if let Some((first, rest)) = prev.hidden[s_start..].split_first() {
-            let f_shifted = if byte_delta == 0 {
-                first.clone()
-            } else {
-                shift_range(first, byte_delta)
-            };
-            push_coalesced(&mut out, f_shifted);
-            if byte_delta == 0 {
-                out.extend_from_slice(rest);
-            } else {
-                out.extend(rest.iter().map(|r| shift_range(r, byte_delta)));
+    let m_pre = logical_partition(
+        prev.marks.len(),
+        ms0,
+        d0,
+        |i| prev.marks[i].range.start,
+        old_win_bytes_start,
+    );
+    let m_suf = logical_partition(
+        prev.marks.len(),
+        ms0,
+        d0,
+        |i| prev.marks[i].range.start,
+        old_win_bytes_end,
+    )
+    .max(m_pre);
+
+    let mut h_pre = logical_partition(
+        prev.hidden.len(),
+        hs0,
+        d0,
+        |i| prev.hidden[i].start,
+        old_win_bytes_start,
+    );
+    let mut h_suf = logical_partition(
+        prev.hidden.len(),
+        hs0,
+        d0,
+        |i| prev.hidden[i].start,
+        old_win_bytes_end,
+    )
+    .max(h_pre);
+
+    let a_pre = logical_partition(
+        prev.atomic.len(),
+        as0,
+        d0,
+        |i| prev.atomic[i].start,
+        old_win_bytes_start,
+    );
+    let a_suf = logical_partition(
+        prev.atomic.len(),
+        as0,
+        d0,
+        |i| prev.atomic[i].start,
+        old_win_bytes_end,
+    )
+    .max(a_pre);
+
+    let iw_pre = logical_partition(
+        prev.inline_widgets.len(),
+        iws0,
+        d0,
+        |i| prev.inline_widgets[i].range.start,
+        old_win_bytes_start,
+    );
+    let iw_suf = logical_partition(
+        prev.inline_widgets.len(),
+        iws0,
+        d0,
+        |i| prev.inline_widgets[i].range.start,
+        old_win_bytes_end,
+    )
+    .max(iw_pre);
+
+    let u_pre = logical_partition(
+        prev.underlines.len(),
+        us0,
+        d0,
+        |i| prev.underlines[i].range.start,
+        old_win_bytes_start,
+    );
+    let u_suf = logical_partition(
+        prev.underlines.len(),
+        us0,
+        d0,
+        |i| prev.underlines[i].range.start,
+        old_win_bytes_end,
+    )
+    .max(u_pre);
+
+    // If the edit jumped strictly earlier than the previous deferred split in
+    // any inline vector, materialise once so all five vectors keep one shared delta.
+    if d0 != 0 && (m_suf < ms0 || h_suf < hs0 || a_suf < as0 || iw_suf < iws0 || u_suf < us0) {
+        prev.materialize_inline_vectors();
+    }
+
+    let cur_delta = prev.deferred.delta;
+    if cur_delta != 0 {
+        let ms = prev.deferred.marks_split.min(prev.marks.len());
+        if ms < m_pre {
+            for m in &mut prev.marks[ms..m_pre] {
+                m.range = shift_range(&m.range, cur_delta);
             }
         }
-        out
-    };
-    let atomic = splice_vec_ranges(&prev.atomic, win.atomic);
-
-    let inline_widgets = {
-        let p_end = prev
-            .inline_widgets
-            .partition_point(|w| w.range.start < old_win_bytes_start);
-        let s_start = prev
-            .inline_widgets
-            .partition_point(|w| w.range.start < old_win_bytes_end)
-            .max(p_end);
-        let mut out = Vec::with_capacity(
-            p_end + win.inline_widgets.len() + (prev.inline_widgets.len() - s_start),
-        );
-        out.extend_from_slice(&prev.inline_widgets[..p_end]);
-        out.extend(win.inline_widgets);
-        out.extend(
-            prev.inline_widgets[s_start..]
-                .iter()
-                .map(|w| shift_inline_widget(w, byte_delta)),
-        );
-        out
-    };
-
-    let underlines = {
-        let p_end = prev
-            .underlines
-            .partition_point(|u| u.range.start < old_win_bytes_start);
-        let s_start = prev
-            .underlines
-            .partition_point(|u| u.range.start < old_win_bytes_end)
-            .max(p_end);
-        let mut out =
-            Vec::with_capacity(p_end + win.underlines.len() + (prev.underlines.len() - s_start));
-        out.extend_from_slice(&prev.underlines[..p_end]);
-        out.extend(win.underlines);
-        if byte_delta == 0 {
-            out.extend_from_slice(&prev.underlines[s_start..]);
-        } else {
-            out.extend(prev.underlines[s_start..].iter().map(|u| Underline {
-                range: shift_range(&u.range, byte_delta),
-                ..u.clone()
-            }));
+        let hs = prev.deferred.hidden_split.min(prev.hidden.len());
+        if hs < h_pre {
+            for r in &mut prev.hidden[hs..h_pre] {
+                *r = shift_range(r, cur_delta);
+            }
         }
-        out
-    };
-
-    Decorations {
-        id: crate::editor::view::decoration::next_decorations_id(),
-        blocks,
-        marks,
-        hidden,
-        atomic,
-        inline_widgets,
-        underlines,
-        surface: surface(cx.theme),
-        splice: Some(BlockSplice {
-            base_ptr: prev.id as usize,
-            old_blocks: b_start..b_end,
-            new_blocks: new_blocks_range,
-        }),
+        let ats = prev.deferred.atomic_split.min(prev.atomic.len());
+        if ats < a_pre {
+            for r in &mut prev.atomic[ats..a_pre] {
+                *r = shift_range(r, cur_delta);
+            }
+        }
+        let iws = prev
+            .deferred
+            .inline_widgets_split
+            .min(prev.inline_widgets.len());
+        if iws < iw_pre {
+            for w in &mut prev.inline_widgets[iws..iw_pre] {
+                shift_inline_widget_in_place(w, cur_delta);
+            }
+        }
+        let us = prev.deferred.underlines_split.min(prev.underlines.len());
+        if us < u_pre {
+            for u in &mut prev.underlines[us..u_pre] {
+                u.range = shift_range(&u.range, cur_delta);
+            }
+        }
     }
+
+    let next_delta = cur_delta + byte_delta;
+
+    let m_mid_len = win.marks.len();
+    prev.marks.splice(m_pre..m_suf, win.marks);
+    let new_marks_split = m_pre + m_mid_len;
+
+    // O(1) sorted boundary coalescing for `hidden` without touching the suffix.
+    let mut h_mid = win.hidden;
+    if h_pre > 0 && !h_mid.is_empty() && h_mid[0].start <= prev.hidden[h_pre - 1].end {
+        h_pre -= 1;
+        let left = &prev.hidden[h_pre];
+        h_mid[0].start = left.start;
+        h_mid[0].end = h_mid[0].end.max(left.end);
+    }
+    while h_suf < prev.hidden.len() {
+        let next_r = shift_range(&prev.hidden[h_suf], next_delta);
+        if let Some(last) = h_mid.last_mut() {
+            if next_r.start <= last.end {
+                last.end = last.end.max(next_r.end);
+                h_suf += 1;
+                continue;
+            }
+        } else if h_pre > 0 && next_r.start <= prev.hidden[h_pre - 1].end {
+            let merged_start = prev.hidden[h_pre - 1].start;
+            let merged_end = prev.hidden[h_pre - 1].end.max(next_r.end);
+            h_pre -= 1;
+            h_suf += 1;
+            h_mid.push(merged_start..merged_end);
+            continue;
+        }
+        break;
+    }
+    let h_mid_len = h_mid.len();
+    prev.hidden.splice(h_pre..h_suf, h_mid);
+    let new_hidden_split = h_pre + h_mid_len;
+
+    let a_mid_len = win.atomic.len();
+    prev.atomic.splice(a_pre..a_suf, win.atomic);
+    let new_atomic_split = a_pre + a_mid_len;
+
+    let iw_mid_len = win.inline_widgets.len();
+    prev.inline_widgets
+        .splice(iw_pre..iw_suf, win.inline_widgets);
+    let new_inline_widgets_split = iw_pre + iw_mid_len;
+
+    let u_mid_len = win.underlines.len();
+    prev.underlines.splice(u_pre..u_suf, win.underlines);
+    let new_underlines_split = u_pre + u_mid_len;
+
+    prev.deferred.delta = next_delta;
+    if next_delta == 0 {
+        prev.deferred.marks_split = prev.marks.len();
+        prev.deferred.hidden_split = prev.hidden.len();
+        prev.deferred.atomic_split = prev.atomic.len();
+        prev.deferred.inline_widgets_split = prev.inline_widgets.len();
+        prev.deferred.underlines_split = prev.underlines.len();
+    } else {
+        prev.deferred.marks_split = new_marks_split;
+        prev.deferred.hidden_split = new_hidden_split;
+        prev.deferred.atomic_split = new_atomic_split;
+        prev.deferred.inline_widgets_split = new_inline_widgets_split;
+        prev.deferred.underlines_split = new_underlines_split;
+    }
+
+    prev.id = crate::editor::view::decoration::next_decorations_id();
+    prev.surface = surface(cx.theme);
+    prev.splice = Some(BlockSplice {
+        base_ptr: base_id as usize,
+        old_blocks: b_start..b_end,
+        new_blocks: new_blocks_range,
+        removed_widget_ids: dead_ids,
+    });
+    prev
 }
 
 /// Build the Reveal Layer (`TA-11`) for ONLY the 0–3 line spans intersecting
 /// active `preview.revealed`, `preview.composing`, or `preview.callout_title`.
 /// Never rebuilds Document-Layer blocks!
 pub fn decorate_reveal(doc_decos: &Decorations, cx: &DecorateCx, revision: u64) -> RevealLayer {
+    decorate_reveal_with_fallbacks(doc_decos, cx, revision, None)
+}
+
+pub fn decorate_reveal_with_fallbacks(
+    doc_decos: &Decorations,
+    cx: &DecorateCx,
+    revision: u64,
+    source_fallbacks: Option<&[(bool, Range<usize>)]>,
+) -> RevealLayer {
     if !cx.live || !cx.preview.has_reveal_overrides() {
         return RevealLayer::empty();
     }
@@ -1019,6 +1241,7 @@ pub fn decorate_reveal(doc_decos: &Decorations, cx: &DecorateCx, revision: u64) 
             Some(&mut temp_registry),
             revision,
             Some(&prev_widgets),
+            source_fallbacks,
         );
         // Preserve exact `BlockId`s for widgets matching existing Document-Layer
         // `lines` in `doc_decos`.

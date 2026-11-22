@@ -207,6 +207,13 @@ impl WidgetStateStore {
         self.states.retain(|(raw, _), _| live_raw.contains(raw));
     }
 
+    pub fn remove_ids(&mut self, dead: &[BlockId]) {
+        if !dead.is_empty() {
+            self.states
+                .retain(|(raw, _), _| !dead.iter().any(|id| id.raw() == *raw));
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.states.len()
     }

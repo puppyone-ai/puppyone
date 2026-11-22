@@ -358,9 +358,8 @@ impl PreviewState {
         }
         let line = state.doc.line_index(state.selection.head);
         syntax
-            .callouts
-            .iter()
-            .any(|c| c.first_line == line)
+            .callout_at(line)
+            .is_some_and(|c| c.first_line == line)
             .then_some(line)
     }
 
