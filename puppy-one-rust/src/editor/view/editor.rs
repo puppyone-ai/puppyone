@@ -347,6 +347,13 @@ impl EditorView {
             .flatten()
     }
 
+    #[cfg(test)]
+    pub(crate) fn active_held_anchor_for_tests(&self) -> Option<super::layout::ScrollAnchor> {
+        self.held_anchor.and_then(|(anchor, scroll, revision)| {
+            (scroll == self.scroll_y && revision == self.state.revision).then_some(anchor)
+        })
+    }
+
     pub(super) fn estimated_block_of(&self, offset: usize) -> Option<(f32, f32)> {
         let layered = &self.caches.decorations;
         let line = self.state.doc.line_index(offset);
