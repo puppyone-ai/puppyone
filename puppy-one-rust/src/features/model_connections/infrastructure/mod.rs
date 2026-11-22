@@ -90,6 +90,99 @@ pub fn use_as_default(
     })
 }
 
+/// The models `connection` offers in Chat besides its default: every text
+/// model its service lists (the provider's whole catalog, as Cursor's picker
+/// shows it), except Ollama's cloud models, models that refuse tools and
+/// models whose names mark another kind (images, video, speech, embeddings:
+/// [`discovery::chat_model`]).
+pub fn offered(connection: &ModelConnection, models: &[CatalogModel]) -> Vec<String> {
+    models
+        .iter()
+        .filter(|m| !m.remote && m.tools != Some(false) && discovery::chat_model(&m.id))
+        .map(|m| m.id.clone())
+        .filter(|m| connection.default_model_id.as_deref() != Some(m.as_str()))
+        .take(64)
+        .collect()
+}
+
+/// Brings every saved connection's Chat models up to its service's catalog,
+/// so Chat offers each provider's whole text catalog without Settings being
+/// opened (blocking: reads the catalogs concurrently). A connection is read
+/// at most once every ten minutes; `true` when a connection was saved.
+pub fn sync_offered() -> bool {
+    use std::collections::HashMap;
+    use std::sync::{LazyLock, Mutex};
+    use std::time::{Duration, Instant};
+    static READ: LazyLock<Mutex<HashMap<String, Instant>>> = LazyLock::new(Default::default);
+    // Tests never reach this machine's services (see `discover`).
+    if cfg!(test) {
+        return false;
+    }
+    let Ok(connections) = configuration::load() else {
+        return false;
+    };
+    // Claimed before reading, so panels reloading together read once.
+    let due: Vec<ModelConnection> = {
+        let Ok(mut read) = READ.lock() else {
+            return false;
+        };
+        connections
+            .into_iter()
+            .filter(|c| {
+                let due = read
+                    .get(&c.id)
+                    .is_none_or(|at| at.elapsed() >= Duration::from_secs(600));
+                if due {
+                    read.insert(c.id.clone(), Instant::now());
+                }
+                due
+            })
+            .collect()
+    };
+    if due.is_empty() {
+        return false;
+    }
+    let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        return false;
+    };
+    let Ok(client) = catalog::metadata_client() else {
+        return false;
+    };
+    let read = runtime.block_on(futures_util::future::join_all(due.into_iter().map(
+        |connection| {
+            let client = client.clone();
+            async move {
+                let key = connection
+                    .resolve_credential()
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|r| r.bearer);
+                // An authenticated connection whose credential cannot be
+                // read (a locked or refused Keychain) is left as it is.
+                let models = match key {
+                    None if connection.auth != Auth::None => Err("CREDENTIAL_UNAVAILABLE".into()),
+                    key => catalog::listed_models(&client, &connection, key.as_deref()).await,
+                };
+                (connection, models)
+            }
+        },
+    )));
+    let mut saved = false;
+    for (mut connection, models) in read {
+        let Ok(models) = models else { continue };
+        let models = offered(&connection, &models);
+        if models != connection.chat_models {
+            connection.chat_models = models;
+            saved |= configuration::save(connection, None).is_ok();
+        }
+    }
+    saved
+}
+
 /// The models a connection offers in Chat besides its default.
 pub fn set_chat_models(
     mut connection: ModelConnection,
@@ -292,4 +385,37 @@ pub fn managed_status(wake: Wake) -> Receiver<Option<(bool, bool)>> {
         wake.notify();
     });
     rx
+}
+
+#[cfg(test)]
+mod offered_tests {
+    use super::*;
+
+    /// A provider offers its whole text catalog besides its default, never
+    /// a remote (Ollama cloud) model or one that refuses tools.
+    #[test]
+    fn every_text_model_but_the_default_is_offered() {
+        let model = |id: &str, tools: Option<bool>, remote: bool| CatalogModel {
+            tools,
+            remote,
+            ..CatalogModel::named(id.to_owned())
+        };
+        let connection = ModelConnection {
+            default_model_id: Some("grok-4".into()),
+            ..Default::default()
+        };
+        let catalog = [
+            model("grok-4", Some(true), false),
+            model("grok-4.7", None, false),
+            model("grok-4.20-0309-reasoning", Some(true), false),
+            model("embed", Some(false), false),
+            model("gpt-oss:120b-cloud", Some(true), true),
+            model("grok-imagine-video-1.5", None, false),
+            model("grok-2-image", None, false),
+        ];
+        assert_eq!(
+            offered(&connection, &catalog),
+            ["grok-4.7", "grok-4.20-0309-reasoning"]
+        );
+    }
 }

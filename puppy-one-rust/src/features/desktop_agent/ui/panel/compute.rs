@@ -9,7 +9,7 @@ use crate::features::desktop_agent::domain::agent_session_controls::{
     AgentSessionControl, AgentSessionControlId, AgentSessionControlOption,
 };
 pub(crate) use crate::features::desktop_agent::infrastructure::compute::{
-    ComputeSnapshot, ManagedCompute, read_compute_snapshot,
+    ComputeSnapshot, ManagedCompute, read_compute_snapshot, sync_offered_models,
 };
 use crate::features::desktop_agent::ui::agent_theme::AgentTheme;
 use crate::localization::t;
@@ -187,6 +187,12 @@ impl AgentChatTabPanel {
         cx.spawn(async move |this, cx| {
             let snapshot = read.await;
             this.update(cx, |s, cx| s.apply_compute(snapshot, cx)).ok();
+            // Each provider offers its whole text catalog: a catalog that
+            // grew since the last read is saved, then read again.
+            let synced = cx.background_spawn(async { sync_offered_models() }).await;
+            if synced {
+                this.update(cx, |s, cx| s.reload_model_connections(cx)).ok();
+            }
         })
         .detach();
     }

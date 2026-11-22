@@ -138,13 +138,45 @@ pub async fn list_models(
     connection: &ModelConnection,
     key: Option<&str>,
 ) -> Result<Vec<CatalogModel>, String> {
+    let provider = connection.provider();
+    let listed = service_models(client, connection, key).await;
+    let known = provider.map(|p| p.known).unwrap_or_default();
+    let models = match listed {
+        Ok(models) if !models.is_empty() || known.is_empty() => models,
+        Ok(_) => known_models(known),
+        // A sign-in credential may not read the catalog (xAI, Kimi): the
+        // provider's known models stand in. Any other failure is reported.
+        Err(_) if !known.is_empty() && connection.auth == super::Auth::Oauth => known_models(known),
+        Err(e) => return Err(e),
+    };
+    Ok(project(connection, models))
+}
+/// What the service itself lists, without the provider's known models
+/// standing in: what Chat offers is only replaced by a catalog that was
+/// read (a failed or empty read keeps what it has).
+pub async fn listed_models(
+    client: &reqwest::Client,
+    connection: &ModelConnection,
+    key: Option<&str>,
+) -> Result<Vec<CatalogModel>, String> {
+    let models = service_models(client, connection, key).await?;
+    if models.is_empty() {
+        return Err("EMPTY_CATALOG".into());
+    }
+    Ok(project(connection, models))
+}
+async fn service_models(
+    client: &reqwest::Client,
+    connection: &ModelConnection,
+    key: Option<&str>,
+) -> Result<Vec<CatalogModel>, String> {
     let native = connection
         .endpoint
         .trim_end_matches('/')
         .trim_end_matches("/v1")
         .to_owned();
     let provider = connection.provider();
-    let listed = match connection.driver {
+    match connection.driver {
         Driver::Ollama => {
             let tags = get_json(client, format!("{native}/api/tags"), key).await?;
             let running = get_json(client, format!("{native}/api/ps"), key).await.ok();
@@ -208,17 +240,7 @@ pub async fn list_models(
         | Driver::LocalAi
         | Driver::OpenaiCompatible
         | Driver::OpenaiResponses => openai_catalog(client, connection, key).await,
-    };
-    let known = provider.map(|p| p.known).unwrap_or_default();
-    let models = match listed {
-        Ok(models) if !models.is_empty() || known.is_empty() => models,
-        Ok(_) => known_models(known),
-        // A sign-in credential may not read the catalog (xAI, Kimi): the
-        // provider's known models stand in. Any other failure is reported.
-        Err(_) if !known.is_empty() && connection.auth == super::Auth::Oauth => known_models(known),
-        Err(e) => return Err(e),
-    };
-    Ok(project(connection, models))
+    }
 }
 fn known_models(known: &[providers::KnownModel]) -> Vec<CatalogModel> {
     known
@@ -644,6 +666,41 @@ mod catalog_tests {
             .build()
             .unwrap()
             .block_on(async { list_models(&metadata_client()?, connection, key).await })
+    }
+
+    /// A sign-in whose catalog is refused shows the provider's known models
+    /// in Settings, but only a catalog the service listed may replace what
+    /// Chat offers.
+    #[test]
+    fn known_models_stand_in_for_display_but_never_for_what_chat_offers() {
+        let (port, server) = serve("401 Unauthorized", "{}");
+        let connection = ModelConnection {
+            endpoint: format!("http://127.0.0.1:{port}/v1"),
+            provider: Some("xai".into()),
+            auth: super::super::Auth::Oauth,
+            ..Default::default()
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let client = metadata_client().unwrap();
+        let listed = runtime.block_on(listed_models(&client, &connection, Some("token")));
+        assert!(listed.is_err());
+        server.join().unwrap();
+        let (port, server) = serve("401 Unauthorized", "{}");
+        let connection = ModelConnection {
+            endpoint: format!("http://127.0.0.1:{port}/v1"),
+            ..connection
+        };
+        let shown = runtime
+            .block_on(list_models(&client, &connection, Some("token")))
+            .unwrap();
+        assert_eq!(
+            shown.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+            ["grok-4", "grok-code-fast-1"]
+        );
+        server.join().unwrap();
     }
 
     /// `rejects metadata that echoes a credential`, `does not follow a

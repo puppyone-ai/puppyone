@@ -42,6 +42,12 @@ pub fn read_managed_status() -> Option<(bool, bool)> {
     Some((signed_in, available))
 }
 
+/// Brings every connection's Chat models up to its service's catalog
+/// (blocking, throttled per connection); `true` when one was saved.
+pub(crate) fn sync_offered_models() -> bool {
+    crate::features::model_connections::sync_offered()
+}
+
 /// Reads the connections (blocking: the configuration file and PuppyOne
 /// compute's cached catalog).
 pub(crate) fn read_compute_snapshot() -> ComputeSnapshot {

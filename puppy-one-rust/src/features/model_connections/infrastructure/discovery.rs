@@ -268,13 +268,13 @@ pub fn identify(answers: &Answers) -> Option<Driver> {
 /// whole. Short words are never matched inside other words (`gte` is not in
 /// `gpt`). Audio chat models (`gpt-4o-audio-preview`) and realtime speech
 /// models are left out too: the Agent sends text and tool calls only.
-const NOT_CHAT_TOKENS: [&str; 11] = [
-    "e5", "gte", "bge", "asr", "stt", "bark", "audio", "realtime", "image", "dall", "sd3",
+const NOT_CHAT_TOKENS: [&str; 12] = [
+    "e5", "gte", "bge", "asr", "stt", "bark", "audio", "realtime", "image", "video", "dall", "sd3",
 ];
 /// Model-name token prefixes that mark a model other than a text chat model:
 /// embeddings, rerankers, speech-to-text, text-to-speech, image and video
 /// generation, moderation.
-const NOT_CHAT_PREFIXES: [&str; 22] = [
+const NOT_CHAT_PREFIXES: [&str; 23] = [
     "embed",
     "minilm",
     "rerank",
@@ -291,6 +291,8 @@ const NOT_CHAT_PREFIXES: [&str; 22] = [
     "flux",
     "sdxl",
     "imagen",
+    // xAI's image and video generation (`grok-imagine-video`).
+    "imagine",
     "midjourney",
     "wan2",
     "sora",
@@ -1229,6 +1231,8 @@ mod tests {
             "integrate-7b",
             "mlx-community/Qwen3-4B-4bit",
             "deepseek-ocr",
+            "grok-4.20-multi-agent-0309",
+            "grok-4.20-0309-reasoning",
         ] {
             assert!(chat_model(id), "{id} should be kept");
         }
@@ -1263,6 +1267,9 @@ mod tests {
             "Wan-AI/Wan2.1-T2V-14B",
             "veo-3.0-generate",
             "omni-moderation-latest",
+            "grok-imagine-video",
+            "grok-imagine-video-1.5-lite",
+            "grok-2-image-1212",
         ] {
             assert!(!chat_model(id), "{id} should be left out");
         }

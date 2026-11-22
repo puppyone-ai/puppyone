@@ -144,6 +144,8 @@ pub struct ModelConnections {
     /// (the chip's entrance is keyed by it).
     verified: std::collections::BTreeMap<String, (Result<(), String>, std::time::Instant)>,
     verify_rx: Option<(String, Receiver<Result<(), String>>)>,
+    /// A catalog read while a change was saving, offered once it lands.
+    pending_offer: Option<(String, Vec<client::CatalogModel>)>,
     wake: Wake,
 }
 impl EventEmitter<Saved> for ModelConnections {}
@@ -213,6 +215,7 @@ impl ModelConnections {
             catalog_rx: None,
             verified: Default::default(),
             verify_rx: None,
+            pending_offer: None,
             wake,
         }
     }
@@ -345,6 +348,7 @@ impl ModelConnections {
     /// A load, save or removal finished.
     fn apply(&mut self, result: Connections, cx: &mut Context<Self>) {
         self.busy = false;
+        let pending = self.pending_offer.take();
         self.loaded = true;
         self.connecting = None;
         match result {
@@ -372,6 +376,10 @@ impl ModelConnections {
                 cx.emit(Saved);
             }
             Err(e) => self.error = Some(e),
+        }
+        // A catalog that arrived during the change is offered now.
+        if let Some((id, models)) = pending {
+            self.offer_all(&id, &models);
         }
         cx.notify();
     }
@@ -522,20 +530,18 @@ impl ModelConnections {
     }
 
     /// Every text model a connection's service lists is offered in Chat
-    /// (the provider's whole catalog, as Cursor's picker shows it); Ollama's
-    /// cloud models and models that refuse tools are not.
+    /// ([`client::offered`]). A catalog read while another change is being
+    /// saved waits for it, instead of being dropped.
     fn offer_all(&mut self, id: &str, models: &[client::CatalogModel]) {
+        if self.busy {
+            self.pending_offer = Some((id.to_owned(), models.to_vec()));
+            return;
+        }
         let Some(item) = self.items.iter().find(|c| c.id == id).cloned() else {
             return;
         };
-        let offered: Vec<String> = models
-            .iter()
-            .filter(|m| !m.remote && m.tools != Some(false))
-            .map(|m| m.id.clone())
-            .filter(|m| item.default_model_id.as_deref() != Some(m.as_str()))
-            .take(64)
-            .collect();
-        if offered != item.chat_models && !self.busy {
+        let offered = client::offered(&item, models);
+        if offered != item.chat_models {
             self.rx = client::set_chat_models(item, offered, self.wake.clone());
             self.busy = true;
         }
