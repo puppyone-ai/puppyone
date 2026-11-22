@@ -47,14 +47,9 @@ pub(super) type Day = (i32, u32, u32);
 
 /// The local calendar day of a Unix time.
 pub(super) fn local_day(secs: i64) -> Day {
-    #[cfg(unix)]
-    {
-        // SAFETY: `localtime_r` writes only into `tm`.
-        let mut tm: libc::tm = unsafe { std::mem::zeroed() };
-        let t = secs as libc::time_t;
-        if !unsafe { libc::localtime_r(&t, &mut tm) }.is_null() {
-            return (tm.tm_year + 1900, tm.tm_mon as u32 + 1, tm.tm_mday as u32);
-        }
+    use chrono::{Datelike as _, Local, TimeZone as _};
+    if let Some(dt) = Local.timestamp_opt(secs, 0).single() {
+        return (dt.year(), dt.month(), dt.day());
     }
     let days = secs.div_euclid(86_400);
     // Civil from days (UTC) when the zone is unavailable.

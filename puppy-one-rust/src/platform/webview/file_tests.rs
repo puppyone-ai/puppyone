@@ -388,6 +388,7 @@ fn local_protocol_refuses_internal_leaf_and_parent_links() {
     assert_eq!(respond_local(&served, "/real/data.txt").2, b"private");
 }
 
+#[cfg(unix)]
 #[test]
 fn protocol_roots_remain_bound_when_the_original_path_is_replaced() {
     let temp = tempfile::tempdir().unwrap();

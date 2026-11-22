@@ -167,9 +167,9 @@ fn lists_continue_and_tasks_toggle_with_history(cx: &mut TestAppContext) {
         v.run_command(&task::toggle_command(0), w, cx)
     });
     view.update(cx, |v, _| assert_eq!(v.text(), "- [x] one\n- [ ] two"));
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     view.update(cx, |v, _| assert_eq!(v.text(), "- [ ] one\n- [ ] two"));
-    cx.simulate_keystrokes("cmd-b");
+    cx.simulate_keystrokes("secondary-b");
     view.update(cx, |v, _| assert_eq!(v.text(), "- [ ] one\n- [ ] **two**"));
 }
 
@@ -179,17 +179,24 @@ fn lists_continue_and_tasks_toggle_with_history(cx: &mut TestAppContext) {
 /// not, and nothing formats an editor without focus.
 #[gpui::test]
 fn format_shortcuts_follow_the_product_contract(cx: &mut TestAppContext) {
-    for (chord, formatted) in [
-        ("cmd-b", "**word**"),
-        ("cmd-i", "*word*"),
-        ("cmd-u", "<u>word</u>"),
-        ("cmd-d", "~~word~~"),
-        ("cmd-shift-x", "~~word~~"),
-        ("cmd-shift-b", "word"),
-        ("cmd-alt-i", "word"),
-        ("ctrl-i", "word"),
-        ("cmd-ctrl-i", "word"),
-    ] {
+    let mut cases = vec![
+        ("secondary-b", "**word**"),
+        ("secondary-i", "*word*"),
+        ("secondary-u", "<u>word</u>"),
+        ("secondary-d", "~~word~~"),
+        ("secondary-shift-x", "~~word~~"),
+        ("secondary-shift-b", "word"),
+        ("secondary-alt-i", "word"),
+        ("alt-i", "word"),
+    ];
+    if crate::platform::os::Os::current().is_macos() {
+        cases.push(("ctrl-i", "word"));
+        cases.push(("secondary-ctrl-i", "word"));
+    } else {
+        cases.push(("super-i", "word"));
+        cases.push(("secondary-super-i", "word"));
+    }
+    for (chord, formatted) in cases {
         let (view, cx) = setup(cx, "word");
         view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
         cx.simulate_keystrokes(chord);
@@ -197,7 +204,7 @@ fn format_shortcuts_follow_the_product_contract(cx: &mut TestAppContext) {
     }
     let (view, cx) = setup_with_focus(cx, "word", false);
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
-    cx.simulate_keystrokes("cmd-i");
+    cx.simulate_keystrokes("secondary-i");
     view.update(cx, |v, _| assert_eq!(v.text(), "word"));
 }
 
@@ -441,7 +448,7 @@ fn blocks_move_by_keyboard_and_by_handle_with_the_experiment(cx: &mut TestAppCon
     let (view, cx) = setup(cx, text);
     block_move::set_enabled(true);
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
-    cx.simulate_keystrokes("cmd-shift-down");
+    cx.simulate_keystrokes("secondary-shift-down");
     view.update(cx, |v, _| assert_eq!(v.text(), "para\n\n# A\n\nlast"));
     // The handle's drop moves the block it dragged via `addons::block_drag`.
     view.update_in(cx, |v, _, cx| {
@@ -452,7 +459,7 @@ fn blocks_move_by_keyboard_and_by_handle_with_the_experiment(cx: &mut TestAppCon
     block_move::set_enabled(false);
     // Without the experiment the keys select to the document's edge.
     view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
-    cx.simulate_keystrokes("cmd-shift-down");
+    cx.simulate_keystrokes("secondary-shift-down");
     view.update(cx, |v, _| {
         assert_eq!(v.text(), "last\n\npara\n\n# A");
         assert_eq!(v.state().selection, Selection::range(0, v.text().len()));
@@ -1001,12 +1008,12 @@ fn callout_fold_and_mdx_tabs_map_accurately_across_edits_undo_and_redo(cx: &mut 
     check_mapped_state(&view, cx, shift);
 
     // TA-06: Undo goes through `EditorView::dispatch` and maps feature state back to original offsets!
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     let _ = blocks(&view, cx);
     check_mapped_state(&view, cx, 0);
 
     // TA-06: Redo goes through `EditorView::dispatch` and maps feature state forward again!
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     let _ = blocks(&view, cx);
     check_mapped_state(&view, cx, shift);
 }

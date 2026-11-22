@@ -12,7 +12,7 @@ impl Render for Owner {
 fn current_version_prompts_once_without_starting_an_update(cx: &mut gpui::TestAppContext) {
     cx.executor().allow_parking();
     let feed = Feed::new(vec![(
-        "stable-mac.yml".into(),
+        feed_file("stable"),
         feed_for("1.4.0", b"not downloaded"),
     )]);
     let updates = Fixture::new(&feed, build_identity::Channel::Stable, "1.4.0", true, cx);
@@ -36,7 +36,7 @@ fn current_version_prompts_once_without_starting_an_update(cx: &mut gpui::TestAp
     assert!(detail.contains("1.4.0"));
     cx.simulate_prompt_answer(t("native.update.manual.ok"));
     assert!(!cx.has_pending_prompt());
-    assert_eq!(feed.requests(), ["/feed/stable-mac.yml"]);
+    assert_eq!(feed.requests(), [feed_path("stable")]);
     assert_eq!(updates.quits(cx), 0);
     assert!(!updates.root.path().join("downloads").exists());
 }

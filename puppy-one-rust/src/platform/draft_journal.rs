@@ -499,6 +499,8 @@ fn sync_dir_best_effort(dir: &Path) {
     if let Ok(handle) = std::fs::File::open(dir) {
         let _ = handle.sync_all();
     }
+    #[cfg(not(unix))]
+    let _ = dir;
 }
 
 #[cfg(test)]

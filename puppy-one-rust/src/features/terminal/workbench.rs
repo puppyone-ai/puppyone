@@ -287,13 +287,16 @@ mod launch_tests {
     fn a_native_terminal_rejects_an_unregistered_inventory_entry_before_executing_its_cached_path(
         cx: &mut TestAppContext,
     ) {
-        use std::os::unix::fs::PermissionsExt;
         cx.executor().allow_parking();
         cx.update(gpui_kit::init);
         let directory = tempfile::tempdir().unwrap();
         let binary = directory.path().join("fake-cli");
         std::fs::write(&binary, "#!/bin/sh\n: > \"${0}.ran\"\n").unwrap();
-        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
         let window = cx.add_window(|_, _| FixtureWindow);
         let terminal = window
             .update(cx, |_, window, cx| {

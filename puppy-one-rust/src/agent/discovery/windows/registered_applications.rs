@@ -105,8 +105,7 @@ async fn query_default_registry_value(registry_executable: &str, key: &str) -> O
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .kill_on_drop(true);
-    #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    crate::platform::process::hide_console_window(&mut command);
     let output = tokio::time::timeout(
         Duration::from_millis(limits::REGISTRY_QUERY_TIMEOUT_MS),
         command.output(),

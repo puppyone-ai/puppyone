@@ -65,37 +65,16 @@ pub struct StatFingerprint {
 
 impl StatFingerprint {
     pub(super) fn from_metadata(meta: &Metadata) -> Self {
-        #[cfg(unix)]
-        {
-            use cap_std::fs::MetadataExt;
-            Self {
-                len: meta.len(),
-                mtime_ns: i128::from(meta.mtime()) * 1_000_000_000 + i128::from(meta.mtime_nsec()),
-                ctime_ns: i128::from(meta.ctime()) * 1_000_000_000 + i128::from(meta.ctime_nsec()),
-                ino: meta.ino(),
-                dev: meta.dev(),
-                mode: meta.mode(),
-                nlink: meta.nlink(),
-                readonly: meta.permissions().readonly(),
-            }
-        }
-        #[cfg(not(unix))]
-        {
-            let mtime_ns = meta
-                .modified()
-                .ok()
-                .and_then(|t| t.into_std().duration_since(std::time::UNIX_EPOCH).ok())
-                .map_or(0, |d| d.as_nanos() as i128);
-            Self {
-                len: meta.len(),
-                mtime_ns,
-                ctime_ns: 0,
-                ino: 0,
-                dev: 0,
-                mode: 0,
-                nlink: 1,
-                readonly: meta.permissions().readonly(),
-            }
+        let s = crate::platform::fs::cap_stat_summary(meta);
+        Self {
+            len: s.len,
+            mtime_ns: s.mtime_ns,
+            ctime_ns: s.ctime_ns,
+            ino: s.ino,
+            dev: s.dev,
+            mode: s.mode,
+            nlink: s.nlink,
+            readonly: s.readonly,
         }
     }
 }
@@ -434,193 +413,26 @@ fn validate(path: &Path, allow_empty: bool) -> Result<()> {
     Ok(())
 }
 
-/// Copies extended attributes, owner (best-effort), creation time (macOS) and
-/// mode bits from `src` to `dst` before atomic rename (`DP-30`).
+/// Copies OS file metadata (Unix owner/xattrs, macOS creation time, and mode
+/// bits) from `src` to `dst` before atomic rename (`DP-30`).
 fn copy_file_metadata(
     src: &cap_std::fs::File,
     src_meta: &Metadata,
     dst: &cap_std::fs::File,
 ) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        use cap_std::fs::MetadataExt;
-        use std::os::fd::AsRawFd;
-        let src_fd = src.as_raw_fd();
-        let dst_fd = dst.as_raw_fd();
-
-        if let Ok(dst_meta) = dst.metadata()
-            && (dst_meta.uid() != src_meta.uid() || dst_meta.gid() != src_meta.gid())
-        {
-            unsafe {
-                let _ = libc::fchown(dst_fd, src_meta.uid(), src_meta.gid());
-            }
-        }
-
-        copy_unix_xattrs(src_fd, dst_fd);
-
-        #[cfg(target_os = "macos")]
-        copy_macos_creation_time(src_fd, dst_fd);
-    }
-    #[cfg(not(unix))]
-    let _ = src;
-
-    dst.set_permissions(src_meta.permissions())
-}
-
-#[cfg(unix)]
-fn copy_unix_xattrs(src_fd: std::os::fd::RawFd, dst_fd: std::os::fd::RawFd) {
-    let list_len = unsafe { xattr_list(src_fd, std::ptr::null_mut(), 0) };
-    if list_len <= 0 {
-        return;
-    }
-    let mut names = vec![0u8; list_len as usize];
-    let read_len = unsafe { xattr_list(src_fd, names.as_mut_ptr().cast(), names.len()) };
-    if read_len <= 0 {
-        return;
-    }
-    names.truncate(read_len as usize);
-
-    for raw_name in names.split(|&b| b == 0).filter(|s| !s.is_empty()) {
-        let mut c_name = Vec::with_capacity(raw_name.len() + 1);
-        c_name.extend_from_slice(raw_name);
-        c_name.push(0);
-        let name_ptr = c_name.as_ptr().cast::<libc::c_char>();
-
-        let val_len = unsafe { xattr_get(src_fd, name_ptr, std::ptr::null_mut(), 0) };
-        if val_len < 0 {
-            continue;
-        }
-        let mut value = vec![0u8; val_len as usize];
-        let got = if val_len == 0 {
-            0
-        } else {
-            unsafe { xattr_get(src_fd, name_ptr, value.as_mut_ptr().cast(), value.len()) }
-        };
-        if got < 0 {
-            continue;
-        }
-        unsafe {
-            let _ = xattr_set(dst_fd, name_ptr, value.as_ptr().cast(), got as usize);
-        }
-    }
-}
-
-#[cfg(target_os = "macos")]
-unsafe fn xattr_list(fd: libc::c_int, buf: *mut libc::c_char, size: libc::size_t) -> libc::ssize_t {
-    unsafe { libc::flistxattr(fd, buf, size, 0) }
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-unsafe fn xattr_list(fd: libc::c_int, buf: *mut libc::c_char, size: libc::size_t) -> libc::ssize_t {
-    unsafe { libc::flistxattr(fd, buf, size) }
-}
-
-#[cfg(target_os = "macos")]
-unsafe fn xattr_get(
-    fd: libc::c_int,
-    name: *const libc::c_char,
-    value: *mut libc::c_void,
-    size: libc::size_t,
-) -> libc::ssize_t {
-    unsafe { libc::fgetxattr(fd, name, value, size, 0, 0) }
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-unsafe fn xattr_get(
-    fd: libc::c_int,
-    name: *const libc::c_char,
-    value: *mut libc::c_void,
-    size: libc::size_t,
-) -> libc::ssize_t {
-    unsafe { libc::fgetxattr(fd, name, value, size) }
-}
-
-#[cfg(target_os = "macos")]
-unsafe fn xattr_set(
-    fd: libc::c_int,
-    name: *const libc::c_char,
-    value: *const libc::c_void,
-    size: libc::size_t,
-) -> libc::c_int {
-    unsafe { libc::fsetxattr(fd, name, value, size, 0, 0) }
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-unsafe fn xattr_set(
-    fd: libc::c_int,
-    name: *const libc::c_char,
-    value: *const libc::c_void,
-    size: libc::size_t,
-) -> libc::c_int {
-    unsafe { libc::fsetxattr(fd, name, value, size, 0) }
-}
-
-#[cfg(target_os = "macos")]
-fn copy_macos_creation_time(src_fd: std::os::fd::RawFd, dst_fd: std::os::fd::RawFd) {
-    let mut st = std::mem::MaybeUninit::<libc::stat>::zeroed();
-    if unsafe { libc::fstat(src_fd, st.as_mut_ptr()) } != 0 {
-        return;
-    }
-    let st = unsafe { st.assume_init() };
-    if st.st_birthtime <= 0 && st.st_birthtime_nsec <= 0 {
-        return;
-    }
-    let mut attrlist = libc::attrlist {
-        bitmapcount: libc::ATTR_BIT_MAP_COUNT,
-        reserved: 0,
-        commonattr: libc::ATTR_CMN_CRTIME,
-        volattr: 0,
-        dirattr: 0,
-        fileattr: 0,
-        forkattr: 0,
-    };
-    let mut crtime = libc::timespec {
-        tv_sec: st.st_birthtime,
-        tv_nsec: st.st_birthtime_nsec,
-    };
-    unsafe {
-        let _ = libc::fsetattrlist(
-            dst_fd,
-            (&raw mut attrlist).cast(),
-            (&raw mut crtime).cast(),
-            std::mem::size_of::<libc::timespec>(),
-            0,
-        );
-    }
+    crate::platform::fs::copy_file_metadata(src, src_meta, dst)
 }
 
 fn open_nofollow_read(dir: &Dir, name: &Path) -> Result<cap_std::fs::File> {
-    let mut options = OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        use cap_std::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
-    }
-    dir.open_with(name, &options).map_err(io)
+    crate::platform::fs::open_nofollow_read(dir, name).map_err(io)
 }
 
 fn open_nofollow_read_write(dir: &Dir, name: &Path) -> Result<cap_std::fs::File> {
-    let mut options = OpenOptions::new();
-    options.read(true).write(true);
-    #[cfg(unix)]
-    {
-        use cap_std::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
-    }
-    dir.open_with(name, &options).map_err(io)
+    crate::platform::fs::open_nofollow_read_write(dir, name).map_err(io)
 }
 
 fn sync_dir(dir: &Dir) -> Result<()> {
-    #[cfg(unix)]
-    dir.try_clone()
-        .map_err(io)?
-        .into_std_file()
-        .sync_all()
-        .map_err(io)?;
-    #[cfg(not(unix))]
-    let _ = dir;
-    Ok(())
+    crate::platform::fs::sync_dir(dir).map_err(io)
 }
 
 impl Workspace {
@@ -666,20 +478,7 @@ impl Workspace {
         if !parent.symlink_metadata(name).map_err(io)?.is_dir() {
             return Err(crate::localization::t("native.workspace.regularOnly").into());
         }
-        #[cfg(unix)]
-        {
-            use cap_std::fs::OpenOptionsExt;
-            let mut options = OpenOptions::new();
-            options
-                .read(true)
-                .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW);
-            parent
-                .open_with(name, &options)
-                .map(|file| Dir::from_std_file(file.into_std()))
-                .map_err(io)
-        }
-        #[cfg(not(unix))]
-        parent.open_dir(name).map_err(io)
+        crate::platform::fs::open_directory_nofollow(parent, name).map_err(io)
     }
     fn regular_entry(dir: &Dir, name: &Path) -> Result<Metadata> {
         let meta = dir.symlink_metadata(name).map_err(io)?;
@@ -786,14 +585,7 @@ impl Workspace {
         if !meta.is_file() {
             return Err(crate::localization::t("native.workspace.regularOnly").into());
         }
-        let mut options = OpenOptions::new();
-        options.read(true);
-        #[cfg(unix)]
-        {
-            use cap_std::fs::OpenOptionsExt;
-            options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
-        }
-        let file = dir.open_with(name, &options).map_err(io)?;
+        let file = open_nofollow_read(dir, name)?;
         let opened = file.metadata().map_err(io)?;
         if !opened.is_file() {
             return Err(crate::localization::t("native.workspace.typeChanged").into());
@@ -994,14 +786,7 @@ impl Workspace {
             }
             result
         } else if meta.is_file() {
-            let mut read = OpenOptions::new();
-            read.read(true);
-            #[cfg(unix)]
-            {
-                use cap_std::fs::OpenOptionsExt;
-                read.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
-            }
-            let mut input = source.open_with(name, &read).map_err(io)?;
+            let mut input = open_nofollow_read(source, name)?;
             if !input.metadata().map_err(io)?.is_file() {
                 return Err(crate::localization::t("native.workspace.regularOnly").into());
             }
@@ -1031,15 +816,7 @@ impl Workspace {
             return parent.remove_file(name).map_err(io);
         }
         let dir = Self::open_directory(parent, name)?;
-        let mut permissions = meta.permissions();
-        #[cfg(unix)]
-        {
-            use cap_std::fs::PermissionsExt;
-            permissions.set_mode(permissions.mode() | 0o700);
-        }
-        #[cfg(not(unix))]
-        permissions.set_readonly(false);
-        dir.set_permissions(".", permissions).map_err(io)?;
+        crate::platform::fs::make_dir_removable(&dir, &meta).map_err(io)?;
         for entry in dir.entries().map_err(io)? {
             Self::discard_created_tree(&dir, Path::new(&entry.map_err(io)?.file_name()))?;
         }
@@ -1132,7 +909,20 @@ impl Workspace {
             return Err(crate::localization::t("native.workspace.regularOnly").into());
         }
         let current_stat = StatFingerprint::from_metadata(&meta);
-        if current_stat == baseline.stat {
+        // On coarse-timestamp filesystems (e.g. Linux ext4 `CLOCK_REALTIME_COARSE`
+        // ~4ms ticks), an external same-size write right after `read` can share
+        // the exact same `mtime`/`ctime` and inode. Only trust the zero-read stat
+        // fast path once the file's mtime is safely outside the coarse tick window.
+        let stat_fresh = meta
+            .modified()
+            .ok()
+            .and_then(|m| {
+                std::time::SystemTime::now()
+                    .duration_since(m.into_std())
+                    .ok()
+            })
+            .is_some_and(|age| age >= std::time::Duration::from_millis(50));
+        if current_stat == baseline.stat && stat_fresh {
             return Ok(Precondition::Matched(meta));
         }
 
@@ -1276,7 +1066,7 @@ impl Workspace {
                 }
             }
 
-            dir.rename(&temporary, dir, name).map_err(io)?;
+            crate::platform::fs::rename_with_retry(dir, &temporary, dir, name).map_err(io)?;
             sync_dir(dir)?;
 
             // Derive post-write Version from `stat` + already-computed `encoded_hash` (`DP-22`).

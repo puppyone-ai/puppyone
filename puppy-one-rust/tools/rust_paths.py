@@ -120,7 +120,7 @@ def resolve(segments, here):
 def paths(root, path):
     """The absolute `crate::…` paths `path` names."""
     here = module_path(root, path)
-    source = strip(path.read_text())
+    source = strip(path.read_text(encoding="utf-8"))
     found = []
     for m in re.finditer(r'\buse\s+([^;]+);', source):
         for tree in expand(m.group(1)):
@@ -143,7 +143,7 @@ def submodules(root, feature, public=None):
     if not folder.is_dir():
         return set()
     found = re.findall(r'^\s*(?:#\[[^\]]*\]\s*)*(pub(?:\([^)]*\))?\s+)?mod\s+(\w+)\s*[;{]',
-                       (folder / 'mod.rs').read_text(), re.M)
+                       (folder / 'mod.rs').read_text(encoding="utf-8"), re.M)
     return {name for vis, name in found
             if public is None or (vis.strip() == 'pub') == public}
 

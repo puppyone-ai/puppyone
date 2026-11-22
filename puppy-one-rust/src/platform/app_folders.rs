@@ -237,10 +237,11 @@ fn typora_with(places: &Places, macos: bool, executable: &Path, timeout: Duratio
     let path = plist
         .to_str()
         .ok_or_else(|| Read::Failed("Invalid preferences path.".into()))?;
-    // Extract one key: unrelated date/data values need not be converted to JSON.
+    // Extract `recentFolder` as XML first so macOS 15 `plutil` does not reject
+    // unrelated `date`/`data` keys before checking whether the key exists.
     let output = super::process::run_output(
         executable,
-        &["-extract", "recentFolder", "json", "-o", "-", path],
+        &["-extract", "recentFolder", "xml1", "-o", "-", path],
         plist.parent().unwrap(),
         None,
         timeout,
@@ -255,7 +256,20 @@ fn typora_with(places: &Places, macos: bool, executable: &Path, timeout: Duratio
         Err(error) if error.contains("No value at that key path") => return Ok(vec![]),
         Err(error) => return Err(Read::Failed(error)),
     };
-    let folders = json(&String::from_utf8_lossy(&output.stdout))?;
+    let json_output = super::process::run_output(
+        executable,
+        &["-convert", "json", "-o", "-", "-"],
+        plist.parent().unwrap(),
+        Some(&output.stdout),
+        timeout,
+        &AtomicBool::new(false),
+        super::process::OutputLimits {
+            stdout: PLIST_OUTPUT_LIMIT,
+            stderr: PLIST_OUTPUT_LIMIT,
+        },
+    )
+    .map_err(Read::Failed)?;
+    let folders = json(&String::from_utf8_lossy(&json_output.stdout))?;
     Ok(folders
         .as_array()
         .into_iter()

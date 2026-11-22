@@ -354,7 +354,7 @@ fn send(owner: u64, key: usize, generation: u64, cancelled: &AtomicBool, packet:
 #[path = "macos_probe.rs"]
 mod probe;
 #[cfg(feature = "dev-capture")]
-pub(super) fn run_probe() {
+pub(crate) fn run_probe() {
     probe::run();
 }
 
@@ -362,7 +362,7 @@ pub(super) fn run_probe() {
 #[path = "macos_whiteboard_probe.rs"]
 mod whiteboard_probe;
 #[cfg(feature = "dev-capture")]
-pub(super) fn run_whiteboard_probe(root: &std::path::Path) {
+pub(crate) fn run_whiteboard_probe(root: &std::path::Path) {
     whiteboard_probe::run(root);
 }
 
@@ -370,6 +370,6 @@ pub(super) fn run_whiteboard_probe(root: &std::path::Path) {
 #[path = "macos_document_pages_probe.rs"]
 mod document_pages_probe;
 #[cfg(feature = "dev-capture")]
-pub(super) fn run_document_pages_probe() {
+pub(crate) fn run_document_pages_probe() {
     document_pages_probe::run();
 }

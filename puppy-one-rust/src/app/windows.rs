@@ -189,9 +189,9 @@ pub fn quitting(cx: &App) -> bool {
     cx.try_global::<Registry>().is_some_and(|r| r.quitting)
 }
 /// Whether the last window closing ends the app: always when quitting,
-/// never on macOS otherwise (`resumeAfterLastWindowClosed`).
+/// otherwise governed by [`crate::platform::conventions::Conventions`].
 pub fn last_close_quits(cx: &App) -> bool {
-    quitting(cx) || !cfg!(target_os = "macos")
+    quitting(cx) || crate::platform::conventions::Conventions::current().last_window_close_quits
 }
 /// Quit: every window closes through its own barrier; the last close quits.
 pub fn quit_all(cx: &mut App) {
@@ -239,14 +239,22 @@ pub const TRAFFIC_LIGHTS: (f32, f32) = (12., 13.);
 
 /// The window options shared by launch and New Window.
 pub fn window_options(bounds: Bounds<Pixels>, focus: bool) -> WindowOptions {
+    let conventions = crate::platform::conventions::Conventions::current();
+    let traffic_light_position = (conventions.window_controls_side
+        == crate::platform::conventions::WindowControlsSide::Leading)
+        .then_some(point(px(TRAFFIC_LIGHTS.0), px(TRAFFIC_LIGHTS.1)));
+    let window_decorations = conventions
+        .uses_client_window_decorations
+        .then_some(WindowDecorations::Client);
     WindowOptions {
         focus,
         window_bounds: Some(WindowBounds::Windowed(bounds)),
         titlebar: Some(TitlebarOptions {
             title: Some(application_name().into()),
             appears_transparent: true,
-            traffic_light_position: Some(point(px(TRAFFIC_LIGHTS.0), px(TRAFFIC_LIGHTS.1))),
+            traffic_light_position,
         }),
+        window_decorations,
         window_background: WindowBackgroundAppearance::Opaque,
         window_min_size: Some(size(
             px(crate::theme::pane::WINDOW_MIN_WIDTH),

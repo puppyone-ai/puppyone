@@ -77,15 +77,15 @@ fn typing_replaces_the_selected_value_and_history_belongs_to_the_table(cx: &mut 
         assert!(v.focus.is_focused(w));
     });
     // ⌘Z on the table undoes the entire cell session in one step!
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "id,name\n1,alice\n");
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "id,name\n1,bob\n");
     // ⌘Z inside an untouched active cell also delegates to the table history.
     view.update_in(cx, |v, w, cx| v.activate(1, 0, None, w, cx));
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "id,name\n1,alice\n");
 }
@@ -172,7 +172,7 @@ fn source_mode_edits_the_raw_text_and_returns_it_to_the_table(cx: &mut TestAppCo
     view.update_in(cx, |v, w, cx| v.toggle_mode(w, cx));
     cx.run_until_parked();
     view.update(cx, |v, _| assert!(!v.live && v.source.is_some()));
-    cx.simulate_keystrokes("cmd-down");
+    cx.simulate_keystrokes("secondary-down");
     cx.simulate_input("c,d\n");
     assert_eq!(text(&view, cx), "a,b\nc,d\n");
     view.update_in(cx, |v, w, cx| v.toggle_mode(w, cx));
@@ -657,7 +657,7 @@ fn an_ime_composition_in_a_cell_reaches_the_model_once(cx: &mut TestAppContext) 
         ("id,name\n1,alice你好\n", 1)
     );
     // One table history step for the whole composition.
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "id,name\n1,alice\n");
     assert_eq!(active(&view, cx), Some((1, 1, "alice".into())));
@@ -731,10 +731,10 @@ fn cell_session_undo_granularity_across_enter_tab_click_and_blur(cx: &mut TestAp
     assert_eq!(active(&view, cx), Some((1, 0, "hello world".into())));
     view.update(cx, |v, _| assert_eq!(v.model.undo_len(), 0));
     // Local ⌘Z undoes only the paste inside the cell!
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     cx.run_until_parked();
     assert_eq!(active(&view, cx), Some((1, 0, "hello".into())));
-    cx.simulate_keystrokes("cmd-shift-z");
+    cx.simulate_keystrokes("secondary-shift-z");
     cx.run_until_parked();
     assert_eq!(active(&view, cx), Some((1, 0, "hello world".into())));
     // Tab commits 1 table-level undo step and moves to (1, 1).

@@ -380,6 +380,7 @@ fn a_directory_theme_css_needs_metadata_and_theme_json_wins() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn links_out_of_a_package_or_the_data_directory_are_refused() {
     use std::os::unix::fs::symlink;

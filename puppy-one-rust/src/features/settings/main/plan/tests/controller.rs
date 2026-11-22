@@ -528,12 +528,6 @@ fn replacing_the_account_discards_pending_reads_quotes_and_checkout_effects() {
         if action == "checkout" {
             h.finish_quote();
         }
-        h.f.surface.update(&mut h.f.cx, |s, cx| match action {
-            "read" => s.load_plan(true, cx),
-            "quote" => s.quote_plan(plan(), 2, cx),
-            "checkout" => s.confirm_quote(cx),
-            _ => unreachable!(),
-        });
         let suffix = match action {
             "read" => "summary",
             "quote" => "plan/quote",
@@ -547,6 +541,12 @@ fn replacing_the_account_discards_pending_reads_quotes_and_checkout_effects() {
             format!("/billing/organizations/o1/{suffix}"),
             Box::new(move || crate::cloud::auth::relogin(&broker, "bob")),
         );
+        h.f.surface.update(&mut h.f.cx, |s, cx| match action {
+            "read" => s.load_plan(true, cx),
+            "quote" => s.quote_plan(plan(), 2, cx),
+            "checkout" => s.confirm_quote(cx),
+            _ => unreachable!(),
+        });
         h.f.cx.run_until_parked();
         h.wait(|s| !s.plan_page.snapshot.loading);
         assert!(h.f.cx.opened_url().is_none());

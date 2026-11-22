@@ -11,17 +11,15 @@ pub fn bind_keys(cx: &mut App) {
     if cx.try_global::<gpui_kit::component::Theme>().is_none() {
         gpui_kit::init(cx);
     }
-    for modifier in ["cmd", "ctrl"] {
-        cx.bind_keys([
-            KeyBinding::new(&format!("{modifier}-a"), SelectAll, Some("TextInput")),
-            KeyBinding::new(&format!("{modifier}-c"), Copy, Some("TextInput")),
-            KeyBinding::new(&format!("{modifier}-x"), Cut, Some("TextInput")),
-            KeyBinding::new(&format!("{modifier}-v"), Paste, Some("TextInput")),
-            KeyBinding::new(&format!("{modifier}-z"), Undo, Some("TextInput")),
-            KeyBinding::new(&format!("{modifier}-shift-z"), Redo, Some("TextInput")),
-            KeyBinding::new(&format!("{modifier}-y"), Redo, Some("TextInput")),
-        ]);
-    }
+    cx.bind_keys([
+        KeyBinding::new("secondary-a", SelectAll, Some("TextInput")),
+        KeyBinding::new("secondary-c", Copy, Some("TextInput")),
+        KeyBinding::new("secondary-x", Cut, Some("TextInput")),
+        KeyBinding::new("secondary-v", Paste, Some("TextInput")),
+        KeyBinding::new("secondary-z", Undo, Some("TextInput")),
+        KeyBinding::new("secondary-shift-z", Redo, Some("TextInput")),
+        KeyBinding::new("secondary-y", Redo, Some("TextInput")),
+    ]);
 }
 /// The caller supplies display text for the stable item ids (`edit`, `undo`,
 /// `redo`, `cut`, `copy`, `paste`, `selectAll`), keeping copy out of this primitive.

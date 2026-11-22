@@ -617,19 +617,7 @@ pub fn start_at_login(
 
 /// This computer's name, as the owner's other computers see it.
 fn hostname() -> String {
-    let mut buffer = [0u8; 256];
-    #[cfg(unix)]
-    unsafe {
-        if libc::gethostname(buffer.as_mut_ptr().cast(), buffer.len()) == 0 {
-            let end = buffer.iter().position(|b| *b == 0).unwrap_or(buffer.len());
-            let name = String::from_utf8_lossy(&buffer[..end]).into_owned();
-            let name = name.trim_end_matches(".local").to_owned();
-            if !name.is_empty() {
-                return name.chars().take(120).collect();
-            }
-        }
-    }
-    "Computer".into()
+    crate::platform::environment::hostname()
 }
 
 #[cfg(test)]

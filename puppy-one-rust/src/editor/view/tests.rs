@@ -72,9 +72,9 @@ fn typing_motion_deletion_and_history(cx: &mut TestAppContext) {
     view.update(cx, |v, _| assert_eq!(v.text(), "hello there\nx\nworld"));
     cx.simulate_keystrokes("alt-backspace");
     view.update(cx, |v, _| assert_eq!(v.text(), "hello there\n\nworld"));
-    cx.simulate_keystrokes("cmd-z");
+    cx.simulate_keystrokes("secondary-z");
     view.update(cx, |v, _| assert_eq!(v.text(), "hello there\nx\nworld"));
-    cx.simulate_keystrokes("cmd-up shift-down");
+    cx.simulate_keystrokes("secondary-up shift-down");
     view.update(cx, |v, _| {
         let s = v.state().selection;
         assert_eq!((s.anchor, s.from()), (0, 0));
@@ -84,7 +84,7 @@ fn typing_motion_deletion_and_history(cx: &mut TestAppContext) {
             "shift-down extends to the same column of the next row"
         );
     });
-    cx.simulate_keystrokes("cmd-a backspace");
+    cx.simulate_keystrokes("secondary-a backspace");
     view.update(cx, |v, _| assert_eq!(v.text(), ""));
 }
 
@@ -280,13 +280,13 @@ fn a_long_document_lays_out_only_the_blocks_near_the_viewport(cx: &mut TestAppCo
 #[gpui::test]
 fn the_caret_moved_far_outside_the_layout_is_revealed(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx, &long_document(5000, 12));
-    cx.simulate_keystrokes("cmd-down");
+    cx.simulate_keystrokes("secondary-down");
     settle(cx);
     view.read_with(cx, |v, _| {
         assert_eq!(v.state.selection.head, v.state.doc.len())
     });
     caret_in_view(&view, cx);
-    cx.simulate_keystrokes("cmd-up");
+    cx.simulate_keystrokes("secondary-up");
     settle(cx);
     view.read_with(cx, |v, _| {
         assert_eq!(v.state.selection.head, 0);

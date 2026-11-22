@@ -298,12 +298,9 @@ pub(super) fn place_name(menu: &PlaceMenu) -> (String, Vec<String>) {
             }
         }
         Place::Local => {
-            let name = tr(if cfg!(target_os = "macos") {
-                "shell.workspaceSwitcher.location.thisMac"
-            } else {
-                "shell.workspaceSwitcher.location.thisComputer"
-            })
-            .to_owned();
+            let name =
+                tr(crate::platform::conventions::Conventions::current().this_computer_label_key)
+                    .to_owned();
             let spoken = std::iter::once(name.clone())
                 .chain(menu.address.as_ref().map(|a| a.full.clone()))
                 .collect();

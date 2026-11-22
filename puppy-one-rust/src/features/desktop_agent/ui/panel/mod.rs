@@ -44,10 +44,11 @@ pub use view_model::default_chat_view_model;
 actions!(agent_panel, [SubmitPrompt]);
 
 pub fn bind_keys(cx: &mut App) {
-    cx.bind_keys([
-        KeyBinding::new("cmd-enter", SubmitPrompt, Some("AgentChatPanel")),
-        KeyBinding::new("ctrl-enter", SubmitPrompt, Some("AgentChatPanel")),
-    ]);
+    cx.bind_keys([KeyBinding::new(
+        "secondary-enter",
+        SubmitPrompt,
+        Some("AgentChatPanel"),
+    )]);
 }
 
 /// `AgentChatTabPresentation`: what the Workbench item shows for this tab.

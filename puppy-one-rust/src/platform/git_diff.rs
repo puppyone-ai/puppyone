@@ -859,7 +859,7 @@ mod tests {
         let root = temp.path();
         let run = |args: &[&str]| {
             assert!(
-                std::process::Command::new("/usr/bin/git")
+                std::process::Command::new(crate::platform::git::git_executable())
                     .args(args)
                     .current_dir(root)
                     .output()
@@ -905,7 +905,7 @@ mod tests {
         assert_eq!(new.lines[1].text, "");
         assert!(file_diff(root, "", "../x", None, Scope::Unstaged, &cancel).is_err());
         let head = String::from_utf8(
-            std::process::Command::new("/usr/bin/git")
+            std::process::Command::new(crate::platform::git::git_executable())
                 .args(["rev-parse", "HEAD"])
                 .current_dir(root)
                 .output()

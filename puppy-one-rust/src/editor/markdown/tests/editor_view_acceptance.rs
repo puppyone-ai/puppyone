@@ -161,7 +161,7 @@ fn escape_collapses_revealed_html_source_without_editing_or_history(cx: &mut Tes
             assert_eq!(v.text(), source);
             assert_eq!(v.state().revision, 0);
         });
-        visual.simulate_keystrokes("escape cmd-z");
+        visual.simulate_keystrokes("escape secondary-z");
         view.read_with(visual, |v, _| {
             assert_eq!(v.text(), source);
             assert_eq!(v.state().revision, 0);
@@ -200,7 +200,7 @@ fn markdown_ime_keeps_composed_text_and_neighbor_decorations_until_commit(cx: &m
         assert!(!v.composing());
         assert_eq!(v.text(), "Hello **あworld**\n\n# Neighbor");
     });
-    visual.simulate_keystrokes("cmd-z");
+    visual.simulate_keystrokes("secondary-z");
     view.read_with(visual, |v, _| assert_eq!(v.text(), source));
 }
 

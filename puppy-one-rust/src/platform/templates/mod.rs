@@ -294,8 +294,47 @@ pub(super) fn publish(staging: &Path, target: &Path) -> std::io::Result<()> {
     }
     #[cfg(target_os = "windows")]
     {
-        // Windows directory moves cannot replace an existing directory.
-        std::fs::rename(staging, target)
+        use std::os::windows::ffi::OsStrExt as _;
+        use windows::{
+            Win32::Storage::FileSystem::{MOVE_FILE_FLAGS, MoveFileExW},
+            core::PCWSTR,
+        };
+        let from: Vec<u16> = staging
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        let to: Vec<u16> = target
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        // SAFETY: both slices are NUL-terminated UTF-16 paths; flags=0 forbids
+        // replacing any existing file or empty directory at `target`.
+        unsafe {
+            MoveFileExW(
+                PCWSTR(from.as_ptr()),
+                PCWSTR(to.as_ptr()),
+                MOVE_FILE_FLAGS(0),
+            )
+        }
+        .map_err(|error| {
+            let hr = error.code().0 as u32;
+            let io_error = if (hr & 0xFFFF_0000) == 0x8007_0000 {
+                std::io::Error::from_raw_os_error((hr & 0xFFFF) as i32)
+            } else {
+                std::io::Error::other(error)
+            };
+            // On NTFS, `MoveFileExW(..., 0)` against an existing directory may
+            // report `ERROR_ACCESS_DENIED` (5) instead of `ERROR_ALREADY_EXISTS`.
+            if io_error.kind() == std::io::ErrorKind::PermissionDenied
+                && std::fs::symlink_metadata(target).is_ok()
+            {
+                std::io::Error::from(std::io::ErrorKind::AlreadyExists)
+            } else {
+                io_error
+            }
+        })
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     Err(std::io::ErrorKind::Unsupported.into())

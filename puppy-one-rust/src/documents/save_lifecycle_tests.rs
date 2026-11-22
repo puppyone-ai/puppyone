@@ -204,6 +204,7 @@ fn matching_external_text_and_edits_undone_before_autosave_adopt_without_writing
 
 #[test]
 fn a_conditional_save_converges_without_replacing_the_matching_file_on_disk() {
+    #[cfg(unix)]
     use std::os::unix::fs::MetadataExt;
     let (temp, mut d, wake) = setup();
     edit(&mut d, &wake, 1, "candidate", true);
@@ -216,6 +217,7 @@ fn a_conditional_save_converges_without_replacing_the_matching_file_on_disk() {
     assert!(!d.dirty && !d.saving() && d.error.is_none());
     assert_eq!(d.document.as_ref().unwrap().text, "candidate");
     let after = std::fs::metadata(&path).unwrap();
+    #[cfg(unix)]
     assert_eq!(before.ino(), after.ino());
     assert_eq!(before.modified().unwrap(), after.modified().unwrap());
     assert_eq!(std::fs::read_to_string(path).unwrap(), "candidate");

@@ -579,25 +579,9 @@ enum Access {
 
 /// `fs.promises.access(file, mode)`.
 fn access(path: &Path, mode: Access) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::ffi::OsStrExt;
-        let path =
-            std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
-        let flag = match mode {
-            Access::Read => libc::R_OK,
-            Access::Execute => libc::X_OK,
-        };
-        if unsafe { libc::access(path.as_ptr(), flag) } == 0 {
-            Ok(())
-        } else {
-            Err(std::io::Error::last_os_error())
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = mode;
-        std::fs::metadata(path).map(|_| ())
+    match mode {
+        Access::Read => crate::platform::fs::can_access_read(path),
+        Access::Execute => crate::platform::fs::can_access_execute(path),
     }
 }
 
@@ -968,12 +952,6 @@ fn fingerprint(metadata: &std::fs::Metadata) -> String {
         .ok()
         .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
         .map_or(0, |duration| duration.as_millis());
-    #[cfg(unix)]
-    let (dev, ino) = {
-        use std::os::unix::fs::MetadataExt;
-        (metadata.dev(), metadata.ino())
-    };
-    #[cfg(not(unix))]
-    let (dev, ino) = (0u64, 0u64);
+    let (dev, ino) = crate::platform::fs::metadata_device_inode(metadata);
     format!("{dev}:{ino}:{}:{mtime_ms}", metadata.len())
 }

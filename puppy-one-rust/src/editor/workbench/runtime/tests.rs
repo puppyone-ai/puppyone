@@ -1,8 +1,7 @@
 use super::*;
-use crate::{
-    editor::text::buffer::Buffer,
-    platform::{draft_journal::DraftJournal, editor_state_storage::Storage},
-};
+#[cfg(unix)]
+use crate::platform::draft_journal::DraftJournal;
+use crate::{editor::text::buffer::Buffer, platform::editor_state_storage::Storage};
 use std::time::{Duration, Instant};
 #[path = "lifecycle_tests.rs"]
 mod lifecycle;
@@ -49,7 +48,9 @@ fn snapshots(r: &mut Runtime, content: impl Fn(&str) -> String) {
                     request,
                     id: document.id.clone(),
                     revision: 1,
-                    text: Buffer::new(content(document.relative.to_str().unwrap())),
+                    text: Buffer::new(content(
+                        &document.relative.to_string_lossy().replace('\\', "/"),
+                    )),
                 },
                 &Wake::default(),
             );

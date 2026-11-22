@@ -2,7 +2,7 @@ use super::item::ItemKind;
 use super::layout::{Id, Layout};
 use crate::agent::connections::legacy_runtime_registry::Runtime;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 /// What a project's saved workbench keeps of a tab.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum RetainedItem {
@@ -43,7 +43,7 @@ impl RetainedItem {
 pub struct StoredProject {
     pub version: u8,
     pub layout: Layout,
-    pub items: HashMap<Id, RetainedItem>,
+    pub items: BTreeMap<Id, RetainedItem>,
 }
 impl StoredProject {
     /// The project's saved state, when it is a valid one.
@@ -78,7 +78,7 @@ mod tests {
         let mut state = StoredProject {
             version: 1,
             layout,
-            items: HashMap::new(),
+            items: BTreeMap::new(),
         };
         assert!(!state.validate());
         state.items.insert(
@@ -89,5 +89,37 @@ mod tests {
             },
         );
         assert!(state.validate());
+    }
+
+    #[test]
+    fn stored_project_serialization_is_deterministic_across_multiple_items() {
+        let mut layout = Layout::default();
+        let a = layout.add(0);
+        let b = layout.add(0);
+        let c = layout.add(0);
+        let build = || StoredProject {
+            version: 1,
+            layout: layout.clone(),
+            items: BTreeMap::from([
+                (c, RetainedItem::Launcher),
+                (
+                    a,
+                    RetainedItem::Terminal {
+                        title: "t0".into(),
+                        runtime: None,
+                    },
+                ),
+                (
+                    b,
+                    RetainedItem::Terminal {
+                        title: "t1".into(),
+                        runtime: None,
+                    },
+                ),
+            ]),
+        };
+        let first = build().to_saved().unwrap().to_string();
+        let second = build().to_saved().unwrap().to_string();
+        assert_eq!(first, second);
     }
 }

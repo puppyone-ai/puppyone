@@ -22,6 +22,6 @@ pub fn work_buddy_config_directory(
     .iter()
     .find_map(|key| environment(key).filter(|v| !v.is_empty()))
     .unwrap_or_default();
-    let fallback = home.join(channel.config_directory_name);
+    let fallback = crate::platform::paths::resolve(&home, channel.config_directory_name);
     history_storage_path(Some(&configured), &fallback.to_string_lossy(), &home)
 }

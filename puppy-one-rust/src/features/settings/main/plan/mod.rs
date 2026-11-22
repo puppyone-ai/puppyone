@@ -115,6 +115,21 @@ impl SettingsWorkspaceSurface {
         }
         self.plan_page.context.as_ref()
     }
+    /// Whether this page's scope and the auth broker's live signed-in binding
+    /// still match `scope_epoch` and `namespace`. Reading the broker's live
+    /// binding prevents stale async replies from taking effect if they wake
+    /// before `CloudAccount`'s async observer has processed an account swap.
+    fn plan_scope_current(&self, scope_epoch: u64, namespace: &str, cx: &App) -> bool {
+        if self.plan_page.scope_epoch != scope_epoch {
+            return false;
+        }
+        let Some((broker, _)) = crate::features::cloud::account::broker_and_binding(cx) else {
+            return false;
+        };
+        broker
+            .signed_in_binding()
+            .is_some_and(|live| billing_namespace(&live) == namespace)
+    }
     pub(in crate::features::settings) fn reset_plan(&mut self) {
         #[cfg(feature = "dev-capture")]
         if self.plan_page.lab.is_some() {
@@ -302,6 +317,7 @@ impl SettingsWorkspaceSurface {
             self.plan_page.snapshot = cached.snapshot(&org);
         }
         let epoch = self.plan_page.epoch;
+        let scope_epoch = self.plan_page.scope_epoch;
         let task = {
             let (client, org, cached) = (client.clone(), org.clone(), cached.clone());
             cx.background_spawn(async move { fetch_billing(&client, &org, &cached, force) })
@@ -309,7 +325,8 @@ impl SettingsWorkspaceSurface {
         cx.spawn(async move |this, cx| {
             let loaded = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.epoch != epoch {
+                if s.plan_page.epoch != epoch || !s.plan_scope_current(scope_epoch, &namespace, cx)
+                {
                     return;
                 }
                 s.plan_page.snapshot = settle_billing(&namespace, &org, cached, loaded, cx);
@@ -349,9 +366,10 @@ impl SettingsWorkspaceSurface {
     /// The operations under way for this space; one still in flight is
     /// watched, never repeated.
     fn load_operations(&mut self, cx: &mut Context<Self>) {
-        let (Some(client), Some(org)) =
-            (crate::features::cloud::billing_client(cx), self.plan_org())
-        else {
+        let (Some(client), Some((namespace, org))) = (
+            crate::features::cloud::billing_client(cx),
+            self.plan_page.context.clone(),
+        ) else {
             return;
         };
         let scope_epoch = self.plan_page.scope_epoch;
@@ -359,7 +377,7 @@ impl SettingsWorkspaceSurface {
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.scope_epoch != scope_epoch || s.plan_org().is_none() {
+                if !s.plan_scope_current(scope_epoch, &namespace, cx) || s.plan_org().is_none() {
                     return;
                 }
                 if let Ok(incoming) = result {
@@ -409,9 +427,10 @@ impl SettingsWorkspaceSurface {
     /// `quotePlan`: asks the server for a quote; Desktop never computes a
     /// price.
     fn quote_plan(&mut self, plan: Plan, seats: u64, cx: &mut Context<Self>) {
-        let (Some(client), Some(org)) =
-            (crate::features::cloud::billing_client(cx), self.plan_org())
-        else {
+        let (Some(client), Some((namespace, org))) = (
+            crate::features::cloud::billing_client(cx),
+            self.plan_page.context.clone(),
+        ) else {
             return;
         };
         let controller = &mut self.plan_page.controller;
@@ -431,7 +450,7 @@ impl SettingsWorkspaceSurface {
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.scope_epoch != scope_epoch {
+                if !s.plan_scope_current(scope_epoch, &namespace, cx) {
                     return;
                 }
                 s.plan_page.controller.acting = false;
@@ -454,9 +473,10 @@ impl SettingsWorkspaceSurface {
     /// `quoteSeats`: the people on the page for the plan held; a member
     /// change the server holds for that count is settled by it.
     fn quote_seats(&mut self, cx: &mut Context<Self>) {
-        let (Some(client), Some(org)) =
-            (crate::features::cloud::billing_client(cx), self.plan_org())
-        else {
+        let (Some(client), Some((namespace, org))) = (
+            crate::features::cloud::billing_client(cx),
+            self.plan_page.context.clone(),
+        ) else {
             return;
         };
         let available = self
@@ -488,7 +508,7 @@ impl SettingsWorkspaceSurface {
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.scope_epoch != scope_epoch {
+                if !s.plan_scope_current(scope_epoch, &namespace, cx) {
                     return;
                 }
                 s.plan_page.controller.acting = false;
@@ -511,9 +531,10 @@ impl SettingsWorkspaceSurface {
     /// `confirmQuote`: the mutation by the quote's mode. A checkout's URL
     /// opens only after the answer matched what was quoted.
     fn confirm_quote(&mut self, cx: &mut Context<Self>) {
-        let (Some(client), Some(org)) =
-            (crate::features::cloud::billing_client(cx), self.plan_org())
-        else {
+        let (Some(client), Some((namespace, org))) = (
+            crate::features::cloud::billing_client(cx),
+            self.plan_page.context.clone(),
+        ) else {
             return;
         };
         let controller = &mut self.plan_page.controller;
@@ -556,7 +577,7 @@ impl SettingsWorkspaceSurface {
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.scope_epoch != scope_epoch {
+                if !s.plan_scope_current(scope_epoch, &namespace, cx) {
                     return;
                 }
                 s.plan_page.controller.acting = false;
@@ -592,9 +613,10 @@ impl SettingsWorkspaceSurface {
     /// Polls with backoff until the server says the change ended; only
     /// then is the space reread. Access lost ends the watch.
     fn watch_operation(&mut self, id: String, cx: &mut Context<Self>) {
-        let (Some(client), Some(org)) =
-            (crate::features::cloud::billing_client(cx), self.plan_org())
-        else {
+        let (Some(client), Some((namespace, org))) = (
+            crate::features::cloud::billing_client(cx),
+            self.plan_page.context.clone(),
+        ) else {
             return;
         };
         let controller = &mut self.plan_page.controller;
@@ -622,8 +644,8 @@ impl SettingsWorkspaceSurface {
                 // Closing/replacing the page cancels a sleeping watch before
                 // it sends anything, as well as rejecting a late reply.
                 let current = this
-                    .update(cx, |s, _| {
-                        s.plan_page.scope_epoch == scope_epoch
+                    .update(cx, |s, cx| {
+                        s.plan_scope_current(scope_epoch, &namespace, cx)
                             && s.plan_page.controller.poll_epoch == poll_epoch
                             && s.plan_page.controller.polling.as_deref() == Some(id.as_str())
                     })
@@ -637,7 +659,7 @@ impl SettingsWorkspaceSurface {
                     .await;
                 let stop = this
                     .update(cx, |s, cx| {
-                        if s.plan_page.scope_epoch != scope_epoch
+                        if !s.plan_scope_current(scope_epoch, &namespace, cx)
                             || s.plan_page.controller.poll_epoch != poll_epoch
                             || s.plan_page.controller.polling.as_deref() != Some(id.as_str())
                         {
@@ -702,9 +724,10 @@ impl SettingsWorkspaceSurface {
     /// `openPortal`: invoices, and leaving a paid plan, live with the
     /// payment provider.
     fn open_portal(&mut self, cx: &mut Context<Self>) {
-        let (Some(client), Some(org)) =
-            (crate::features::cloud::billing_client(cx), self.plan_org())
-        else {
+        let (Some(client), Some((namespace, org))) = (
+            crate::features::cloud::billing_client(cx),
+            self.plan_page.context.clone(),
+        ) else {
             return;
         };
         let controller = &mut self.plan_page.controller;
@@ -720,7 +743,7 @@ impl SettingsWorkspaceSurface {
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.scope_epoch != scope_epoch {
+                if !s.plan_scope_current(scope_epoch, &namespace, cx) {
                     return;
                 }
                 s.plan_page.controller.acting = false;
@@ -874,9 +897,10 @@ impl SettingsWorkspaceSurface {
     }
     /// `AddOns.confirm`: one key per intent, kept for a retry of it.
     fn confirm_add_on(&mut self, cx: &mut Context<Self>) {
-        let (Some(client), Some(org)) =
-            (crate::features::cloud::billing_client(cx), self.plan_org())
-        else {
+        let (Some(client), Some((namespace, org))) = (
+            crate::features::cloud::billing_client(cx),
+            self.plan_page.context.clone(),
+        ) else {
             return;
         };
         let add_on = &mut self.plan_page.controller.add_on;
@@ -897,7 +921,7 @@ impl SettingsWorkspaceSurface {
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
-                if s.plan_page.scope_epoch != scope_epoch {
+                if !s.plan_scope_current(scope_epoch, &namespace, cx) {
                     return;
                 }
                 let add_on = &mut s.plan_page.controller.add_on;
