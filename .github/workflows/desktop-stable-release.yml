@@ -133,15 +133,28 @@ jobs:
           # checkout beside the repository, llvm-cov and the verification Python.
           rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools-preview
           rustup default 1.97.1
+          # The reference fixtures name sibling checkouts (../../<name> from
+          # puppy-one-rust), as on a developer machine: the pinned product
+          # baseline, and puppyone-qubits, which is this repository itself.
+          SIBLINGS="$(dirname "${GITHUB_WORKSPACE}")"
           BASELINE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).commit")"
-          BASELINE_DIR="${RUNNER_TEMP}/puppyone-product-baseline"
+          BASELINE_NAME="$(basename "$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).checkout")")"
+          BASELINE_DIR="${SIBLINGS}/${BASELINE_NAME}"
           git worktree add --detach "${BASELINE_DIR}" "${BASELINE_COMMIT}"
           npm --prefix "${BASELINE_DIR}" ci
+          export PUPPYONE_PRODUCT_ROOT="${BASELINE_DIR}"
           echo "PUPPYONE_PRODUCT_ROOT=${BASELINE_DIR}" >> "${GITHUB_ENV}"
+          ln -s "${GITHUB_WORKSPACE}" "${SIBLINGS}/puppyone-qubits"
+          # The reviewed TS acceptance cases are pinned to their own commit.
           REFERENCE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/fixtures/test-parity-reference.json', 'utf8')).commit")"
-          REFERENCE_DIR="$(dirname "${GITHUB_WORKSPACE}")/puppyone-qubits"
+          REFERENCE_DIR="${RUNNER_TEMP}/puppyone-parity-reference"
           git worktree add --detach "${REFERENCE_DIR}" "${REFERENCE_COMMIT}"
           npm --prefix "${REFERENCE_DIR}" ci
+          export PUPPYONE_PARITY_ROOT="${REFERENCE_DIR}"
+          echo "PUPPYONE_PARITY_ROOT=${REFERENCE_DIR}" >> "${GITHUB_ENV}"
+          # The Cloud backend repository is not available to this runner.
+          export PUPPYONE_VERIFY_SKIP=cloud-reference
+          echo "PUPPYONE_VERIFY_SKIP=cloud-reference" >> "${GITHUB_ENV}"
           (cd puppy-one-rust && cargo fetch --locked && cargo fetch --locked --manifest-path tools/source-index/Cargo.toml)
           cargo install cargo-llvm-cov --version 0.9.1 --locked
           python3 -m venv "${RUNNER_TEMP}/rust-verification-python"

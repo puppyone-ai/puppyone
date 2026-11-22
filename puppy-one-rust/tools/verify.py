@@ -65,8 +65,17 @@ commands = [
     ('editor-frames', ['python3', 'tools/bench-editor.py', '--check']),
     ('native-editor', ['python3', 'tools/verify-native-editor.py']),
 ]
+# A release runner without a sibling repository a check reads (the Cloud
+# backend for cloud-reference) names that check here; the receipt keeps it.
+skipped = sorted(filter(None, os.environ.get('PUPPYONE_VERIFY_SKIP', '').split(',')))
+unknown = set(skipped) - {name for name, _ in commands}
+if unknown:
+    raise SystemExit(f'PUPPYONE_VERIFY_SKIP names no such check: {", ".join(sorted(unknown))}')
 checks = []
 for name, command in commands:
+    if name in skipped:
+        print(f'Skipping {name} (PUPPYONE_VERIFY_SKIP).', flush=True)
+        continue
     print(f'Checking {name}…', flush=True)
     result = subprocess.run(command, cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out / f'{name}.log').write_text(result.stdout)
@@ -84,7 +93,7 @@ if source_hashes() != verified_sources:
 receipt = {
     'framework': 'gpui-kit 0.8.0 / gpui-pre 0.3.9', 'passed': True,
     'verifiedAt': datetime.now().astimezone().isoformat(),
-    'platform': platform.platform(), 'checks': checks,
+    'platform': platform.platform(), 'checks': checks, 'skipped': skipped,
     'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
     'implementation': 'puppy-one-rust at baseCommit; sourceHashes record the verified files, including uncommitted changes',
     'sourceUnchangedDuringVerification': True,
