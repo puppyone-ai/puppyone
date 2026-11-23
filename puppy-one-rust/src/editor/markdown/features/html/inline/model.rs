@@ -298,6 +298,7 @@ fn runs(doc: &Buffer, spans: &[Span], container: Span) -> Vec<Element> {
                 href: None,
                 color: None,
                 background: None,
+                weight: None,
             }));
             out.push(e);
         }
@@ -366,6 +367,20 @@ fn pair_container(doc: &Buffer, tags: &[Span], end: usize) -> Vec<Element> {
             continue;
         };
         t.range = range.clone();
+        // A bare `<br>` is a line break (`compiles a bare br into a typed
+        // line-break plan`).
+        if t.name == "br" && !t.closing {
+            let mut e = Element::new(Kind::InlineHtml, range.clone(), vec![range.clone()], None);
+            e.html = Some(Box::new(InlineTag {
+                name: "br".into(),
+                href: None,
+                color: None,
+                background: None,
+                weight: None,
+            }));
+            out.push(e);
+            continue;
+        }
         if t.void || !TAGS.contains(&t.name.as_str()) {
             continue;
         }
@@ -404,6 +419,7 @@ fn pair_container(doc: &Buffer, tags: &[Span], end: usize) -> Vec<Element> {
                 .filter(|h| !h.is_empty()),
             color: style_value(style, "color"),
             background: style_value(style, "background-color"),
+            weight: style_value(style, "font-weight"),
             name: opening.name.clone(),
         };
         let mut e = Element::new(

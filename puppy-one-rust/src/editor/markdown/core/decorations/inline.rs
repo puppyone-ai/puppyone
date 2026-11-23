@@ -269,6 +269,24 @@ impl Builder<'_> {
     }
 
     fn inline_html(&mut self, plan: &Plan, e: &Element, reveal: bool) {
+        // A bare `<br>`: a line break, its tag source when revealed.
+        if let (Presentation::InlineAtom(Atom::Text(text)), Some(tag)) =
+            (&plan.presentation, e.html.as_deref())
+            && tag.name == "br"
+        {
+            if reveal {
+                self.spans.push(ClassSpan {
+                    range: e.range.clone(),
+                    classes: SourceSyntax::Delimiter.revealed(),
+                    href: None,
+                });
+            } else {
+                self.inline_widgets
+                    .push(InlineWidget::text(e.range.clone(), text.clone()));
+                self.atomic.push(e.range.clone());
+            }
+            return;
+        }
         let (Presentation::InlineMark { content, markers }, Some(tag)) =
             (&plan.presentation, e.html.as_deref())
         else {
@@ -322,6 +340,16 @@ impl Builder<'_> {
                 .and_then(crate::editor::tokens::parse_css_color)
                 .map(crate::editor::view::decoration::packed)
         };
+        // `font-weight` from the style: bold at 600 and above.
+        if tag.weight.as_deref().is_some_and(|w| {
+            matches!(w, "bold" | "bolder") || w.parse::<u32>().is_ok_and(|n| n >= 600)
+        }) {
+            self.spans.push(ClassSpan {
+                range: content.clone(),
+                classes: Class::SYNTAX_STRONG,
+                href: None,
+            });
+        }
         let (color, background) = (css(&tag.color), css(&tag.background));
         if color.is_some() || background.is_some() {
             self.colors.push((content.clone(), color, background));
