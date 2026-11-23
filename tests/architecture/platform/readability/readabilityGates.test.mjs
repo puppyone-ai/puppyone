@@ -261,8 +261,9 @@ it("CI selects the PR base/pre-push SHA and fails closed when it is missing or i
   const workflow = load(readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8"));
   const step = workflow.jobs["source-checks"].steps.find((item) => item.name === "Fetch readability comparison commit");
   expect(step.env.BASE_SHA).toBe("${{ github.event.pull_request.base.sha || github.event.before }}");
+  expect(step.env.NEW_RELEASE_BRANCH).toBe("${{ github.event_name == 'push' && github.event.created && startsWith(github.ref, 'refs/heads/release/') }}");
   for (const BASE_SHA of ["", "0".repeat(40), "HEAD", "invalid\nREADABILITY_BASE=HEAD"]) {
-    const result = spawnSync("bash", ["-e", "-c", step.run], { cwd: temporary, encoding: "utf8", env: { ...process.env, BASE_SHA } });
+    const result = spawnSync("bash", ["-e", "-c", step.run], { cwd: temporary, encoding: "utf8", env: { ...process.env, BASE_SHA, NEW_RELEASE_BRANCH: "false" } });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("A valid PR base or pre-push commit is required.");
   }
