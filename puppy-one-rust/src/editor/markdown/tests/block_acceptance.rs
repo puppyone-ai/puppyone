@@ -265,6 +265,8 @@ fn front_matter_table_and_source_button_preserve_metadata_and_reject_invalid_blo
     let button = visual
         .debug_bounds("md-front-matter")
         .expect("metadata source control");
+    visual.simulate_mouse_move(button.center(), None, Modifiers::none());
+    draw(visual);
     visual.simulate_click(button.center(), Modifiers::none());
     // Source-mode list indentation occupies the native line rail; the
     // source buffer still retains the authored spaces.

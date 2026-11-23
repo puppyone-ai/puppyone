@@ -146,25 +146,36 @@ describe("macOS internal release workflow", () => {
   });
 
   it.each([
-    ['.event == "push"', "the Internal workflow must require a main push CI run"],
+    ['.event == "push"', "the Internal workflow must require a push CI run on its branch"],
     [".head_sha == env.GITHUB_SHA", "the Internal workflow must match the exact source SHA in returned CI records"],
     ['.status == "completed"', "the Internal workflow must require completed CI records"],
     ['.conclusion == "success"', "the Internal workflow must require successful CI"],
-  ])("keeps the green-main gate fail-closed without %s", (condition, error) => {
+  ])("keeps the green source-branch gate fail-closed without %s", (condition, error) => {
     const workflow = readFileSync(
       new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url), "utf8",
     ).replace(condition, "true");
     expect(inspectInternalReleaseWorkflow(workflow)).toContain(error);
   });
 
-  it("rejects an Internal workflow without the green-main source gate", () => {
+  it("rejects an Internal workflow without the green source-branch gate", () => {
     const workflow = readFileSync(
       new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url),
       "utf8",
-    ).replace("- name: Verify green main source", "- name: Unverified source");
+    ).replace("- name: Verify green source branch", "- name: Unverified source");
 
     expect(inspectInternalReleaseWorkflow(workflow)).toContain(
-      "the Internal workflow must reject non-main or unverified source commits",
+      "the Internal workflow must reject unverified source commits or other branches",
+    );
+  });
+
+  it("rejects an Internal workflow that builds from any branch other than main or qubits", () => {
+    const workflow = readFileSync(
+      new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url),
+      "utf8",
+    ).replace("refs/heads/main | refs/heads/qubits) ;;", "refs/heads/*) ;;");
+
+    expect(inspectInternalReleaseWorkflow(workflow)).toContain(
+      "the Internal workflow must accept only the main and qubits release branches",
     );
   });
 });

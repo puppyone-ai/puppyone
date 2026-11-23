@@ -116,7 +116,10 @@ fn decode_resource(
     let input = source(resource, name, cancel)
         .ok_or_else(|| DecodeError::Failed("Image resource is unavailable".into()))?;
     let result = if input.svg {
-        DecodedMedia::Svg(Arc::new(Image::from_bytes(ImageFormat::Svg, input.bytes)))
+        DecodedMedia::Bitmap(crate::platform::svg::decode_svg_for_viewer(
+            &input.bytes,
+            target_px,
+        )?)
     } else {
         DecodedMedia::Bitmap(image_transcode::decode(
             ImageInput::Bytes {
@@ -211,14 +214,23 @@ impl Drop for Pending {
         self.0.store(true, Ordering::Release);
     }
 }
+#[cfg(test)]
+pub(crate) fn decode_resource_for_tests(
+    resource: &PreviewResource,
+    name: &str,
+    target_px: u32,
+) -> Result<DecodedImage, DecodeError> {
+    let DecodedMedia::Bitmap(decoded) =
+        decode_resource(resource, name, target_px, &AtomicBool::new(false))?;
+    Ok(decoded)
+}
+
 enum DecodedMedia {
     Bitmap(DecodedImage),
-    Svg(Arc<Image>),
 }
 #[derive(Clone)]
 enum LoadedMedia {
     Bitmap(Arc<RenderImage>),
-    Svg(ImageSource),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -285,11 +297,8 @@ impl ImagePreview {
     }
 
     fn release_media(&mut self, cx: &mut App) {
-        if let Some(media) = self.media.take() {
-            match media {
-                LoadedMedia::Bitmap(img) => cx.drop_image(img, None),
-                LoadedMedia::Svg(src) => src.remove_asset(cx),
-            }
+        if let Some(LoadedMedia::Bitmap(img)) = self.media.take() {
+            cx.drop_image(img, None);
         }
     }
 
@@ -365,12 +374,6 @@ impl ImagePreview {
                 } else {
                     match result {
                         Ok(DecodedMedia::Bitmap(decoded)) => v.apply_decoded(decoded, cx),
-                        Ok(DecodedMedia::Svg(image)) => {
-                            v.natural_size = (800, 600);
-                            v.decoded_max_px = u32::MAX;
-                            v.release_media(cx);
-                            v.media = Some(LoadedMedia::Svg(image.into()));
-                        }
                         Err(DecodeError::BudgetExceeded { limit, .. }) => {
                             v.failure = Some(FailureReason::Budget(limit))
                         }
@@ -817,10 +820,8 @@ impl Render for ImagePreview {
         } else if let Some(media) = self.media.clone() {
             let (sw, sh) = self.scaled_dimensions();
             let (pan_x, pan_y) = self.pan;
-            let source = match media {
-                LoadedMedia::Bitmap(render_img) => ImageSource::from(render_img),
-                LoadedMedia::Svg(src) => src,
-            };
+            let LoadedMedia::Bitmap(render_img) = media;
+            let source = ImageSource::from(render_img);
             let img_el = img(source)
                 .w(px(sw))
                 .h(px(sh))

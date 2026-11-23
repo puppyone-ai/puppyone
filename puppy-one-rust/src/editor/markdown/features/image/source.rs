@@ -1,8 +1,8 @@
 //! Image media source facade (`TA-41`, `TA-51`, `TODO-30`, `TODO-36`):
 //! delegates reference parsing and `O(1)` pre-decode `data:image/*` length
-//! checks to [`crate::editor::markdown::shared::media_source`], mapping
+//! checks to [`crate::editor::markdown::shared::media`], mapping
 //! rejections onto [`AssetFailure`] for visible fallback cards (`TA-52`).
-pub use crate::editor::markdown::shared::media_source::{
+pub use crate::editor::markdown::shared::media::{
     MediaSource as Source, MediaSourceError, workspace_path,
 };
 
@@ -23,7 +23,7 @@ fn map_error(err: MediaSourceError) -> AssetFailure {
 /// Evaluates a Markdown `![alt](href)` image reference, preserving the specific
 /// policy/budget failure reason (`TA-51`, `TA-52`).
 pub fn markdown_checked(document: &Path, href: &str) -> Result<Source, AssetFailure> {
-    crate::editor::markdown::shared::media_source::resolve_markdown_media(document, href)
+    crate::editor::markdown::shared::media::resolve_markdown_media(document, href)
         .map_err(map_error)
 }
 
@@ -34,7 +34,7 @@ pub fn embed_checked(
     target: &str,
     references: Option<&ReferenceContext>,
 ) -> Result<Source, AssetFailure> {
-    crate::editor::markdown::shared::media_source::resolve_embed_media(document, target, references)
+    crate::editor::markdown::shared::media::resolve_embed_media(document, target, references)
         .map_err(map_error)
 }
 
@@ -55,7 +55,7 @@ pub fn embed(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::markdown::shared::media_source::MAX_DATA_BYTES;
+    use crate::editor::markdown::shared::media::MAX_DATA_BYTES;
     use core::prelude::v1::test;
     use std::path::PathBuf;
 

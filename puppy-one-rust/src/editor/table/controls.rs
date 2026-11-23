@@ -11,7 +11,10 @@ type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
 type HandlerWith<T> = Rc<dyn Fn(T, &mut Window, &mut App)>;
 
 /// The 13px rail visual centred in the action gutter.
-const RAIL: f32 = 13.;
+pub(crate) const RAIL: f32 = 13.;
+/// Pixel-centered `+` glyph strokes inside the structure rail (`7×1` and `1×7`).
+pub(crate) const PLUS_HORIZONTAL_STROKE: (f32, f32) = (7., 1.);
+pub(crate) const PLUS_VERTICAL_STROKE: (f32, f32) = (1., 7.);
 
 /// One structure rail (`.po-editable-table-structure-button`): revealed
 /// while `group` (the interaction root) is hovered; its visual lights and
@@ -67,8 +70,8 @@ fn rail(
                 .bg(style.structure_background)
                 .group_hover(id, move |s| s.bg(hover_bg).border_color(hover_border)),
         )
-        .child(plus(7., 1.))
-        .child(plus(1., 7.))
+        .child(plus(PLUS_HORIZONTAL_STROKE.0, PLUS_HORIZONTAL_STROKE.1))
+        .child(plus(PLUS_VERTICAL_STROKE.0, PLUS_VERTICAL_STROKE.1))
         .into_any_element()
 }
 
@@ -136,6 +139,15 @@ pub fn grip_size(axis: Axis) -> (f32, f32) {
     }
 }
 
+/// The grip's visible pill size (`22×14` column, `14×22` row), centered
+/// inside the larger `grip_size` pointer target.
+pub(crate) fn grip_visual_size(axis: Axis) -> (f32, f32) {
+    match axis {
+        Axis::Column => (22., 14.),
+        Axis::Row => (14., 22.),
+    }
+}
+
 /// Optional focus and transition presentation for a grip (`CS-14`, `TB-03`).
 #[derive(Clone, Default)]
 pub struct GripOptions<'a> {
@@ -184,10 +196,7 @@ pub fn grip_with_options(
     options: GripOptions<'_>,
     handlers: GripHandlers,
 ) -> AnyElement {
-    let (w, h) = match axis {
-        Axis::Column => (22., 14.),
-        Axis::Row => (14., 22.),
-    };
+    let (w, h) = grip_visual_size(axis);
     // `.is-menu-active` / `.is-dragging`: white dots on the selection fill.
     let white = crate::theme::on_solid();
     let (face, dots, hover) = if active {

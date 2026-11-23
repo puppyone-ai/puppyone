@@ -86,13 +86,6 @@ fn unescape(text: &str) -> String {
     text.replace("\\|", "|")
 }
 
-fn split_cells(text: &str) -> Vec<String> {
-    segments(text)
-        .into_iter()
-        .map(|r| unescape(text[r].trim()))
-        .collect()
-}
-
 fn is_delimiter_cell(cell: &str) -> bool {
     let c = cell.trim();
     let inner = c.strip_prefix(':').unwrap_or(c);
@@ -104,8 +97,8 @@ fn is_delimiter_line(text: &str) -> bool {
     if text.len() > ROW_BYTE_LIMIT {
         return false;
     }
-    let cells = split_cells(text);
-    !cells.is_empty() && cells.iter().all(|c| is_delimiter_cell(c))
+    let segs = segments(text);
+    !segs.is_empty() && segs.iter().all(|r| is_delimiter_cell(&text[r.clone()]))
 }
 
 fn has_cell_segment(text: &str) -> bool {
@@ -148,8 +141,8 @@ fn alignment(cell: &str) -> Alignment {
 
 fn row_cells(doc: &Buffer, line: usize) -> Vec<Cell> {
     let range = doc.line_range(line);
-    let text = doc.line(line);
-    segments(text)
+    let text = doc.line_cow(line);
+    segments(&text)
         .into_iter()
         .map(|seg| {
             let raw = &text[seg.clone()];
@@ -177,39 +170,46 @@ pub fn table_block(doc: &Buffer, syntax: &Range<usize>) -> Option<Table> {
     if syntax.end <= doc.line_range(delimiter).start {
         return None;
     }
-    let last_syntax = doc.line_index(syntax.end.saturating_sub(1).max(syntax.start));
-    // The explicit extent: consecutive table lines after the delimiter.
-    let mut last = delimiter;
-    for line in delimiter + 1..=last_syntax {
-        let text = doc.line(line);
-        if !is_table_line(text) || is_delimiter_line(text) {
-            break;
-        }
-        last = line;
-    }
-    let (head_text, delim_text) = (doc.line(header), doc.line(delimiter));
+    let head_text = doc.line_cow(header);
+    let delim_text = doc.line_cow(delimiter);
     if head_text.len() > ROW_BYTE_LIMIT || delim_text.len() > ROW_BYTE_LIMIT {
         return None;
     }
-    let delimiter_cells = split_cells(delim_text);
     let header_cells = row_cells(doc, header);
+    if header_cells.len() > COLUMN_LIMIT {
+        return None;
+    }
+    let delim_segs = segments(&delim_text);
+    if delim_segs.len() > COLUMN_LIMIT {
+        return None;
+    }
+    let delimiter_cells: Vec<String> = delim_segs
+        .into_iter()
+        .map(|r| unescape(delim_text[r].trim()))
+        .collect();
     let refinement_valid = !header_cells.is_empty()
         && !delimiter_cells.is_empty()
         && delimiter_cells.iter().all(|c| is_delimiter_cell(c));
+
+    let last_syntax = doc.line_index(syntax.end.saturating_sub(1).max(syntax.start));
     let mut rows = vec![Row {
         cells: header_cells,
         header: true,
         line: header,
     }];
     let mut cell_count = rows[0].cells.len();
-    for line in delimiter + 1..=last {
+    let mut last = delimiter;
+    for line in delimiter + 1..=last_syntax {
+        let text = doc.line_cow(line);
+        if !is_table_line(&text) || is_delimiter_line(&text) {
+            break;
+        }
+        if text.len() > ROW_BYTE_LIMIT {
+            return None;
+        }
         let cells = row_cells(doc, line);
         cell_count += cells.len();
-        if rows.len() + 1 > ROW_LIMIT
-            || cell_count > CELL_LIMIT
-            || cells.len() > COLUMN_LIMIT
-            || doc.line(line).len() > ROW_BYTE_LIMIT
-        {
+        if rows.len() + 1 > ROW_LIMIT || cell_count > CELL_LIMIT || cells.len() > COLUMN_LIMIT {
             return None;
         }
         rows.push(Row {
@@ -217,9 +217,7 @@ pub fn table_block(doc: &Buffer, syntax: &Range<usize>) -> Option<Table> {
             header: false,
             line,
         });
-    }
-    if rows[0].cells.len() > COLUMN_LIMIT || delimiter_cells.len() > COLUMN_LIMIT {
-        return None;
+        last = line;
     }
     let width = rows
         .iter()

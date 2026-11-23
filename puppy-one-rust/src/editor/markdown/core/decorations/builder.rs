@@ -6,9 +6,9 @@ use super::DecorateCx;
 use crate::editor::{
     markdown::{
         core::{
-            classes::{Class, SourceSyntax},
-            feature,
+            features,
             plans::Plan,
+            presentation::classes::{Class, SourceSyntax},
             syntax::Syntax,
         },
         style::{
@@ -155,7 +155,7 @@ impl<'a> Builder<'a> {
                 let h_len = self.hidden.len();
                 let r_len = self.replaced.len();
                 let i_len = self.inline_images.len();
-                let ok = feature::catch_feature_panic(feat.id(), "decorate_line", || {
+                let ok = features::catch_feature_panic(feat.id(), "decorate_line", || {
                     let mut decoration = LineDecoration {
                         doc: cx.doc,
                         line,
@@ -291,7 +291,7 @@ impl BlockDecoration<'_, '_> {
         for feat in cx.features {
             let mut replaced = Vec::new();
             let mut images = Vec::new();
-            let ok = feature::catch_feature_panic(feat.id(), "decorate_inline_content", || {
+            let ok = features::catch_feature_panic(feat.id(), "decorate_inline_content", || {
                 feat.decorate_inline_content(&mut InlineDecoration {
                     doc: cx.doc,
                     range: range.clone(),

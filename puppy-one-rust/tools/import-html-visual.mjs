@@ -11,7 +11,8 @@ import {pathToFileURL} from 'node:url';
 import {root} from './product-bundle.mjs';
 
 const check = process.argv.includes('--check');
-const product = path.resolve(root, process.argv.slice(2).find(a => !a.startsWith('--')) ?? '../../puppyone-qubits');
+// The TS app lives in the repository that holds puppy-one-rust.
+const product = path.resolve(root, process.argv.slice(2).find(a => !a.startsWith('--')) ?? '..');
 const modules = path.join(product, 'node_modules');
 const {build} = await import(pathToFileURL(path.join(modules, 'esbuild/lib/main.js')));
 const source = p => path.join(product, p);

@@ -1,13 +1,13 @@
 //! Workspace media player facade (`TA-42`, `TODO-35`):
 //! delegates `WebHost` creation, per-window LRU capacity pooling, `32 MiB`
 //! workspace budget verification, and failure retry to
-//! [`crate::editor::markdown::platform::embed`].
-pub use crate::editor::markdown::platform::embed::{
+//! [`crate::editor::markdown::platform::brokers::embed`].
+pub use crate::editor::markdown::platform::brokers::embed::{
     AUDIO_SIZE, MediaKey as Key, MediaPlayer as Player, media_page,
 };
-pub use crate::editor::markdown::shared::html_surface::MediaKind as Media;
+pub use crate::editor::markdown::shared::media::MediaKind as Media;
 
-use crate::editor::{markdown::platform::embed, registry::DocumentAssets};
+use crate::editor::{markdown::platform::brokers::embed, registry::DocumentAssets};
 use gpui::{App, Rgba, Window};
 use std::rc::Rc;
 

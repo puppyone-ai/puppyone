@@ -1,16 +1,12 @@
 //! `.cm-md-html-widget`: the rendered surface in `.cm-md-html-widget-content`
-//! (the block radius and rings) with the toolbar's source toggle. Uses the
-//! shared bounded height cache and [`HtmlPlatformBridge`] (`TA-41`, `TA-42`,
-//! `TODO-31`).
-use super::{ID, ShowSource, dom};
+//! (the block radius and rings) with the toolbar's source toggle. Uses
+//! `features::html::render::Surface` and shared widget chrome (`ring`,
+//! `source_toggle`).
+use super::{ID, ShowSource, dom, render::Surface};
 use crate::editor::{
     markdown::{
-        platform::HtmlPlatformBridge,
-        shared::{
-            html_surface::{Surface, measured_height, record_measured_height},
-            ring,
-            source_toggle::source_toggle,
-        },
+        platform::sessions::measure,
+        shared::widgets::{ring, source_toggle::source_toggle},
         style::MarkdownTheme,
     },
     registry::DocumentAssets,
@@ -24,6 +20,7 @@ use std::{
     hash::{Hash, Hasher},
     ops::Range,
     path::Path,
+    rc::Rc,
 };
 
 pub struct HtmlBlockWidget {
@@ -50,7 +47,9 @@ impl BlockWidget for HtmlBlockWidget {
             .count()
             .max(1);
         let estimate = lines as f32 * self.theme.body.text.line_height_px();
-        let height = measured_height(key).unwrap_or(estimate);
+        let block_id = cx.block_id;
+        let height = measure::get(&mut cx.render.widget_states.borrow_mut(), block_id, key)
+            .unwrap_or(estimate);
         let document = self
             .assets
             .as_ref()
@@ -67,24 +66,18 @@ impl BlockWidget for HtmlBlockWidget {
                 cx.render.window,
                 cx.render.app,
             ),
-            None => {
-                let mut bridge = HtmlPlatformBridge::new(
-                    &self.theme,
-                    self.assets.as_ref(),
-                    view.clone(),
-                    self.range.start,
-                );
-                Surface::new(
-                    &self.theme,
-                    Path::new(&document),
-                    view,
-                    self.range.start,
-                    cx.render,
-                    &mut bridge,
-                )
-                .render(&self.nodes, width)
-            }
+            None => Surface::new(
+                &self.theme,
+                Path::new(&document),
+                self.assets.as_ref(),
+                view,
+                block_id,
+                self.range.start,
+                cx.render,
+            )
+            .render(&self.nodes, width),
         };
+        let states = Rc::clone(cx.render.widget_states);
         let surface = div()
             .absolute()
             .left_0()
@@ -93,7 +86,12 @@ impl BlockWidget for HtmlBlockWidget {
             .child(content)
             .on_children_prepainted(move |bounds, window, _| {
                 let Some(b) = bounds.first() else { return };
-                if record_measured_height(key, f32::from(b.size.height)) {
+                if measure::record(
+                    &mut states.borrow_mut(),
+                    block_id,
+                    key,
+                    f32::from(b.size.height),
+                ) {
                     window.refresh();
                 }
             });
@@ -109,16 +107,24 @@ impl BlockWidget for HtmlBlockWidget {
             ring::outline(size, b.radius, b.ring_width)
                 .group_hover("md-html-widget", move |s| s.border_color(hover))
         };
+        let hovered =
+            cx.render
+                .window
+                .use_keyed_state(cx.id("md-html-hovered"), cx.render.app, |_, _| false);
+        let is_hovered = *hovered.read(cx.render.app);
+        let visible = state.focus_within() || state.selected || is_hovered;
         let toggle = source_toggle(
             cx.id("md-html-source"),
             "md-html-widget",
             width,
             self.theme.dark,
-            state.focus_within() || state.selected,
+            visible,
             cx.sender(),
             Command::new(ID, ShowSource(self.range.clone())),
         );
+        let owner_view = cx.render.view.clone();
         let widget = div()
+            .id(cx.id("md-html-box"))
             .absolute()
             .left_0()
             .top_0()
@@ -126,6 +132,19 @@ impl BlockWidget for HtmlBlockWidget {
             .h(px(height))
             .group("md-html-widget")
             .rounded(px(b.radius))
+            .on_hover(move |&now, _, app| {
+                let changed = hovered.update(app, |h, _| {
+                    if *h != now {
+                        *h = now;
+                        true
+                    } else {
+                        false
+                    }
+                });
+                if changed {
+                    let _ = owner_view.update(app, |_, cx| cx.notify());
+                }
+            })
             .child(surface)
             .child(frame)
             .child(toggle);

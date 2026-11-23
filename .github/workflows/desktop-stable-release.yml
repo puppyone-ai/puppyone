@@ -37,7 +37,7 @@ jobs:
     name: Build signed and notarized macOS release once
     needs: resolve
     runs-on: macos-15
-    timeout-minutes: 120
+    timeout-minutes: 240
     environment:
       name: desktop-signing
     permissions:
@@ -62,7 +62,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          # The Node.js whose ICU recorded the Rust Intl oracles (fixtures/ui/number-format-oracle.json).
+          node-version: 22.22.3
           cache: npm
 
       - name: Validate stable tag and package version
@@ -128,14 +129,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rustup toolchain install stable --profile minimal --component rustfmt clippy
-          rustup default stable
+          # verify.py needs what Rust desktop acceptance (rust-tests.yml) prepares:
+          # its toolchain, the pinned product baseline, the reviewed TS reference
+          # checkout beside the repository, llvm-cov and the verification Python.
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools-preview
+          rustup default 1.97.1
+          # The reference fixtures name the pinned product baseline as a
+          # sibling checkout (../../<name> from puppy-one-rust).
+          SIBLINGS="$(dirname "${GITHUB_WORKSPACE}")"
           BASELINE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).commit")"
-          BASELINE_DIR="${RUNNER_TEMP}/puppyone-product-baseline"
+          BASELINE_NAME="$(basename "$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).checkout")")"
+          BASELINE_DIR="${SIBLINGS}/${BASELINE_NAME}"
           git worktree add --detach "${BASELINE_DIR}" "${BASELINE_COMMIT}"
           npm --prefix "${BASELINE_DIR}" ci
+          export PUPPYONE_PRODUCT_ROOT="${BASELINE_DIR}"
           echo "PUPPYONE_PRODUCT_ROOT=${BASELINE_DIR}" >> "${GITHUB_ENV}"
+          # The reviewed TS acceptance cases are pinned to their own commit.
+          REFERENCE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/fixtures/test-parity-reference.json', 'utf8')).commit")"
+          REFERENCE_DIR="${RUNNER_TEMP}/puppyone-parity-reference"
+          git worktree add --detach "${REFERENCE_DIR}" "${REFERENCE_COMMIT}"
+          npm --prefix "${REFERENCE_DIR}" ci
+          export PUPPYONE_PARITY_ROOT="${REFERENCE_DIR}"
+          echo "PUPPYONE_PARITY_ROOT=${REFERENCE_DIR}" >> "${GITHUB_ENV}"
+          # The Cloud backend repository is not available to this runner.
+          export PUPPYONE_VERIFY_SKIP=cloud-reference
+          echo "PUPPYONE_VERIFY_SKIP=cloud-reference" >> "${GITHUB_ENV}"
+          (cd puppy-one-rust && cargo fetch --locked && cargo fetch --locked --manifest-path tools/source-index/Cargo.toml)
+          cargo install cargo-llvm-cov --version 0.9.1 --locked
+          python3 -m venv "${RUNNER_TEMP}/rust-verification-python"
+          "${RUNNER_TEMP}/rust-verification-python/bin/python" -m pip install -r puppy-one-rust/tools/requirements-verification.txt
+          echo "${RUNNER_TEMP}/rust-verification-python/bin" >> "${GITHUB_PATH}"
+          export PATH="${RUNNER_TEMP}/rust-verification-python/bin:${PATH}"
           python3 puppy-one-rust/tools/fetch-pdfium.py
+          python3 puppy-one-rust/tools/release/package-excalidraw-pack.py
           (cd puppy-one-rust && python3 tools/verify.py)
           python3 puppy-one-rust/tools/release/verify-electron-to-gpui-ota.py
           python3 puppy-one-rust/tools/release/package-excalidraw-pack.py --out artifacts/viewer-packs

@@ -54,7 +54,7 @@ pub struct RenderCx<'a> {
     pub leaves: Vec<LeafEntry>,
     pub cache: &'a RefCell<ParagraphCache>,
     pub measures: &'a RefCell<MeasureCache>,
-    pub widget_states: &'a RefCell<WidgetStateStore>,
+    pub widget_states: &'a std::rc::Rc<RefCell<WidgetStateStore>>,
     pub kit: &'a RenderContext,
     pub view: WeakEntity<EditorView>,
     /// Device pixels per CSS pixel.
@@ -493,6 +493,10 @@ impl RenderCx<'_> {
             .border_0()
             .bg(transparent_black());
         refinement.text = style.refinement();
+        refinement.text.font_features = Some(FontFeatures(std::sync::Arc::new(vec![
+            ("liga".into(), 0),
+            ("calt".into(), 0),
+        ])));
         refinement.text.white_space = Some(WhiteSpace::Nowrap);
         let kit = self
             .kit

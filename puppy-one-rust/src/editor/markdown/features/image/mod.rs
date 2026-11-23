@@ -11,15 +11,18 @@ pub mod cache;
 mod embed;
 pub mod source;
 
+#[cfg(test)]
+pub(crate) use embed::fit as fit_for_tests;
+
 use crate::editor::{
     markdown::{
         core::{
             decorations::{InlineDecoration, LineDecoration},
-            feature::MarkdownFeature,
+            features::MarkdownFeature,
             state::PreviewState,
             syntax::{Element, Kind},
         },
-        shared::media_source::{parse_image_size, split_image_alt},
+        shared::media::{parse_image_size, split_image_alt},
     },
     text::{
         selection::Selection,

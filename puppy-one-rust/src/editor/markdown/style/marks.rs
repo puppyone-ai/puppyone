@@ -7,7 +7,7 @@
 //! var(--po-md-<role>-color))`: a quote's or callout's inline foreground
 //! wins over the role's own; a link's colour (Kit's) wins over both.
 use super::{MarkdownTheme, cascade::LineContext};
-use crate::editor::{markdown::core::classes::Class, view::decoration::MarkStyle};
+use crate::editor::{markdown::core::presentation::classes::Class, view::decoration::MarkStyle};
 use gpui::SharedString;
 
 /// The Kit marks of a span whose elements carry `classes`, on a line with

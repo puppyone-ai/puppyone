@@ -1,7 +1,9 @@
 //! Host identity and document fallback must govern the real asset cache.
 use super::setup_with_focus;
 use crate::editor::{
-    markdown::{MarkdownExtension, SetAssets, platform::assets, shared::media_source::MediaSource},
+    markdown::{
+        MarkdownExtension, SetAssets, platform::brokers::assets, shared::media::MediaSource,
+    },
     registry::DocumentAssets,
     view::extension::config_transaction,
 };

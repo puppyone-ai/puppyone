@@ -5,7 +5,7 @@
 //! from the element styles; every rule cites its selector.
 use super::{ListStyle, MarkdownTheme};
 use crate::editor::{
-    markdown::core::{classes::Class, presentation::ListRhythm},
+    markdown::core::presentation::{ListRhythm, classes::Class},
     view::style::{Align, LineHeight, LineStyle, Paint, Rect, TextStyle},
 };
 use gpui::{Rgba, SharedString};

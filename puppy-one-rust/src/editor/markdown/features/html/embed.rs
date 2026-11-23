@@ -1,8 +1,8 @@
 //! External web embeds facade (`TA-42`, `TA-50`, `TODO-35`):
 //! delegates `<iframe>` detection, public IP / DNS-pinned preflight policy, and
 //! bounded per-window `WebHost` lifecycle to
-//! [`crate::editor::markdown::platform::embed`] and [`crate::editor::markdown::platform::policy`].
-pub use crate::editor::markdown::platform::embed::{
+//! [`crate::editor::markdown::platform::brokers::embed`] and [`crate::editor::markdown::platform::policy`].
+pub use crate::editor::markdown::platform::brokers::embed::{
     external_iframe_href as external_href, render_web_embed as render, web_embed_entry_page as page,
 };
 pub use crate::editor::markdown::platform::policy::{

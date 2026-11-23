@@ -16,8 +16,10 @@ use gpui::{Entity, TestAppContext, VisualTestContext};
 
 mod block_acceptance;
 mod block_move_acceptance;
+mod clipboard_acceptance;
 mod code_isolation_acceptance;
 mod composition_acceptance;
+mod concurrent_edit_acceptance;
 mod core_interaction_acceptance;
 mod document_scope_acceptance;
 mod editor_view_acceptance;
@@ -31,9 +33,14 @@ mod math_acceptance;
 mod mdx_acceptance;
 mod media_isolation_acceptance;
 mod projection_acceptance;
+mod reference_refresh_acceptance;
+mod scale_and_resize_acceptance;
+mod style_contracts;
+mod svg_isolation_acceptance;
 mod table_inline_acceptance;
 mod table_interaction_acceptance;
 mod table_media_acceptance;
+mod viewport_stability;
 
 #[test]
 fn dialect_reconfiguration_uses_one_composition_and_invalidates_derived_plans() {
@@ -512,7 +519,7 @@ fn random_markdown_and_edits_never_panic_the_pipeline() {
         composition::{FEATURES, MDX_FEATURES},
         core::{
             decorations::{self, DecorateCx},
-            feature::Features,
+            features::Features,
             plans,
             presentation::block_rhythm,
             state::PreviewState,
@@ -621,6 +628,7 @@ fn random_markdown_and_edits_never_panic_the_pipeline() {
             features,
             assets: None,
             references: None,
+            inline_preview: Some(&super::composition::preview::PREVIEW),
         });
         let _ = preview.normalize(&state.doc, &syntax, state.selection);
     };
@@ -1185,7 +1193,7 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
     use super::{
         core::{
             decorations::{BlockDecoration, LineDecoration},
-            feature::{
+            features::{
                 CommandCx, CompileCx, FEATURE_PANIC_EVENT, Features, MarkdownFeature,
                 WidgetFactoryCx,
             },
@@ -1924,6 +1932,7 @@ fn assert_matches_full_pipeline(
         features: FEATURES,
         assets: None,
         references: None,
+        inline_preview: Some(&super::composition::preview::PREVIEW),
     });
     let full_rev = decorations::decorate_reveal(
         &full_doc,
@@ -1938,6 +1947,7 @@ fn assert_matches_full_pipeline(
             features: FEATURES,
             assets: None,
             references: None,
+            inline_preview: Some(&super::composition::preview::PREVIEW),
         },
         state.revision,
     );
@@ -2053,4 +2063,434 @@ fn apply_markdown_edit(
     ext.prepare_applied(&applied, state);
     let _ = ext.normalize_selection(state);
     ext.applied(&applied, state, true);
+}
+
+/// T7 (Rust-native): Seeded random operation sequences across 3 fixed seeds ×
+/// 200 steps each (overridable via `PUPPYONE_LAYOUT_INV_SEEDS` /
+/// `PUPPYONE_LAYOUT_INV_SEED` and `PUPPYONE_LAYOUT_INV_STEPS`) mix text
+/// inserts/deletes, random `set_scroll_top`, width resizes (`440..=1400`),
+/// height resizes (`300..=1100`), Live Preview toggles, `apply_external`, and
+/// `PageDown` / `PageUp`, asserting after EVERY step:
+/// 1. Adjacent laid-out blocks are strictly contiguous (`|next.top - prev.bottom| <= 0.5px`)
+///    with positive heights and non-overlapping source ranges.
+/// 2. Layout covers the entire viewport unless the document starts/ends inside it.
+/// 3. After any caret-revealing operation (insert, delete, PageDown, PageUp),
+///    the caret stays inside the viewport.
+/// 4. On any interior width-only or height-only resize step, the viewport-top
+///    text stays anchored within `0.5px` (reusing T2's anchoring check).
+/// 5. No panics occur.
+#[gpui::test]
+fn random_operations_keep_the_layout_consistent(cx: &mut TestAppContext) {
+    use super::ToggleLivePreview;
+    use gpui::{point, px, size};
+
+    struct Rng(u64);
+    impl Rng {
+        fn new(seed: u64) -> Self {
+            Self(seed.max(1))
+        }
+        fn next_u64(&mut self) -> u64 {
+            let mut x = self.0;
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            self.0 = x;
+            x
+        }
+        fn range(&mut self, upper: usize) -> usize {
+            if upper == 0 {
+                0
+            } else {
+                (self.next_u64() as usize) % upper
+            }
+        }
+    }
+
+    fn settle_view(view: &Entity<EditorView>, cx: &mut VisualTestContext) {
+        let mut prev: Option<(f32, f32, u64, usize)> = None;
+        for i in 0..6 {
+            let _ = blocks(view, cx);
+            cx.run_until_parked();
+            let cur = view.read_with(cx, |v, _| {
+                let l = v.layout();
+                (
+                    v.scroll_top(),
+                    l.map_or(0., |l| f32::from(l.height)),
+                    v.state().revision,
+                    l.map_or(0, |l| l.blocks.len()),
+                )
+            });
+            if i >= 1 && prev == Some(cur) {
+                break;
+            }
+            prev = Some(cur);
+        }
+    }
+
+    fn clamp_char_boundary(s: &str, idx: usize) -> usize {
+        let mut i = idx.min(s.len());
+        while i > 0 && !s.is_char_boundary(i) {
+            i -= 1;
+        }
+        i
+    }
+
+    fn seed_doc() -> String {
+        let prose = "Mixed Markdown prose wrapping across several rows so width resizes, height resizes, and edits thoroughly exercise layout contiguity, height caching, and scroll anchoring. ".repeat(3);
+        (0..14)
+            .map(|i| {
+                format!(
+                    "## Heading {i}\n\n{prose}\n\n- [ ] task {i} with **bold** and `code`\n- bullet item {i}\n\n> quoted note {i}\n\n```rust\nfn step_{i}() -> usize {{\n    {i}\n}}\n```\n\n| K{i} | V{i} |\n| --- | --- |\n| a{i} | b{i} |\n"
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn assert_invariants(
+        view: &Entity<EditorView>,
+        cx: &VisualTestContext,
+        check_caret_visible: bool,
+        step_label: &str,
+    ) {
+        view.read_with(cx, |v, _| {
+            let layout = v.layout().expect("layout must exist after settle");
+            assert!(
+                !layout.blocks.is_empty(),
+                "{step_label}: laid-out blocks must be non-empty"
+            );
+
+            let vp_top = f32::from(layout.bounds.top());
+            let vp_bottom = f32::from(layout.bounds.bottom());
+            let first = layout.blocks.first().unwrap();
+            let last = layout.blocks.last().unwrap();
+
+            // Invariant 2: layout covers viewport unless document is shorter / at edge.
+            if !layout.starts_document {
+                assert!(
+                    f32::from(first.bounds.top()) <= vp_top + 1.0,
+                    "{step_label}: gap above viewport (first_top={}, vp_top={vp_top})",
+                    f32::from(first.bounds.top())
+                );
+            }
+            if !layout.ends_document {
+                assert!(
+                    f32::from(last.bounds.bottom()) >= vp_bottom - 1.0,
+                    "{step_label}: gap below viewport (last_bottom={}, vp_bottom={vp_bottom})",
+                    f32::from(last.bounds.bottom())
+                );
+            }
+            if layout.starts_document && layout.ends_document {
+                let doc_h = f32::from(last.bounds.bottom() - first.bounds.top());
+                let vp_h = f32::from(layout.bounds.size.height);
+                if doc_h >= vp_h {
+                    assert!(
+                        f32::from(first.bounds.top()) <= vp_top + 1.0
+                            && f32::from(last.bounds.bottom()) >= vp_bottom - 1.0,
+                        "{step_label}: full-doc layout taller than viewport did not cover it"
+                    );
+                }
+            }
+
+            // Invariant 1: blocks positive height, strictly contiguous, non-overlapping.
+            for (idx, b) in layout.blocks.iter().enumerate() {
+                let h = f32::from(b.bounds.size.height);
+                assert!(
+                    h > 0.0,
+                    "{step_label}: block {idx} must have positive height (got {h})"
+                );
+            }
+            for (idx, pair) in layout.blocks.windows(2).enumerate() {
+                let prev_bottom = f32::from(pair[0].bounds.bottom());
+                let next_top = f32::from(pair[1].bounds.top());
+                let gap = (next_top - prev_bottom).abs();
+                assert!(
+                    gap <= 0.5,
+                    "{step_label}: blocks {idx}..{} non-contiguous (prev_bottom={prev_bottom:.2}, next_top={next_top:.2}, gap={gap:.3})",
+                    idx + 1
+                );
+                assert!(
+                    pair[0].source.end <= pair[1].source.start,
+                    "{step_label}: block source ranges overlap/out-of-order ({:?} vs {:?})",
+                    pair[0].source,
+                    pair[1].source
+                );
+            }
+
+            // Invariant 3: caret valid and inside viewport after caret-revealing ops.
+            let sel = v.state().selection;
+            assert!(
+                sel.head <= v.state().doc.len(),
+                "{step_label}: caret {} exceeds doc len {}",
+                sel.head,
+                v.state().doc.len()
+            );
+            if check_caret_visible {
+                assert!(
+                    layout.covers(sel.head),
+                    "{step_label}: revealed caret {} not covered by layout",
+                    sel.head
+                );
+                let caret = layout.caret(sel.head, sel.upstream);
+                let row_top = f32::from(caret.row_top);
+                let row_bottom = row_top + f32::from(caret.row_height);
+                assert!(
+                    row_bottom >= vp_top - 1.5 && row_top <= vp_bottom + 1.5,
+                    "{step_label}: revealed caret row [{row_top:.1}, {row_bottom:.1}] outside viewport [{vp_top:.1}, {vp_bottom:.1}]"
+                );
+            }
+        });
+    }
+
+    let steps = std::env::var("PUPPYONE_LAYOUT_INV_STEPS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(200);
+    let seeds: Vec<u64> = if let Ok(raw) = std::env::var("PUPPYONE_LAYOUT_INV_SEEDS") {
+        raw.split(',')
+            .filter_map(|s| s.trim().parse::<u64>().ok())
+            .collect()
+    } else if let Ok(raw) = std::env::var("PUPPYONE_LAYOUT_INV_SEED") {
+        raw.trim()
+            .parse::<u64>()
+            .map(|s| vec![s])
+            .unwrap_or_else(|_| vec![0x5EED_CAFE_0001, 0x5EED_BEEF_0002, 0x5EED_F00D_0003])
+    } else {
+        vec![0x5EED_CAFE_0001, 0x5EED_BEEF_0002, 0x5EED_F00D_0003]
+    };
+
+    const INSERTS: &[&str] = &[
+        "hello ",
+        "**bold** ",
+        "`code` ",
+        "- item\n",
+        "\n",
+        "wrap words quickly ",
+        "> quote\n",
+        "中文段落 ",
+    ];
+
+    for seed in seeds {
+        let mut rng = Rng::new(seed);
+        let doc = seed_doc();
+        let (view, visual) = setup(cx, &doc);
+        let mut width = 960.0f32;
+        let mut height = 680.0f32;
+        visual.simulate_resize(size(px(width), px(height)));
+        settle_view(&view, visual);
+        assert_invariants(&view, visual, false, &format!("seed={seed} init"));
+
+        let mut resize_anchor_checks = 0usize;
+        let mut caret_reveal_checks = 0usize;
+        let mut just_scrolled = false;
+
+        for step in 0..steps {
+            let label = format!("seed={seed} step={step}");
+            let op = rng.range(100);
+            match op {
+                // 0..13: insert text/newline (caret-revealing)
+                0..=13 => {
+                    just_scrolled = false;
+                    let text = view.read_with(visual, |v, _| v.text().to_owned());
+                    let pos = clamp_char_boundary(&text, rng.range(text.len() + 1));
+                    let snippet = INSERTS[rng.range(INSERTS.len())];
+                    view.update(visual, |v, cx| {
+                        v.set_selection(Selection::cursor(pos), cx);
+                    });
+                    visual.simulate_input(snippet);
+                    settle_view(&view, visual);
+                    assert_invariants(&view, visual, true, &format!("{label} insert"));
+                    caret_reveal_checks += 1;
+                }
+                // 14..23: delete range (caret-revealing)
+                14..=23 => {
+                    just_scrolled = false;
+                    let text = view.read_with(visual, |v, _| v.text().to_owned());
+                    if text.len() > 24 {
+                        let from = clamp_char_boundary(&text, rng.range(text.len() - 1));
+                        let span = 1 + rng.range(16.min(text.len() - from));
+                        let to =
+                            clamp_char_boundary(&text, (from + span).min(text.len())).max(from);
+                        if to > from {
+                            view.update(visual, |v, cx| {
+                                v.set_selection(Selection::range(from, to), cx);
+                            });
+                            visual.simulate_keystrokes("backspace");
+                            settle_view(&view, visual);
+                            assert_invariants(&view, visual, true, &format!("{label} delete"));
+                            caret_reveal_checks += 1;
+                        }
+                    }
+                }
+                // 24..39: set_scroll_top to random position
+                24..=39 => {
+                    just_scrolled = true;
+                    let max_scroll = view.read_with(visual, |v, _| {
+                        let l = v.layout().expect("layout");
+                        (f32::from(l.height) - f32::from(l.bounds.size.height)).max(0.0)
+                    });
+                    let target = if max_scroll <= 1.0 {
+                        0.0
+                    } else {
+                        match rng.range(5) {
+                            0 => 0.0,
+                            1 => max_scroll,
+                            _ => (rng.range(1000) as f32 / 1000.0) * max_scroll,
+                        }
+                    };
+                    view.update(visual, |v, cx| v.set_scroll_top(target, cx));
+                    settle_view(&view, visual);
+                    assert_invariants(
+                        &view,
+                        visual,
+                        false,
+                        &format!("{label} scroll({target:.0})"),
+                    );
+                }
+                // 40..69: width-only (440..=1400) or height-only (300..=1100) resize
+                // with T2 interior viewport-top anchor check (<= 0.5px).
+                40..=69 => {
+                    let pre = view.read_with(visual, |v, _| {
+                        let l = v.layout().expect("layout");
+                        let max_s =
+                            (f32::from(l.height) - f32::from(l.bounds.size.height)).max(0.0);
+                        let scroll = v.scroll_top();
+                        let interior =
+                            scroll > 20.0 && scroll < max_s - 20.0 && !l.blocks.is_empty();
+                        interior.then(|| {
+                            let left = l.blocks[0].bounds.left();
+                            let (probe_off, probe_up) =
+                                l.offset_at(point(left, l.bounds.top() + px(2.)));
+                            if let Some(held) = v.active_held_anchor_for_tests() {
+                                let off = held.offset();
+                                assert!(
+                                    l.covers(off),
+                                    "{label} pre-resize: active held anchor {off} must stay covered"
+                                );
+                                if just_scrolled {
+                                    assert_eq!(
+                                        off, probe_off,
+                                        "{label} pre-resize: fresh anchor after scroll must match viewport top"
+                                    );
+                                }
+                                let dist =
+                                    f32::from(l.caret(off, held.upstream).row_top - l.bounds.top());
+                                assert!(
+                                    (dist - held.row).abs() <= 0.5,
+                                    "{label} pre-resize: held anchor drifted before resize (dist={dist:.2}, held={:.2})",
+                                    held.row
+                                );
+                                (off, held.upstream, dist)
+                            } else {
+                                let dist =
+                                    f32::from(l.caret(probe_off, probe_up).row_top - l.bounds.top());
+                                (probe_off, probe_up, dist)
+                            }
+                        })
+                    });
+                    just_scrolled = false;
+                    let resize_kind = if op < 55 {
+                        width = (440 + rng.range(961)) as f32;
+                        "width"
+                    } else {
+                        height = (300 + rng.range(801)) as f32;
+                        "height"
+                    };
+                    visual.simulate_resize(size(px(width), px(height)));
+                    settle_view(&view, visual);
+                    assert_invariants(
+                        &view,
+                        visual,
+                        false,
+                        &format!("{label} resize-{resize_kind}({width:.0}x{height:.0})"),
+                    );
+                    if let Some((off, upstream, before_dist)) = pre {
+                        let checked = view.read_with(visual, |v, _| {
+                            let l = v.layout().expect("layout");
+                            let max_s =
+                                (f32::from(l.height) - f32::from(l.bounds.size.height)).max(0.0);
+                            let scroll = v.scroll_top();
+                            if scroll > 1.0 && scroll < max_s - 1.0 {
+                                assert!(
+                                    l.covers(off),
+                                    "{label} resize-{resize_kind}({width:.0}x{height:.0}): anchored offset {off} left laid-out range"
+                                );
+                                let after_dist =
+                                    f32::from(l.caret(off, upstream).row_top - l.bounds.top());
+                                let drift = (after_dist - before_dist).abs();
+                                assert!(
+                                    drift <= 0.5,
+                                    "{label} resize-{resize_kind}({width:.0}x{height:.0}): top text drifted {drift:.3}px (before={before_dist:.2}, after={after_dist:.2})"
+                                );
+                                true
+                            } else {
+                                false
+                            }
+                        });
+                        if checked {
+                            resize_anchor_checks += 1;
+                        }
+                    }
+                }
+                // 70..78: toggle Live Preview <-> Source Mode
+                70..=78 => {
+                    just_scrolled = false;
+                    view.update(visual, |v, cx| {
+                        v.dispatch(config_transaction(ToggleLivePreview), cx);
+                    });
+                    settle_view(&view, visual);
+                    assert_invariants(&view, visual, false, &format!("{label} toggle-live"));
+                }
+                // 79..87: apply_external (prepend, append, or middle insertion)
+                79..=87 => {
+                    just_scrolled = false;
+                    let current = view.read_with(visual, |v, _| v.text().to_owned());
+                    let next = match rng.range(3) {
+                        0 => format!("External header {step}\n\n{current}"),
+                        1 => format!("{current}\n\nExternal footer {step}"),
+                        _ => {
+                            let cut = clamp_char_boundary(&current, current.len() / 2);
+                            format!(
+                                "{}\nExternal note {step}\n{}",
+                                &current[..cut],
+                                &current[cut..]
+                            )
+                        }
+                    };
+                    view.update(visual, |v, cx| v.apply_external(&next, cx));
+                    settle_view(&view, visual);
+                    assert_invariants(&view, visual, false, &format!("{label} apply_external"));
+                }
+                // 88..99: PageDown / PageUp (caret-revealing)
+                _ => {
+                    just_scrolled = false;
+                    let key = if rng.range(2) == 0 {
+                        "pagedown"
+                    } else {
+                        "pageup"
+                    };
+                    let head_before = view.read_with(visual, |v, _| v.state().selection.head);
+                    visual.simulate_keystrokes(key);
+                    settle_view(&view, visual);
+                    let head_after = view.read_with(visual, |v, _| v.state().selection.head);
+                    // Only assert caret-in-viewport when PageDown/PageUp actually moved
+                    // the caret (or if the caret was already visible before the boundary clamp).
+                    let moved = head_after != head_before;
+                    assert_invariants(&view, visual, moved, &format!("{label} {key}"));
+                    if moved {
+                        caret_reveal_checks += 1;
+                    }
+                }
+            }
+        }
+
+        assert!(
+            resize_anchor_checks >= 10,
+            "positive control (seed={seed}): must verify interior resize anchors (got {resize_anchor_checks})"
+        );
+        assert!(
+            caret_reveal_checks >= 20,
+            "positive control (seed={seed}): must verify revealed caret visibility (got {caret_reveal_checks})"
+        );
+    }
 }

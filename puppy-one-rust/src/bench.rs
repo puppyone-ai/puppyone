@@ -38,6 +38,51 @@ pub fn markdown(sections: usize) -> String {
     s
 }
 
+/// Extreme Markdown stress document shapes for `editor_stress_edit_cost` (T4):
+/// - `list_10k`: 10,000-item bullet list
+/// - `single_line_100k`: 100,000-character single line
+/// - `wide_table_200x2000`: 200 columns x 2,000 rows Markdown table
+/// - `images_500`: 500 standalone Markdown image embeds
+#[allow(dead_code)]
+pub fn stress_markdown(shape: &str) -> String {
+    match shape {
+        "list_10k" => (0..10_000)
+            .map(|i| format!("- List item {i} with inline `code_{i}` and **emphasis**"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        "single_line_100k" => "word ".repeat(20_000),
+        "wide_table_200x2000" => {
+            let header = (0..200)
+                .map(|c| format!("C{c}"))
+                .collect::<Vec<_>>()
+                .join("|");
+            let sep = (0..200).map(|_| "---").collect::<Vec<_>>().join("|");
+            let row = (0..200)
+                .map(|c| format!("v{c}"))
+                .collect::<Vec<_>>()
+                .join("|");
+            let mut out = String::with_capacity(2_002 * (row.len() + 3));
+            out.push_str(&format!("|{header}|\n|{sep}|\n"));
+            for _ in 0..2_000 {
+                out.push('|');
+                out.push_str(&row);
+                out.push_str("|\n");
+            }
+            out
+        }
+        "images_500" => (0..500)
+            .map(|i| format!("![Image {i}](assets/img-{i}.png)\n"))
+            .collect(),
+        other => panic!("unknown PUPPYONE_BENCH_STRESS shape: {other}"),
+    }
+}
+
+/// Extreme stress shape name (`PUPPYONE_BENCH_STRESS`).
+#[allow(dead_code)]
+pub fn stress_shape() -> String {
+    std::env::var("PUPPYONE_BENCH_STRESS").unwrap_or_else(|_| "list_10k".to_owned())
+}
+
 /// A test app whose text system shapes with the platform (Core Text), with
 /// the fonts the application loads at startup.
 pub fn app() -> TestAppContext {
@@ -211,6 +256,24 @@ pub fn report_code_edit(
             "keystrokeAdapterP95Ms": adapter.p95(),
             "keystrokeFrameMeanMs": frame.mean(),
             "keystrokeFrameP95Ms": frame.p95(),
+        })
+    );
+}
+
+/// One extreme-shape typing & arrow-key benchmark line (`tools/bench-editor.py` `stress` surface).
+#[allow(dead_code)]
+pub fn report_stress(shape: &str, lines: usize, first: f64, typing: &Samples, arrow: &Samples) {
+    po_platform::outputln!(
+        "BENCH {}",
+        serde_json::json!({
+            "surface": "stress",
+            "sections": shape,
+            "lines": lines,
+            "firstMs": first,
+            "typeMeanMs": typing.mean(),
+            "typeP95Ms": typing.p95(),
+            "arrowMeanMs": arrow.mean(),
+            "arrowP95Ms": arrow.p95(),
         })
     );
 }

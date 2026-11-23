@@ -51,10 +51,11 @@ export function inspectInternalReleaseWorkflow(workflowSource) {
     ["Verify Internal release version moves forward", "the Internal build must reject non-monotonic release versions"],
     ["verify-desktop-release-version.mjs", "the Internal build must use the canonical release version verifier"],
     ["actions: read", "the Internal build must have least-privilege access to verify source CI"],
-    ["Verify green main source", "the Internal workflow must reject non-main or unverified source commits"],
-    ["refs/heads/main", "the Internal workflow must require the protected main branch"],
+    ["Verify green source branch", "the Internal workflow must reject unverified source commits or other branches"],
+    ["refs/heads/main | refs/heads/qubits) ;;", "the Internal workflow must accept only the main and qubits release branches"],
+    ["-f branch=\"${GITHUB_REF_NAME}\"", "the Internal workflow must verify CI on the branch it builds from"],
     ["actions/workflows/ci.yml/runs", "the Internal workflow must verify the exact commit's CI result"],
-    [".event == \"push\"", "the Internal workflow must require a main push CI run"],
+    [".event == \"push\"", "the Internal workflow must require a push CI run on its branch"],
     [".head_sha == env.GITHUB_SHA", "the Internal workflow must match the exact source SHA in returned CI records"],
     [".status == \"completed\"", "the Internal workflow must require completed CI records"],
     [".conclusion == \"success\"", "the Internal workflow must require successful CI"],
@@ -80,7 +81,7 @@ export function inspectInternalReleaseWorkflow(workflowSource) {
     ["TAG=\"v${VERSION}-internal.", "the workflow must not construct versions independently"],
   ]);
   assertOrder(workflowSource, errors, [
-    "Verify green main source",
+    "Verify green source branch",
     "Resolve immutable release identity",
     "Install locked dependencies",
     "Test updater monotonicity P0",

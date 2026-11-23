@@ -8,7 +8,7 @@ mod widget;
 use crate::editor::{
     markdown::core::{
         decorations::BlockDecoration,
-        feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+        features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
         plans::{BlockEmbed, Plan, Presentation},
         state::PreviewState,
     },
@@ -74,13 +74,15 @@ pub fn entries(source: &str) -> Vec<(String, String)> {
 }
 /// `getMarkdownFrontMatterEndLine`.
 fn front_matter(doc: &Buffer) -> Option<FrontMatter> {
-    if doc.line_count() < 2 || doc.line(0).trim_end() != "---" {
+    if doc.line_count() < 2 || doc.line_cow(0).trim_end() != "---" {
         return None;
     }
-    let close = (1..doc.line_count().min(MAX_LINES)).find(|&l| doc.line(l).trim_end() == "---")?;
+    let close =
+        (1..doc.line_count().min(MAX_LINES)).find(|&l| doc.line_cow(l).trim_end() == "---")?;
     // The metadata lines between the `---` lines.
     let content = doc.line_range(0).end + 1..doc.line_range(close).start.saturating_sub(1);
-    let entries = entries(doc.slice(content.start..content.end.max(content.start)));
+    let body = doc.slice_cow(content.start..content.end.max(content.start));
+    let entries = entries(&body);
     (!entries.is_empty()).then(|| FrontMatter {
         range: 0..doc.line_range(close).end,
         entries,

@@ -7,7 +7,7 @@ use crate::{
         markdown::{
             MarkdownExtension, SetAssets,
             features::html::HtmlBlock,
-            shared::dom::{self, Element, Node},
+            features::html::dom::{self, Element, Node},
         },
         registry::DocumentAssets,
         text::{selection::Selection, state::EditorState},
@@ -123,6 +123,8 @@ fn html_source_button_reveals_the_entire_authored_flow_without_editing(cx: &mut 
     let button = visual
         .debug_bounds("md-html-widget")
         .expect("HTML source control");
+    visual.simulate_mouse_move(button.center(), None, Modifiers::none());
+    draw(visual);
     visual.simulate_click(button.center(), Modifiers::none());
     draw(visual);
     view.read_with(visual, |v, _| {
@@ -534,4 +536,254 @@ fn the_readme_header_mounts_whole_and_missing_images_keep_their_alt(cx: &mut Tes
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
     }
+}
+
+struct SplitPanes {
+    left: gpui::Entity<crate::editor::view::EditorView>,
+    right: gpui::Entity<crate::editor::view::EditorView>,
+}
+
+impl gpui::Render for SplitPanes {
+    fn render(
+        &mut self,
+        _window: &mut gpui::Window,
+        _cx: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::{ParentElement, Styled, div};
+        div()
+            .size_full()
+            .flex()
+            .child(div().flex_1().h_full().child(self.left.clone()))
+            .child(div().flex_1().h_full().child(self.right.clone()))
+    }
+}
+
+fn setup_two_panes<'a>(
+    cx: &'a mut TestAppContext,
+    left_source: &str,
+    right_source: &str,
+) -> (
+    gpui::Entity<crate::editor::view::EditorView>,
+    gpui::Entity<crate::editor::view::EditorView>,
+    &'a mut VisualTestContext,
+) {
+    use crate::editor::view::{EditorView, bind_keys, style};
+    use gpui::AppContext;
+    cx.update(|cx| {
+        if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+            gpui_kit::init(cx);
+        }
+        cx.text_system().add_fonts(style::font_bytes()).unwrap();
+        bind_keys(cx);
+    });
+    let left_text = left_source.to_owned();
+    let right_text = right_source.to_owned();
+    let (root, visual) = cx.add_window_view(move |_, cx| SplitPanes {
+        left: cx.new(|cx| {
+            EditorView::new(
+                &left_text,
+                Box::new(MarkdownExtension::new(true, Scale::Medium)),
+                cx,
+            )
+        }),
+        right: cx.new(|cx| {
+            EditorView::new(
+                &right_text,
+                Box::new(MarkdownExtension::new(true, Scale::Medium)),
+                cx,
+            )
+        }),
+    });
+    visual.run_until_parked();
+    let (left, right) = root.read_with(visual, |r, _| (r.left.clone(), r.right.clone()));
+    (left, right, visual)
+}
+
+/// Rust-native (M6 per-pane `<details>` disclosure session): two separate panes
+/// displaying the exact same Markdown document toggle `<details>` disclosure
+/// state independently without cross-pane bleed.
+#[gpui::test]
+fn details_disclosure_is_isolated_between_two_panes_showing_same_document(cx: &mut TestAppContext) {
+    use crate::editor::markdown::platform::sessions::disclosure;
+
+    let source = "<details>\n<summary>Show notes</summary>\n\nLine 1\n\nLine 2\n\nLine 3\n\n</details>\n\nafter";
+    let (pane_a, pane_b, visual) = setup_two_panes(cx, source, source);
+    for _ in 0..3 {
+        draw(visual);
+    }
+
+    let block_bounds = |view: &gpui::Entity<crate::editor::view::EditorView>,
+                        visual: &mut VisualTestContext| {
+        view.read_with(visual, |v, _| v.layout().unwrap().blocks[0].bounds)
+    };
+    let block_height = |view: &gpui::Entity<crate::editor::view::EditorView>,
+                        visual: &mut VisualTestContext| {
+        f32::from(block_bounds(view, visual).size.height)
+    };
+    let summary_click_point = |view: &gpui::Entity<crate::editor::view::EditorView>,
+                               visual: &mut VisualTestContext| {
+        let b = block_bounds(view, visual);
+        gpui::point(b.origin.x + gpui::px(24.), b.origin.y + gpui::px(12.))
+    };
+    let block_id_of = |view: &gpui::Entity<crate::editor::view::EditorView>,
+                       visual: &mut VisualTestContext| {
+        view.read_with(visual, |v, _| {
+            v.decorations()
+                .blocks
+                .iter()
+                .find_map(|b| match b {
+                    Block::Widget { id, .. } => Some(*id),
+                    _ => None,
+                })
+                .expect("expected HTML Block::Widget")
+        })
+    };
+
+    let collapsed_a = block_height(&pane_a, visual);
+    let collapsed_b = block_height(&pane_b, visual);
+    let id_a = block_id_of(&pane_a, visual);
+    let id_b = block_id_of(&pane_b, visual);
+    let store_a = pane_a.read_with(visual, |v, _| v.widget_states());
+    let store_b = pane_b.read_with(visual, |v, _| v.widget_states());
+    assert!(!disclosure::is_toggled(&mut store_a.borrow_mut(), id_a, 0));
+    assert!(!disclosure::is_toggled(&mut store_b.borrow_mut(), id_b, 0));
+
+    // Click `<summary>` in pane A only.
+    let click_a = summary_click_point(&pane_a, visual);
+    visual.simulate_click(click_a, Modifiers::none());
+    for _ in 0..3 {
+        draw(visual);
+    }
+
+    let expanded_a = block_height(&pane_a, visual);
+    let after_b = block_height(&pane_b, visual);
+    assert!(
+        disclosure::is_toggled(&mut store_a.borrow_mut(), id_a, 0),
+        "positive control: clicking summary in pane A must toggle pane A disclosure"
+    );
+    assert!(
+        expanded_a > collapsed_a + 20.0,
+        "positive control: pane A details block must grow when expanded ({collapsed_a} -> {expanded_a})"
+    );
+    assert!(
+        !disclosure::is_toggled(&mut store_b.borrow_mut(), id_b, 0),
+        "pane B disclosure must stay collapsed when pane A toggles"
+    );
+    assert!(
+        (after_b - collapsed_b).abs() <= 0.5,
+        "pane B height must stay unchanged ({collapsed_b} -> {after_b})"
+    );
+
+    // Positive control: pane B toggles independently; collapsing pane A leaves pane B open.
+    let click_b = summary_click_point(&pane_b, visual);
+    visual.simulate_click(click_b, Modifiers::none());
+    visual.simulate_click(click_a, Modifiers::none());
+    for _ in 0..3 {
+        draw(visual);
+    }
+    assert!(!disclosure::is_toggled(&mut store_a.borrow_mut(), id_a, 0));
+    assert!(disclosure::is_toggled(&mut store_b.borrow_mut(), id_b, 0));
+    assert!(block_height(&pane_b, visual) > collapsed_b + 20.0);
+}
+
+/// Rust-native (M6 per-pane `<details>` disclosure session): two different
+/// documents that both start with `<details>` at byte offset 0 toggle
+/// disclosure independently; inserting text above preserves the open state via
+/// `BlockId`, and removing the block evicts its session.
+#[gpui::test]
+fn details_disclosure_is_isolated_between_two_documents_with_same_block_offset(
+    cx: &mut TestAppContext,
+) {
+    use crate::editor::{
+        markdown::platform::sessions::disclosure,
+        text::{
+            change::ChangeSet,
+            state::{Transaction, UserEvent},
+        },
+    };
+
+    let doc_a = "<details>\n<summary>Doc A</summary>\n\nAlpha 1\n\nAlpha 2\n\n</details>\n";
+    let doc_b = "<details>\n<summary>Doc B</summary>\n\nBeta 1\n\nBeta 2\n\n</details>\n";
+    let (view_a, view_b, visual) = setup_two_panes(cx, doc_a, doc_b);
+    for _ in 0..3 {
+        draw(visual);
+    }
+
+    let first_widget_id = |view: &gpui::Entity<crate::editor::view::EditorView>,
+                           visual: &mut VisualTestContext| {
+        view.read_with(visual, |v, _| {
+            v.decorations()
+                .blocks
+                .iter()
+                .find_map(|b| match b {
+                    Block::Widget { id, .. } => Some(*id),
+                    _ => None,
+                })
+                .expect("expected HTML widget")
+        })
+    };
+
+    let id_a = first_widget_id(&view_a, visual);
+    let id_b = first_widget_id(&view_b, visual);
+    assert_eq!(
+        id_a.raw(),
+        id_b.raw(),
+        "positive control: both documents assign identical BlockId at offset 0"
+    );
+
+    let bounds_a = view_a.read_with(visual, |v, _| v.layout().unwrap().blocks[0].bounds);
+    visual.simulate_click(
+        gpui::point(
+            bounds_a.origin.x + gpui::px(24.),
+            bounds_a.origin.y + gpui::px(12.),
+        ),
+        Modifiers::none(),
+    );
+    for _ in 0..3 {
+        draw(visual);
+    }
+
+    let store_a = view_a.read_with(visual, |v, _| v.widget_states());
+    let store_b = view_b.read_with(visual, |v, _| v.widget_states());
+    assert!(disclosure::is_toggled(&mut store_a.borrow_mut(), id_a, 0));
+    assert!(
+        !disclosure::is_toggled(&mut store_b.borrow_mut(), id_b, 0),
+        "doc B at identical offset 0 must not inherit doc A's disclosure toggle"
+    );
+
+    // Prefix insert in doc A shifts the block's byte offset while keeping its BlockId open.
+    view_a.update(visual, |v, cx| {
+        let tr = Transaction::edit(
+            ChangeSet::replace(0..0, "# Heading\n\n"),
+            Some(Selection::cursor(0)),
+            UserEvent::Input,
+        );
+        v.dispatch(tr, cx);
+    });
+    for _ in 0..3 {
+        draw(visual);
+    }
+    let shifted_id_a = first_widget_id(&view_a, visual);
+    assert_eq!(
+        shifted_id_a, id_a,
+        "BlockId must stay stable across prefix edit"
+    );
+    assert!(disclosure::is_toggled(
+        &mut store_a.borrow_mut(),
+        shifted_id_a,
+        0
+    ));
+
+    // Removing the HTML block evicts its DisclosureSession from doc A's WidgetStateStore.
+    view_a.update(visual, |v, cx| {
+        let len = v.state().doc.len();
+        let tr = Transaction::edit(
+            ChangeSet::replace(0..len, "plain paragraph\n"),
+            Some(Selection::cursor(0)),
+            UserEvent::Input,
+        );
+        v.dispatch(tr, cx);
+    });
+    draw(visual);
+    assert!(!disclosure::is_toggled(&mut store_a.borrow_mut(), id_a, 0));
 }

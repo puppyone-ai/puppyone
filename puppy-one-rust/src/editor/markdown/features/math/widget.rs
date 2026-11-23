@@ -10,8 +10,8 @@ use super::MathBlock;
 use crate::{
     editor::{
         markdown::{
-            platform::render as render_broker,
-            shared::{fallback::action_pill, ring},
+            platform::brokers::render as render_broker,
+            shared::widgets::{fallback::action_pill, ring},
             style::{BlockStyle, MarkdownTheme},
         },
         text::{selection::Selection, state::Transaction},
@@ -33,6 +33,22 @@ const PADDING_BLOCK: f32 = 24.;
 const PADDING_INLINE: f32 = 12.;
 const BANNER_HEIGHT: f32 = 32.;
 const BANNER_GAP: f32 = 8.;
+
+#[cfg(test)]
+pub(crate) fn request_for_tests(
+    source: &str,
+    dark: bool,
+    scale: crate::typography::Scale,
+) -> Request {
+    let theme = MarkdownTheme::resolve(dark, scale);
+    let block = MathBlock {
+        range: 0..source.len(),
+        content: 0..source.len(),
+        text: source.to_owned(),
+        source: source.to_owned(),
+    };
+    MathBlockWidget::new(&block, &theme).request
+}
 
 pub struct MathBlockWidget {
     block: MathBlock,

@@ -6,7 +6,7 @@
 //! lines, so the source stays the one document.
 use super::{CodeBlock, highlight, style::CodeBlockStyle};
 use crate::editor::{
-    markdown::{shared::ring, style::BlockStyle},
+    markdown::{shared::widgets::ring, style::BlockStyle},
     view::{
         style::TextStyle,
         widget::{BlockWidget, WidgetCx},
@@ -54,6 +54,21 @@ impl BlockWidget for CodeBlockWidget {
         let p = s.padding;
         let panel_top = top + s.gap_before;
         let inner = (width - p.left - p.right).max(0.);
+        let longest_line = cx
+            .render
+            .doc
+            .slice_cow(self.block.code.clone())
+            .split('\n')
+            .max_by_key(|line| line.chars().count())
+            .unwrap_or("")
+            .to_owned();
+        let line_w = if (longest_line.chars().count() as f32 * self.text.size) > inner {
+            cx.render.plain_extent(&longest_line, &self.text, None).1
+        } else {
+            0.
+        };
+        let content_width = (p.left + line_w.ceil() + p.right).max(width);
+        let code_inner = (content_width - p.left - p.right).max(inner);
         let (language, syntax) = (self.block.language.clone(), &s.syntax);
         let (code, code_height) = cx.render.code(
             self.block.code.clone(),
@@ -62,25 +77,45 @@ impl BlockWidget for CodeBlockWidget {
             panel_top,
             p.left,
             p.top,
-            inner,
+            code_inner,
             |text| highlight::highlight(text, &language, syntax),
         );
         let panel_height = (p.top + code_height + p.bottom).max(MIN_HEIGHT);
         let height = s.gap_before + panel_height + s.gap_after;
+        let scroller = div()
+            .id(cx.id("code-scroll"))
+            .debug_selector(|| "md-code-scroll".into())
+            .size_full()
+            .overflow_x_scroll()
+            .child(
+                div()
+                    .debug_selector(|| "md-code-scroll-content".into())
+                    .relative()
+                    .w(px(content_width))
+                    .h(px(panel_height))
+                    .child(code),
+            );
+        let focused = cx.state.focus_within();
+        let panel_state = if focused {
+            "md-code-panel:focused"
+        } else {
+            "md-code-panel:resting"
+        };
         let panel = div()
+            .debug_selector(move || panel_state.into())
             .absolute()
             .left_0()
             .top_0()
             .w(px(width))
             .h(px(panel_height))
             .rounded(px(s.radius))
-            .bg(if cx.state.focus_within() {
+            .bg(if focused {
                 crate::editor::tokens::over(s.focus_background, s.background)
             } else {
                 s.background
             })
             .overflow_hidden()
-            .child(code);
+            .child(scroller);
         // `box-shadow: 0 0 0 2px var(--cm-md-block-current-ring)`: the
         // selected ring when the selection covers the block, the hover ring
         // while hovered or focused within.

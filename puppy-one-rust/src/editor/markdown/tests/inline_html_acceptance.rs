@@ -513,7 +513,7 @@ fn an_anchor_the_url_policy_refuses_stays_source() {
         .unwrap();
     let href = anchor.href.as_deref().unwrap();
     assert_eq!(
-        crate::editor::markdown::navigation::safe_href(href).as_deref(),
+        crate::editor::markdown::platform::brokers::link::safe_href(href).as_deref(),
         Some("https://example.com/")
     );
 }

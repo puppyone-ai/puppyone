@@ -12,13 +12,13 @@ use crate::editor::{
     markdown::{
         core::{
             decorations::BlockDecoration,
-            feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+            features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
             plans::{BlockEmbed, Plan, Presentation},
             state::PreviewState,
             syntax::Kind,
         },
         platform::policy::AssetFailure,
-        shared::media_source::{MediaSource, parse_video_size, resolve_embed_media},
+        shared::media::{MediaSource, parse_video_size, resolve_embed_media},
     },
     text::{
         selection::Selection,
@@ -145,12 +145,12 @@ mod tests {
 
     fn embeds(text: &str) -> Vec<VideoBlock> {
         use crate::editor::markdown::{
-            composition::FEATURES, core::plans, core::state::CalloutFolds,
+            composition::FEATURES, core::plans, core::state::FeatureStateStore,
         };
         use crate::editor::text::buffer::Buffer;
         let doc = Buffer::new(text);
-        let syntax = crate::editor::markdown::core::syntax::Syntax::parse(&doc);
-        plans::compile(&doc, &syntax, &CalloutFolds::default(), FEATURES)
+        let syntax = crate::editor::markdown::core::syntax::Syntax::parse_with(&doc, FEATURES);
+        plans::compile(&doc, &syntax, &FeatureStateStore::default(), FEATURES)
             .iter()
             .filter_map(|p| p.embed()?.model::<VideoBlock>().cloned())
             .collect()

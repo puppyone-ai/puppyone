@@ -4,27 +4,27 @@
 //! deferred render activation live in a feature-owned [`MermaidState`] slot
 //! inside `FeatureStateStore`, mapped via [`Anchor`] across edits and undo/redo.
 mod controls;
+pub mod state;
 #[cfg(test)]
 pub(crate) mod widget;
 #[cfg(not(test))]
 mod widget;
 
+pub use state::{DiagramView, MermaidState};
+
 use crate::editor::{
     markdown::{
         core::{
             decorations::BlockDecoration,
-            feature::{CommandCx, CompileCx, MarkdownFeature, WidgetFactoryCx},
+            features::{CommandCx, CompileCx, MarkdownFeature, WidgetFactoryCx},
             plans::{BlockEmbed, Plan, Presentation},
-            state::{DiagramView, FeatureStateValue, PreviewState},
+            state::PreviewState,
         },
         shared::fence::{
             DocumentProfile, FenceExecution, decide_fence_execution, fence_delimiter_ranges,
         },
     },
     text::{
-        anchor::Anchor,
-        buffer::Buffer,
-        change::ChangeSet,
         selection::Selection,
         state::{EditorState, Transaction},
     },
@@ -41,36 +41,6 @@ const RICH_BYTES: [usize; 3] = [32 * 1024, 24 * 1024, 12 * 1024];
 const RICH_ITEMS: [usize; 3] = [1_000, 700, 350];
 const DEFERRED_MAX_BYTES: usize = 128 * 1024;
 const DEFERRED_MAX_ITEMS: usize = 4_000;
-
-/// Per-feature diagram view state (`TA-40`), tracked by [`Anchor::after`] so
-/// edits above a diagram preserve its zoom and deferred activation.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct MermaidState(Vec<(Anchor, DiagramView)>);
-
-impl FeatureStateValue for MermaidState {
-    fn map_changes(&mut self, changes: &ChangeSet, _doc: &Buffer, new_revision: u64) {
-        for (anchor, _) in &mut self.0 {
-            anchor.map(changes, new_revision);
-        }
-    }
-}
-
-impl MermaidState {
-    pub fn get(&self, at: usize) -> DiagramView {
-        self.0
-            .iter()
-            .find(|(a, _)| a.offset == at)
-            .map(|(_, v)| *v)
-            .unwrap_or_default()
-    }
-
-    pub fn update(&mut self, at: usize, revision: u64, change: impl FnOnce(&mut DiagramView)) {
-        let mut view = self.get(at);
-        change(&mut view);
-        self.0.retain(|(a, _)| a.offset != at);
-        self.0.push((Anchor::after(at, revision), view));
-    }
-}
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct MermaidBlock {
@@ -247,11 +217,12 @@ mod tests {
     #[test]
     fn a_mermaid_fence_is_a_diagram_and_other_fences_stay_code() {
         use crate::editor::markdown::{
-            composition::FEATURES, core::plans, core::state::CalloutFolds,
+            composition::FEATURES, core::plans, core::state::FeatureStateStore,
         };
+        use crate::editor::text::buffer::Buffer;
         let doc = Buffer::new("```mermaid\ngraph TD\n  A-->B\n```\n\n```js\nx\n```\n");
         let syntax = crate::editor::markdown::core::syntax::Syntax::parse(&doc);
-        let compiled = plans::compile(&doc, &syntax, &CalloutFolds::default(), FEATURES);
+        let compiled = plans::compile(&doc, &syntax, &FeatureStateStore::default(), FEATURES);
         let embeds: Vec<&str> = compiled
             .iter()
             .filter_map(|p| p.embed())

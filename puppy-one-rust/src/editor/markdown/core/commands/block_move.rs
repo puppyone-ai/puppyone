@@ -300,7 +300,7 @@ pub fn move_block_boundaries(
     let renumber = movable.ordered.as_ref();
     let mut region = String::with_capacity(span.len());
     let mut moved_at = 0;
-    let mut moved_delta: isize = 0;
+    let mut moved_blocks: Vec<(Range<usize>, usize, isize)> = Vec::with_capacity(n);
     for (k, &i) in order.iter().enumerate() {
         let mut block = text(i).to_owned();
         let mut delta: isize = 0;
@@ -314,10 +314,11 @@ pub fn move_block_boundaries(
                 delta = number.len() as isize - digits.len() as isize;
             }
         }
+        let block_start = span.start + region.len();
         if i == s {
             moved_at = region.len();
-            moved_delta = delta;
         }
+        moved_blocks.push((group[i].clone(), block_start, delta));
         region.push_str(&block);
         if k + 1 < n {
             region.push_str(separators[k]);
@@ -326,12 +327,15 @@ pub fn move_block_boundaries(
     let source = &group[s];
     let new_from = span.start + moved_at;
     let sel = state.selection;
-    let inside = |p: usize| source.start <= p && p <= source.end;
-    let map = |p: usize| {
-        if inside(p) {
-            let offset = p - source.start;
-            let shift = if offset > 0 { moved_delta } else { 0 };
-            (new_from as isize + offset as isize + shift).max(0) as usize
+    let inside_source = |p: usize| source.start <= p && p <= source.end;
+    let map_point = |p: usize| {
+        if let Some((old, new_start, delta)) = moved_blocks
+            .iter()
+            .find(|(old, _, _)| old.start <= p && p <= old.end)
+        {
+            let offset = p - old.start;
+            let shift = if offset > 0 { *delta } else { 0 };
+            (*new_start as isize + offset as isize + shift).max(0) as usize
         } else if p >= span.end {
             (p as isize + region.len() as isize - span.len() as isize) as usize
         } else if p <= span.start {
@@ -340,10 +344,20 @@ pub fn move_block_boundaries(
             new_from
         }
     };
-    let selection = Selection {
-        anchor: map(sel.anchor),
-        head: map(sel.head),
-        ..sel
+    let anchor_in = inside_source(sel.anchor);
+    let head_in = inside_source(sel.head);
+    let straddles_source = sel.from() < source.start && sel.to() > source.end;
+    // Relocate selections contained inside the moved block, map disjoint
+    // selections (including sibling blocks), and resolve partial overlaps across
+    // the moved block's boundary by collapsing safely to the relocated block start.
+    let selection = if anchor_in != head_in || straddles_source {
+        Selection::cursor(new_from)
+    } else {
+        Selection {
+            anchor: map_point(sel.anchor),
+            head: map_point(sel.head),
+            ..sel
+        }
     };
     let changes = ChangeSet::new(vec![Change {
         range: span,

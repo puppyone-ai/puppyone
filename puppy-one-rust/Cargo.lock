@@ -6766,6 +6766,7 @@ dependencies = [
  "portable-pty",
  "raw-window-handle",
  "regex",
+ "resvg 0.46.0",
  "roxmltree 0.21.1",
  "rusqlite",
  "rusty-leveldb",

@@ -8,25 +8,30 @@
 //! that is only an `https:` `<iframe>` is a web embed (`embed`).
 pub mod dom;
 pub mod embed;
+pub mod inline;
+pub mod render;
+pub mod sanitize;
+pub mod structure;
+pub mod tokenizer;
 mod widget;
 
 use crate::editor::{
-    markdown::{
-        core::{
-            decorations::BlockDecoration,
-            feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
-            plans::{BlockEmbed, Plan, Presentation},
-            state::PreviewState,
-        },
-        shared::dom::markdown_html,
+    markdown::core::{
+        decorations::BlockDecoration,
+        features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+        plans::{BlockEmbed, Plan, Presentation},
+        state::PreviewState,
+        syntax::{Element, Syntax},
     },
     text::{
+        buffer::Buffer,
         selection::Selection,
         state::{EditorState, Transaction},
     },
     view::{command::Command, widget::BlockWidget},
 };
 use std::{ops::Range, rc::Rc};
+use structure::markdown_html;
 use widget::HtmlBlockWidget;
 
 pub struct HtmlFeature;
@@ -68,7 +73,7 @@ fn admission_failure(html: &str, nodes: &[dom::Node]) -> Option<&'static str> {
         if let dom::Node::Element(element) = node {
             if element.tag == "a"
                 && let Some(href) = element.attribute("href")
-                && crate::editor::markdown::navigation::safe_href(href).is_none()
+                && crate::editor::markdown::platform::brokers::link::safe_href(href).is_none()
             {
                 return Some("htmlBlock.unsafe-href");
             }
@@ -190,6 +195,16 @@ fn blocks(cx: &CompileCx, fallbacks: &mut Vec<Plan>) -> Vec<HtmlBlock> {
 impl MarkdownFeature for HtmlFeature {
     fn id(&self) -> &'static str {
         ID
+    }
+
+    fn collect_range(
+        &self,
+        doc: &Buffer,
+        syntax: &Syntax,
+        window: Range<usize>,
+        out: &mut Vec<Element>,
+    ) {
+        inline::collect_range(doc, syntax, window, out);
     }
 
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {

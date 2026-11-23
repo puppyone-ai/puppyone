@@ -49,197 +49,207 @@ fn draw(cx: &mut VisualTestContext) {
     });
 }
 
-#[gpui::test]
-fn pointer_selection_lifecycle_retains_folds_and_edits_revealed_source(cx: &mut TestAppContext) {
-    for fragment in ["$x^2$", "$$\nx^2\n$$"] {
-        let doc = format!("{fragment}\n\nFollowing paragraph.");
-        let anchor = doc.find("paragraph").unwrap() + 4;
+fn assert_revealed_source_pointer_lifecycle(
+    cx: &mut TestAppContext,
+    fragment: &str,
+    drag_case: &str,
+    click_case: &str,
+    keyboard_case: &str,
+) {
+    let doc = format!("{fragment}\n\nFollowing paragraph.");
+    let anchor = doc.find("paragraph").unwrap() + 4;
 
-        // 1. Retains revealed source while dragging in the following paragraph,
-        //    then folds when a single caret leaves it.
-        let (view, visual) = setup(cx, &doc);
-        visual.update(|w, _| w.activate_window());
-        draw(visual);
-        view.update(visual, |v, cx| {
-            v.extension_mut::<MarkdownExtension>()
-                .unwrap()
-                .preview
-                .revealed_source = Some(0..fragment.len());
-            v.set_selection(Selection::cursor(3), cx);
-        });
-        draw(visual);
-        let (anchor_pt, drag_pt) = view.read_with(visual, |v, _| {
-            let layout = v.layout().unwrap();
-            let a = layout.range_boxes(anchor..anchor + 1)[0].center();
-            let b = layout.range_boxes(anchor - 2..anchor - 1)[0].center();
-            (a, b)
-        });
-        visual.simulate_mouse_down(anchor_pt, MouseButton::Left, Modifiers::none());
-        view.read_with(visual, |v, _| {
-            assert_eq!(
-                v.extension::<MarkdownExtension>()
-                    .unwrap()
-                    .preview
-                    .revealed_source,
-                Some(0..fragment.len()),
-                "mousedown keeps revealed source during pointer gesture"
-            );
-        });
-        visual.simulate_mouse_move(drag_pt, MouseButton::Left, Modifiers::none());
-        visual.simulate_mouse_up(drag_pt, MouseButton::Left, Modifiers::none());
-        draw(visual);
-        view.read_with(visual, |v, _| {
-            assert!(
-                !v.state().selection.is_empty(),
-                "drag produces non-empty range selection"
-            );
-            assert_eq!(
-                v.extension::<MarkdownExtension>()
-                    .unwrap()
-                    .preview
-                    .revealed_source,
-                Some(0..fragment.len()),
-                "non-empty drag selection retains revealed source"
-            );
-        });
-        view.update(visual, |v, cx| {
-            v.set_selection(Selection::cursor(anchor), cx)
-        });
-        draw(visual);
-        view.read_with(visual, |v, _| {
-            assert_eq!(
-                v.extension::<MarkdownExtension>()
-                    .unwrap()
-                    .preview
-                    .revealed_source,
-                None
-            );
-            assert_eq!(v.text(), doc);
-        });
-
-        // 2. Folds revealed source after an outside single click completes.
-        let (view, visual) = setup(cx, &doc);
-        visual.update(|w, _| w.activate_window());
-        draw(visual);
-        view.update(visual, |v, cx| {
-            v.extension_mut::<MarkdownExtension>()
-                .unwrap()
-                .preview
-                .revealed_source = Some(0..fragment.len());
-            v.set_selection(Selection::cursor(3), cx);
-        });
-        draw(visual);
-        let anchor_pt = view.read_with(visual, |v, _| {
-            v.layout().unwrap().range_boxes(anchor..anchor + 1)[0].center()
-        });
-        visual.simulate_mouse_down(anchor_pt, MouseButton::Left, Modifiers::none());
-        view.read_with(visual, |v, _| {
-            assert_eq!(
-                v.extension::<MarkdownExtension>()
-                    .unwrap()
-                    .preview
-                    .revealed_source,
-                Some(0..fragment.len())
-            );
-        });
-        visual.simulate_mouse_up(anchor_pt, MouseButton::Left, Modifiers::none());
-        draw(visual);
-        view.read_with(visual, |v, _| {
-            assert_eq!(
-                v.extension::<MarkdownExtension>()
-                    .unwrap()
-                    .preview
-                    .revealed_source,
-                None
-            );
-            assert_eq!(v.text(), doc);
-        });
-
-        // 3. Retains revealed source for a keyboard range leaving it and allows replacing it.
-        let (view, visual) = setup(cx, &doc);
-        visual.update(|w, _| w.activate_window());
-        draw(visual);
-        view.update(visual, |v, cx| {
-            v.extension_mut::<MarkdownExtension>()
-                .unwrap()
-                .preview
-                .revealed_source = Some(0..fragment.len());
-            v.set_selection(Selection::range(3, doc.len()), cx);
-        });
-        draw(visual);
-        view.read_with(visual, |v, _| {
-            assert_eq!(
-                v.extension::<MarkdownExtension>()
-                    .unwrap()
-                    .preview
-                    .revealed_source,
-                Some(0..fragment.len())
-            );
-        });
-        view.update(visual, |v, cx| {
-            v.dispatch(
-                Transaction::edit(
-                    ChangeSet::replace(3..doc.len(), "replacement"),
-                    Some(Selection::cursor(14)),
-                    UserEvent::Input,
-                ),
-                cx,
-            );
-        });
-        view.read_with(visual, |v, _| {
-            assert_eq!(v.text(), format!("{}replacement", &doc[..3]));
-        });
-    }
-}
-
-#[gpui::test]
-fn pointer_selection_backward_drag_release_cancellation_and_isolation(cx: &mut TestAppContext) {
-    let source = "Prefix **abcdefghij** suffix\n\nOther paragraph.";
-    let caret = source.find("abcdefghij").unwrap() + 4;
-
-    // 1. Backward drag suppresses reveal during drag, keeps range on release,
-    //    then reveals formatted source when collapsing to a caret inside.
-    let (view, visual) = setup(cx, source);
+    // Retains revealed source while dragging in the following paragraph,
+    // then folds when a single caret leaves it.
+    let (view, visual) = setup(cx, &doc);
     visual.update(|w, _| w.activate_window());
     draw(visual);
-    let (start_pt, left_pt) = view.read_with(visual, |v, _| {
+    view.update(visual, |v, cx| {
+        v.extension_mut::<MarkdownExtension>()
+            .unwrap()
+            .preview
+            .revealed_source = Some(0..fragment.len());
+        v.set_selection(Selection::cursor(3), cx);
+    });
+    draw(visual);
+    let (anchor_pt, drag_pt) = view.read_with(visual, |v, _| {
         let layout = v.layout().unwrap();
-        let a = layout.range_boxes(caret..caret + 1)[0].center();
-        let b = layout.range_boxes(caret - 2..caret - 1)[0].center();
+        let a = layout.range_boxes(anchor..anchor + 1)[0].center();
+        let b = layout.range_boxes(anchor - 2..anchor - 1)[0].center();
         (a, b)
     });
-    visual.simulate_mouse_down(start_pt, MouseButton::Left, Modifiers::none());
+    visual.simulate_mouse_down(anchor_pt, MouseButton::Left, Modifiers::none());
     view.read_with(visual, |v, _| {
-        let md = v.extension::<MarkdownExtension>().unwrap();
-        assert!(md.preview.selecting);
-        assert_eq!(md.preview.reveal, None);
-    });
-    visual.simulate_mouse_move(left_pt, MouseButton::Left, Modifiers::none());
-    visual.simulate_mouse_up(left_pt, MouseButton::Left, Modifiers::none());
-    draw(visual);
-    view.read_with(visual, |v, _| {
-        let md = v.extension::<MarkdownExtension>().unwrap();
-        assert!(!md.preview.selecting);
-        assert_eq!(md.preview.reveal, None);
-        assert!(v.state().selection.head < v.state().selection.anchor);
-    });
-    view.update(visual, |v, cx| {
-        v.set_selection(Selection::cursor(caret), cx)
-    });
-    draw(visual);
-    view.read_with(visual, |v, _| {
-        assert!(
+        assert_eq!(
             v.extension::<MarkdownExtension>()
                 .unwrap()
                 .preview
-                .reveal
-                .is_some()
+                .revealed_source,
+            Some(0..fragment.len()),
+            "{drag_case}: mousedown keeps revealed source during pointer gesture"
         );
-        assert_eq!(v.text(), source);
+    });
+    visual.simulate_mouse_move(drag_pt, MouseButton::Left, Modifiers::none());
+    visual.simulate_mouse_up(drag_pt, MouseButton::Left, Modifiers::none());
+    draw(visual);
+    view.read_with(visual, |v, _| {
+        assert!(
+            !v.state().selection.is_empty(),
+            "{drag_case}: drag produces non-empty range selection"
+        );
+        assert_eq!(
+            v.extension::<MarkdownExtension>()
+                .unwrap()
+                .preview
+                .revealed_source,
+            Some(0..fragment.len()),
+            "{drag_case}: non-empty drag selection retains revealed source"
+        );
+    });
+    view.update(visual, |v, cx| {
+        v.set_selection(Selection::cursor(anchor), cx)
+    });
+    draw(visual);
+    view.read_with(visual, |v, _| {
+        assert_eq!(
+            v.extension::<MarkdownExtension>()
+                .unwrap()
+                .preview
+                .revealed_source,
+            None,
+            "{drag_case}: collapsing to outside single caret folds revealed source"
+        );
+        assert_eq!(v.text(), doc, "{drag_case}: document remains unmodified");
     });
 
-    // 2. Gesture cancels on blur, Escape keydown, and mousemove with released button.
-    for mode in ["blur", "escape", "released-button"] {
+    // Folds revealed source after an outside single click completes.
+    let (view, visual) = setup(cx, &doc);
+    visual.update(|w, _| w.activate_window());
+    draw(visual);
+    view.update(visual, |v, cx| {
+        v.extension_mut::<MarkdownExtension>()
+            .unwrap()
+            .preview
+            .revealed_source = Some(0..fragment.len());
+        v.set_selection(Selection::cursor(3), cx);
+    });
+    draw(visual);
+    let anchor_pt = view.read_with(visual, |v, _| {
+        v.layout().unwrap().range_boxes(anchor..anchor + 1)[0].center()
+    });
+    visual.simulate_mouse_down(anchor_pt, MouseButton::Left, Modifiers::none());
+    view.read_with(visual, |v, _| {
+        assert_eq!(
+            v.extension::<MarkdownExtension>()
+                .unwrap()
+                .preview
+                .revealed_source,
+            Some(0..fragment.len()),
+            "{click_case}: revealed source stays open on pointer-down before click completes"
+        );
+    });
+    visual.simulate_mouse_up(anchor_pt, MouseButton::Left, Modifiers::none());
+    draw(visual);
+    view.read_with(visual, |v, _| {
+        assert_eq!(
+            v.extension::<MarkdownExtension>()
+                .unwrap()
+                .preview
+                .revealed_source,
+            None,
+            "{click_case}: outside single click completion folds revealed source"
+        );
+        assert_eq!(v.text(), doc, "{click_case}: document remains unmodified");
+    });
+
+    // Retains revealed source for a keyboard range leaving it and allows replacing it.
+    let (view, visual) = setup(cx, &doc);
+    visual.update(|w, _| w.activate_window());
+    draw(visual);
+    view.update(visual, |v, cx| {
+        v.extension_mut::<MarkdownExtension>()
+            .unwrap()
+            .preview
+            .revealed_source = Some(0..fragment.len());
+        v.set_selection(Selection::range(3, doc.len()), cx);
+    });
+    draw(visual);
+    view.read_with(visual, |v, _| {
+        assert_eq!(
+            v.extension::<MarkdownExtension>()
+                .unwrap()
+                .preview
+                .revealed_source,
+            Some(0..fragment.len()),
+            "{keyboard_case}: keyboard range leaving revealed source retains it"
+        );
+    });
+    view.update(visual, |v, cx| {
+        v.dispatch(
+            Transaction::edit(
+                ChangeSet::replace(3..doc.len(), "replacement"),
+                Some(Selection::cursor(14)),
+                UserEvent::Input,
+            ),
+            cx,
+        );
+    });
+    view.read_with(visual, |v, _| {
+        assert_eq!(
+            v.text(),
+            format!("{}replacement", &doc[..3]),
+            "{keyboard_case}: replacing selection across revealed source edits cleanly"
+        );
+    });
+}
+
+/// `markdownPointerSelection.test.ts` #0, #1, #2: expanded inline source
+/// (`$x^2$`) stays revealed while dragging in the following paragraph (#0),
+/// folds after an outside single click completes (#1), and stays revealed for a
+/// keyboard range leaving it (#2).
+#[gpui::test]
+fn pointer_selection_inline_source_retains_on_drag_folds_on_click_and_keeps_keyboard_range(
+    cx: &mut TestAppContext,
+) {
+    assert_revealed_source_pointer_lifecycle(
+        cx,
+        "$x^2$",
+        "markdownPointerSelection.test.ts #0",
+        "markdownPointerSelection.test.ts #1",
+        "markdownPointerSelection.test.ts #2",
+    );
+}
+
+/// `markdownPointerSelection.test.ts` #3, #4, #5: expanded block source
+/// (`$$\nx^2\n$$`) stays revealed while dragging in the following paragraph
+/// (#3), folds after an outside single click completes (#4), and stays revealed
+/// for a keyboard range leaving it (#5).
+#[gpui::test]
+fn pointer_selection_block_source_retains_on_drag_folds_on_click_and_keeps_keyboard_range(
+    cx: &mut TestAppContext,
+) {
+    assert_revealed_source_pointer_lifecycle(
+        cx,
+        "$$\nx^2\n$$",
+        "markdownPointerSelection.test.ts #3",
+        "markdownPointerSelection.test.ts #4",
+        "markdownPointerSelection.test.ts #5",
+    );
+}
+
+/// `markdownPointerSelection.test.ts` #9, #10, #12: an active pointer selection
+/// gesture cancels on window blur (#9), Escape keydown (#10), and mousemove
+/// with released button (#12), resuming caret reveal immediately afterward.
+#[gpui::test]
+fn pointer_selection_releases_gesture_on_blur_escape_and_released_button(cx: &mut TestAppContext) {
+    let source = "Prefix **abcdefghij** suffix\n\nOther paragraph.";
+    let caret = source.find("abcdefghij").unwrap() + 4;
+
+    for (case_label, mode) in [
+        ("markdownPointerSelection.test.ts #9", "blur"),
+        ("markdownPointerSelection.test.ts #10", "escape"),
+        ("markdownPointerSelection.test.ts #12", "released-button"),
+    ] {
         let (view, visual) = setup(cx, source);
         visual.update(|w, _| w.activate_window());
         draw(visual);
@@ -252,7 +262,8 @@ fn pointer_selection_backward_drag_release_cancellation_and_isolation(cx: &mut T
                 v.extension::<MarkdownExtension>()
                     .unwrap()
                     .preview
-                    .selecting
+                    .selecting,
+                "{case_label}: positive control gesture active before {mode}"
             );
         });
         match mode {
@@ -277,7 +288,7 @@ fn pointer_selection_backward_drag_release_cancellation_and_isolation(cx: &mut T
                     .unwrap()
                     .preview
                     .selecting,
-                "gesture must cancel on {mode}"
+                "{case_label}: gesture must cancel on {mode}"
             );
         });
         view.update(visual, |v, cx| {
@@ -286,7 +297,8 @@ fn pointer_selection_backward_drag_release_cancellation_and_isolation(cx: &mut T
         view.read_with(visual, |v, _| {
             assert_eq!(
                 v.extension::<MarkdownExtension>().unwrap().preview.reveal,
-                None
+                None,
+                "{case_label}: outside caret keeps reveal cleared after {mode}"
             );
         });
         view.update(visual, |v, cx| {
@@ -299,12 +311,87 @@ fn pointer_selection_backward_drag_release_cancellation_and_isolation(cx: &mut T
                     .preview
                     .reveal
                     .is_some(),
-                "caret reveal resumes after {mode}"
+                "{case_label}: caret reveal resumes cleanly after {mode}"
             );
         });
     }
+}
 
-    // 3. Committed edit immediately ends pointer selection and projects revealed source.
+/// `markdownPointerSelection.test.ts` #6, #14, #15: backward pointer drags
+/// suppress reveal during drag and preserve backward selection until collapsed
+/// to a caret (#6); committed edits end pointer selection immediately without
+/// deferring projection (#15); sibling editors keep independent gesture
+/// projections (#14).
+#[gpui::test]
+fn pointer_selection_backward_drag_committed_edit_and_sibling_editor_isolation(
+    cx: &mut TestAppContext,
+) {
+    let source = "Prefix **abcdefghij** suffix\n\nOther paragraph.";
+    let caret = source.find("abcdefghij").unwrap() + 4;
+
+    // markdownPointerSelection.test.ts #6: backward drag suppresses reveal during drag,
+    // keeps range on release, then reveals formatted source when collapsing to a caret inside.
+    let (view, visual) = setup(cx, source);
+    visual.update(|w, _| w.activate_window());
+    draw(visual);
+    let (start_pt, left_pt) = view.read_with(visual, |v, _| {
+        let layout = v.layout().unwrap();
+        let a = layout.range_boxes(caret..caret + 1)[0].center();
+        let b = layout.range_boxes(caret - 2..caret - 1)[0].center();
+        (a, b)
+    });
+    visual.simulate_mouse_down(start_pt, MouseButton::Left, Modifiers::none());
+    view.read_with(visual, |v, _| {
+        let md = v.extension::<MarkdownExtension>().unwrap();
+        assert!(
+            md.preview.selecting,
+            "markdownPointerSelection.test.ts #6: pointer selection active on mousedown"
+        );
+        assert_eq!(
+            md.preview.reveal, None,
+            "markdownPointerSelection.test.ts #6: reveal suppressed while dragging"
+        );
+    });
+    visual.simulate_mouse_move(left_pt, MouseButton::Left, Modifiers::none());
+    visual.simulate_mouse_up(left_pt, MouseButton::Left, Modifiers::none());
+    draw(visual);
+    view.read_with(visual, |v, _| {
+        let md = v.extension::<MarkdownExtension>().unwrap();
+        assert!(
+            !md.preview.selecting,
+            "markdownPointerSelection.test.ts #6: pointer selection ends on release"
+        );
+        assert_eq!(
+            md.preview.reveal, None,
+            "markdownPointerSelection.test.ts #6: backward range selection keeps reveal suppressed"
+        );
+        assert!(
+            v.state().selection.head < v.state().selection.anchor,
+            "markdownPointerSelection.test.ts #6: backward selection geometry preserved"
+        );
+    });
+    view.update(visual, |v, cx| {
+        v.set_selection(Selection::cursor(caret), cx)
+    });
+    draw(visual);
+    view.read_with(visual, |v, _| {
+        assert!(
+            v.extension::<MarkdownExtension>()
+                .unwrap()
+                .preview
+                .reveal
+                .is_some(),
+            "markdownPointerSelection.test.ts #6: collapsing to caret inside bold reveals source"
+        );
+        assert_eq!(
+            v.text(),
+            source,
+            "markdownPointerSelection.test.ts #6: document unmodified"
+        );
+    });
+
+    // markdownPointerSelection.test.ts #15: committed edit immediately ends pointer
+    // selection and projects revealed source.
     let (view, visual) = setup(cx, source);
     visual.update(|w, _| w.activate_window());
     draw(visual);
@@ -325,15 +412,23 @@ fn pointer_selection_backward_drag_release_cancellation_and_isolation(cx: &mut T
     draw(visual);
     view.read_with(visual, |v, _| {
         let md = v.extension::<MarkdownExtension>().unwrap();
-        assert!(!md.preview.selecting);
-        assert!(md.preview.reveal.is_some());
+        assert!(
+            !md.preview.selecting,
+            "markdownPointerSelection.test.ts #15: committed edit ends pointer selection"
+        );
+        assert!(
+            md.preview.reveal.is_some(),
+            "markdownPointerSelection.test.ts #15: committed edit projects revealed source immediately"
+        );
         assert_eq!(
             v.text(),
-            format!("{}X{}", &source[..caret], &source[caret..])
+            format!("{}X{}", &source[..caret], &source[caret..]),
+            "markdownPointerSelection.test.ts #15: committed edit applied verbatim"
         );
     });
 
-    // 4. Sibling editor projection stays independent of another editor's active pointer gesture.
+    // markdownPointerSelection.test.ts #14: sibling editor projection stays independent
+    // of another editor's active pointer gesture.
     let (left, visual) = setup(cx, source);
     visual.update(|w, _| w.activate_window());
     draw(visual);
@@ -361,13 +456,25 @@ fn pointer_selection_backward_drag_release_cancellation_and_isolation(cx: &mut T
     });
     left.read_with(visual, |v, _| {
         let md = v.extension::<MarkdownExtension>().unwrap();
-        assert!(md.preview.selecting);
-        assert_eq!(md.preview.reveal, None);
+        assert!(
+            md.preview.selecting,
+            "markdownPointerSelection.test.ts #14: left editor keeps active gesture"
+        );
+        assert_eq!(
+            md.preview.reveal, None,
+            "markdownPointerSelection.test.ts #14: left editor suppresses reveal during gesture"
+        );
     });
     right.read_with(visual, |v, _| {
         let md = v.extension::<MarkdownExtension>().unwrap();
-        assert!(!md.preview.selecting);
-        assert!(md.preview.reveal.is_some());
+        assert!(
+            !md.preview.selecting,
+            "markdownPointerSelection.test.ts #14: sibling editor stays independent of left gesture"
+        );
+        assert!(
+            md.preview.reveal.is_some(),
+            "markdownPointerSelection.test.ts #14: sibling editor projects reveal normally"
+        );
     });
 }
 
@@ -440,12 +547,12 @@ fn markdown_convergence_plans_html_and_oversized_limits(cx: &mut TestAppContext)
         .iter()
         .find_map(|p| p.embed()?.model::<HtmlBlock>())
         .expect("safe HTML block admitted");
-    let crate::editor::markdown::shared::dom::Parsed::Complete(nodes) =
-        crate::editor::markdown::shared::dom::parse(&html_block.html)
+    let crate::editor::markdown::features::html::dom::Parsed::Complete(nodes) =
+        crate::editor::markdown::features::html::dom::parse(&html_block.html)
     else {
         panic!("expected complete parsed HTML");
     };
-    let crate::editor::markdown::shared::dom::Node::Element(root) = &nodes[0] else {
+    let crate::editor::markdown::features::html::dom::Node::Element(root) = &nodes[0] else {
         panic!("expected div");
     };
     assert_eq!(root.attribute("onclick"), None);

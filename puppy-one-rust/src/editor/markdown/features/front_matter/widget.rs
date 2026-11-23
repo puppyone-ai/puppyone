@@ -5,7 +5,7 @@
 //! reveals the metadata's source in place.
 use super::{FrontMatter, ID, ShowSource};
 use crate::editor::{
-    markdown::{shared::source_toggle::source_toggle, style::MarkdownTheme},
+    markdown::{shared::widgets::source_toggle::source_toggle, style::MarkdownTheme},
     view::{
         command::Command,
         style::TextStyle,
@@ -86,22 +86,42 @@ impl BlockWidget for FrontMatterWidget {
             y += rows as f32 * row + ROW_GAP;
         }
         let height = y - ROW_GAP + PADDING;
+        let hovered =
+            cx.render
+                .window
+                .use_keyed_state(cx.id("md-fm-hovered"), cx.render.app, |_, _| false);
+        let is_hovered = *hovered.read(cx.render.app);
         let toggle = source_toggle(
             cx.id("md-front-matter-source"),
             "md-front-matter",
             width,
             self.dark,
-            cx.state.focus_within() || cx.state.selected,
+            cx.state.focus_within() || cx.state.selected || is_hovered,
             cx.sender(),
             Command::new(ID, ShowSource(self.block.range.clone())),
         );
+        let owner_view = cx.render.view.clone();
         let table = div()
+            .id(cx.id("md-fm-box"))
             .absolute()
             .left_0()
             .top_0()
             .w(px(width))
             .h(px(height))
             .group("md-front-matter")
+            .on_hover(move |&now, _, app| {
+                let changed = hovered.update(app, |h, _| {
+                    if *h != now {
+                        *h = now;
+                        true
+                    } else {
+                        false
+                    }
+                });
+                if changed {
+                    let _ = owner_view.update(app, |_, cx| cx.notify());
+                }
+            })
             .children(children)
             .child(toggle);
         (cx.block_box(height).child(table).into_any_element(), height)

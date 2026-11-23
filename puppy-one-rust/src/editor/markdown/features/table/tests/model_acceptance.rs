@@ -7,7 +7,7 @@ use super::super::{
 };
 use crate::editor::{
     markdown::core::{
-        feature::{CompileCx, MarkdownFeature},
+        features::{CompileCx, MarkdownFeature},
         syntax::Syntax,
     },
     table::operation::{Alignment, Focus, Operation},

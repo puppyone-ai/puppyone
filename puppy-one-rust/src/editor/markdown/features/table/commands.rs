@@ -6,7 +6,7 @@
 //! capacity limits (`TODO-32`) return `None` without mutating the document.
 use super::{ID, model::Table, operation};
 use crate::editor::{
-    markdown::core::feature::CommandCx,
+    markdown::core::features::CommandCx,
     table::operation::Operation,
     text::{
         change::ChangeSet,

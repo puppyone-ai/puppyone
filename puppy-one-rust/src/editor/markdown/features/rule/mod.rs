@@ -5,7 +5,7 @@ mod widget;
 
 use crate::editor::{
     markdown::core::{
-        feature::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+        features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
         plans::{BlockEmbed, Plan, Presentation},
         syntax::{Element, Kind},
     },
