@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Editor internal layering and vocabulary guard (TA-10, TA-30, TA-41, TA-42, TA-60, TA-80).
+"""Editor internal layering and vocabulary guard (TA-10, TA-30, TA-41, TA-42, TA-60, TA-80, MA-03..MA-16).
 
-Enforces Rules R1-R10 across `src/` (excluding `#[cfg(test)]` modules, `tests.rs`,
+Enforces Rules R1-R15 across `src/` (excluding `#[cfg(test)]` modules, `tests.rs`,
 `*_tests.rs`, `tests/` directories and `bench.rs`) against the shrink-only
 baseline in `tools/editor-architecture-baseline.json`:
   - Any new violation not in the baseline fails.
@@ -80,6 +80,39 @@ MARKDOWN_INTERNAL_SUBMODULES = {
     "addons",
     "navigation",
 }
+
+# R11 (MA-15): maximum line count for non-test `.rs` files under `src/editor/markdown/`.
+MAX_MARKDOWN_FILE_LINES = 600
+
+# R14 (MA-13): allowed non-test files inside `src/editor/markdown/core/syntax/`.
+CORE_SYNTAX_ALLOWED_FILES = {
+    "mod.rs",
+    "elements.rs",
+    "incremental.rs",
+    "lines.rs",
+    "autolink.rs",
+    "block_boundaries.rs",
+    "list_structure.rs",
+    "front_matter.rs",
+}
+
+# R12 (MA-03, MA-14): forbidden direct I/O patterns outside `platform/brokers/` and `platform/policy/`.
+MARKDOWN_IO_PATTERNS = (
+    ("std::fs", re.compile(r"\bstd\s*::\s*fs\b")),
+    ("reqwest", re.compile(r"\breqwest\b")),
+    ("std::process", re.compile(r"\bstd\s*::\s*process\b")),
+)
+
+
+def is_allowed_core_syntax_file(rel: str) -> bool:
+    """R14 allowlist for non-test `.rs` files under `src/editor/markdown/core/syntax/`."""
+    sub = Path(rel).relative_to("src/editor/markdown/core/syntax").parts
+    if len(sub) == 1:
+        name = sub[0]
+        return name in CORE_SYNTAX_ALLOWED_FILES or (name.startswith("tree") and name.endswith(".rs"))
+    if len(sub) == 2 and sub[0] == "incremental" and sub[1].endswith(".rs"):
+        return True
+    return False
 
 
 class Violation:
@@ -355,7 +388,8 @@ def scan_repository(root: Path) -> list[Violation]:
         if is_ignored_file(path, cfg_test_files):
             continue
         rel = path.relative_to(root).as_posix()
-        cleaned = strip_all_test_mods(path.read_text(encoding="utf-8"))
+        raw_text = path.read_text(encoding="utf-8")
+        cleaned = strip_all_test_mods(raw_text)
         refs, uses_gpui = collect_file_references(root, path, cleaned)
 
         in_text = rel.startswith("src/editor/text/")
@@ -363,9 +397,16 @@ def scan_repository(root: Path) -> list[Violation]:
         in_markdown = rel.startswith("src/editor/markdown/")
         in_md_core = rel.startswith("src/editor/markdown/core/")
         in_md_decorations = rel.startswith("src/editor/markdown/core/decorations/")
+        in_md_core_widgets = rel.startswith("src/editor/markdown/core/widgets/")
+        in_md_core_syntax = rel.startswith("src/editor/markdown/core/syntax/")
         in_md_features = rel.startswith("src/editor/markdown/features/")
+        in_md_html_feature = rel.startswith("src/editor/markdown/features/html/")
+        in_md_composition = rel.startswith("src/editor/markdown/composition/")
         in_md_shared = rel.startswith("src/editor/markdown/shared/")
         in_md_platform = rel.startswith("src/editor/markdown/platform/")
+        in_md_io_allowed = rel.startswith("src/editor/markdown/platform/brokers/") or rel.startswith(
+            "src/editor/markdown/platform/policy/"
+        )
         in_md_addons = rel.startswith("src/editor/markdown/addons/")
 
         own_feature = None
@@ -383,10 +424,76 @@ def scan_repository(root: Path) -> list[Violation]:
             for v in check_r3_view_vocabulary(rel, cleaned):
                 record(v.rule, v.key, v.message)
 
-        # R10: `src/editor/text/` and `markdown/core/` (outside `decorations/`) must not reference `gpui`.
-        if (in_text or (in_md_core and not in_md_decorations)) and uses_gpui:
+        # R10 (MA-04): `src/editor/text/`, `markdown/core/` (outside `decorations/`
+        # and `widgets/`), and feature `model.rs` / `plan.rs` must not reference `gpui`.
+        is_pure_feature_logic = in_md_features and path.name in ("model.rs", "plan.rs")
+        if (
+            in_text
+            or (in_md_core and not in_md_decorations and not in_md_core_widgets)
+            or is_pure_feature_logic
+        ) and uses_gpui:
             key = f"pure-gpui {rel} -> gpui"
-            record("R10", key, f"[R10] {rel}: pure text/markdown-core module references `gpui`")
+            record("R10", key, f"[R10] {rel}: pure text/markdown-core/model/plan module references `gpui`")
+
+        # R11 (MA-15): non-test `.rs` files under `src/editor/markdown/` <= 600 lines.
+        if in_markdown:
+            line_count = len(raw_text.splitlines())
+            if line_count > MAX_MARKDOWN_FILE_LINES:
+                key = f"file-size {rel}"
+                record(
+                    "R11",
+                    key,
+                    f"[R11] {rel}: non-test Markdown file has {line_count} lines (limit {MAX_MARKDOWN_FILE_LINES})",
+                )
+
+        # R12 (MA-03, MA-14): no direct fs/network/process I/O in Markdown outside `platform/{brokers,policy}/`.
+        if in_markdown and not in_md_io_allowed:
+            for kind, pat in MARKDOWN_IO_PATTERNS:
+                if pat.search(cleaned):
+                    key = f"markdown-io {rel} -> {kind}"
+                    record(
+                        "R12",
+                        key,
+                        f"[R12] {rel}: direct `{kind}` I/O forbidden outside `markdown/platform/{{brokers,policy}}/`",
+                    )
+
+        # R14 (MA-13): `core/syntax/` file allowlist (feature syntax belongs in `features/`).
+        if in_md_core_syntax and not is_allowed_core_syntax_file(rel):
+            key = f"core-syntax-allowlist {rel}"
+            record(
+                "R14",
+                key,
+                f"[R14] {rel}: unlisted file in `markdown/core/syntax/`; feature syntax must live in `features/`",
+            )
+
+        # R15 (MA-14): DNS/proxy network checks only in `platform/policy/network.rs`;
+        # workspace SVG rasterization only via `platform/policy/svg.rs`.
+        if in_markdown:
+            if rel != "src/editor/markdown/platform/policy/network.rs":
+                has_dns = bool(re.search(r"\bto_socket_addrs\b", cleaned))
+                has_proxy = any(
+                    len(s) >= 3 and s[0] == "crate" and s[1] == "platform" and s[2] == "proxy"
+                    for s in refs
+                ) or bool(re.search(r"\bpo_platform\s*::\s*proxy\b", cleaned))
+                if has_dns or has_proxy:
+                    key = f"security-policy {rel} -> network"
+                    record(
+                        "R15",
+                        key,
+                        f"[R15] {rel}: DNS/proxy checks are only allowed in `markdown/platform/policy/network.rs`",
+                    )
+            if rel != "src/editor/markdown/platform/policy/svg.rs":
+                has_raw_svg = any(
+                    len(s) >= 3 and s[0] == "crate" and s[1] == "platform" and s[2] == "svg"
+                    for s in refs
+                ) or bool(re.search(r"\bpo_platform\s*::\s*svg\b", cleaned))
+                if has_raw_svg:
+                    key = f"security-policy {rel} -> svg"
+                    record(
+                        "R15",
+                        key,
+                        f"[R15] {rel}: SVG rasterization must route through `markdown/platform/policy/svg.rs`",
+                    )
 
         for segs in refs:
             if len(segs) < 3 or segs[0] != "crate" or segs[1] != "editor":
@@ -407,6 +514,23 @@ def scan_repository(root: Path) -> list[Violation]:
                 continue
 
             md_sub = segs[3] if len(segs) >= 4 else None
+
+            # R13 (MA-07, MA-12): `features::html::render` only imported by `features/html/` and `composition/`.
+            if (
+                in_markdown
+                and not in_md_html_feature
+                and not in_md_composition
+                and len(segs) >= 6
+                and segs[3] == "features"
+                and segs[4] == "html"
+                and segs[5] == "render"
+            ):
+                key = f"html-render-boundary {rel} -> features/html/render"
+                record(
+                    "R13",
+                    key,
+                    f"[R13] {rel}: `features::html::render` may only be imported by `features/html/` and `composition/` (use `shared::preview`)",
+                )
 
             # R9: outside `src/editor/markdown/`, only root `editor::markdown` exports may be used.
             if not in_markdown and md_sub in md_internals:
@@ -523,7 +647,7 @@ def scan_repository(root: Path) -> list[Violation]:
 
 
 def run_self_tests() -> None:
-    """Prove every rule R1-R10 catches a constructed violation and spares valid code."""
+    """Prove every rule R1-R15 catches a constructed violation and spares valid code."""
     cases = [
         (
             "R1",
@@ -620,12 +744,71 @@ def run_self_tests() -> None:
         (
             "R10",
             {
-                # `decorations/` may reference `gpui`; `core/plans.rs` and `text/` may not.
+                # `decorations/` and `core/widgets/` may reference `gpui`; `core/plans.rs`, `text/`,
+                # and feature `model.rs` / `plan.rs` may not.
                 "src/editor/markdown/core/decorations/mod.rs": "use gpui::*;\n",
+                "src/editor/markdown/core/widgets/mod.rs": "use gpui::px;\n",
                 "src/editor/markdown/core/plans.rs": "use gpui::px;\n",
+                "src/editor/markdown/features/math/model.rs": "use gpui::Rgba;\n",
+                "src/editor/markdown/features/math/plan.rs": "fn f() { let _ = gpui::px(1.); }\n",
                 "src/editor/text/rope.rs": "fn f() { let _ = gpui::px(1.0); }\n",
             },
             {"R10"},
+        ),
+        (
+            "R11",
+            {
+                "src/editor/markdown/ok.rs": "// ok\n" * MAX_MARKDOWN_FILE_LINES,
+                "src/editor/markdown/too_big.rs": "// big\n" * (MAX_MARKDOWN_FILE_LINES + 1),
+                "src/editor/markdown/tests/big_test.rs": "// test\n" * (MAX_MARKDOWN_FILE_LINES + 50),
+            },
+            {"R11"},
+        ),
+        (
+            "R12",
+            {
+                "src/editor/markdown/platform/brokers/assets/fetch.rs": "fn f() { let _ = reqwest::Client::new(); }\n",
+                "src/editor/markdown/platform/policy/asset.rs": "fn f() { let _ = std::fs::metadata(\"a\"); }\n",
+                "src/editor/markdown/features/html/mod.rs": (
+                    "fn f() { let _ = std::fs::read(\"a\"); let _ = reqwest::Client::new(); let _ = std::process::Command::new(\"ls\"); }\n"
+                ),
+            },
+            {"R12"},
+        ),
+        (
+            "R13",
+            {
+                "src/editor/markdown/features/html/block/widget.rs": "use crate::editor::markdown::features::html::render::Surface;\n",
+                "src/editor/markdown/composition/preview/mod.rs": "use crate::editor::markdown::features::html::render::Surface;\n",
+                "src/editor/markdown/extension.rs": "use crate::editor::markdown::features::html::render::Surface;\n",
+            },
+            {"R13"},
+        ),
+        (
+            "R14",
+            {
+                "src/editor/markdown/core/syntax/tree_inline.rs": "pub fn f() {}\n",
+                "src/editor/markdown/core/syntax/incremental/patch.rs": "pub fn f() {}\n",
+                "src/editor/markdown/core/syntax/footnotes.rs": "pub fn f() {}\n",
+            },
+            {"R14"},
+        ),
+        (
+            "R15",
+            {
+                "src/editor/markdown/platform/policy/network.rs": (
+                    "use std::net::ToSocketAddrs;\n"
+                    "fn f() { let _ = (\"a\", 443).to_socket_addrs(); let _ = crate::platform::proxy::system; }\n"
+                ),
+                "src/editor/markdown/platform/policy/svg.rs": "fn f() { let _ = crate::platform::svg::rasterize_svg; }\n",
+                "src/editor/markdown/platform/brokers/assets/decode.rs": (
+                    "fn f() { let _ = crate::platform::svg::rasterize_svg; }\n"
+                ),
+                "src/editor/markdown/platform/brokers/assets/fetch.rs": (
+                    "fn f() { let _ = (\"a\", 443).to_socket_addrs(); let _ = crate::platform::proxy::system; }\n"
+                ),
+            },
+            {"R15"},
         ),
     ]
 
@@ -643,13 +826,42 @@ def run_self_tests() -> None:
                     f"Self-test {label} expected rules {expected_rules}, got {got_rules}: "
                     f"{[v.key for v in found]}"
                 )
-            # Ensure R3 did not flag `src/editor/view/style.rs` and R10 did not flag `decorations/mod.rs`.
+            # Ensure valid files were spared.
             if label == "R3" and any("style.rs" in v.key for v in found):
                 raise AssertionError(f"Self-test R3 falsely flagged font style file: {[v.key for v in found]}")
             if label == "R10":
                 flagged_files = {v.key.split()[1] for v in found}
-                if flagged_files != {"src/editor/markdown/core/plans.rs", "src/editor/text/rope.rs"}:
+                expected_r10 = {
+                    "src/editor/markdown/core/plans.rs",
+                    "src/editor/markdown/features/math/model.rs",
+                    "src/editor/markdown/features/math/plan.rs",
+                    "src/editor/text/rope.rs",
+                }
+                if flagged_files != expected_r10:
                     raise AssertionError(f"Self-test R10 unexpected files: {flagged_files}")
+            if label == "R11":
+                flagged_files = {v.key.split()[1] for v in found}
+                if flagged_files != {"src/editor/markdown/too_big.rs"}:
+                    raise AssertionError(f"Self-test R11 unexpected files: {flagged_files}")
+            if label == "R12":
+                flagged_files = {v.key.split()[1] for v in found}
+                if flagged_files != {"src/editor/markdown/features/html/mod.rs"}:
+                    raise AssertionError(f"Self-test R12 unexpected files: {flagged_files}")
+            if label == "R13":
+                flagged_files = {v.key.split()[1] for v in found}
+                if flagged_files != {"src/editor/markdown/extension.rs"}:
+                    raise AssertionError(f"Self-test R13 unexpected files: {flagged_files}")
+            if label == "R14":
+                flagged_files = {v.key.split()[1] for v in found}
+                if flagged_files != {"src/editor/markdown/core/syntax/footnotes.rs"}:
+                    raise AssertionError(f"Self-test R14 unexpected files: {flagged_files}")
+            if label == "R15":
+                flagged_files = {v.key.split()[1] for v in found}
+                if flagged_files != {
+                    "src/editor/markdown/platform/brokers/assets/decode.rs",
+                    "src/editor/markdown/platform/brokers/assets/fetch.rs",
+                }:
+                    raise AssertionError(f"Self-test R15 unexpected files: {flagged_files}")
 
     # Also verify shrink-only baseline comparison (added fails, stale fails, prune shrinks).
     sample_v = Violation("R4", "core-import a.rs -> features/math", "[R4] a.rs")
@@ -662,7 +874,7 @@ def run_self_tests() -> None:
     )
     assert not added and stale == ["feature-import b.rs -> features/image"]
 
-    print(f"Editor architecture self-tests passed ({len(cases)} scenarios covering R1-R10 + shrink-only baseline).")
+    print(f"Editor architecture self-tests passed ({len(cases)} scenarios covering R1-R15 + shrink-only baseline).")
 
 
 def diff_baseline(
@@ -681,7 +893,7 @@ def diff_baseline(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prune", action="store_true", help=f"remove resolved entries from {BASELINE_REL}")
-    parser.add_argument("--self-test", action="store_true", help="run built-in synthetic tests for R1-R10")
+    parser.add_argument("--self-test", action="store_true", help="run built-in synthetic tests for R1-R15")
     args = parser.parse_args()
 
     if args.self_test:
@@ -730,7 +942,7 @@ def main() -> None:
         sys.exit("\n".join(errors))
 
     print(
-        f"Editor architecture verified: R1-R10 checked, {len(current_set)} baseline exemption(s)"
+        f"Editor architecture verified: R1-R15 checked, {len(current_set)} baseline exemption(s)"
     )
 
 
