@@ -39031,11 +39031,11 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::features::html::embed::tests::only_a_lone_https_iframe_is_an_embed"
+          "test": "editor::markdown::platform::brokers::embed::web_embed::tests::only_a_lone_https_iframe_is_an_embed"
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::features::html::embed::tests::private_and_local_targets_never_load"
+          "test": "editor::markdown::platform::policy::network::tests::private_and_local_targets_never_load"
         },
         {
           "package": "po-editor",
@@ -39779,7 +39779,7 @@
         },
         {
           "package": "po-editor",
-          "test": "editor::markdown::features::html::embed::tests::only_a_lone_https_iframe_is_an_embed"
+          "test": "editor::markdown::platform::brokers::embed::web_embed::tests::only_a_lone_https_iframe_is_an_embed"
         }
       ]
     },

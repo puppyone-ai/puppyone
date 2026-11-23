@@ -6,14 +6,20 @@
 //! 720px, centred; a video that cannot play (`> 32 MiB`, missing file,
 //! blocked path, or playback error) renders a visible fallback card (`TA-52`,
 //! `TODO-37`) with the failure reason plus `Retry` and `Source code` actions.
-use super::{ID, ShowSource, VideoBlock, player};
+use super::{ID, ShowSource, VideoBlock};
 use crate::{
     editor::{
         markdown::{
-            platform::policy::AssetFailure,
-            shared::widgets::{
-                fallback::{FallbackSummary, action_pill},
-                ring,
+            platform::{
+                brokers::embed::{self as embed_broker, MediaKey, MediaRequest},
+                policy::AssetFailure,
+            },
+            shared::{
+                media::MediaKind,
+                widgets::{
+                    fallback::{FallbackSummary, action_pill},
+                    ring,
+                },
             },
             style::{BlockStyle, MarkdownTheme},
         },
@@ -125,7 +131,7 @@ impl VideoBlockWidget {
     fn render_fallback_card(
         &self,
         failure: &AssetFailure,
-        media_key: Option<player::Key>,
+        media_key: Option<MediaKey>,
         cx: &WidgetCx,
     ) -> AnyElement {
         let app = Theme::new(self.dark);
@@ -172,7 +178,7 @@ impl VideoBlockWidget {
                             cx.id("md-video-retry"),
                             t("common.action.retry"),
                             self.dark,
-                            move |_, app_cx| player::retry(&key, app_cx),
+                            move |_, app_cx| embed_broker::retry_media(&key, app_cx),
                         ))
                     })
                     .child(action_pill(
@@ -200,10 +206,10 @@ impl BlockWidget for VideoBlockWidget {
             .ok()
             .map(|p| (editor, self.block.range.start, 0usize, p.clone()));
         let player = match (&self.path, &self.assets, &media_key) {
-            (Ok(_), Some(assets), Some(key)) => Some(player::get(
-                player::Request {
+            (Ok(_), Some(assets), Some(key)) => Some(embed_broker::get_media_player(
+                MediaRequest {
                     key: key.clone(),
-                    media: player::Media::Video,
+                    kind: MediaKind::Video,
                     title: self.block.title.as_deref(),
                     background: theme::video_black(),
                     assets,

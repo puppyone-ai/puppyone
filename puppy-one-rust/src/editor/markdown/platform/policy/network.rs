@@ -183,4 +183,32 @@ mod tests {
         assert!(!redirect_allowed(&origin, &downgrade, false));
         assert!(!redirect_allowed(&origin, &other_host, true));
     }
+
+    #[test]
+    fn private_and_local_targets_never_load() {
+        use super::super::url::allowed_https_href;
+        assert!(allowed_https_href("https://example.com/a").is_some());
+        for href in [
+            "https://localhost/",
+            "https://printer.local/",
+            "https://router.home.arpa/",
+            "https://127.0.0.1/",
+            "https://10.1.2.3/",
+            "https://192.168.1.1/",
+            "https://[::1]/",
+            "https://[::ffff:127.0.0.1]/",
+            "https://user:pw@example.com/",
+            "http://example.com/",
+        ] {
+            assert!(allowed_https_href(href).is_none(), "{href}");
+        }
+        assert!(is_public_ip("8.8.8.8".parse().unwrap()));
+        assert!(!is_public_ip("100.64.0.1".parse().unwrap()));
+        assert!(!is_public_ip("169.254.1.1".parse().unwrap()));
+        assert!(!is_public_ip("224.0.0.1".parse().unwrap()));
+        assert!(is_public_ip("2606:4700::1111".parse().unwrap()));
+        assert!(!is_public_ip("2001:db8::1".parse().unwrap()));
+        assert!(!is_public_ip("fe80::1".parse().unwrap()));
+        assert!(!is_public_ip("2002::1".parse().unwrap()));
+    }
 }

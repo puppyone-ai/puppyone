@@ -1,15 +1,18 @@
 //! Mermaid (product `features/mermaid`, `TA-40`): a fence labelled `mermaid` or
-//! `mmd` shows its diagram, drawn by the product's own Mermaid in the render
-//! service through [`crate::editor::markdown::platform::render`]. Zoom and
-//! deferred render activation live in a feature-owned [`MermaidState`] slot
-//! inside `FeatureStateStore`, mapped via [`Anchor`] across edits and undo/redo.
+//! `mmd` shows its diagram, drawn through [`crate::editor::markdown::platform::brokers::render`].
+//! Model & budget classification live in [`model`], plan compilation in [`plan`],
+//! pane state in [`state`], viewport scaling in [`viewport`], and UI in [`controls`]/[`widget`].
 mod controls;
+pub mod model;
+pub mod plan;
 pub mod state;
+pub mod viewport;
 #[cfg(test)]
 pub(crate) mod widget;
 #[cfg(not(test))]
 mod widget;
 
+pub use model::{MermaidBlock, is_mermaid};
 pub use state::{DiagramView, MermaidState};
 
 use crate::editor::{
@@ -17,12 +20,10 @@ use crate::editor::{
         core::{
             decorations::BlockDecoration,
             features::{CommandCx, CompileCx, MarkdownFeature, WidgetFactoryCx},
-            plans::{BlockEmbed, Plan, Presentation},
+            plans::{BlockEmbed, Plan},
             state::PreviewState,
         },
-        shared::fence::{
-            DocumentProfile, FenceExecution, decide_fence_execution, fence_delimiter_ranges,
-        },
+        shared::fence::fence_delimiter_ranges,
     },
     text::{
         selection::Selection,
@@ -30,46 +31,12 @@ use crate::editor::{
     },
     view::{command::Command, widget::BlockWidget},
 };
-use std::{ops::Range, rc::Rc};
+use std::rc::Rc;
 use widget::MermaidBlockWidget;
 
 pub struct MermaidFeature;
 pub static FEATURE: MermaidFeature = MermaidFeature;
 pub const ID: &str = "mermaid";
-
-const RICH_BYTES: [usize; 3] = [32 * 1024, 24 * 1024, 12 * 1024];
-const RICH_ITEMS: [usize; 3] = [1_000, 700, 350];
-const DEFERRED_MAX_BYTES: usize = 128 * 1024;
-const DEFERRED_MAX_ITEMS: usize = 4_000;
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct MermaidBlock {
-    pub range: Range<usize>,
-    pub code: Range<usize>,
-    pub source: String,
-    pub deferred: bool,
-}
-
-pub fn is_mermaid(language: &str) -> bool {
-    matches!(language.trim().to_lowercase().as_str(), "mermaid" | "mmd")
-}
-
-/// `decideMarkdownBlockExecution("mermaid", …)`: `Some(deferred)` for a
-/// diagram, `None` for one that stays source.
-fn execution(source: &str, profile: DocumentProfile) -> Option<bool> {
-    match decide_fence_execution(
-        source,
-        profile,
-        RICH_BYTES,
-        RICH_ITEMS,
-        DEFERRED_MAX_BYTES,
-        DEFERRED_MAX_ITEMS,
-    ) {
-        FenceExecution::Immediate => Some(false),
-        FenceExecution::Deferred => Some(true),
-        FenceExecution::FallbackToCode => None,
-    }
-}
 
 /// The widget's commands: zoom, Render, and ShowSource change the pane's view;
 /// Edit and Done move the caret into and out of the block.
@@ -101,32 +68,7 @@ impl MarkdownFeature for MermaidFeature {
     }
 
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        // O(1) rope summary UTF-16 length — never materialises `doc.flat`!
-        let units = cx.doc.len_utf16();
-        let profile = DocumentProfile::classify(units, cx.doc.line_count());
-        for fence in &cx.syntax.fences {
-            if !is_mermaid(&fence.language) {
-                continue;
-            }
-            let source = cx.doc.slice_cow(fence.code.clone()).into_owned();
-            let Some(deferred) = execution(&source, profile) else {
-                continue;
-            };
-            out.push(Plan {
-                element: None,
-                source: fence.range.clone(),
-                presentation: Presentation::BlockAtom(BlockEmbed::new(
-                    ID,
-                    MermaidBlock {
-                        range: fence.range.clone(),
-                        code: fence.code.clone(),
-                        source,
-                        deferred,
-                    },
-                )),
-                delete_units: Vec::new(),
-            });
-        }
+        plan::compile_blocks(cx, out);
     }
 
     fn block_widget(
@@ -152,11 +94,11 @@ impl MarkdownFeature for MermaidFeature {
     fn command(&self, command: &Command, cx: &CommandCx) -> Option<Transaction> {
         match command.payload::<Action>()? {
             Action::Edit { at } => {
-                let block = block_at(cx, *at)?;
+                let block = plan::block_at(cx, *at)?;
                 Some(Transaction::select(Selection::cursor(block.code.end)))
             }
             Action::Done { at } => {
-                let block = block_at(cx, *at)?;
+                let block = plan::block_at(cx, *at)?;
                 let doc_len = cx.state.doc.len();
                 let target = if block.range.end < doc_len {
                     (block.range.end + 1).min(doc_len)
@@ -201,17 +143,10 @@ impl MarkdownFeature for MermaidFeature {
     }
 }
 
-fn block_at(cx: &CommandCx, at: usize) -> Option<MermaidBlock> {
-    cx.plans
-        .iter()
-        .filter_map(|p| p.embed()?.model::<MermaidBlock>())
-        .find(|b| b.range.start == at)
-        .cloned()
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{model::execution, *};
+    use crate::editor::markdown::core::plans::DocumentProfile;
     use core::prelude::v1::test;
 
     #[test]

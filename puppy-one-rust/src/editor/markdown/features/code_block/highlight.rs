@@ -4,17 +4,16 @@
 //! syntax to eleven colour roles. Parsing is GPUI Kit's tree-sitter
 //! highlighter; its capture names resolve to the same roles.
 use super::style::SyntaxColors;
-use crate::editor::code::highlight::{Roles, syntax_highlighter};
+use crate::editor::{
+    code::highlight::{Roles, syntax_highlighter},
+    markdown::core::plans::execution::{
+        CODE_HIGHLIGHT_LINE_UNIT_LIMIT, CODE_HIGHLIGHT_SEGMENT_LIMIT,
+        CODE_HIGHLIGHT_SOURCE_BYTE_LIMIT,
+    },
+};
 use gpui::HighlightStyle;
 use gpui_kit::component::Rope;
 use std::{cell::RefCell, collections::HashMap, ops::Range, sync::Arc};
-
-/// `MARKDOWN_CODE_HIGHLIGHT_SOURCE_BYTE_LIMIT` / `_LINE_UNIT_LIMIT`.
-const SOURCE_BYTE_LIMIT: usize = 16 * 1024;
-const LINE_UNIT_LIMIT: usize = 4 * 1024;
-/// `MARKDOWN_CODE_HIGHLIGHT_DOM_NODE_LIMIT`: coloured tokens (≈ two DOM nodes
-/// each when paired with their unstyled gaps).
-const SEGMENT_LIMIT: usize = 2048 / 2;
 
 /// `resolveCodeLanguageKey(language, "")` → the Kit grammar for it, or
 /// `None` for plain text (including languages the product does not support).
@@ -24,10 +23,10 @@ pub fn grammar(language: &str) -> Option<&'static str> {
 
 /// `isWithinMarkdownCodeHighlightSourceBudget`.
 fn within_budget(code: &str) -> bool {
-    code.len() <= SOURCE_BYTE_LIMIT
+    code.len() <= CODE_HIGHLIGHT_SOURCE_BYTE_LIMIT
         && code
             .split('\n')
-            .all(|l| l.encode_utf16().count() <= LINE_UNIT_LIMIT)
+            .all(|l| l.encode_utf16().count() <= CODE_HIGHLIGHT_LINE_UNIT_LIMIT)
 }
 
 /// Highlight ranges over a code block's text.
@@ -58,7 +57,7 @@ pub fn highlight(code: &str, language: &str, colors: &SyntaxColors) -> Highlight
     // counts actual coloured tokens, matching TS's `highlightTree` segments.
     styles.retain(|(range, style)| !range.is_empty() && style.color.is_some());
     // Over the DOM budget the product shows the plain textarea.
-    if styles.len() > SEGMENT_LIMIT {
+    if styles.len() > CODE_HIGHLIGHT_SEGMENT_LIMIT {
         styles.clear();
     }
     let styles = Arc::new(styles);

@@ -425,4 +425,33 @@ mod tests {
         };
         assert!(policy::build_pinned_https_client(&endpoint, Duration::from_secs(5), true).is_ok());
     }
+
+    #[test]
+    fn only_a_lone_https_iframe_is_an_embed() {
+        let embed = |s: &str| external_iframe_href(s);
+        assert_eq!(
+            embed(r#"<iframe src="https://www.youtube.com/embed/x"></iframe>"#).as_deref(),
+            Some("https://www.youtube.com/embed/x")
+        );
+        assert_eq!(
+            embed("<IFRAME SRC='https://a.test/p?a=1&amp;b=2' />").as_deref(),
+            Some("https://a.test/p?a=1&b=2")
+        );
+        assert_eq!(embed(r#"<iframe src="http://a.test"></iframe>"#), None);
+        assert_eq!(
+            embed(r#"<iframe src="https://a.test" width="5"></iframe>"#),
+            None,
+            "one attribute only"
+        );
+        assert_eq!(embed(r#"<iframe src="https://a.test">"#), None, "unclosed");
+        assert_eq!(embed(r#"x <iframe src="https://a.test"></iframe>"#), None);
+    }
+
+    #[test]
+    fn the_entry_page_leaves_for_the_embed() {
+        assert!(
+            web_embed_entry_page("https://a.test/\"x")
+                .contains(r#"location.replace("https://a.test/\"x")"#)
+        );
+    }
 }

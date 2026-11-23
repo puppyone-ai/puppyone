@@ -1,40 +1,35 @@
-//! Fenced code blocks (product features/code-block): every fence is a block
+//! Fenced code blocks (product `features/code-block`): every fence is a block
 //! widget showing its code lines in a highlighted panel; the fence lines
 //! themselves are not caret positions while the block is rendered.
 #[cfg(test)]
 pub(crate) mod highlight;
 #[cfg(not(test))]
 mod highlight;
+pub mod layout;
+pub mod model;
+pub mod plan;
 pub mod style;
 mod widget;
+
+pub use model::CodeBlock;
 
 use crate::editor::{
     markdown::{
         core::{
             decorations::BlockDecoration,
             features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
-            plans::{BlockEmbed, Plan, Presentation},
+            plans::{BlockEmbed, Plan},
         },
         shared::fence::fence_delimiter_ranges,
     },
     view::widget::BlockWidget,
 };
-use std::{ops::Range, rc::Rc};
+use std::rc::Rc;
 use widget::CodeBlockWidget;
 
 pub struct CodeBlockFeature;
 pub static FEATURE: CodeBlockFeature = CodeBlockFeature;
 pub const ID: &str = "code-block";
-
-/// A fenced code block (`codeBlockModel.ts`).
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct CodeBlock {
-    /// Opening line start to closing (or last) line end.
-    pub range: Range<usize>,
-    /// The code lines between the fences.
-    pub code: Range<usize>,
-    pub language: String,
-}
 
 impl MarkdownFeature for CodeBlockFeature {
     fn id(&self) -> &'static str {
@@ -43,19 +38,7 @@ impl MarkdownFeature for CodeBlockFeature {
 
     /// `codeBlockPlan.ts`: every fence is a code block widget.
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        for fence in &cx.syntax.fences {
-            let block = CodeBlock {
-                range: fence.range.clone(),
-                code: fence.code.clone(),
-                language: fence.language.clone(),
-            };
-            out.push(Plan {
-                element: None,
-                source: fence.range.clone(),
-                presentation: Presentation::BlockAtom(BlockEmbed::new(ID, block)),
-                delete_units: Vec::new(),
-            });
-        }
+        plan::compile_blocks(cx, out);
     }
 
     fn block_widget(

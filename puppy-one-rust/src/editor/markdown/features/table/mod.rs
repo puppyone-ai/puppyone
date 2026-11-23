@@ -7,6 +7,7 @@ mod commands;
 pub(crate) mod controls;
 #[cfg(not(test))]
 mod controls;
+mod focus;
 #[cfg(test)]
 pub(crate) mod interaction;
 #[cfg(not(test))]
@@ -15,8 +16,10 @@ mod interaction;
 pub(crate) mod layout;
 #[cfg(not(test))]
 mod layout;
+mod menu;
 pub mod model;
 mod operation;
+pub mod plan;
 pub mod style;
 #[cfg(test)]
 mod tests;
@@ -30,7 +33,7 @@ use crate::editor::{
         core::{
             decorations::BlockDecoration,
             features::{CommandCx, CompileCx, MarkdownFeature, WidgetFactoryCx},
-            plans::{BlockEmbed, Plan, Presentation},
+            plans::{BlockEmbed, Plan},
         },
         style::cascade::LineContext,
     },
@@ -54,16 +57,7 @@ impl MarkdownFeature for TableFeature {
 
     /// `tableFeature` collectBlock: the model narrows the parser's table.
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        for range in &cx.syntax.tables {
-            if let Some(table) = model::table_block(cx.doc, range) {
-                out.push(Plan {
-                    element: None,
-                    source: table.range.clone(),
-                    presentation: Presentation::BlockAtom(BlockEmbed::new(ID, table)),
-                    delete_units: Vec::new(),
-                });
-            }
-        }
+        plan::compile_blocks(cx, out);
     }
 
     fn block_widget(

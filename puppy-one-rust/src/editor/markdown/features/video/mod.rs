@@ -1,24 +1,19 @@
-//! Video (product features/video): an Obsidian `![[clip.mp4]]` embed alone
-//! on its line is a player, its alias the title or `640x360` its size. The
-//! system web engine decodes and draws the video and its controls through
-//! [`crate::editor::markdown::platform::embed`]; workspace files exceeding the
-//! `32 MiB` budget or missing on disk degrade visibly along
-//! `Rendered -> Card Fallback -> Source` (`TA-52`). An embed beside text stays
-//! source.
-pub mod player;
+//! Video (product `features/video`): an Obsidian `![[clip.mp4]]` embed alone
+//! on its line is a player, its alias the title or `640x360` its size. Model
+//! lives in [`model`], plan compilation in [`plan`], widget in [`widget`], and
+//! `WebHost` media pooling in [`crate::editor::markdown::platform::brokers::embed`].
+pub mod model;
+pub mod plan;
 mod widget;
 
+pub use model::{ShowSource, VideoBlock};
+
 use crate::editor::{
-    markdown::{
-        core::{
-            decorations::BlockDecoration,
-            features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
-            plans::{BlockEmbed, Plan, Presentation},
-            state::PreviewState,
-            syntax::Kind,
-        },
-        platform::policy::AssetFailure,
-        shared::media::{MediaSource, parse_video_size, resolve_embed_media},
+    markdown::core::{
+        decorations::BlockDecoration,
+        features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
+        plans::{BlockEmbed, Plan},
+        state::PreviewState,
     },
     text::{
         selection::Selection,
@@ -26,76 +21,20 @@ use crate::editor::{
     },
     view::{command::Command, widget::BlockWidget},
 };
-use std::{ops::Range, path::Path, rc::Rc};
+use std::{path::Path, rc::Rc};
 use widget::VideoBlockWidget;
 
 pub struct VideoFeature;
 pub static FEATURE: VideoFeature = VideoFeature;
 pub const ID: &str = "video";
 
-/// Reveal the video embed's raw Markdown source line (`TA-52`).
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct ShowSource(pub Range<usize>);
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct VideoBlock {
-    /// The embed's line.
-    pub range: Range<usize>,
-    /// The embed's target as written.
-    pub href: String,
-    /// The alias, unless it is a size.
-    pub title: Option<String>,
-    pub width: Option<u32>,
-    pub height: Option<u32>,
-}
-
-impl VideoBlock {
-    /// `createMarkdownVideoModel` for an embed of `href` with `alias`.
-    fn new(range: Range<usize>, href: String, alias: Option<&str>) -> Self {
-        let parsed = alias.and_then(parse_video_size);
-        Self {
-            range,
-            href,
-            title: alias.filter(|_| parsed.is_none()).map(str::to_owned),
-            width: parsed.map(|(w, _)| w),
-            height: parsed.and_then(|(_, h)| h),
-        }
-    }
-
-    /// `fallbackLabel`: what a video that cannot play says.
-    pub fn label(&self) -> &str {
-        self.title.as_deref().unwrap_or(&self.href)
-    }
-}
-
 impl MarkdownFeature for VideoFeature {
     fn id(&self) -> &'static str {
         ID
     }
 
-    /// `collectBlock`: a video embed that owns its whole line.
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        for e in &cx.syntax.elements {
-            if e.kind != Kind::VideoEmbed {
-                continue;
-            }
-            let line = cx.doc.line_range(cx.doc.line_index(e.range.start));
-            if !cx.doc.slice(line.start..e.range.start).trim().is_empty()
-                || !cx.doc.slice(e.range.end..line.end).trim().is_empty()
-            {
-                continue;
-            }
-            let Some(href) = e.href.clone() else { continue };
-            out.push(Plan {
-                element: None,
-                source: line.clone(),
-                presentation: Presentation::BlockAtom(BlockEmbed::new(
-                    ID,
-                    VideoBlock::new(line, href, e.text.as_deref()),
-                )),
-                delete_units: Vec::new(),
-            });
-        }
+        plan::compile_blocks(cx, out);
     }
 
     fn block_widget(
@@ -106,10 +45,7 @@ impl MarkdownFeature for VideoFeature {
         let block = embed.model::<VideoBlock>()?;
         let document = cx.assets.map(|a| a.document.clone()).unwrap_or_default();
         // Workspace files only: the engine never reaches past the project.
-        let path = match resolve_embed_media(Path::new(&document), &block.href, cx.references) {
-            Ok(MediaSource::Workspace(path)) => Ok(path),
-            _ => Err(AssetFailure::Blocked),
-        };
+        let path = model::resolve_workspace_video(Path::new(&document), &block.href, cx.references);
         Some(Rc::new(VideoBlockWidget::new(
             block.clone(),
             path,
@@ -141,6 +77,7 @@ impl MarkdownFeature for VideoFeature {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::editor::markdown::shared::media::parse_video_size;
     use core::prelude::v1::test;
 
     fn embeds(text: &str) -> Vec<VideoBlock> {

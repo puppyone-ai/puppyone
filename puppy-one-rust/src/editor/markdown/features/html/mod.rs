@@ -1,25 +1,21 @@
-//! HTML blocks (product features/html): a top-level HTML block whose tags
-//! nest as authored renders as `.cm-md-html-widget` — the sanitized
-//! surface, a source toggle in its toolbar and the block rings. A block
-//! that opens a tag a later HTML block closes, across Markdown between
-//! them, is one flow as GitHub reads it (`createMarkdownCrossingBlock`):
-//! the Markdown inside renders too, so `<details>` holds Markdown. Blocks
-//! a browser would repair, comments and declarations stay source. A block
-//! that is only an `https:` `<iframe>` is a web embed (`embed`).
-pub mod dom;
-pub mod embed;
+//! HTML blocks and inline HTML (product `features/html`): tokenization lives in
+//! [`tokenizer`], strict authored nesting in [`structure`], profile sanitization
+//! in [`sanitize`], block model/plan/widget in [`block`], inline HTML in [`inline`],
+//! and GPUI surface rendering in [`render`].
+pub mod block;
 pub mod inline;
 pub mod render;
 pub mod sanitize;
 pub mod structure;
 pub mod tokenizer;
-mod widget;
+
+pub use block::{HtmlBlock, ShowSource};
 
 use crate::editor::{
     markdown::core::{
         decorations::BlockDecoration,
         features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
-        plans::{BlockEmbed, Plan, Presentation},
+        plans::{BlockEmbed, Plan},
         state::PreviewState,
         syntax::{Element, Syntax},
     },
@@ -30,167 +26,12 @@ use crate::editor::{
     },
     view::{command::Command, widget::BlockWidget},
 };
+use block::HtmlBlockWidget;
 use std::{ops::Range, rc::Rc};
-use structure::markdown_html;
-use widget::HtmlBlockWidget;
 
 pub struct HtmlFeature;
 pub static FEATURE: HtmlFeature = HtmlFeature;
 pub const ID: &str = "html";
-/// `MARKDOWN_HTML_FLOW_MAX_SIBLINGS`.
-const MAX_FLOW: usize = 512;
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct HtmlBlock {
-    /// Whole source lines.
-    pub range: Range<usize>,
-    /// The HTML the surface renders.
-    pub html: String,
-    /// The page a lone `<iframe>` asks for.
-    pub embed: Option<String>,
-}
-
-/// Reveal the block's source (the toolbar toggle).
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct ShowSource(pub Range<usize>);
-
-fn source_fallback(range: Range<usize>, code: &'static str) -> Plan {
-    Plan {
-        element: None,
-        source: range,
-        presentation: Presentation::SourceFallback { code },
-        delete_units: Vec::new(),
-    }
-}
-
-/// A reduced nested element cannot grant link navigation or hide a forbidden root.
-fn admission_failure(html: &str, nodes: &[dom::Node]) -> Option<&'static str> {
-    if dom::has_blocked_root(html) {
-        return Some("htmlBlock.blocked-tag");
-    }
-    let mut pending: Vec<_> = nodes.iter().collect();
-    while let Some(node) = pending.pop() {
-        if let dom::Node::Element(element) = node {
-            if element.tag == "a"
-                && let Some(href) = element.attribute("href")
-                && crate::editor::markdown::platform::brokers::link::safe_href(href).is_none()
-            {
-                return Some("htmlBlock.unsafe-href");
-            }
-            pending.extend(&element.children);
-        }
-    }
-    None
-}
-
-fn admit(
-    html: String,
-    range: Range<usize>,
-    nodes: &[dom::Node],
-    out: &mut Vec<HtmlBlock>,
-    fallbacks: &mut Vec<Plan>,
-) {
-    if let Some(code) = admission_failure(&html, nodes) {
-        fallbacks.push(source_fallback(range, code));
-    } else {
-        out.push(HtmlBlock {
-            html,
-            range,
-            embed: None,
-        });
-    }
-}
-
-/// The HTML flows and exact source fallbacks owned by this feature.
-fn blocks(cx: &CompileCx, fallbacks: &mut Vec<Plan>) -> Vec<HtmlBlock> {
-    let doc = cx.doc;
-    let lines = |span: &Range<usize>| {
-        doc.line_range(doc.line_index(span.start)).start
-            ..doc
-                .line_range(doc.line_index(span.end.saturating_sub(1).max(span.start)))
-                .end
-    };
-    let spans = &cx.syntax.html_blocks;
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < spans.len() {
-        let range = lines(&spans[i]);
-        if let Some(href) = embed::external_href(doc.slice(range.clone())) {
-            out.push(HtmlBlock {
-                html: String::new(),
-                range,
-                embed: Some(href),
-            });
-            i += 1;
-            continue;
-        }
-        match dom::parse(doc.slice(range.clone())) {
-            dom::Parsed::Complete(nodes) => admit(
-                doc.slice(range.clone()).to_owned(),
-                range,
-                &nodes,
-                &mut out,
-                fallbacks,
-            ),
-            dom::Parsed::Incomplete(open) => {
-                let mut open = open;
-                let mut resolved = false;
-                // Incomplete comments/declarations cannot be closed by a later tag.
-                if !open.is_empty() {
-                    for (j, span) in spans.iter().enumerate().skip(i + 1).take(MAX_FLOW) {
-                        let next = lines(span);
-                        let Some(rest) = dom::balance(doc.slice(next.clone()), open) else {
-                            fallbacks.push(source_fallback(
-                                range.start..next.end,
-                                "htmlBlock.malformed",
-                            ));
-                            resolved = true;
-                            i = j;
-                            break;
-                        };
-                        open = rest;
-                        if open.is_empty() {
-                            let flow = range.start..next.end;
-                            // Document definitions retain first-wins precedence without
-                            // widening the range owned by this HTML flow.
-                            let definitions = cx
-                                .syntax
-                                .link_defs
-                                .iter()
-                                .map(|(_, raw)| raw.as_str())
-                                .collect::<Vec<_>>()
-                                .join("\n");
-                            let source = doc.slice(flow.clone());
-                            let html = if definitions.is_empty() {
-                                markdown_html(source)
-                            } else {
-                                markdown_html(&format!("{definitions}\n\n{source}"))
-                            };
-                            match dom::parse(&html) {
-                                dom::Parsed::Complete(nodes) => {
-                                    admit(html, flow, &nodes, &mut out, fallbacks)
-                                }
-                                _ => fallbacks.push(source_fallback(flow, "htmlBlock.malformed")),
-                            }
-                            resolved = true;
-                            i = j;
-                            break;
-                        }
-                    }
-                }
-                if !resolved {
-                    fallbacks.push(source_fallback(range, "htmlBlock.incomplete"));
-                }
-            }
-            dom::Parsed::Malformed => fallbacks.push(source_fallback(range, "htmlBlock.malformed")),
-            dom::Parsed::Unsupported => {
-                fallbacks.push(source_fallback(range, "htmlBlock.unsupported"))
-            }
-        }
-        i += 1;
-    }
-    out
-}
 
 impl MarkdownFeature for HtmlFeature {
     fn id(&self) -> &'static str {
@@ -208,14 +49,7 @@ impl MarkdownFeature for HtmlFeature {
     }
 
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        for block in blocks(cx, out) {
-            out.push(Plan {
-                element: None,
-                source: block.range.clone(),
-                presentation: Presentation::BlockAtom(BlockEmbed::new(ID, block)),
-                delete_units: Vec::new(),
-            });
-        }
+        block::compile_blocks(cx, out);
     }
 
     fn block_widget(
@@ -226,8 +60,8 @@ impl MarkdownFeature for HtmlFeature {
         let block = embed.model::<HtmlBlock>()?;
         let nodes = match &block.embed {
             Some(_) => Vec::new(),
-            None => match dom::parse(&block.html) {
-                dom::Parsed::Complete(nodes) => nodes,
+            None => match structure::parse(&block.html) {
+                structure::Parsed::Complete(nodes) => nodes,
                 _ => return None,
             },
         };
@@ -265,12 +99,20 @@ impl MarkdownFeature for HtmlFeature {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::editor::{markdown::core::syntax::Syntax, text::buffer::Buffer};
+    use super::{
+        block::{admission_failure, collect_blocks},
+        sanitize::Node,
+        structure::{self, Parsed},
+        *,
+    };
+    use crate::editor::{
+        markdown::core::{plans::Presentation, syntax::Syntax},
+        text::buffer::Buffer,
+    };
     use core::prelude::v1::test;
 
     fn blocks(cx: &CompileCx) -> Vec<HtmlBlock> {
-        super::blocks(cx, &mut Vec::new())
+        collect_blocks(cx, &mut Vec::new())
     }
 
     #[test]
@@ -304,7 +146,7 @@ mod tests {
         let syntax = Syntax::parse(&doc);
         let folds = Default::default();
         let mut fallbacks = Vec::new();
-        let found = super::blocks(
+        let found = collect_blocks(
             &CompileCx {
                 doc: &doc,
                 syntax: &syntax,
@@ -330,14 +172,7 @@ mod tests {
     }
 
     /// `markdownHtmlConformance.test.ts`, plan-level policy and
-    /// cross-surface cases with the product's inputs: safe blocks, details,
-    /// unknown and component-like elements render (unknown tags reduced to
-    /// their content, event handlers stripped); a blocked root, an unsafe
-    /// link, an iframe with extra behaviour or a plain-HTTP one stay source;
-    /// a lone HTTPS iframe is an embed; a README header split by blank lines
-    /// is one flow, also from an inner fragment; a flow across Markdown
-    /// renders that Markdown; one that never closes stays source; adjacent
-    /// complete blocks stay independent.
+    /// cross-surface cases with the product's inputs.
     #[test]
     fn html_block_policy_follows_the_product_classification() {
         for safe in [
@@ -352,12 +187,12 @@ mod tests {
         ] {
             let (blocks, codes) = compiled(safe);
             assert_eq!((blocks.len(), codes.len()), (1, 0), "{safe}: {codes:?}");
-            let dom::Parsed::Complete(nodes) = dom::parse(&blocks[0]) else {
+            let Parsed::Complete(nodes) = structure::parse(&blocks[0]) else {
                 panic!("{safe}");
             };
             let mut pending: Vec<_> = nodes.iter().collect();
             while let Some(node) = pending.pop() {
-                if let dom::Node::Element(e) = node {
+                if let Node::Element(e) = node {
                     assert!(
                         e.attributes.iter().all(|(n, _)| !n.starts_with("on")),
                         "{safe}"
@@ -512,8 +347,8 @@ mod tests {
             } else {
                 format!("<{tag}></{tag}>")
             };
-            match dom::parse(&source) {
-                dom::Parsed::Complete(nodes) if admission_failure(&source, &nodes).is_none() => {}
+            match structure::parse(&source) {
+                Parsed::Complete(nodes) if admission_failure(&source, &nodes).is_none() => {}
                 other => refused.push(format!("{tag}: {other:?}")),
             }
         }

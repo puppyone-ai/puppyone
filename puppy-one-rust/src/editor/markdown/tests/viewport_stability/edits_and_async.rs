@@ -9,7 +9,7 @@ use super::{
 use crate::editor::{
     markdown::{
         SetAssets,
-        features::html::dom,
+        features::html::{sanitize, structure},
         platform::{brokers::assets as md_assets, sessions::measure},
         shared::media::MediaSource,
         tests::setup,
@@ -409,12 +409,12 @@ fn t2_14_html_block_measured_height_above_viewport_holds_top_text(cx: &mut TestA
             .expect("expected HTML Block::Widget");
         (col_width, html_block_id, v.widget_states())
     });
-    let dom::Parsed::Complete(nodes) = dom::parse(html_block) else {
+    let structure::Parsed::Complete(nodes) = structure::parse(html_block) else {
         panic!("expected Complete HTML block");
     };
     let mut h = std::hash::DefaultHasher::new();
     (html_start, col_width.to_bits()).hash(&mut h);
-    dom::hash_nodes(&nodes, &mut h);
+    sanitize::hash_nodes(&nodes, &mut h);
     let key = h.finish();
     let measured_before =
         measure::get(&mut widget_states.borrow_mut(), html_block_id, key).unwrap_or(40.0);

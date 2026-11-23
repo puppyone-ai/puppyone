@@ -414,4 +414,23 @@ mod tests {
         assert_eq!(clip.read(Path::new("a.mp4")), Some(b"media/a.mp4".to_vec()));
         assert_eq!(clip.read(Path::new("b.mp4")), None);
     }
+
+    #[test]
+    fn the_page_plays_the_served_file_and_reports_back() {
+        let html = media_page(
+            MediaKind::Video,
+            "puppyone-preview://local/a%20b.mp4",
+            Some("A \"clip\""),
+            "BLACK",
+        );
+        assert!(html.contains(
+            r#"<video controls preload="metadata" playsinline src="puppyone-preview://local/a%20b.mp4""#
+        ));
+        assert!(html.contains(r#"aria-label="A &quot;clip&quot;""#));
+        assert!(html.contains("background:BLACK"));
+        assert!(html.contains("video.videoWidth"));
+        let audio = media_page(MediaKind::Audio, "x.mp3", None, "BG");
+        assert!(audio.contains(r#"<audio controls preload="metadata""#));
+        assert!(audio.contains(r#"post("size:"+"300:54")"#));
+    }
 }

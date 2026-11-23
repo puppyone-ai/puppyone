@@ -5,20 +5,18 @@
 //! tracks set by the resize rail (`tableColumnLayoutController.ts`: view
 //! state, outside the source and its history). Every edit it requests is a
 //! table `Structure` command through the editor.
-use super::{
-    commands, layout,
-    model::COLUMN_LIMIT,
-    operation::{can_insert_column, can_insert_row},
-};
+use super::{commands, focus, layout, menu as table_menu, model::COLUMN_LIMIT};
 use crate::editor::{
     table::{
         interaction::{Gestures, Hover, Resizing, StructureDrag, Tracks},
-        menu::{self, Extras, MenuEvent, Scope, TableMenu, Target},
+        menu::{MenuEvent, Scope, TableMenu},
         operation::{Alignment, Axis, Operation},
     },
     view::widget::{CommandSender, Focuser},
 };
 use gpui::{prelude::*, *};
+
+pub use table_menu::OpenMenu;
 
 /// The rendered table's tracks, in block-local coordinates.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -75,16 +73,6 @@ impl Geometry {
     }
 }
 
-pub struct OpenMenu {
-    pub menu: Entity<TableMenu>,
-    pub position: Point<Pixels>,
-    pub row: usize,
-    pub column: usize,
-    /// The row / column a grip menu describes (outlined while open).
-    pub source: Option<(Axis, usize)>,
-    _subscription: Subscription,
-}
-
 /// What the widget tells its state each frame.
 #[derive(Clone)]
 pub struct Frame {
@@ -116,37 +104,14 @@ impl TableUi {
     /// Cancel any active drag or resize gesture (e.g., on window blur)
     /// without opening a menu or modifying the document.
     pub fn cancel_active_gesture(&mut self, cx: &mut Context<Self>) {
-        let mut changed = false;
-        if self.gestures.drag.take().is_some() {
-            changed = true;
-        }
-        if self.gestures.resizing.take().is_some() {
-            self.live = None;
-            changed = true;
-        }
-        if changed {
-            cx.notify();
-        }
+        focus::cancel_active_gesture(self, cx);
     }
 
     /// Handle window-level Escape: cancel an active drag/resize or clear a
     /// structural selection wherever focus is (leaving an open menu to handle
     /// its own Escape and focus restoration).
     pub fn handle_escape(&mut self, cx: &mut Context<Self>) -> bool {
-        if self.gestures.resizing.take().is_some() {
-            self.live = None;
-            cx.notify();
-            return true;
-        }
-        if self.gestures.drag.take().is_some() {
-            cx.notify();
-            return true;
-        }
-        if self.gestures.structural.take().is_some() {
-            cx.notify();
-            return true;
-        }
-        false
+        focus::handle_escape(self, cx)
     }
     fn local(&self, position: Point<Pixels>) -> Option<(f32, f32)> {
         let o = self.origin?;
@@ -354,42 +319,7 @@ impl TableUi {
         cx: &mut Context<Self>,
     ) {
         let Some(frame) = &self.frame else { return };
-        let g = &frame.geometry;
-        let target = Target {
-            scope,
-            row,
-            column,
-            rows: g.rows.len(),
-            columns: g.columns.len(),
-            first_movable: 1,
-        };
-        let extras = Extras {
-            alignment: Some(frame.alignments.get(column).copied().unwrap_or_default()),
-            delete_table: true,
-            ..Default::default()
-        };
-        let mut sections = menu::sections(target, extras);
-        let row_insert_ok = can_insert_row(g.rows.len(), g.columns.len());
-        let col_insert_ok = can_insert_column(g.rows.len(), g.columns.len());
-        for section in &mut sections {
-            for item in section {
-                match Operation::from_menu_id(item.id) {
-                    Some(
-                        Operation::InsertRowAbove
-                        | Operation::InsertRowBelow
-                        | Operation::DuplicateRow,
-                    ) if !row_insert_ok => {
-                        item.disabled = true;
-                    }
-                    Some(Operation::InsertColumnLeft | Operation::InsertColumnRight)
-                        if !col_insert_ok =>
-                    {
-                        item.disabled = true;
-                    }
-                    _ => {}
-                }
-            }
-        }
+        let sections = table_menu::build_sections(frame, scope, row, column);
         let dark = frame.dark;
         let menu = cx.new(|cx| TableMenu::new(sections, dark, cx));
         let subscription = cx.subscribe_in(
@@ -421,7 +351,7 @@ impl TableUi {
             MenuEvent::Dismiss { restore_focus } => {
                 self.menu = None;
                 if restore_focus {
-                    (frame.focus_editor)(window, cx);
+                    focus::restore_editor_focus(self, window, cx);
                 }
                 cx.notify();
             }
@@ -432,7 +362,8 @@ impl TableUi {
                 };
                 let (row, column) = (open.row, open.column);
                 // Moves leave the moved row / column selected.
-                self.gestures.structural = moved(operation, row, column, &frame.geometry);
+                self.gestures.structural =
+                    table_menu::moved(operation, row, column, &frame.geometry);
                 (frame.sender)(
                     commands::structure(frame.table, operation, row, column),
                     window,
@@ -447,18 +378,6 @@ impl TableUi {
     pub fn outline(&self) -> Option<(Axis, usize)> {
         self.gestures
             .outline(self.menu.as_ref().and_then(|m| m.source))
-    }
-}
-
-/// Where a menu move puts its row / column.
-fn moved(operation: Operation, row: usize, column: usize, g: &Geometry) -> Option<(Axis, usize)> {
-    let (rows, columns) = (g.rows.len(), g.columns.len());
-    match operation {
-        Operation::MoveRowUp if row > 1 => Some((Axis::Row, row - 1)),
-        Operation::MoveRowDown if row >= 1 && row + 1 < rows => Some((Axis::Row, row + 1)),
-        Operation::MoveColumnLeft if column > 0 => Some((Axis::Column, column - 1)),
-        Operation::MoveColumnRight if column + 1 < columns => Some((Axis::Column, column + 1)),
-        _ => None,
     }
 }
 
