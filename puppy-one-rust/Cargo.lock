@@ -6723,6 +6723,7 @@ dependencies = [
  "raw-window-handle",
  "regex",
  "rusqlite",
+ "rustls",
  "semver",
  "serde",
  "serde_json",
