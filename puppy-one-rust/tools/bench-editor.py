@@ -21,7 +21,7 @@ parser.add_argument('--check', action='store_true', help='enforce tools/editor-f
 parser.add_argument('--sections', default='10,40,160', help='frame-surface sizes for window (Markdown sections, ~24 lines each)')
 parser.add_argument('--editor-sections', default='10,40,160,1600,16000', help='frame-surface sizes for editor scroll/resize scaling')
 parser.add_argument('--edit-sections', default='160,1600', help='edit-surface sizes for typing/arrow/IME/find+type')
-parser.add_argument('--stress-shapes', default='list_10k,single_line_100k,wide_table_200x2000,images_500', help='extreme Markdown stress shapes')
+parser.add_argument('--stress-shapes', default='list_100,list_10k,single_line_100k,wide_table_200x2000,images_500', help='extreme Markdown stress shapes')
 parser.add_argument('--csv-shapes', default='500,10000,50000', help='CSV benchmark shapes (500=500x20, 10000=10000x20, 50000=500x100)')
 parser.add_argument('--code-sizes', default='1,100', help='code_edit sizes (1=160KiB, 100=16MiB)')
 parser.add_argument('--surfaces', default='editor,window,edit,stress,csv,code_edit', help='comma-separated surfaces to run')
