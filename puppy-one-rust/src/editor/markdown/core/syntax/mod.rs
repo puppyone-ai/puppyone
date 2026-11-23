@@ -66,6 +66,57 @@ pub(super) fn link_defs_overlap(defs: &[(Span, String)], range: &Span) -> bool {
 /// close a flow with another HTML block (`<div>` … `</div>`) across the blocks
 /// between them. A strictly balanced block never pairs.
 ///
+/// The byte ranges (offset by `base`) of the start and end tags in `source`,
+/// an HTML block's text: `<` with a letter or `/` and a letter, through the
+/// first `>` outside quotes. Comments and declarations are skipped. Kept in
+/// `core/syntax` so it stays independent of `features/html` (`R4`, `MA-13`).
+pub(super) fn html_tag_spans(source: &str, base: usize) -> Vec<Span> {
+    let bytes = source.as_bytes();
+    let mut out = Vec::new();
+    let mut at = 0;
+    while let Some(found) = source[at..].find('<') {
+        let start = at + found;
+        if source[start..].starts_with("<!--") {
+            at = source[start + 4..]
+                .find("-->")
+                .map_or(bytes.len(), |e| start + 4 + e + 3);
+            continue;
+        }
+        let name = if bytes.get(start + 1) == Some(&b'/') {
+            start + 2
+        } else {
+            start + 1
+        };
+        if !bytes.get(name).is_some_and(u8::is_ascii_alphabetic) {
+            at = start + 1;
+            continue;
+        }
+        let mut quote = None;
+        let mut end = None;
+        for (i, &b) in bytes.iter().enumerate().skip(name) {
+            match (quote, b) {
+                (Some(q), _) if b == q => quote = None,
+                (Some(_), _) => {}
+                (None, b'"' | b'\'') => quote = Some(b),
+                (None, b'>') => {
+                    end = Some(i + 1);
+                    break;
+                }
+                (None, b'<') => break,
+                _ => {}
+            }
+        }
+        match end {
+            Some(end) => {
+                out.push(base + start..base + end);
+                at = end;
+            }
+            None => at = start + 1,
+        }
+    }
+    out
+}
+
 /// Self-contained conservative check so `core/syntax` stays independent of
 /// `features/html` (`R4`, `MA-13`).
 pub(super) fn html_unbalanced(source: &str) -> bool {

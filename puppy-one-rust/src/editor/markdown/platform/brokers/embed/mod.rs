@@ -9,6 +9,8 @@
 mod media;
 mod web_embed;
 
+#[cfg(test)]
+pub use media::take_requested;
 pub use media::{
     AUDIO_SIZE, MAX_MEDIA_PER_WINDOW, MediaKey, MediaPlayer, MediaRequest, get_media_player,
     media_page, retry_media,

@@ -139,6 +139,7 @@ pub fn window_syntax_view(
         note_definitions: Vec::new(),
         inline_tags: Vec::new(),
         html_blocks: slice_spans(&syntax.html_blocks),
+        marker_html: slice_spans(&syntax.marker_html),
         // Clamped to the window: block features scan only its lines. The
         // incremental compile runs only when no multi-block delimiter falls in
         // or opens around the window, so no block they find can reach past it.

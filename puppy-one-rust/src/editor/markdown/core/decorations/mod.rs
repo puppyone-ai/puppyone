@@ -17,7 +17,7 @@ mod marks;
 mod reveal;
 
 pub use block::{LazyEnvSlot, LazyWidgetEnv};
-pub use builder::{BlockDecoration, InlineDecoration, LineDecoration};
+pub use builder::{BlockDecoration, ClassSpan, InlineDecoration, LineDecoration};
 pub use incremental::{decorate_incremental, decorate_incremental_in_place};
 pub use reveal::{decorate_reveal, decorate_reveal_with_fallbacks};
 

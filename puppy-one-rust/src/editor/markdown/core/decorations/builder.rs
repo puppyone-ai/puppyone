@@ -27,7 +27,7 @@ use std::{ops::Range, rc::Rc};
 
 /// An inline span carrying CSS classes (a mark decoration).
 #[derive(Clone)]
-pub(super) struct ClassSpan {
+pub struct ClassSpan {
     pub range: Range<usize>,
     pub classes: Class,
     pub href: Option<SharedString>,
@@ -155,6 +155,11 @@ impl<'a> Builder<'a> {
                 let h_len = self.hidden.len();
                 let r_len = self.replaced.len();
                 let i_len = self.inline_images.len();
+                let (s_len, c_len, w_len) = (
+                    self.spans.len(),
+                    self.colors.len(),
+                    self.inline_widgets.len(),
+                );
                 let ok = features::catch_feature_panic(feat.id(), "decorate_line", || {
                     let mut decoration = LineDecoration {
                         doc: cx.doc,
@@ -171,6 +176,9 @@ impl<'a> Builder<'a> {
                         hidden: &mut self.hidden,
                         replaced: &mut self.replaced,
                         inline_images: &mut self.inline_images,
+                        spans: &mut self.spans,
+                        colors: &mut self.colors,
+                        widgets: &mut self.inline_widgets,
                     };
                     feat.decorate_line(&mut decoration);
                 })
@@ -180,6 +188,9 @@ impl<'a> Builder<'a> {
                     self.hidden.truncate(h_len);
                     self.replaced.truncate(r_len);
                     self.inline_images.truncate(i_len);
+                    self.spans.truncate(s_len);
+                    self.colors.truncate(c_len);
+                    self.inline_widgets.truncate(w_len);
                 } else {
                     for r in &mut self.hidden[h_len..] {
                         *r = cx.doc.clamp_range(r.clone());
@@ -189,6 +200,15 @@ impl<'a> Builder<'a> {
                     }
                     for img in &mut self.inline_images[i_len..] {
                         img.range = cx.doc.clamp_range(img.range.clone());
+                    }
+                    for span in &mut self.spans[s_len..] {
+                        span.range = cx.doc.clamp_range(span.range.clone());
+                    }
+                    for (r, _, _) in &mut self.colors[c_len..] {
+                        *r = cx.doc.clamp_range(r.clone());
+                    }
+                    for w in &mut self.inline_widgets[w_len..] {
+                        w.range = cx.doc.clamp_range(w.range.clone());
                     }
                 }
             }
@@ -221,6 +241,12 @@ pub struct LineDecoration<'b> {
     pub replaced: &'b mut Vec<(Range<usize>, SharedString)>,
     /// Replaced source drawn as an image in the text (a picture beside text).
     pub inline_images: &'b mut Vec<InlineImage>,
+    /// Styles set on text the line shows (an inline HTML run's elements).
+    pub spans: &'b mut Vec<ClassSpan>,
+    /// Text and background colours, packed, set on text the line shows.
+    pub colors: &'b mut Vec<(Range<usize>, Option<u32>, Option<u32>)>,
+    /// First-class inline widgets in the line's text.
+    pub widgets: &'b mut Vec<InlineWidget>,
 }
 
 /// Inline-only feature output; no line box or block replacement capability.
@@ -234,6 +260,11 @@ pub struct InlineDecoration<'b> {
     pub references: Option<&'b crate::editor::navigation::ReferenceContext>,
     pub replaced: &'b mut Vec<(Range<usize>, SharedString)>,
     pub inline_images: &'b mut Vec<InlineImage>,
+    /// Source the content hides.
+    pub hidden: &'b mut Vec<Range<usize>>,
+    pub spans: &'b mut Vec<ClassSpan>,
+    pub colors: &'b mut Vec<(Range<usize>, Option<u32>, Option<u32>)>,
+    pub widgets: &'b mut Vec<InlineWidget>,
 }
 
 impl LineDecoration<'_> {
@@ -248,6 +279,10 @@ impl LineDecoration<'_> {
             references: self.references,
             replaced: self.replaced,
             inline_images: self.inline_images,
+            hidden: self.hidden,
+            spans: self.spans,
+            colors: self.colors,
+            widgets: self.widgets,
         }
     }
 }
@@ -291,6 +326,10 @@ impl BlockDecoration<'_, '_> {
         for feat in cx.features {
             let mut replaced = Vec::new();
             let mut images = Vec::new();
+            let mut hidden = Vec::new();
+            let mut spans = Vec::new();
+            let mut colors = Vec::new();
+            let mut widgets = Vec::new();
             let ok = features::catch_feature_panic(feat.id(), "decorate_inline_content", || {
                 feat.decorate_inline_content(&mut InlineDecoration {
                     doc: cx.doc,
@@ -302,6 +341,10 @@ impl BlockDecoration<'_, '_> {
                     references: cx.references,
                     replaced: &mut replaced,
                     inline_images: &mut images,
+                    hidden: &mut hidden,
+                    spans: &mut spans,
+                    colors: &mut colors,
+                    widgets: &mut widgets,
                 });
             })
             .is_some();
@@ -321,6 +364,30 @@ impl BlockDecoration<'_, '_> {
                     .extend(images.into_iter().filter_map(|mut image| {
                         image.range = bounded(image.range);
                         (!image.range.is_empty()).then_some(image)
+                    }));
+                self.builder.hidden.extend(
+                    hidden
+                        .into_iter()
+                        .map(bounded)
+                        .filter(|r: &Range<usize>| !r.is_empty()),
+                );
+                self.builder
+                    .spans
+                    .extend(spans.into_iter().filter_map(|mut span: ClassSpan| {
+                        span.range = bounded(span.range);
+                        (!span.range.is_empty()).then_some(span)
+                    }));
+                self.builder
+                    .colors
+                    .extend(colors.into_iter().filter_map(|(r, fg, bg)| {
+                        let r = bounded(r);
+                        (!r.is_empty()).then_some((r, fg, bg))
+                    }));
+                self.builder
+                    .inline_widgets
+                    .extend(widgets.into_iter().filter_map(|mut w: InlineWidget| {
+                        w.range = bounded(w.range);
+                        (!w.range.is_empty()).then_some(w)
                     }));
             }
         }

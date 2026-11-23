@@ -37,6 +37,10 @@ pub enum Kind {
     FootnoteDefinition,
     /// `<tag>content</tag>` of the inline-editable HTML profile (the `html` feature).
     InlineHtml,
+    /// A balanced stretch of inline HTML shown as one unit (`runRole: owner`,
+    /// the `html` feature): an image, a theme picture or a passive element the
+    /// inline-editable profile cannot style. Its markers are every tag inside.
+    HtmlRun,
     /// `![alt](src)`, a reference image, or an Obsidian `![[image]]` embed.
     Image,
     /// The `!` of an Obsidian image embed: its target resolves by name (the `media` feature).
@@ -78,6 +82,7 @@ impl Kind {
             Kind::ImageEmbed => (22, ""),
             Kind::VideoEmbed => (23, ""),
             Kind::FeatureBlock(id) => (24, id),
+            Kind::HtmlRun => (25, ""),
         }
     }
 
@@ -99,6 +104,7 @@ impl Kind {
                 | Kind::FootnoteReference
                 | Kind::FootnoteDefinition
                 | Kind::InlineHtml
+                | Kind::HtmlRun
         )
     }
 
@@ -257,6 +263,10 @@ pub struct Syntax {
     pub note_definitions: Vec<usize>,
     pub inline_tags: Vec<Span>,
     pub html_blocks: Vec<Span>,
+    /// HTML blocks that share their first line with a list or quote marker
+    /// (`isMarkerOwnedHtmlBlock`): a block widget would replace the marker, so
+    /// the `html` feature projects them as runs. Their tags are in `inline_tags`.
+    pub marker_html: Vec<Span>,
     pub top_blocks: Vec<Span>,
     pub footnotes: Footnotes,
     /// Global index of `[label]: url` link reference definitions (`TA-31`).
@@ -376,6 +386,15 @@ impl Syntax {
     }
 
     pub fn reveal_element(&self, caret: usize) -> Option<&Element> {
+        // A run reveals as a whole, from either edge, and nothing nested in
+        // it takes the reveal from it.
+        if let Some(run) = self
+            .elements_in(caret..caret)
+            .filter(|e| e.kind == Kind::HtmlRun)
+            .find(|e| e.range.start <= caret && caret <= e.range.end)
+        {
+            return Some(run);
+        }
         self.elements_in(caret..caret)
             .filter(|e| {
                 e.kind.reveals()

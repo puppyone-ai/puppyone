@@ -42,6 +42,8 @@ pub struct Room {
     pub range: Range<usize>,
     pub text: SharedString,
     pub image: crate::render_service::Rendered,
+    /// Drawn over the room instead of the image.
+    pub element: Option<super::decoration::DrawElement>,
     /// Space kept on each side of the image.
     pub pad: f32,
     pub radius: f32,
@@ -662,6 +664,7 @@ impl RenderCx<'_> {
                     range: image.range,
                     text,
                     image: drawn,
+                    element: image.element.clone(),
                     pad,
                     radius: image.radius,
                 });
@@ -760,6 +763,15 @@ impl RenderCx<'_> {
                 continue;
             };
             let image = &room.image;
+            let content = match &room.element {
+                Some(element) => {
+                    element(&self.view, image.width, image.height, self.window, self.app)
+                }
+                None => img(ImageSource::Render(image.image.clone()))
+                    .size_full()
+                    .rounded(px(room.radius))
+                    .into_any_element(),
+            };
             out.push(
                 div()
                     .debug_selector(|| "editor-inline-image".to_owned())
@@ -768,11 +780,7 @@ impl RenderCx<'_> {
                     .top(px(y + f32::from(at.y) + line_baseline - image.baseline))
                     .w(px(image.width))
                     .h(px(image.height))
-                    .child(
-                        img(ImageSource::Render(image.image.clone()))
-                            .size_full()
-                            .rounded(px(room.radius)),
-                    )
+                    .child(content)
                     .into_any_element(),
             );
         }
