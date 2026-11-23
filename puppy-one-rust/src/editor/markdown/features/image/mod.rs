@@ -19,6 +19,7 @@ use crate::editor::{
             state::PreviewState,
         },
         platform::brokers::assets::{self as asset_broker, AssetState},
+        shared::media::Base,
     },
     text::{
         selection::Selection,
@@ -31,7 +32,7 @@ use gpui::SharedString;
 use model::Item;
 use std::{
     hash::{Hash, Hasher},
-    path::PathBuf,
+    path::Path,
     rc::Rc,
 };
 use widget::ImageEmbed;
@@ -110,12 +111,11 @@ impl MarkdownFeature for ImageFeature {
     }
 
     fn decorate_inline_content(&self, cx: &mut InlineDecoration) {
-        let document: PathBuf = cx.assets.map(|a| a.document.clone()).unwrap_or_default();
         let (items, _) = plan::collect_items(
             cx.doc,
             cx.syntax,
             cx.range.clone(),
-            &document,
+            Base::or_document(cx.assets, Path::new("")),
             cx.references,
         );
         inline(cx, items);
@@ -125,15 +125,11 @@ impl MarkdownFeature for ImageFeature {
     fn decorate_line(&self, cx: &mut LineDecoration) {
         let range = cx.range.clone();
         let mut content = cx.inline_content();
-        let document: PathBuf = content
-            .assets
-            .map(|a| a.document.clone())
-            .unwrap_or_default();
         let (items, mixed) = plan::collect_items(
             content.doc,
             content.syntax,
             content.range.clone(),
-            &document,
+            Base::or_document(content.assets, Path::new("")),
             content.references,
         );
         if items.is_empty() {

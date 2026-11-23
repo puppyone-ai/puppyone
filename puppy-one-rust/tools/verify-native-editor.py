@@ -120,6 +120,13 @@ suites = {
         'a_system_proxy_never_opens_local_or_plain_http_urls',
         'remote_redirects_follow_the_same_routing_rule',
     ],
+    'editor::markdown::tests::hosted_asset_acceptance::': [
+        'a_hosted_document_loads_absolute_assets_only_inside_its_own_root',
+        'a_local_document_never_loads_an_absolute_hosted_url',
+    ],
+    'editor::markdown::shared::media::tests::': [
+        'hosted_absolute_references_resolve_only_inside_the_documents_root',
+    ],
     'editor::markdown::tests::render_budget_acceptance::': [
         'a_soft_over_budget_html_block_waits_for_activation',
         'a_large_diagram_waits_and_a_long_fence_stays_source',

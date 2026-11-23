@@ -201,11 +201,68 @@ pub fn decode_raster_data_url(href: &str) -> Result<Vec<u8>, MediaSourceError> {
     Ok(bytes)
 }
 
+/// Where a document's media references resolve: its workspace-relative
+/// path, and the identity of its workspace root (`DocumentAssets.workspace`).
+#[derive(Clone, Copy, Debug)]
+pub struct Base<'a> {
+    pub document: &'a Path,
+    pub root: &'a str,
+}
+
+impl<'a> Base<'a> {
+    pub fn of(assets: &'a DocumentAssets) -> Self {
+        Self {
+            document: &assets.document,
+            root: &assets.workspace,
+        }
+    }
+
+    /// `assets`' base, or `document` alone when the document has no assets.
+    pub fn or_document(assets: Option<&'a DocumentAssets>, document: &'a Path) -> Self {
+        assets.map_or(Self::from(document), Self::of)
+    }
+}
+
+impl<'a> From<&'a Path> for Base<'a> {
+    fn from(document: &'a Path) -> Self {
+        Self { document, root: "" }
+    }
+}
+
+/// Hosted (Cloud) workspace roots are `puppyone-cloud:` URLs.
+const HOSTED_SCHEME: &str = "puppyone-cloud";
+
+/// `resolveWorkspaceAssetInput`: an authored absolute `puppyone-cloud:` URL
+/// inside the document's own hosted root is the root path after it. Another
+/// root, a URL that leaves the root, and any query or fragment (a capability
+/// token) are refused. Other hrefs pass through.
+fn hosted_root_path(root: &str, href: &str) -> Result<Option<String>, MediaSourceError> {
+    let is_hosted = |s: &str| {
+        s.split_once(':')
+            .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case(HOSTED_SCHEME))
+    };
+    if !is_hosted(href) {
+        return Ok(None);
+    }
+    let url = url::Url::parse(href).map_err(|_| MediaSourceError::Blocked)?;
+    let root = url::Url::parse(root).map_err(|_| MediaSourceError::Blocked)?;
+    if root.scheme() != HOSTED_SCHEME || url.query().is_some() || url.fragment().is_some() {
+        return Err(MediaSourceError::Blocked);
+    }
+    let root = root.as_str();
+    let root = root.strip_suffix('/').unwrap_or(root);
+    match url.as_str().strip_prefix(root) {
+        Some(rest) if rest.starts_with('/') => Ok(Some(rest.to_owned())),
+        _ => Err(MediaSourceError::OutsideWorkspace),
+    }
+}
+
 /// Resolves a Markdown image/media `href` with detailed policy failure reasons.
-pub fn resolve_markdown_media(
-    document: &Path,
+pub fn resolve_markdown_media<'a>(
+    base: impl Into<Base<'a>>,
     href: &str,
 ) -> Result<MediaSource, MediaSourceError> {
+    let Base { document, root } = base.into();
     let href = href.trim();
     if href.is_empty() {
         return Err(MediaSourceError::Empty);
@@ -227,12 +284,15 @@ pub fn resolve_markdown_media(
         }
         return Err(MediaSourceError::Blocked);
     }
+    if let Some(path) = hosted_root_path(root, href)? {
+        return resolve_workspace_path(document, &path).map(MediaSource::Workspace);
+    }
     resolve_workspace_path(document, href).map(MediaSource::Workspace)
 }
 
 /// `evaluateMarkdownAssetHref` (`https-only` for remote images).
-pub fn markdown(document: &Path, href: &str) -> Option<MediaSource> {
-    resolve_markdown_media(document, href).ok()
+pub fn markdown<'a>(base: impl Into<Base<'a>>, href: &str) -> Option<MediaSource> {
+    resolve_markdown_media(base, href).ok()
 }
 
 /// Resolves an Obsidian `![[target]]` embed with detailed policy failure reasons.
@@ -374,6 +434,72 @@ mod tests {
                 limit_bytes: MAX_DATA_BYTES as u64,
             })
         );
+    }
+
+    /// `markdownAssetPolicy.test.ts` #0: in a hosted document, relative,
+    /// root and absolute `puppyone-cloud:` references inside the complete
+    /// account/project/scope root resolve to the same workspace path; escapes,
+    /// a sibling root, another host and a token query are refused, and an
+    /// absolute reference needs the document's root.
+    #[test]
+    fn hosted_absolute_references_resolve_only_inside_the_documents_root() {
+        let root = "puppyone-cloud://cloud.example/https/api/v1/owner/project/scope/";
+        let base = Base {
+            document: Path::new("notes/doc.md"),
+            root,
+        };
+        let inside = format!("{root}assets/a.png");
+        for href in ["../assets/a.png", "/assets/a.png", inside.as_str()] {
+            assert_eq!(
+                markdown(base, href),
+                Some(MediaSource::Workspace(PathBuf::from("assets/a.png"))),
+                "{href}"
+            );
+        }
+        let sibling = format!("{}-other/a.png", root.trim_end_matches('/'));
+        let above = format!("{root}../a.png");
+        let encoded_above = format!("{root}%2e%2e/a.png");
+        for href in [
+            "../../secret.png",
+            "/../../secret.png",
+            sibling.as_str(),
+            above.as_str(),
+            encoded_above.as_str(),
+            "puppyone-cloud://other.example/https/api/v1/owner/project/scope/a.png",
+        ] {
+            assert_eq!(markdown(base, href), None, "{href}");
+        }
+        for href in [format!("{inside}?token=secret"), format!("{inside}#part")] {
+            assert_eq!(
+                resolve_markdown_media(base, &href),
+                Err(MediaSourceError::Blocked),
+                "{href}"
+            );
+        }
+        // Without the document's root an absolute reference is refused, and
+        // a root of another kind never admits one.
+        assert_eq!(markdown(base.document, &inside), None);
+        for other in ["", "workspace:local", "file:///Users/me/project/"] {
+            let base = Base {
+                root: other,
+                ..base
+            };
+            assert_eq!(markdown(base, &inside), None, "{other}");
+        }
+        // The URL scheme is case-insensitive; the root without its trailing
+        // slash is the same root.
+        let upper = inside.replacen("puppyone-cloud", "PUPPYONE-CLOUD", 1);
+        let bare = Base {
+            root: root.trim_end_matches('/'),
+            ..base
+        };
+        for (base, href) in [(base, upper.as_str()), (bare, inside.as_str())] {
+            assert_eq!(
+                markdown(base, href),
+                Some(MediaSource::Workspace(PathBuf::from("assets/a.png"))),
+                "{href}"
+            );
+        }
     }
 
     /// `markdownAssetPolicy.test.ts` under the product's settings (images

@@ -27,7 +27,11 @@ use crate::{
     render_service::Rendered,
 };
 use gpui::{prelude::*, *};
-use std::{ops::Range, path::PathBuf, rc::Rc};
+use std::{
+    ops::Range,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 /// One element of a run: its opening tag (or only tag) and closing tag.
 struct Part {
@@ -152,7 +156,7 @@ pub(super) fn decompose(
     sink: &mut Sink,
 ) {
     let inside = |r: &Range<usize>| within.start <= r.start && r.end <= within.end;
-    let document: PathBuf = assets.map(|a| a.document.clone()).unwrap_or_default();
+    let base = media::Base::or_document(assets, Path::new(""));
     let parts = parts(doc, run);
     // Ranges drawn as one piece (an image, a dropped element): their tags
     // and text do not decorate separately.
@@ -194,7 +198,7 @@ pub(super) fn decompose(
                     (
                         candidates
                             .iter()
-                            .find(|c| media::resolve_markdown_media(&document, c).is_ok())
+                            .find(|c| media::resolve_markdown_media(base, c).is_ok())
                             .or(candidates.first())
                             .cloned(),
                         img,
@@ -213,7 +217,7 @@ pub(super) fn decompose(
                 let source = src
                     .as_deref()
                     .ok_or(())
-                    .and_then(|s| media::resolve_markdown_media(&document, s).map_err(|_| ()));
+                    .and_then(|s| media::resolve_markdown_media(base, s).map_err(|_| ()));
                 sink.replaced
                     .push((range.clone(), SharedString::from(label)));
                 if let Ok(source) = source {
@@ -303,7 +307,7 @@ pub(super) fn decompose(
                 let mark = if video { "▶" } else { "♪" };
                 sink.replaced
                     .push((range.clone(), SharedString::from(format!("{mark} {label}"))));
-                let path = match src.as_deref().and_then(|s| media::markdown(&document, s)) {
+                let path = match src.as_deref().and_then(|s| media::markdown(base, s)) {
                     Some(MediaSource::Workspace(path)) => path,
                     _ => {
                         taken.push(range);

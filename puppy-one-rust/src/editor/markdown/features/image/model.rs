@@ -4,7 +4,7 @@ use crate::editor::{
     markdown::{
         platform::policy::AssetFailure,
         shared::media::{
-            MediaSource, MediaSourceError, resolve_embed_media, resolve_markdown_media,
+            Base, MediaSource, MediaSourceError, resolve_embed_media, resolve_markdown_media,
         },
     },
     navigation::ReferenceContext,
@@ -47,8 +47,11 @@ fn map_media_error(err: MediaSourceError) -> AssetFailure {
 
 /// Evaluates a Markdown `![alt](href)` image reference, preserving the specific
 /// policy/budget failure reason (`TA-51`, `TA-52`).
-pub fn resolve_markdown(document: &Path, href: &str) -> Result<MediaSource, AssetFailure> {
-    resolve_markdown_media(document, href).map_err(map_media_error)
+pub fn resolve_markdown<'a>(
+    base: impl Into<Base<'a>>,
+    href: &str,
+) -> Result<MediaSource, AssetFailure> {
+    resolve_markdown_media(base, href).map_err(map_media_error)
 }
 
 /// Evaluates an Obsidian `![[target]]` image embed reference, preserving the
