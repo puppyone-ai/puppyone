@@ -7,6 +7,7 @@
 //! table `Structure` command through the editor.
 use super::{commands, focus, layout, menu as table_menu, model::COLUMN_LIMIT};
 use crate::editor::{
+    markdown::platform::sessions::column_layout,
     table::{
         interaction::{Gestures, Hover, Resizing, StructureDrag, Tracks},
         menu::{MenuEvent, Scope, TableMenu},
@@ -73,6 +74,14 @@ impl Geometry {
     }
 }
 
+/// The mounted column layout session the widget's tracks live in.
+#[derive(Clone)]
+pub struct LayoutLink {
+    pub store: column_layout::Shared,
+    pub id: u64,
+    pub mount: u64,
+}
+
 /// What the widget tells its state each frame.
 #[derive(Clone)]
 pub struct Frame {
@@ -83,6 +92,7 @@ pub struct Frame {
     pub dark: bool,
     pub sender: CommandSender,
     pub focus_editor: Focuser,
+    pub layout: Option<LayoutLink>,
 }
 
 #[derive(Default)]
@@ -93,10 +103,12 @@ pub struct TableUi {
     /// Window position of the block origin (last paint).
     pub origin: Option<Point<Pixels>>,
     pub frame: Option<Frame>,
-    /// Explicit column tracks (resized or auto-fitted); automatic until set.
-    pub widths: Option<Vec<f32>>,
     /// The resized column's track while the rail is held.
     pub live: Option<f32>,
+    /// The caret position whose column was last brought into view.
+    pub revealed: Option<usize>,
+    /// The scrollbar rail of a table wider than the reading column.
+    pub rail: Option<super::scroll::Rail>,
     pub(super) _subscriptions: Vec<Subscription>,
 }
 
@@ -213,10 +225,11 @@ impl TableUi {
             .collect();
         if let Some(track) = next.get_mut(column) {
             *track = layout::clamp(width);
-            if let Some(frame) = &self.frame {
-                record_bounded_widths(frame.table, next.clone());
+            if let Some(link) = self.frame.as_ref().and_then(|f| f.layout.as_ref()) {
+                link.store
+                    .borrow_mut()
+                    .set_widths(link.id, link.mount, &next);
             }
-            self.widths = Some(next);
         }
     }
 
@@ -379,38 +392,4 @@ impl TableUi {
         self.gestures
             .outline(self.menu.as_ref().and_then(|m| m.source))
     }
-}
-
-const MAX_BOUNDED_TABLE_STATES: usize = 64;
-
-thread_local! {
-    static BOUNDED_WIDTHS: std::cell::RefCell<std::collections::VecDeque<(usize, Vec<f32>)>> =
-        const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
-}
-
-pub fn bounded_widths(table_start: usize, expected_cols: usize) -> Option<Vec<f32>> {
-    BOUNDED_WIDTHS.with(|store| {
-        let mut q = store.borrow_mut();
-        let pos = q
-            .iter()
-            .position(|(k, w)| *k == table_start && w.len() == expected_cols)?;
-        let entry = q.remove(pos)?;
-        let widths = entry.1.clone();
-        q.push_back(entry);
-        Some(widths)
-    })
-}
-
-pub fn record_bounded_widths(table_start: usize, mut widths: Vec<f32>) {
-    widths.truncate(COLUMN_LIMIT);
-    BOUNDED_WIDTHS.with(|store| {
-        let mut q = store.borrow_mut();
-        if let Some(pos) = q.iter().position(|(k, _)| *k == table_start) {
-            q.remove(pos);
-        }
-        while q.len() >= MAX_BOUNDED_TABLE_STATES {
-            q.pop_front();
-        }
-        q.push_back((table_start, widths));
-    });
 }

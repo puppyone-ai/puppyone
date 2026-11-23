@@ -20,9 +20,11 @@ mod menu;
 pub mod model;
 mod operation;
 pub mod plan;
+pub mod scroll;
 pub mod style;
 #[cfg(test)]
 mod tests;
+pub mod viewport;
 #[cfg(test)]
 pub(crate) mod widget;
 #[cfg(not(test))]
@@ -35,6 +37,7 @@ use crate::editor::{
             features::{CommandCx, CompileCx, MarkdownFeature, WidgetFactoryCx},
             plans::{BlockEmbed, Plan},
         },
+        platform::sessions::{self, Sessions},
         style::cascade::LineContext,
     },
     text::state::Transaction,
@@ -65,12 +68,21 @@ impl MarkdownFeature for TableFeature {
         embed: &BlockEmbed,
         cx: &WidgetFactoryCx,
     ) -> Option<Rc<dyn BlockWidget>> {
-        Some(Rc::new(TableWidget::new(
-            embed.model::<Table>()?,
-            &cx.theme.table,
-            cx.theme.body.text.weight,
-            cx.theme.dark,
-        )))
+        let namespace = cx
+            .assets
+            .map(|a| format!("{}:{}", a.workspace_identity(), a.document.display()));
+        Some(Rc::new(
+            TableWidget::new(
+                embed.model::<Table>()?,
+                &cx.theme.table,
+                cx.theme.body.text.weight,
+                cx.theme.dark,
+            )
+            .with_sessions(
+                cx.feature_state::<Sessions>(sessions::SLOT).cloned(),
+                namespace,
+            ),
+        ))
     }
 
     /// Structure operations from the widget's rails, grips and menu.

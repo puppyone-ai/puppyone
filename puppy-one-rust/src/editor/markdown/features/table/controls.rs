@@ -2,7 +2,7 @@
 //! canvas, and context menu overlay for [`super::widget::TableWidget`] (`TODO-31`).
 use super::{
     commands,
-    interaction::{Frame, Geometry, TableUi},
+    interaction::{Frame, Geometry, LayoutLink, TableUi},
     menu as table_menu,
     operation::{can_insert_column, can_insert_row},
     widget::{GROUP, TableWidget},
@@ -262,6 +262,7 @@ impl TableWidget {
     /// Rails, grips, the resize rail, menu, indicator and outline over the
     /// table `block`, whose column tracks are `widths` (`natural`: each
     /// column's auto-fit width).
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn controls(
         &self,
         block: Div,
@@ -269,6 +270,7 @@ impl TableWidget {
         ui: Entity<TableUi>,
         widths: Rc<Vec<f32>>,
         natural: Rc<dyn Fn(usize) -> f32>,
+        layout: Option<LayoutLink>,
         cx: &mut WidgetCx,
     ) -> AnyElement {
         let style = self.style.editable.clone();
@@ -280,6 +282,7 @@ impl TableWidget {
             dark: self.dark,
             sender: cx.sender(),
             focus_editor: cx.focuser(),
+            layout,
         };
         ui.update(cx.render.app, |u, _| u.frame = Some(frame));
         let state = ui.read(cx.render.app);

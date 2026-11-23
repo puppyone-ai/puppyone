@@ -2,11 +2,10 @@
 //! flex to the reading column. This deliberately does not use CSV's 96–560px
 //! spreadsheet tracks. Estimates are in ems and sample at most 128 rows.
 use super::model::Table;
+use crate::editor::markdown::platform::sessions::column_layout::{self, MIN_WIDTH};
 
-/// `EMBEDDED_TABLE_COLUMN_MIN_WIDTH` / `_MAX_WIDTH`: a column stays
-/// clickable; only explicit resizing has a ceiling.
-const MIN: f64 = 48.;
-const MAX: f64 = 960.;
+/// `EMBEDDED_TABLE_COLUMN_MIN_WIDTH`: a column stays clickable.
+const MIN: f64 = MIN_WIDTH as f64;
 const SLACK: f64 = 1.06;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -17,11 +16,7 @@ struct Extent {
 
 /// `clampEmbeddedTableColumnWidth`: an explicit track, whole pixels.
 pub fn clamp(width: f32) -> f32 {
-    if width.is_finite() {
-        (width.round() as f64).clamp(MIN, MAX) as f32
-    } else {
-        MIN as f32
-    }
+    column_layout::clamp_width(width)
 }
 
 /// `estimateMarkdownTableColumnWidth` (double-click auto-fit): `column` at

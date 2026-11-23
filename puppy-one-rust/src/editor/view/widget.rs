@@ -234,6 +234,8 @@ pub struct WidgetState {
     /// The editor has keyboard focus.
     pub editor_focused: bool,
     pub read_only: bool,
+    /// The document selection (`from`, `to`).
+    pub selection: (usize, usize),
 }
 
 impl WidgetState {
@@ -252,6 +254,7 @@ impl WidgetState {
             caret_inside,
             editor_focused,
             read_only,
+            selection: (from, to),
         }
     }
 
