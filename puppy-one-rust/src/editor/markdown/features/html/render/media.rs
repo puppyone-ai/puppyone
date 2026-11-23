@@ -146,14 +146,16 @@ impl Surface<'_, '_, '_> {
                     }
                     _ => None,
                 });
-                let fallback = img.and_then(|i| i.attribute("src")).or_else(|| {
-                    e.children.iter().find_map(|c| match c {
-                        Node::Element(s) if s.tag == "source" => s.attribute("srcset"),
-                        _ => None,
-                    })
-                });
-                let chosen = super::super::run::picture_source(sources, None, self.theme.dark)
-                    .or_else(|| fallback.and_then(best_candidate));
+                let candidates = super::super::run::picture_candidates(
+                    sources,
+                    img.and_then(|i| i.attribute("src")),
+                    self.theme.dark,
+                );
+                let chosen = candidates
+                    .iter()
+                    .find(|c| media::resolve_markdown_media(self.document, c).is_ok())
+                    .or(candidates.first())
+                    .cloned();
                 (chosen, img.unwrap_or(e))
             }
             _ => (
@@ -163,7 +165,18 @@ impl Surface<'_, '_, '_> {
                 e,
             ),
         };
-        let number = |name: &str| attrs.attribute(name).and_then(dimension);
+        // Pixels, or a percentage of the column.
+        let number = |name: &str| {
+            let value = attrs.attribute(name)?.trim();
+            match value.strip_suffix('%') {
+                Some(p) => p
+                    .parse::<f32>()
+                    .ok()
+                    .filter(|p| p.is_finite() && *p > 0.)
+                    .map(|p| available * p.min(100.) / 100.),
+                None => dimension(value),
+            }
+        };
         let resolved = if e.tag == "svg" {
             Ok(MediaSource::Data(serialize(e).into_bytes()))
         } else {

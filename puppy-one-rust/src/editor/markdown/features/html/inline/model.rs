@@ -114,10 +114,15 @@ fn style_value(style: &str, property: &str) -> Option<String> {
         let (name, value) = declaration.split_once(':')?;
         let value = value.trim();
         (name.trim().eq_ignore_ascii_case(property)
-            && !value.is_empty()
-            && !value.contains(['\\', '<', '>'])
-            && !value.to_ascii_lowercase().contains("url("))
-        .then(|| value.to_owned())
+            && !value.contains('\\')
+            && crate::editor::markdown::platform::policy::presentation::is_safe_style_value(
+                property, value,
+            ))
+        .then(|| {
+            crate::editor::markdown::platform::policy::presentation::color_fallback(value)
+                .map(str::to_owned)
+        })
+        .flatten()
     })
 }
 

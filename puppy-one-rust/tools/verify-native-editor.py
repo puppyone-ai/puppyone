@@ -120,6 +120,15 @@ suites = {
         'a_system_proxy_never_opens_local_or_plain_http_urls',
         'remote_redirects_follow_the_same_routing_rule',
     ],
+    'editor::markdown::tests::html_presentation_acceptance::': [
+        'a_picture_loads_its_matching_candidate_without_the_fallback_first',
+        'a_refused_candidate_gives_way_to_the_fallback_image',
+        'a_picture_with_no_allowed_candidate_shows_its_alt_text',
+        'valid_presentation_values_are_kept',
+        'invalid_presentation_values_are_omitted',
+        'kept_presentation_values_draw',
+        'cell_vertical_alignment_places_the_content',
+    ],
     'editor::markdown::tests::html_run_acceptance::': [
         'readme_download_cards_draw_as_linked_theme_pictures',
         'a_picture_follows_the_colour_mode',

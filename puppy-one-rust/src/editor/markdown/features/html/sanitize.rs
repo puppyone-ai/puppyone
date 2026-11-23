@@ -68,11 +68,18 @@ pub fn hash_nodes(nodes: &[Node], hasher: &mut impl Hasher) {
     }
 }
 
-/// Strips inline `on*` event handler attributes during DOM sanitization.
-pub(crate) fn sanitize_attributes(attributes: Vec<(String, String)>) -> Vec<(String, String)> {
+/// Strips inline `on*` event handler attributes and presentation values the
+/// policy omits (`align`, `width`, `valign`, `type`, `media`, ...) during DOM
+/// sanitization; the element stays.
+pub(crate) fn sanitize_attributes(
+    tag: &str,
+    attributes: Vec<(String, String)>,
+) -> Vec<(String, String)> {
+    use crate::editor::markdown::platform::policy::presentation::presentation_attribute;
     attributes
         .into_iter()
         .filter(|(n, _)| !n.starts_with("on"))
+        .filter_map(|(n, v)| presentation_attribute(tag, &n, &v).map(|v| (n, v)))
         .collect()
 }
 

@@ -143,7 +143,7 @@ mod decompose;
 mod embed;
 
 use decompose::decompose;
-pub use decompose::picture_source;
+pub use decompose::{picture_candidates, picture_source};
 use embed::{Collapsed, RunEmbed};
 
 /// Where a run's decomposed pieces go.
