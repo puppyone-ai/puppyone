@@ -111,6 +111,14 @@ suites = {
     'editor::markdown::tests::pipeline_acceptance::': [
         'random_operations_keep_the_layout_consistent',
     ],
+    'editor::markdown::tests::remote_image_proxy_acceptance::': [
+        'remote_markdown_image_loads_through_a_proxy_with_fake_ip_dns',
+    ],
+    'editor::markdown::platform::policy::network::tests::': [
+        'a_system_proxy_carries_remote_images_past_fake_ip_dns',
+        'a_system_proxy_never_opens_local_or_plain_http_urls',
+        'remote_redirects_follow_the_same_routing_rule',
+    ],
 }
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'tools/verify-native-editor.py']]
 paths.extend(p for folder in ['src', 'assets', 'crates'] for p in sorted((root / folder).rglob('*')) if p.is_file())

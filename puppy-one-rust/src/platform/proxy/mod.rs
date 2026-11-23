@@ -53,6 +53,60 @@ pub fn system(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     builder
 }
 
+/// The proxy a client built with `system` sends `url` through (PAC, WPAD,
+/// the proxy environment variables or the static settings), or `None` when
+/// it goes direct. Loopback never goes through a proxy.
+pub fn proxy_for(url: &reqwest::Url) -> Option<String> {
+    if is_loopback(url) {
+        return None;
+    }
+    cached(url, || {
+        if imp::uses_custom_proxy() {
+            return imp::proxy_for(url);
+        }
+        // Without a custom proxy reqwest's own system proxy applies: the
+        // environment variables when any is set, else the static settings.
+        env_proxy_for(url).unwrap_or_else(|| imp::proxy_for(url))
+    })
+}
+
+fn env_var(upper: &str, lower: &str) -> Option<String> {
+    std::env::var(upper)
+        .ok()
+        .or_else(|| std::env::var(lower).ok())
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+}
+
+/// Whether any proxy environment variable is set.
+pub(super) fn has_env_proxy() -> bool {
+    env_var("HTTPS_PROXY", "https_proxy").is_some()
+        || env_var("HTTP_PROXY", "http_proxy").is_some()
+        || env_var("ALL_PROXY", "all_proxy").is_some()
+}
+
+/// What the proxy environment variables (`HTTPS_PROXY`, `HTTP_PROXY`,
+/// `ALL_PROXY`, `NO_PROXY`) say for `url`, or `None` when none is set.
+pub(super) fn env_proxy_for(url: &reqwest::Url) -> Option<Answer> {
+    if !has_env_proxy() {
+        return None;
+    }
+    let host = url.host_str().unwrap_or_default();
+    if let Some(no_proxy) = env_var("NO_PROXY", "no_proxy")
+        && matches_bypass_list(host, &no_proxy)
+    {
+        return Some(None);
+    }
+    let scheme = url.scheme();
+    let all = || env_var("ALL_PROXY", "all_proxy");
+    let proxy = match scheme {
+        "https" => env_var("HTTPS_PROXY", "https_proxy").or_else(all),
+        "http" => env_var("HTTP_PROXY", "http_proxy").or_else(all),
+        _ => all(),
+    };
+    Some(proxy.and_then(|proxy| parse_proxy_list(&proxy, scheme)))
+}
+
 pub(super) fn is_loopback(url: &reqwest::Url) -> bool {
     matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))
 }
@@ -87,7 +141,6 @@ fn cached(url: &reqwest::Url, resolve: impl FnOnce() -> Answer) -> Answer {
 /// Parses WinHTTP / WinINET / PAC-style proxy lists (e.g.
 /// `"http=10.0.0.1:8080;https=10.0.0.2:8443"`, `"PROXY 10.0.0.1:3128; DIRECT"`,
 /// or `"10.0.0.1:8080"`) and picks the first applicable HTTP(S) proxy URL.
-#[allow(dead_code)]
 pub(super) fn parse_proxy_list(raw: &str, target_scheme: &str) -> Answer {
     let target = target_scheme.to_ascii_lowercase();
     let mut fallback: Option<String> = None;
@@ -125,7 +178,6 @@ pub(super) fn parse_proxy_list(raw: &str, target_scheme: &str) -> Answer {
     fallback
 }
 
-#[allow(dead_code)]
 fn normalize_proxy_url(addr: &str) -> String {
     if addr.contains("://") {
         addr.to_owned()
@@ -136,7 +188,6 @@ fn normalize_proxy_url(addr: &str) -> String {
 
 /// Evaluates a comma/semicolon-separated bypass list (`NO_PROXY`, WinINET
 /// `lpszProxyBypass`, or GNOME `ignore-hosts`).
-#[allow(dead_code)]
 pub(super) fn matches_bypass_list(host: &str, bypass: &str) -> bool {
     let host = host.trim().to_ascii_lowercase();
     if host.is_empty() {

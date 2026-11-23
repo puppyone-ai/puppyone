@@ -25,14 +25,15 @@ pub(in crate::editor::markdown::platform::brokers) fn shared_runtime()
 }
 
 pub(super) fn fetch_remote(url: &str, cancel: &CancelToken) -> Result<Vec<u8>, AssetFailure> {
-    let endpoint = network::resolve_public_endpoint(url).map_err(AssetFailure::Network)?;
-    let client = network::build_pinned_https_client(&endpoint, REMOTE_TIMEOUT, false)
-        .map_err(AssetFailure::Network)?;
+    let net = network::Network::system();
+    let route = network::route_remote(url, net).map_err(AssetFailure::Network)?;
+    let client =
+        network::build_remote_client(&route, REMOTE_TIMEOUT, net).map_err(AssetFailure::Network)?;
     let runtime =
         shared_runtime().ok_or_else(|| AssetFailure::Network("Runtime unavailable".into()))?;
     runtime.block_on(async {
         let mut response = client
-            .get(endpoint.url.as_str())
+            .get(route.url().as_str())
             .send()
             .await
             .map_err(|e| AssetFailure::Network(e.to_string().into()))?;

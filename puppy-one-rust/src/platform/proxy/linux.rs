@@ -1,22 +1,8 @@
 //! Linux system proxy resolution: honors standard proxy environment variables
 //! (`HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY`) and falls back to
 //! GNOME desktop manual proxy settings (`gsettings org.gnome.system.proxy`).
-use super::{Answer, matches_bypass_list, parse_proxy_list};
+use super::{Answer, env_proxy_for, has_env_proxy, matches_bypass_list};
 use std::process::Command;
-
-fn env_var(upper: &str, lower: &str) -> Option<String> {
-    std::env::var(upper)
-        .ok()
-        .or_else(|| std::env::var(lower).ok())
-        .map(|s| s.trim().to_owned())
-        .filter(|s| !s.is_empty())
-}
-
-fn has_env_proxy() -> bool {
-    env_var("HTTPS_PROXY", "https_proxy").is_some()
-        || env_var("HTTP_PROXY", "http_proxy").is_some()
-        || env_var("ALL_PROXY", "all_proxy").is_some()
-}
 
 fn gsettings_get(schema: &str, key: &str) -> Option<String> {
     let out = Command::new("gsettings")
@@ -42,23 +28,11 @@ pub(super) fn uses_custom_proxy() -> bool {
 }
 
 pub(super) fn proxy_for(url: &reqwest::Url) -> Answer {
+    if let Some(answer) = env_proxy_for(url) {
+        return answer;
+    }
     let host = url.host_str().unwrap_or_default();
-    if let Some(no_proxy) = env_var("NO_PROXY", "no_proxy")
-        && matches_bypass_list(host, &no_proxy)
-    {
-        return None;
-    }
     let scheme = url.scheme();
-    if let Some(proxy) = match scheme {
-        "https" => {
-            env_var("HTTPS_PROXY", "https_proxy").or_else(|| env_var("ALL_PROXY", "all_proxy"))
-        }
-        "http" => env_var("HTTP_PROXY", "http_proxy").or_else(|| env_var("ALL_PROXY", "all_proxy")),
-        _ => env_var("ALL_PROXY", "all_proxy"),
-    } {
-        return parse_proxy_list(&proxy, scheme);
-    }
-
     if !gnome_manual_enabled() {
         return None;
     }

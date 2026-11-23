@@ -60,6 +60,8 @@ po-platform = { path = "../po-platform", features = ["test-support"] }
 po-workspace = { path = "../po-workspace", features = ["test-support"] }
 gpui-kit = { version = "=0.8.0", features = ["test-support"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
+# A local HTTPS server behind a proxy stub (remote image proxy tests).
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 
 [features]
 dev-capture = ["gpui-kit/test-support", "po-platform/dev-capture", "po-workspace/dev-capture", "po-ui/dev-capture"]
