@@ -51455,6 +51455,36 @@
           "test": "editor::markdown::tests::render_budget_acceptance::a_large_diagram_waits_and_a_long_fence_stays_source"
         }
       ]
+    },
+    {
+      "id": "hosted-absolute-asset-urls",
+      "acceptance": "In a hosted (Cloud) document, a relative reference, a root path and an authored absolute puppyone-cloud: URL inside the document's own account/project/scope root all resolve to the same workspace file and load through the asset broker, from a Markdown image, an HTML block and an inline HTML run. A reference that leaves the root, a sibling root, another host and an absolute URL with a query (capability token) or fragment are refused before any read. An absolute URL needs the document's hosted root: without one, or in a local workspace, it is refused while relative references still load.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/markdownAssetPolicy.test.ts",
+          "sha256": "d9a8572fbb6ceb73d0375b0c71f9a51708d52a60c503ed2e089df617823ef515",
+          "cases": [
+            {
+              "index": 0,
+              "name": "markdownAssetPolicy > resolves Cloud relative and root assets within the complete account/project/scope root"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::shared::media::tests::hosted_absolute_references_resolve_only_inside_the_documents_root"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::hosted_asset_acceptance::a_hosted_document_loads_absolute_assets_only_inside_its_own_root"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::hosted_asset_acceptance::a_local_document_never_loads_an_absolute_hosted_url"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62827,24 +62857,6 @@
             {
               "index": 2,
               "name": "Mermaid render service ownership and reuse > makes the document exit barrier wait for last-consumer cancellation acknowledgement"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "hosted-absolute-asset-urls",
-      "kind": "gap",
-      "reason": "A hosted Markdown document resolves relative and root-relative assets inside its project through the provider, but an authored absolute `puppyone-cloud://` URL that points inside the same project root is refused natively (the product accepts it and rejects only other roots and token queries).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/assets.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/embeds/markdownAssetPolicy.test.ts",
-          "sha256": "d9a8572fbb6ceb73d0375b0c71f9a51708d52a60c503ed2e089df617823ef515",
-          "cases": [
-            {
-              "index": 0,
-              "name": "markdownAssetPolicy > resolves Cloud relative and root assets within the complete account/project/scope root"
             }
           ]
         }

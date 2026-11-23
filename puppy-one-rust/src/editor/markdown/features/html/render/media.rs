@@ -12,7 +12,15 @@ use crate::editor::{
 use gpui::{prelude::*, *};
 use std::path::Path;
 
-impl Surface<'_, '_, '_> {
+impl<'s> Surface<'s, '_, '_> {
+    /// Where this surface's media references resolve.
+    fn media_base(&self) -> media::Base<'s> {
+        media::Base {
+            document: self.document,
+            root: self.assets.map_or("", |a| a.workspace.as_str()),
+        }
+    }
+
     fn render_media_player(
         &mut self,
         kind: MediaKind,
@@ -99,7 +107,7 @@ impl Surface<'_, '_, '_> {
         self.media += 1;
         let path = match src
             .as_deref()
-            .and_then(|s| media::markdown(self.document, s))
+            .and_then(|s| media::markdown(self.media_base(), s))
         {
             Some(MediaSource::Workspace(path)) => Some(path),
             _ => None,
@@ -153,7 +161,7 @@ impl Surface<'_, '_, '_> {
                 );
                 let chosen = candidates
                     .iter()
-                    .find(|c| media::resolve_markdown_media(self.document, c).is_ok())
+                    .find(|c| media::resolve_markdown_media(self.media_base(), c).is_ok())
                     .or(candidates.first())
                     .cloned();
                 (chosen, img.unwrap_or(e))
@@ -181,7 +189,7 @@ impl Surface<'_, '_, '_> {
             Ok(MediaSource::Data(serialize(e).into_bytes()))
         } else {
             match src.as_deref() {
-                Some(s) => media::resolve_markdown_media(self.document, s),
+                Some(s) => media::resolve_markdown_media(self.media_base(), s),
                 None => Err(MediaSourceError::Empty),
             }
         };
