@@ -23,8 +23,56 @@ use std::sync::LazyLock;
 
 /// `workBuddyDiscoveryLimits`.
 pub mod limits {
-    pub const ACP_PROBE_TIMEOUT_MS: u64 = 4_000;
+    pub const ACP_PROBE_TIMEOUT_MS: u64 = 8_000;
     pub const ACP_PROBE_MAX_BYTES: usize = 64 * 1024;
+}
+
+/// Launch mode recorded on readiness when WorkBuddy only ships the `lite-wb`
+/// bundle (Desktop 5.11.3+ / `@genie/agent-cli 2.176.0+`).
+pub(crate) const WORKBUDDY_LITE_WB_LAUNCH_MODE: &str = "serve-stdio";
+pub(crate) const WORKBUDDY_LITE_WB_ENV: &str = "CODEBUDDY_FORCE_LITE_WB_BUNDLE";
+
+/// Resolves the WorkBuddy CLI script entrypoint from a readiness payload
+/// (`argsPrefix[0]` on Windows where `WorkBuddy.exe` runs as Node, or
+/// `executablePath` on macOS/Linux).
+pub(crate) fn work_buddy_cli_entrypoint(readiness: &Value) -> Option<&str> {
+    readiness
+        .get("argsPrefix")
+        .and_then(Value::as_array)
+        .and_then(|args| args.first())
+        .and_then(Value::as_str)
+        .filter(|path| !path.is_empty())
+        .or_else(|| {
+            readiness
+                .get("executablePath")
+                .and_then(Value::as_str)
+                .filter(|path| !path.is_empty())
+        })
+}
+
+/// WorkBuddy Desktop 5.11.3+ ships only `cli/dist/codebuddy-lite-wb.mjs`
+/// without `codebuddy.js` or `codebuddy-headless.js`. That bundle requires
+/// `CODEBUDDY_FORCE_LITE_WB_BUNDLE=1` and `--serve --acp` to expose ACP over
+/// stdio.
+pub(crate) fn is_lite_wb_only_bundle(entrypoint: &str) -> bool {
+    let Some(cli_root) = Path::new(entrypoint).parent().and_then(Path::parent) else {
+        return false;
+    };
+    let dist = cli_root.join("dist");
+    let has_lite_wb = dist.join("codebuddy-lite-wb.mjs").is_file()
+        || dist.join("codebuddy-lite-wb.js").is_file();
+    if !has_lite_wb {
+        return false;
+    }
+    let has_standard = [
+        "codebuddy.js",
+        "codebuddy.cjs",
+        "codebuddy-headless.js",
+        "codebuddy-headless.cjs",
+    ]
+    .iter()
+    .any(|name| dist.join(name).is_file());
+    !has_standard
 }
 
 static ACP_FLAG: LazyLock<Regex> =
@@ -99,6 +147,19 @@ pub async fn discover_work_buddy_executable(
             .and_then(Value::as_str)
             .filter(|p| !p.is_empty())
     {
+        let lite_wb_only = work_buddy_cli_entrypoint(&result).is_some_and(is_lite_wb_only_bundle);
+        let mut runtime_env = environment_map(result.get("environment"));
+        if lite_wb_only {
+            runtime_env.insert(WORKBUDDY_LITE_WB_ENV.into(), "1".into());
+            let mut next = Obj::from(&readiness)
+                .set(
+                    "environment",
+                    crate::agent::transports::executable_discovery::environment_value(&runtime_env),
+                )
+                .set("acpLaunchMode", WORKBUDDY_LITE_WB_LAUNCH_MODE)
+                .build();
+            readiness = std::mem::take(&mut next);
+        }
         let mut args: Vec<String> = result["argsPrefix"]
             .as_array()
             .map(|args| {
@@ -112,7 +173,7 @@ pub async fn discover_work_buddy_executable(
         let run = BoundedRun {
             file: executable_path.to_string(),
             args,
-            env: work_buddy_probe_environment(environment_map(result.get("environment"))),
+            env: work_buddy_probe_environment(runtime_env),
             timeout_ms: limits::ACP_PROBE_TIMEOUT_MS,
             max_bytes: limits::ACP_PROBE_MAX_BYTES,
             label: format!("{} ACP", channel.display_name),
