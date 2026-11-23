@@ -369,6 +369,7 @@ fn first_use_compute_keeps_the_draft_until_the_next_send(cx: &mut TestAppContext
                 available: ready,
                 reason,
             }),
+            ..Default::default()
         };
     let asked_for = |op: AgentOperation| asked.borrow().iter().filter(|o| **o == op).count();
     panel.update_in(cx, |p, window, cx| {
@@ -523,6 +524,7 @@ fn the_compute_dock_names_its_route_and_hands_off_its_actions(cx: &mut TestAppCo
             available: false,
             reason,
         }),
+        ..Default::default()
     };
     panel.update_in(cx, |p, window, cx| {
         p.set_presentation(true, true, window, cx);
