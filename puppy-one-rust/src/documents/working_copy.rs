@@ -153,6 +153,9 @@ pub struct WorkingCopy {
     pub revision: u64,
     pub phase: Phase,
     pub error: Option<String>,
+    /// What kind of failure the last read of a file to open was, until a
+    /// read succeeds.
+    pub read_error: Option<workspace::ErrorKind>,
     /// Last autosave failure detail; typed category is in `save_error_kind` (`DP-43`).
     pub save_error: Option<String>,
     pub save_error_kind: Option<workspace::ErrorKind>,
@@ -224,6 +227,7 @@ impl Default for WorkingCopy {
             revision: 0,
             phase: Phase::Idle,
             error: None,
+            read_error: None,
             save_error: None,
             save_error_kind: None,
             local_overwrite_notice: None,
@@ -1209,6 +1213,8 @@ impl WorkingCopy {
                     ctx.notify();
                 }
             }
+            // The workbench reads a failed pane's file again itself.
+            ClientMessage::RetryRead => {}
             ClientMessage::LiveBuffer { id, revision, text } => {
                 if let Some(s) = &mut self.session
                     && s.id == id
@@ -2202,6 +2208,7 @@ impl WorkingCopy {
                     result: Ok((doc, entry)),
                     sniffed,
                 } => {
+                    self.read_error = None;
                     self.sniffed_format = sniffed;
                     self.apply_opened_document(doc, entry, ctx);
                 }
@@ -2214,6 +2221,7 @@ impl WorkingCopy {
                     if error.kind == workspace::ErrorKind::StaleLease {
                         self.lease_refused = self.reading.take();
                     }
+                    self.read_error = Some(error.kind);
                     self.fail(error.to_string());
                 }
                 CopyCompleted::Resource {
@@ -2221,6 +2229,7 @@ impl WorkingCopy {
                     result: Ok(preview),
                     sniffed,
                 } => {
+                    self.read_error = None;
                     self.document = None;
                     self.deferred_document = None;
                     self.read_only_large = None;

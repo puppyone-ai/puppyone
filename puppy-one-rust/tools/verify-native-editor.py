@@ -37,11 +37,15 @@ suites = {
         'column_resize_clamps_cancels_and_auto_fits',
     ],
     'editor::host::tests::': [
+        'a_pane_announces_loading_and_shows_a_read_failure',
         'a_snapshot_waits_for_the_composition_and_resumes_when_it_ends',
         'csv_contributes_view_items_and_find',
         'find_marks_and_selects_matches_in_text_editors',
         'code_snapshot_defers_during_ime_and_freezes_until_thawed',
         'code_search_shortcut_opens_the_product_find_bar',
+    ],
+    'editor::workbench::tests::': [
+        'a_failed_read_stays_in_its_pane_and_reads_again_there',
     ],
     'editor::viewers::html_interact::link_tests::': [
         'links_resolve_against_the_pages_own_base',

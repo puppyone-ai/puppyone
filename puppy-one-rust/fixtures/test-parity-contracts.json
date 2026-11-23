@@ -51877,18 +51877,10 @@
           "test": "editor::viewers::html_interact::link_tests::a_late_failure_does_not_reach_a_replacement_page"
         }
       ]
-    }
-  ],
-  "openAcceptance": [
-    "Automated real OS/WebView smoke, beyond the manually exercised native Markdown/source window",
-    "Real Cloud and cross-device deployment acceptance"
-  ],
-  "knownDifferences": [
+    },
     {
       "id": "viewer-host-read-failure-card",
-      "kind": "gap",
-      "reason": "TS shows a failed read in the pane (Cannot open in editor, the read error, Open in default app) and announces loading as a status. Rust removes the unadmitted slot and reports the error in the window error dialog (Close, Retry when retryable); no content viewer mounts and loading draws no text, but neither the dialog nor the file window's Cannot open in editor state offers Open in default app, and neither loading state is announced to assistive technology.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/retained-runtime.md",
+      "acceptance": "A workbench pane whose file could not be read (missing, permission, I/O or a provider failure; not a folder or link, and not a Cloud read refused by an ended lease, which reopens by itself) stays in its pane instead of a window dialog: the pane says it cannot open the file in the editor and why, offers the default app for a file on this computer and Retry. Retry, or opening the file again, reads it in the same pane: while it reads the failure is gone and the pane draws nothing but announces 'Loading file…' as a status; the file then opens there.",
       "typescript": [
         {
           "path": "tests/integration/editor/runtime/viewerHost.integration.test.ts",
@@ -51910,8 +51902,24 @@
             }
           ]
         }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::a_pane_announces_loading_and_shows_a_read_failure"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::a_failed_read_stays_in_its_pane_and_reads_again_there"
+        }
       ]
-    },
+    }
+  ],
+  "openAcceptance": [
+    "Automated real OS/WebView smoke, beyond the manually exercised native Markdown/source window",
+    "Real Cloud and cross-device deployment acceptance"
+  ],
+  "knownDifferences": [
     {
       "id": "viewer-plugins-experimental",
       "kind": "out-of-scope",
