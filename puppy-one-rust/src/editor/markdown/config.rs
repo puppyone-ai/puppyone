@@ -1,28 +1,67 @@
-//! Markdown configuration `StateEffect`s and formatting command helpers (`TA-21`).
+//! Markdown configuration `StateEffect`s, action/keymap registration, and
+//! formatting command helpers (`TA-21`).
 use super::{
+    composition::MDX_FEATURES,
     core::{
         commands::FormatCommand,
         links::{find_links, find_wiki_links},
         plans::Plan,
         syntax::{Kind, Syntax},
     },
-    shared,
+    features, shared,
 };
 use crate::{
     editor::{
         navigation::{ReferenceContext, Resolution},
         registry::DocumentAssets,
-        text::buffer::Buffer,
-        view::command::Command,
+        text::{
+            buffer::Buffer,
+            change::ChangeSet,
+            selection::Selection,
+            state::{EditorState, Transaction},
+        },
+        view::{EditorView, command::Command},
     },
     formats::markdown::MarkdownDialect,
 };
+use gpui::{Action, App, Context, Div, KeyBinding, actions, prelude::*};
 use std::{
     collections::{HashSet, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
 };
 
 pub const FORMAT_FEATURE_ID: &str = "markdown.format";
+pub const KEY_CONTEXT: &str = "MarkdownEditor";
+
+actions!(
+    markdown_editor,
+    [
+        ToggleBold,
+        ToggleItalic,
+        ToggleStrike,
+        ToggleCode,
+        ToggleUnderline,
+        InsertLink,
+        Heading0,
+        Heading1,
+        Heading2,
+        Heading3,
+        Heading4,
+        Heading5,
+        Heading6,
+        ToggleBulletList,
+        ToggleOrderedList,
+        ToggleTaskList,
+        ToggleQuote,
+    ]
+);
+
+#[derive(Clone, PartialEq, serde::Deserialize, Action)]
+#[action(no_json)]
+struct RunFeatureKeybinding {
+    feature_index: usize,
+    binding_index: usize,
+}
 
 /// Typed configuration `StateEffect`: set live-preview (`true`) vs source mode (`false`) (`TA-21`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +90,173 @@ pub(super) fn parse_format_command(cmd: &Command) -> Option<FormatCommand> {
     (cmd.feature() == FORMAT_FEATURE_ID)
         .then(|| cmd.payload::<FormatCommand>().copied())
         .flatten()
+}
+
+pub(super) fn register_markdown_keymap(cx: &mut App) {
+    let c = Some(KEY_CONTEXT);
+    cx.bind_keys([
+        KeyBinding::new("secondary-b", ToggleBold, c),
+        KeyBinding::new("secondary-i", ToggleItalic, c),
+        KeyBinding::new("secondary-shift-x", ToggleStrike, c),
+        KeyBinding::new("secondary-d", ToggleStrike, c),
+        KeyBinding::new("secondary-e", ToggleCode, c),
+        KeyBinding::new("secondary-u", ToggleUnderline, c),
+        KeyBinding::new("secondary-k", InsertLink, c),
+        KeyBinding::new("secondary-alt-0", Heading0, c),
+        KeyBinding::new("secondary-alt-1", Heading1, c),
+        KeyBinding::new("secondary-alt-2", Heading2, c),
+        KeyBinding::new("secondary-alt-3", Heading3, c),
+        KeyBinding::new("secondary-alt-4", Heading4, c),
+        KeyBinding::new("secondary-alt-5", Heading5, c),
+        KeyBinding::new("secondary-alt-6", Heading6, c),
+        KeyBinding::new("secondary-shift-8", ToggleBulletList, c),
+        KeyBinding::new("secondary-shift-7", ToggleOrderedList, c),
+        KeyBinding::new("secondary-shift-9", ToggleTaskList, c),
+        KeyBinding::new("secondary-shift-.", ToggleQuote, c),
+    ]);
+    for (feature_index, feat) in MDX_FEATURES.iter().enumerate() {
+        for (binding_index, kb) in feat.keybindings().iter().enumerate() {
+            cx.bind_keys([KeyBinding::new(
+                kb.chord,
+                RunFeatureKeybinding {
+                    feature_index,
+                    binding_index,
+                },
+                c,
+            )]);
+        }
+    }
+}
+
+pub(super) fn bind_markdown_actions(root: Div, cx: &mut Context<EditorView>) -> Div {
+    macro_rules! bind_fmt {
+        ($div:expr, $($action:ty => $cmd:expr),* $(,)?) => {{
+            let mut d = $div;
+            $(
+                d = d.on_action(cx.listener(|view, _: &$action, window, cx| {
+                    view.run_command(&format_command($cmd), window, cx);
+                }));
+            )*
+            d
+        }};
+    }
+    bind_fmt!(
+        root,
+        ToggleBold => FormatCommand::Bold,
+        ToggleItalic => FormatCommand::Italic,
+        ToggleStrike => FormatCommand::Strike,
+        ToggleCode => FormatCommand::Code,
+        ToggleUnderline => FormatCommand::Underline,
+        InsertLink => FormatCommand::Link,
+        Heading0 => FormatCommand::Heading(0),
+        Heading1 => FormatCommand::Heading(1),
+        Heading2 => FormatCommand::Heading(2),
+        Heading3 => FormatCommand::Heading(3),
+        Heading4 => FormatCommand::Heading(4),
+        Heading5 => FormatCommand::Heading(5),
+        Heading6 => FormatCommand::Heading(6),
+        ToggleBulletList => FormatCommand::BulletList,
+        ToggleOrderedList => FormatCommand::OrderedList,
+        ToggleTaskList => FormatCommand::TaskList,
+        ToggleQuote => FormatCommand::Quote,
+    )
+    .on_action(
+        cx.listener(|view, action: &RunFeatureKeybinding, window, cx| {
+            if let Some(feat) = MDX_FEATURES.get(action.feature_index)
+                && let Some(kb) = feat.keybindings().get(action.binding_index)
+            {
+                let cmd = (kb.command)();
+                view.run_command(&cmd, window, cx);
+            }
+        }),
+    )
+}
+
+/// Rewrite pasted multiline/pipe text inside an editable Markdown table cell
+/// so pipe-table syntax stays valid.
+pub(super) fn filter_table_cell_paste(tr: &mut Transaction, state: &EditorState, plans: &[Plan]) {
+    let changes = tr.changes.changes();
+    if changes.len() != 1 {
+        return;
+    }
+    let c = &changes[0];
+    let in_table_cell = plans.iter().any(|plan| {
+        let Some(embed) = plan.embed().filter(|e| e.feature == features::table::ID) else {
+            return false;
+        };
+        if c.range.start < plan.source.start || c.range.end > plan.source.end {
+            return false;
+        }
+        let check_table = |table: &features::table::model::Table| {
+            table.range.start <= c.range.start
+                && c.range.end <= table.range.end
+                && table.rows.iter().any(|row| {
+                    row.cells.iter().any(|cell| {
+                        cell.editable
+                            && cell.range.start <= c.range.start
+                            && c.range.end <= cell.range.end
+                    })
+                })
+        };
+        if embed.built_for(&state.doc, plan.source.start)
+            && let Some(table) = embed.model::<features::table::model::Table>()
+        {
+            check_table(table)
+        } else {
+            features::table::model::table_block(&state.doc, &plan.source)
+                .is_some_and(|table| check_table(&table))
+        }
+    });
+    if !in_table_cell {
+        return;
+    }
+    let sanitized = sanitize_table_cell_paste(&c.insert);
+    if sanitized != c.insert {
+        let range = c.range.clone();
+        let cursor = range.start + sanitized.len();
+        tr.changes = ChangeSet::replace(range, sanitized);
+        tr.selection = Some(Selection::cursor(cursor));
+    }
+}
+
+/// Sanitize clipboard text pasted directly into an editable Markdown table cell
+/// (`tableCommands.ts` `normalizeMarkdownTableCellInput` / `tableModel.ts`
+/// `sanitizeMarkdownTableCell`): fold internal line-break runs into a single
+/// space and escape unescaped pipes (`|`) as `\|` so the pipe table stays valid.
+fn sanitize_table_cell_paste(value: &str) -> String {
+    let normalized = value.replace("\r\n", "\n").replace('\r', "\n");
+    let trimmed = normalized.trim_matches('\n');
+    let mut folded = String::with_capacity(trimmed.len());
+    let mut in_newline = false;
+    for ch in trimmed.chars() {
+        if ch == '\n' {
+            if !in_newline {
+                folded.push(' ');
+            }
+            in_newline = true;
+        } else {
+            in_newline = false;
+            folded.push(ch);
+        }
+    }
+    let mut out = String::with_capacity(folded.len());
+    let mut backslashes = 0usize;
+    for ch in folded.chars() {
+        if ch == '\\' {
+            backslashes += 1;
+            out.push(ch);
+        } else if ch == '|' {
+            if backslashes.is_multiple_of(2) {
+                out.push('\\');
+            }
+            backslashes = 0;
+            out.push('|');
+        } else {
+            backslashes = 0;
+            out.push(ch);
+        }
+    }
+    out
 }
 
 /// Semantic fingerprint of how `refs` resolves every link and embed currently

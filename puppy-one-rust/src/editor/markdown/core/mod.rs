@@ -7,6 +7,7 @@ pub mod interaction;
 pub mod links;
 pub mod plans;
 pub mod presentation;
+pub mod projection;
 pub mod state;
 // Elements carry their marker spans as `Vec<Range>`; a single-marker list
 // (`vec![a..b]`) is the intended value, not a mistyped range collection.

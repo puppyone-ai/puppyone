@@ -7,6 +7,7 @@ use super::{
         plans::{self, Plan, PlanCache},
         presentation::block_rhythm,
         presentation::content_language::ReadingLanguage,
+        projection::{Parsed, incremental_required_byte, reveal_required_byte},
         state::{FeatureStateStore, PreviewState},
         syntax::{Syntax, SyntaxSplice},
     },
@@ -46,107 +47,6 @@ pub(super) struct PendingAsyncParse {
     pub(super) len: usize,
     pub(super) rx: Receiver<Syntax>,
     pub(super) optimistic_decos: Option<(bool, u64, Rc<Decorations>)>,
-}
-
-pub(super) struct DeferredTail {
-    pub(super) split_byte: usize,
-    pub(super) split_line: usize,
-    pub(super) byte_delta: isize,
-    pub(super) line_delta: isize,
-    pub(super) elem_delta: isize,
-    pub(super) list_delta: isize,
-    pub(super) item_delta: isize,
-    pub(super) syntax: Syntax,
-    pub(super) plans: Vec<Plan>,
-}
-
-pub(super) struct Parsed {
-    pub(super) revision: u64,
-    pub(super) len: usize,
-    pub(super) syntax: Rc<Syntax>,
-    pub(super) folds: FeatureStateStore,
-    pub(super) plan_cache: PlanCache,
-    pub(super) plans: Rc<Vec<Plan>>,
-    pub(super) headings: OnceCell<Headings>,
-    pub(super) last_splice: Option<(u64, SyntaxSplice)>,
-    pub(super) tail: Option<DeferredTail>,
-}
-
-impl Parsed {
-    pub(super) fn materialize_tail(&mut self) {
-        let Some(tail) = self.tail.take() else {
-            return;
-        };
-        Rc::make_mut(&mut self.syntax).append_shifted_tail(
-            tail.syntax,
-            tail.byte_delta,
-            tail.line_delta,
-            tail.list_delta,
-            tail.item_delta,
-        );
-        plans::append_shifted_tail(
-            Rc::make_mut(&mut self.plans),
-            tail.plans,
-            tail.byte_delta,
-            tail.elem_delta,
-        );
-        self.plan_cache.rebuild_index(&self.plans);
-    }
-
-    /// Detach the untouched suffix starting `+4` top-level blocks past
-    /// `splice_new_end` so subsequent edits in the prefix shift only a small
-    /// guard window instead of the entire remainder of the document (`TA-81`).
-    /// Not while anything pairs across the document (definitions, footnotes,
-    /// multi-block delimiters, HTML flows): the head alone could not pair it.
-    pub(super) fn maybe_detach_tail(&mut self, doc: &Buffer, splice_new_end: usize) {
-        if self.tail.is_some()
-            || self.syntax.top_blocks.len() < 16
-            || !self.syntax.link_defs.is_empty()
-            || !self.syntax.footnotes.is_empty()
-            || !self.syntax.block_delimiters.is_empty()
-            || self.syntax.has_unbalanced_html(doc)
-        {
-            return;
-        }
-        let edit_end_block = self
-            .syntax
-            .top_blocks
-            .partition_point(|b| b.start < splice_new_end);
-        let split_block = edit_end_block + 4;
-        if split_block + 8 > self.syntax.top_blocks.len() {
-            return;
-        }
-        let split_byte = self.syntax.top_blocks[split_block].start;
-        if split_byte >= doc.len() {
-            return;
-        }
-        let split_line = doc.line_index(split_byte);
-        if doc.line_range(split_line).start != split_byte {
-            return;
-        }
-        if self.plan_cache.any_straddles(&self.plans, split_byte) {
-            return;
-        }
-        let p_idx = self.plans.partition_point(|p| p.source.start < split_byte);
-        let Some(tail_syntax) =
-            Rc::make_mut(&mut self.syntax).split_off_tail(split_byte, split_line)
-        else {
-            return;
-        };
-        let tail_plans = Rc::make_mut(&mut self.plans).split_off(p_idx);
-        self.plan_cache.truncate_at(split_byte);
-        self.tail = Some(DeferredTail {
-            split_byte,
-            split_line,
-            byte_delta: 0,
-            line_delta: 0,
-            elem_delta: 0,
-            list_delta: 0,
-            item_delta: 0,
-            syntax: tail_syntax,
-            plans: tail_plans,
-        });
-    }
 }
 
 pub(super) struct CachedDocDecos {
@@ -223,22 +123,13 @@ impl PipelineCache {
             return false;
         };
         self.pending_async = None;
-        let syntax = Rc::new(syntax_val);
-        let plans_vec = plans::compile(&state.doc, &syntax, folds, features);
-        let mut plan_cache = PlanCache::default();
-        plan_cache.rebuild_index(&plans_vec);
-        let plans = Rc::new(plans_vec);
-        self.parsed = Some(Parsed {
-            revision: state.revision,
-            len: state.doc.len(),
-            syntax,
-            folds: folds.clone(),
-            plan_cache,
-            plans,
-            headings: OnceCell::new(),
-            last_splice: None,
-            tail: None,
-        });
+        self.parsed = Some(Parsed::from_syntax(
+            state.revision,
+            &state.doc,
+            Rc::new(syntax_val),
+            folds,
+            features,
+        ));
         self.doc_decos = None;
         true
     }
@@ -288,23 +179,16 @@ impl PipelineCache {
             return (Rc::clone(&p.syntax), Rc::clone(&p.plans));
         }
 
-        let syntax = Rc::new(Syntax::parse_with(&state.doc, features));
-        let compiled = plans::compile(&state.doc, &syntax, folds, features);
-        let mut plan_cache = PlanCache::default();
-        plan_cache.rebuild_index(&compiled);
-        let plans = Rc::new(compiled);
-        self.parsed = Some(Parsed {
-            revision: state.revision,
-            len: state.doc.len(),
-            syntax: Rc::clone(&syntax),
-            folds: folds.clone(),
-            plan_cache,
-            plans: Rc::clone(&plans),
-            headings: OnceCell::new(),
-            last_splice: None,
-            tail: None,
-        });
-        (syntax, plans)
+        let parsed = Parsed::from_syntax(
+            state.revision,
+            &state.doc,
+            Rc::new(Syntax::parse_with(&state.doc, features)),
+            folds,
+            features,
+        );
+        let result = (Rc::clone(&parsed.syntax), Rc::clone(&parsed.plans));
+        self.parsed = Some(parsed);
+        result
     }
 
     pub(super) fn heading_position(
@@ -371,14 +255,9 @@ impl PipelineCache {
         if let Some(mut prev) = self.parsed.take()
             && prev.len == applied.before_doc.len()
         {
-            // Keep a detached tail only when the edit lies strictly inside the
-            // prefix with at least two guard top-level blocks before the split.
-            if let Some(tail) = &prev.tail {
+            if prev.tail.is_some() {
                 let max_old = applied.changes.changes().last().map_or(0, |c| c.range.end);
-                let fits_head = prev.syntax.top_blocks.len() >= 6
-                    && max_old < prev.syntax.top_blocks[prev.syntax.top_blocks.len() - 2].start
-                    && max_old < tail.split_byte;
-                if !fits_head {
+                if !prev.tail_fits_head(max_old) {
                     prev.materialize_tail();
                 }
             }
@@ -431,8 +310,6 @@ impl PipelineCache {
             });
 
             if let Some(splice) = splice_opt {
-                // If an edit introduced a multi-block delimiter inside `head`,
-                // materialise `tail` so whole-document delimiter pairing stays exact.
                 if prev.tail.is_some() && !prev.syntax.block_delimiters.is_empty() {
                     prev.materialize_tail();
                 }
@@ -481,22 +358,13 @@ impl PipelineCache {
             }
         }
 
-        let syntax = Rc::new(Syntax::parse_with(&state.doc, features));
-        let compiled = plans::compile(&state.doc, &syntax, folds, features);
-        let mut plan_cache = PlanCache::default();
-        plan_cache.rebuild_index(&compiled);
-        let plans = Rc::new(compiled);
-        self.parsed = Some(Parsed {
-            revision: state.revision,
-            len: state.doc.len(),
-            syntax,
-            folds: folds.clone(),
-            plan_cache,
-            plans,
-            headings: OnceCell::new(),
-            last_splice: None,
-            tail: None,
-        });
+        self.parsed = Some(Parsed::from_syntax(
+            state.revision,
+            &state.doc,
+            Rc::new(Syntax::parse_with(&state.doc, features)),
+            folds,
+            features,
+        ));
     }
 
     pub(super) fn decorate_document(
@@ -558,33 +426,12 @@ impl PipelineCache {
             && let Some((_, splice)) = incremental_splice
             && let Some(prev_cached) = self.doc_decos.take()
         {
-            // Ensure `parsed` covers the exact block-aligned window
-            // `decorate_incremental_in_place` will decorate without
-            // materialising an untouched deferred suffix tail.
-            let new_total = state.doc.line_count();
-            let line_delta: isize = (splice.new_lines.end as isize
-                - splice.new_lines.start as isize)
-                - (splice.old_lines.end as isize - splice.old_lines.start as isize);
-            let old_total = ((new_total as isize) - line_delta).max(0) as usize;
-            let raw_old_end = (splice.old_lines.end + 1).min(old_total);
-            let b_end = prev_cached
-                .decorations
-                .blocks
-                .partition_point(|b| b.lines().start < raw_old_end);
-            let aligned_old_end = b_end.checked_sub(1).map_or(raw_old_end, |i| {
-                prev_cached.decorations.blocks[i]
-                    .lines()
-                    .end
-                    .max(raw_old_end)
-            });
-            let aligned_new_end =
-                ((aligned_old_end as isize) + line_delta).clamp(0, new_total as isize) as usize;
-            let guard_line = (aligned_new_end + 1).min(new_total);
-            let required_byte = if guard_line < new_total {
-                Some(state.doc.line_range(guard_line).start)
-            } else {
-                None
-            };
+            let required_byte = incremental_required_byte(
+                &state.doc,
+                prev_cached.decorations.blocks.len(),
+                |i| prev_cached.decorations.blocks[i].lines(),
+                &splice,
+            );
             let (syntax, plans) = self.ensure_parsed_covering(
                 state,
                 &cfg.preview.features,
@@ -682,37 +529,10 @@ impl PipelineCache {
     ) -> Rc<RevealLayer> {
         let state = input.state;
         let theme = self.resolved_theme(&state.doc, input.dark, cfg);
-        let mut max_line = 0usize;
-        let total = state.doc.line_count();
-        for r in [&cfg.preview.reveal, &cfg.preview.revealed_source]
-            .into_iter()
-            .flatten()
-        {
-            let clamped = state.doc.clamp_range(r.clone());
-            max_line = max_line.max(
-                state
-                    .doc
-                    .line_index(clamped.end.saturating_sub(1).max(clamped.start)),
-            );
-        }
-        if let Some(comp) = cfg.preview.composing {
-            max_line = max_line.max(state.doc.line_index(state.doc.clamp(comp)));
-        }
-        if let Some(rl) = cfg.preview.reveal_line {
-            max_line = max_line.max(rl.min(total.saturating_sub(1)));
-        }
-        let b_last = doc_layer
-            .blocks
-            .partition_point(|b| b.lines().start < (max_line + 1).min(total));
-        let expanded_end_line = b_last
-            .checked_sub(1)
-            .map_or(max_line + 1, |i| doc_layer.blocks[i].lines().end)
-            .max(max_line + 1);
-        let required_byte = if expanded_end_line + 1 < total {
-            Some(state.doc.line_range(expanded_end_line + 1).start)
-        } else {
-            None
-        };
+        let required_byte =
+            reveal_required_byte(&state.doc, cfg.preview, doc_layer.blocks.len(), |i| {
+                doc_layer.blocks[i].lines()
+            });
         let (syntax, plans) =
             self.ensure_parsed_covering(state, &cfg.preview.features, cfg.features, required_byte);
         let source_fallbacks = self
