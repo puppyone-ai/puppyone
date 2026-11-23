@@ -62,7 +62,8 @@ commands = [
     ('coverage', ['python3', '-B', 'tools/verify-coverage.py']),
     ('clippy', [cargo, 'clippy', '--locked', '--all-targets', '--features', 'dev-capture', '--', '-D', 'warnings']),
     ('release', [cargo, 'build', '--locked', '--release']),
-    ('editor-frames', ['python3', 'tools/bench-editor.py', '--check']),
+    # Best of three, as Rust editor gates (rust-editor-gates.yml) measure it.
+    ('editor-frames', ['python3', 'tools/bench-editor.py', '--check', '--repeat', '3']),
     ('native-editor', ['python3', 'tools/verify-native-editor.py']),
 ]
 # A release runner without a sibling repository a check reads (the Cloud
