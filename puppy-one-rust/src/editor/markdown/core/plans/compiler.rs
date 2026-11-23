@@ -29,6 +29,23 @@ fn compile_core_element(index: usize, e: &Element) -> Plan {
             delete_units: vec![e.range.clone()],
             ..visible
         },
+        // An empty target anchor (`<a id="x"></a>`): its whole source is one
+        // hidden marker, deleted as a unit, so no caret rests between tags.
+        Kind::InlineHtml
+            if e.content.as_ref().is_some_and(|c| c.is_empty())
+                && e.html
+                    .as_ref()
+                    .is_some_and(|h| h.name == "a" && h.id.is_some()) =>
+        {
+            Plan {
+                presentation: Presentation::InlineMark {
+                    content: e.range.end..e.range.end,
+                    markers: vec![e.range.clone()],
+                },
+                delete_units: vec![e.range.clone()],
+                ..visible
+            }
+        }
         Kind::Strong
         | Kind::Emphasis
         | Kind::Strike
