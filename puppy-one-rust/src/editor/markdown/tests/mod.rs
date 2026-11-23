@@ -37,6 +37,7 @@ mod media_isolation_acceptance;
 mod projection_acceptance;
 mod reference_refresh_acceptance;
 mod remote_image_proxy_acceptance;
+mod render_budget_acceptance;
 mod scale_and_resize_acceptance;
 mod style_contracts;
 mod svg_isolation_acceptance;

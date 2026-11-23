@@ -4,7 +4,10 @@ use super::model::{HtmlBlock, admission_failure};
 use crate::editor::markdown::{
     core::{
         features::CompileCx,
-        plans::{BlockEmbed, Plan, Presentation, execution::HTML_FLOW_MAX_SIBLINGS},
+        plans::{
+            BlockEmbed, DocumentProfile, FenceExecution, Plan, Presentation,
+            execution::{HTML_FLOW_MAX_SIBLINGS, decide_html_execution},
+        },
     },
     features::html::{
         ID,
@@ -38,6 +41,7 @@ fn admit(
             html,
             range,
             embed: None,
+            deferred: false,
         });
     }
 }
@@ -61,6 +65,7 @@ pub fn collect_blocks(cx: &CompileCx, fallbacks: &mut Vec<Plan>) -> Vec<HtmlBloc
                 html: String::new(),
                 range,
                 embed: Some(href),
+                deferred: false,
             });
             i += 1;
             continue;
@@ -137,7 +142,23 @@ pub fn collect_blocks(cx: &CompileCx, fallbacks: &mut Vec<Plan>) -> Vec<HtmlBloc
 }
 
 pub fn compile_blocks(cx: &CompileCx, out: &mut Vec<Plan>) {
-    for block in collect_blocks(cx, out) {
+    let profile =
+        DocumentProfile::classify(cx.doc.byte_to_utf16(cx.doc.len()), cx.doc.line_count());
+    for mut block in collect_blocks(cx, out) {
+        if block.embed.is_none() {
+            let (nodes, depth, assets) = super::model::metrics(&block.html);
+            match decide_html_execution(block.html.len(), nodes, depth, assets, profile) {
+                FenceExecution::Immediate => {}
+                FenceExecution::Deferred => block.deferred = true,
+                FenceExecution::FallbackToCode => {
+                    out.push(source_fallback(
+                        block.range.clone(),
+                        "htmlBlock.render-budget",
+                    ));
+                    continue;
+                }
+            }
+        }
         out.push(Plan {
             element: None,
             source: block.range.clone(),

@@ -10,7 +10,7 @@ pub mod sanitize;
 pub mod structure;
 pub mod tokenizer;
 
-pub use block::{HtmlBlock, ShowSource};
+pub use block::{HtmlBlock, HtmlState, RenderDeferred, ShowSource};
 
 use crate::editor::{
     markdown::core::{
@@ -75,6 +75,11 @@ impl MarkdownFeature for HtmlFeature {
         cx: &WidgetFactoryCx,
     ) -> Option<Rc<dyn BlockWidget>> {
         let block = embed.model::<HtmlBlock>()?;
+        let deferred = block.deferred
+            && !cx
+                .state
+                .get::<HtmlState>(ID)
+                .is_some_and(|s| s.activated(block.range.start));
         let nodes = match &block.embed {
             Some(_) => Vec::new(),
             None => match structure::parse(&block.html) {
@@ -88,6 +93,7 @@ impl MarkdownFeature for HtmlFeature {
             embed: block.embed.clone(),
             theme: cx.theme.clone(),
             assets: cx.assets.cloned(),
+            deferred,
         }))
     }
 
@@ -104,6 +110,12 @@ impl MarkdownFeature for HtmlFeature {
         preview: &mut PreviewState,
         state: &EditorState,
     ) -> Option<Transaction> {
+        if let Some(RenderDeferred(at)) = command.payload::<RenderDeferred>() {
+            preview
+                .state_mut::<HtmlState>(ID)
+                .activate(*at, state.revision);
+            return Some(Transaction::select(state.selection));
+        }
         let ShowSource(range) = command.payload::<ShowSource>()?;
         let range = state.doc.clamp_range(range.clone());
         let caret = state
