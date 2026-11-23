@@ -299,6 +299,7 @@ fn runs(doc: &Buffer, spans: &[Span], container: Span) -> Vec<Element> {
                 color: None,
                 background: None,
                 weight: None,
+                id: None,
             }));
             out.push(e);
         }
@@ -330,10 +331,21 @@ fn requires_run(group: &[Paired], tags: &[Tag]) -> bool {
             None => p.name != "br",
             Some(_) if !mark => true,
             Some(content) => {
-                content.is_empty() && !(p.name == "a" && tags[p.open].attribute("id").is_some())
+                content.is_empty() && !(p.name == "a" && target_id(&tags[p.open]).is_some())
             }
         }
     })
+}
+
+/// The in-page target a tag names (`scopeDocumentToken`): its `id`, else a
+/// legacy anchor's `name`, entity-decoded; one non-empty token without
+/// whitespace.
+fn target_id(tag: &Tag) -> Option<String> {
+    let raw = tag
+        .attribute("id")
+        .or_else(|| (tag.name == "a").then(|| tag.attribute("name")).flatten())?;
+    let id = super::super::tokenizer::decode_entities(raw.trim());
+    (!id.is_empty() && !id.chars().any(char::is_whitespace)).then_some(id)
 }
 
 /// `readMarkdownInlineHtmlRunSource`: continuation lines keep their list or
@@ -377,6 +389,7 @@ fn pair_container(doc: &Buffer, tags: &[Span], end: usize) -> Vec<Element> {
                 color: None,
                 background: None,
                 weight: None,
+                id: None,
             }));
             out.push(e);
             continue;
@@ -420,6 +433,7 @@ fn pair_container(doc: &Buffer, tags: &[Span], end: usize) -> Vec<Element> {
             color: style_value(style, "color"),
             background: style_value(style, "background-color"),
             weight: style_value(style, "font-weight"),
+            id: target_id(&opening),
             name: opening.name.clone(),
         };
         let mut e = Element::new(

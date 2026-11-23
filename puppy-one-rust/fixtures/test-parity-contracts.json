@@ -51171,6 +51171,260 @@
           "test": "editor::markdown::platform::policy::presentation::tests::inline_surfaces_style_less_than_blocks"
         }
       ]
+    },
+    {
+      "id": "markdown-html-id-fragment-targets",
+      "acceptance": "Controlled inline HTML ids (<a id>, <span id>, and a legacy <a name> without an id) in prose are in-page fragment targets; literal, code, commented, escaped, incomplete, unsafe-href or whitespace-separated ids are not. A fragment is percent-decoded once (a malformed escape names nothing), ids keep their authored case, the first duplicate wins, and an explicit id wins over a heading slug while headings stay reachable. Targets are per document, follow edits to positions and ids, disappear inside code fences, and a distant edit reparses only its block. An empty anchor is one hidden marker and one deletion unit, reveals for editing and folds again; incomplete or unsupported anchors stay visible source. Markdown links, wiki links and inline <a href> reach explicit targets by moving only the view; a renamed target is unavailable until restored. The HTML sanitizer turns a legacy anchor name into its id unless an id is given.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/links/markdownFragmentTargets.test.ts",
+          "sha256": "119ffecd0d2851b709b5ecf2ad26bf94e13b818baa0900aa248a6f53a9018291",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <a id=\"target\"></a>"
+            },
+            {
+              "index": 1,
+              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <a id=target></a>"
+            },
+            {
+              "index": 2,
+              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <span id=\"target\">text</span>"
+            },
+            {
+              "index": 3,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: `<a id=\"target\"></a>`"
+            },
+            {
+              "index": 4,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: ```html\n<a id=\"target\"></a>\n```"
+            },
+            {
+              "index": 5,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <!-- <a id=\"target\"></a> -->"
+            },
+            {
+              "index": 6,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: Text \\<a id=\"target\"></a>"
+            },
+            {
+              "index": 7,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=target><a>"
+            },
+            {
+              "index": 8,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=target href=\"javascript:alert(1)\"></a>"
+            },
+            {
+              "index": 9,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=\"target other\"></a>"
+            },
+            {
+              "index": 10,
+              "name": "Markdown source fragment targets > decodes fragments once, preserves authored case, and chooses the first duplicate"
+            },
+            {
+              "index": 11,
+              "name": "Markdown source fragment targets > prefers explicit IDs to heading slugs and retains heading fallback"
+            },
+            {
+              "index": 12,
+              "name": "Markdown source fragment targets > keeps lookups pane-local and reuses them for selection-only transactions"
+            },
+            {
+              "index": 13,
+              "name": "Markdown source fragment targets > maps reused HTML subtrees after a distant edit and rescans only changed blocks"
+            },
+            {
+              "index": 14,
+              "name": "Markdown source fragment targets > removes targets when Markdown context changes to a code fence"
+            },
+            {
+              "index": 15,
+              "name": "Markdown source fragment targets > treats an empty anchor as one hidden deletion unit"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 29,
+              "name": "Markdown HTML run projection > treats a legacy named anchor as an in-page target"
+            },
+            {
+              "index": 66,
+              "name": "Markdown HTML reduction > keeps anchor name"
+            },
+            {
+              "index": 73,
+              "name": "Markdown HTML reduction > prefers an explicit id over a legacy anchor name"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlConformance.test.ts",
+          "sha256": "fe6ac14a8876cc8f777a11850666bf4e3dfe7fba0666e5f1256b4d5cbc52da07",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown empty HTML anchors > hides <a id=\"target\"></a> in both live preview and isolated inline preview"
+            },
+            {
+              "index": 1,
+              "name": "Markdown empty HTML anchors > hides <a id=target></a> in both live preview and isolated inline preview"
+            },
+            {
+              "index": 2,
+              "name": "Markdown empty HTML anchors > keeps an unclosed anchor visible instead of repairing the authored source"
+            },
+            {
+              "index": 3,
+              "name": "Markdown empty HTML anchors > reveals an anchor for editing and folds it again without changing source"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlAnchors.test.ts",
+          "sha256": "d5aefafdb11d1126ea4cdb4d588787bb3e57d639e07d2243ce6cfdc3e0f6cc28",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown HTML anchor targets > hides a valid empty anchor in preview without changing its source: <a id=\"section\"></a>"
+            },
+            {
+              "index": 1,
+              "name": "Markdown HTML anchor targets > hides a valid empty anchor in preview without changing its source: <a id=section></a>"
+            },
+            {
+              "index": 2,
+              "name": "Markdown HTML anchor targets > preserves anchor source in source mode and reveals it for editing"
+            },
+            {
+              "index": 3,
+              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section><a>"
+            },
+            {
+              "index": 4,
+              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section>"
+            },
+            {
+              "index": 5,
+              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section href=\"javascript:alert(1)\"></a>"
+            },
+            {
+              "index": 6,
+              "name": "Markdown HTML anchor targets > navigates to an explicit target without changing the caret or document"
+            },
+            {
+              "index": 7,
+              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: `<a id=\"section\"></a>`"
+            },
+            {
+              "index": 8,
+              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: ```html\n<a id=\"section\"></a>\n```"
+            },
+            {
+              "index": 9,
+              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: \\<a id=\"section\"></a>"
+            },
+            {
+              "index": 10,
+              "name": "Markdown HTML anchor targets > keeps targets local to each document and updates positions and IDs after edits"
+            },
+            {
+              "index": 11,
+              "name": "Markdown HTML anchor targets > resolves the first exact explicit ID before a generated heading slug"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownLinkActivation.test.ts",
+          "sha256": "a968e52cd4ef0b05307543491508a51b954cfff25eec60eb871e883842a804dc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown live-preview link activation > resolves an empty explicit HTML anchor without a mounted target DOM element"
+            },
+            {
+              "index": 1,
+              "name": "Markdown live-preview link activation > updates remote link affordances when a target is removed and restored"
+            },
+            {
+              "index": 3,
+              "name": "Markdown live-preview link activation > routes [Jump](#target) through the same explicit target resolver"
+            },
+            {
+              "index": 4,
+              "name": "Markdown live-preview link activation > routes [[#target]] through the same explicit target resolver"
+            },
+            {
+              "index": 5,
+              "name": "Markdown live-preview link activation > routes <a href=\"#target\">Jump</a> through the same explicit target resolver"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::controlled_inline_html_ids_resolve"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::literal_incomplete_or_unsupported_html_registers_nothing"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::fragments_decode_once_and_ids_keep_their_case"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::explicit_ids_win_over_heading_slugs"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::targets_are_per_document_and_follow_edits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::a_distant_edit_reparses_only_its_block_and_moves_the_target"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::a_target_turned_into_code_disappears"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::an_empty_anchor_is_one_hidden_deletion_unit"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::empty_anchors_hide_without_changing_their_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::incomplete_or_unsupported_anchors_stay_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::an_anchor_reveals_for_editing_and_folds_again"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::links_reach_an_explicit_target"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::a_renamed_target_is_unavailable_until_restored"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::a_legacy_anchor_name_is_its_id_unless_an_id_is_given"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62803,204 +63057,6 @@
             {
               "index": 15,
               "name": "Markdown web embed IPC ownership > accepts only a live application main-frame sender"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-html-id-fragment-targets",
-      "kind": "gap",
-      "reason": "Fragment links resolve only to headings natively. Controlled inline HTML ids (`<a id>`, `<span id>`) are not fragment targets, so explicit ids, their case-preserving lookup and precedence over heading slugs, their incremental rescans and the empty anchor as one deletion unit do not exist. Nor does a legacy named anchor (`<a name>`) become a target or yield to an explicit id; an empty one stays visible source. An empty `<a id>` anchor is therefore not hidden or revealed for editing either.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/link-activation.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/links/markdownFragmentTargets.test.ts",
-          "sha256": "119ffecd0d2851b709b5ecf2ad26bf94e13b818baa0900aa248a6f53a9018291",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <a id=\"target\"></a>"
-            },
-            {
-              "index": 1,
-              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <a id=target></a>"
-            },
-            {
-              "index": 2,
-              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <span id=\"target\">text</span>"
-            },
-            {
-              "index": 3,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: `<a id=\"target\"></a>`"
-            },
-            {
-              "index": 4,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: ```html\n<a id=\"target\"></a>\n```"
-            },
-            {
-              "index": 5,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <!-- <a id=\"target\"></a> -->"
-            },
-            {
-              "index": 6,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: Text \\<a id=\"target\"></a>"
-            },
-            {
-              "index": 7,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=target><a>"
-            },
-            {
-              "index": 8,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=target href=\"javascript:alert(1)\"></a>"
-            },
-            {
-              "index": 9,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=\"target other\"></a>"
-            },
-            {
-              "index": 10,
-              "name": "Markdown source fragment targets > decodes fragments once, preserves authored case, and chooses the first duplicate"
-            },
-            {
-              "index": 11,
-              "name": "Markdown source fragment targets > prefers explicit IDs to heading slugs and retains heading fallback"
-            },
-            {
-              "index": 12,
-              "name": "Markdown source fragment targets > keeps lookups pane-local and reuses them for selection-only transactions"
-            },
-            {
-              "index": 13,
-              "name": "Markdown source fragment targets > maps reused HTML subtrees after a distant edit and rescans only changed blocks"
-            },
-            {
-              "index": 14,
-              "name": "Markdown source fragment targets > removes targets when Markdown context changes to a code fence"
-            },
-            {
-              "index": 15,
-              "name": "Markdown source fragment targets > treats an empty anchor as one hidden deletion unit"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
-          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
-          "cases": [
-            {
-              "index": 29,
-              "name": "Markdown HTML run projection > treats a legacy named anchor as an in-page target"
-            },
-            {
-              "index": 66,
-              "name": "Markdown HTML reduction > keeps anchor name"
-            },
-            {
-              "index": 73,
-              "name": "Markdown HTML reduction > prefers an explicit id over a legacy anchor name"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlConformance.test.ts",
-          "sha256": "fe6ac14a8876cc8f777a11850666bf4e3dfe7fba0666e5f1256b4d5cbc52da07",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown empty HTML anchors > hides <a id=\"target\"></a> in both live preview and isolated inline preview"
-            },
-            {
-              "index": 1,
-              "name": "Markdown empty HTML anchors > hides <a id=target></a> in both live preview and isolated inline preview"
-            },
-            {
-              "index": 2,
-              "name": "Markdown empty HTML anchors > keeps an unclosed anchor visible instead of repairing the authored source"
-            },
-            {
-              "index": 3,
-              "name": "Markdown empty HTML anchors > reveals an anchor for editing and folds it again without changing source"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlAnchors.test.ts",
-          "sha256": "d5aefafdb11d1126ea4cdb4d588787bb3e57d639e07d2243ce6cfdc3e0f6cc28",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown HTML anchor targets > hides a valid empty anchor in preview without changing its source: <a id=\"section\"></a>"
-            },
-            {
-              "index": 1,
-              "name": "Markdown HTML anchor targets > hides a valid empty anchor in preview without changing its source: <a id=section></a>"
-            },
-            {
-              "index": 2,
-              "name": "Markdown HTML anchor targets > preserves anchor source in source mode and reveals it for editing"
-            },
-            {
-              "index": 3,
-              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section><a>"
-            },
-            {
-              "index": 4,
-              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section>"
-            },
-            {
-              "index": 5,
-              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section href=\"javascript:alert(1)\"></a>"
-            },
-            {
-              "index": 6,
-              "name": "Markdown HTML anchor targets > navigates to an explicit target without changing the caret or document"
-            },
-            {
-              "index": 7,
-              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: `<a id=\"section\"></a>`"
-            },
-            {
-              "index": 8,
-              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: ```html\n<a id=\"section\"></a>\n```"
-            },
-            {
-              "index": 9,
-              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: \\<a id=\"section\"></a>"
-            },
-            {
-              "index": 10,
-              "name": "Markdown HTML anchor targets > keeps targets local to each document and updates positions and IDs after edits"
-            },
-            {
-              "index": 11,
-              "name": "Markdown HTML anchor targets > resolves the first exact explicit ID before a generated heading slug"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/rendering/markdownLinkActivation.test.ts",
-          "sha256": "a968e52cd4ef0b05307543491508a51b954cfff25eec60eb871e883842a804dc",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown live-preview link activation > resolves an empty explicit HTML anchor without a mounted target DOM element"
-            },
-            {
-              "index": 1,
-              "name": "Markdown live-preview link activation > updates remote link affordances when a target is removed and restored"
-            },
-            {
-              "index": 3,
-              "name": "Markdown live-preview link activation > routes [Jump](#target) through the same explicit target resolver"
-            },
-            {
-              "index": 4,
-              "name": "Markdown live-preview link activation > routes [[#target]] through the same explicit target resolver"
-            },
-            {
-              "index": 5,
-              "name": "Markdown live-preview link activation > routes <a href=\"#target\">Jump</a> through the same explicit target resolver"
             }
           ]
         }

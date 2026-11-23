@@ -76,11 +76,20 @@ pub(crate) fn sanitize_attributes(
     attributes: Vec<(String, String)>,
 ) -> Vec<(String, String)> {
     use crate::editor::markdown::platform::policy::presentation::presentation_attribute;
-    attributes
+    let mut kept: Vec<(String, String)> = attributes
         .into_iter()
         .filter(|(n, _)| !n.starts_with("on"))
         .filter_map(|(n, v)| presentation_attribute(tag, &n, &v).map(|v| (n, v)))
-        .collect()
+        .collect();
+    // A legacy named anchor shares the id namespace; an explicit id wins.
+    if tag == "a"
+        && !kept.iter().any(|(n, _)| n == "id")
+        && let Some(i) = kept.iter().position(|(n, _)| n == "name")
+    {
+        let (_, value) = kept.remove(i);
+        kept.push(("id".into(), value));
+    }
+    kept
 }
 
 /// Inspect authored roots before sanitization drops executable elements.
