@@ -70,6 +70,7 @@ fn inline(cx: &mut InlineDecoration, items: Vec<Item>) {
             range: item.image,
             pad: 0.,
             radius,
+            element: None,
             draw: Rc::new(move |_, column, font, _, app| {
                 let AssetState::Ready {
                     image,

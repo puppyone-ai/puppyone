@@ -138,17 +138,23 @@ impl Surface<'_, '_, '_> {
                     Node::Element(i) if i.tag == "img" => Some(i),
                     _ => None,
                 });
-                let source = e.children.iter().find_map(|c| match c {
+                // `<source media="(prefers-color-scheme: …)">` follows the
+                // editor's colour mode; without a match, the `<img>`.
+                let sources = e.children.iter().filter_map(|c| match c {
                     Node::Element(s) if s.tag == "source" => {
-                        s.attribute("srcset").map(str::to_owned)
+                        Some((s.attribute("media"), s.attribute("srcset")))
                     }
                     _ => None,
                 });
-                (
-                    img.and_then(|i| i.attribute("src").map(str::to_owned))
-                        .or_else(|| source.as_deref().and_then(best_candidate)),
-                    img.unwrap_or(e),
-                )
+                let fallback = img.and_then(|i| i.attribute("src")).or_else(|| {
+                    e.children.iter().find_map(|c| match c {
+                        Node::Element(s) if s.tag == "source" => s.attribute("srcset"),
+                        _ => None,
+                    })
+                });
+                let chosen = super::super::run::picture_source(sources, None, self.theme.dark)
+                    .or_else(|| fallback.and_then(best_candidate));
+                (chosen, img.unwrap_or(e))
             }
             _ => (
                 e.attribute("src")

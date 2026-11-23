@@ -5,6 +5,7 @@
 pub mod block;
 pub mod inline;
 pub mod render;
+pub mod run;
 pub mod sanitize;
 pub mod structure;
 pub mod tokenizer;
@@ -13,11 +14,11 @@ pub use block::{HtmlBlock, ShowSource};
 
 use crate::editor::{
     markdown::core::{
-        decorations::BlockDecoration,
+        decorations::{BlockDecoration, InlineDecoration, LineDecoration},
         features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
         plans::{BlockEmbed, Plan},
         state::PreviewState,
-        syntax::{Element, Syntax},
+        syntax::{Element, Kind, Syntax},
     },
     text::{
         buffer::Buffer,
@@ -50,6 +51,22 @@ impl MarkdownFeature for HtmlFeature {
 
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
         block::compile_blocks(cx, out);
+    }
+
+    fn semantic_kinds(&self) -> &'static [Kind] {
+        &[Kind::HtmlRun]
+    }
+
+    fn compile_element(&self, index: usize, element: &Element, cx: &CompileCx) -> Option<Plan> {
+        run::compile(index, element, cx)
+    }
+
+    fn decorate_line(&self, cx: &mut LineDecoration) {
+        run::decorate_line(cx);
+    }
+
+    fn decorate_inline_content(&self, cx: &mut InlineDecoration) {
+        run::decorate_inline(cx);
     }
 
     fn block_widget(

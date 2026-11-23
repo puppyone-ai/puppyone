@@ -24,6 +24,7 @@ mod editor_view_acceptance;
 mod embed_runtime_acceptance;
 mod html_acceptance;
 mod html_policy_acceptance;
+mod html_run_acceptance;
 mod inline_acceptance;
 mod inline_html_acceptance;
 mod linked_image_acceptance;

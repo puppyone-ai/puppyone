@@ -463,6 +463,7 @@ pub(super) fn shift_syntax_base(syntax: &mut Syntax, base: usize) {
         &mut syntax.table_cells,
         &mut syntax.inline_tags,
         &mut syntax.html_blocks,
+        &mut syntax.marker_html,
         &mut syntax.top_blocks,
     ] {
         for r in vec {

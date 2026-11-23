@@ -50673,6 +50673,332 @@
           "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b6_block_move_relocates_contained_maps_disjoint_and_resolves_partial_overlap"
         }
       ]
+    },
+    {
+      "id": "markdown-inline-html-runs",
+      "acceptance": "Balanced inline HTML the inline-editable profile cannot style (images, linked images, theme pictures, passive elements such as font, big, dfn, nobr, center or meter, empty elements, nested blocked elements, an HTML block sharing its line with a list or quote marker, inline audio and a single-line video) draws as one run in paragraphs, list and task items, headings, quotes and table cells. A run filling its lines is drawn by the HTML surface in place of the lines' text (the marker stays); one sharing its line keeps the surrounding Markdown as text, hides its tags, draws its images and players in the text and styles the text between tags. Classification covers the whole container; quote prefixes leave a multi-line run's source; Markdown inside renders but escaped text never becomes HTML; media need the document's asset broker, else the run stays source. A picture follows the editor's colour mode. A caret on either edge or inside reveals the exact source (nested Markdown cannot take the reveal), leaving folds it again, a read-only surface never reveals, a selection across keeps it drawn, and deletion at its edges removes one character. Links, linked images and disclosure summaries keep their gestures; any other click reveals. Native players differ from DOM media attributes: the run's own src plays through the workspace player (no autoplay); poster and fallback sources are not used.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown HTML run projection > renders the linked theme-aware download cards of a README list item"
+            },
+            {
+              "index": 1,
+              "name": "Markdown HTML run projection > keeps the list continuation indent out of the replaced range"
+            },
+            {
+              "index": 2,
+              "name": "Markdown HTML run projection > renders a linked image without exposing tags"
+            },
+            {
+              "index": 3,
+              "name": "Markdown HTML run projection > renders two images on one line without exposing tags"
+            },
+            {
+              "index": 4,
+              "name": "Markdown HTML run projection > renders a span around an image without exposing tags"
+            },
+            {
+              "index": 5,
+              "name": "Markdown HTML run projection > renders a heading image without exposing tags"
+            },
+            {
+              "index": 6,
+              "name": "Markdown HTML run projection > renders a list marker image without exposing tags"
+            },
+            {
+              "index": 7,
+              "name": "Markdown HTML run projection > renders a quote marker image without exposing tags"
+            },
+            {
+              "index": 8,
+              "name": "Markdown HTML run projection > renders a theme picture without exposing tags"
+            },
+            {
+              "index": 9,
+              "name": "Markdown HTML run projection > keeps the text around a run as ordinary document text"
+            },
+            {
+              "index": 10,
+              "name": "Markdown HTML run projection > renders Markdown inside an inline run but never re-reads escaped text as HTML"
+            },
+            {
+              "index": 11,
+              "name": "Markdown HTML run projection > projects an HTML block sharing its line with a list marker"
+            },
+            {
+              "index": 12,
+              "name": "Markdown HTML run projection > projects an HTML block sharing its line with an ordered list marker"
+            },
+            {
+              "index": 13,
+              "name": "Markdown HTML run projection > projects an HTML block sharing its line with a quote marker"
+            },
+            {
+              "index": 14,
+              "name": "Markdown HTML run projection > keeps one classification however a range query slices a multi-line run"
+            },
+            {
+              "index": 15,
+              "name": "Markdown HTML run projection > strips quote prefixes from the source of a multi-line run"
+            },
+            {
+              "index": 18,
+              "name": "Markdown HTML run projection > renders an image inside a task item"
+            },
+            {
+              "index": 20,
+              "name": "Markdown HTML run projection > renders a multi-line HTML block that starts after a quote marker"
+            },
+            {
+              "index": 21,
+              "name": "Markdown HTML run projection > gives an image on its own line between text lines one run"
+            },
+            {
+              "index": 22,
+              "name": "Markdown HTML run projection > renders the passive font element"
+            },
+            {
+              "index": 23,
+              "name": "Markdown HTML run projection > renders the passive big element"
+            },
+            {
+              "index": 24,
+              "name": "Markdown HTML run projection > renders the passive dfn element"
+            },
+            {
+              "index": 25,
+              "name": "Markdown HTML run projection > renders the passive nobr element"
+            },
+            {
+              "index": 26,
+              "name": "Markdown HTML run projection > renders the passive center element"
+            },
+            {
+              "index": 27,
+              "name": "Markdown HTML run projection > renders the passive meter element"
+            },
+            {
+              "index": 28,
+              "name": "Markdown HTML run projection > hides an empty element while keeping its source"
+            },
+            {
+              "index": 34,
+              "name": "Markdown HTML run source fallbacks > removes a nested blocked element and keeps the rest of the run"
+            },
+            {
+              "index": 35,
+              "name": "Markdown HTML run source fallbacks > does not render media on a surface without an asset broker"
+            },
+            {
+              "index": 36,
+              "name": "Markdown HTML run editing > shows the exact source for a caret at its opening edge"
+            },
+            {
+              "index": 37,
+              "name": "Markdown HTML run editing > shows the exact source for a caret at its closing edge"
+            },
+            {
+              "index": 38,
+              "name": "Markdown HTML run editing > shows the exact source for a caret at its interior"
+            },
+            {
+              "index": 39,
+              "name": "Markdown HTML run editing > folds the run again when the caret leaves, without touching the document"
+            },
+            {
+              "index": 40,
+              "name": "Markdown HTML run editing > does not let Markdown nested in a revealed run steal the reveal"
+            },
+            {
+              "index": 41,
+              "name": "Markdown HTML run editing > never reveals on a read-only surface"
+            },
+            {
+              "index": 42,
+              "name": "Markdown HTML run editing > keeps a selection across the run in one projection"
+            },
+            {
+              "index": 43,
+              "name": "Markdown HTML run editing > deletes source text one character at a time at the run edges"
+            },
+            {
+              "index": 44,
+              "name": "Markdown HTML run editing > reports the run as the reveal element for a caret on either edge"
+            },
+            {
+              "index": 45,
+              "name": "Markdown HTML run editing > lets links and disclosure controls keep their pointer gestures"
+            },
+            {
+              "index": 85,
+              "name": "Markdown inline SVG and audio > resolves audio through the broker as audio"
+            },
+            {
+              "index": 86,
+              "name": "Markdown HTML in isolated table-cell previews > hydrates a picture through the same media path"
+            },
+            {
+              "index": 87,
+              "name": "Markdown HTML in isolated table-cell previews > renders a linked image inside a table cell"
+            },
+            {
+              "index": 88,
+              "name": "Markdown HTML in isolated table-cell previews > keeps the whole label of a badge link"
+            },
+            {
+              "index": 89,
+              "name": "Markdown HTML in isolated table-cell previews > keeps media as visible source without an asset broker"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownImageReadiness.test.ts",
+          "sha256": "54bc46ebba0da0532089534f66ae03d33cd9a93faeb79fb9c3cd6f03692a2be6",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown image readiness > renders a raw HTML image inside a paragraph through the brokered media path"
+            },
+            {
+              "index": 2,
+              "name": "Markdown image readiness > edits a raw HTML image inside a paragraph through the canonical source"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownVideoEmbed.test.ts",
+          "sha256": "701911c4d06ff7dad486f4f856bfdc181b85ac7f17c996fde85c18b76d337d59",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Markdown video embeds > hydrates a standalone single-line HTML video through the typed broker path"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::readme_download_cards_draw_as_linked_theme_pictures"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_picture_follows_the_colour_mode"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::the_list_continuation_indent_stays_outside_the_run"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::runs_draw_without_exposing_tags"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::text_around_a_run_stays_ordinary_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::markdown_inside_a_run_renders_but_escaped_text_stays_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::html_blocks_on_marker_lines_draw_as_block_runs"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_multi_line_run_keeps_one_classification_in_any_slice"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_quoted_multi_line_run_drops_its_quote_prefixes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::an_image_inside_a_task_item_draws"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_multi_line_block_after_a_quote_marker_draws_as_one_run"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::an_image_line_inside_a_paragraph_is_a_run_not_a_block"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::passive_elements_draw_without_exposing_tags"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::an_empty_element_hides_and_its_source_stays"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_nested_blocked_element_is_removed"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::without_an_asset_broker_media_stays_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_caret_at_either_edge_or_inside_shows_the_exact_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::the_run_draws_again_when_the_caret_leaves"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::markdown_nested_in_a_run_does_not_take_the_reveal"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_read_only_surface_never_reveals"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_selection_across_the_run_keeps_it_drawn"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::deletion_at_the_run_edges_removes_one_character"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::the_run_is_the_reveal_element_on_either_edge"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::links_and_disclosures_keep_their_gestures_and_other_clicks_reveal"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::runs_in_table_cells_draw_through_the_media_path"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_raw_html_image_in_a_paragraph_draws_through_the_broker"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_raw_html_image_edits_through_its_revealed_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_single_line_html_video_draws_through_the_media_path"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::audio_in_a_sentence_resolves_through_the_media_path_as_audio"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -63669,216 +63995,6 @@
             {
               "index": 2,
               "name": "embedded frame relay > does nothing without a frame"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-inline-html-runs",
-      "kind": "gap",
-      "reason": "Natively HTML renders only as its own block. Inline HTML runs stay visible source: images, linked images and theme pictures inside a paragraph, list item, task, heading, quote or table cell (README badge and download-card lines), passive elements such as font, big, dfn, nobr, meter or an inline center, Markdown inside an inline run, an HTML block on the same line as a list or quote marker, empty elements that the product hides, and inline audio. With no runs there is also no run reveal on caret entry, fold on caret exit, selection spanning a run, nested blocked element reduction inside a run or isolated table-cell run preview.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/syntax/inline-html.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
-          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown HTML run projection > renders the linked theme-aware download cards of a README list item"
-            },
-            {
-              "index": 1,
-              "name": "Markdown HTML run projection > keeps the list continuation indent out of the replaced range"
-            },
-            {
-              "index": 2,
-              "name": "Markdown HTML run projection > renders a linked image without exposing tags"
-            },
-            {
-              "index": 3,
-              "name": "Markdown HTML run projection > renders two images on one line without exposing tags"
-            },
-            {
-              "index": 4,
-              "name": "Markdown HTML run projection > renders a span around an image without exposing tags"
-            },
-            {
-              "index": 5,
-              "name": "Markdown HTML run projection > renders a heading image without exposing tags"
-            },
-            {
-              "index": 6,
-              "name": "Markdown HTML run projection > renders a list marker image without exposing tags"
-            },
-            {
-              "index": 7,
-              "name": "Markdown HTML run projection > renders a quote marker image without exposing tags"
-            },
-            {
-              "index": 8,
-              "name": "Markdown HTML run projection > renders a theme picture without exposing tags"
-            },
-            {
-              "index": 9,
-              "name": "Markdown HTML run projection > keeps the text around a run as ordinary document text"
-            },
-            {
-              "index": 10,
-              "name": "Markdown HTML run projection > renders Markdown inside an inline run but never re-reads escaped text as HTML"
-            },
-            {
-              "index": 11,
-              "name": "Markdown HTML run projection > projects an HTML block sharing its line with a list marker"
-            },
-            {
-              "index": 12,
-              "name": "Markdown HTML run projection > projects an HTML block sharing its line with an ordered list marker"
-            },
-            {
-              "index": 13,
-              "name": "Markdown HTML run projection > projects an HTML block sharing its line with a quote marker"
-            },
-            {
-              "index": 14,
-              "name": "Markdown HTML run projection > keeps one classification however a range query slices a multi-line run"
-            },
-            {
-              "index": 15,
-              "name": "Markdown HTML run projection > strips quote prefixes from the source of a multi-line run"
-            },
-            {
-              "index": 18,
-              "name": "Markdown HTML run projection > renders an image inside a task item"
-            },
-            {
-              "index": 20,
-              "name": "Markdown HTML run projection > renders a multi-line HTML block that starts after a quote marker"
-            },
-            {
-              "index": 21,
-              "name": "Markdown HTML run projection > gives an image on its own line between text lines one run"
-            },
-            {
-              "index": 22,
-              "name": "Markdown HTML run projection > renders the passive font element"
-            },
-            {
-              "index": 23,
-              "name": "Markdown HTML run projection > renders the passive big element"
-            },
-            {
-              "index": 24,
-              "name": "Markdown HTML run projection > renders the passive dfn element"
-            },
-            {
-              "index": 25,
-              "name": "Markdown HTML run projection > renders the passive nobr element"
-            },
-            {
-              "index": 26,
-              "name": "Markdown HTML run projection > renders the passive center element"
-            },
-            {
-              "index": 27,
-              "name": "Markdown HTML run projection > renders the passive meter element"
-            },
-            {
-              "index": 28,
-              "name": "Markdown HTML run projection > hides an empty element while keeping its source"
-            },
-            {
-              "index": 34,
-              "name": "Markdown HTML run source fallbacks > removes a nested blocked element and keeps the rest of the run"
-            },
-            {
-              "index": 35,
-              "name": "Markdown HTML run source fallbacks > does not render media on a surface without an asset broker"
-            },
-            {
-              "index": 36,
-              "name": "Markdown HTML run editing > shows the exact source for a caret at its opening edge"
-            },
-            {
-              "index": 37,
-              "name": "Markdown HTML run editing > shows the exact source for a caret at its closing edge"
-            },
-            {
-              "index": 38,
-              "name": "Markdown HTML run editing > shows the exact source for a caret at its interior"
-            },
-            {
-              "index": 39,
-              "name": "Markdown HTML run editing > folds the run again when the caret leaves, without touching the document"
-            },
-            {
-              "index": 40,
-              "name": "Markdown HTML run editing > does not let Markdown nested in a revealed run steal the reveal"
-            },
-            {
-              "index": 41,
-              "name": "Markdown HTML run editing > never reveals on a read-only surface"
-            },
-            {
-              "index": 42,
-              "name": "Markdown HTML run editing > keeps a selection across the run in one projection"
-            },
-            {
-              "index": 43,
-              "name": "Markdown HTML run editing > deletes source text one character at a time at the run edges"
-            },
-            {
-              "index": 44,
-              "name": "Markdown HTML run editing > reports the run as the reveal element for a caret on either edge"
-            },
-            {
-              "index": 45,
-              "name": "Markdown HTML run editing > lets links and disclosure controls keep their pointer gestures"
-            },
-            {
-              "index": 85,
-              "name": "Markdown inline SVG and audio > resolves audio through the broker as audio"
-            },
-            {
-              "index": 86,
-              "name": "Markdown HTML in isolated table-cell previews > hydrates a picture through the same media path"
-            },
-            {
-              "index": 87,
-              "name": "Markdown HTML in isolated table-cell previews > renders a linked image inside a table cell"
-            },
-            {
-              "index": 88,
-              "name": "Markdown HTML in isolated table-cell previews > keeps the whole label of a badge link"
-            },
-            {
-              "index": 89,
-              "name": "Markdown HTML in isolated table-cell previews > keeps media as visible source without an asset broker"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/embeds/markdownImageReadiness.test.ts",
-          "sha256": "54bc46ebba0da0532089534f66ae03d33cd9a93faeb79fb9c3cd6f03692a2be6",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Markdown image readiness > renders a raw HTML image inside a paragraph through the brokered media path"
-            },
-            {
-              "index": 2,
-              "name": "Markdown image readiness > edits a raw HTML image inside a paragraph through the canonical source"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/embeds/markdownVideoEmbed.test.ts",
-          "sha256": "701911c4d06ff7dad486f4f856bfdc181b85ac7f17c996fde85c18b76d337d59",
-          "cases": [
-            {
-              "index": 4,
-              "name": "Markdown video embeds > hydrates a standalone single-line HTML video through the typed broker path"
             }
           ]
         }

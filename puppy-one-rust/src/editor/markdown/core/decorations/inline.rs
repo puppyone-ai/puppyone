@@ -46,6 +46,12 @@ impl Builder<'_> {
             state: &cx.preview.features,
         };
 
+        // A revealed run shows its whole source: nothing nested in it decorates.
+        let revealed_run = cx.preview.reveal.as_ref().filter(|r| {
+            cx.syntax
+                .elements_in((*r).clone())
+                .any(|e| e.kind == Kind::HtmlRun && &e.range == *r)
+        });
         for (plan, e) in entries {
             if occupied
                 .iter()
@@ -53,7 +59,8 @@ impl Builder<'_> {
             {
                 continue;
             }
-            let reveal = cx.preview.reveal.as_ref() == Some(&e.range);
+            let reveal = cx.preview.reveal.as_ref() == Some(&e.range)
+                || revealed_run.is_some_and(|r| r.start <= e.range.start && e.range.end <= r.end);
             match e.kind {
                 Kind::WikiLink => {
                     // Syntax owns the inline region (including table-cell

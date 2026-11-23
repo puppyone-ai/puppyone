@@ -1,5 +1,7 @@
 //! Inline HTML tag pairing (`features/html/inlineHtmlModel.ts`, the
 //! `inline-editable` profile).
+use super::super::tokenizer::VOID_TAGS;
+use crate::editor::markdown::platform::policy::html_profiles::BLOCKED_TAGS;
 use crate::editor::{
     markdown::core::syntax::{Element, InlineTag, Kind, Span, Syntax},
     text::buffer::Buffer,
@@ -13,12 +15,37 @@ const TAGS: &[&str] = &[
 ];
 
 /// One tag: `<name attrs>`, `</name>` or `<name/>`.
-struct Tag {
+pub(in crate::editor::markdown::features::html) struct Tag {
+    pub range: Span,
+    pub name: String,
+    pub closing: bool,
+    pub void: bool,
+    pub attributes: Vec<(String, String)>,
+}
+
+impl Tag {
+    pub fn attribute(&self, name: &str) -> Option<&str> {
+        self.attributes
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.as_str())
+    }
+
+    /// `<img>` or `<x/>`: an element without content (`selfClosing`).
+    fn self_closing(&self) -> bool {
+        !self.closing && (self.void || VOID_TAGS.contains(&self.name.as_str()))
+    }
+}
+
+/// The tag at `range` of `doc`, its range in the document.
+pub(in crate::editor::markdown::features::html) fn tag_at(
+    doc: &Buffer,
     range: Span,
-    name: String,
-    closing: bool,
-    void: bool,
-    attributes: Vec<(String, String)>,
+) -> Option<Tag> {
+    let slice = doc.slice_cow(range.clone());
+    let mut t = tag(&slice, 0..slice.len())?;
+    t.range = range;
+    Some(t)
 }
 
 fn tag(source: &str, range: Span) -> Option<Tag> {
@@ -120,6 +147,7 @@ pub(super) fn elements_in_window(
                 .map(|e| e.range.clone()),
         )
         .chain(syntax.table_cells.iter().cloned())
+        .chain(syntax.marker_html.iter().cloned())
         .filter(|r| r.end > window.start && r.start < window.end)
         .collect();
     containers.sort_by_key(|r| (r.start, r.end));
@@ -128,22 +156,194 @@ pub(super) fn elements_in_window(
     for container in containers {
         let first = tags.partition_point(|r| r.start < container.start);
         let last = tags.partition_point(|r| r.start < container.end);
-        if first < last {
-            for element in pair_container(doc, &tags[first..last], container.end) {
-                // Inline HTML may span soft line breaks in a paragraph, but a
-                // table cell is its own inline context. Any tag pair touching a
-                // cell must fit wholly inside that one cell.
-                let index = syntax
-                    .table_cells
-                    .partition_point(|cell| cell.end <= element.range.start);
-                let fits_cell = syntax.table_cells.get(index).is_none_or(|cell| {
-                    cell.start >= element.range.end
-                        || (cell.start <= element.range.start && cell.end >= element.range.end)
-                });
-                if fits_cell {
-                    out.push(element);
-                }
+        if first >= last {
+            continue;
+        }
+        let runs = runs(doc, &tags[first..last], container.clone());
+        let rest: Vec<Span> = tags[first..last]
+            .iter()
+            .filter(|t| {
+                !runs
+                    .iter()
+                    .any(|r| r.range.start <= t.start && t.end <= r.range.end)
+            })
+            .cloned()
+            .collect();
+        for element in runs
+            .into_iter()
+            .chain(pair_container(doc, &rest, container.end))
+        {
+            // Inline HTML may span soft line breaks in a paragraph, but a
+            // table cell is its own inline context. Any tag pair touching a
+            // cell must fit wholly inside that one cell.
+            let index = syntax
+                .table_cells
+                .partition_point(|cell| cell.end <= element.range.start);
+            let fits_cell = syntax.table_cells.get(index).is_none_or(|cell| {
+                cell.start >= element.range.end
+                    || (cell.start <= element.range.start && cell.end >= element.range.end)
+            });
+            if fits_cell {
+                out.push(element);
             }
+        }
+    }
+    out.sort_by_key(|e| (e.range.start, std::cmp::Reverse(e.range.end)));
+    out
+}
+
+/// One element of a container's tag pairing (`MarkdownInlineHtml`).
+struct Paired {
+    range: Span,
+    name: String,
+    /// Opening tag (or the only tag) and closing tag, as indexes into the tags.
+    open: usize,
+    content: Option<Span>,
+    complete: bool,
+}
+
+/// `pairInlineHtmlContainer` + `assignInlineHtmlRuns`: pairs every tag of
+/// a container and keeps the groups (a root and the elements inside it) that
+/// must render as one run. Classification covers the whole container, so a
+/// run keeps one projection however a window slices it.
+fn runs(doc: &Buffer, spans: &[Span], container: Span) -> Vec<Element> {
+    let tags: Vec<Tag> = spans
+        .iter()
+        .filter(|r| r.end <= container.end)
+        .filter_map(|r| tag_at(doc, r.clone()))
+        .collect();
+    let mut paired: Vec<Paired> = Vec::new();
+    let mut stack: Vec<usize> = Vec::new();
+    let mut invalid: Vec<Span> = Vec::new();
+    for (i, t) in tags.iter().enumerate() {
+        if t.self_closing() {
+            paired.push(Paired {
+                range: t.range.clone(),
+                name: t.name.clone(),
+                open: i,
+                content: None,
+                complete: true,
+            });
+        } else if !t.closing {
+            stack.push(i);
+        } else if stack.last().is_some_and(|&o| tags[o].name == t.name) {
+            let o = stack.pop().unwrap();
+            paired.push(Paired {
+                range: tags[o].range.start..t.range.end,
+                name: t.name.clone(),
+                open: o,
+                content: Some(tags[o].range.end..t.range.start),
+                complete: true,
+            });
+        } else {
+            invalid.push(t.range.clone());
+            paired.push(Paired {
+                range: t.range.clone(),
+                name: t.name.clone(),
+                open: i,
+                content: None,
+                complete: false,
+            });
+        }
+    }
+    for o in stack {
+        invalid.push(tags[o].range.start..container.end);
+        paired.push(Paired {
+            range: tags[o].range.start..container.end,
+            name: tags[o].name.clone(),
+            open: o,
+            content: None,
+            complete: false,
+        });
+    }
+    for p in &mut paired {
+        if invalid
+            .iter()
+            .any(|r| r.start <= p.range.start && p.range.end <= r.end && *r != p.range)
+        {
+            p.complete = false;
+        }
+    }
+    paired.sort_by(|a, b| {
+        a.range
+            .start
+            .cmp(&b.range.start)
+            .then(b.range.end.cmp(&a.range.end))
+            .then(a.name.cmp(&b.name))
+    });
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < paired.len() {
+        let root = &paired[i];
+        let mut end = i + 1;
+        while end < paired.len() && paired[end].range.end <= root.range.end {
+            end += 1;
+        }
+        let group = &paired[i..end];
+        if requires_run(group, &tags) {
+            let markers: Vec<Span> = tags
+                .iter()
+                .filter(|t| root.range.start <= t.range.start && t.range.end <= root.range.end)
+                .map(|t| t.range.clone())
+                .collect();
+            let mut e = Element::new(Kind::HtmlRun, root.range.clone(), markers, None);
+            e.text = Some(run_source(&doc.slice_cow(root.range.clone())));
+            e.html = Some(Box::new(InlineTag {
+                name: root.name.clone(),
+                href: None,
+                color: None,
+                background: None,
+            }));
+            out.push(e);
+        }
+        i = end;
+    }
+    out
+}
+
+/// `requiresInlineHtmlRun`: a complete group whose root is not executable,
+/// with no anchor the URL policy refuses, and with an element the
+/// inline-editable profile cannot style (or an empty one it would hide).
+fn requires_run(group: &[Paired], tags: &[Tag]) -> bool {
+    let root = &group[0];
+    if BLOCKED_TAGS.contains(&root.name.as_str()) || group.iter().any(|p| !p.complete) {
+        return false;
+    }
+    let unsafe_href = |p: &Paired| {
+        p.name == "a"
+            && tags[p.open].attribute("href").is_some_and(|h| {
+                crate::editor::markdown::platform::brokers::link::safe_href(h).is_none()
+            })
+    };
+    if group.iter().any(unsafe_href) {
+        return false;
+    }
+    group.iter().any(|p| {
+        let mark = TAGS.contains(&p.name.as_str()) && !BLOCKED_TAGS.contains(&p.name.as_str());
+        match &p.content {
+            None => p.name != "br",
+            Some(_) if !mark => true,
+            Some(content) => {
+                content.is_empty() && !(p.name == "a" && tags[p.open].attribute("id").is_some())
+            }
+        }
+    })
+}
+
+/// `readMarkdownInlineHtmlRunSource`: continuation lines keep their list or
+/// quote prefix in the document only.
+pub fn run_source(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    for (i, line) in source.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+            let mut rest = line.trim_start_matches([' ', '\t']);
+            while let Some(after) = rest.strip_prefix('>') {
+                rest = after.strip_prefix([' ', '\t']).unwrap_or(after);
+            }
+            out.push_str(rest);
+        } else {
+            out.push_str(line);
         }
     }
     out

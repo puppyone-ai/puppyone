@@ -131,6 +131,7 @@ impl MarkdownFeature for MathFeature {
             range: range.clone(),
             pad: 0.08,
             radius: 0.,
+            element: None,
             draw: Rc::new(move |line, _, _, window, app| {
                 let mut request = request.clone();
                 if let Some(line) = line {

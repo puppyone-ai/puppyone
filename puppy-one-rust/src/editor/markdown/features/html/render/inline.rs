@@ -80,6 +80,23 @@ impl Surface<'_, '_, '_> {
             "br" => return out.push(Piece::Break),
             "img" | "picture" | "svg" => {
                 let atom = self.image(e, &inherit, available);
+                // A linked image follows its link (under the URL policy)
+                // and keeps the pointer from reaching the editor.
+                let atom = match &inherit.link {
+                    Some(href) => {
+                        let (view, href) = (self.view.clone(), href.clone());
+                        div()
+                            .id(self.id("md-html-link-image"))
+                            .cursor(crate::theme::clickable_cursor())
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .on_click(move |_, _, cx| {
+                                let _ = view.update(cx, |v, cx| v.follow_href(&href, cx));
+                            })
+                            .child(atom)
+                            .into_any_element()
+                    }
+                    None => atom,
+                };
                 return out.push(Piece::Atom(atom));
             }
             "b" | "strong" => {
