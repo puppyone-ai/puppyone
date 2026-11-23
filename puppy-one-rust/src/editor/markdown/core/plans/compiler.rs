@@ -139,7 +139,13 @@ pub fn window_syntax_view(
         note_definitions: Vec::new(),
         inline_tags: Vec::new(),
         html_blocks: slice_spans(&syntax.html_blocks),
-        top_blocks: slice_spans(&syntax.top_blocks),
+        // Clamped to the window: block features scan only its lines. The
+        // incremental compile runs only when no multi-block delimiter falls in
+        // or opens around the window, so no block they find can reach past it.
+        top_blocks: slice_spans(&syntax.top_blocks)
+            .into_iter()
+            .map(|b| b.start.max(byte_window.start)..b.end.min(byte_window.end))
+            .collect(),
         footnotes: Default::default(),
         link_defs: Vec::new(),
         block_delimiters: Vec::new(),

@@ -94,6 +94,7 @@ suites = {
         't4_width_resize_on_1600_sections_does_zero_block_rehashes',
         't4_single_list_10k_task_toggle_and_typing_patch_incrementally',
         't4_extreme_documents_edit_and_navigate_cleanly',
+        'a_one_item_edit_in_a_long_list_compiles_only_its_lines',
     ],
     'editor::markdown::tests::concurrent_edit_acceptance::': [
         't5_b7_code_block_escape_and_blur_keep_typed_text_and_leave_editing_state',

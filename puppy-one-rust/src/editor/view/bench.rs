@@ -355,8 +355,12 @@ fn editor_stress_edit_cost() {
     let lines = view.read_with(cx, |v, _| v.state.doc.line_count());
 
     let anchor_pos = match shape.as_str() {
-        "list_10k" => text
-            .find("- List item 5000")
+        "list_10k" | "list_100" => text
+            .find(if shape == "list_10k" {
+                "- List item 5000"
+            } else {
+                "- List item 50 "
+            })
             .map(|p| p + 18)
             .unwrap_or(text.len() / 2),
         "single_line_100k" => text.len() / 2,

@@ -50498,7 +50498,7 @@
     },
     {
       "id": "markdown-single-list-incremental-reparse",
-      "acceptance": "Single-line edits and GFM task checkbox toggles inside a 10,000-line flat single-list document patch Syntax, Plans, Decorations, and HeightMap incrementally without full-document reparses or full height-map rebuilds.",
+      "acceptance": "Single-line edits and GFM task checkbox toggles inside a 10,000-line flat single-list document patch Syntax, Plans, Decorations, and HeightMap incrementally without full-document reparses or full height-map rebuilds; the block features compiling the edit see only the edited lines, not the whole list, and the result matches a full compile with a formula elsewhere in the list.",
       "typescript": [
         {
           "path": "tests/unit/editor/formats/markdown/rendering/markdownPerformanceProjection.test.ts",
@@ -50515,6 +50515,10 @@
         {
           "package": "po-editor",
           "test": "editor::markdown::tests::scale_and_resize_acceptance::t4_single_list_10k_task_toggle_and_typing_patch_incrementally"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::scale_and_resize_acceptance::a_one_item_edit_in_a_long_list_compiles_only_its_lines"
         }
       ]
     },

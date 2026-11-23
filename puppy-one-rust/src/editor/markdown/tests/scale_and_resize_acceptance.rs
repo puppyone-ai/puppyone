@@ -246,6 +246,104 @@ fn t4_single_list_10k_task_toggle_and_typing_patch_incrementally(cx: &mut TestAp
     );
 }
 
+/// Task book A1 (`markdown-single-block-documents-reparse`): a document that
+/// is one long list compiles a one-item edit at item level. The window's
+/// syntax view holds only the edited lines, so block features (math, MDX)
+/// scan those lines and not the whole list; a math block in another item
+/// still matches a full compile whether the edit is before or after it.
+#[test]
+fn a_one_item_edit_in_a_long_list_compiles_only_its_lines() {
+    use crate::editor::markdown::core::{
+        plans::{self, PlanCache},
+        state::FeatureStateStore,
+    };
+    let source: String = (0..10_000)
+        .map(|i| {
+            if i == 7_000 {
+                format!("- Item {i} with a formula\n  $$\n  x^2 + y^2\n  $$")
+            } else {
+                format!("- Item {i} with `code_{i}` and **bold**")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let folds = FeatureStateStore::default();
+    for item in [5_000, 8_000] {
+        let before = Buffer::new(source.clone());
+        let syntax = Syntax::parse_with(&before, FEATURES);
+        assert_eq!(syntax.top_blocks.len(), 1, "the whole list is one block");
+        let plans_before = plans::compile(&before, &syntax, &folds, FEATURES);
+        let math = |plans: &[plans::Plan]| {
+            plans
+                .iter()
+                .filter(|p| p.embed().is_some_and(|e| e.feature == "math"))
+                .count()
+        };
+        assert_eq!(
+            math(&plans_before),
+            1,
+            "control: the formula is a math block"
+        );
+
+        let line = before.line_index(source.find(&format!("- Item {item} ")).unwrap());
+        let at = before.line_range(line).start + 4;
+        let mut after = before.clone();
+        let change = ChangeSet::replace(at..at, "Z");
+        after.replace(at..at, "Z");
+        let (next, splice) =
+            Syntax::try_parse_incremental(&after, &before, &syntax, &change, FEATURES)
+                .expect("a one-item edit patches the list incrementally");
+        assert_eq!(splice.new_lines, line..line + 1);
+
+        // The window view the block features see stays inside the edited line.
+        let view = plans::window_syntax_view(&next, &splice.new_bytes, &splice.new_lines);
+        assert!(!view.top_blocks.is_empty());
+        assert!(
+            view.top_blocks
+                .iter()
+                .all(|b| b.start >= splice.new_bytes.start && b.end <= splice.new_bytes.end),
+            "item {item}: the window's blocks {:?} reach past {:?}",
+            view.top_blocks,
+            splice.new_bytes
+        );
+        // Control: the document's own block spans the whole list.
+        assert!(next.top_blocks[0].start < splice.new_bytes.start);
+        assert!(next.top_blocks[0].end > splice.new_bytes.end);
+
+        let mut cache = PlanCache::default();
+        cache.rebuild_index(&plans_before);
+        let incremental = plans::compile_incremental(
+            &after,
+            &next,
+            &plans_before,
+            syntax.elements.len(),
+            &splice,
+            &folds,
+            FEATURES,
+            &mut cache,
+        );
+        assert_eq!(
+            cache.block_compiles, 1,
+            "item {item}: compiled incrementally"
+        );
+        let mut refreshed = incremental.clone();
+        plans::refresh_shifted_block_plans(
+            &after,
+            &next,
+            &folds,
+            FEATURES,
+            &mut refreshed,
+            0..after.len(),
+        );
+        assert_eq!(
+            refreshed,
+            plans::compile(&after, &next, &folds, FEATURES),
+            "item {item}: incremental plans match a full compile"
+        );
+        assert_eq!(math(&incremental), 1, "item {item}: the formula survives");
+    }
+}
+
 /// T4 extreme-shape contract: verifies opening, typing, and arrow navigation
 /// work cleanly without panics or stuck selection on a 10k-item list, a
 /// 100k-char single line, a 200x2000 wide table, and a 500-image document.
