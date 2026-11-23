@@ -53,11 +53,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # qubits carries the Rust GPUI app until it replaces main.
+          # qubits carries the Rust GPUI app until it replaces main; release/*
+          # branches freeze a candidate for Stable promotion.
           case "${GITHUB_REF}" in
-            refs/heads/main | refs/heads/qubits) ;;
+            refs/heads/main | refs/heads/qubits | refs/heads/release/*) ;;
             *)
-              echo "Internal releases must be built from main or qubits." >&2
+              echo "Internal releases must be built from main, qubits or a release/* branch." >&2
               exit 1
               ;;
           esac

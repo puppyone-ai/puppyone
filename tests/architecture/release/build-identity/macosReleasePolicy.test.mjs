@@ -168,14 +168,14 @@ describe("macOS internal release workflow", () => {
     );
   });
 
-  it("rejects an Internal workflow that builds from any branch other than main or qubits", () => {
+  it("rejects an Internal workflow that builds from any branch other than main, qubits or release/*", () => {
     const workflow = readFileSync(
       new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url),
       "utf8",
-    ).replace("refs/heads/main | refs/heads/qubits) ;;", "refs/heads/*) ;;");
+    ).replace("refs/heads/main | refs/heads/qubits | refs/heads/release/*) ;;", "refs/heads/*) ;;");
 
     expect(inspectInternalReleaseWorkflow(workflow)).toContain(
-      "the Internal workflow must accept only the main and qubits release branches",
+      "the Internal workflow must accept only main, qubits and release/* branches",
     );
   });
 });

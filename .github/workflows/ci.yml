@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - qubits
+      - "release/**"
 
 permissions:
   contents: read
