@@ -14,7 +14,7 @@ use super::{
 use crate::{
     editor::{
         markdown::{
-            platform::render as render_broker,
+            platform::brokers::render as render_broker,
             shared::widgets::ring,
             style::{BlockStyle, MarkdownTheme},
         },

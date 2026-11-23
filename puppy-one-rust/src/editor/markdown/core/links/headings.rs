@@ -83,7 +83,7 @@ impl Headings {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::markdown::platform::link::safe_href;
+    use crate::editor::markdown::platform::brokers::link::safe_href;
 
     #[test]
     fn actual_ts_heading_targets_and_url_policy() {

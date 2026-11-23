@@ -1,14 +1,15 @@
 //! Block-level HTML surface elements: headings, paragraphs, blockquotes,
 //! `<pre>`, lists (`<ul>` / `<ol>`), `<table>`, `<hr>`, and `<details>`.
-use super::{
-    Inherit, Piece, Surface, align_of, heading_level, is_block, is_details_toggled, style_color,
-    toggle_details_state,
-};
+use super::{Inherit, Piece, Surface, align_of, heading_level, is_block, style_color};
 use crate::{
-    editor::markdown::features::html::sanitize::{Element, MAX_HTML_DEPTH, Node},
+    editor::markdown::{
+        features::html::sanitize::{Element, MAX_HTML_DEPTH, Node},
+        platform::sessions::disclosure,
+    },
     ui::components::{SurfaceCorners, SurfaceStyledExt},
 };
 use gpui::{prelude::*, *};
+use std::rc::Rc;
 
 impl Surface<'_, '_, '_> {
     pub(super) fn block_element(
@@ -347,8 +348,10 @@ impl Surface<'_, '_, '_> {
     ) -> AnyElement {
         let index = self.details;
         self.details += 1;
-        let key = (self.block, index);
-        let open = e.attribute("open").is_some() != is_details_toggled(key);
+        let block_id = self.block_id;
+        let toggled =
+            disclosure::is_toggled(&mut self.render.widget_states.borrow_mut(), block_id, index);
+        let open = e.attribute("open").is_some() != toggled;
         let summary = e.children.iter().find_map(|c| match c {
             Node::Element(s) if s.tag == "summary" => Some(s),
             _ => None,
@@ -381,15 +384,17 @@ impl Surface<'_, '_, '_> {
                     .text_color(inherit.text.color),
             );
         let view = self.view.clone();
+        let states = Rc::clone(self.render.widget_states);
         let header = div()
             .id(self.id("md-html-summary"))
+            .debug_selector(|| "md-html-summary".into())
             .flex()
             .cursor(crate::theme::clickable_cursor())
             .child(marker)
             .child(self.inline_flow(pieces, inherit))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .on_click(move |_, window, cx| {
-                toggle_details_state(key);
+                disclosure::toggle(&mut states.borrow_mut(), block_id, index);
                 let _ = view.update(cx, |_, cx| cx.notify());
                 window.refresh();
             });

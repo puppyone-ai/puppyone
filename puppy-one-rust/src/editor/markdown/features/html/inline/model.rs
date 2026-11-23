@@ -185,8 +185,9 @@ fn pair_container(doc: &Buffer, tags: &[Span], end: usize) -> Vec<Element> {
         // An anchor whose target the URL policy refuses stays source
         // (`compileInlineHtmlRenderPlan`: unsupported).
         if opening.name == "a"
-            && attribute("href")
-                .is_some_and(|h| crate::editor::markdown::platform::link::safe_href(h).is_none())
+            && attribute("href").is_some_and(|h| {
+                crate::editor::markdown::platform::brokers::link::safe_href(h).is_none()
+            })
         {
             continue;
         }

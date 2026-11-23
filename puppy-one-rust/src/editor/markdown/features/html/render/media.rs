@@ -4,7 +4,7 @@ use super::{Inherit, Surface};
 use crate::editor::{
     markdown::{
         features::html::sanitize::{Element, MAX_HTML_DEPTH, Node},
-        platform::{assets, embed},
+        platform::brokers::{assets, embed},
         shared::media::{self, MediaKind, MediaSource, MediaSourceError},
     },
     tokens::Tokens,

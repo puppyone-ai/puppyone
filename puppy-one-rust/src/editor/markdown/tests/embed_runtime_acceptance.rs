@@ -11,7 +11,7 @@ use crate::{
                 mermaid,
                 table::model::table_block,
             },
-            platform::render as render_broker,
+            platform::brokers::render as render_broker,
             style::MarkdownTheme,
         },
         text::{

@@ -10,7 +10,7 @@ use super::MathBlock;
 use crate::{
     editor::{
         markdown::{
-            platform::render as render_broker,
+            platform::brokers::render as render_broker,
             shared::widgets::{fallback::action_pill, ring},
             style::{BlockStyle, MarkdownTheme},
         },

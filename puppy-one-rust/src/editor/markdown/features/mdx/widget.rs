@@ -24,6 +24,7 @@ use gpui::{prelude::*, *};
 use std::{
     hash::{Hash, Hasher},
     path::Path,
+    rc::Rc,
 };
 
 /// `.cm-md-mdx-tabs-toolbar { min-height: 38px }`; a tab's 9px bottom
@@ -78,9 +79,12 @@ impl BlockWidget for TabsWidget {
         let mut h = std::hash::DefaultHasher::new();
         ("mdx-tabs", at, self.active, &tab.content, width.to_bits()).hash(&mut h);
         let key = h.finish();
+        let block_id = cx.block_id;
         let panel_height = self
             .inline_preview
-            .and_then(|p| p.measured_height(key))
+            .and_then(|p| {
+                p.measured_height(&mut cx.render.widget_states.borrow_mut(), block_id, key)
+            })
             .unwrap_or(PANEL_MIN)
             .max(PANEL_MIN);
         let height = TOOLBAR + panel_height;
@@ -187,7 +191,7 @@ impl BlockWidget for TabsWidget {
             .map(|a| a.document.clone())
             .unwrap_or_default();
         let inner = (width - 2. * PANEL_X).max(0.);
-        let block_id = at + 1 + self.active;
+        let block_offset = at + 1 + self.active;
         let inline_preview = self.inline_preview;
         let content = match inline_preview {
             Some(preview) => preview.render_markdown(
@@ -195,12 +199,14 @@ impl BlockWidget for TabsWidget {
                 inner,
                 Path::new(&document),
                 block_id,
+                block_offset,
                 &self.theme,
                 self.assets.as_ref(),
                 cx.render,
             ),
             None => div().into_any_element(),
         };
+        let states = Rc::clone(cx.render.widget_states);
         let measured = div()
             .absolute()
             .left(px(PANEL_X))
@@ -210,7 +216,9 @@ impl BlockWidget for TabsWidget {
             .on_children_prepainted(move |bounds, window, _| {
                 let Some(b) = bounds.first() else { return };
                 let h = f32::from(b.size.height) + PANEL_TOP + PANEL_BOTTOM;
-                if inline_preview.is_some_and(|p| p.record_measured_height(key, h)) {
+                if inline_preview.is_some_and(|p| {
+                    p.record_measured_height(&mut states.borrow_mut(), block_id, key, h)
+                }) {
                     window.refresh();
                 }
             });

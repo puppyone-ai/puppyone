@@ -5,13 +5,18 @@
 //! render nested Markdown panels without importing `features::html::render`
 //! directly.
 use crate::editor::{
-    markdown::style::MarkdownTheme, registry::DocumentAssets, view::render::RenderCx,
+    markdown::style::MarkdownTheme,
+    registry::DocumentAssets,
+    view::{
+        render::RenderCx,
+        widget::{BlockId, WidgetStateStore},
+    },
 };
 use gpui::AnyElement;
 use std::path::Path;
 
 /// Renders an isolated Markdown fragment into a GPUI element and caches its
-/// measured height.
+/// measured height inside the owning view's [`WidgetStateStore`].
 pub trait InlinePreview: Send + Sync {
     #[allow(clippy::too_many_arguments)]
     fn render_markdown(
@@ -19,13 +24,25 @@ pub trait InlinePreview: Send + Sync {
         source: &str,
         width: f32,
         document: &Path,
-        block_id: usize,
+        block_id: BlockId,
+        block_offset: usize,
         theme: &MarkdownTheme,
         assets: Option<&DocumentAssets>,
         render: &mut RenderCx,
     ) -> AnyElement;
 
-    fn measured_height(&self, key: u64) -> Option<f32>;
+    fn measured_height(
+        &self,
+        store: &mut WidgetStateStore,
+        block_id: BlockId,
+        key: u64,
+    ) -> Option<f32>;
 
-    fn record_measured_height(&self, key: u64, height: f32) -> bool;
+    fn record_measured_height(
+        &self,
+        store: &mut WidgetStateStore,
+        block_id: BlockId,
+        key: u64,
+        height: f32,
+    ) -> bool;
 }
