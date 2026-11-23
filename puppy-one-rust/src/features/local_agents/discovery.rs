@@ -2,6 +2,8 @@
 //! to evidence; only explicit refresh or a completed activation starts new work.
 #[cfg(test)]
 mod fixtures;
+use crate::agent::connections;
+pub(crate) use crate::agent::connections::RepairResult;
 use crate::agent::connections::legacy_local_agent_inventory::{self as legacy, Installation};
 use crate::agent::host::{
     InstallationCandidate as ResolvedCandidate, InstallationEvent as Event,
@@ -11,7 +13,17 @@ use crate::agent::host::{
 };
 use crate::platform::local_agent_setup::{Observation, ObservationFailure, ObservationStatus};
 use gpui::*;
+use std::path::PathBuf;
 use std::sync::Arc;
+
+pub(crate) fn repair_codex(
+    selected: Option<PathBuf>,
+    workspace: PathBuf,
+    cx: &App,
+) -> Task<RepairResult> {
+    cx.background_executor()
+        .spawn(async move { connections::repair_codex(selected, workspace) })
+}
 
 pub(crate) struct Installations {
     host: Host,

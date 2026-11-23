@@ -76,6 +76,7 @@ fn work_buddy_installation_definition(channel: Channel) -> InstallationDefinitio
                         path: cli_path.clone(),
                         source: registration.source.clone(),
                         launcher_path: Some(registration.executable_path.clone()),
+                        append_launcher_directory: false,
                         args_prefix: Some(vec![cli_path]),
                         environment_overrides: Some(vec![(
                             "ELECTRON_RUN_AS_NODE".into(),

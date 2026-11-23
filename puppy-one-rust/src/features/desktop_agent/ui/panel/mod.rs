@@ -6,6 +6,7 @@
 //! The panel composes the shared chat views (transcript, docks, composer,
 //! empty state, notices); the hosted Agent's conversation composes the same
 //! views in `features/cloud`.
+mod codex_repair;
 mod compute;
 mod dock;
 #[cfg(feature = "dev-capture")]
@@ -98,6 +99,9 @@ pub struct AgentChatTabPanel {
     /// The conversation (`AgentTranscript`).
     transcript: Entity<TranscriptView>,
     diagnostics_open: bool,
+    repair: codex_repair::State,
+    install_dialog: Option<Entity<crate::features::local_agents::ActivationDialog>>,
+    install_subscription: Option<Subscription>,
     recovery_details_open: bool,
     /// `pendingConnectionModel`.
     pending_connection_model: Option<String>,
@@ -210,6 +214,9 @@ impl AgentChatTabPanel {
             refresh,
             transcript,
             diagnostics_open: false,
+            repair: codex_repair::State::Idle,
+            install_dialog: None,
+            install_subscription: None,
             recovery_details_open: false,
             pending_connection_model: None,
             docks,
@@ -534,6 +541,10 @@ impl Render for AgentChatTabPanel {
             .child(self.transcript.clone())
             .children(empty);
         let dock = (!view.startup_loading).then(|| self.render_dock(&state, &view, cx));
-        panel.children(status).child(conversation).children(dock)
+        panel
+            .children(status)
+            .child(conversation)
+            .children(dock)
+            .children(self.install_dialog.clone())
     }
 }

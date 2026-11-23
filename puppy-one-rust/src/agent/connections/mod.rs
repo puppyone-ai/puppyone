@@ -1,3 +1,5 @@
+mod codex_repair;
+pub use codex_repair::{RepairResult, repair_codex};
 pub mod legacy_local_agent_inventory;
 pub mod legacy_runtime_registry;
 pub mod local_agent_connection_policy;

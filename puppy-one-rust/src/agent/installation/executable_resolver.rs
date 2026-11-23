@@ -455,7 +455,7 @@ pub async fn resolve_executable_observation(
             }
         };
         let explicit = is_explicit_source(&candidate.source);
-        let validated = match validation {
+        let mut validated = match validation {
             Observation::NotFound { .. } => {
                 if explicit {
                     return Ok(failed("configured-path-not-found"));
@@ -499,6 +499,20 @@ pub async fn resolve_executable_observation(
                     continue;
                 }
             }
+        }
+        if candidate
+            .recipe
+            .as_ref()
+            .is_some_and(|spec| spec.append_launcher_directory)
+            && let Some(path) = launch_path(
+                Path::new(&validated.executable_path),
+                request.env.get("PATH").map_or("", String::as_str),
+            )
+        {
+            validated
+                .environment_overrides
+                .get_or_insert_with(Vec::new)
+                .push(("PATH".into(), path));
         }
         return Ok(Observation::Found {
             candidate: validated,
@@ -927,6 +941,18 @@ fn normalize_environment_overrides(value: &[(String, String)]) -> Vec<(String, S
         })
         .cloned()
         .collect()
+}
+
+/// Append a verified launcher's sibling interpreter directory, not an arbitrary recipe override.
+fn launch_path(path: &Path, original: &str) -> Option<String> {
+    let parent = path.parent()?;
+    let mut dirs: Vec<_> = std::env::split_paths(original)
+        .filter(|p| p.is_absolute())
+        .collect();
+    if !dirs.iter().any(|p| p == parent) {
+        dirs.push(parent.into());
+    }
+    std::env::join_paths(dirs).ok()?.into_string().ok()
 }
 
 /// `safeAbsolutePath(value)`.

@@ -11,6 +11,14 @@ pub fn codex_installation_definition() -> InstallationDefinition {
         if let Some(path) = context.var("CODEX_PATH") {
             candidates.push(CandidateSpec::new(path, "environment-override"));
         }
+        if let Some(path) =
+            crate::agent::installation::codex_repair::saved(context.homedir, context.platform)
+        {
+            candidates.push(
+                CandidateSpec::new(path.to_string_lossy(), "product-fallback")
+                    .with_launcher_directory_on_path(),
+            );
+        }
         if let Some(directory) = context.var("CODEX_INSTALL_DIR") {
             candidates.push(CandidateSpec::new(
                 join(directory, &[&executable]),

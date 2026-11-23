@@ -33,6 +33,15 @@ pub fn create_probe_environment(base: &EnvMap) -> EnvMap {
         .iter()
         .filter_map(|key| {
             base.get(*key)
+                .or_else(|| {
+                    cfg!(windows)
+                        .then(|| {
+                            base.iter()
+                                .find(|(name, _)| name.eq_ignore_ascii_case(key))
+                                .map(|(_, value)| value)
+                        })
+                        .flatten()
+                })
                 .filter(|value| text::len16(value) <= 8_192 && !value.contains('\0'))
                 .map(|value| (key.to_string(), value.clone()))
         })

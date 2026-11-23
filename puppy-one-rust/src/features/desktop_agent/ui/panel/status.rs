@@ -207,12 +207,24 @@ impl AgentChatTabPanel {
                 drop(s.controller.initialize(true));
                 cx.notify();
             }));
-            region = region.child(card(
-                heading,
-                description,
-                details,
-                vec![retry.into_any_element()],
-            ));
+            let is_missing_codex = matches!(std::env::consts::OS, "macos" | "windows")
+                && state.selected_runtime_id.as_deref() == Some("codex")
+                && readiness.code == "RUNTIME_NOT_INSTALLED";
+            region = if is_missing_codex {
+                region.child(card(
+                    t("native.codex.missing").into(),
+                    t(self.repair.message()).into(),
+                    details,
+                    self.repair_actions(&a, cx),
+                ))
+            } else {
+                region.child(card(
+                    heading,
+                    description,
+                    details,
+                    vec![retry.into_any_element()],
+                ))
+            };
         }
         if let Some(error) = error.as_ref()
             && !view.unavailable

@@ -337,6 +337,8 @@ pub async fn inspect_codex_protocol(request: InspectRequest) -> AgentResult<Valu
         signal.forget(listener);
     }
     connection.dispose("Codex inventory probe complete.", false);
+    // Repair owns a short-lived LocalSet; keep its escalation timer alive until reaping.
+    connection.wait_for_exit().await?;
     result
 }
 
