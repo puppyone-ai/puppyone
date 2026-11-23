@@ -11,6 +11,42 @@ pub struct HtmlBlock {
     pub html: String,
     /// The page a lone `<iframe>` asks for.
     pub embed: Option<String>,
+    /// Over the rich budget but within the deferred one: a card asks before
+    /// the surface renders (`Large HTML preview is paused.`).
+    pub deferred: bool,
+}
+
+/// Render a deferred block (the card's button).
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct RenderDeferred(pub usize);
+
+/// What `source` costs to render (`estimateHtmlBlockMetrics`): elements,
+/// deepest nesting and media assets.
+pub fn metrics(source: &str) -> (usize, usize, usize) {
+    use super::super::tokenizer::{Token, tokens};
+    let mut stack: Vec<String> = Vec::new();
+    let (mut elements, mut depth, mut assets) = (0usize, 0usize, 0usize);
+    for token in tokens(source).unwrap_or_default() {
+        match token {
+            Token::Close(tag) => {
+                if let Some(i) = stack.iter().rposition(|t| *t == tag) {
+                    stack.truncate(i);
+                }
+            }
+            Token::Open { tag, void, .. } => {
+                elements += 1;
+                if matches!(tag.as_str(), "img" | "video" | "audio" | "source") {
+                    assets += 1;
+                }
+                if !void {
+                    stack.push(tag);
+                    depth = depth.max(stack.len());
+                }
+            }
+            Token::Text(_) => {}
+        }
+    }
+    (elements * 2 + 1, depth, assets)
 }
 
 /// Reveal the block's source (the toolbar toggle).

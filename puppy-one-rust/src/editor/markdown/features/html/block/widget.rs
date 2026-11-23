@@ -4,7 +4,7 @@
 //! `source_toggle`).
 use super::{
     super::{ID, render::Surface, sanitize},
-    model::ShowSource,
+    model::{RenderDeferred, ShowSource},
 };
 use crate::editor::{
     markdown::{
@@ -33,6 +33,8 @@ pub struct HtmlBlockWidget {
     pub assets: Option<DocumentAssets>,
     /// A web embed's page, in place of the surface.
     pub embed: Option<String>,
+    /// A card asks before the surface renders (a block over the rich budget).
+    pub deferred: bool,
 }
 
 impl BlockWidget for HtmlBlockWidget {
@@ -60,6 +62,12 @@ impl BlockWidget for HtmlBlockWidget {
             .unwrap_or_default();
         let view = cx.render.view.clone();
         let content = match &self.embed {
+            None if self.deferred => deferred_card(
+                cx.id("md-html-render"),
+                self.range.start,
+                self.theme.dark,
+                cx.sender(),
+            ),
             Some(href) => embed_broker::render_web_embed(
                 &view,
                 self.range.start,
@@ -156,4 +164,49 @@ impl BlockWidget for HtmlBlockWidget {
             height,
         )
     }
+}
+
+/// `createDeferredHtmlPlaceholder`: the paused preview's card and its
+/// `Render preview` button.
+fn deferred_card(
+    id: ElementId,
+    at: usize,
+    dark: bool,
+    send: crate::editor::view::widget::CommandSender,
+) -> AnyElement {
+    let app = crate::theme::Theme::new(dark);
+    let ty = crate::theme::ty().ui;
+    div()
+        .debug_selector(|| "md-html-deferred".into())
+        .flex()
+        .items_center()
+        .justify_between()
+        .gap(px(16.))
+        .px(px(12.))
+        .py(px(10.))
+        .text_size(px(ty.meta))
+        .text_color(app.muted)
+        .child("Large HTML preview is paused.")
+        .child(
+            div()
+                .id(id)
+                .debug_selector(|| "md-html-deferred-load".into())
+                .h(px(24.))
+                .px(px(9.))
+                .rounded(px(5.))
+                .border_1()
+                .border_color(crate::theme::mix(app.divider, app.muted, 0.96))
+                .text_size(px(ty.caption))
+                .font_weight(FontWeight(650.))
+                .line_height(px(22.))
+                .cursor(crate::theme::clickable_cursor())
+                .hover(|d| d.bg(app.control_hover).text_color(app.text))
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .on_click(move |_, window, cx| {
+                    cx.stop_propagation();
+                    send(Command::new(ID, RenderDeferred(at)), window, cx);
+                })
+                .child("Render preview"),
+        )
+        .into_any_element()
 }

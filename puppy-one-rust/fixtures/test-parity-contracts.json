@@ -51425,6 +51425,36 @@
           "test": "editor::markdown::tests::html_fragment_targets_acceptance::a_legacy_anchor_name_is_its_id_unless_an_id_is_given"
         }
       ]
+    },
+    {
+      "id": "markdown-soft-budget-deferred-preview",
+      "acceptance": "An HTML block over its rich budget (48 KiB, 800 estimated DOM nodes, depth 48 or 32 assets in a normal document; smaller in large ones) but within the deferred ceiling (256 KiB, 5,000 nodes, depth 96, 128 assets) shows a 'Large HTML preview is paused.' card whose 'Render preview' button renders the surface for the pane; beyond the ceiling it stays source. A Mermaid diagram over its rich budget waits to be rendered. A code fence over the code budget (512 lines or 128 KiB in a normal document) stays source instead of a code widget; the document never changes.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownOversizedBlocks.test.ts",
+          "sha256": "84f3e23ab234cd49262765a65edd01b613354fa936411f74272c6e9485ec70f2",
+          "cases": [
+            {
+              "index": 11,
+              "name": "Markdown compound HTML media > defers a soft-over-budget HTML subtree until explicit activation"
+            },
+            {
+              "index": 12,
+              "name": "Markdown compound HTML media > defers a large Mermaid computation and keeps a long code fence as source"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::render_budget_acceptance::a_soft_over_budget_html_block_waits_for_activation"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::render_budget_acceptance::a_large_diagram_waits_and_a_long_fence_stays_source"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -64507,28 +64537,6 @@
             {
               "index": 11,
               "name": "document layout ownership > shares observation and makes old unsubscribe/late delivery harmless"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-soft-budget-deferred-preview",
-      "kind": "gap",
-      "reason": "TS defers soft-over-budget HTML subtrees (48 KiB-256 KiB) and large Mermaid diagrams (>32 KiB) behind a paused click-to-preview placeholder card, and drops code fences over 512 lines out of the code widget. Natively HtmlBlockWidget renders directly and Mermaid rejects over MAX_SOURCE_BYTES (256 KiB) without an intermediate click-to-activate deferred preview card, while code fences over 512 lines stay rendered in the code block widget with plain unhighlighted text.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/README.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/markdown/parsing/markdownOversizedBlocks.test.ts",
-          "sha256": "84f3e23ab234cd49262765a65edd01b613354fa936411f74272c6e9485ec70f2",
-          "cases": [
-            {
-              "index": 11,
-              "name": "Markdown compound HTML media > defers a soft-over-budget HTML subtree until explicit activation"
-            },
-            {
-              "index": 12,
-              "name": "Markdown compound HTML media > defers a large Mermaid computation and keeps a long code fence as source"
             }
           ]
         }

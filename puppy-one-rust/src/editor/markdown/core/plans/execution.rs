@@ -81,6 +81,48 @@ pub const MDX_RICH_BYTES: usize = 48 * 1024;
 pub const MDX_RICH_NODES: usize = 800;
 pub const MDX_RICH_DEPTH: usize = 48;
 
+/// HTML block rich and deferred budgets per [`DocumentProfile`]
+/// (`HTML_RICH_*`, `HTML_DEFERRED_MAX_*`).
+pub const HTML_RICH_BYTES: [usize; 3] = [48 * 1024, 32 * 1024, 16 * 1024];
+pub const HTML_RICH_NODES: [usize; 3] = [800, 500, 250];
+pub const HTML_RICH_DEPTH: [usize; 3] = [48, 40, 32];
+pub const HTML_RICH_ASSETS: [usize; 3] = [32, 20, 12];
+pub const HTML_DEFERRED_MAX_BYTES: usize = 256 * 1024;
+pub const HTML_DEFERRED_MAX_NODES: usize = 5_000;
+pub const HTML_DEFERRED_MAX_DEPTH: usize = 96;
+pub const HTML_DEFERRED_MAX_ASSETS: usize = 128;
+
+/// Code blocks drawn by the code widget: beyond these the fence stays
+/// source (`CODE_RICH_LINES`, `CODE_RICH_BYTES`).
+pub const CODE_RICH_LINES: [usize; 3] = [512, 320, 160];
+pub const CODE_RICH_BYTES: [usize; 3] = [128 * 1024, 96 * 1024, 48 * 1024];
+
+/// How an HTML block of these metrics executes (`decide("htmlBlock")`).
+pub fn decide_html_execution(
+    bytes: usize,
+    nodes: usize,
+    depth: usize,
+    assets: usize,
+    profile: DocumentProfile,
+) -> FenceExecution {
+    let i = profile.index();
+    if bytes <= HTML_RICH_BYTES[i]
+        && nodes <= HTML_RICH_NODES[i]
+        && depth <= HTML_RICH_DEPTH[i]
+        && assets <= HTML_RICH_ASSETS[i]
+    {
+        FenceExecution::Immediate
+    } else if bytes > HTML_DEFERRED_MAX_BYTES
+        || nodes > HTML_DEFERRED_MAX_NODES
+        || depth > HTML_DEFERRED_MAX_DEPTH
+        || assets > HTML_DEFERRED_MAX_ASSETS
+    {
+        FenceExecution::FallbackToCode
+    } else {
+        FenceExecution::Deferred
+    }
+}
+
 /// Code-block syntax-highlighting budgets (`codeBlockHighlightBudget.ts`).
 pub const CODE_HIGHLIGHT_SOURCE_BYTE_LIMIT: usize = 16 * 1024;
 pub const CODE_HIGHLIGHT_LINE_UNIT_LIMIT: usize = 4 * 1024;

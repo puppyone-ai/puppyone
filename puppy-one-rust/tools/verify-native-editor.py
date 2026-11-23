@@ -120,6 +120,10 @@ suites = {
         'a_system_proxy_never_opens_local_or_plain_http_urls',
         'remote_redirects_follow_the_same_routing_rule',
     ],
+    'editor::markdown::tests::render_budget_acceptance::': [
+        'a_soft_over_budget_html_block_waits_for_activation',
+        'a_large_diagram_waits_and_a_long_fence_stays_source',
+    ],
     'editor::markdown::tests::html_fragment_targets_acceptance::': [
         'controlled_inline_html_ids_resolve',
         'literal_incomplete_or_unsupported_html_registers_nothing',
