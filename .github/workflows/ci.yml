@@ -104,9 +104,15 @@ jobs:
       - name: Fetch readability comparison commit
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Never fall back to HEAD/HEAD^: that could compare a baseline to
           # itself or omit earlier commits in a multi-commit push.
+          # A new release/* branch has no pre-push commit; it is compared with
+          # the qubits commit it was cut from.
+          if [[ "$BASE_SHA" == 0000000000000000000000000000000000000000 && "$GITHUB_REF" == refs/heads/release/* ]]; then
+            BASE_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/compare/qubits...${GITHUB_SHA}" --jq .merge_base_commit.sha)"
+          fi
           if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || [[ "$BASE_SHA" == 0000000000000000000000000000000000000000 ]]; then
             echo "A valid PR base or pre-push commit is required." >&2
             exit 1
