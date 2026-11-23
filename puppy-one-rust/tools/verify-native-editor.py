@@ -120,6 +120,11 @@ suites = {
         'a_system_proxy_never_opens_local_or_plain_http_urls',
         'remote_redirects_follow_the_same_routing_rule',
     ],
+    'editor::markdown::tests::inline_html_break_acceptance::': [
+        'a_bare_br_compiles_into_a_line_break_atom',
+        'a_bare_br_draws_a_line_break_and_reveals_its_source',
+        'inline_style_font_weight_applies',
+    ],
     'editor::markdown::tests::html_presentation_acceptance::': [
         'a_picture_loads_its_matching_candidate_without_the_fallback_first',
         'a_refused_candidate_gives_way_to_the_fallback_image',

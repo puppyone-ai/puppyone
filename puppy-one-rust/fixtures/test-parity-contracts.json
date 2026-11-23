@@ -51115,6 +51115,62 @@
           "test": "editor::markdown::platform::policy::presentation::tests::css_variables_and_unbounded_geometry_cannot_bypass_the_policy"
         }
       ]
+    },
+    {
+      "id": "markdown-inline-html-breaks-and-styles",
+      "acceptance": "A bare <br> in a paragraph compiles into an atomic line-break atom deleted as a unit, draws a line break in its text (two rows where a space draws one) and reveals its tag source on demand. An inline style keeps its presentation subset, including font-weight (bold from 600), and inline surfaces get a narrower style capability (no layout properties such as display) than sandboxed blocks.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/html/markdownInlineHtml.test.ts",
+          "sha256": "167b22ba4e55afd07a148211a4d96f0db0209f18f6a8db566ef4d8e56faf901c",
+          "cases": [
+            {
+              "index": 11,
+              "name": "Markdown inline HTML policy > compiles the presentation-only style subset"
+            },
+            {
+              "index": 12,
+              "name": "Markdown inline HTML policy > compiles a bare br into a typed line-break plan"
+            },
+            {
+              "index": 13,
+              "name": "Markdown inline HTML policy > uses a narrower style capability in inline surfaces than sandboxed blocks"
+            },
+            {
+              "index": 18,
+              "name": "Markdown inline HTML live decorations > renders br as an atomic typed widget and reveals its source on demand"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/render-plan.test.ts",
+          "sha256": "f4b93565d9a17d7b2c3c164f28365ba91a4536b4f9202b3a626d23359f3a5249",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown render-plan compiler > compiles bare br into an expandable inlineAtom with lineBreaks metadata"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_break_acceptance::a_bare_br_compiles_into_a_line_break_atom"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_break_acceptance::a_bare_br_draws_a_line_break_and_reveals_its_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_break_acceptance::inline_style_font_weight_applies"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::policy::presentation::tests::inline_surfaces_style_less_than_blocks"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62987,46 +63043,6 @@
             {
               "index": 6,
               "name": "Markdown presentation preferences > migrates a consistent legacy heading scale and normalizes mixed legacy scales"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-inline-html-breaks-and-styles",
-      "kind": "gap",
-      "reason": "Natively inline HTML styles only text and background colour: `font-weight` in an inline style is not applied, and block HTML gets no wider style capability (`display`) either. A bare `<br>` inside a paragraph stays visible source instead of a line break that reveals its tag on demand.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/syntax/inline-html.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/html/markdownInlineHtml.test.ts",
-          "sha256": "167b22ba4e55afd07a148211a4d96f0db0209f18f6a8db566ef4d8e56faf901c",
-          "cases": [
-            {
-              "index": 11,
-              "name": "Markdown inline HTML policy > compiles the presentation-only style subset"
-            },
-            {
-              "index": 12,
-              "name": "Markdown inline HTML policy > compiles a bare br into a typed line-break plan"
-            },
-            {
-              "index": 13,
-              "name": "Markdown inline HTML policy > uses a narrower style capability in inline surfaces than sandboxed blocks"
-            },
-            {
-              "index": 18,
-              "name": "Markdown inline HTML live decorations > renders br as an atomic typed widget and reveals its source on demand"
-            }
-          ]
-        },
-        {
-          "path": "tests/unit/editor/formats/markdown/parsing/render-plan.test.ts",
-          "sha256": "f4b93565d9a17d7b2c3c164f28365ba91a4536b4f9202b3a626d23359f3a5249",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Markdown render-plan compiler > compiles bare br into an expandable inlineAtom with lineBreaks metadata"
             }
           ]
         }

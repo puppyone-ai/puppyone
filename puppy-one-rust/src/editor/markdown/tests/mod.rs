@@ -28,6 +28,7 @@ mod html_presentation_acceptance;
 mod html_run_acceptance;
 mod inline_acceptance;
 mod inline_html_acceptance;
+mod inline_html_break_acceptance;
 mod linked_image_acceptance;
 mod math_acceptance;
 mod mdx_acceptance;

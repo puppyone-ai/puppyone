@@ -128,6 +128,74 @@ fn is_safe_length(value: &str) -> bool {
     amount.is_finite() && amount >= 0. && amount <= max
 }
 
+/// `INLINE_STYLE_PROPERTIES`: what inline HTML (and media) may style.
+const INLINE_STYLE_PROPERTIES: &[&str] = &[
+    "background-color",
+    "color",
+    "font-size",
+    "font-style",
+    "font-weight",
+    "letter-spacing",
+    "line-height",
+    "text-align",
+    "text-decoration",
+    "text-decoration-line",
+    "vertical-align",
+];
+
+/// `BLOCK_STYLE_PROPERTIES` beyond the inline ones: an HTML block's
+/// surface may also lay out and frame its boxes.
+const BLOCK_ONLY_STYLE_PROPERTIES: &[&str] = &[
+    "background",
+    "border",
+    "border-bottom",
+    "border-bottom-color",
+    "border-bottom-style",
+    "border-bottom-width",
+    "border-color",
+    "border-left",
+    "border-left-color",
+    "border-left-style",
+    "border-left-width",
+    "border-radius",
+    "border-right",
+    "border-right-color",
+    "border-right-style",
+    "border-right-width",
+    "border-style",
+    "border-top",
+    "border-top-color",
+    "border-top-style",
+    "border-top-width",
+    "border-width",
+    "cursor",
+    "display",
+    "flex-wrap",
+    "gap",
+    "height",
+    "margin",
+    "margin-bottom",
+    "margin-left",
+    "margin-right",
+    "margin-top",
+    "max-width",
+    "min-width",
+    "overflow",
+    "padding",
+    "padding-bottom",
+    "padding-left",
+    "padding-right",
+    "padding-top",
+    "width",
+];
+
+/// `isAllowedStyleProperty`: inline surfaces get a narrower style capability
+/// than sandboxed blocks.
+pub fn is_allowed_style_property(property: &str, inline: bool) -> bool {
+    INLINE_STYLE_PROPERTIES.contains(&property)
+        || (!inline && BLOCK_ONLY_STYLE_PROPERTIES.contains(&property))
+}
+
 /// `isSafeStyleValue`: whether an HTML surface keeps `property: value`.
 pub fn is_safe_style_value(property: &str, value: &str) -> bool {
     let value = value.trim();
@@ -316,5 +384,15 @@ mod tests {
         assert_eq!(color_fallback("var(--text-accent, red)"), Some("red"));
         assert_eq!(color_fallback("var(--text-accent)"), None);
         assert_eq!(color_fallback("#fff"), Some("#fff"));
+    }
+
+    /// `markdownInlineHtml.test.ts` #13: inline surfaces get a narrower
+    /// style capability than sandboxed blocks.
+    #[test]
+    fn inline_surfaces_style_less_than_blocks() {
+        assert!(is_allowed_style_property("color", true));
+        assert!(!is_allowed_style_property("display", true));
+        assert!(is_allowed_style_property("display", false));
+        assert!(is_allowed_style_property("font-weight", true));
     }
 }

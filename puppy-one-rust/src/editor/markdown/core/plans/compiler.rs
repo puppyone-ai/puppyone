@@ -23,6 +23,12 @@ fn compile_core_element(index: usize, e: &Element) -> Plan {
         delete_units: Vec::new(),
     };
     match e.kind {
+        // A bare `<br>`: one atomic line break, deleted as a unit.
+        Kind::InlineHtml if e.html.as_ref().is_some_and(|h| h.name == "br") => Plan {
+            presentation: Presentation::InlineAtom(Atom::Text("\n".into())),
+            delete_units: vec![e.range.clone()],
+            ..visible
+        },
         Kind::Strong
         | Kind::Emphasis
         | Kind::Strike
