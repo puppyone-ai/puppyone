@@ -243,3 +243,70 @@ fn clicking_submenu_item_runs_action_before_parent_menu_dismisses(cx: &mut TestA
         }
     }
 }
+
+struct SiblingSubmenusHarness;
+impl Render for SiblingSubmenusHarness {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().child(
+            PopoverMenu::new("sibling-submenus")
+                .open(true)
+                .trigger(Button::new("open-siblings").label("Open"))
+                .menu(|menu, _, _| {
+                    menu.w(px(180.))
+                        .item(
+                            MenuItem::new("First Group")
+                                .id("group-a")
+                                .submenu(|_, _| {
+                                    Menu::new("sub-a")
+                                        .item(MenuItem::new("Alpha Action").id("alpha"))
+                                }),
+                        )
+                        .item(
+                            MenuItem::new("Second Group")
+                                .id("group-b")
+                                .submenu(|_, _| {
+                                    Menu::new("sub-b")
+                                        .item(MenuItem::new("Beta Action").id("beta"))
+                                }),
+                        )
+                        .item(MenuItem::new("Direct Settings").id("direct-settings"))
+                }),
+        )
+    }
+}
+
+#[gpui::test]
+fn hovering_sibling_row_switches_or_closes_submenu_immediately(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    let (_, cx) = cx.add_window_view(|_, _| SiblingSubmenusHarness);
+    draw(cx);
+
+    let row_a = cx.debug_bounds("menu-item:First Group").unwrap();
+    let row_b = cx.debug_bounds("menu-item:Second Group").unwrap();
+    let direct = cx.debug_bounds("menu-item:Direct Settings").unwrap();
+
+    cx.simulate_mouse_move(row_a.center(), None, Modifiers::none());
+    draw(cx);
+    assert!(cx.debug_bounds("menu-item:Alpha Action").is_some());
+    assert!(cx.debug_bounds("menu-item:Beta Action").is_none());
+
+    // Moving to a sibling submenu switches on the next frame with zero overlap.
+    cx.simulate_mouse_move(row_b.center(), None, Modifiers::none());
+    draw(cx);
+    assert!(
+        cx.debug_bounds("menu-item:Alpha Action").is_none(),
+        "previous sibling submenu must close immediately"
+    );
+    assert!(
+        cx.debug_bounds("menu-item:Beta Action").is_some(),
+        "newly hovered sibling submenu must open immediately"
+    );
+
+    // Moving to a non-submenu row closes any open submenu immediately.
+    cx.simulate_mouse_move(direct.center(), None, Modifiers::none());
+    draw(cx);
+    assert!(
+        cx.debug_bounds("menu-item:Beta Action").is_none(),
+        "open submenu must close immediately when hovering a plain sibling item"
+    );
+}

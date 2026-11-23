@@ -848,9 +848,27 @@ impl Shell {
         }
     }
 
+    /// The window's bounds, maximize, or fullscreen state changed.
+    pub(in crate::app) fn window_bounds_changed(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.push_explorer_host(window, cx);
+        self.sync_window_title(window, cx);
+        self.chrome.update(cx, |_, cx| cx.notify());
+        if let Some(file) = &self.file {
+            file.update(cx, |_, cx| cx.notify());
+        }
+    }
+
     /// The window came forward or went behind.
     pub(in crate::app) fn window_activated(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let active = window.is_window_active();
+        self.chrome.update(cx, |_, cx| cx.notify());
+        if let Some(file) = &self.file {
+            file.update(cx, |_, cx| cx.notify());
+        }
         let source_control = self.sidebar.read(cx).source_control.clone();
         source_control.update(cx, |sc, cx| sc.set_focused(active, cx));
         if !active {
