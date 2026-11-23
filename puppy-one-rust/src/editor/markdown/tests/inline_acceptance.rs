@@ -1,6 +1,6 @@
 //! Observable acceptance from the pinned TS markdownInlineSyntax suite.
 //! Text and marks come from drawn native leaves; resource loading is local.
-use super::setup_with_focus;
+use super::{hidden, setup, setup_with_focus};
 use crate::{
     editor::{
         markdown::{
@@ -434,4 +434,58 @@ fn math_code_ownership_is_exact_and_incremental_fence_plans_keep_one_owner() {
             [expected]
         );
     }
+}
+
+#[gpui::test]
+fn an_image_line_shows_its_images_and_reveals_on_request(cx: &mut TestAppContext) {
+    use crate::editor::markdown::features::image::{ID, ShowSource};
+    use crate::editor::view::{command::Command, decoration::Block};
+    let text = "![a](x.png) [![b](y.png)](https://x.test)\n\nbeside ![c](z.png) text";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    let embeds = |view: &Entity<EditorView>, cx: &mut VisualTestContext| {
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+        view.update(cx, |v, _| {
+            v.decorations()
+                .blocks
+                .iter()
+                .map(|b| matches!(b, Block::Line { style, .. } if style.embed.is_some()))
+                .collect::<Vec<_>>()
+        })
+    };
+    assert_eq!(embeds(&view, cx), vec![true, false, false]);
+    assert!(hidden(&view, cx).contains(&(0..41)));
+    view.update(cx, |v, _| {
+        let d = v.decorations();
+        let images: Vec<_> = d
+            .inline_widgets
+            .iter()
+            .filter_map(|w| {
+                w.as_image()
+                    .map(|(fb, img)| (img.range.clone(), fb.to_string()))
+            })
+            .collect();
+        assert_eq!(images, vec![(50..61, "c".into())]);
+    });
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(
+                ID,
+                ShowSource {
+                    line: 0..41,
+                    caret: 2,
+                },
+            ),
+            w,
+            cx,
+        )
+    });
+    assert_eq!(embeds(&view, cx), vec![false, false, false]);
+    view.update(cx, |v, _| {
+        assert_eq!(v.state().selection, Selection::cursor(2))
+    });
 }

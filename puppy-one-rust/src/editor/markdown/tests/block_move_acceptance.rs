@@ -315,3 +315,30 @@ fn keyboard_moves_history_fences_renumbering_readonly_scroll_and_toggle_off(
         assert_eq!(v.state().selection, Selection::range(0, v.text().len()));
     });
 }
+
+#[gpui::test]
+fn blocks_move_by_keyboard_and_by_handle_with_the_experiment(cx: &mut TestAppContext) {
+    use crate::editor::markdown::core::commands::block_move;
+    let text = "# A\n\npara\n\nlast";
+    let (view, cx) = setup(cx, text);
+    block_move::set_enabled(true);
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
+    cx.simulate_keystrokes("secondary-shift-down");
+    view.update(cx, |v, _| assert_eq!(v.text(), "para\n\n# A\n\nlast"));
+    // The handle's drop moves the block it dragged via `addons::block_drag`.
+    view.update_in(cx, |v, _, cx| {
+        assert!(crate::editor::markdown::begin_block_drag_for_tests(
+            v, 13, 0
+        ));
+        crate::editor::markdown::finish_block_drag_for_tests(v, cx);
+    });
+    view.update(cx, |v, _| assert_eq!(v.text(), "last\n\npara\n\n# A"));
+    block_move::set_enabled(false);
+    // Without the experiment the keys select to the document's edge.
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
+    cx.simulate_keystrokes("secondary-shift-down");
+    view.update(cx, |v, _| {
+        assert_eq!(v.text(), "last\n\npara\n\n# A");
+        assert_eq!(v.state().selection, Selection::range(0, v.text().len()));
+    });
+}

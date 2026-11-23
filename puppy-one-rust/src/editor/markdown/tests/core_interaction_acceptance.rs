@@ -2,7 +2,7 @@
 //! convergence & oversized table/mermaid limits, link activation policy,
 //! inline toggle commands, editing keymap, task checkbox hotspots, and math
 //! interaction.
-use super::{MarkdownExtension, setup, setup_with_focus};
+use super::{MarkdownExtension, blocks, hidden, setup, setup_with_focus};
 use crate::{
     editor::{
         markdown::{
@@ -18,6 +18,7 @@ use crate::{
                 math::MathBlock,
                 rule::Rule,
                 table::model::{COLUMN_LIMIT, ROW_BYTE_LIMIT, ROW_LIMIT, table_block},
+                task,
             },
         },
         navigation::{Document as NavDocument, ReferenceContext, ReferenceIndex},
@@ -28,9 +29,12 @@ use crate::{
             state::{EditorState, Transaction, UserEvent},
         },
         view::{
-            EditorView,
+            EditorView, bind_keys,
             decoration::Block,
-            extension::{DecorateInput, EditIntent, EditorExtension, LinkAction},
+            extension::{
+                DecorateInput, EditIntent, EditorExtension, LinkAction, config_transaction,
+            },
+            style,
         },
     },
     render_service::{self, Kind as RenderKind, MAX_SOURCE_BYTES, Request, State as RenderState},
@@ -1012,4 +1016,500 @@ fn math_interaction_keeps_failed_latex_visible_and_edits_or_deletes_formulas(
         pointer_selecting: false,
         dark: false,
     };
+}
+
+#[gpui::test]
+fn markers_hide_and_reveal_with_the_caret(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, "# Title\n\nsome **bold** text");
+    // Caret before "some": heading marker and both ** hidden.
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(9), cx));
+    assert_eq!(hidden(&view, cx), vec![0..2, 14..16, 20..22]);
+    // Inside **bold** (14..22): its markers show as source.
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(17), cx));
+    let h = hidden(&view, cx);
+    assert!(h.contains(&(0..2)) && !h.contains(&(14..16)), "{h:?}");
+}
+
+#[gpui::test]
+fn typing_a_heading_prefix_keeps_the_line_as_source(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, "");
+    cx.simulate_input("## Ti");
+    // The line being composed keeps its literal `##`.
+    assert!(hidden(&view, cx).is_empty());
+    view.update(cx, |v, _| assert_eq!(v.text(), "## Ti"));
+    cx.simulate_keystrokes("enter");
+    cx.simulate_input("x");
+    assert!(hidden(&view, cx).contains(&(0..3)));
+}
+
+#[gpui::test]
+fn lists_continue_and_tasks_toggle_with_history(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, "- [ ] one");
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(9), cx));
+    cx.simulate_keystrokes("enter");
+    cx.simulate_input("two");
+    view.update(cx, |v, _| assert_eq!(v.text(), "- [ ] one\n- [ ] two"));
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(&task::toggle_command(0), w, cx)
+    });
+    view.update(cx, |v, _| assert_eq!(v.text(), "- [x] one\n- [ ] two"));
+    cx.simulate_keystrokes("secondary-z");
+    view.update(cx, |v, _| assert_eq!(v.text(), "- [ ] one\n- [ ] two"));
+    cx.simulate_keystrokes("secondary-b");
+    view.update(cx, |v, _| assert_eq!(v.text(), "- [ ] one\n- [ ] **two**"));
+}
+
+/// `markdownFormatHotkeys.test.ts` and the macOS half of
+/// `markdownFormatShortcuts.electron.test.mjs`: ⌘B, ⌘I, ⌘U, ⌘D and ⌘⇧X format
+/// the selection in a focused Markdown editor; ⌘⇧B, ⌥ or Control chords do
+/// not, and nothing formats an editor without focus.
+#[gpui::test]
+fn format_shortcuts_follow_the_product_contract(cx: &mut TestAppContext) {
+    let mut cases = vec![
+        ("secondary-b", "**word**"),
+        ("secondary-i", "*word*"),
+        ("secondary-u", "<u>word</u>"),
+        ("secondary-d", "~~word~~"),
+        ("secondary-shift-x", "~~word~~"),
+        ("secondary-shift-b", "word"),
+        ("secondary-alt-i", "word"),
+        ("alt-i", "word"),
+    ];
+    if crate::platform::os::Os::current().is_macos() {
+        cases.push(("ctrl-i", "word"));
+        cases.push(("secondary-ctrl-i", "word"));
+    } else {
+        cases.push(("super-i", "word"));
+        cases.push(("secondary-super-i", "word"));
+    }
+    for (chord, formatted) in cases {
+        let (view, cx) = setup(cx, "word");
+        view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
+        cx.simulate_keystrokes(chord);
+        view.update(cx, |v, _| assert_eq!(v.text(), formatted, "{chord}"));
+    }
+    let (view, cx) = setup_with_focus(cx, "word", false);
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
+    cx.simulate_keystrokes("secondary-i");
+    view.update(cx, |v, _| assert_eq!(v.text(), "word"));
+}
+
+#[gpui::test]
+fn missing_and_ambiguous_link_targets_are_underlined(cx: &mut TestAppContext) {
+    use crate::editor::navigation::{Document, ReferenceContext, ReferenceIndex};
+    let text = "[[here]] [[gone]] [[dup]] [x](gone.md)\n\nend";
+    let doc = |path: &str| Document {
+        path: path.into(),
+        name: path.rsplit('/').next().unwrap().into(),
+    };
+    let index = ReferenceIndex::new(vec![
+        doc("note.md"),
+        doc("here.md"),
+        doc("a/dup.md"),
+        doc("b/dup.md"),
+    ]);
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        v.dispatch(
+            config_transaction(crate::editor::markdown::SetReferences(Some(
+                ReferenceContext {
+                    source: "note.md".into(),
+                    index: std::sync::Arc::new(index),
+                },
+            ))),
+            cx,
+        );
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    view.update(cx, |v, _| {
+        let lines: Vec<_> = v
+            .decorations()
+            .underlines
+            .iter()
+            .map(|u| (u.range.clone(), u.dash))
+            .collect();
+        // `gone` (dotted) twice, `dup` (dashed); `here` resolves.
+        assert_eq!(lines, vec![(11..15, 1.), (20..23, 3.), (27..28, 1.)]);
+    });
+}
+
+#[gpui::test]
+fn read_only_filter_strips_edits_while_preserving_selection_and_effects(cx: &mut TestAppContext) {
+    use crate::editor::text::{
+        change::ChangeSet,
+        state::{StateEffect, Transaction, UserEvent},
+    };
+
+    let text = "# Heading\n\nParagraph body";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| v.set_read_only(true, cx));
+
+    view.update_in(cx, |v, _, cx| {
+        let mut tr = Transaction::edit(
+            ChangeSet::replace(0..9, "# Mutated"),
+            Some(Selection::cursor(11)),
+            UserEvent::Input,
+        );
+        tr.effects
+            .push(StateEffect::new(crate::editor::markdown::SetLivePreview(
+                false,
+            )));
+        v.dispatch(tr, cx);
+    });
+
+    view.read_with(cx, |v, _| {
+        assert_eq!(
+            v.text(),
+            text,
+            "TA-07: read_only filter must strip tr.changes"
+        );
+        assert_eq!(
+            v.state().selection,
+            Selection::cursor(11),
+            "TA-07: read_only filter must preserve tr.selection"
+        );
+        assert!(
+            !v.extension::<MarkdownExtension>().unwrap().live,
+            "TA-07: read_only filter must preserve tr.effects"
+        );
+    });
+}
+
+#[gpui::test]
+fn run_command_commits_active_ime_composition_before_executing_command(cx: &mut TestAppContext) {
+    use gpui::EntityInputHandler as _;
+    let (view, cx) = setup(cx, "prefix ");
+    view.update_in(cx, |v, w, cx| {
+        v.set_selection(Selection::cursor(7), cx);
+        v.replace_and_mark_text_in_range(None, "汉字", None, w, cx);
+        assert!(v.composing());
+        v.run_command(
+            &crate::editor::markdown::format_command(crate::editor::markdown::FormatCommand::Bold),
+            w,
+            cx,
+        );
+    });
+    view.read_with(cx, |v, _| {
+        assert!(
+            !v.composing(),
+            "TODO-92: run_command must commit active IME composition first"
+        );
+        assert_eq!(v.text(), "prefix **汉字**");
+    });
+}
+
+#[gpui::test]
+fn revealed_code_and_table_lines_carry_source_classes_and_setext_gets_heading_style(
+    cx: &mut TestAppContext,
+) {
+    use crate::editor::markdown::features::html;
+    use crate::editor::view::{command::Command, decoration::Block};
+
+    let text = concat!(
+        "Setext Title\n============\n\n",
+        "plain body\n\n",
+        "```md\n# Not A Heading\n```\n\n",
+        "| c1 | c2 |\n| -- | -- |\n| v1 | v2 |\n",
+    );
+    let code_hash_at = text.find("# Not A Heading").unwrap();
+    let table_at = text.find("| c1 | c2 |").unwrap();
+    let table_end = text.len() - 1;
+    let (view, cx) = setup(cx, text);
+
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(
+                html::ID,
+                html::ShowSource(text.find("```md").unwrap()..text.find("```\n\n").unwrap() + 3),
+            ),
+            w,
+            cx,
+        );
+        v.set_selection(Selection::cursor(code_hash_at), cx);
+    });
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+
+    view.update(cx, |v, _| {
+        let decos = v.decorations();
+        let line_style = |line_idx: usize| {
+            decos.blocks.iter().find_map(|b| match b {
+                Block::Line { line, style } if *line == line_idx => Some(style.clone()),
+                _ => None,
+            })
+        };
+        let setext_style = line_style(0).expect("Setext title line");
+        let body_style = line_style(3).expect("plain body line");
+        let code_line_style = line_style(6).expect("revealed `# Not A Heading` code line");
+        assert!(
+            setext_style.text.size > body_style.text.size,
+            "TODO-45: Setext title must receive heading font size ({} > {})",
+            setext_style.text.size,
+            body_style.text.size
+        );
+        assert!(
+            code_line_style.text.size <= body_style.text.size,
+            "TODO-45: `# Not A Heading` inside revealed code fence must NOT get heading size"
+        );
+        assert_ne!(
+            code_line_style.text.family(),
+            body_style.text.family(),
+            "TODO-44: revealed code block line must carry monospace CODE_BLOCK_LINE styling"
+        );
+    });
+
+    // Reveal the table as source and verify `TABLE_LINE` monospace styling (`TODO-44`).
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(html::ID, html::ShowSource(table_at..table_end)),
+            w,
+            cx,
+        );
+        v.set_selection(Selection::cursor(table_at), cx);
+    });
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    view.update(cx, |v, _| {
+        let decos = v.decorations();
+        let table_line_idx = v.state().doc.line_index(table_at);
+        let body_style = decos
+            .blocks
+            .iter()
+            .find_map(|b| match b {
+                Block::Line { line: 3, style } => Some(style.clone()),
+                _ => None,
+            })
+            .unwrap();
+        let tbl_style = decos
+            .blocks
+            .iter()
+            .find_map(|b| match b {
+                Block::Line { line, style } if *line == table_line_idx => Some(style.clone()),
+                _ => None,
+            })
+            .expect("revealed table source line");
+        assert_ne!(
+            tbl_style.text.family(),
+            body_style.text.family(),
+            "TODO-44: revealed table line must carry monospace TABLE_LINE styling"
+        );
+    });
+}
+
+#[gpui::test]
+fn read_only_allows_view_commands_and_blocks_document_edits(cx: &mut TestAppContext) {
+    use crate::editor::markdown::features::{callout, front_matter, mermaid, table};
+    use crate::editor::{table::operation::Operation, view::command::Command};
+
+    cx.update(|cx| {
+        if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+            gpui_kit::init(cx);
+        }
+        cx.text_system().add_fonts(style::font_bytes()).unwrap();
+        bind_keys(cx);
+    });
+
+    let text = concat!(
+        "---\ntitle: Spec\n---\n\n",
+        "> [!note]+ Details\n> hidden when folded\n\n",
+        "```mermaid\ngraph TD\n  A-->B\n```\n\n",
+        "- [ ] immutable task\n\n",
+        "| a | b |\n| - | - |\n| 1 | 2 |\n",
+    );
+    let fm_end = "---\ntitle: Spec\n---".len();
+    let callout_marker_at = text.find("[!note]+").unwrap();
+    let mermaid_at = text.find("```mermaid").unwrap();
+    let task_at = text.find("- [ ] immutable task").unwrap();
+    let table_at = text.find("| a | b |").unwrap();
+
+    let (view, cx) = cx.add_window_view(move |_, cx| {
+        let md = MarkdownExtension::new(true, Scale::Medium);
+        let mut v = EditorView::new(text, Box::new(md), cx);
+        v.set_read_only(true, cx);
+        v
+    });
+    view.update_in(cx, |v, w, cx| {
+        v.focus(w, cx);
+        v.set_selection(Selection::cursor(text.len()), cx);
+    });
+    let initial_blocks = blocks(&view, cx);
+    assert!(initial_blocks.contains(&(0..3)), "{initial_blocks:?}");
+    assert!(initial_blocks.contains(&(5..6)), "{initial_blocks:?}");
+
+    // 1. Mermaid Zoom and Activate update pane view state and invalidate decoration_key.
+    let key_before = view.update(cx, |v, _| {
+        use crate::editor::view::extension::EditorExtension;
+        let md = v.extension::<MarkdownExtension>().unwrap();
+        let d = md
+            .preview
+            .state::<mermaid::MermaidState>(mermaid::ID)
+            .map_or_else(Default::default, |s| s.get(mermaid_at));
+        assert_eq!(d.zoom, None);
+        assert!(!d.activated);
+        md.decoration_key()
+    });
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(
+                mermaid::ID,
+                mermaid::Action::Zoom {
+                    at: mermaid_at,
+                    percent: 150,
+                },
+            ),
+            w,
+            cx,
+        );
+        v.run_command(
+            &Command::new(mermaid::ID, mermaid::Action::Activate { at: mermaid_at }),
+            w,
+            cx,
+        );
+    });
+    let key_after = view.update(cx, |v, _| {
+        use crate::editor::view::extension::EditorExtension;
+        let md = v.extension::<MarkdownExtension>().unwrap();
+        let d = md
+            .preview
+            .state::<mermaid::MermaidState>(mermaid::ID)
+            .unwrap()
+            .get(mermaid_at);
+        assert_eq!(d.zoom, Some(150));
+        assert!(d.activated);
+        md.decoration_key()
+    });
+    assert_ne!(
+        key_before, key_after,
+        "Mermaid view state must invalidate decoration_key so zoom/activate redraws"
+    );
+
+    // 2. Callout Fold collapses the callout body in read-only mode.
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(
+                callout::ID,
+                callout::Fold {
+                    at: callout_marker_at,
+                    folded: true,
+                },
+            ),
+            w,
+            cx,
+        );
+    });
+    let _ = blocks(&view, cx);
+    view.update(cx, |v, _| {
+        let body_range = v.state().doc.line_range(5);
+        assert!(
+            v.decorations().atomic.contains(&body_range),
+            "folded callout body should become atomic in read-only mode"
+        );
+    });
+
+    // 3. ShowSource reveals front matter lines in read-only mode.
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(front_matter::ID, front_matter::ShowSource(0..fm_end)),
+            w,
+            cx,
+        );
+    });
+    let revealed_blocks = blocks(&view, cx);
+    assert!(
+        revealed_blocks.contains(&(0..1))
+            && revealed_blocks.contains(&(1..2))
+            && revealed_blocks.contains(&(2..3)),
+        "front matter ShowSource should expand 0..3 into source lines in read-only mode: {revealed_blocks:?}"
+    );
+
+    // 4. Document-mutating commands (task toggle, table structural edit) do not alter text.
+    let (rev_before, task_line) = view.read_with(cx, |v, _| {
+        (v.state().revision, v.state().doc.line_index(task_at))
+    });
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(&task::toggle_command(task_line), w, cx);
+        v.run_command(
+            &table::structure_command(table_at, Operation::InsertRowAbove, 1, 0),
+            w,
+            cx,
+        );
+    });
+    view.update(cx, |v, _| {
+        assert_eq!(v.text(), text);
+        assert_eq!(v.state().revision, rev_before);
+    });
+
+    // Positive control: once read-only is lifted via single-source `set_read_only`,
+    // those exact commands mutate the document (`TA-21`).
+    view.update_in(cx, |v, w, cx| {
+        v.set_read_only(false, cx);
+        v.run_command(&task::toggle_command(task_line), w, cx);
+        v.run_command(
+            &table::structure_command(table_at, Operation::InsertRowAbove, 1, 0),
+            w,
+            cx,
+        );
+    });
+    view.update(cx, |v, _| {
+        assert!(v.text().contains("- [x] immutable task"));
+        assert_ne!(v.text(), text);
+    });
+}
+
+/// A Markdown document (headings, long paragraphs, lists, code, tables)
+/// resized narrower and wider again: the text at the viewport top stays
+/// where it is, with no drift accumulating across resizes.
+#[gpui::test]
+fn resizing_keeps_the_markdown_at_the_viewport_top(cx: &mut TestAppContext) {
+    use gpui::{point, px, size};
+    let prose = "Every paragraph here wraps across several rows, so a narrower column adds rows to the blocks above the viewport as well as to the one at its top. ".repeat(4);
+    let text = (0..60)
+        .map(|i| {
+            format!(
+                "## Section {i}\n\n{prose}\n\n- first item {prose}\n- second item\n\n```rust\nfn section_{i}() {{}}\n```\n\n| a | b |\n| - | - |\n| {i} | cell |\n"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let (view, cx) = setup(cx, &text);
+    cx.simulate_resize(size(px(1000.), px(700.)));
+    for _ in 0..6 {
+        let _ = blocks(&view, cx);
+        cx.run_until_parked();
+    }
+    view.update(cx, |v, cx| v.set_scroll_top(30_000., cx));
+    let settle = |cx: &mut VisualTestContext| {
+        for _ in 0..6 {
+            let _ = blocks(&view, cx);
+            cx.run_until_parked();
+        }
+    };
+    settle(cx);
+    let row_of = |cx: &mut VisualTestContext, offset: usize| {
+        view.read_with(cx, |v, _| {
+            let l = v.layout().unwrap();
+            f32::from(l.caret(offset, false).row_top - l.bounds.top())
+        })
+    };
+    let offset = view.read_with(cx, |v, _| {
+        let l = v.layout().unwrap();
+        let left = l.blocks[0].bounds.left();
+        l.offset_at(point(left, l.bounds.top() + px(2.))).0
+    });
+    let row = row_of(cx, offset);
+    for width in [760., 560., 440., 880., 1000.].repeat(3) {
+        cx.simulate_resize(size(px(width), px(700.)));
+        settle(cx);
+        let now = row_of(cx, offset);
+        assert!(
+            (now - row).abs() <= 0.5,
+            "at {width}px the top text moved {}",
+            now - row
+        );
+    }
 }

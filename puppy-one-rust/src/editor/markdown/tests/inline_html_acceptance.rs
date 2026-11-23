@@ -1,5 +1,5 @@
 //! Inline HTML acceptance through production parsing, projection and drawn text.
-use super::setup_with_focus;
+use super::{hidden, setup, setup_with_focus};
 use crate::{
     editor::{
         markdown::{
@@ -516,4 +516,31 @@ fn an_anchor_the_url_policy_refuses_stays_source() {
         crate::editor::markdown::platform::brokers::link::safe_href(href).as_deref(),
         Some("https://example.com/")
     );
+}
+
+#[gpui::test]
+fn inline_html_tags_hide_and_style_their_content(cx: &mut TestAppContext) {
+    let text = "a <b>bold</b> and <q>said</q>\n\nend";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    assert_eq!(hidden(&view, cx), vec![2..5, 9..13]);
+    view.update(cx, |v, _| {
+        let d = v.decorations();
+        assert!(d.marks.iter().any(|m| m.range == (5..9) && m.style.bold));
+        // A `q` shows its quotation marks as first-class Text InlineWidgets (`TA-12`).
+        let quotes: Vec<_> = d
+            .inline_widgets
+            .iter()
+            .filter_map(|w| w.as_text().map(|s| (w.range.clone(), s.to_string())))
+            .collect();
+        assert_eq!(
+            quotes,
+            vec![(18..21, "\u{201c}".into()), (25..29, "\u{201d}".into())]
+        );
+    });
+    // The caret inside shows the tags as source.
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(7), cx));
+    assert!(hidden(&view, cx).is_empty());
 }

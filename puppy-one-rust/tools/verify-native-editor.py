@@ -108,8 +108,8 @@ suites = {
         't6_06_read_only_allows_copy_and_blocks_cut_and_paste',
         't6_07_selecting_entire_table_block_copies_exact_table_source',
     ],
-    'editor::markdown::tests::random_operations_': [
-        'keep_the_layout_consistent',
+    'editor::markdown::tests::pipeline_acceptance::': [
+        'random_operations_keep_the_layout_consistent',
     ],
 }
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'tools/verify-native-editor.py']]

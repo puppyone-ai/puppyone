@@ -456,3 +456,23 @@ fn mermaid_widget_stays_anchored_and_edits_mapped_source_after_prefix_edit(
         );
     });
 }
+
+/// `runtime-foundations.test.ts`: `defaults external web embeds to
+/// click-to-load and blocks non-https`. A lone https iframe waits for a
+/// click before anything loads; a `file:` iframe is never an embed.
+#[gpui::test]
+fn a_web_embed_waits_for_a_click_and_only_https_embeds(cx: &mut TestAppContext) {
+    let text = "<iframe src=\"https://example.com/embed\"></iframe>\n\nafter";
+    let (_view, cx) = setup(cx, text);
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    assert!(cx.debug_bounds("md-web-embed:click-to-load").is_some());
+    assert!(cx.debug_bounds("md-web-embed:loading").is_none());
+    let text = "<iframe src=\"file:///tmp/x.html\"></iframe>\n\nafter";
+    let (_view, cx) = setup(cx, text);
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    assert!(cx.debug_bounds("md-web-embed:click-to-load").is_none());
+}
