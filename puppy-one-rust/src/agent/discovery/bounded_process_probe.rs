@@ -139,8 +139,12 @@ pub async fn run_bounded_process_probe(
     let invocation = resolve_process_invocation(executable_path, args, &options.platform, env)
         .map_err(|_| failure("could not start."))?;
     let mut command = tokio::process::Command::new(&invocation.file);
+    crate::platform::process::apply_tokio_args(
+        &mut command,
+        &invocation.args,
+        invocation.verbatim_arguments,
+    );
     command
-        .args(&invocation.args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -151,8 +155,7 @@ pub async fn run_bounded_process_probe(
     if let Some(env) = options.env.as_ref() {
         command.env_clear().envs(env);
     }
-    let grouped = options.isolated_process_group && options.platform != "win32";
-    if grouped {
+    if options.isolated_process_group {
         crate::platform::process::isolate_tokio(&mut command);
     } else {
         crate::platform::process::hide_console_window(&mut command);
@@ -165,11 +168,13 @@ pub async fn run_bounded_process_probe(
         let _ = error;
         failure("could not start.")
     })?;
-    let pid = child.id();
+    let subtree = options
+        .isolated_process_group
+        .then(|| crate::platform::process::SubtreeGuard::attach_pid(child.id()));
     let kill = |child: &mut tokio::process::Child| {
-        if grouped
-            && let Some(pid) = pid.filter(|p| *p > 0)
-            && crate::platform::process::terminate_pid(pid, true, true)
+        if subtree
+            .as_ref()
+            .is_some_and(|guard| guard.terminate(true))
         {
             return;
         }
@@ -315,6 +320,74 @@ mod tests {
             assert_eq!(result.stdout, expected);
             assert_eq!(result.code, Some(0));
             assert!(result.stderr.is_empty());
+        });
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+    use crate::agent::application::tests_support::run_local;
+    use std::path::Path;
+    use std::time::Instant;
+
+    fn cmd_exe() -> String {
+        let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        Path::new(&root)
+            .join("System32")
+            .join("cmd.exe")
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    #[test]
+    fn windows_batch_probe_preserves_spaces_in_path_and_arguments() {
+        run_local(async {
+            let directory = tempfile::tempdir().unwrap();
+            let nested = directory.path().join("space dir");
+            std::fs::create_dir_all(&nested).unwrap();
+            let script = nested.join("echo probe.cmd");
+            std::fs::write(&script, "@echo off\r\necho [%~1][%~2]\r\n").unwrap();
+            let result = run_bounded_process_probe(
+                script.to_str().unwrap(),
+                &["hello world".into(), "second arg".into()],
+                ProbeOptions {
+                    timeout_ms: 5_000,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(result.code, Some(0));
+            assert_eq!(result.stdout.trim(), "[hello world][second arg]");
+            assert!(result.stderr.is_empty());
+        });
+    }
+
+    #[test]
+    fn windows_isolated_probe_timeout_reaps_descendants_via_subtree_guard() {
+        run_local(async {
+            let started = Instant::now();
+            let error = run_bounded_process_probe(
+                &cmd_exe(),
+                &["/d".into(), "/c".into(), "ping -n 30 127.0.0.1 >nul".into()],
+                ProbeOptions {
+                    timeout_ms: 250,
+                    isolated_process_group: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_err();
+            assert!(
+                error.message.contains("timed out"),
+                "unexpected probe error: {}",
+                error.message
+            );
+            assert!(
+                started.elapsed() < Duration::from_secs(3),
+                "isolated Windows probe timeout took too long"
+            );
         });
     }
 }

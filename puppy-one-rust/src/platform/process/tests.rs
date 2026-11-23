@@ -1,4 +1,5 @@
 use super::*;
+#[cfg(unix)]
 use std::{
     fs,
     net::{TcpListener, TcpStream},
@@ -7,6 +8,7 @@ use std::{
 
 const CANCELLED: &str = "Command cancelled, timed out, or exceeded its output limit";
 
+#[cfg(unix)]
 fn fixture(directory: &Path, name: &str, body: &str) -> std::path::PathBuf {
     let file = directory.join(name);
     fs::write(&file, body).unwrap();
@@ -15,7 +17,7 @@ fn fixture(directory: &Path, name: &str, body: &str) -> std::path::PathBuf {
 fn wait_file(path: &Path) -> String {
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
-        if let Ok(value) = fs::read_to_string(path)
+        if let Ok(value) = std::fs::read_to_string(path)
             && !value.is_empty()
         {
             return value;
@@ -27,6 +29,7 @@ fn wait_file(path: &Path) -> String {
         thread::sleep(Duration::from_millis(2));
     }
 }
+#[cfg(unix)]
 fn kill_owned_group(pid: i32) {
     // Tests only use PIDs announced by their own isolated fixture; always clean
     // up even on RED, before asserting that cancellation/deadline had worked.
@@ -47,6 +50,7 @@ fn precancellation_is_observed_before_executable_or_working_directory_lookup() {
     );
     assert_eq!(result, Err(CANCELLED.into()));
 }
+#[cfg(unix)]
 #[test]
 fn stdin_backpressure_cannot_disable_the_process_deadline() {
     let directory = tempfile::tempdir().unwrap();
@@ -79,6 +83,7 @@ fn stdin_backpressure_cannot_disable_the_process_deadline() {
         Err(CANCELLED.into())
     );
 }
+#[cfg(unix)]
 #[test]
 fn stdout_is_drained_while_large_stdin_is_still_being_written() {
     let directory = tempfile::tempdir().unwrap();
@@ -112,6 +117,7 @@ fn stdout_is_drained_while_large_stdin_is_still_being_written() {
     assert_eq!(output.len(), 2 * 1024 * 1024 + 4);
     assert!(output.ends_with(b"done"));
 }
+#[cfg(unix)]
 #[test]
 fn cancellation_after_parent_exit_reaps_pipe_holding_descendants_and_preserves_unrelated_servers() {
     let directory = tempfile::tempdir().unwrap();
@@ -181,6 +187,7 @@ else:
     assert!(unrelated_alive);
 }
 
+#[cfg(unix)]
 #[test]
 fn output_limits_stop_and_reap_the_actual_child_on_both_streams() {
     for (stream, limit) in [(1, 8 * 1024 * 1024), (2, 256 * 1024)] {
@@ -220,6 +227,7 @@ fn output_limits_stop_and_reap_the_actual_child_on_both_streams() {
     }
 }
 
+#[cfg(unix)]
 #[test]
 fn output_at_each_limit_is_preserved_without_truncation() {
     let directory = tempfile::tempdir().unwrap();
@@ -244,6 +252,7 @@ fn output_at_each_limit_is_preserved_without_truncation() {
     }
 }
 
+#[cfg(unix)]
 #[test]
 fn successful_input_closes_stdin_and_preserves_cwd_and_noninteractive_environment() {
     let directory = tempfile::tempdir().unwrap();
@@ -263,6 +272,7 @@ fn successful_input_closes_stdin_and_preserves_cwd_and_noninteractive_environmen
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn failed_exit_prefers_trimmed_stderr_then_stdout_and_preserves_invalid_utf8_lossily() {
     let directory = tempfile::tempdir().unwrap();
@@ -305,5 +315,138 @@ fn precancelled_and_zero_deadline_commands_never_create_launch_side_effects() {
         );
         assert_eq!(result, Err(CANCELLED.into()));
         assert!(!directory.path().join("launched").exists());
+    }
+}
+
+#[cfg(windows)]
+mod windows_tests {
+    use super::*;
+    use std::net::{TcpListener, TcpStream};
+
+    fn cmd_exe() -> std::path::PathBuf {
+        let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        Path::new(&root).join("System32").join("cmd.exe")
+    }
+
+    fn powershell_exe() -> std::path::PathBuf {
+        let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        Path::new(&root)
+            .join("System32")
+            .join("WindowsPowerShell")
+            .join("v1.0")
+            .join("powershell.exe")
+    }
+
+    #[test]
+    fn windows_run_captures_stdout_errors_and_enforces_deadline() {
+        let directory = tempfile::tempdir().unwrap();
+        let output = run(
+            &cmd_exe(),
+            &["/d", "/c", "echo hello-win"],
+            directory.path(),
+            None,
+            Duration::from_secs(5),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert_eq!(String::from_utf8_lossy(&output).trim(), "hello-win");
+
+        let failed = run(
+            &cmd_exe(),
+            &["/d", "/c", "echo fallback & echo err-text 1>&2 & exit /b 7"],
+            directory.path(),
+            None,
+            Duration::from_secs(5),
+            &AtomicBool::new(false),
+        );
+        assert_eq!(failed, Err("err-text".into()));
+
+        let started = Instant::now();
+        let timed_out = run(
+            &cmd_exe(),
+            &["/d", "/c", "ping -n 30 127.0.0.1 >nul"],
+            directory.path(),
+            None,
+            Duration::from_millis(250),
+            &AtomicBool::new(false),
+        );
+        assert_eq!(timed_out, Err(CANCELLED.into()));
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "deadline termination took too long"
+        );
+    }
+
+    #[test]
+    fn windows_subtree_guard_keeps_child_alive_and_reaps_descendants_on_terminate() {
+        let directory = tempfile::tempdir().unwrap();
+        let ready = directory.path().join("port.txt");
+        let child_script = directory.path().join("grandchild.ps1");
+        let parent_script = directory.path().join("parent.ps1");
+        std::fs::write(
+            &child_script,
+            format!(
+                "$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)\n\
+                 $listener.Start()\n\
+                 $port = $listener.LocalEndpoint.Port\n\
+                 [System.IO.File]::WriteAllText('{}', $port.ToString())\n\
+                 Start-Sleep -Seconds 30\n",
+                ready.to_string_lossy().replace('\'', "''")
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            &parent_script,
+            format!(
+                "Start-Process -FilePath '{}' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File','{}') -WindowStyle Hidden\n\
+                 Start-Sleep -Seconds 30\n",
+                powershell_exe().to_string_lossy().replace('\'', "''"),
+                child_script.to_string_lossy().replace('\'', "''")
+            ),
+        )
+        .unwrap();
+        let mut command = Command::new(powershell_exe());
+        command
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                parent_script.to_str().unwrap(),
+            ])
+            .current_dir(directory.path())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        isolate(&mut command);
+        let mut child = command.spawn().unwrap();
+        let guard = SubtreeGuard::attach_pid(Some(child.id()));
+        let port: u16 = wait_file(&ready).trim().parse().unwrap();
+        assert!(
+            TcpStream::connect(("127.0.0.1", port)).is_ok(),
+            "grandchild must stay alive while SubtreeGuard is held"
+        );
+        assert!(guard.terminate(true));
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while child.try_wait().unwrap().is_none() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(
+            child.try_wait().unwrap().is_some(),
+            "parent process was not terminated"
+        );
+        let released = loop {
+            if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                break true;
+            }
+            if Instant::now() >= deadline {
+                break false;
+            }
+            thread::sleep(Duration::from_millis(20));
+        };
+        assert!(
+            released,
+            "Win32 Job Object must reap descendant holding TCP port"
+        );
     }
 }

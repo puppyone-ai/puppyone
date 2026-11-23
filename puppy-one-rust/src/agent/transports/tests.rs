@@ -196,6 +196,52 @@ fn terminates_on_malformed_framing_oversized_lines_and_duplicate_response_ids() 
 }
 
 #[test]
+fn opt_in_leading_preamble_skips_startup_banner_without_relaxing_post_handshake_framing() {
+    run(async {
+        let (spawner, child) = fake_spawner(true);
+        let mut opts = options(spawner);
+        opts.max_leading_non_json_lines = Some(3);
+        let connection = JsonlRpcConnection::spawn(opts).unwrap();
+        let reply = tokio::task::spawn_local({
+            let connection = connection.clone();
+            async move {
+                connection
+                    .request("initialize", json!({}), RequestOptions::default())
+                    .await
+            }
+        });
+        tokio::task::yield_now().await;
+        child
+            .stdout("  CodeBuddy Code HTTP Server\n  Endpoint http://127.0.0.1:0\n")
+            .await;
+        assert!(!connection.closed());
+        child
+            .stdout("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"ok\":true}}\n")
+            .await;
+        assert_eq!(reply.await.unwrap().unwrap(), json!({ "ok": true }));
+        // Once the first valid JSON-RPC message has arrived, non-JSON lines are rejected.
+        child.stdout("stray banner after handshake\n").await;
+        assert!(connection.closed());
+
+        // Malformed JSON starting with `{` is never skipped, even before the first message.
+        let (spawner, child) = fake_spawner(true);
+        let mut opts = options(spawner);
+        opts.max_leading_non_json_lines = Some(5);
+        let broken_json = JsonlRpcConnection::spawn(opts).unwrap();
+        child.stdout("{not-valid-json\n").await;
+        assert!(broken_json.closed());
+
+        // Exceeding the leading banner limit still fails fast.
+        let (spawner, child) = fake_spawner(true);
+        let mut opts = options(spawner);
+        opts.max_leading_non_json_lines = Some(2);
+        let too_noisy = JsonlRpcConnection::spawn(opts).unwrap();
+        child.stdout("line 1\nline 2\nline 3\n").await;
+        assert!(too_noisy.closed());
+    });
+}
+
+#[test]
 fn keeps_an_ambiguous_request_scoped_to_its_wait() {
     run_paused_local(async {
         let (spawner, child) = fake_spawner(true);
@@ -327,4 +373,118 @@ fn delivers_a_private_bootstrap_envelope_on_fd_3_only() {
         assert_eq!(code, Some(0));
         assert_eq!(output, r#"{"connectionId":"private"}|"#);
     });
+}
+
+#[cfg(windows)]
+mod windows_real_process_tests {
+    use super::*;
+    use std::path::Path;
+    use tokio::io::AsyncReadExt;
+
+    fn cmd_exe() -> PathBuf {
+        let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        Path::new(&root).join("System32").join("cmd.exe")
+    }
+
+    fn powershell_exe() -> PathBuf {
+        let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        Path::new(&root)
+            .join("System32")
+            .join("WindowsPowerShell")
+            .join("v1.0")
+            .join("powershell.exe")
+    }
+
+    #[test]
+    fn spawn_managed_process_keeps_native_windows_child_alive_for_stdio_roundtrip() {
+        crate::agent::application::tests_support::run_local(async {
+            use tokio::io::AsyncWriteExt;
+            let mut io = super::super::jsonl_rpc_connection::spawn_managed_process(
+                &ConnectionOptions {
+                    executable_path: cmd_exe(),
+                    args: vec![
+                        "/d".into(),
+                        "/c".into(),
+                        "set /p line= & call echo %line%".into(),
+                    ],
+                    cwd: std::env::temp_dir(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            io.stdin.write_all(b"alive-on-windows\r\n").await.unwrap();
+            io.stdin.flush().await.unwrap();
+            let mut output = String::new();
+            io.stdout.read_to_string(&mut output).await.unwrap();
+            let (code, _, error) = io.exit.await;
+            assert!(error.is_none(), "{error:?}");
+            assert_eq!(code, Some(0));
+            assert_eq!(output.trim(), "alive-on-windows");
+        });
+    }
+
+    #[test]
+    fn jsonl_rpc_connection_completes_real_handshake_and_disposes_on_windows() {
+        crate::agent::application::tests_support::run_local(async {
+            let directory = tempfile::tempdir().unwrap();
+            let script = directory.path().join("mock codex.cmd");
+            std::fs::write(
+                &script,
+                "@echo off\r\nset /p req=\r\necho {\"id\":1,\"result\":{\"server\":\"win-test\"}}\r\nset /p hold=\r\n",
+            )
+            .unwrap();
+            let connection = JsonlRpcConnection::spawn(ConnectionOptions {
+                executable_path: script,
+                args: vec!["app-server".into(), "--listen".into(), "stdio://".into()],
+                cwd: directory.path().to_path_buf(),
+                ..Default::default()
+            })
+            .unwrap();
+            let response = connection
+                .request(
+                    "initialize",
+                    json!({ "clientInfo": { "name": "test" } }),
+                    RequestOptions {
+                        timeout_ms: Some(5_000),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(response["server"], "win-test");
+            connection.dispose("test complete", true);
+            let exit = connection.wait_for_exit(Some(5_000)).await.unwrap();
+            assert!(exit["error"].is_null(), "{exit}");
+        });
+    }
+
+    #[test]
+    fn delivers_a_private_bootstrap_envelope_via_windows_handle() {
+        crate::agent::application::tests_support::run_local(async {
+            let mut io = super::super::jsonl_rpc_connection::spawn_managed_process(
+                &ConnectionOptions {
+                    executable_path: powershell_exe(),
+                    args: vec![
+                        "-NoProfile".into(),
+                        "-Command".into(),
+                        "$h = [Microsoft.Win32.SafeHandles.SafeFileHandle]::new([IntPtr][Int64]$env:PUPPYONE_BOOTSTRAP_HANDLE, $true); \
+                         $fs = [System.IO.FileStream]::new($h, [System.IO.FileAccess]::Read); \
+                         $sr = [System.IO.StreamReader]::new($fs); \
+                         [Console]::Out.Write($sr.ReadToEnd()); \
+                         $sr.Dispose()".into(),
+                    ],
+                    cwd: std::env::temp_dir(),
+                    bootstrap: Some(br#"{"connectionId":"private"}"#.to_vec()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let mut output = String::new();
+            io.stdout.read_to_string(&mut output).await.unwrap();
+            let (code, _, error) = io.exit.await;
+            assert!(error.is_none(), "{error:?}");
+            assert_eq!(code, Some(0));
+            assert_eq!(output, r#"{"connectionId":"private"}"#);
+        });
+    }
 }
