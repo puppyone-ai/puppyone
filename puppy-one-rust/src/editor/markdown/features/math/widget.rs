@@ -11,7 +11,7 @@ use crate::{
     editor::{
         markdown::{
             platform::render as render_broker,
-            shared::{fallback::action_pill, ring},
+            shared::widgets::{fallback::action_pill, ring},
             style::{BlockStyle, MarkdownTheme},
         },
         text::{selection::Selection, state::Transaction},

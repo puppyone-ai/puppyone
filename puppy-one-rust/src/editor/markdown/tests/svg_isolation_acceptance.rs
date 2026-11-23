@@ -14,7 +14,7 @@ use crate::{
             SetAssets,
             features::mermaid,
             platform::assets::{AssetState, decode_svg_bitmap},
-            shared::media_source::MediaSource,
+            shared::media::MediaSource,
         },
         registry::DocumentAssets,
         view::extension::config_transaction,

@@ -43,6 +43,8 @@ pub struct LazyWidgetEnv {
     pub(super) feature_state: FeatureStateStore,
     pub(super) assets: Option<DocumentAssets>,
     pub(super) references: Option<ReferenceContext>,
+    pub(super) inline_preview:
+        Option<&'static dyn crate::editor::markdown::shared::preview::InlinePreview>,
 }
 
 pub type LazyEnvSlot = Rc<RefCell<Option<Rc<LazyWidgetEnv>>>>;
@@ -112,6 +114,7 @@ impl LazyBlockWidget {
             assets: env.assets.as_ref(),
             references: env.references.as_ref(),
             state: &env.feature_state,
+            inline_preview: env.inline_preview,
         };
         let built = best
             .and_then(|embed| Some((features::find(env.features, embed.feature)?, embed)))
@@ -271,6 +274,7 @@ pub(super) fn decorate_window(
         assets: cx.assets,
         references: cx.references,
         state: &cx.preview.features,
+        inline_preview: cx.inline_preview,
     };
 
     // A diagnosed source fallback owns its authored text even if the base

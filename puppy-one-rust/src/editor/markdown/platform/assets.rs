@@ -6,7 +6,7 @@
 use super::policy::{
     self, AssetFailure, ContentStamp, MAX_REMOTE_IMAGE_BYTES, MAX_WORKSPACE_ASSET_BYTES,
 };
-use crate::editor::{markdown::shared::media_source::MediaSource, registry::DocumentAssets};
+use crate::editor::{markdown::shared::media::MediaSource, registry::DocumentAssets};
 use gpui::{App, ImageFormat, RenderImage};
 use std::{
     cell::RefCell,

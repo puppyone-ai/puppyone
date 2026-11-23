@@ -297,7 +297,7 @@ pub(super) fn references_fingerprint(
                     let lr = doc.line_range(line);
                     let raw = doc.slice_cow(lr.clone());
                     if raw.contains('&') {
-                        let decoded = shared::dom::decode_entities(&raw);
+                        let decoded = shared::token_scan::decode_entities(&raw);
                         for w in find_wiki_links(&decoded) {
                             (4u8, lr.start, w.range.start, w.target.as_str()).hash(&mut h);
                             hash_resolution(&mut h, refs.map(|r| r.resolve(&w.target)));
@@ -324,7 +324,7 @@ pub(super) fn references_fingerprint(
                 hash_resolution(&mut h, refs.and_then(|r| r.markdown(&l.href)));
             }
             if slice.contains('&') {
-                let decoded = shared::dom::decode_entities(&slice);
+                let decoded = shared::token_scan::decode_entities(&slice);
                 for w in find_wiki_links(&decoded) {
                     (6u8, plan.source.start, w.range.start, w.target.as_str()).hash(&mut h);
                     hash_resolution(&mut h, refs.map(|r| r.resolve(&w.target)));

@@ -22,7 +22,7 @@ use crate::editor::{
             state::PreviewState,
             syntax::{Element, Kind},
         },
-        shared::media_source::{parse_image_size, split_image_alt},
+        shared::media::{parse_image_size, split_image_alt},
     },
     text::{
         selection::Selection,

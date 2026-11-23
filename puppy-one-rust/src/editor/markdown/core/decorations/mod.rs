@@ -53,6 +53,9 @@ pub struct DecorateCx<'a> {
     pub assets: Option<&'a DocumentAssets>,
     /// The workspace's link graph (Obsidian embeds resolve by name).
     pub references: Option<&'a ReferenceContext>,
+    /// Isolated fragment preview port injected by `composition::preview` (`MA-07`, `R13`).
+    pub inline_preview:
+        Option<&'static dyn crate::editor::markdown::shared::preview::InlinePreview>,
 }
 
 /// The surface of `.markdown-codemirror-editor` / `.cm-content`.

@@ -2,6 +2,7 @@
 use crate::editor::{
     markdown::{
         core::{plans::Plan, state::FeatureStateStore, syntax::Syntax},
+        shared::preview::InlinePreview,
         style::MarkdownTheme,
     },
     navigation::ReferenceContext,
@@ -35,6 +36,8 @@ pub struct WidgetFactoryCx<'a> {
     pub references: Option<&'a ReferenceContext>,
     /// Per-feature pane state store (`TA-40`).
     pub state: &'a FeatureStateStore,
+    /// Isolated Markdown/HTML fragment preview port injected by `composition::preview` (`MA-07`, `R13`).
+    pub inline_preview: Option<&'static dyn InlinePreview>,
 }
 
 impl<'a> WidgetFactoryCx<'a> {

@@ -9,12 +9,12 @@ use super::{
 use crate::editor::{
     markdown::{
         SetAssets,
-        platform::assets as md_assets,
-        shared::{
+        features::html::{
             dom,
-            html_surface::{measured_height, record_measured_height},
-            media_source::MediaSource,
+            render::{measured_height, record_measured_height},
         },
+        platform::assets as md_assets,
+        shared::media::MediaSource,
         tests::setup,
     },
     registry::DocumentAssets,

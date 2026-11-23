@@ -25,6 +25,14 @@ pub const SAFE_RASTER_DATA_MIMES: &[&str] = &[
     "image/x-icon",
 ];
 
+/// Media element kind shared by HTML blocks (`<video>` / `<audio>`) and the
+/// video feature (`platform::embed` media player).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MediaKind {
+    Video,
+    Audio,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum MediaSource {
     /// Workspace-relative path (normalized, never escaping workspace root).

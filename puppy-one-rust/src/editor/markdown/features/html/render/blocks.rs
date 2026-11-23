@@ -5,12 +5,12 @@ use super::{
     toggle_details_state,
 };
 use crate::{
-    editor::markdown::shared::dom::{Element, MAX_HTML_DEPTH, Node},
+    editor::markdown::features::html::sanitize::{Element, MAX_HTML_DEPTH, Node},
     ui::components::{SurfaceCorners, SurfaceStyledExt},
 };
 use gpui::{prelude::*, *};
 
-impl Surface<'_, '_, '_, '_> {
+impl Surface<'_, '_, '_> {
     pub(super) fn block_element(
         &mut self,
         e: &Element,

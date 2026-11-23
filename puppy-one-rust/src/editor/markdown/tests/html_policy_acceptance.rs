@@ -4,7 +4,7 @@ use crate::editor::{
     markdown::{
         MarkdownExtension,
         features::html::HtmlBlock,
-        shared::dom::{self, Node, Parsed},
+        features::html::dom::{self, Node, Parsed},
     },
     text::state::EditorState,
     view::decoration::Block,

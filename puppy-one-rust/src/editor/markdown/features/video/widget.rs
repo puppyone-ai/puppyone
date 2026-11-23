@@ -11,7 +11,7 @@ use crate::{
     editor::{
         markdown::{
             platform::policy::AssetFailure,
-            shared::{
+            shared::widgets::{
                 fallback::{FallbackSummary, action_pill},
                 ring,
             },

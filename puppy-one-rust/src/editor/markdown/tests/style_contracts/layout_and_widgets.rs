@@ -9,8 +9,8 @@ use crate::{
     editor::{
         markdown::{
             SetAssets,
+            features::html::render::html_image_dimensions,
             features::{image as md_image, mermaid},
-            shared::html_surface::html_image_dimensions,
             tests::{setup, setup_with_focus},
         },
         registry::DocumentAssets,

@@ -1,6 +1,8 @@
 //! The built-in Markdown features (`composition/markdownFeatureComposition.ts`):
 //! the only lists of them, one per dialect. Order matters where features
 //! claim the same source (earlier wins).
+pub mod preview;
+
 use super::{
     core::features::{Features, MarkdownFeature},
     features::{

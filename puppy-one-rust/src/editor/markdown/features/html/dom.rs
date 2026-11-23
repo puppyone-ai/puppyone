@@ -1,7 +1,12 @@
-//! Sanitized HTML DOM facade (`TA-41`, `TA-51`, `TODO-36`):
-//! re-exports [`crate::editor::markdown::shared::dom`] where void/self-closing
-//! blocked tags and `MAX_HTML_DEPTH = 64` are enforced.
-pub use crate::editor::markdown::shared::dom::*;
+//! Sanitized HTML DOM facade (`TA-41`, `TA-51`, `TODO-36`), re-exporting
+//! `tokenizer`, `structure`, and `sanitize` until facade cleanup in Step M7.
+pub use super::{
+    sanitize::{
+        BLOCKED_TAGS, Element, MAX_HTML_DEPTH, Node, has_blocked_root, hash_nodes, is_blocked_tag,
+    },
+    structure::{Parsed, balance, markdown_html, markdown_nodes, parse},
+    tokenizer::decode_entities,
+};
 
 #[cfg(test)]
 mod tests {
