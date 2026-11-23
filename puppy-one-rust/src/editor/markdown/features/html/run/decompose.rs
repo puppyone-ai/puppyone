@@ -111,21 +111,34 @@ pub fn picture_source<'t>(
     img: Option<&'t str>,
     dark: bool,
 ) -> Option<String> {
+    picture_candidates(sources, img, dark).into_iter().next()
+}
+
+/// Every image a `<picture>` may show in the editor's colour mode, in the
+/// order a browser tries them: the `<source>`s whose `prefers-color-scheme`
+/// matches (or that have no media query), then its `<img>`. A candidate the
+/// document's media policy refuses gives way to the next (`removes an
+/// unauthorized candidate so the fallback image still shows`).
+pub fn picture_candidates<'t>(
+    sources: impl Iterator<Item = (Option<&'t str>, Option<&'t str>)>,
+    img: Option<&'t str>,
+    dark: bool,
+) -> Vec<String> {
     let scheme = if dark { "dark" } else { "light" };
-    for (media, srcset) in sources {
-        let Some(srcset) = srcset else { continue };
-        let matches = match media {
-            None => true,
-            Some(m) => {
-                let m = m.to_ascii_lowercase().replace(' ', "");
-                m.contains(&format!("prefers-color-scheme:{scheme}"))
-            }
-        };
-        if matches {
-            return best_candidate(srcset);
-        }
-    }
-    img.map(str::to_owned)
+    let mut out: Vec<String> = sources
+        .filter_map(|(media, srcset)| {
+            let matches = match media {
+                None => true,
+                Some(m) => m
+                    .to_ascii_lowercase()
+                    .replace(' ', "")
+                    .contains(&format!("prefers-color-scheme:{scheme}")),
+            };
+            matches.then(|| best_candidate(srcset?)).flatten()
+        })
+        .collect();
+    out.extend(img.map(str::to_owned));
+    out
 }
 
 /// Draws `run`'s part of `within` into `sink`: tags hide, images draw in the
@@ -173,8 +186,17 @@ pub(super) fn decompose(
                         .iter()
                         .filter(|p| p.open.name == "source")
                         .map(|p| (p.open.attribute("media"), p.open.attribute("srcset")));
+                    let candidates = picture_candidates(
+                        sources,
+                        img.and_then(|i| i.attribute("src")),
+                        theme.dark,
+                    );
                     (
-                        picture_source(sources, img.and_then(|i| i.attribute("src")), theme.dark),
+                        candidates
+                            .iter()
+                            .find(|c| media::resolve_markdown_media(&document, c).is_ok())
+                            .or(candidates.first())
+                            .cloned(),
                         img,
                     )
                 } else {

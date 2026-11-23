@@ -133,8 +133,8 @@ pub fn parse(source: &str) -> Parsed {
                     return Parsed::Unsupported;
                 }
                 let element = Element {
+                    attributes: sanitize_attributes(&tag, attributes),
                     tag,
-                    attributes: sanitize_attributes(attributes),
                     children: Vec::new(),
                 };
                 if void {

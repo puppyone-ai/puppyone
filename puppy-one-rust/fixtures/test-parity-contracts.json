@@ -50999,6 +50999,122 @@
           "test": "editor::markdown::tests::html_run_acceptance::audio_in_a_sentence_resolves_through_the_media_path_as_audio"
         }
       ]
+    },
+    {
+      "id": "markdown-html-presentational-attributes",
+      "acceptance": "The HTML surface keeps and draws valid legacy presentation values: percentage image widths (a share of the column), image placement (left, right, centre; top, middle, bottom in the line), table alignment and width, cell width and vertical alignment, and ordered list types (1, a, A, i, I). An invalid value is omitted and the element kept. A <source> media or sizes condition is kept only when it cannot load anything. Style values follow the product's isSafeStyleValue: CSS variables only on colour properties (with a colour fallback), bounded non-negative lengths, keyword sets per property. A <picture> shows its first candidate the editor's colour mode selects and the document's media policy allows, never loading the fallback image first, and falls back to its <img>, then its alt text.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 46,
+              "name": "Markdown theme-aware picture media > waits for picture candidates before giving the fallback image a URL"
+            },
+            {
+              "index": 47,
+              "name": "Markdown theme-aware picture media > removes an unauthorized candidate so the fallback image still shows"
+            },
+            {
+              "index": 48,
+              "name": "Markdown theme-aware picture media > falls back to alt text when no picture candidate is authorized"
+            },
+            {
+              "index": 57,
+              "name": "Markdown HTML reduction > keeps img width percent"
+            },
+            {
+              "index": 59,
+              "name": "Markdown HTML reduction > keeps img placement"
+            },
+            {
+              "index": 60,
+              "name": "Markdown HTML reduction > keeps table alignment"
+            },
+            {
+              "index": 61,
+              "name": "Markdown HTML reduction > keeps table width"
+            },
+            {
+              "index": 62,
+              "name": "Markdown HTML reduction > keeps cell width"
+            },
+            {
+              "index": 63,
+              "name": "Markdown HTML reduction > keeps cell vertical alignment"
+            },
+            {
+              "index": 65,
+              "name": "Markdown HTML reduction > keeps list type"
+            },
+            {
+              "index": 68,
+              "name": "Markdown HTML reduction > omits an invalid value for an img placement"
+            },
+            {
+              "index": 69,
+              "name": "Markdown HTML reduction > omits an invalid value for a cell alignment"
+            },
+            {
+              "index": 71,
+              "name": "Markdown HTML reduction > omits an invalid value for a list type"
+            },
+            {
+              "index": 72,
+              "name": "Markdown HTML reduction > omits an invalid value for a source condition"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
+          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Markdown HTML profile convergence > does not let CSS variables or unbounded geometry bypass presentation policy"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::a_picture_loads_its_matching_candidate_without_the_fallback_first"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::a_refused_candidate_gives_way_to_the_fallback_image"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::a_picture_with_no_allowed_candidate_shows_its_alt_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::valid_presentation_values_are_kept"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::invalid_presentation_values_are_omitted"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::kept_presentation_values_draw"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::cell_vertical_alignment_places_the_content"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::html::render::blocks::tests::ordered_list_types_number_their_markers"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::policy::presentation::tests::css_variables_and_unbounded_geometry_cannot_bypass_the_policy"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -63995,86 +64111,6 @@
             {
               "index": 2,
               "name": "embedded frame relay > does nothing without a frame"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-html-presentational-attributes",
-      "kind": "gap",
-      "reason": "The native HTML surface applies block alignment, ordered list starts and pixel image sizes, but not percentage image widths, image placement (align left/right), table alignment and width, cell width and vertical alignment or ordered list types, so their valid and invalid values are not distinguished either; and a picture always shows its fallback image, never a candidate chosen by its source's media condition (no dark-mode picture).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/html-block.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
-          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
-          "cases": [
-            {
-              "index": 46,
-              "name": "Markdown theme-aware picture media > waits for picture candidates before giving the fallback image a URL"
-            },
-            {
-              "index": 47,
-              "name": "Markdown theme-aware picture media > removes an unauthorized candidate so the fallback image still shows"
-            },
-            {
-              "index": 48,
-              "name": "Markdown theme-aware picture media > falls back to alt text when no picture candidate is authorized"
-            },
-            {
-              "index": 57,
-              "name": "Markdown HTML reduction > keeps img width percent"
-            },
-            {
-              "index": 59,
-              "name": "Markdown HTML reduction > keeps img placement"
-            },
-            {
-              "index": 60,
-              "name": "Markdown HTML reduction > keeps table alignment"
-            },
-            {
-              "index": 61,
-              "name": "Markdown HTML reduction > keeps table width"
-            },
-            {
-              "index": 62,
-              "name": "Markdown HTML reduction > keeps cell width"
-            },
-            {
-              "index": 63,
-              "name": "Markdown HTML reduction > keeps cell vertical alignment"
-            },
-            {
-              "index": 65,
-              "name": "Markdown HTML reduction > keeps list type"
-            },
-            {
-              "index": 68,
-              "name": "Markdown HTML reduction > omits an invalid value for an img placement"
-            },
-            {
-              "index": 69,
-              "name": "Markdown HTML reduction > omits an invalid value for a cell alignment"
-            },
-            {
-              "index": 71,
-              "name": "Markdown HTML reduction > omits an invalid value for a list type"
-            },
-            {
-              "index": 72,
-              "name": "Markdown HTML reduction > omits an invalid value for a source condition"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
-          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
-          "cases": [
-            {
-              "index": 9,
-              "name": "Markdown HTML profile convergence > does not let CSS variables or unbounded geometry bypass presentation policy"
             }
           ]
         }
