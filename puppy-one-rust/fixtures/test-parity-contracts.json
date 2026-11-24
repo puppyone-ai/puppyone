@@ -52297,6 +52297,52 @@
           "test": "agent::runtimes::puppyone_agent::model_client::tests::a_reviewed_refusal_reads_as_words_with_its_reference"
         }
       ]
+    },
+    {
+      "id": "agent-markdown-gfm-extras",
+      "acceptance": "An Agent answer names its language from its own script before the interface's (resolveMarkdownContentLanguage: a Chinese answer is zh-Hans in an English interface), and its text takes that language's script faces. GFM tables keep each column's authored alignment (:---, :---:, ---:) in a viewport as wide as the answer, which is a tab stop whose arrows scroll it, never before its start. Bare http(s)://, www. and e-mail addresses become links to their normalized address (https://example.com/), without a sentence's trailing punctuation or an unbalanced ')'; a domain needs a period. Footnote references are numbered by first use and shown raised; the referenced footnotes follow the answer after a rule, unreferenced definitions are dropped. Task lists, nested lists, strikethrough and rules still parse.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.markdown-renderer.test.tsx",
+          "sha256": "339b2a5c7ca5ee5827699963ae3cfe492e100e1157ea1fbb41847fbadd9612a6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent Markdown renderer > uses the message language for locale-aware reading typography"
+            },
+            {
+              "index": 1,
+              "name": "Agent Markdown renderer > renders semantic GFM tables inside a bounded horizontal viewport"
+            },
+            {
+              "index": 2,
+              "name": "Agent Markdown renderer > supports task lists, nested lists, strikethrough, autolinks, rules, and footnotes"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::an_answer_names_its_language_and_its_table_viewport_takes_the_keyboard"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::table_columns_keep_their_authored_alignment"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::bare_urls_link_and_footnotes_follow_the_answer"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::autolink_literals_end_where_the_address_does"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62513,32 +62559,6 @@
             {
               "index": 0,
               "name": "keeps a silent utility alive through a clock jump and missed heartbeats, while retaining explicit termination"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "agent-markdown-gfm-extras",
-      "kind": "gap",
-      "reason": "Agent Markdown in the native transcript has no footnotes, no bare-URL autolinks (only <url> and [text](url)), no table column alignment (`:---:`) and no lang attribute for locale-aware reading typography; tables, task lists, nested lists, strikethrough and rules do parse.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/agent-markdown.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/transcript/desktop-agent.markdown-renderer.test.tsx",
-          "sha256": "339b2a5c7ca5ee5827699963ae3cfe492e100e1157ea1fbb41847fbadd9612a6",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Agent Markdown renderer > uses the message language for locale-aware reading typography"
-            },
-            {
-              "index": 1,
-              "name": "Agent Markdown renderer > renders semantic GFM tables inside a bounded horizontal viewport"
-            },
-            {
-              "index": 2,
-              "name": "Agent Markdown renderer > supports task lists, nested lists, strikethrough, autolinks, rules, and footnotes"
             }
           ]
         }

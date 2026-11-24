@@ -1,4 +1,6 @@
-//! Tables in Chromium's auto layout inside a 12px scrollbar gutter.
+//! Tables in Chromium's auto layout inside a 12px scrollbar gutter, their
+//! columns aligned as authored (`:---:`), in a horizontal viewport the
+//! keyboard can reach and scroll (`tabIndex=0`).
 use super::*;
 
 /// Chromium auto table layout for `width: max-content; min-width: 100%`:
@@ -18,9 +20,29 @@ pub(super) fn column_widths(maxima: &[f32], available: f32) -> Vec<f32> {
         .collect()
 }
 
+/// The arrows scroll a focused table this far (Chromium's line step).
+const ARROW_STEP: f32 = 40.;
+
+/// The viewport's own keyboard focus and scroll position, kept across frames.
+struct Viewport {
+    focus: FocusHandle,
+    scroll: ScrollHandle,
+}
+
+/// `style="text-align: …"` of a column.
+pub(super) fn text_align(align: Align) -> Option<TextAlign> {
+    match align {
+        Align::None => None,
+        Align::Left => Some(TextAlign::Left),
+        Align::Center => Some(TextAlign::Center),
+        Align::Right => Some(TextAlign::Right),
+    }
+}
+
 pub(super) fn table(
     head: &[Vec<Inline>],
     rows: &[Vec<Vec<Inline>>],
+    align: &[Align],
     cx: &mut Context<'_>,
     path: &str,
 ) -> AnyElement {
@@ -86,7 +108,14 @@ pub(super) fn table(
     }
     all_rows.extend(rows.iter().map(|r| (r.clone(), false)));
     let row_count = all_rows.len();
-    let mut grid = div().flex().flex_col();
+    // As wide as its columns (`width: max-content`), however narrow the
+    // viewport.
+    let mut grid = div()
+        .debug_selector(|| "agent-markdown-table-grid".into())
+        .flex_none()
+        .w(px(widths.iter().take(columns).sum::<f32>()))
+        .flex()
+        .flex_col();
     for (r, (cells, header)) in all_rows.iter().enumerate() {
         // `tbody tr:nth-child(even)`.
         let body_index = if head.is_empty() {
@@ -104,6 +133,7 @@ pub(super) fn table(
             } else {
                 FontWeight::NORMAL
             };
+            cx.align = align.get(c).copied().and_then(text_align);
             let content = rich(
                 &inlines,
                 false,
@@ -113,6 +143,7 @@ pub(super) fn table(
                 cx,
                 &format!("{path}.{r}.{c}"),
             );
+            cx.align = None;
             row = row.child(cell(
                 content,
                 width,
@@ -123,12 +154,43 @@ pub(super) fn table(
         }
         grid = grid.child(row);
     }
+    let id = SharedString::from(format!("{}:{path}:table", cx.key));
+    let viewport = cx
+        .window
+        .use_keyed_state(id.clone(), cx.app, |_, cx| Viewport {
+            focus: cx.focus_handle().tab_stop(true),
+            scroll: ScrollHandle::new(),
+        })
+        .read(cx.app);
+    let (focus, scroll) = (viewport.focus.clone(), viewport.scroll.clone());
+    let focused = focus.is_focused(cx.window);
+    let scrolled = scroll.clone();
     div()
-        .id(SharedString::from(format!("{}:{path}:table", cx.key)))
+        .id(id)
+        .debug_selector(|| "agent-markdown-table-scroll".into())
+        .track_focus(&focus)
+        .track_scroll(&scroll)
+        .on_key_down(move |e: &KeyDownEvent, window, cx| {
+            let by = match e.keystroke.key.as_str() {
+                "left" => ARROW_STEP,
+                "right" => -ARROW_STEP,
+                _ => return,
+            };
+            cx.stop_propagation();
+            let offset = scrolled.offset();
+            let max = scrolled.max_offset();
+            let x = (f32::from(offset.x) + by).clamp(-f32::from(max.x), 0.);
+            scrolled.set_offset(point(px(x), offset.y));
+            window.refresh();
+        })
         .w_full()
         .overflow_x_scroll()
         .border_1()
-        .border_color(a.border_subtle)
+        .border_color(if focused {
+            t.focus_ring
+        } else {
+            a.border_subtle
+        })
         .rounded(px(8.))
         .bg(a.markdown_disclosure_surface)
         .pr(px(12.))
