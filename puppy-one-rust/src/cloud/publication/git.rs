@@ -85,6 +85,10 @@ pub trait GitOps: Send + Sync {
         secret: &str,
         on_transfer: &(dyn Fn(Transfer) + Sync),
     ) -> Result<(), PublishError>;
+    /// `readInitialPushReceipt`: Cloud's record of the current attempt — its
+    /// commit when committed onto an absent `main`, an error when rejected,
+    /// `None` when it says nothing.
+    fn receipt(&self, record: &Record, secret: &str) -> Result<Option<String>, PublishError>;
     /// `refs/heads/main` on the canonical URL (`None`: absent).
     fn remote_main(
         &self,
@@ -458,6 +462,38 @@ pub fn push_limit_failure(diagnostic: &str) -> bool {
         return true;
     }
     pack_limit_failure(diagnostic) || PROCESSING.is_match(diagnostic)
+}
+/// A failed first push, settled by what Cloud says: the attempt's receipt
+/// first (a lost response resolves without asking for the ref), then one
+/// bounded read of Cloud main. Landed: `Ok`. Another commit on main: a
+/// conflict. Otherwise a limit refusal, then Cloud's rejection of this
+/// attempt, win over the disconnect Git may append (`stderr` holds Git's
+/// diagnostic without its progress).
+pub(super) fn settle_failed_push(
+    stderr: &str,
+    commit: &str,
+    receipt: Result<Option<String>, PublishError>,
+    remote_main: impl FnOnce() -> Option<String>,
+) -> Result<(), PublishError> {
+    let (landed, rejection) = match receipt {
+        Ok(landed) => (landed, None),
+        Err(rejection) => (None, Some(rejection)),
+    };
+    let head = landed.or_else(remote_main);
+    if head.as_deref() == Some(commit) {
+        return Ok(());
+    }
+    if head.is_some() {
+        return Err(PublishError::new(
+            Code::RemoteRefConflict,
+            "Cloud main changed while the initial push was in flight.",
+            false,
+        ));
+    }
+    if push_limit_failure(stderr) {
+        return Err(push_failure(stderr));
+    }
+    Err(rejection.unwrap_or_else(|| push_failure(stderr)))
 }
 /// What a failed first push is, once Cloud main is known not to hold its
 /// commit: an explicit refusal wins over the disconnect Git may append.
@@ -850,22 +886,18 @@ impl GitOps for Cli {
         match pushed {
             Ok(_) => assert_managed(root, config, &record.operation_id),
             Err(stderr) => {
-                // One bounded check of what Cloud main now is.
-                let head = self.remote_main(root, record, secret).ok().flatten();
-                if head.as_deref() == Some(record.attempt.commit_oid.as_str()) {
-                    return assert_managed(root, config, &record.operation_id);
-                }
-                if head.is_some() {
-                    return Err(PublishError::new(
-                        Code::RemoteRefConflict,
-                        "Cloud main changed while the initial push was in flight.",
-                        false,
-                    ));
-                }
-                // The error Git printed, not the progress that preceded it.
-                Err(push_failure(&strip_progress_output(&stderr)))
+                settle_failed_push(
+                    &strip_progress_output(&stderr),
+                    &record.attempt.commit_oid,
+                    self.receipt(record, secret),
+                    || self.remote_main(root, record, secret).ok().flatten(),
+                )?;
+                assert_managed(root, config, &record.operation_id)
             }
         }
+    }
+    fn receipt(&self, record: &Record, secret: &str) -> Result<Option<String>, PublishError> {
+        super::receipt::initial_push_receipt(&super::receipt::Http, record, secret)
     }
     fn remote_main(
         &self,

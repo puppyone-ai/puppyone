@@ -160,6 +160,9 @@ impl GitOps for Fake {
             }
         })
     }
+    fn receipt(&self, _: &Record, _: &str) -> Result<Option<String>, PublishError> {
+        Ok(None)
+    }
     fn remote_main(&self, _: &Path, _: &Record, _: &str) -> Result<Option<String>, PublishError> {
         Ok(self.with(|s| s.cloud_main.clone()))
     }

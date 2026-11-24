@@ -19,6 +19,7 @@ pub mod git;
 pub mod journal;
 mod migrate;
 pub mod preparation;
+pub mod receipt;
 #[cfg(test)]
 mod tests;
 pub mod transfer;
@@ -233,6 +234,8 @@ struct Facts {
     remote_kind: Option<Remote>,
     remote_head: Option<String>,
     remote_read: bool,
+    /// Cloud's receipt rejected the current attempt for good.
+    remote_rejected: bool,
 }
 impl Facts {
     fn remote_accepted(&self, record: &Record) -> bool {
@@ -386,6 +389,7 @@ impl Coordinator {
             remote_kind: remote,
             remote_head: None,
             remote_read: false,
+            remote_rejected: false,
         }
     }
     /// `readFacts`: local facts, plus Cloud main when the operation has
@@ -408,7 +412,18 @@ impl Coordinator {
         else {
             return Ok(facts);
         };
-        match self.git.remote_main(root, record, &secret) {
+        // `inspectCanonicalPushOutcome`: the attempt's receipt first; a
+        // rejection belongs to that attempt only, so Cloud main is still read
+        // (another attempt may have published the same commit).
+        let head = match self.git.receipt(record, &secret) {
+            Ok(Some(landed)) => Ok(Some(landed)),
+            Err(e) if e.code == Code::PushFailed => {
+                facts.remote_rejected = true;
+                self.git.remote_main(root, record, &secret)
+            }
+            Ok(None) | Err(_) => self.git.remote_main(root, record, &secret),
+        };
+        match head {
             Ok(head) => {
                 facts.remote_head = head;
                 facts.remote_read = true;
@@ -454,6 +469,21 @@ impl Coordinator {
                 r.cleanup_state = "none".into();
                 r.last_error = Some(stored(Code::RemoteRefConflict, false));
                 finish_attempt(&mut r.attempt, "conflict");
+            });
+        }
+        if facts.remote_rejected
+            && record.push_state != "failed"
+            && !record
+                .attempt_history
+                .iter()
+                .any(|a| a.state == "uncertain")
+        {
+            // Only a bound rejection resolves uncertainty; an absent ref alone
+            // does not. Earlier unresolved sends keep their frozen target.
+            return self.persist(journal, &record, |r| {
+                r.push_state = "failed".into();
+                finish_attempt(&mut r.attempt, "failed");
+                r.last_error = Some(stored(Code::PushFailed, true));
             });
         }
         if matches!(record.push_state.as_str(), "uploading" | "confirming") {
