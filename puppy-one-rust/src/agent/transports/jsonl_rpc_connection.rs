@@ -564,31 +564,31 @@ impl JsonlRpcConnection {
         Ok(())
     }
 
+    /// Counts and skips one startup banner line: only before the first
+    /// protocol message, and only up to `max_leading_non_json_lines`.
+    fn skip_leading_non_json_line(&self, line: &str) -> bool {
+        let skipped = self.0.leading_non_json_lines.get();
+        if self.0.seen_protocol_message.get()
+            || line.trim_start().starts_with('{')
+            || skipped >= self.0.max_leading_non_json_lines
+        {
+            return false;
+        }
+        self.0.leading_non_json_lines.set(skipped + 1);
+        true
+    }
+
     fn receive_line(&self, line: &str) {
         let Ok(message) = serde_json::from_str::<Value>(line) else {
-            if !self.0.seen_protocol_message.get()
-                && !line.trim_start().starts_with('{')
-                && self.0.leading_non_json_lines.get() < self.0.max_leading_non_json_lines
-            {
-                self.0
-                    .leading_non_json_lines
-                    .set(self.0.leading_non_json_lines.get() + 1);
-                return;
+            if !self.skip_leading_non_json_line(line) {
+                self.protocol_failure("The JSONL-RPC process emitted malformed protocol data.");
             }
-            self.protocol_failure("The JSONL-RPC process emitted malformed protocol data.");
             return;
         };
         if !message.is_object() {
-            if !self.0.seen_protocol_message.get()
-                && !line.trim_start().starts_with('{')
-                && self.0.leading_non_json_lines.get() < self.0.max_leading_non_json_lines
-            {
-                self.0
-                    .leading_non_json_lines
-                    .set(self.0.leading_non_json_lines.get() + 1);
-                return;
+            if !self.skip_leading_non_json_line(line) {
+                self.protocol_failure("The JSONL-RPC process emitted an invalid message.");
             }
-            self.protocol_failure("The JSONL-RPC process emitted an invalid message.");
             return;
         }
         if !js::nullish(message.get("jsonrpc")) && message["jsonrpc"] != "2.0" {
