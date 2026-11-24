@@ -261,14 +261,16 @@ fn real_first_push_sends_the_pinned_commit_and_reconciles_an_identical_retry() {
     git(local.path(), &["commit", "-qm", "later"]);
     let later = git(local.path(), &["rev-parse", "HEAD"]);
     assert_ne!(later, record.attempt.commit_oid);
-    cli.push(local.path(), &record, "pwg_fixture").unwrap();
+    cli.push(local.path(), &record, "pwg_fixture", &|_| {})
+        .unwrap();
     assert_eq!(server.main(), record.attempt.commit_oid);
     assert_eq!(
         server.attempts.lock().unwrap().as_slice(),
         std::slice::from_ref(&record.attempt.attempt_id)
     );
     assert!(!git(&server.bare(), &["ls-tree", "-r", "--name-only", "main"]).contains("later.md"));
-    cli.push(local.path(), &record, "pwg_fixture").unwrap();
+    cli.push(local.path(), &record, "pwg_fixture", &|_| {})
+        .unwrap();
     assert_eq!(server.main(), record.attempt.commit_oid);
     assert_eq!(
         server.attempts.lock().unwrap().len(),
@@ -297,7 +299,9 @@ fn real_first_push_refuses_a_competing_main_even_when_the_server_allows_forcing(
         &["push", server.bare().to_str().unwrap(), "main"],
     );
     let competing = server.main();
-    let error = cli.push(local.path(), &record, "pwg_fixture").unwrap_err();
+    let error = cli
+        .push(local.path(), &record, "pwg_fixture", &|_| {})
+        .unwrap_err();
     assert_eq!(error.code, Code::RemoteRefConflict);
     assert!(!error.retryable);
     assert_eq!(server.main(), competing);
@@ -333,7 +337,9 @@ fn real_first_push_requires_absence_even_when_updating_main_would_be_a_fast_forw
     git(local.path(), &["commit", "-qm", "next"]);
     let (cli, record) = configured(local.path(), &server);
     assert_ne!(existing, record.attempt.commit_oid);
-    let error = cli.push(local.path(), &record, "pwg_fixture").unwrap_err();
+    let error = cli
+        .push(local.path(), &record, "pwg_fixture", &|_| {})
+        .unwrap_err();
     assert_eq!(error.code, Code::RemoteRefConflict);
     assert_eq!(server.main(), existing);
     assert!(server.attempts.lock().unwrap().is_empty());

@@ -149,7 +149,13 @@ impl GitOps for Git {
         self.world.at(Point::AfterRemoteAdd);
         Ok(created)
     }
-    fn push(&self, root: &Path, record: &Record, secret: &str) -> Result<(), PublishError> {
+    fn push(
+        &self,
+        root: &Path,
+        record: &Record,
+        secret: &str,
+        on_transfer: &(dyn Fn(super::transfer::Transfer) + Sync),
+    ) -> Result<(), PublishError> {
         self.world.at(Point::BeforePush);
         let hook = self.world.before_push.lock().unwrap().take();
         if let Some(hook) = hook {
@@ -164,7 +170,7 @@ impl GitOps for Git {
         if let Some(error) = injected {
             return Err(error);
         }
-        self.cli.push(root, record, secret)?;
+        self.cli.push(root, record, secret, on_transfer)?;
         self.world.at(Point::AfterPush);
         Ok(())
     }
@@ -474,6 +480,36 @@ fn an_unborn_branch_is_refused_before_anything_is_created() {
     assert!(outcome.state.is_none());
     assert_eq!(f.creates(), 0);
     assert!(f.journal_text().is_none());
+}
+
+/// `reports the transfer as part of the uploading step`: a real first push
+/// runs with `--progress`, and Git's own progress reaches the run as the
+/// Upload step's transfer, up to its finish.
+#[test]
+fn the_upload_reports_gits_own_transfer_progress() {
+    let f = Fixture::new("main");
+    let current = std::sync::Mutex::new(None::<Stage>);
+    let transfers = std::sync::Mutex::new(Vec::new());
+    let outcome = f.coordinator().start_with(
+        &f.request(),
+        &mut |stage| *current.lock().unwrap() = Some(stage),
+        &|transfer| {
+            let stage = *current.lock().unwrap();
+            transfers.lock().unwrap().push((stage, transfer));
+        },
+    );
+    assert!(outcome.ok, "{:?}", outcome.error);
+    let transfers = transfers.into_inner().unwrap();
+    assert!(!transfers.is_empty());
+    assert!(
+        transfers
+            .iter()
+            .all(|(stage, _)| *stage == Some(Stage::Uploading)),
+        "{transfers:?}"
+    );
+    let (_, last) = transfers.last().unwrap();
+    assert_eq!(last.percent, 100);
+    assert!(last.sent_bytes.is_some_and(|bytes| bytes > 0), "{last:?}");
 }
 
 #[test]

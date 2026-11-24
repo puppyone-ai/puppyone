@@ -372,6 +372,25 @@ pub fn run_output_with(
     cancel: &AtomicBool,
     options: OutputOptions<'_>,
 ) -> Result<Output, String> {
+    run_observed(
+        executable, args, root, input, timeout, cancel, options, None,
+    )
+}
+/// A stream's chunks as they arrive, on the thread that reads it.
+pub type OnChunk<'a> = dyn FnMut(&[u8]) + Send + 'a;
+/// [`run_output_with`], handing stderr to `on_stderr` as it arrives (a
+/// command's own progress), from the thread that reads it.
+#[allow(clippy::too_many_arguments)]
+pub fn run_observed(
+    executable: &Path,
+    args: &[&str],
+    root: &Path,
+    input: Option<&[u8]>,
+    timeout: Duration,
+    cancel: &AtomicBool,
+    options: OutputOptions<'_>,
+    on_stderr: Option<&mut OnChunk<'_>>,
+) -> Result<Output, String> {
     let limits = options.limits;
     const CANCELLED: &str = "Command cancelled, timed out, or exceeded its output limit";
     if cancel.load(Ordering::Acquire) || timeout.is_zero() {
@@ -413,7 +432,7 @@ pub fn run_output_with(
         let out = thread::Builder::new()
             .name("command-stdout".into())
             .spawn_scoped(scope, move || {
-                let result = pipes::read(stdout, stdout_ready, limits.stdout, &out_stop);
+                let result = pipes::read(stdout, stdout_ready, limits.stdout, &out_stop, None);
                 if result.is_err() {
                     out_limit.store(true, Ordering::Release);
                 }
@@ -425,7 +444,7 @@ pub fn run_output_with(
         let err = thread::Builder::new()
             .name("command-stderr".into())
             .spawn_scoped(scope, move || {
-                let result = pipes::read(stderr, stderr_ready, limits.stderr, &err_stop);
+                let result = pipes::read(stderr, stderr_ready, limits.stderr, &err_stop, on_stderr);
                 if result.is_err() {
                     err_limit.store(true, Ordering::Release);
                 }

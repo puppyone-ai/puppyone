@@ -12,12 +12,13 @@
 use super::{
     Code, PublishError,
     journal::{CredentialConfig, Record, commit_id},
+    transfer::{ProgressReader, Transfer, strip_progress_output},
 };
 use base64::Engine as _;
 use std::{
     path::{Path, PathBuf},
     sync::atomic::AtomicBool,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub const REMOTE: &str = "puppyone";
@@ -75,7 +76,15 @@ pub trait GitOps: Send + Sync {
         record: &Record,
         secret: &str,
     ) -> Result<bool, PublishError>;
-    fn push(&self, root: &Path, record: &Record, secret: &str) -> Result<(), PublishError>;
+    /// Sends the attempt's commit, reporting Git's own progress to
+    /// `on_transfer` as it goes.
+    fn push(
+        &self,
+        root: &Path,
+        record: &Record,
+        secret: &str,
+        on_transfer: &(dyn Fn(Transfer) + Sync),
+    ) -> Result<(), PublishError>;
     /// `refs/heads/main` on the canonical URL (`None`: absent).
     fn remote_main(
         &self,
@@ -782,7 +791,13 @@ impl GitOps for Cli {
         assert_managed(root, config, &record.operation_id)?;
         Ok(created)
     }
-    fn push(&self, root: &Path, record: &Record, secret: &str) -> Result<(), PublishError> {
+    fn push(
+        &self,
+        root: &Path,
+        record: &Record,
+        secret: &str,
+        on_transfer: &(dyn Fn(Transfer) + Sync),
+    ) -> Result<(), PublishError> {
         let (url, _, _) = complete(record)?;
         if self.remote(root)? != Remote::Exact(url.to_owned()) {
             return Err(PublishError::new(
@@ -800,11 +815,39 @@ impl GitOps for Cli {
         let refspec = format!("{}:{DESTINATION_REF}", record.attempt.commit_oid);
         let args = self.secure(
             record,
-            &["-c", &header, "push", "--porcelain", &lease, url, &refspec],
+            // Git writes its progress without a terminal only when asked.
+            &[
+                "-c",
+                &header,
+                "push",
+                "--porcelain",
+                "--progress",
+                &lease,
+                url,
+                &refspec,
+            ],
         )?;
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
         let (_, config, _) = complete(record)?;
-        match git(root, &args, None, PUSH_TIMEOUT) {
+        let mut reader = ProgressReader::new(on_transfer, Instant::now);
+        let pushed = crate::platform::process::run_observed(
+            crate::platform::git::git_executable(),
+            &args,
+            root,
+            None,
+            PUSH_TIMEOUT,
+            &AtomicBool::new(false),
+            crate::platform::process::OutputOptions {
+                // Progress redraws are most of what a long push prints.
+                limits: crate::platform::process::OutputLimits {
+                    stdout: 8 * 1024 * 1024,
+                    stderr: 4 * 1024 * 1024,
+                },
+                environment: &[],
+            },
+            Some(&mut |chunk: &[u8]| reader.write(chunk)),
+        );
+        match pushed {
             Ok(_) => assert_managed(root, config, &record.operation_id),
             Err(stderr) => {
                 // One bounded check of what Cloud main now is.
@@ -819,7 +862,8 @@ impl GitOps for Cli {
                         false,
                     ));
                 }
-                Err(push_failure(&stderr))
+                // The error Git printed, not the progress that preceded it.
+                Err(push_failure(&strip_progress_output(&stderr)))
             }
         }
     }

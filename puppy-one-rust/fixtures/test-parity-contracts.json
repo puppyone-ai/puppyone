@@ -52454,6 +52454,122 @@
           "test": "features::desktop_agent::ui::panel::tests::a_dropped_workspace_image_keeps_its_preview"
         }
       ]
+    },
+    {
+      "id": "cloud-publish-transfer-progress",
+      "acceptance": "The first push runs `git push --progress` and reads Git's own \"Writing objects\" line from stderr as it arrives: the share written, and the bytes sent and current rate once Git has measured them (bytes/KiB/MiB/GiB), surviving a line split across pipe chunks, keeping the last measured bytes and rate when a redraw omits them, reporting at most every 250ms except the first reading and the finish, and never letting a panicking listener reach the push; a failure's diagnostic has the progress redraws removed. The run reports these readings as part of its Uploading step. While uploading (not stopped), the dialog's Upload row shows the reading (\"45% · 12.3 MB · 1.1 MB/s\": decimal units in the locale's short names, no rate once done, only the share before Git has measured bytes) in place of the step's label, beside its own progress meter whose value is the share and whose value text is the reading; neither is a live region, and nothing claims a total or a time left. The Header's name for a running upload is \"Sending to the cloud. <reading>\". Another step, a stopped run or an unmeasured upload draws nothing extra.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/electron.cloud-publish-transfer.test.mjs",
+          "sha256": "f50ed59d303a71a62204c5a3ce331268689d383b68c334ecad3dc62dc5afd082",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish transfer reading > reads how much is sent and how fast from Git's own progress line"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish transfer reading > survives a progress line split across pipe chunks"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish transfer reading > holds redraws to the interval, but never drops the finish"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish transfer reading > keeps the last measured bytes and rate when a redraw omits them"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish transfer reading > never lets a failing listener reach the push"
+            },
+            {
+              "index": 5,
+              "name": "Cloud publish transfer reading > leaves only Git's diagnostic once the progress redraws are removed"
+            },
+            {
+              "index": 6,
+              "name": "Cloud publish push progress > reports the transfer as part of the uploading step"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
+          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Cloud publish Header status > answers an unwatched upload with how far it has got"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/publish/cloudPublishTransfer.test.tsx",
+          "sha256": "4582542d3d92cec67fd8c52c512f2189631d0767decbd1cb3b2bfbf1659f33dd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish upload progress > draws the upload's share, bytes and rate on the Upload row"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish upload progress > keeps fast-changing numbers out of the live region"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish upload progress > claims no total and no time left, because Git cannot know them yet"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish upload progress > says only the share before Git has measured bytes, and drops the rate once done"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish upload progress > draws nothing extra outside a running upload"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::reads_the_share_bytes_and_rate_from_gits_progress_line"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::a_line_split_across_pipe_chunks_still_reads"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::redraws_wait_for_the_interval_but_the_finish_never_does"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::a_redraw_without_numbers_keeps_the_last_measured_ones"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::a_failing_listener_never_reaches_the_push"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::only_gits_diagnostic_is_left_without_the_redraws"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::the_upload_reports_gits_own_transfer_progress"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::header_tests::the_transfer_reads_what_git_has_measured"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_publish_dialog::the_upload_row_and_the_header_read_the_transfer"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -59812,84 +59928,6 @@
             {
               "index": 3,
               "name": "useCloudOrganizationData > keeps a member read failure distinct from a successful non-owner result"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-publish-transfer-progress",
-      "kind": "gap",
-      "reason": "TS reads Git's own push progress while uploading (share sent, bytes and rate, split across pipe chunks, redraws held to an interval but never the finish, a failing listener never reaching the push, progress lines stripped from the diagnostic) and shows the transfer under the uploading step. The native publication reports stages only: Uploading has no bytes or rate.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/first-publication/README.md",
-      "typescript": [
-        {
-          "path": "tests/unit/cloud/publish/electron.cloud-publish-transfer.test.mjs",
-          "sha256": "f50ed59d303a71a62204c5a3ce331268689d383b68c334ecad3dc62dc5afd082",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Cloud publish transfer reading > reads how much is sent and how fast from Git's own progress line"
-            },
-            {
-              "index": 1,
-              "name": "Cloud publish transfer reading > survives a progress line split across pipe chunks"
-            },
-            {
-              "index": 2,
-              "name": "Cloud publish transfer reading > holds redraws to the interval, but never drops the finish"
-            },
-            {
-              "index": 3,
-              "name": "Cloud publish transfer reading > keeps the last measured bytes and rate when a redraw omits them"
-            },
-            {
-              "index": 4,
-              "name": "Cloud publish transfer reading > never lets a failing listener reach the push"
-            },
-            {
-              "index": 5,
-              "name": "Cloud publish transfer reading > leaves only Git's diagnostic once the progress redraws are removed"
-            },
-            {
-              "index": 6,
-              "name": "Cloud publish push progress > reports the transfer as part of the uploading step"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
-          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Cloud publish Header status > answers an unwatched upload with how far it has got"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/cloud/publish/cloudPublishTransfer.test.tsx",
-          "sha256": "4582542d3d92cec67fd8c52c512f2189631d0767decbd1cb3b2bfbf1659f33dd",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Cloud publish upload progress > draws the upload's share, bytes and rate on the Upload row"
-            },
-            {
-              "index": 1,
-              "name": "Cloud publish upload progress > keeps fast-changing numbers out of the live region"
-            },
-            {
-              "index": 2,
-              "name": "Cloud publish upload progress > claims no total and no time left, because Git cannot know them yet"
-            },
-            {
-              "index": 3,
-              "name": "Cloud publish upload progress > says only the share before Git has measured bytes, and drops the rate once done"
-            },
-            {
-              "index": 4,
-              "name": "Cloud publish upload progress > draws nothing extra outside a running upload"
             }
           ]
         }

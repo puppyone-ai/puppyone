@@ -29,7 +29,7 @@ pub use clients::{agents_client, billing_client, services_client};
 pub use publish::install_factory;
 #[cfg(test)]
 pub(crate) use publish::states as publish_states;
-pub use publish::{CloudPublish, HeaderStatus, Organizations};
+pub use publish::{CloudPublish, HeaderStatus, Organizations, format_transfer};
 pub use repository::RepositoryCloud;
 pub use screen::{CloudScreen, CloudScreenEvent, ScreenLayout};
 pub use spaces::{

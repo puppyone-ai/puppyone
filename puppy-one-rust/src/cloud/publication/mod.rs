@@ -21,6 +21,7 @@ mod migrate;
 pub mod preparation;
 #[cfg(test)]
 mod tests;
+pub mod transfer;
 pub mod vault;
 
 use crate::workspace::cloud::publish;
@@ -511,6 +512,16 @@ impl Coordinator {
     /// same request for a repository while one runs shares its result
     /// (`singleflight`) instead of meeting the remote the first one made.
     pub fn start(&self, request: &Request, progress: &mut dyn FnMut(Stage)) -> Outcome {
+        self.start_with(request, progress, &|_| {})
+    }
+    /// [`Self::start`], also reporting how far the upload has got
+    /// (`reportCloudPublishProgress(onProgress, "uploading", transfer)`).
+    pub fn start_with(
+        &self,
+        request: &Request,
+        progress: &mut dyn FnMut(Stage),
+        on_transfer: &(dyn Fn(transfer::Transfer) + Sync),
+    ) -> Outcome {
         type Flight = Arc<(std::sync::Mutex<Option<Outcome>>, std::sync::Condvar)>;
         static FLIGHTS: std::sync::Mutex<Vec<(Request, Flight)>> =
             std::sync::Mutex::new(Vec::new());
@@ -559,11 +570,16 @@ impl Coordinator {
             }
         }
         let mut land = Land(&flight, None);
-        let outcome = self.start_once(request, progress);
+        let outcome = self.start_once(request, progress, on_transfer);
         land.1 = Some(outcome.clone());
         outcome
     }
-    fn start_once(&self, request: &Request, progress: &mut dyn FnMut(Stage)) -> Outcome {
+    fn start_once(
+        &self,
+        request: &Request,
+        progress: &mut dyn FnMut(Stage),
+        on_transfer: &(dyn Fn(transfer::Transfer) + Sync),
+    ) -> Outcome {
         progress(Stage::Validating);
         if !valid_branch(&request.source_branch) {
             return failure(
@@ -592,7 +608,7 @@ impl Coordinator {
             Err(e) => return failure(e, None, None),
         };
         let mut latest: Option<Record> = None;
-        let result = self.run(request, &context, progress, &mut latest);
+        let result = self.run(request, &context, progress, on_transfer, &mut latest);
         match result {
             Ok(outcome) => outcome,
             Err(error) => {
@@ -616,6 +632,7 @@ impl Coordinator {
         request: &Request,
         context: &Context,
         progress: &mut dyn FnMut(Stage),
+        on_transfer: &(dyn Fn(transfer::Transfer) + Sync),
         latest: &mut Option<Record>,
     ) -> Result<Outcome, PublishError> {
         let root = &request.root;
@@ -778,7 +795,7 @@ impl Coordinator {
             self.trusted(&record)?;
             let secret = self.stored_secret(&record)?;
             progress(Stage::Uploading);
-            self.git.push(root, &record, &secret)?;
+            self.git.push(root, &record, &secret, on_transfer)?;
             progress(Stage::Confirming);
             record = self.persist(journal, &record, |r| {
                 r.checkpoint = "push-accepted".into();
