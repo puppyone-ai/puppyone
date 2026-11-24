@@ -53,7 +53,10 @@ fn draw(cx: &mut VisualTestContext) {
 fn keyboard_menu_skips_unavailable_rows_and_recovers_when_the_focused_row_is_disabled(
     cx: &mut TestAppContext,
 ) {
-    cx.update(gpui_kit::init);
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        crate::ui::components::bind_menu_keys(cx);
+    });
     let calls = Rc::new(Cell::new(0));
     let (view, cx) = cx.add_window_view(|_, _| Harness {
         enabled: true,
@@ -95,7 +98,10 @@ fn keyboard_menu_skips_unavailable_rows_and_recovers_when_the_focused_row_is_dis
 
 #[gpui::test]
 fn keyboard_menu_with_no_enabled_rows_still_dismisses_and_returns_focus(cx: &mut TestAppContext) {
-    cx.update(gpui_kit::init);
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        crate::ui::components::bind_menu_keys(cx);
+    });
     let (view, cx) = cx.add_window_view(|_, _| Harness {
         enabled: true,
         last_enabled: true,
@@ -202,7 +208,10 @@ impl Render for CachedSubmenuHost {
 
 #[gpui::test]
 fn clicking_submenu_item_runs_action_before_parent_menu_dismisses(cx: &mut TestAppContext) {
-    cx.update(gpui_kit::init);
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        crate::ui::components::bind_menu_keys(cx);
+    });
     for anchored in [true, false] {
         let calls = Rc::new(Cell::new(0));
         let mut inner = None;
@@ -242,4 +251,150 @@ fn clicking_submenu_item_runs_action_before_parent_menu_dismisses(cx: &mut TestA
             view.read_with(cx, |v, _| assert!(!v.open, "outside click must dismiss"));
         }
     }
+}
+
+/// A keyboard menu with a submenu row between two actions, and a choice
+/// menu whose current choice is the second.
+struct KeyboardHarness {
+    choices: bool,
+}
+impl Render for KeyboardHarness {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let choices = self.choices;
+        PopoverMenu::new("keys")
+            .trigger(Button::new("keys-trigger").label("Open"))
+            .menu(move |menu, _, _| {
+                let menu = menu.keyboard_navigation();
+                if choices {
+                    return menu
+                        .item(
+                            MenuItem::new("One")
+                                .id("one")
+                                .radio(false)
+                                .on_click(|_, _| {}),
+                        )
+                        .item(
+                            MenuItem::new("Two")
+                                .id("two")
+                                .radio(true)
+                                .on_click(|_, _| {}),
+                        );
+                }
+                menu.item(MenuItem::new("First").id("first").on_click(|_, _| {}))
+                    .item(MenuItem::new("More").id("more").submenu(|_, _| {
+                        Menu::new("keys-more")
+                            .item(MenuItem::new("Custom").id("custom").on_click(|_, _| {}))
+                    }))
+                    .item(MenuItem::new("Last").id("last").on_click(|_, _| {}))
+            })
+    }
+}
+fn keys(cx: &mut TestAppContext, choices: bool) -> &mut VisualTestContext {
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        crate::ui::components::bind_menu_keys(cx);
+    });
+    let (_, cx) = cx.add_window_view(|_, _| KeyboardHarness { choices });
+    draw(cx);
+    cx.update(|w, cx| w.click("keys-trigger", cx));
+    draw(cx);
+    cx
+}
+fn focused(cx: &mut VisualTestContext, id: &'static str) -> bool {
+    cx.update(|w, _| w.try_find(id).and_then(|e| e.focused()) == Some(true))
+}
+fn press(cx: &mut VisualTestContext, keys: &str) {
+    cx.simulate_keystrokes(keys);
+    draw(cx);
+}
+
+/// `createEntryMenu.test.tsx`: `opens Custom files from focus and returns
+/// to its trigger with ArrowLeft`; `sidebarMenuHandoff.test.tsx`: `uses
+/// Escape to close the creation submenu before dismissing its parent`.
+#[gpui::test]
+fn a_submenu_opens_on_focus_is_entered_and_left_and_escape_closes_it_first(
+    cx: &mut TestAppContext,
+) {
+    let cx = keys(cx, false);
+    assert!(focused(cx, "first"));
+    // Focus on its row opens the submenu, and focus stays on the row.
+    press(cx, "down");
+    assert!(focused(cx, "more"));
+    cx.update(|w, _| assert!(w.try_find("custom").is_some(), "open on focus"));
+    // ArrowRight moves in; ArrowLeft closes it and returns to its row.
+    press(cx, "right");
+    assert!(focused(cx, "custom"));
+    press(cx, "left");
+    assert!(focused(cx, "more"));
+    cx.update(|w, _| assert!(w.try_find("custom").is_none()));
+    // Escape inside closes only the submenu; the next closes the menu.
+    press(cx, "enter");
+    assert!(focused(cx, "custom"));
+    press(cx, "escape");
+    assert!(focused(cx, "more"));
+    cx.update(|w, _| {
+        assert!(w.try_find("custom").is_none());
+        assert!(w.try_find("first").is_some(), "the menu stays open");
+    });
+    press(cx, "escape");
+    cx.update(|w, _| assert!(w.try_find("first").is_none()));
+    assert!(focused(cx, "keys-trigger"));
+    // A submenu opened with the pointer also closes before its menu.
+    cx.update(|w, cx| w.click("keys-trigger", cx));
+    draw(cx);
+    cx.update(|w, cx| w.click("more", cx));
+    draw(cx);
+    cx.update(|w, _| assert!(w.try_find("custom").is_some()));
+    press(cx, "escape");
+    cx.update(|w, _| {
+        assert!(w.try_find("custom").is_none());
+        assert!(w.try_find("first").is_some());
+    });
+    press(cx, "escape");
+    cx.update(|w, _| assert!(w.try_find("first").is_none()));
+}
+
+/// `projectRowActionsFocus.test.tsx`: `closes the menu on Tab and hands
+/// focus back to its button` (and from inside a submenu).
+#[gpui::test]
+fn tab_closes_the_menu_and_hands_focus_back_to_its_trigger(cx: &mut TestAppContext) {
+    let cx = keys(cx, false);
+    press(cx, "end");
+    assert!(focused(cx, "last"));
+    press(cx, "tab");
+    cx.update(|w, _| assert!(w.try_find("first").is_none()));
+    assert!(focused(cx, "keys-trigger"));
+    cx.update(|w, cx| w.click("keys-trigger", cx));
+    draw(cx);
+    press(cx, "down right");
+    assert!(focused(cx, "custom"));
+    press(cx, "shift-tab");
+    cx.update(|w, _| {
+        assert!(w.try_find("custom").is_none());
+        assert!(w.try_find("first").is_none());
+    });
+    assert!(focused(cx, "keys-trigger"));
+}
+
+/// `onboardingProjectLayouts.test.tsx`: `marks the current choice and
+/// starts the keyboard on it`.
+#[gpui::test]
+fn the_keyboard_starts_on_the_current_choice_which_is_marked(cx: &mut TestAppContext) {
+    let cx = keys(cx, true);
+    assert!(focused(cx, "two"));
+    cx.update(|w, _| {
+        use gpui_kit::test::TestQueryExt as _;
+        let radios = w.find_all_by_role(Role::MenuItemRadio);
+        let checked: Vec<_> = radios
+            .iter()
+            .map(|r| (r.label().map(str::to_owned), r.checked()))
+            .collect();
+        assert_eq!(
+            checked,
+            [
+                (Some("One".into()), Some(false)),
+                (Some("Two".into()), Some(true)),
+            ]
+        );
+    });
 }

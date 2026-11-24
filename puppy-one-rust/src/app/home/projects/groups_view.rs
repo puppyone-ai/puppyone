@@ -211,6 +211,9 @@ impl Homepage {
             let index = self.cell_index(&item.id);
             self.action_bounds.entry(item.id.clone()).or_default();
             let focus = self.project_focus(&item.id, cx);
+            self.action_focus
+                .entry(item.id.clone())
+                .or_insert_with(|| cx.focus_handle());
             let lit = self.project_lit(item, window, cx);
             let is_stop = stop.as_deref() == Some(item.id.as_str());
             focus.clone().tab_stop(is_stop);

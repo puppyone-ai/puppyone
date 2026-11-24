@@ -18,11 +18,13 @@ use gpui_kit::{
 };
 use std::{
     cell::Cell,
+    collections::HashMap,
     rc::{Rc, Weak},
     time::Duration,
 };
 
 mod keyboard;
+pub use keyboard::bind_keys;
 #[cfg(test)]
 mod tests;
 
@@ -143,6 +145,8 @@ pub struct MenuItem {
     hover_held: bool,
     selected: bool,
     checked: Option<bool>,
+    /// One choice of several (`menuitemradio`) and whether it is the current one.
+    radio: Option<bool>,
     disabled: bool,
     danger: bool,
     submenu: Option<SubmenuBuilder>,
@@ -175,6 +179,7 @@ impl MenuItem {
             hover_held: false,
             selected: false,
             checked: None,
+            radio: None,
             disabled: false,
             danger: false,
             submenu: None,
@@ -272,6 +277,12 @@ impl MenuItem {
         self.checked = Some(checked);
         self
     }
+    /// One choice of several (`menuitemradio`, `aria-checked`); the keyboard
+    /// starts on the current one.
+    pub fn radio(mut self, checked: bool) -> Self {
+        self.radio = Some(checked);
+        self
+    }
     /// A selected row with a check at its end.
     pub fn checked(self, checked: bool) -> Self {
         if checked {
@@ -349,6 +360,11 @@ pub struct Menu {
     scroll: Option<ScrollHandle>,
     focus: Option<FocusHandle>,
     keyboard_navigation: bool,
+    /// What Escape does once no submenu is open; without one the surface
+    /// around the menu answers it.
+    escape: Option<Handler>,
+    /// A submenu's row in the menu that opened it.
+    parent: Option<keyboard::Parent>,
     key_down: Option<KeyDownHandler>,
     mouse_down_out: Option<MouseDownHandler>,
     absorb_mouse_down: bool,
@@ -368,6 +384,8 @@ impl Menu {
             scroll: None,
             focus: None,
             keyboard_navigation: false,
+            escape: None,
+            parent: None,
             key_down: None,
             mouse_down_out: None,
             absorb_mouse_down: false,
@@ -406,10 +424,17 @@ impl Menu {
         self.focus = Some(handle.clone());
         self
     }
-    /// Focusable flat rows, wrapping arrows, Home/End and Enter/Space activation.
-    /// The popover continues to own Escape and returning focus to its trigger.
+    /// Focusable rows, wrapping arrows, Home/End, Enter/Space activation,
+    /// submenus entered with ArrowRight and left with ArrowLeft or Escape,
+    /// and Tab leaving the menu ([`keyboard`]). The popover around it owns
+    /// Escape once no submenu is open, and returns focus to its trigger.
     pub fn keyboard_navigation(mut self) -> Self {
         self.keyboard_navigation = true;
+        self
+    }
+    /// Escape, once no submenu is open, for a menu no popover owns.
+    pub fn on_escape(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.escape = Some(Rc::new(handler));
         self
     }
     pub fn on_key_down(
@@ -480,15 +505,40 @@ impl RenderOnce for Menu {
         let max_height = window.viewport_size().height - px(24.);
         let dismiss = self.on_dismiss.clone();
         let id = self.id.clone();
+        // Each submenu row's open state, shared by the row and the keyboard.
+        let mut submenus = HashMap::new();
+        for (index, entry) in self.entries.iter().enumerate() {
+            let mut add = |fallback: ElementId, item: &MenuItem| {
+                if item.submenu.is_some() {
+                    let row_id = item.id.clone().unwrap_or(fallback);
+                    let state = window.use_keyed_state(child_id(&row_id, "submenu"), cx, |_, _| {
+                        SubmenuState::default()
+                    });
+                    submenus.insert(row_id, state);
+                }
+            };
+            match entry {
+                MenuEntry::Item(item) => add(child_id(&id, index.to_string()), item),
+                MenuEntry::List(items, _) => {
+                    for (row_index, item) in items.iter().enumerate() {
+                        add(child_id(&id, format!("{index}-{row_index}")), item);
+                    }
+                }
+                _ => {}
+            }
+        }
         let keyboard = self.keyboard_navigation.then(|| {
-            keyboard::Keyboard::new(
+            Rc::new(keyboard::Keyboard::new(
                 &id,
                 &self.entries,
+                &submenus,
                 dismiss.clone(),
+                self.escape.clone(),
+                self.parent.clone(),
                 self.focus.clone(),
                 window,
                 cx,
-            )
+            ))
         });
         let scroll = self
             .scroll
@@ -517,18 +567,32 @@ impl RenderOnce for Menu {
                         .gap(px(gap))
                         .children(items.into_iter().enumerate().map(|(row_index, item)| {
                             let fallback = child_id(&id, format!("{index}-{row_index}"));
-                            row(fallback, item, s, t, dismiss.clone(), keyboard.as_ref())
+                            let submenu =
+                                submenus.get(&item.id.clone().unwrap_or(fallback.clone()));
+                            row(
+                                fallback.clone(),
+                                item,
+                                s,
+                                t,
+                                dismiss.clone(),
+                                keyboard.as_deref(),
+                                submenu.cloned(),
+                            )
                         })),
                 ),
                 MenuEntry::Item(item) => {
                     let fallback = child_id(&id, index.to_string());
+                    let submenu = submenus
+                        .get(&item.id.clone().unwrap_or(fallback.clone()))
+                        .cloned();
                     surface.child(row(
                         fallback,
                         *item,
                         s,
                         t,
                         dismiss.clone(),
-                        keyboard.as_ref(),
+                        keyboard.as_deref(),
+                        submenu,
                     ))
                 }
             };
@@ -547,18 +611,34 @@ impl RenderOnce for Menu {
         {
             frame = frame.track_focus(focus);
         }
-        if keyboard.is_some() || self.key_down.is_some() {
-            frame = frame.on_key_down(move |e, w, cx| {
-                if keyboard
-                    .as_ref()
-                    .is_some_and(|keyboard| keyboard.key_down(e, w, cx))
-                {
-                    return;
-                }
-                if let Some(on_key) = &self.key_down {
-                    on_key(e, w, cx);
-                }
-            });
+        if let Some(keyboard) = &keyboard {
+            use keyboard::Step;
+            let k = |keyboard: &Rc<keyboard::Keyboard>| keyboard.clone();
+            let (next, previous, first, last) =
+                (k(keyboard), k(keyboard), k(keyboard), k(keyboard));
+            let (activate, open, back, escape, leave) = (
+                k(keyboard),
+                k(keyboard),
+                k(keyboard),
+                k(keyboard),
+                k(keyboard),
+            );
+            frame = frame
+                .key_context(keyboard::KEY_CONTEXT)
+                .on_action(move |_: &keyboard::SelectNext, w, cx| next.step(Step::Next, w, cx))
+                .on_action(move |_: &keyboard::SelectPrevious, w, cx| {
+                    previous.step(Step::Previous, w, cx)
+                })
+                .on_action(move |_: &keyboard::SelectFirst, w, cx| first.step(Step::First, w, cx))
+                .on_action(move |_: &keyboard::SelectLast, w, cx| last.step(Step::Last, w, cx))
+                .on_action(move |_: &keyboard::Activate, w, cx| activate.activate(false, w, cx))
+                .on_action(move |_: &keyboard::OpenSubmenu, w, cx| open.activate(true, w, cx))
+                .on_action(move |_: &keyboard::LeaveSubmenu, w, cx| back.leave_submenu(w, cx))
+                .on_action(move |_: &keyboard::CloseSubmenu, w, cx| escape.escape(w, cx))
+                .on_action(move |_: &keyboard::LeaveMenu, w, cx| leave.leave(w, cx));
+        }
+        if let Some(on_key) = self.key_down {
+            frame = frame.on_key_down(move |e, w, cx| on_key(e, w, cx));
         }
         if let Some(outside) = self.mouse_down_out {
             frame = frame.on_mouse_down_out(move |e, w, cx| outside(e, w, cx));
@@ -599,6 +679,8 @@ fn separator(t: Theme) -> Div {
 #[derive(Default)]
 struct SubmenuState {
     open: bool,
+    /// The keyboard moved into the submenu: its first row takes focus.
+    entered: bool,
     /// An `open_submenu` request was honoured.
     requested: bool,
     epoch: u64,
@@ -642,6 +724,7 @@ fn row(
     t: Theme,
     dismiss: Option<Handler>,
     keyboard: Option<&keyboard::Keyboard>,
+    submenu_state: Option<Entity<SubmenuState>>,
 ) -> AnyElement {
     let element_id = item.id.unwrap_or(fallback_id);
     let focus = keyboard.and_then(|keyboard| keyboard.focus(&element_id));
@@ -685,13 +768,15 @@ fn row(
     let stacked = item.stacked;
     let row = h_row()
         .id(element_id.clone())
-        .role(if item.checked.is_some() {
+        .role(if item.radio.is_some() {
+            Role::MenuItemRadio
+        } else if item.checked.is_some() {
             Role::MenuItemCheckBox
         } else {
             Role::MenuItem
         })
         .aria_label(item.label.clone())
-        .when_some(item.checked, |row, checked| {
+        .when_some(item.checked.or(item.radio), |row, checked| {
             row.aria_toggled(if checked {
                 accesskit::Toggled::True
             } else {
@@ -803,7 +888,7 @@ fn row(
                 })
                 .child(element)
         }));
-    let Some(submenu) = submenu else {
+    let (Some(submenu), Some(state)) = (submenu, submenu_state) else {
         return row
             .when_some(action.filter(|_| !disabled), |d, action| {
                 d.on_click(move |_, window, cx| {
@@ -827,6 +912,8 @@ fn row(
         build: submenu,
         open: open_submenu,
         dismiss,
+        state,
+        trigger_focus: focus,
     }
     .into_any_element()
 }
@@ -840,12 +927,14 @@ struct SubmenuRow {
     /// Open once without a hover.
     open: bool,
     dismiss: Option<Handler>,
+    state: Entity<SubmenuState>,
+    /// The row's keyboard focus when its menu has keyboard navigation: the
+    /// submenu then has it too, and returns here.
+    trigger_focus: Option<FocusHandle>,
 }
 impl RenderOnce for SubmenuRow {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let state = window.use_keyed_state(child_id(&self.id, "submenu"), cx, |_, _| {
-            SubmenuState::default()
-        });
+        let state = self.state.clone();
         if self.open {
             state.update(cx, |s, _| {
                 if !s.requested {
@@ -924,6 +1013,13 @@ impl RenderOnce for SubmenuRow {
         if open {
             let mut menu = (self.build)(window, cx);
             menu.dismiss_handler(self.dismiss);
+            if let Some(trigger) = self.trigger_focus.clone() {
+                menu.keyboard_navigation = true;
+                menu.parent = Some(keyboard::Parent {
+                    trigger,
+                    state: state.clone(),
+                });
+            }
             let corner = corner_cell.get();
             let surface = Rc::new(Cell::new(Bounds::default()));
             register_active_submenu(window, &surface, cx);
@@ -948,7 +1044,11 @@ impl RenderOnce for SubmenuRow {
                 .with_priority(gpui_kit::base::POPUP_PRIORITY + 1),
             );
         }
-        row
+        let row = row.test_support();
+        match &self.trigger_focus {
+            Some(focus) => row.track_focus(focus).into_any_element(),
+            None => row.into_any_element(),
+        }
     }
 }
 /// A row that centres its children on the cross axis.

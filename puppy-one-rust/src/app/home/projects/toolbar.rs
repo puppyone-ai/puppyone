@@ -41,7 +41,9 @@ impl Homepage {
                 });
             })
             .trigger(trigger)
-            .menu(move |surface, _, _| build(surface.min_w(px(VIEW_MENU_MIN_WIDTH))))
+            .menu(move |surface, _, _| {
+                build(surface.min_w(px(VIEW_MENU_MIN_WIDTH)).keyboard_navigation())
+            })
     }
 
     /// `New project`'s menu: each Local Agent that can start a project, said
@@ -154,13 +156,15 @@ impl Homepage {
                 move |menu| {
                     menu.items([HomepageSort::Modified, HomepageSort::Name].map(|option| {
                         let prefs = prefs.clone();
-                        checked_item(MenuItem::new(sort_name(option)), sort == option).on_click(
-                            move |_, cx| {
-                                prefs.update(cx, |p, cx| {
-                                    p.change(|p| p.homepage_project_sort = option, cx)
-                                })
-                            },
+                        checked_item(
+                            MenuItem::new(sort_name(option)).radio(sort == option),
+                            sort == option,
                         )
+                        .on_click(move |_, cx| {
+                            prefs.update(cx, |p, cx| {
+                                p.change(|p| p.homepage_project_sort = option, cx)
+                            })
+                        })
                     }))
                 },
                 cx,
@@ -192,7 +196,9 @@ impl Homepage {
                     menu.items([HomepageLayout::List, HomepageLayout::Grid].map(|option| {
                         let prefs = prefs.clone();
                         checked_item(
-                            MenuItem::new(layout_name(option)).icon_sized(layout_icon(option)),
+                            MenuItem::new(layout_name(option))
+                                .icon_sized(layout_icon(option))
+                                .radio(layout == option),
                             layout == option,
                         )
                         .on_click(move |_, cx| {

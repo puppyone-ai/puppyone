@@ -156,6 +156,8 @@ pub(in crate::app) struct Homepage {
     pub menu: Option<HomeMenu>,
     pub stop: Option<String>,
     pub focus: HashMap<String, FocusHandle>,
+    /// Each project's actions button: focus on it keeps its project lit.
+    pub action_focus: HashMap<String, FocusHandle>,
     pub action_bounds: HashMap<String, std::rc::Rc<std::cell::Cell<Bounds<Pixels>>>>,
     pub hovered: Option<String>,
     /// Asset previews and Local/Cloud Agent discovery state.
@@ -301,6 +303,7 @@ impl Homepage {
             menu: None,
             stop: None,
             focus: HashMap::new(),
+            action_focus: HashMap::new(),
             action_bounds: HashMap::new(),
             hovered: None,
             discovery: discovery::HomeDiscovery::default(),
@@ -783,7 +786,7 @@ impl Homepage {
         self.hovered = Some(item.id.clone());
         let viewport = window.viewport_size();
         self.actions.update(cx, |a, cx| {
-            a.open(target, bounds, true, viewport, Some(item.id), cx)
+            a.open(target, bounds, true, viewport, Some(item.id), window, cx)
         });
         true
     }

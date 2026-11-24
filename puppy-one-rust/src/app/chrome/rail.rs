@@ -91,7 +91,7 @@ impl WindowChrome {
                         let at = Bounds::new(e.position, size(px(0.), px(0.)));
                         let (target, viewport) = (target.clone(), w.viewport_size());
                         let _ = actions
-                            .update(cx, |a, cx| a.open(target, at, false, viewport, None, cx));
+                            .update(cx, |a, cx| a.open(target, at, false, viewport, None, w, cx));
                     })
                     .on_click(self.listener(move |_, _, _, cx| {
                         cx.emit(ChromeEvent::OpenProject(path.clone()))

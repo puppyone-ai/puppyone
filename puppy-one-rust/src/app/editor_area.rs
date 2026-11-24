@@ -429,7 +429,11 @@ impl EditorArea {
         self.apply_gate(window, cx);
         self.schedule_saved_refresh(cx);
         if self.gate.home || (active == 0 && self.docs.read(cx).state().is_some()) {
-            self.window_focus.focus(window, cx);
+            // The editor gives up the keyboard; a control on screen outside
+            // it (a Homepage menu, the Explorer) keeps it.
+            if !self.focus_elsewhere(window, cx) {
+                self.window_focus.focus(window, cx);
+            }
             focus_native = false;
         }
         #[cfg(feature = "dev-capture")]
@@ -443,6 +447,22 @@ impl EditorArea {
                 .update(cx, |editor, cx| editor.focus_document(window, cx));
         }
         cx.notify();
+    }
+    /// Focus is on screen and outside the editors and their tabs.
+    fn focus_elsewhere(&self, window: &Window, cx: &App) -> bool {
+        // The focused handle contains itself only while it is rendered.
+        window.focused(cx).is_some_and(|focused| {
+            focused.contains_focused(window, cx)
+                && !self
+                    .hosts
+                    .values()
+                    .any(|editor| editor.read(cx).contains_focus(window, cx))
+                && !self
+                    .tab_focus
+                    .values()
+                    .chain(self.split_focus.values())
+                    .any(|tab| tab.contains_focused(window, cx))
+        })
     }
     /// A host for `slot`: its pane menu answers here, its messages go to
     /// the runtime.

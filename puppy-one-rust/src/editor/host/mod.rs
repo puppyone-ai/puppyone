@@ -1457,6 +1457,10 @@ impl DocumentEditor {
         }
     }
 
+    /// Focus is inside this editor.
+    pub fn contains_focus(&self, window: &Window, cx: &App) -> bool {
+        self.focus.contains_focused(window, cx)
+    }
     pub fn focus_document(&self, window: &mut Window, cx: &mut App) {
         let handle = (!self.is_faulted())
             .then_some(self.surface.as_ref())

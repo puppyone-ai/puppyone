@@ -331,6 +331,8 @@ pub struct SurfaceFrame {
     clip: Option<bool>,
     absorb_mouse_down: bool,
     focus: Option<FocusHandle>,
+    key_context: Option<&'static str>,
+    actions: Vec<ActionListener>,
     key_down: Option<KeyDownHandler>,
     mouse_down_out: Option<MouseDownHandler>,
     #[cfg(any(test, all(debug_assertions, feature = "test-support")))]
@@ -338,6 +340,8 @@ pub struct SurfaceFrame {
     children: Vec<AnyElement>,
     style: StyleRefinement,
 }
+/// An action handler waiting for the frame's element.
+type ActionListener = Box<dyn FnOnce(Stateful<Div>) -> Stateful<Div>>;
 impl SurfaceFrame {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
@@ -352,6 +356,8 @@ impl SurfaceFrame {
             clip: None,
             absorb_mouse_down: false,
             focus: None,
+            key_context: None,
+            actions: Vec::new(),
             key_down: None,
             mouse_down_out: None,
             #[cfg(any(test, all(debug_assertions, feature = "test-support")))]
@@ -427,6 +433,19 @@ impl SurfaceFrame {
         self.focus = Some(handle.clone());
         self
     }
+    /// The key context the surface's own bindings live in.
+    pub fn key_context(mut self, context: &'static str) -> Self {
+        self.key_context = Some(context);
+        self
+    }
+    pub fn on_action<A: Action>(
+        mut self,
+        listener: impl Fn(&A, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.actions
+            .push(Box::new(move |frame| frame.on_action(listener)));
+        self
+    }
     pub fn on_key_down(
         mut self,
         handler: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
@@ -488,6 +507,11 @@ impl RenderOnce for SurfaceFrame {
             .when(occlude, |d| d.occlude())
             .when(clip, |d| d.overflow_hidden())
             .when_some(self.focus, |d, focus| d.track_focus(&focus))
+            .when_some(self.key_context, |d, context| d.key_context(context));
+        let frame = self
+            .actions
+            .into_iter()
+            .fold(frame, |frame, listen| listen(frame))
             .when_some(self.key_down, |d, on_key| {
                 d.on_key_down(move |e, window, cx| on_key(e, window, cx))
             })

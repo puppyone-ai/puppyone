@@ -728,3 +728,88 @@ fn explorer_virtual_window_navigation_empty_root_and_move_import_routing(cx: &mu
         1
     );
 }
+
+/// `createEntryMenu.test.tsx`: `opens Custom files from focus and returns
+/// to its trigger with ArrowLeft`; `sidebarMenuHandoff.test.tsx`: `uses
+/// Escape to close the creation submenu before dismissing its parent`. A
+/// folder row's "+" menu takes the keyboard.
+#[gpui::test]
+fn the_create_menu_walks_into_custom_files_and_escape_closes_the_submenu_first(
+    cx: &mut TestAppContext,
+) {
+    use crate::features::create_new::{Entry, MenuSettings};
+    use explorer::{MenuAt, RowTrigger};
+    use gpui_kit::test::TestQueryExt as _;
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("docs")).unwrap();
+    let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
+    let (view, cx) = setup(cx);
+    let explorer = explorer_of(&view, cx);
+    let session = session_of(&view, cx);
+    session.update(cx, |s, cx| {
+        s.load_workspace(ws.clone(), ws.list(Path::new("")).unwrap(), cx);
+    });
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.state.create_new = MenuSettings {
+                main: vec![Entry::Markdown, Entry::CustomFiles],
+                submenu: vec![Entry::ContextMap],
+                hidden: vec![
+                    Entry::Csv,
+                    Entry::Html,
+                    Entry::Text,
+                    Entry::Json,
+                    Entry::Whiteboard,
+                    Entry::Slides,
+                    Entry::App,
+                    Entry::Puppyflow,
+                ],
+            };
+            cx.notify();
+        });
+    });
+    explorer.update(cx, |e, cx| {
+        e.open_create_menu(
+            "docs".into(),
+            MenuAt::Row("docs".into(), RowTrigger::Create),
+            cx,
+        )
+    });
+    draw(cx);
+    draw(cx);
+    let (folder, custom, map) = (
+        crate::localization::t(Entry::Folder.label_key()),
+        crate::localization::t("workspace.node.customFiles"),
+        crate::localization::t(Entry::ContextMap.label_key()),
+    );
+    let focused = |cx: &mut VisualTestContext, label: &str| {
+        cx.update(|w, _| w.try_find_by_label(label).and_then(|e| e.focused()) == Some(true))
+    };
+    let shown = |cx: &mut VisualTestContext, label: &str| {
+        cx.update(|w, _| w.try_find_by_label(label).is_some())
+    };
+    let keys = |cx: &mut VisualTestContext, keys: &str| {
+        cx.simulate_keystrokes(keys);
+        draw(cx);
+    };
+    assert!(focused(cx, folder), "the menu takes the keyboard");
+    // Focus on Custom files opens it; focus stays on the row.
+    keys(cx, "down down");
+    assert!(focused(cx, custom));
+    assert!(shown(cx, map));
+    // In with ArrowRight, back to its trigger with ArrowLeft.
+    keys(cx, "right");
+    assert!(focused(cx, map));
+    keys(cx, "left");
+    assert!(focused(cx, custom));
+    assert!(!shown(cx, map));
+    // Escape closes the submenu first, then the menu.
+    keys(cx, "enter");
+    assert!(focused(cx, map));
+    keys(cx, "escape");
+    assert!(focused(cx, custom));
+    assert!(!shown(cx, map));
+    explorer.read_with(cx, |e, _| assert!(e.menu().is_some()));
+    keys(cx, "escape");
+    explorer.read_with(cx, |e, _| assert!(e.menu().is_none()));
+}

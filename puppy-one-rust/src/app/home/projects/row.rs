@@ -372,6 +372,7 @@ impl Homepage {
             .cloned()
             .unwrap_or_default();
         let measured = bounds.clone();
+        let focus = self.action_focus.get(&item.id).cloned();
         Some(
             div()
                 .relative()
@@ -384,6 +385,7 @@ impl Homepage {
                     .label(label)
                     .tooltip(tr("shell.workspaceSwitcher.projectActions"))
                     .with_size(px(22.))
+                    .when_some(focus, |b, focus| b.track_focus(&focus))
                     .when(open, |b| b.color(t.text))
                     .disabled(busy)
                     .on_click(cx.listener(move |s, _, w, cx| {
@@ -398,7 +400,7 @@ impl Homepage {
                         let item = Some(id.clone());
                         let audience = s.audience_of_id(&id, cx);
                         actions.update(cx, |a, cx| {
-                            a.open(target, at, true, viewport, item, cx);
+                            a.open(target, at, true, viewport, item, w, cx);
                             a.set_audience(audience, cx);
                         });
                     })),
