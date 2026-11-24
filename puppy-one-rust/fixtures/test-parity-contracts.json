@@ -52050,6 +52050,28 @@
           "test": "platform::key_repeat::tests::a_keystroke_outside_a_key_event_is_a_press"
         }
       ]
+    },
+    {
+      "id": "mdx-tabs-keyboard",
+      "acceptance": "An MDX Tabs block's labels are a tab list ('Tabs') of tabs, each announcing whether it is shown. Each tab takes keyboard focus and only the shown tab is a tab stop. While a tab has focus, ArrowRight and ArrowLeft (both wrapping), Home and End show and focus another tab without changing the source, and the focused tab shows the focus ring when the keyboard put it there. A pressed tab shows and takes focus. While a widget inside the editor holds the keyboard, the editor's key bindings stand aside: editing keys and typing reach nothing.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownMdxComponent.test.ts",
+          "sha256": "fa84a6ab1df972d4fe06abe3d3b270e6921c9dbfbb59449d65a6c403836636d8",
+          "cases": [
+            {
+              "index": 22,
+              "name": "declarative OpenKnowledge MDX components > supports roving tabindex and the standard tab-list keyboard contract"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::mdx_acceptance::the_tabs_take_focus_and_switch_with_arrows_home_and_end"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -64564,24 +64586,6 @@
             {
               "index": 55,
               "name": "Markdown HTML cross-surface conformance > never lets a surface upgrade an unsupported HTML result"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "mdx-tabs-keyboard",
-      "kind": "gap",
-      "reason": "TS mounts each tab as a focusable button with a roving tabindex and switches tabs with ArrowLeft/ArrowRight/Home/End while a tab has focus. The native Tabs widget's labels are pointer targets only: block widgets have no focus of their own, so the tab bar cannot be reached or switched from the keyboard.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/mdx.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownMdxComponent.test.ts",
-          "sha256": "fa84a6ab1df972d4fe06abe3d3b270e6921c9dbfbb59449d65a6c403836636d8",
-          "cases": [
-            {
-              "index": 22,
-              "name": "declarative OpenKnowledge MDX components > supports roving tabindex and the standard tab-list keyboard contract"
             }
           ]
         }
