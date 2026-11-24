@@ -52881,6 +52881,46 @@
           "test": "features::source_control::cloud_history::tests::the_page_draws_as_a_lane_graph_with_buttons_for_commits_only"
         }
       ]
+    },
+    {
+      "id": "cloud-initialization-step-log",
+      "acceptance": "Each step of a first publication writes one puppyone.cloud_initialization line to the app's own log (info level): started, Project created, push started, accepted, failed or uncertain, an empty Project retained after a failed push, reconciled, local finalization failed, and the cleanup steps. A line carries only the step name, when it happened and the allowlisted fields (operation, attempt and Project identifiers, the commit cut to 12 characters, error code, outcome, duration and attempt count), never a secret, a remote URL or a local path. A definite push failure that keeps its empty Project records empty_project_retained with PUSH_FAILED and outcome retained, and Push latest then records a new attempt from the branch tip.",
+      "typescript": [
+        {
+          "path": "tests/integration/telemetry/transport/electron.cloud-initialization-telemetry.test.mjs",
+          "sha256": "c342eba732d58df23d713c0fa71f57c2271c3219dc46faac40de99bfc21fb660",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud initialization telemetry > emits only the structured allowlist and truncates commit identifiers"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-push.test.mjs",
+          "sha256": "33b7f1e3b6d7c802bede81ea599626410e733b1293e837a978839a26a550b5d5",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Cloud publish coordinator: pushing > creates a new immutable attempt from the selected branch tip on Push latest"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::telemetry::tests::only_the_allowlist_is_written_and_the_commit_is_cut"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::telemetry::tests::a_failure_is_named_by_its_code"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::push_latest_starts_a_new_attempt_from_the_branch_tip"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -54997,34 +55037,6 @@
             {
               "index": 12,
               "name": "desktop build identity > writes one build-info file and validates the release tag"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-initialization-telemetry",
-      "kind": "gap",
-      "reason": "TS writes an allowlisted puppyone.cloud_initialization log record per publication step (identifiers, error code, attempt count, commit truncated to 12 characters; never secrets, remote URLs or local paths). Rust publication redacts secrets from its errors but emits no such structured record, including the empty_project_retained event when a failed first push keeps its empty Project (the Push latest recovery itself is covered by cloud-first-publication-coordinator).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform-services/telemetry.md",
-      "typescript": [
-        {
-          "path": "tests/integration/telemetry/transport/electron.cloud-initialization-telemetry.test.mjs",
-          "sha256": "c342eba732d58df23d713c0fa71f57c2271c3219dc46faac40de99bfc21fb660",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Cloud initialization telemetry > emits only the structured allowlist and truncates commit identifiers"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/cloud/publish/electron.cloud-publish-push.test.mjs",
-          "sha256": "33b7f1e3b6d7c802bede81ea599626410e733b1293e837a978839a26a550b5d5",
-          "cases": [
-            {
-              "index": 7,
-              "name": "Cloud publish coordinator: pushing > creates a new immutable attempt from the selected branch tip on Push latest"
             }
           ]
         }

@@ -834,12 +834,51 @@ fn push_latest_starts_a_new_attempt_from_the_branch_tip() {
     assert!(found.actions.contains(&Offer::DeleteEmptyProject));
     let record = f.pending();
     assert_eq!(record.attempt_count, 1);
+    // The failed push keeps its empty Project, and says so in the log.
+    let steps = |operation: &str| -> Vec<serde_json::Value> {
+        crate::platform::diagnostics::recorded(super::super::telemetry::LOG_EVENT)
+            .into_iter()
+            .map(|line| line["fields"].clone())
+            .filter(|fields| fields["operation_id"] == operation)
+            .collect()
+    };
+    let names = |operation: &str| -> Vec<String> {
+        steps(operation)
+            .iter()
+            .map(|fields| fields["event"].as_str().unwrap_or_default().to_owned())
+            .collect()
+    };
+    assert_eq!(
+        names(&record.operation_id),
+        [
+            "cloud_init_started",
+            "cloud_project_created",
+            "push_attempt_started",
+            "push_attempt_failed",
+            "empty_project_retained",
+        ]
+    );
+    let retained = steps(&record.operation_id).pop().unwrap();
+    assert_eq!(retained["error_code"], "PUSH_FAILED");
+    assert_eq!(retained["outcome"], "retained");
+    assert!(retained["duration_ms"].is_u64());
     let latest = f.commit("latest.md", "latest committed content\n");
     let retried = f.start(&f.with(Action::PushLatest, &record.operation_id));
     assert!(retried.ok, "{:?}", retried.error);
     assert_eq!(f.cloud_main().as_deref(), Some(latest.as_str()));
-    assert_eq!(*f.world.pushes.lock().unwrap(), [f.head.clone(), latest]);
+    assert_eq!(
+        *f.world.pushes.lock().unwrap(),
+        [f.head.clone(), latest.clone()]
+    );
     assert_eq!(f.creates(), 1);
+    let steps = steps(&record.operation_id);
+    let accepted = steps.last().unwrap();
+    assert_eq!(
+        names(&record.operation_id)[5..],
+        ["push_attempt_started", "push_attempt_accepted"]
+    );
+    assert_eq!(accepted["attempt_count"], 2);
+    assert_eq!(accepted["commit_oid"], &latest[..12]);
 }
 
 #[test]
