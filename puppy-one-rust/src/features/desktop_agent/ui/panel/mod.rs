@@ -114,6 +114,8 @@ pub struct AgentChatTabPanel {
     compute_access_prompt: bool,
     /// The app's compute wallet, as it is now (`snapshot.managed`).
     wallet: Option<compute::ManagedCompute>,
+    /// `desktop-agent-announcer`: what the last reference drop or batch did.
+    announcement: Option<SharedString>,
     /// `usePaymentsExperience()`.
     payments: bool,
     /// The user's routing preferences (`preferredRuntimeId`, `preferredRoute`).
@@ -223,6 +225,7 @@ impl AgentChatTabPanel {
             compute_revision: None,
             compute_access_prompt: false,
             wallet: None,
+            announcement: None,
             payments: false,
             routing: AgentRouting::default(),
             #[cfg(feature = "dev-capture")]
@@ -515,9 +518,7 @@ impl Render for AgentChatTabPanel {
             }))
             .on_drop(
                 cx.listener(|s, drag: &crate::ui::resource_drag::ResourceDrag, _, cx| {
-                    if let Some(paths) = drag.local_paths() {
-                        s.add_workspace_paths(paths, cx);
-                    }
+                    s.drop_resources(drag, cx)
                 }),
             );
         let status = view
@@ -538,6 +539,23 @@ impl Render for AgentChatTabPanel {
             .child(self.transcript.clone())
             .children(empty);
         let dock = (!view.startup_loading).then(|| self.render_dock(&state, &view, cx));
-        panel.children(status).child(conversation).children(dock)
+        // `role="status"`, read but not shown.
+        let announcer = self.announcement.clone().map(|text| {
+            let selector = format!("agent-announcer:{text}");
+            div()
+                .id("agent-announcer")
+                .role(Role::Status)
+                .aria_label(text)
+                .test_support()
+                .debug_selector(move || selector)
+                .absolute()
+                .size_0()
+                .overflow_hidden()
+        });
+        panel
+            .children(status)
+            .child(conversation)
+            .children(dock)
+            .children(announcer)
     }
 }
