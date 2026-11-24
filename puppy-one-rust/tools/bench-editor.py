@@ -27,6 +27,7 @@ parser.add_argument('--code-sizes', default='1,100', help='code_edit sizes (1=16
 parser.add_argument('--surfaces', default='editor,window,edit,stress,csv,code_edit', help='comma-separated surfaces to run')
 parser.add_argument('--repeat', type=int, default=1,
                     help='run the whole suite this many times and keep each metric at its best (lowest) value; '
+                         'with --check, stop at the first pass whose best values meet every budget. '
                          'CI uses 3 because one slow stretch on a shared runner can push a single run over a budget')
 args = parser.parse_args()
 
@@ -67,6 +68,58 @@ binaries = {
     if a.get('profile', {}).get('test') and a.get('executable')
 }
 
+budgets = json.loads((root / 'tools/editor-frame-budgets.json').read_text())
+ci_cfg = budgets.get('ci', {})
+in_ci = bool(ci_cfg.get('env') and os.environ.get(ci_cfg['env']) == 'true')
+ci_multiplier = float(ci_cfg.get('uncalibratedMultiplier', 1.0)) if in_ci and not ci_cfg.get('calibrated') else 1.0
+
+
+def budget_failures(results):
+    """Exceeded budgets and tracked scaling gaps for one set of best values."""
+    failures = []
+    known_gaps = []
+
+    for b in budgets['budgets']:
+        for r in results:
+            if r['surface'] == b['surface'] and r['sections'] == b['sections']:
+                ci_overrides = b.get('ciMaxMs', {}) if in_ci else {}
+                for metric, local_limit in b['maxMs'].items():
+                    limit = ci_overrides.get(metric, local_limit * ci_multiplier)
+                    if r[metric] > limit:
+                        failures.append(
+                            f"{b['surface']} {r['lines']} lines {metric}: {r[metric]:.2f}ms > {limit:.2f}ms"
+                        )
+
+    def measured(surface, sections):
+        return next((r for r in results if r['surface'] == surface and r['sections'] == sections), None)
+
+    for c in budgets.get('scaling', []):
+        small, large = measured(c['surface'], c['small']), measured(c['surface'], c['large'])
+        if small is None or large is None:
+            failures.append(f"{c['surface']} scaling {c['small']}->{c['large']} sections was not measured")
+            continue
+        floor = float(c.get('minBaselineMs', 0.05))
+        ratio = large[c['metric']] / max(small[c['metric']], floor)
+        pending = c.get('pending')
+        if ratio > c['maxRatio']:
+            detail = (
+                f"{c['surface']} {c['metric']} {small['lines']} lines {small[c['metric']]:.3f}ms -> "
+                f"{large['lines']} lines {large[c['metric']]:.3f}ms (x{ratio:.2f} > x{c['maxRatio']})"
+            )
+            if pending:
+                known_gaps.append(f"KNOWN GAP [pending {pending}]: {detail}")
+            else:
+                failures.append(f"{c['surface']} {c['metric']} grows with the document: {detail}")
+
+    missing = [
+        b for b in budgets['budgets']
+        if not any(r['surface'] == b['surface'] and r['sections'] == b['sections'] for r in results)
+    ]
+    if missing:
+        failures.append(f'{len(missing)} budgeted sizes were not measured (check --sections / --edit-sections / --csv-shapes / --code-sizes)')
+    return failures, known_gaps
+
+
 # One pass runs every (surface, size) in order. Passes repeat the whole order so
 # a slow stretch of the machine lands on different sizes in different passes.
 jobs = []
@@ -75,8 +128,19 @@ for surface in ('editor', 'window', 'edit', 'stress', 'csv', 'code_edit'):
         for sections in all_surfaces[surface][3]:
             jobs.append((surface, sections))
 
+
+def best(records):
+    """The first record, with every millisecond metric at its lowest value."""
+    out = dict(records[0])
+    for key, value in out.items():
+        if key.endswith('Ms') and isinstance(value, (int, float)):
+            out[key] = min(r[key] for r in records)
+    return out
+
+
 runs = {job: [] for job in jobs}
-for _ in range(max(args.repeat, 1)):
+passes = 0
+while passes < max(args.repeat, 1):
     for surface, sections in jobs:
         _, target, test, _ = all_surfaces[surface]
         env_key = 'PUPPYONE_BENCH_STRESS' if surface == 'stress' else 'PUPPYONE_BENCH_SECTIONS'
@@ -90,20 +154,18 @@ for _ in range(max(args.repeat, 1)):
             sys.stdout.write(run.stdout)
             sys.exit(f'{surface} benchmark failed at {sections}')
         runs[(surface, sections)].append(json.loads(found.group(1)))
+    passes += 1
+    results = [best(runs[job]) for job in jobs]
+    # A pass that meets every budget settles the check; more passes only
+    # lower the best values further.
+    if args.check and passes < args.repeat:
+        exceeded, _ = budget_failures(results)
+        if not exceeded:
+            break
+        print(f'Pass {passes}: {len(exceeded)} budget(s) exceeded; running the suite again.', flush=True)
 
-
-def best(records):
-    """The first record, with every millisecond metric at its lowest value."""
-    out = dict(records[0])
-    for key, value in out.items():
-        if key.endswith('Ms') and isinstance(value, (int, float)):
-            out[key] = min(r[key] for r in records)
-    return out
-
-
-results = [best(runs[job]) for job in jobs]
-if args.repeat > 1:
-    print(f'Best of {args.repeat} runs per metric.')
+if passes > 1:
+    print(f'Best of {passes} runs per metric.')
 
 frame_rows = [r for r in results if r['surface'] in ('editor', 'window')]
 if frame_rows:
@@ -188,7 +250,7 @@ head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root, text=True, stdout=
             'machine': platform.machine(),
             'cpu': cpu_brand or platform.processor(),
             'platform': platform.platform(),
-            'repeat': max(args.repeat, 1),
+            'repeat': passes,
             'results': results,
         },
         indent=2,
@@ -196,58 +258,12 @@ head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root, text=True, stdout=
 )
 
 if args.check:
-    budgets = json.loads((root / 'tools/editor-frame-budgets.json').read_text())
-    ci_cfg = budgets.get('ci', {})
-    in_ci = bool(ci_cfg.get('env') and os.environ.get(ci_cfg['env']) == 'true')
-    ci_multiplier = float(ci_cfg.get('uncalibratedMultiplier', 1.0)) if in_ci and not ci_cfg.get('calibrated') else 1.0
     if in_ci and not ci_cfg.get('calibrated'):
         print(
             f"CI absolute-budget mode: runner calibration pending; applying x{ci_multiplier:.2f} "
             f"to entries without explicit ciMaxMs (scaling maxRatio still enforced strictly)."
         )
-
-    failures = []
-    known_gaps = []
-
-    for b in budgets['budgets']:
-        for r in results:
-            if r['surface'] == b['surface'] and r['sections'] == b['sections']:
-                ci_overrides = b.get('ciMaxMs', {}) if in_ci else {}
-                for metric, local_limit in b['maxMs'].items():
-                    limit = ci_overrides.get(metric, local_limit * ci_multiplier)
-                    if r[metric] > limit:
-                        failures.append(
-                            f"{b['surface']} {r['lines']} lines {metric}: {r[metric]:.2f}ms > {limit:.2f}ms"
-                        )
-
-    def measured(surface, sections):
-        return next((r for r in results if r['surface'] == surface and r['sections'] == sections), None)
-
-    for c in budgets.get('scaling', []):
-        small, large = measured(c['surface'], c['small']), measured(c['surface'], c['large'])
-        if small is None or large is None:
-            failures.append(f"{c['surface']} scaling {c['small']}->{c['large']} sections was not measured")
-            continue
-        floor = float(c.get('minBaselineMs', 0.05))
-        ratio = large[c['metric']] / max(small[c['metric']], floor)
-        pending = c.get('pending')
-        if ratio > c['maxRatio']:
-            detail = (
-                f"{c['surface']} {c['metric']} {small['lines']} lines {small[c['metric']]:.3f}ms -> "
-                f"{large['lines']} lines {large[c['metric']]:.3f}ms (x{ratio:.2f} > x{c['maxRatio']})"
-            )
-            if pending:
-                known_gaps.append(f"KNOWN GAP [pending {pending}]: {detail}")
-            else:
-                failures.append(f"{c['surface']} {c['metric']} grows with the document: {detail}")
-
-    missing = [
-        b for b in budgets['budgets']
-        if not any(r['surface'] == b['surface'] and r['sections'] == b['sections'] for r in results)
-    ]
-    if missing:
-        failures.append(f'{len(missing)} budgeted sizes were not measured (check --sections / --edit-sections / --csv-shapes / --code-sizes)')
-
+    failures, known_gaps = budget_failures(results)
     for gap in known_gaps:
         print(gap)
     if failures:

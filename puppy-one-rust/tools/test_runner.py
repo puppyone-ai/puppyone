@@ -3,6 +3,7 @@
 A successful exit alone is insufficient: every required, fully qualified test
 must be discovered exactly once and actually pass, including ignored tests.
 """
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
@@ -90,7 +91,7 @@ def execute(command, *, env=None, timeout=240, cwd=ROOT):
         return 124, collected_output(output, diagnostics) + '\nVerification timed out.\n'
 
 
-def run_gate(name, required, *, env=None, metadata=None):
+def run_gate(name, required, *, env=None, metadata=None, jobs=1):
     out = ROOT / 'artifacts' / name
     out.mkdir(parents=True, exist_ok=True)
     receipt = out / 'result.json'
@@ -127,7 +128,7 @@ def run_gate(name, required, *, env=None, metadata=None):
         listed, content = execute([binary, '--list', '--format=terse'], env=env)
         if listed == 0:
             listings[target] = re.findall(r'^(\S+): test$', content, re.M)
-    for index, item in enumerate(required):
+    def exact(index, item):
         test = item['test']
         target = item.get('target', item['package'].replace('-', '_'))
         error = None
@@ -145,8 +146,13 @@ def run_gate(name, required, *, env=None, metadata=None):
             error = validate_result(test, result_code, content)
         log = f'{index:02d}-{test.split("::")[-1]}.log'
         (out / log).write_text(content)
-        checks.append({**item, 'exit': result_code, 'passed': error is None, 'error': error, 'log': log})
         print(f'{test}: {error or "passed"}', flush=True)
+        return {**item, 'exit': result_code, 'passed': error is None, 'error': error, 'log': log}
+
+    # Each test is its own process with its own data directory, so a gate may
+    # run several at once; receipts keep the declared order either way.
+    with ThreadPoolExecutor(max_workers=max(jobs, 1)) as pool:
+        checks += pool.map(exact, range(len(required)), required)
     # The native tooling's own unittests (release, packaging), one at a
     # time from the test file's directory, under the same isolation.
     for index, item in enumerate(python, start=len(checks)):

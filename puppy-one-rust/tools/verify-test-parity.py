@@ -15,6 +15,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--inventory-only', action='store_true')
     parser.add_argument('--require-complete', action='store_true')
+    parser.add_argument('--jobs', type=int, default=int(os.environ.get('PUPPYONE_TEST_JOBS') or min(4, os.cpu_count() or 1)),
+                        help='required tests run at once, each in its own process (default: up to 4)')
     args = parser.parse_args()
     manifest = json.loads((ROOT / 'fixtures/test-parity-contracts.json').read_text())
     reference = json.loads((ROOT / 'fixtures/test-parity-reference.json').read_text())
@@ -67,7 +69,7 @@ def main():
         report = run_gate('test-parity', list(tests.values()), metadata={
             'contracts': manifest['contracts'], 'referenceCommit': commit,
             'wholeProductParityVerified': False,
-        })
+        }, jobs=args.jobs)
         passed = report['passed']
     if args.require_complete and (inventory['unreviewedCases'] or inventory['knownGapCases']
                                   or inventory['unreviewedAuxiliaryFiles'] or inventory['openAcceptance']):
