@@ -1,0 +1,69 @@
+name: Signing drill
+
+# Temporary: runs the Stable job's signing, notarization and Gatekeeper
+# checks on the published Internal 66 app, without building or publishing.
+on:
+  push:
+    branches: ['drill/signing']
+
+permissions:
+  contents: read
+
+jobs:
+  drill:
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment:
+      name: desktop-signing
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Fetch the published Internal 66 app
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "${RUNNER_TEMP}/internal.zip" https://downloads.puppyone.ai/desktop/internal/mac/v0.5.0-internal.66/puppyone-0.5.0-internal.66-arm64.zip
+          mkdir -p drill
+          ditto -x -k "${RUNNER_TEMP}/internal.zip" drill
+          ls drill
+      - name: Sign, notarize and verify as the Stable job does
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_KEYCHAIN_PROFILE: ${{ secrets.APPLE_KEYCHAIN_PROFILE }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${APPLE_API_KEY_BASE64:-}" ]; then
+            api_key_path="${RUNNER_TEMP}/AuthKey_${APPLE_API_KEY_ID}.p8"
+            umask 077
+            printf '%s' "${APPLE_API_KEY_BASE64}" | /usr/bin/base64 -D > "${api_key_path}"
+            export APPLE_API_KEY="${api_key_path}"
+            trap 'rm -f "${api_key_path}"' EXIT
+          fi
+          security list-keychains -d user
+          python3 - <<'PY'
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0, 'puppy-one-rust/tools/release')
+          import dmg, sign
+          plan = sign.plan('stable', os.environ)
+          print('Signing plan:', plan['notarization'], plan['errors'])
+          assert plan['release'], plan['errors']
+          app = next(Path('drill').glob('*.app'))
+          with sign.keychain(plan['signing']) as (signer, keychain):
+              print('Identity:', signer)
+              sign.sign(app, signer, keychain)
+              sign.notarize(app, plan['notarization'], os.environ)
+              sign.verify_release_app(app)
+              image = dmg.create(app, Path('drill/drill.dmg'), 'Drill Installer',
+                                 Path('puppy-one-rust/assets/release/dmg-background.tiff'))
+              sign.sign(image, signer, keychain)
+              sign.notarize(image, plan['notarization'], os.environ)
+          print('Signed, notarized, stapled and accepted by Gatekeeper:', app.name, image.name)
+          PY
+          security list-keychains -d user
