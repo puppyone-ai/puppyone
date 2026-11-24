@@ -1,4 +1,8 @@
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
+import verify
 from verify import CARGO_ORDER, CHECKS, ordered, schedule
 
 
@@ -75,6 +79,18 @@ class VerificationSchedule(unittest.TestCase):
             for dependency in needs:
                 self.assertIn(dependency, names)
         self.assertEqual([name for name, _, _, _ in ordered(CHECKS)][-1], 'editor-frames')
+
+
+class FailureExcerpt(unittest.TestCase):
+    def test_a_failure_far_from_the_end_of_a_long_log_is_shown(self):
+        lines = [f'case::{index}: passed' for index in range(3000)]
+        lines[1200] = 'platform::terminal::tests::noisy: exit 101'
+        with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'OUT', Path(directory)):
+            Path(directory, 'gate.log').write_text('\n'.join(lines) + '\n')
+            shown = verify.excerpt('gate').splitlines()
+        self.assertEqual(shown[0], 'platform::terminal::tests::noisy: exit 101')
+        self.assertEqual(shown[-1], 'case::2999: passed')
+        self.assertLess(len(shown), 60)
 
 
 if __name__ == '__main__':

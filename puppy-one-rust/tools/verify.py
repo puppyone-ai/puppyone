@@ -19,6 +19,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import time
@@ -138,9 +139,18 @@ def duration(seconds):
     return f'{minutes}m{seconds:02d}s' if minutes else f'{seconds}s'
 
 
-def tail(name, lines=60):
+FAILURE_LINE = re.compile(r'FAILED|panicked|[Ee]rror|: exit \d|timed out|not discovered|exceeded')
+
+
+def excerpt(name, flagged=30, last=40):
+    """The log lines that name a failure, then the end of the log.
+
+    A gate that runs thousands of tests prints the one that failed long
+    before its last line."""
     text = (OUT / f'{name}.log').read_text(errors='replace').rstrip('\n').splitlines()
-    return '\n'.join(text[-lines:])
+    failures = [line for line in text[:-last] if FAILURE_LINE.search(line)]
+    shown = failures[:flagged] + ([f'… {len(failures) - flagged} more'] if len(failures) > flagged else [])
+    return '\n'.join(shown + (['…'] if shown else []) + text[-last:])
 
 
 def dependency_tree():
@@ -232,7 +242,7 @@ def main():
 
     for check in failed:
         print(f'\n──── {check["name"]} (exit {check["exit"]}) · {OUT / (check["name"] + ".log")}')
-        print(tail(check['name']))
+        print(excerpt(check['name']))
     print(f'\n{len(checks) - len(failed)} of {len(checks)} checks passed in {duration(summary["seconds"])}'
           + (f'; {len(skipped)} skipped' if skipped else '') + '.')
     if failed:

@@ -150,9 +150,15 @@ def run_gate(name, required, *, env=None, metadata=None, jobs=1):
         return {**item, 'exit': result_code, 'passed': error is None, 'error': error, 'log': log}
 
     # Each test is its own process with its own data directory, so a gate may
-    # run several at once; receipts keep the declared order either way.
+    # run several at once; receipts keep the declared order either way. An
+    # `exclusive` test relies on a lock inside its own process, which other
+    # processes do not take: those run one at a time once the rest are done.
+    shared = [(index, item) for index, item in enumerate(required) if not item.get('exclusive')]
+    alone = [(index, item) for index, item in enumerate(required) if item.get('exclusive')]
     with ThreadPoolExecutor(max_workers=max(jobs, 1)) as pool:
-        checks += pool.map(exact, range(len(required)), required)
+        results = dict(zip((index for index, _ in shared), pool.map(lambda pair: exact(*pair), shared)))
+    results.update((index, exact(index, item)) for index, item in alone)
+    checks += [results[index] for index in range(len(required))]
     # The native tooling's own unittests (release, packaging), one at a
     # time from the test file's directory, under the same isolation.
     for index, item in enumerate(python, start=len(checks)):

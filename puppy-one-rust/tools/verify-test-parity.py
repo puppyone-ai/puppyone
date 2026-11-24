@@ -10,6 +10,9 @@ import subprocess
 from test_runner import ROOT, run_gate
 from parity_inventory import case_inventory
 
+# Tests that hold a process-wide test lock run one at a time.
+EXCLUSIVE = ('platform::terminal::',)
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -66,7 +69,11 @@ def main():
     print(f"{len(inventory['knownGapCases'])} reviewed cases are known gaps Rust does not meet yet; {len(inventory['outOfScopeCases'])} are out of scope by a recorded decision.")
     passed = True
     if not args.inventory_only:
-        report = run_gate('test-parity', list(tests.values()), metadata={
+        # Terminal tests share a PTY lock within one test process (CI run
+        # 45380242154 lost output when two ran in separate processes).
+        required = [dict(test, exclusive=True) if test['test'].startswith(EXCLUSIVE) else test
+                    for test in tests.values()]
+        report = run_gate('test-parity', required, metadata={
             'contracts': manifest['contracts'], 'referenceCommit': commit,
             'wholeProductParityVerified': False,
         }, jobs=args.jobs)
