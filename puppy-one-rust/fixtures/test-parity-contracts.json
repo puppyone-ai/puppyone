@@ -52072,6 +52072,44 @@
           "test": "editor::markdown::tests::mdx_acceptance::the_tabs_take_focus_and_switch_with_arrows_home_and_end"
         }
       ]
+    },
+    {
+      "id": "markdown-content-language-tag",
+      "acceptance": "A Markdown document names its editing surface's language (lang) the way the product resolves it: explicit language metadata wins, normalized (zh_TW to zh-Hant, zh-CN to zh-Hans, ja-JP to ja, en-US as written); otherwise Kana means Japanese and Hangul Korean before the shared Han script, Han telling Simplified from Traditional Chinese by high-signal characters (a tie follows the interface's variant), whatever the interface language; otherwise the interface's language. The language is latched like the reading weight. Text the editor builds and lays out for the document takes that language's script fallback faces (PingFang SC / TC, Hiragino, Apple SD Gothic Neo, or the generic cascade), its code text too, while the editor's chrome keeps the interface's.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/markdownContentLanguage.test.ts",
+          "sha256": "5b74632054d7832342ee6dcc986a7dec19adf72eddbd1a7ca6d6c5075f834a67",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown content language > detects a Chinese document independently from the interface locale"
+            },
+            {
+              "index": 2,
+              "name": "Markdown content language > keeps explicit metadata authoritative and normalizes locale variants"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::content_language::tests::a_chinese_document_names_its_script_whatever_the_interface"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::content_language::tests::explicit_metadata_wins_and_locales_normalize"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::the_documents_script_names_the_surface_language"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::fonts::tests::content_text_takes_its_languages_script_cascade"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -63652,28 +63690,6 @@
             {
               "index": 19,
               "name": "Markdown embedded runtime > separates legacy source metadata from language and preserves it on commit"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-content-language-tag",
-      "kind": "gap",
-      "reason": "The native editor derives only the reading weight from a document's script. It does not name the content language (Simplified versus Traditional Chinese, Japanese, Korean) or honour a document's explicit language metadata, so CJK glyph variants follow the system font fallback rather than the document's language.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/state-and-content-language.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/parsing/markdownContentLanguage.test.ts",
-          "sha256": "5b74632054d7832342ee6dcc986a7dec19adf72eddbd1a7ca6d6c5075f834a67",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown content language > detects a Chinese document independently from the interface locale"
-            },
-            {
-              "index": 2,
-              "name": "Markdown content language > keeps explicit metadata authoritative and normalizes locale variants"
             }
           ]
         }

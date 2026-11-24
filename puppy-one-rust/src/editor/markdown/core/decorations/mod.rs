@@ -75,6 +75,7 @@ pub fn surface(theme: &MarkdownTheme) -> Surface {
         inline_code_padding: Some(theme.inline.code_padding.left),
         // `.cm-md-syntax-link` has no text decoration.
         link_plain: true,
+        language: s.language.clone(),
     }
 }
 

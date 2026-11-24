@@ -492,46 +492,12 @@ impl Element for EditorElement {
         window: &mut Window,
         cx: &mut App,
     ) -> Prepainted {
-        let focused = self.view.read(cx).focus.is_focused(window);
-        self.view.update(cx, |v, cx| {
-            v.sync_decorations(focused);
-            v.ensure_blink(focused, cx);
-        });
-        // The text at the viewport top, held still however this frame's
-        // blocks lay out.
-        let mut anchor = self.view.read(cx).scroll_anchor();
-        let mut pass = 0;
-        let frame = loop {
-            pass += 1;
-            let estimate = anchor.as_ref().filter(|_| pass == 1);
-            let mut frame = self.build(bounds, focused, estimate, window, cx);
-            let last = pass == MAX_PASSES;
-            let placed = window.transact(|window| {
-                let settled = self.place(&mut frame, bounds, focused, anchor.as_ref(), window, cx);
-                if settled || last {
-                    Ok(settled)
-                } else {
-                    Err(())
-                }
-            });
-            // A caret reveal scrolled away from the anchor (or the anchor
-            // was not laid out): later passes keep that scroll.
-            if self.view.read(cx).held_anchor.is_none() {
-                anchor = None;
-            }
-            match placed {
-                Ok(settled) => {
-                    if !settled {
-                        let view = self.view.entity_id();
-                        window.on_next_frame(move |_, cx| cx.notify(view));
-                    }
-                    break frame;
-                }
-                Err(()) => continue,
-            }
-        };
-        let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
-        Prepainted { frame, hitbox }
+        // The content's text, built and laid out here, takes its language's
+        // script faces (`lang`); the editor's chrome keeps the interface's.
+        let language = self.view.read(cx).surface().language.clone();
+        crate::ui::fonts::with_content_language(language.as_ref(), || {
+            self.prepaint_content(bounds, window, cx)
+        })
     }
 
     fn paint(
@@ -674,5 +640,55 @@ impl Element for EditorElement {
         if moved {
             window.invalidate_character_coordinates();
         }
+    }
+}
+
+impl EditorElement {
+    fn prepaint_content(
+        &mut self,
+        bounds: Bounds<Pixels>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Prepainted {
+        let focused = self.view.read(cx).focus.is_focused(window);
+        self.view.update(cx, |v, cx| {
+            v.sync_decorations(focused);
+            v.ensure_blink(focused, cx);
+        });
+        // The text at the viewport top, held still however this frame's
+        // blocks lay out.
+        let mut anchor = self.view.read(cx).scroll_anchor();
+        let mut pass = 0;
+        let frame = loop {
+            pass += 1;
+            let estimate = anchor.as_ref().filter(|_| pass == 1);
+            let mut frame = self.build(bounds, focused, estimate, window, cx);
+            let last = pass == MAX_PASSES;
+            let placed = window.transact(|window| {
+                let settled = self.place(&mut frame, bounds, focused, anchor.as_ref(), window, cx);
+                if settled || last {
+                    Ok(settled)
+                } else {
+                    Err(())
+                }
+            });
+            // A caret reveal scrolled away from the anchor (or the anchor
+            // was not laid out): later passes keep that scroll.
+            if self.view.read(cx).held_anchor.is_none() {
+                anchor = None;
+            }
+            match placed {
+                Ok(settled) => {
+                    if !settled {
+                        let view = self.view.entity_id();
+                        window.on_next_frame(move |_, cx| cx.notify(view));
+                    }
+                    break frame;
+                }
+                Err(()) => continue,
+            }
+        };
+        let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
+        Prepainted { frame, hitbox }
     }
 }

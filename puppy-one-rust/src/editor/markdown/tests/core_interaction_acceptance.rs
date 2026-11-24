@@ -1563,3 +1563,46 @@ fn resizing_keeps_the_markdown_at_the_viewport_top(cx: &mut TestAppContext) {
         );
     }
 }
+
+/// `markdownContentLanguage.test.ts` #0 in the editor: a document names its
+/// surface's language (`lang`) from its own script rather than the
+/// interface's, and keeps it while it is edited; a document without a
+/// script signal takes the interface's.
+#[gpui::test]
+fn the_documents_script_names_the_surface_language(cx: &mut TestAppContext) {
+    let language = |view: &gpui::Entity<crate::editor::view::EditorView>,
+                    cx: &mut gpui::VisualTestContext| {
+        view.update(cx, |v, _| {
+            v.surface().language.as_ref().map(|l| l.to_string())
+        })
+    };
+    use crate::ui::fonts::test_support::take_asked;
+    let (view, cx) = setup(cx, "# 計畫\n\n- 使用者訪談集齊十個\n- 修復編輯器問題");
+    assert_eq!(language(&view, cx).as_deref(), Some("zh-Hant"));
+    // Built, laid out and painted, every text of the editor takes the
+    // document language's script cascade.
+    take_asked();
+    view.update(cx, |_, cx| cx.notify());
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    assert_eq!(take_asked(), [Some("zh-Hant".into())]);
+    view.update_in(cx, |v, _, cx| {
+        let end = v.text().len();
+        v.set_selection(Selection::cursor(end), cx)
+    });
+    cx.simulate_input("\n计划用户访谈问题");
+    cx.run_until_parked();
+    assert_eq!(
+        language(&view, cx).as_deref(),
+        Some("zh-Hant"),
+        "an edit keeps the language"
+    );
+    let (view, cx) = setup(cx, "# 计划\n\n- 用户访谈集齐十个\n- 修复编辑器问题");
+    assert_eq!(language(&view, cx).as_deref(), Some("zh-Hans"));
+    let (view, cx) = setup(cx, "# Release notes");
+    let interface = crate::editor::markdown::core::presentation::content_language::normalize(
+        &crate::localization::current().code,
+    );
+    assert_eq!(language(&view, cx), Some(interface));
+}
