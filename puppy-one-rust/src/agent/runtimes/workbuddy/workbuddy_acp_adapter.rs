@@ -3,8 +3,8 @@
 use super::workbuddy_channels::WorkBuddyChannel;
 use super::workbuddy_config_directory::work_buddy_config_directory;
 use super::workbuddy_discovery::{
-    WORKBUDDY_LITE_WB_ENV, WORKBUDDY_LITE_WB_LAUNCH_MODE, is_lite_wb_only_bundle,
-    work_buddy_cli_entrypoint,
+    WORKBUDDY_GATEWAY_AUTH_ENV, WORKBUDDY_LITE_WB_ENV, WORKBUDDY_LITE_WB_LAUNCH_MODE,
+    is_lite_wb_only_bundle, work_buddy_cli_entrypoint,
 };
 use super::workbuddy_environment::WORKBUDDY_HOST_ENVIRONMENT;
 use super::workbuddy_history_source::work_buddy_history_source;
@@ -86,6 +86,7 @@ pub fn work_buddy_acp_adapter(
             );
             if serve_stdio {
                 overlay.insert(WORKBUDDY_LITE_WB_ENV.into(), Value::from("1"));
+                overlay.insert(WORKBUDDY_GATEWAY_AUTH_ENV.into(), Value::from("password"));
             }
             Value::Object(overlay)
         }));

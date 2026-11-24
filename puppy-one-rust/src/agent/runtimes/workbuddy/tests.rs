@@ -447,7 +447,10 @@ fn detects_lite_wb_only_desktop_bundles_and_launches_via_serve_stdio_acp() {
                         Ok(ready(
                             &host_str,
                             json!([cli_str]),
-                            json!({ "ELECTRON_RUN_AS_NODE": "1" }),
+                            json!({
+                                "ELECTRON_RUN_AS_NODE": "1",
+                                "CODEBUDDY_GATEWAY_AUTH": "none",
+                            }),
                         ))
                     })
                 }
@@ -501,6 +504,12 @@ fn detects_lite_wb_only_desktop_bundles_and_launches_via_serve_stdio_acp() {
             env.get("CODEBUDDY_FORCE_LITE_WB_BUNDLE")
                 .map(String::as_str),
             Some("1")
+        );
+        // The CLI lets this variable outrank `--auth`; an inherited `none`
+        // must not reach the loopback HTTP server.
+        assert_eq!(
+            env.get("CODEBUDDY_GATEWAY_AUTH").map(String::as_str),
+            Some("password")
         );
     });
 }

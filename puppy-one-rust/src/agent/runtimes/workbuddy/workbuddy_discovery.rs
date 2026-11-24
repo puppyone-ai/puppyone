@@ -31,6 +31,9 @@ pub mod limits {
 /// bundle (Desktop 5.11.3+ / `@genie/agent-cli 2.176.0+`).
 pub(crate) const WORKBUDDY_LITE_WB_LAUNCH_MODE: &str = "serve-stdio";
 pub(crate) const WORKBUDDY_LITE_WB_ENV: &str = "CODEBUDDY_FORCE_LITE_WB_BUNDLE";
+/// Outranks `--auth` in the CLI, so the launch pins it: an inherited `none`
+/// would open the loopback HTTP server to every local process.
+pub(crate) const WORKBUDDY_GATEWAY_AUTH_ENV: &str = "CODEBUDDY_GATEWAY_AUTH";
 
 /// Resolves the WorkBuddy CLI script entrypoint from a readiness payload
 /// (`argsPrefix[0]` on Windows where `WorkBuddy.exe` runs as Node, or
