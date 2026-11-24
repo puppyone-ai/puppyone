@@ -785,3 +785,68 @@ fn a_long_answer_shows_its_first_window_until_opened_in_full(cx: &mut TestAppCon
         "the full answer is longer"
     );
 }
+
+/// `animates only newly committed parts and does not replay entrance motion
+/// after rerender`: what the conversation first shows does not enter; a
+/// later answer fades in once, and neither its end nor a rerender of the
+/// same conversation replays it. With reduced motion nothing enters.
+#[gpui::test]
+fn only_new_answers_fade_in_and_only_once(cx: &mut TestAppContext) {
+    use crate::agent::domain::agent_session_actor::EventInput;
+    cx.update(gpui_kit::init);
+    let entering = |view: &Entity<TranscriptView>, cx: &mut VisualTestContext| {
+        let rows: Vec<String> = view.read_with(cx, |v, _| {
+            v.rows.iter().map(|row| row.row.id.clone()).collect()
+        });
+        rows.into_iter()
+            .filter(|id| {
+                let selector: &'static str =
+                    Box::leak(format!("agent-row-entering:{id}").into_boxed_str());
+                cx.debug_bounds(selector).is_some()
+            })
+            .collect::<Vec<_>>()
+    };
+    for reduce_motion in [false, true] {
+        let actor = SessionActor::new(ActorOptions::default()).unwrap();
+        let answer = |n: usize| {
+            actor.append_event(EventInput {
+                session_id: "s".into(), runtime_id: "codex".into(), provider_session_id: Some("native".into()),
+                event: json!({"type": "assistant.completed", "turnId": "turn", "itemId": format!("answer-{n}"), "payload": {"text": format!("Message {n}")}}),
+            }).unwrap();
+            AgentProjection::project(&actor.snapshot().display, None).unwrap()
+        };
+        let (view, cx) = cx.add_window_view(|_, cx| TranscriptView::new(cx));
+        view.update(cx, |v, _| v.reduce_motion = reduce_motion);
+        show(&view, answer(0), cx);
+        assert!(
+            entering(&view, cx).is_empty(),
+            "the first conversation is not new"
+        );
+        let next = answer(1);
+        show(&view, next.clone(), cx);
+        let new = entering(&view, cx);
+        if reduce_motion {
+            assert!(new.is_empty(), "{new:?}");
+            continue;
+        }
+        assert_eq!(new.len(), 1, "{new:?}");
+        let rows = view.read_with(cx, |v, _| v.rows.len());
+        assert_eq!(
+            new[0],
+            view.read_with(cx, |v, _| v.rows[rows - 1].row.id.clone())
+        );
+        view.update(cx, |v, _| {
+            for timeline in v.entering.values_mut() {
+                timeline.advance(std::time::Duration::from_millis(140));
+            }
+        });
+        draw(cx);
+        assert!(entering(&view, cx).is_empty(), "the motion ended");
+        show(&view, next, cx);
+        assert!(
+            entering(&view, cx).is_empty(),
+            "a rerender does not replay it"
+        );
+        assert!(view.read_with(cx, |v, _| v.entering.is_empty()));
+    }
+}

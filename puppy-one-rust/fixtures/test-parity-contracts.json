@@ -52408,6 +52408,29 @@
           "test": "features::desktop_agent::ui::panel::tests::a_staged_files_mention_follows_its_reference_once_staging_ends"
         }
       ]
+    },
+    {
+      "id": "agent-transcript-row-entrance",
+      "acceptance": "Rows the conversation shows when the transcript first renders do not enter with motion. A later row whose first part was never shown, and is not the user's prompt or a turn summary, fades its content in once (opacity 0 to 1 over 140ms on cubic-bezier(0.2, 0.75, 0.25, 1)); once the fade ends, neither a rerender of the same conversation nor the row scrolling back into view replays it. With the system's reduced-motion preference rows enter without motion.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
+          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Desktop Agent virtual transcript > animates only newly committed parts and does not replay entrance motion after rerender"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::only_new_answers_fade_in_and_only_once"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62744,24 +62767,6 @@
             {
               "index": 8,
               "name": "Desktop Agent renderer surfaces > supports Arrow, Enter and Escape with focus return in the custom Agent picker"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "transcript-row-entrance-motion",
-      "kind": "gap",
-      "reason": "TS fades a newly committed row in once (and never replays it on rerender); the native transcript draws new rows without entrance motion.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/transcript.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
-          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
-          "cases": [
-            {
-              "index": 4,
-              "name": "Desktop Agent virtual transcript > animates only newly committed parts and does not replay entrance motion after rerender"
             }
           ]
         }

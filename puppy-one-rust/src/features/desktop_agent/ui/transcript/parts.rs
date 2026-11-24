@@ -17,6 +17,9 @@ use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
 use std::sync::Arc;
 
+/// `desktop-agent-part-in`'s duration.
+const ENTRANCE: std::time::Duration = std::time::Duration::from_millis(140);
+
 impl TranscriptView {
     pub(super) fn render_row(
         &mut self,
@@ -32,21 +35,22 @@ impl TranscriptView {
             .rows
             .get(index)
             .map_or_else(|| "live-tail".to_owned(), |row| row.row.id.clone());
-        let (body, gap) = match self.rows.get(index).cloned() {
+        let (body, entrance, gap) = match self.rows.get(index).cloned() {
             Some(row) => {
                 let parts: Vec<Arc<Part>> = row
                     .part_ids
                     .iter()
                     .filter_map(|id| self.parts.get(id).cloned())
                     .collect();
+                let entrance = self.entrance(&row.row.id, &parts, window);
                 let body = match parts.first() {
                     None => div().into_any_element(),
                     Some(_) if row.tool_group => self.render_tool_group(&row.row.id, &parts, cx),
                     Some(part) => self.render_part(&row.row.id, part, content_width, window, cx),
                 };
-                (body, self.gaps.get(index).copied().unwrap_or(0.))
+                (body, entrance, self.gaps.get(index).copied().unwrap_or(0.))
             }
-            None => (self.render_live_tail(cx), 0.),
+            None => (self.render_live_tail(cx), None, 0.),
         };
         let tail_padding = if self.rows.get(index).is_none() {
             8.
@@ -56,6 +60,7 @@ impl TranscriptView {
         let notice = (index == 0)
             .then(|| self.render_history_notice(&self.input.projection, &a, cx))
             .flatten();
+        let entering = format!("agent-row-entering:{row_id}");
         div()
             .debug_selector(move || format!("agent-row:{row_id}"))
             .w_full()
@@ -64,8 +69,48 @@ impl TranscriptView {
             .when(index == 0, |d| d.pt(px(PAD_TOP)))
             .children(notice)
             .pb(px(gap + tail_padding + if last { PAD_BOTTOM } else { 0. }))
-            .child(div().w_full().max_w(px(CONTENT_MAX)).mx_auto().child(body))
+            .child(
+                div()
+                    .w_full()
+                    .max_w(px(CONTENT_MAX))
+                    .mx_auto()
+                    .when_some(entrance, |d, opacity| {
+                        d.opacity(opacity).debug_selector(move || entering)
+                    })
+                    .child(body),
+            )
             .into_any_element()
+    }
+
+    /// `TranscriptRow`'s entrance: a row whose first part was never shown
+    /// (and is not the user's prompt or a turn summary) fades in once,
+    /// 140ms on `cubic-bezier(0.2, 0.75, 0.25, 1)`; its opacity while it does.
+    fn entrance(&mut self, row_id: &str, parts: &[Arc<Part>], window: &mut Window) -> Option<f32> {
+        let first = parts.first()?;
+        if !self.seen_parts.contains(&first.id)
+            && !matches!(first.kind.as_str(), "user" | "turn-summary")
+            && !self.reduce_motion
+        {
+            self.entering.insert(
+                row_id.to_owned(),
+                crate::ui::motion::Timeline::start(ENTRANCE),
+            );
+        }
+        self.seen_parts
+            .extend(parts.iter().map(|part| part.id.clone()));
+        let timeline = self.entering.get(row_id)?;
+        if timeline.finished() {
+            self.entering.remove(row_id);
+            return None;
+        }
+        window.request_animation_frame();
+        Some(crate::ui::motion::cubic_bezier(
+            0.2,
+            0.75,
+            0.25,
+            1.,
+            timeline.time(),
+        ))
     }
 
     /// `AgentPartRenderer`.
