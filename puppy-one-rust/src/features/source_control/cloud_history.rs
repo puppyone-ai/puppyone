@@ -2,19 +2,17 @@
 //! `useCloudHistoryData`, `useCloudHistoryController`, `CloudCommitDetail`,
 //! `useCloudCommitDetail`, `historyRepository`).
 //!
-//! Cloud commits map to the local History's summaries and draw through the
-//! same timeline. The list reads summaries, 80 per page through the signed
+//! Cloud commits draw as a lane graph (`HistoryGraphVisual` beside each
+//! row, inline ref labels, ref-only rows that are not buttons); a commit's
+//! detail uses the local History's hierarchy. The list reads summaries, 80
+//! per page through the signed
 //! cursor; a commit's paths load only when its detail opens. Reads share one
 //! flight per page or commit across windows and paint a cached snapshot
 //! while revalidating; the cache is bounded and keyed by account, session
 //! generation, API and Project. The view is valid only for the scope it was
 //! opened in: another Project, account, session or API closes it, and late
 //! results of an older request are dropped.
-use super::{
-    diff,
-    history::{self, TimelineHost, TimelineRow},
-    view_action, view_header, view_title,
-};
+use super::{diff, history, view_action, view_header, view_title};
 use crate::{
     cloud::auth::{Broker, Cancellation, Error as AuthError, model::Binding},
     localization::{self, t as tr, tf},
@@ -27,8 +25,11 @@ use crate::{
         appearance::ActiveAppearance,
         components::{Button, ButtonVariant, Icon, IconButton},
     },
-    workspace::cloud::history::{
-        self as model, CACHE_ENTRIES, ChangeKind, Commit, History, Invalid, Label, LabelKind,
+    workspace::cloud::{
+        graph,
+        history::{
+            self as model, CACHE_ENTRIES, ChangeKind, Commit, History, Invalid, Label, LabelKind,
+        },
     },
 };
 use futures_util::{FutureExt as _, future::Shared};
@@ -37,11 +38,7 @@ use gpui_kit::{
     base::{Disableable as _, h_flex, v_flex},
     component::Sizable as _,
 };
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-    time::Instant,
-};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 /// Why a read failed; the view shows its own copy, never server prose.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -231,9 +228,9 @@ pub struct CloudHistory {
     detail_state: Option<Detail>,
     detail_read: Option<(String, u64)>,
     detail_request: u64,
-    timeline: Vec<TimelineRow>,
-    timeline_list: ListState,
-    collapsed_days: HashSet<String>,
+    /// The page's rows with their lanes (`buildCloudBranchGraphRows`).
+    graph: Vec<graph::Row>,
+    graph_list: ListState,
     icon_theme: String,
     focus: FocusHandle,
     /// Waits for file activity in the Project to fall quiet.
@@ -329,9 +326,8 @@ impl CloudHistory {
             detail_state: None,
             detail_read: None,
             detail_request: 0,
-            timeline: Vec::new(),
-            timeline_list: ListState::new(0, ListAlignment::Top, px(400.)),
-            collapsed_days: HashSet::new(),
+            graph: Vec::new(),
+            graph_list: ListState::new(0, ListAlignment::Top, px(400.)),
             icon_theme: "default".into(),
             focus: cx.focus_handle(),
             settling: None,
@@ -399,7 +395,6 @@ impl CloudHistory {
         self.selected = None;
         self.detail = None;
         self.detail_state = None;
-        self.collapsed_days.clear();
         self.rebuild();
         cx.notify();
     }
@@ -413,8 +408,8 @@ impl CloudHistory {
         }
     }
     fn rebuild(&mut self) {
-        self.timeline = history::timeline(&self.commits, &self.collapsed_days, history::now());
-        self.timeline_list.reset(self.timeline.len());
+        self.graph = self.history.as_ref().map(graph::rows).unwrap_or_default();
+        self.graph_list.reset(self.graph.len());
     }
     /// A history arrived (first page, cache or a merge).
     fn adopt(&mut self, history: History) {
@@ -1056,31 +1051,288 @@ impl CloudHistory {
     }
 }
 
-impl TimelineHost for CloudHistory {
-    fn timeline_rows(&self) -> &[TimelineRow] {
-        &self.timeline
-    }
-    fn timeline_commits(&self) -> &[CommitSummary] {
-        &self.commits
-    }
-    fn selected_commit(&self) -> Option<&str> {
-        self.selected.as_deref()
-    }
-    fn timeline_icon_theme(&self) -> &str {
-        &self.icon_theme
-    }
-    fn toggle_day(&mut self, key: &str, cx: &mut Context<Self>) {
-        if !self.collapsed_days.remove(key) {
-            self.collapsed_days.insert(key.to_owned());
-        }
-        self.rebuild();
-        cx.notify();
-    }
+impl CloudHistory {
+    /// Tests: the `index`-th commit of the page opens its detail.
+    #[cfg(test)]
     fn open_commit(&mut self, index: usize, cx: &mut Context<Self>) {
         if let Some(id) = self.commits.get(index).map(|c| c.id.clone()) {
             self.show_detail(id, cx);
         }
     }
+    /// `CloudProjectHistorySidebar`'s list: the rows in a "Commit history"
+    /// list, the lane graph as wide as the page needs.
+    fn graph_view(&self, cx: &mut Context<Self>) -> AnyElement {
+        let host = cx.weak_entity();
+        let width = graph::width(&self.graph);
+        div()
+            .id("cloud-history-graph")
+            .role(Role::List)
+            .aria_label(tr("cloud.history.commitHistory"))
+            .test_support()
+            .flex_1()
+            .min_h_0()
+            .flex()
+            .flex_col()
+            .child(
+                list(self.graph_list.clone(), move |index, _, cx| {
+                    host.update(cx, |s, cx| s.graph_row(index, width, cx))
+                        .unwrap_or_else(|_| div().into_any_element())
+                })
+                .flex_1()
+                .min_h_0(),
+            )
+            .into_any_element()
+    }
+    /// `CloudHistorySidebarRow`: the lane cell, then HEAD and the message
+    /// with its inline refs, then the change counts (a commit, a button) or
+    /// the short commit id (a ref outside the page, not a button).
+    fn graph_row(&self, index: usize, width: f32, cx: &mut Context<Self>) -> AnyElement {
+        let Some(row) = self.graph.get(index).cloned() else {
+            return div().into_any_element();
+        };
+        let t = cx.palette();
+        let m = theme::ty();
+        let height = theme::control();
+        let selected = row.commit && self.selected.as_deref() == Some(row.id.as_str());
+        let current = row.labels.iter().any(|l| l.current);
+        let commit = self
+            .history
+            .as_ref()
+            .and_then(|h| h.commits.iter().find(|c| c.id == row.id));
+        let message = commit
+            .map(|c| c.message.clone())
+            .filter(|m| !m.is_empty())
+            .unwrap_or_else(|| tr("cloud.history.updateWorkspace").to_owned());
+        let background = if selected { t.selected } else { t.auxiliary() };
+        let labels = row
+            .labels
+            .iter()
+            .filter(|l| !(current && l.current && l.name == "HEAD"))
+            .map(|l| {
+                let name = if l.name.is_empty() {
+                    tr("cloud.graph.label.cloud-history").to_owned()
+                } else {
+                    l.name.clone()
+                };
+                let selector = format!("cloud-history-ref:{name}");
+                let kind = match l.kind {
+                    graph::LabelKind::Cloud => LabelKind::Cloud,
+                    graph::LabelKind::Tag => LabelKind::Tag,
+                };
+                Self::badge(name, Some(kind), t).debug_selector(move || selector)
+            });
+        let trailing = if row.commit {
+            // `buildCloudCommitStats`: Cloud summaries carry no line counts.
+            let zero = localization::format_number(0);
+            let selector = format!("cloud-history-stat:+{zero}-{zero}");
+            h_flex()
+                .debug_selector(move || selector)
+                .flex_none()
+                .w(px(56.))
+                .justify_end()
+                .gap(px(4.))
+                .text_size(px(m.ui.micro))
+                .child(
+                    div()
+                        .text_color(theme::mix(t.success, t.subtle, 0.52))
+                        .child(format!("+{zero}")),
+                )
+                .child(
+                    div()
+                        .text_color(theme::mix(t.danger, t.subtle, 0.52))
+                        .child(format!("-{zero}")),
+                )
+                .into_any_element()
+        } else {
+            let short: String = row
+                .id
+                .strip_prefix("ref:")
+                .and_then(|r| r.split(':').next())
+                .filter(|id| id.len() == 40)
+                .map(|id| id.chars().take(8).collect())
+                .unwrap_or_else(|| tr("cloud.history.unknownCommit").to_owned());
+            div()
+                .flex_none()
+                .max_w(px(80.))
+                .truncate()
+                .text_size(px(m.ui.micro))
+                .text_color(t.subtle)
+                .child(short)
+                .into_any_element()
+        };
+        let kind = if row.commit { "commit" } else { "ref" };
+        let selector = format!("cloud-history-row:{kind}:{}", row.id);
+        let content = h_flex()
+            .id(("cloud-history-row", index))
+            .debug_selector(move || selector)
+            .w_full()
+            .h(px(height))
+            .pr(px(theme::metric::SIDEBAR_ROW_CONTENT_RIGHT))
+            .items_center()
+            .overflow_hidden()
+            .rounded(px(theme::metric::SIDEBAR_ROW_RADIUS))
+            .text_color(if selected { t.text } else { t.muted })
+            .child(lane_cell(&row, width, height, background, t.canvas, index))
+            .child(
+                h_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .gap(px(6.))
+                    .child(
+                        h_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .gap(px(6.))
+                            .overflow_hidden()
+                            .when(current, |d| {
+                                d.child(
+                                    Self::badge("HEAD".into(), None, t)
+                                        .debug_selector(|| "cloud-history-ref:HEAD".into()),
+                                )
+                            })
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w(px(20.))
+                                    .truncate()
+                                    .text_size(px(m.left.content))
+                                    .child(message.clone()),
+                            )
+                            .children(labels),
+                    )
+                    .child(trailing),
+            );
+        let item = if row.commit {
+            let id = row.id.clone();
+            content
+                .role(Role::Button)
+                .aria_label(message)
+                .test_support()
+                .cursor(theme::clickable_cursor())
+                .when(selected, |d| d.bg(t.selected))
+                .when(!selected, |d| {
+                    d.hover(move |s| s.bg(t.hover).text_color(t.text))
+                })
+                .on_click(cx.listener(move |s, _, _, cx| s.show_detail(id.clone(), cx)))
+                .into_any_element()
+        } else {
+            content.role(Role::ListItem).into_any_element()
+        };
+        div()
+            .w_full()
+            .px(px(theme::metric::SIDEBAR_ROW_LEFT_GAP - 6.))
+            .child(item)
+            .into_any_element()
+    }
+}
+
+fn graph_color(index: usize) -> Rgba {
+    theme::cloud_graph(index % graph::COLORS)
+}
+
+/// `HistoryGraphVisual`: the row's lane segments, its commit node (filled
+/// when it is the current head) and its ref markers, over `background`.
+fn lane_cell(
+    row: &graph::Row,
+    width: f32,
+    height: f32,
+    background: Rgba,
+    ink: Rgba,
+    index: usize,
+) -> AnyElement {
+    let row = row.clone();
+    let counts: Vec<(usize, usize)> = row
+        .ref_markers
+        .iter()
+        .filter(|m| m.count > 1)
+        .map(|m| (m.lane, m.count))
+        .collect();
+    div()
+        .debug_selector(move || format!("cloud-history-lanes:{index}"))
+        .relative()
+        .flex_none()
+        .w(px(width.max(24.)))
+        .h(px(height))
+        .child(
+            canvas(
+                |_, _, _| {},
+                move |bounds, _, window, _| {
+                    let origin = bounds.origin;
+                    let y = |anchor: graph::Anchor| match anchor {
+                        graph::Anchor::Top => 0.,
+                        graph::Anchor::Middle => height / 2.,
+                        graph::Anchor::Bottom => height,
+                    };
+                    let at = |x: f32, y: f32| point(origin.x + px(x), origin.y + px(y));
+                    for segment in &row.segments {
+                        let (x1, y1) = (graph::lane_x(segment.from_lane), y(segment.from));
+                        let (x2, y2) = (graph::lane_x(segment.to_lane), y(segment.to));
+                        let mut path = PathBuilder::stroke(px(1.5));
+                        path.move_to(at(x1, y1));
+                        if x1 == x2 || y1 == y2 {
+                            path.line_to(at(x2, y2));
+                        } else {
+                            let control = y1 + (y2 - y1) / 2.;
+                            path.cubic_bezier_to(at(x2, y2), at(x1, control), at(x2, control));
+                        }
+                        if let Ok(path) = path.build() {
+                            window.paint_path(path, graph_color(segment.color));
+                        }
+                    }
+                    let square = |lane: usize, size: f32| {
+                        let center = at(graph::lane_x(lane), height / 2.);
+                        Bounds::new(
+                            point(center.x - px(size / 2.), center.y - px(size / 2.)),
+                            size_f(size),
+                        )
+                    };
+                    for marker in &row.ref_markers {
+                        window.paint_quad(
+                            fill(square(marker.lane, 10.), graph_color(marker.color))
+                                .corner_radii(px(3.))
+                                .border_widths(px(2.))
+                                .border_color(background),
+                        );
+                    }
+                    if row.commit {
+                        let current = row.labels.iter().any(|l| l.current);
+                        let color = graph_color(row.node_color);
+                        window.paint_quad(
+                            fill(square(row.node_lane, 11.), background).corner_radii(px(3.)),
+                        );
+                        let size = if current { 8. } else { 7. };
+                        window.paint_quad(
+                            fill(
+                                square(row.node_lane, size),
+                                if current { color } else { background },
+                            )
+                            .corner_radii(px(2.))
+                            .border_widths(px(1.5))
+                            .border_color(color),
+                        );
+                    }
+                },
+            )
+            .size_full(),
+        )
+        .children(counts.into_iter().map(move |(lane, count)| {
+            div()
+                .absolute()
+                .left(px(graph::lane_x(lane) - 5.))
+                .top(px(height / 2. - 5.))
+                .size(px(10.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_size(px(8.))
+                .font_weight(FontWeight(800.))
+                .text_color(ink)
+                .child(count.to_string())
+        }))
+        .into_any_element()
+}
+fn size_f(side: f32) -> Size<Pixels> {
+    size(px(side), px(side))
 }
 
 impl Render for CloudHistory {
@@ -1142,12 +1394,14 @@ impl Render for CloudHistory {
             .children(self.notices(t, cx));
         content = match detail {
             Some(detail) => content.child(detail),
-            None if !self.commits.is_empty() => content
-                .child(history::timeline_list(self.timeline_list.clone(), cx))
-                .child(crate::ui::scrollbar::vertical(
-                    "cloud-history-scrollbar",
-                    &self.timeline_list,
-                )),
+            None if !self.commits.is_empty() => {
+                content
+                    .child(self.graph_view(cx))
+                    .child(crate::ui::scrollbar::vertical(
+                        "cloud-history-scrollbar",
+                        &self.graph_list,
+                    ))
+            }
             None if self.loading => {
                 content.child(Self::state(tr("source-control.status.readingHistory"), t))
             }
@@ -1454,6 +1708,98 @@ mod tests {
             h.error = Some(false);
         });
         draw(vcx);
+    }
+
+    /// `selects graph commits and presents them with the canonical local
+    /// History hierarchy` and `uses native button-list semantics and keeps
+    /// ref-only rows non-interactive`: the page draws as lane-graph rows in a
+    /// "Commit history" list; each commit is a button with its lanes, its
+    /// inline refs (HEAD on the current head) and its counts; a ref outside
+    /// the page is a row that is not a button; choosing an older commit opens
+    /// its detail.
+    #[gpui::test]
+    fn the_page_draws_as_a_lane_graph_with_buttons_for_commits_only(cx: &mut gpui::TestAppContext) {
+        use gpui_kit::test::TestQueryExt as _;
+        cx.executor().allow_parking();
+        crate::localization::set_current("en");
+        let responder: crate::cloud::auth::Responder = Arc::new(|request| {
+            Ok(match request.path.as_str() {
+                "/content/p1/commits" => serde_json::json!({"code": 0, "data": {
+                    "project_id": "p1",
+                    "commits": [commit_json(1, &[2]), commit_json(2, &[3])],
+                    "head_commit_id": id(1),
+                    "refs": [
+                        {"ref_name": "refs/heads/main", "ref_type": "branch", "commit_id": id(1)},
+                        {"ref_name": "refs/tags/v1", "ref_type": "tag", "commit_id": id(9)},
+                    ],
+                    "refs_included": true, "snapshot_id": "a".repeat(64),
+                    "next_cursor": null, "has_more": false, "total": 2,
+                    "graph_health": "complete", "unreadable_commit_ids": []}}),
+                "/content/p1/commit-detail" => serde_json::json!({"data": {
+                    "commit_id": id(2), "parent_ids": [id(3)], "who": "agent", "message": "c2",
+                    "changes_loaded": true, "created_at": "2026-10-28T10:00:00Z",
+                    "changes": [{"path": "a.md", "op": "deleted"}]}}),
+                _ => return Err(AuthError::Http(404)),
+            })
+        });
+        let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+        cx.update(|cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+        settle(cx, |cx| {
+            cx.update(|cx| crate::features::cloud::account::has_account(cx))
+        });
+        let (view, vcx) = cx.add_window_view(|_, cx| CloudHistory::new(cx));
+        let draw = |vcx: &mut gpui::VisualTestContext| {
+            vcx.update(|w, cx| {
+                w.draw(cx).clear(cx);
+            })
+        };
+        view.update(vcx, |h, cx| assert!(h.open("p1", cx)));
+        settle(vcx, |cx| {
+            view.read_with(cx, |h, _| !h.loading && !h.graph.is_empty())
+        });
+        draw(vcx);
+        let rows = view.read_with(vcx, |h, _| h.graph.clone());
+        assert_eq!(rows.len(), 3, "two commits and the tag outside the page");
+        for (index, row) in rows.iter().enumerate() {
+            let kind = if row.commit { "commit" } else { "ref" };
+            let selector: &'static str =
+                Box::leak(format!("cloud-history-row:{kind}:{}", row.id).into_boxed_str());
+            assert!(vcx.debug_bounds(selector).is_some(), "{selector}");
+            let lanes: &'static str =
+                Box::leak(format!("cloud-history-lanes:{index}").into_boxed_str());
+            assert!(
+                vcx.debug_bounds(lanes).is_some(),
+                "each row draws its lanes"
+            );
+        }
+        let list = vcx.update(|w, _| w.find_all_by_role(gpui::Role::List));
+        assert!(list.iter().any(|l| l.label() == Some("Commit history")));
+        let buttons = vcx.update(|w, _| {
+            w.find_all_by_role(gpui::Role::Button)
+                .into_iter()
+                .filter(|b| matches!(b.label(), Some("c1" | "c2")))
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(buttons.len(), 2, "commits are buttons, the ref row is not");
+        let ref_buttons = vcx.update(|w, _| {
+            w.find_all_by_role(gpui::Role::Button)
+                .into_iter()
+                .filter(|b| b.label() == Some("Update workspace"))
+                .count()
+        });
+        assert_eq!(ref_buttons, 0, "a ref outside the page is not a button");
+        assert!(vcx.debug_bounds("cloud-history-ref:HEAD").is_some());
+        assert!(vcx.debug_bounds("cloud-history-ref:v1").is_some());
+        assert!(vcx.debug_bounds("cloud-history-stat:+0-0").is_some());
+        let older = vcx.update(|w, _| w.find_by_label("c2").bounds());
+        vcx.simulate_click(older.center(), Modifiers::default());
+        settle(vcx, |cx| {
+            view.read_with(cx, |h, _| matches!(h.detail_state, Some(Detail::Ready(_))))
+        });
+        view.read_with(vcx, |h, _| {
+            assert_eq!(h.detail.as_deref(), Some(id(2).as_str()));
+            assert_eq!(h.selected.as_deref(), Some(id(2).as_str()));
+        });
     }
 
     #[test]
