@@ -52978,6 +52978,29 @@
           "test": "platform::power::tests::this_mac_tells_its_sleep_and_wake"
         }
       ]
+    },
+    {
+      "id": "host-share-withdrawn-at-a-missing-root",
+      "acceptance": "Once a project's folder is found at its new place (Relocate), whatever this computer shared from the old place, now gone from disk, is withdrawn: only that folder's shares, the Cloud is told (one DELETE), and nobody is asked. A folder still on disk or a relative path is never withdrawn this way. Offering to share the folder again from its new place stays out of this release (host-sharing-relocation-deferred).",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/service/hostIpc.test.mjs",
+          "sha256": "5b302516b320a18a09eb91412109d569f3d1cb5c4cc94c378bd0ced0f0b22d58",
+          "cases": [
+            {
+              "index": 6,
+              "name": "host IPC > withdraws only a share whose folder has gone from disk, once its project was found elsewhere"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::other_computers::only_a_share_whose_folder_has_gone_is_withdrawn_once_found_elsewhere"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -60922,24 +60945,6 @@
             {
               "index": 4,
               "name": "host IPC > rejects a folder change during native approval before starting Host"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "host-share-at-missing-root",
-      "kind": "gap",
-      "reason": "TS withdraws a share whose folder has gone from disk once its project is found elsewhere (only that share, telling the Cloud, asking nobody). The native App does not retire such a share: it stays registered and the host serves nothing for it (root_changed) until it is stopped from the App.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/folder-registry.md",
-      "typescript": [
-        {
-          "path": "tests/unit/hosts/service/hostIpc.test.mjs",
-          "sha256": "5b302516b320a18a09eb91412109d569f3d1cb5c4cc94c378bd0ced0f0b22d58",
-          "cases": [
-            {
-              "index": 6,
-              "name": "host IPC > withdraws only a share whose folder has gone from disk, once its project was found elsewhere"
             }
           ]
         }
