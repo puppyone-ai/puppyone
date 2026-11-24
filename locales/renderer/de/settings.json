@@ -692,5 +692,7 @@
   "experimental.cloudComputerScreen.title": "Cloud Computer screen",
   "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview.",
   "experimental.computerMode.title": "Computer-Modus",
-  "experimental.computerMode.detail": "Zeigt Cloud-Bereiche und Umgebungen auf diesem Computer als kleine Computer mit Bildschirm und ordnet einfache Ordner unten ein."
+  "experimental.computerMode.detail": "Zeigt Cloud-Bereiche und Umgebungen auf diesem Computer als kleine Computer mit Bildschirm und ordnet einfache Ordner unten ein.",
+  "experimental.isolatedAgentSandboxes.title": "Isolierte Agent-Sandboxes",
+  "experimental.isolatedAgentSandboxes.detail": "Zeigt in den Cloud-Computer-Einstellungen einen projektspezifischen Schalter, um jeden externen Agent in einer eigenen isolierten Sandbox mit geteiltem Workspace auszuführen."
 }

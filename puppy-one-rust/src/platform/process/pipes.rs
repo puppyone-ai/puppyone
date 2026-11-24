@@ -63,11 +63,13 @@ fn stopped(stop: &AtomicBool) -> io::Result<()> {
         Ok(())
     }
 }
+/// Reads `pipe` to its end, handing each chunk to `on_chunk` as it arrives.
 pub(super) fn read(
     mut pipe: impl Read,
     readiness: Readiness,
     limit: usize,
     stop: &AtomicBool,
+    mut on_chunk: Option<&mut super::OnChunk<'_>>,
 ) -> io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
     let mut buffer = [0u8; 8192];
@@ -80,6 +82,9 @@ pub(super) fn read(
                     return Err(io::Error::other("Process output exceeded its limit"));
                 }
                 bytes.extend_from_slice(&buffer[..length]);
+                if let Some(on_chunk) = on_chunk.as_mut() {
+                    on_chunk(&buffer[..length]);
+                }
             }
             Err(error) if readiness.retry(&error, false)? => (),
             Err(error) => return Err(error),

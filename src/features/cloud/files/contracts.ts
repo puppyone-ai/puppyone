@@ -24,7 +24,7 @@ export type CloudSandboxFeature = { id: string; surface: string | null; enabled:
   preview?: boolean };
 
 /** The owner's choices for this project's Cloud Computer. */
-export type CloudSandboxSettings = { desktop?: boolean; screen_stream?: boolean };
+export type CloudSandboxSettings = { desktop?: boolean; screen_stream?: boolean; isolated_agent_sandboxes?: boolean };
 
 /** The workspace's sandbox Profile and Features; servers before Profiles omit it.
  * `next_profile` differs from `profile` when the owner changed the install

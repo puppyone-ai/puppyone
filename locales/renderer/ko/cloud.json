@@ -112,7 +112,7 @@
   "auth.explainer.cloud.body": "Claude, ChatGPT, Codex에서 바로 접근하고, 휴대폰에서도 언제든 열 수 있습니다.",
   "auth.explainer.share.label": "링크 공유",
   "auth.explainer.share.title": "링크 하나로\n누구에게나, 어떤 Agent에게나",
-  "auth.explainer.share.body": "동료에게 문자로 보내거나 Grok\u00a0Bot에게 전달해 보세요. 열기만 하면 바로 보고 이어서 고칠 수 있습니다.",
+  "auth.explainer.share.body": "동료에게 문자로 보내거나 Grok Bot에게 전달해 보세요. 열기만 하면 바로 보고 이어서 고칠 수 있습니다.",
   "auth.explainer.submit": "로그인하고 Cloud 시작",
   "auth.explainer.later": "나중에",
   "activation.overview.description": "사람, 에이전트, 자동화가 언제든 사용할 수 있도록 파일을 온라인에 유지하세요.",
@@ -1173,5 +1173,7 @@
   "settings.computer.desktopPending": "Changed. Takes effect when this project's next Cloud Computer is created.",
   "settings.computer.stream": "Show screen",
   "settings.computer.streamHelp": "Show the desktop in this app. When off, the screen is never sent to this computer.",
-  "settings.computer.failed": "Couldn't update the Cloud Computer. Try again."
+  "settings.computer.failed": "Couldn't update the Cloud Computer. Try again.",
+  "settings.computer.isolatedAgents": "격리된 Agent 샌드박스",
+  "settings.computer.isolatedAgentsHelp": "각 외부 Agent를 프로젝트 공유 파일이 마운트된 독립 샌드박스에서 실행합니다. 새 Agent 연결부터 적용됩니다."
 }

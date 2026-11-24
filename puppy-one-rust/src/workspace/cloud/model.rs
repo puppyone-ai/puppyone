@@ -28,6 +28,15 @@ impl Target {
         }
         Ok(project_id)
     }
+    /// The owning Project of either kind of target.
+    pub(super) fn owner(&self) -> Option<&str> {
+        let (Self::ProjectRoot { project_id } | Self::Scope { project_id, .. }) = self;
+        let scope = match self {
+            Self::Scope { scope_id, .. } => Some(scope_id),
+            Self::ProjectRoot { .. } => None,
+        };
+        (identifier(project_id) && scope.is_none_or(|s| identifier(s))).then_some(project_id)
+    }
 }
 pub(super) fn identifier(value: &str) -> bool {
     !value.is_empty()

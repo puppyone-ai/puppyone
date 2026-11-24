@@ -14,5 +14,5 @@ mod tests;
 #[cfg(all(test, unix))]
 mod lifecycle_tests;
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod managed_process_tests;

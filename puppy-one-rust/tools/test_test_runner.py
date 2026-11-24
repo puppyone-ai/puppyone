@@ -124,6 +124,47 @@ class NativeFixtureEvidence(unittest.TestCase):
             self.assertEqual(receipt['supportBinaryHashes'], {'native-probe': hashlib.sha256(probe.read_bytes()).hexdigest()})
             self.assertEqual(len(calls), 3)
 
+    def test_concurrent_exact_tests_keep_the_declared_order_and_their_own_results(self):
+        import json
+        import threading
+        import time
+        from test_runner import run_gate
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            harness = root / 'integration'
+            harness.write_bytes(b'libtest fixture')
+            artifacts = json.dumps({'reason': 'compiler-artifact', 'profile': {'test': True},
+                                    'target': {'name': 'po_editor'}, 'executable': str(harness)})
+            names = [f't{index}' for index in range(8)]
+            running, alongside = set(), {}
+            lock = threading.Lock()
+            def execute_fixture(command, **kwargs):
+                if '--no-run' in command:
+                    return 0, artifacts
+                if '--list' in command:
+                    return 0, ''.join(f'{name}: test\n' for name in names)
+                name = command[1]
+                with lock:
+                    running.add(name)
+                    alongside[name] = set(running) - {name}
+                # Later tests finish first; t5 fails.
+                time.sleep((len(names) - names.index(name)) * 0.01)
+                with lock:
+                    alongside[name] |= set(running) - {name}
+                    running.discard(name)
+                if name == 't5':
+                    return 101, f'test {name} ... FAILED\n'
+                return 0, f'test {name} ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored;'
+            required = [{'package': 'po-editor', 'test': name, **({'exclusive': True} if name == 't2' else {})}
+                        for name in names]
+            with patch('test_runner.ROOT', root), patch('test_runner.source_hashes', return_value={'fixture': 'identity'}), patch('test_runner.execute', side_effect=execute_fixture):
+                receipt = run_gate('parallel', required, jobs=4)
+            self.assertEqual([check['test'] for check in receipt['checks']], names)
+            self.assertEqual([check['test'] for check in receipt['checks'] if not check['passed']], ['t5'])
+            self.assertFalse(receipt['passed'])
+            self.assertEqual(alongside['t2'], set())
+            self.assertTrue(any(alongside[name] for name in names if name != 't2'))
+
 class UnittestEvidence(unittest.TestCase):
     def test_requires_exactly_the_named_python_test_to_pass(self):
         good = 'test_a (test_x.Case.test_a) ... ok\n\n----\nRan 1 test in 0.001s\n\nOK\n'

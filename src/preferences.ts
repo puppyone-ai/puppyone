@@ -109,6 +109,8 @@ export type ExperimentalSettings = {
   enablePuppyFlowFiles: boolean;
   /** Show the Cloud Computer screen under the explorer of Cloud projects. */
   enableCloudComputerScreen: boolean;
+  /** Show the per-project Tier 2 isolated Agent sandbox switch in Cloud Computer settings. */
+  enableIsolatedAgentSandboxes: boolean;
   /** Present Cloud and this computer's sandboxes as miniature computers on the Homepage. */
   enableComputerMode: boolean;
   enableProjectSwitcherRail: boolean;
@@ -214,6 +216,7 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enablePayments: true,
   enablePuppyFlowFiles: false,
   enableCloudComputerScreen: false,
+  enableIsolatedAgentSandboxes: false,
   enableComputerMode: false,
   enableProjectSwitcherRail: false,
   enableViewerPlugins: false,
@@ -465,6 +468,7 @@ export function parseExperimentalSettings(value: string | null | undefined, defa
       enablePayments: parsed.enablePayments !== false,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
       enableCloudComputerScreen: parsed.enableCloudComputerScreen === true,
+      enableIsolatedAgentSandboxes: parsed.enableIsolatedAgentSandboxes === true,
       enableComputerMode: parsed.enableComputerMode === true,
       enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,
       enableViewerPlugins: parsed.enableViewerPlugins === true,

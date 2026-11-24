@@ -40,6 +40,10 @@ fn groups(
     let mut cloud = vec![
         setting!("cloudWorkspace", experimental.cloud_workspace),
         setting!("cloudComputerScreen", experimental.cloud_computer_screen),
+        setting!(
+            "isolatedAgentSandboxes",
+            experimental.isolated_agent_sandboxes
+        ),
         setting!("computerMode", experimental.computer_mode),
     ];
     if host_devices_available {
@@ -188,6 +192,7 @@ mod tests {
             [
                 "cloudWorkspace",
                 "cloudComputerScreen",
+                "isolatedAgentSandboxes",
                 "computerMode",
                 "payments",
                 "flowFiles"
@@ -198,6 +203,7 @@ mod tests {
             [
                 "cloudWorkspace",
                 "cloudComputerScreen",
+                "isolatedAgentSandboxes",
                 "computerMode",
                 "hostDevices",
                 "payments",
@@ -209,6 +215,7 @@ mod tests {
             [
                 "cloudWorkspace",
                 "cloudComputerScreen",
+                "isolatedAgentSandboxes",
                 "computerMode",
                 "flowFiles"
             ]

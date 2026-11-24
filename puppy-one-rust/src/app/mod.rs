@@ -107,14 +107,7 @@ impl Shell {
             weak.update(cx, |s, cx| s.should_close(window, cx))
                 .unwrap_or(true)
         });
-        crate::features::cloud::account::observe(window, cx, |s, window, cx| {
-            s.refresh_cloud_catalog(false, cx);
-            s.guard_cloud_authority(window, cx);
-            s.restore_device(window, cx);
-            s.session.docs.read(cx).wake().notify();
-            cx.notify();
-        })
-        .detach();
+        crate::features::cloud::account::observe(window, cx, Self::account_changed).detach();
         let hosts = crate::features::hosts::global(cx);
         cx.observe_in(&hosts, window, |s, _, window, cx| {
             s.restore_device(window, cx)
@@ -305,13 +298,10 @@ impl Shell {
             cx.observe_in(&catalog, window, |s, _, w, cx| s.apply_appearance(w, cx))
                 .detach();
         }
-        // The Explorer's frame follows the window; full screen drops the
-        // title.
-        cx.observe_window_bounds(window, |s, window, cx| {
-            s.push_explorer_host(window, cx);
-            s.sync_window_title(window, cx);
-        })
-        .detach();
+        // The Explorer's frame follows the window; full screen / maximize state
+        // refreshes the title bar and trailing caption controls.
+        cx.observe_window_bounds(window, Self::window_bounds_changed)
+            .detach();
         cx.observe_window_activation(window, Self::window_activated)
             .detach();
         cx.observe_window_visibility(window, Self::window_visibility_changed)

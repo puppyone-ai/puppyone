@@ -52297,6 +52297,563 @@
           "test": "agent::runtimes::puppyone_agent::model_client::tests::a_reviewed_refusal_reads_as_words_with_its_reference"
         }
       ]
+    },
+    {
+      "id": "agent-markdown-gfm-extras",
+      "acceptance": "An Agent answer names its language from its own script before the interface's (resolveMarkdownContentLanguage: a Chinese answer is zh-Hans in an English interface), and its text takes that language's script faces. GFM tables keep each column's authored alignment (:---, :---:, ---:) in a viewport as wide as the answer, which is a tab stop whose arrows scroll it, never before its start. Bare http(s)://, www. and e-mail addresses become links to their normalized address (https://example.com/), without a sentence's trailing punctuation or an unbalanced ')'; a domain needs a period. Footnote references are numbered by first use and shown raised; the referenced footnotes follow the answer after a rule, unreferenced definitions are dropped. Task lists, nested lists, strikethrough and rules still parse.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.markdown-renderer.test.tsx",
+          "sha256": "339b2a5c7ca5ee5827699963ae3cfe492e100e1157ea1fbb41847fbadd9612a6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent Markdown renderer > uses the message language for locale-aware reading typography"
+            },
+            {
+              "index": 1,
+              "name": "Agent Markdown renderer > renders semantic GFM tables inside a bounded horizontal viewport"
+            },
+            {
+              "index": 2,
+              "name": "Agent Markdown renderer > supports task lists, nested lists, strikethrough, autolinks, rules, and footnotes"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::an_answer_names_its_language_and_its_table_viewport_takes_the_keyboard"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::table_columns_keep_their_authored_alignment"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::bare_urls_link_and_footnotes_follow_the_answer"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::autolink_literals_end_where_the_address_does"
+        }
+      ]
+    },
+    {
+      "id": "agent-reference-drop-feedback",
+      "acceptance": "Workspace entries dropped on an Agent chat are granted only when they come from the chat's own workspace (its local root): entries dragged from another workspace are refused without asking the runtime to resolve or stage them, and a status (role=status, read but not shown) says the item belongs to another workspace and was not added; entries of a workspace without local files are refused as no longer available. Once a dropped, pasted or picked batch settles, the status says how many references it added and, when some of its own items failed, how many could not be added (Added 0; 1 could not be added.), while a refused file stays in the draft as a failed reference.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Desktop Agent reference ingestion > marks cross-workspace drags invalid and never grants their paths"
+            },
+            {
+              "index": 16,
+              "name": "Desktop Agent reference ingestion > announces partial batches while retaining the rejected item as an actionable error"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::cross_workspace_drags_are_refused_and_announced"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::a_partial_batch_is_announced_and_keeps_its_failed_reference"
+        }
+      ]
+    },
+    {
+      "id": "agent-inline-reference-states",
+      "acceptance": "Every non-image reference of the draft is its own inline @name mention in its reference's state: a resolving file shows as its own resolving mention (no generic placeholder chip), a ready one as a plain mention, and a failed one in the error colour with its error as the mention's accessible description (identity, localized error, then the raw error when it says more), never shown as text, plus a Retry and a Remove button named for the reference. Retry asks for the reference again without releasing it and its mention leaves the editor, so the replacement is mentioned once in its place; Remove deletes the mention and releases the reference. A failed image stays one card on the shelf, not a mention.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 11,
+              "name": "Desktop Agent reference ingestion > shows resolving files inline while retaining failed images as visual attachments"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::composer::tests::resolving_files_are_their_own_mentions_and_failed_images_stay_cards"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::composer::tests::failed_mentions_retry_in_place_or_remove"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::a_staged_files_mention_follows_its_reference_once_staging_ends"
+        }
+      ]
+    },
+    {
+      "id": "agent-transcript-row-entrance",
+      "acceptance": "Rows the conversation shows when the transcript first renders do not enter with motion. A later row whose first part was never shown, and is not the user's prompt or a turn summary, fades its content in once (opacity 0 to 1 over 140ms on cubic-bezier(0.2, 0.75, 0.25, 1)); once the fade ends, neither a rerender of the same conversation nor the row scrolling back into view replays it. With the system's reduced-motion preference rows enter without motion.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
+          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Desktop Agent virtual transcript > animates only newly committed parts and does not replay entrance motion after rerender"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::transcript::tests::only_new_answers_fade_in_and_only_once"
+        }
+      ]
+    },
+    {
+      "id": "agent-workspace-image-drop-preview",
+      "acceptance": "Workspace entries dropped on an Agent chat from its own workspace are resolved by their paths; for each raster image (png, jpeg, gif, webp, avif) the drop also passes the image's local file as its visual preview, kept apart from the path the runtime is asked to resolve, so the reference's card on the shelf shows the thumbnail (even when resolution fails); other files get no preview.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Desktop Agent reference ingestion > loads an authorized visual preview for a workspace image without putting its URL in the path"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::a_dropped_workspace_image_keeps_its_preview"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-transfer-progress",
+      "acceptance": "The first push runs `git push --progress` and reads Git's own \"Writing objects\" line from stderr as it arrives: the share written, and the bytes sent and current rate once Git has measured them (bytes/KiB/MiB/GiB), surviving a line split across pipe chunks, keeping the last measured bytes and rate when a redraw omits them, reporting at most every 250ms except the first reading and the finish, and never letting a panicking listener reach the push; a failure's diagnostic has the progress redraws removed. The run reports these readings as part of its Uploading step. While uploading (not stopped), the dialog's Upload row shows the reading (\"45% · 12.3 MB · 1.1 MB/s\": decimal units in the locale's short names, no rate once done, only the share before Git has measured bytes) in place of the step's label, beside its own progress meter whose value is the share and whose value text is the reading; neither is a live region, and nothing claims a total or a time left. The Header's name for a running upload is \"Sending to the cloud. <reading>\". Another step, a stopped run or an unmeasured upload draws nothing extra.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/electron.cloud-publish-transfer.test.mjs",
+          "sha256": "f50ed59d303a71a62204c5a3ce331268689d383b68c334ecad3dc62dc5afd082",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish transfer reading > reads how much is sent and how fast from Git's own progress line"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish transfer reading > survives a progress line split across pipe chunks"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish transfer reading > holds redraws to the interval, but never drops the finish"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish transfer reading > keeps the last measured bytes and rate when a redraw omits them"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish transfer reading > never lets a failing listener reach the push"
+            },
+            {
+              "index": 5,
+              "name": "Cloud publish transfer reading > leaves only Git's diagnostic once the progress redraws are removed"
+            },
+            {
+              "index": 6,
+              "name": "Cloud publish push progress > reports the transfer as part of the uploading step"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
+          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Cloud publish Header status > answers an unwatched upload with how far it has got"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/publish/cloudPublishTransfer.test.tsx",
+          "sha256": "4582542d3d92cec67fd8c52c512f2189631d0767decbd1cb3b2bfbf1659f33dd",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud publish upload progress > draws the upload's share, bytes and rate on the Upload row"
+            },
+            {
+              "index": 1,
+              "name": "Cloud publish upload progress > keeps fast-changing numbers out of the live region"
+            },
+            {
+              "index": 2,
+              "name": "Cloud publish upload progress > claims no total and no time left, because Git cannot know them yet"
+            },
+            {
+              "index": 3,
+              "name": "Cloud publish upload progress > says only the share before Git has measured bytes, and drops the rate once done"
+            },
+            {
+              "index": 4,
+              "name": "Cloud publish upload progress > draws nothing extra outside a running upload"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::reads_the_share_bytes_and_rate_from_gits_progress_line"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::a_line_split_across_pipe_chunks_still_reads"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::redraws_wait_for_the_interval_but_the_finish_never_does"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::a_redraw_without_numbers_keeps_the_last_measured_ones"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::a_failing_listener_never_reaches_the_push"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::transfer::tests::only_gits_diagnostic_is_left_without_the_redraws"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::the_upload_reports_gits_own_transfer_progress"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::header_tests::the_transfer_reads_what_git_has_measured"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_publish_dialog::the_upload_row_and_the_header_read_the_transfer"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-push-receipts",
+      "acceptance": "A first push whose response was lost asks Cloud for the attempt's receipt: one GET of `<canonical remote>/operations/<attempt id>` with the operation's Basic credential, uncached and never following a redirect, and only when the journaled remote is exactly `/git/<project>.git` over HTTPS (HTTP only on loopback) without credentials, query or fragment. A receipt bound to this project and attempt, with one `refs/heads/main` update to the attempt's commit, settles the push: committed onto an absent main is success without reading the ref; rejected fails the push for good (PUSH_FAILED, retryable). Any other answer (another project, attempt, commit or ref, pending, missing, a redirect, no response) says nothing, and the push falls back to one read of Cloud main; a limit refusal still wins over the rejection. When reconciling, a rejected receipt marks the unresolved attempt failed (unless an earlier attempt is still unresolved), so Reconcile sends the source branch's current tip in a fresh attempt instead of the rejected commit, without creating the project or credential again.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/cloudPublishReceipt.test.mjs",
+          "sha256": "be7460ee1e60dbd262163da4adf3f1e9fa6ba9a5ab658ea68a8677fc9d598e08",
+          "cases": [
+            {
+              "index": 1,
+              "name": "initial push receipt > lost push response resolves by the bound receipt without ref discovery or backoff"
+            },
+            {
+              "index": 2,
+              "name": "initial push receipt > does not accept a project mismatch as success"
+            },
+            {
+              "index": 3,
+              "name": "initial push receipt > does not accept a attempt mismatch as success"
+            },
+            {
+              "index": 4,
+              "name": "initial push receipt > does not accept a commit mismatch as success"
+            },
+            {
+              "index": 5,
+              "name": "initial push receipt > does not accept a ref mismatch as success"
+            },
+            {
+              "index": 6,
+              "name": "initial push receipt > does not accept a pending mismatch as success"
+            },
+            {
+              "index": 7,
+              "name": "initial push receipt > does not accept a absent mismatch as success"
+            },
+            {
+              "index": 8,
+              "name": "initial push receipt > does not accept a redirect mismatch as success"
+            },
+            {
+              "index": 9,
+              "name": "initial push receipt > a durable rejection terminates reconciliation"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
+          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Cloud publish coordinator: retry and restart > retry of a rejected receipt uses a fresh attempt and only retargets after definitive rejection"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::receipt::tests::a_lost_push_response_resolves_by_its_receipt_without_reading_the_ref"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::receipt::tests::a_receipt_that_does_not_bind_this_attempt_says_nothing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::receipt::tests::a_durable_rejection_fails_the_push"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::receipt::tests::the_http_receipt_is_uncached_and_never_follows_a_redirect"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_rejected_receipt_retargets_the_retry_to_the_source_tip"
+        }
+      ]
+    },
+    {
+      "id": "cloud-git-cross-process-lease",
+      "acceptance": "Reading, starting or cleaning up a first publication holds, besides the in-process repository owner, a lease across processes in the repository's common Git directory (`<common dir>/puppyone/cloud-git-operation.lease.json`, private, recording a random owner token, the owner PID, a heartbeat and an expiry 30 s ahead that the owner refreshes every 5 s), so linked worktrees contend on one lease. A live owner PID always keeps the lease, even long past its expiry; a dead owner's lease is reclaimed at once, before its expiry; expiry alone only recovers residue without an owner. Reclaiming happens under a takeover lock that re-reads the lease, so two contenders that both saw the same dead lease are serialized: one takes it over, the other is refused. While another live process holds the lease a publication fails fast with retryable JOURNAL_IO_FAILED before anything is created; once that process is gone the publication runs and releases the lease when done.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-git-operation-lease.test.mjs",
+          "sha256": "dcd8eb75f51bfc4fa5853be09dbde1357e3bc14256a8b2b23ef0c362f91555b1",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Cloud Git cross-process lease > never steals an expired lease while its owner PID is alive"
+            },
+            {
+              "index": 2,
+              "name": "Cloud Git cross-process lease > reclaims a lease owned by a dead PID even before its timestamp expires"
+            },
+            {
+              "index": 3,
+              "name": "Cloud Git cross-process lease > serializes two contenders that both observed the same dead lease"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
+          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Cloud publish coordinator: retry and restart > serializes two independent coordinator instances with the common repository lease"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::lease::tests::linked_worktrees_contend_on_the_common_directory"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::lease::tests::a_live_owner_keeps_its_lease_past_its_expiry"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::lease::tests::a_dead_owners_lease_is_reclaimed_before_its_expiry"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::lease::tests::two_contenders_for_one_dead_lease_are_serialized"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::another_process_holding_the_lease_makes_a_publication_fail_fast"
+        }
+      ]
+    },
+    {
+      "id": "cloud-publish-header-watch-awareness",
+      "acceptance": "The Header knows whether the publication dialog shows the run (opening the dialog watches it, closing it stops): a running send is stated wherever the person looks; while the dialog is open the Header states no ending, and an ending shown there is seen, so closing the dialog does not state it again. An unwatched failure is stated first as needing attention until the person clicks the Header, then the unfinished publication it left is stated (Paused / Discard paused). An unwatched success is announced as done for 8 s (or until clicked or the dialog is opened), then nothing.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
+          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Cloud publish Header status > keeps spinning while the dialog shows the run, but leaves its ending to the dialog"
+            },
+            {
+              "index": 7,
+              "name": "Cloud publish Header status > states a fresh failure first, then the paused task it leaves behind"
+            },
+            {
+              "index": 8,
+              "name": "Cloud publish Header status > announces an unwatched success briefly"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::header_tests::a_watched_run_spins_but_its_ending_is_left_to_the_dialog"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::header_tests::a_fresh_failure_comes_first_then_the_paused_task"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::header_tests::an_unwatched_success_is_announced_briefly"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"
+        }
+      ]
+    },
+    {
+      "id": "cloud-open-during-session-restore",
+      "acceptance": "Opening a Cloud project (from the cached Homepage list or a command) while Cloud is on and its session is still being restored (no status reported yet, or Restoring) waits instead of reporting that nobody is signed in: nothing opens and no error is shown. When the session becomes known it opens the project if someone is signed in, or reports the sign-in-required error if the session is gone. Opening a local folder, another computer's folder or the folder picker in the meantime drops the waiting choice, so a project the person has since left is never opened.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/cloudOpenWaitsForSession.test.tsx",
+          "sha256": "37017ca7e80fe08202e1e270812e43d8574d4b52de8220372b89975593306582",
+          "cases": [
+            {
+              "index": 0,
+              "name": "opening a Cloud project from the cached list > waits for the session instead of reporting that nobody is signed in"
+            },
+            {
+              "index": 1,
+              "name": "opening a Cloud project from the cached list > fails as signed out only once the session is known to be gone"
+            },
+            {
+              "index": 2,
+              "name": "opening a Cloud project from the cached list > does not open a project the user has since left"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::opening_a_cloud_project_waits_for_the_restoring_session"
+        }
+      ]
+    },
+    {
+      "id": "scoped-checkout-cloud-notice",
+      "acceptance": "A local checkout whose Git remote is a Scope locator (`/git/<project>/scopes/<scope>.git`) is resolved for its exact Scope: the repository-context request names the Scope target, and an answer for that Scope with its owning Project, read access and a plain relative scope path (no empty, `.`, `..` or backslash segments) resolves the folder as linked to that Project with its place in it. Its notice says it is linked to the Project but offers no way to open it (asking explains instead), so a scoped checkout is never broadened into its whole Cloud Project; a running or saved first publication still continues instead.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/localFolderCloudNoticeState.test.ts",
+          "sha256": "96b306e711aad3bd41e9194aebe3d8eb63e4d99c49af6eb4e993a782f5376262",
+          "cases": [
+            {
+              "index": 2,
+              "name": "local folder Cloud notice > never broadens a scoped checkout into its whole Cloud project"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/contextualCloudResolution.test.tsx",
+          "sha256": "33a10f8adcf97b563952d6c6cd04e686db5e4428e0fbb548927137c272493838",
+          "cases": [
+            {
+              "index": 5,
+              "name": "current-repository Cloud context > resolves an exact Scope while preserving its owning Project"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_scope_checkout_is_linked_to_its_project_but_never_opens_it"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::repository::tests::remotes_decide_before_any_request"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_scope_path_is_a_plain_relative_path"
+        }
+      ]
+    },
+    {
+      "id": "cloud-auth-replay-after-same-account-sign-in",
+      "acceptance": "When the same account signs in again (a newer session generation commits) while a request is in flight, the broker sends that request once more under the newer session if it is safe to: reads, the read-only repository-context POST, and the publication's creations and credential/abandon mutations that carry a canonical UUIDv4 idempotency key (sent again with the same key). Nothing is replayed under another account or environment, a mutation without a canonical key is not replayed (the caller learns of the change or an unknown outcome), and a lease change that is not a new sign-in (a cancelled attempt) still discards the late read.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
+          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
+          "cases": [
+            {
+              "index": 16,
+              "name": "main-owned Cloud Auth Broker > replays a read-only repository-context POST once after a newer session generation wins"
+            },
+            {
+              "index": 17,
+              "name": "main-owned Cloud Auth Broker > replays a keyed main-owned mutation once when only the same user's generation changes"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::a_same_account_sign_in_replays_what_is_safe_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::late_read_is_discarded_and_late_write_reports_unknown"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -56273,102 +56830,6 @@
       ]
     },
     {
-      "id": "cloud-publish-push-receipts",
-      "kind": "gap",
-      "reason": "When reconciling, TS asks Cloud for the attempt's push receipt, and a send Cloud definitively rejected is retargeted to the source branch's current tip. Rust has no push-receipt query: it reconciles from Cloud main alone. An unresolved send keeps its commit even after Cloud rejected it, until the person chooses Push latest.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
-      "typescript": [
-        {
-          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
-          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
-          "cases": [
-            {
-              "index": 2,
-              "name": "Cloud publish coordinator: retry and restart > retry of a rejected receipt uses a fresh attempt and only retargets after definitive rejection"
-            }
-          ]
-        },
-        {
-          "path": "tests/unit/cloud/publish/cloudPublishReceipt.test.mjs",
-          "sha256": "be7460ee1e60dbd262163da4adf3f1e9fa6ba9a5ab658ea68a8677fc9d598e08",
-          "cases": [
-            {
-              "index": 1,
-              "name": "initial push receipt > lost push response resolves by the bound receipt without ref discovery or backoff"
-            },
-            {
-              "index": 2,
-              "name": "initial push receipt > does not accept a project mismatch as success"
-            },
-            {
-              "index": 3,
-              "name": "initial push receipt > does not accept a attempt mismatch as success"
-            },
-            {
-              "index": 4,
-              "name": "initial push receipt > does not accept a commit mismatch as success"
-            },
-            {
-              "index": 5,
-              "name": "initial push receipt > does not accept a ref mismatch as success"
-            },
-            {
-              "index": 6,
-              "name": "initial push receipt > does not accept a pending mismatch as success"
-            },
-            {
-              "index": 7,
-              "name": "initial push receipt > does not accept a absent mismatch as success"
-            },
-            {
-              "index": 8,
-              "name": "initial push receipt > does not accept a redirect mismatch as success"
-            },
-            {
-              "index": 9,
-              "name": "initial push receipt > a durable rejection terminates reconciliation"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-git-cross-process-lease",
-      "kind": "gap",
-      "reason": "TS takes a cross-process operation lease in the repository's common Git directory, recording the owner PID and an expiry. It never steals the lease from a live owner, reclaims it from a dead one before expiry, and serializes two contenders. A second app process therefore fails fast instead of interleaving. Rust serializes publication only within its own process (the repository mutation owner). Its journal lock is held per write and goes stale by age, so another process publishing the same repository at the same time is not excluded.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
-      "typescript": [
-        {
-          "path": "tests/integration/cloud/publish/electron.cloud-git-operation-lease.test.mjs",
-          "sha256": "dcd8eb75f51bfc4fa5853be09dbde1357e3bc14256a8b2b23ef0c362f91555b1",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Cloud Git cross-process lease > never steals an expired lease while its owner PID is alive"
-            },
-            {
-              "index": 2,
-              "name": "Cloud Git cross-process lease > reclaims a lease owned by a dead PID even before its timestamp expires"
-            },
-            {
-              "index": 3,
-              "name": "Cloud Git cross-process lease > serializes two contenders that both observed the same dead lease"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
-          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
-          "cases": [
-            {
-              "index": 9,
-              "name": "Cloud publish coordinator: retry and restart > serializes two independent coordinator instances with the common repository lease"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "cloud-git-connect-unused",
       "kind": "out-of-scope",
       "reason": "TS's Main can connect a local repository to an existing Cloud Project through its own coordinator and connect journal, but no TS view calls it: connectWorkspaceCloudProject has no caller in v0.4.4. Rust has no such entry point. First publication, which is offered, has its own coordinator and journal (cloud-first-publication-coordinator).",
@@ -59345,34 +59806,6 @@
       ]
     },
     {
-      "id": "scoped-checkout-cloud-notice",
-      "kind": "gap",
-      "reason": "TS resolves a Scope checkout's Cloud context and shows it as linked to its Project, not openable, so asking for it explains rather than opening the whole Project. The native app decides a Scope locator as unresolvable before any request (workspace::cloud::repository::precheck), so the notice reads as unreachable. Neither broadens a scoped checkout into its whole Project.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/README.md",
-      "typescript": [
-        {
-          "path": "tests/unit/cloud/repositories/localFolderCloudNoticeState.test.ts",
-          "sha256": "96b306e711aad3bd41e9194aebe3d8eb63e4d99c49af6eb4e993a782f5376262",
-          "cases": [
-            {
-              "index": 2,
-              "name": "local folder Cloud notice > never broadens a scoped checkout into its whole Cloud project"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/cloud/repositories/contextualCloudResolution.test.tsx",
-          "sha256": "33a10f8adcf97b563952d6c6cd04e686db5e4428e0fbb548927137c272493838",
-          "cases": [
-            {
-              "index": 5,
-              "name": "current-repository Cloud context > resolves an exact Scope while preserving its owning Project"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "cloud-endpoint-validated-not-repaired",
       "kind": "out-of-scope",
       "reason": "TS normalizes whatever endpoint it is given: it strips a query and fragment, accepts a bare production origin as the API base and prefixes a relative API path with '/'. The native app validates its one configured Environment instead of repairing it: the API base must end in /api/v1, a query, fragment or credentials refuse the configuration, and Environment::api_url refuses any path that is not absolute (all callers use fixed absolute paths). Insecure endpoints are refused, never upgraded, in both.",
@@ -59469,28 +59902,6 @@
             {
               "index": 19,
               "name": "session / api-base guards > rejects with 401 when the desktop session bridge is unavailable"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-auth-replay-after-same-account-sign-in",
-      "kind": "gap",
-      "reason": "When the same account signs in again while a request is in flight, TS replays it once under the new session if it is a read-only repository-context POST or a mutation with a canonical idempotency key. The native broker ends the old lease instead: the read reports a changed session and the mutation an unknown outcome, so the caller has to ask again.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/auth/refresh-and-generations.md",
-      "typescript": [
-        {
-          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
-          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
-          "cases": [
-            {
-              "index": 16,
-              "name": "main-owned Cloud Auth Broker > replays a read-only repository-context POST once after a newer session generation wins"
-            },
-            {
-              "index": 17,
-              "name": "main-owned Cloud Auth Broker > replays a keyed main-owned mutation once when only the same user's generation changes"
             }
           ]
         }
@@ -59655,84 +60066,6 @@
             {
               "index": 3,
               "name": "useCloudOrganizationData > keeps a member read failure distinct from a successful non-owner result"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-publish-transfer-progress",
-      "kind": "gap",
-      "reason": "TS reads Git's own push progress while uploading (share sent, bytes and rate, split across pipe chunks, redraws held to an interval but never the finish, a failing listener never reaching the push, progress lines stripped from the diagnostic) and shows the transfer under the uploading step. The native publication reports stages only: Uploading has no bytes or rate.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/first-publication/README.md",
-      "typescript": [
-        {
-          "path": "tests/unit/cloud/publish/electron.cloud-publish-transfer.test.mjs",
-          "sha256": "f50ed59d303a71a62204c5a3ce331268689d383b68c334ecad3dc62dc5afd082",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Cloud publish transfer reading > reads how much is sent and how fast from Git's own progress line"
-            },
-            {
-              "index": 1,
-              "name": "Cloud publish transfer reading > survives a progress line split across pipe chunks"
-            },
-            {
-              "index": 2,
-              "name": "Cloud publish transfer reading > holds redraws to the interval, but never drops the finish"
-            },
-            {
-              "index": 3,
-              "name": "Cloud publish transfer reading > keeps the last measured bytes and rate when a redraw omits them"
-            },
-            {
-              "index": 4,
-              "name": "Cloud publish transfer reading > never lets a failing listener reach the push"
-            },
-            {
-              "index": 5,
-              "name": "Cloud publish transfer reading > leaves only Git's diagnostic once the progress redraws are removed"
-            },
-            {
-              "index": 6,
-              "name": "Cloud publish push progress > reports the transfer as part of the uploading step"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
-          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Cloud publish Header status > answers an unwatched upload with how far it has got"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/cloud/publish/cloudPublishTransfer.test.tsx",
-          "sha256": "4582542d3d92cec67fd8c52c512f2189631d0767decbd1cb3b2bfbf1659f33dd",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Cloud publish upload progress > draws the upload's share, bytes and rate on the Upload row"
-            },
-            {
-              "index": 1,
-              "name": "Cloud publish upload progress > keeps fast-changing numbers out of the live region"
-            },
-            {
-              "index": 2,
-              "name": "Cloud publish upload progress > claims no total and no time left, because Git cannot know them yet"
-            },
-            {
-              "index": 3,
-              "name": "Cloud publish upload progress > says only the share before Git has measured bytes, and drops the rate once done"
-            },
-            {
-              "index": 4,
-              "name": "Cloud publish upload progress > draws nothing extra outside a running upload"
             }
           ]
         }
@@ -60093,32 +60426,6 @@
       ]
     },
     {
-      "id": "cloud-publish-header-watch-awareness",
-      "kind": "gap",
-      "reason": "TS's Header knows whether the dialog is watching the run: it leaves a watched run's ending to the dialog, shows a fresh unwatched failure before the paused task it leaves, and announces an unwatched success only briefly. The native Header states the publication the same way whether or not the dialog shows it, and a finished publication stays announced until the person clicks it or the checkout or account changes.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/first-publication/state-projection-and-ui.md",
-      "typescript": [
-        {
-          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
-          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
-          "cases": [
-            {
-              "index": 2,
-              "name": "Cloud publish Header status > keeps spinning while the dialog shows the run, but leaves its ending to the dialog"
-            },
-            {
-              "index": 7,
-              "name": "Cloud publish Header status > states a fresh failure first, then the paused task it leaves behind"
-            },
-            {
-              "index": 8,
-              "name": "Cloud publish Header status > announces an unwatched success briefly"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "ts-initialization-render-snapshots",
       "kind": "out-of-scope",
       "reason": "These lock the DOM of TS's pre-extraction initialization view (CloudLocalOnlyWorkspace) per state with snapshots: its exact text, buttons with disabled and aria-busy, alert and status regions, the organization select, hero and progress classes. The native publication dialog is its own design; what its states say and offer is asserted by cloud-publish-dialog-states and cloud-publish-organization-choice, and its readiness (repository, commit, branch) is prepared rather than reported.",
@@ -60267,32 +60574,6 @@
             {
               "index": 14,
               "name": "repository authorization read recovery > defers hidden-window retries until visible and removes listeners on disposal"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-open-during-session-restore",
-      "kind": "gap",
-      "reason": "TS opening a Cloud project from the cached Home list while the session is still being restored waits for it (and opens nothing if the person left meanwhile), failing as signed out only once the session is known to be gone. The native open_cloud answers at once from the account it has: while the session is restoring it reports that sign-in is required.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/opening.md",
-      "typescript": [
-        {
-          "path": "tests/component/cloud/repositories/cloudOpenWaitsForSession.test.tsx",
-          "sha256": "37017ca7e80fe08202e1e270812e43d8574d4b52de8220372b89975593306582",
-          "cases": [
-            {
-              "index": 0,
-              "name": "opening a Cloud project from the cached list > waits for the session instead of reporting that nobody is signed in"
-            },
-            {
-              "index": 1,
-              "name": "opening a Cloud project from the cached list > fails as signed out only once the session is known to be gone"
-            },
-            {
-              "index": 2,
-              "name": "opening a Cloud project from the cached list > does not open a project the user has since left"
             }
           ]
         }
@@ -62519,32 +62800,6 @@
       ]
     },
     {
-      "id": "agent-markdown-gfm-extras",
-      "kind": "gap",
-      "reason": "Agent Markdown in the native transcript has no footnotes, no bare-URL autolinks (only <url> and [text](url)), no table column alignment (`:---:`) and no lang attribute for locale-aware reading typography; tables, task lists, nested lists, strikethrough and rules do parse.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/agent-markdown.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/transcript/desktop-agent.markdown-renderer.test.tsx",
-          "sha256": "339b2a5c7ca5ee5827699963ae3cfe492e100e1157ea1fbb41847fbadd9612a6",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Agent Markdown renderer > uses the message language for locale-aware reading typography"
-            },
-            {
-              "index": 1,
-              "name": "Agent Markdown renderer > renders semantic GFM tables inside a bounded horizontal viewport"
-            },
-            {
-              "index": 2,
-              "name": "Agent Markdown renderer > supports task lists, nested lists, strikethrough, autolinks, rules, and footnotes"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "agent-markdown-block-registry",
       "kind": "out-of-scope",
       "reason": "TS lets features register rich Markdown blocks by fence language and guards external navigation behind an optional host capability. The native transcript draws only its built-in mermaid block and always has the host's link opener, so there is no registry or absent capability to test.",
@@ -62665,24 +62920,6 @@
       ]
     },
     {
-      "id": "transcript-row-entrance-motion",
-      "kind": "gap",
-      "reason": "TS fades a newly committed row in once (and never replays it on rerender); the native transcript draws new rows without entrance motion.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/transcript.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/transcript/desktop-agent.virtual-timeline.test.ts",
-          "sha256": "1c871f168122c59fdfe975197bc369f48faf698255bb99c3e34d798334494455",
-          "cases": [
-            {
-              "index": 4,
-              "name": "Desktop Agent virtual transcript > animates only newly committed parts and does not replay entrance motion after rerender"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "dom-virtual-row-measurement",
       "kind": "out-of-scope",
       "reason": "TS virtualizes the transcript itself: it exposes an estimated canvas height until a ResizeObserver (border-box) reports, caches row sizes under a width/font layout signature across remounts, guards observer callbacks after unmount and keeps DOM nodes for identity through the first native binding. GPUI's list lays out and measures each visible row before painting and remeasures spliced rows; the native transcript keeps its ListState per mounted chat, with no size cache, observers or DOM nodes.",
@@ -62767,68 +63004,6 @@
             {
               "index": 0,
               "name": "Desktop Agent renderer surfaces > registers semantic part extensions by kind and restores the previous renderer on dispose"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "reference-drop-feedback",
-      "kind": "gap",
-      "reason": "The chat gives no drop-time feedback: a workspace drag from another workspace is not marked invalid (it is accepted and left to the host, which refuses paths outside the chat's root), and no status announces how many references a drop added or which items of a batch were rejected.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
-          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
-          "cases": [
-            {
-              "index": 4,
-              "name": "Desktop Agent reference ingestion > marks cross-workspace drags invalid and never grants their paths"
-            },
-            {
-              "index": 16,
-              "name": "Desktop Agent reference ingestion > announces partial batches while retaining the rejected item as an actionable error"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "inline-reference-states",
-      "kind": "gap",
-      "reason": "Inline mention chips have no resolving or failed state and no Retry: a resolving file shows one generic Resolving chip instead of its own @name, a failed non-image reference cannot be retried from the composer, and the draft manager's retry has no UI.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/composer.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
-          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
-          "cases": [
-            {
-              "index": 10,
-              "name": "Desktop Agent reference ingestion > opens the file picker directly and keeps failed non-image references inline"
-            },
-            {
-              "index": 11,
-              "name": "Desktop Agent reference ingestion > shows resolving files inline while retaining failed images as visual attachments"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "workspace-image-drop-preview",
-      "kind": "gap",
-      "reason": "A workspace image dropped on the chat is added without a visual preview (the panel passes no previews to add_workspace_paths), so its shelf card shows a placeholder icon instead of the authorized thumbnail.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
-          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
-          "cases": [
-            {
-              "index": 7,
-              "name": "Desktop Agent reference ingestion > loads an authorized visual preview for a workspace image without putting its URL in the path"
             }
           ]
         }
@@ -66893,6 +67068,24 @@
             {
               "index": 16,
               "name": "Markdown embedded runtime > restores the original syntax layer when an edited draft is cancelled"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "attachment-button-one-step-picker",
+      "kind": "gap",
+      "reason": "The composer's paperclip opens a two-item menu (Add from computer / Add from workspace) instead of opening the file picker directly (falling back to the workspace picker only when the runtime takes no attachments). Failed inline references, their Retry and Remove, match the case's other half (contract agent-inline-reference-states). Dropping the button's workspace entry is a product decision, held for the user.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/composer.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 10,
+              "name": "Desktop Agent reference ingestion > opens the file picker directly and keeps failed non-image references inline"
             }
           ]
         }

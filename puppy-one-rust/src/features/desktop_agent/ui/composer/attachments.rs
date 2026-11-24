@@ -45,7 +45,7 @@ fn localized_reference_error(reference: &DraftReference) -> String {
 
 /// `AgentVisualAttachment`'s status details: the localized state, then the
 /// raw error when it says more.
-fn reference_details(reference: &DraftReference) -> Vec<String> {
+pub(super) fn reference_details(reference: &DraftReference) -> Vec<String> {
     let status = match reference.status {
         ReferenceStatus::Resolving => t("agent.reference.resolving").to_string(),
         ReferenceStatus::Error => localized_reference_error(reference),

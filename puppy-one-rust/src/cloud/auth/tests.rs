@@ -902,3 +902,75 @@ fn the_saved_sign_in_holds_only_the_refresh_credential_and_bad_records_are_set_a
     assert_eq!(items.0.lock().unwrap()[&accounts[0]], b"{not-json");
     assert!(load(&items, "session-v1/default").unwrap().is_none());
 }
+
+/// `replays a read-only repository-context POST once after a newer session
+/// generation wins` and `replays a keyed main-owned mutation once when only
+/// the same user's generation changes`: a request in flight when the same
+/// account signs in again is sent once more under the newer session if it
+/// is safe to; never under another account, nor a mutation without a
+/// canonical idempotency key.
+#[test]
+fn a_same_account_sign_in_replays_what_is_safe_once() {
+    let api = |method: reqwest::Method, path: &str, key: Option<&str>| ApiRequest {
+        idempotency_key: key.map(str::to_owned),
+        method,
+        path: path.into(),
+        query: Vec::new(),
+        body: Some(serde_json::json!({})),
+    };
+    let key = Some("11111111-1111-4111-8111-111111111111");
+    for (name, request, again, replays) in [
+        (
+            "context read",
+            api(
+                reqwest::Method::POST,
+                "/projects/p/repository-context",
+                None,
+            ),
+            "alice",
+            true,
+        ),
+        (
+            "keyed creation",
+            api(reqwest::Method::POST, "/projects/", key),
+            "alice",
+            true,
+        ),
+        (
+            "another actor",
+            api(reqwest::Method::POST, "/projects/", key),
+            "bob",
+            false,
+        ),
+        (
+            "no key",
+            api(reqwest::Method::POST, "/projects/", None),
+            "alice",
+            false,
+        ),
+    ] {
+        let (broker, remote, _) = setup();
+        login(&broker, "alice").unwrap();
+        let gate = Arc::new(Gate::default());
+        let g = gate.clone();
+        *remote.request_hook.lock().unwrap() = Some(Arc::new(move || g.block()));
+        let old = binding(&broker);
+        let b = broker.clone();
+        let pending = std::thread::spawn(move || b.request(&old, &request));
+        gate.entered();
+        sign_in_again(&broker, again);
+        gate.release();
+        let result = pending.join().unwrap();
+        let sent = remote.requests.load(Ordering::SeqCst);
+        if replays {
+            assert!(result.is_ok(), "{name}: {result:?}");
+            assert_eq!(sent, 2, "{name}: replayed once");
+        } else {
+            assert!(
+                matches!(result, Err(Error::SessionChanged | Error::OutcomeUnknown)),
+                "{name}: {result:?}"
+            );
+            assert_eq!(sent, 1, "{name}: never replayed");
+        }
+    }
+}

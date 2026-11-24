@@ -7,6 +7,7 @@ mod result_page;
 mod service;
 mod store;
 mod transport;
+pub use http::get_json;
 pub use model::{Environment, Error, Snapshot, Status};
 pub use service::{Broker, BrowserEvent};
 #[cfg(any(test, feature = "test-support", feature = "dev-capture"))]

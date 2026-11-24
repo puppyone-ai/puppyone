@@ -53,27 +53,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # qubits carries the Rust GPUI app until it replaces main.
+          # qubits carries the Rust GPUI app until it replaces main; release/*
+          # branches freeze a candidate for Stable promotion.
           case "${GITHUB_REF}" in
-            refs/heads/main | refs/heads/qubits) ;;
+            refs/heads/main | refs/heads/qubits | refs/heads/release/*) ;;
             *)
-              echo "Internal releases must be built from main or qubits." >&2
+              echo "Internal releases must be built from main, qubits or a release/* branch." >&2
               exit 1
               ;;
           esac
-          # The server-side status index can lag behind a completed run. Match
-          # exact source, event and terminal success in the returned run records.
+          # Rust desktop acceptance runs verify.py on every push to these
+          # branches. The server-side status index can lag behind a completed
+          # run. Match exact source, event and terminal success in the returned
+          # run records.
           SUCCESSFUL_CI_RUNS="$(
             gh api \
               --method GET \
               -H "Accept: application/vnd.github+json" \
-              "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/rust-tests.yml/runs" \
               -f branch="${GITHUB_REF_NAME}" \
               -f head_sha="${GITHUB_SHA}" \
               --jq '[.workflow_runs[] | select(.event == "push" and .head_sha == env.GITHUB_SHA and .status == "completed" and .conclusion == "success")] | length'
           )"
           if [ "${SUCCESSFUL_CI_RUNS}" -lt 1 ]; then
-            echo "Internal releases require a successful CI push run for ${GITHUB_SHA} on ${GITHUB_REF_NAME}." >&2
+            echo "Internal releases require a successful Rust desktop acceptance push run for ${GITHUB_SHA} on ${GITHUB_REF_NAME}." >&2
             exit 1
           fi
 
@@ -153,6 +156,14 @@ jobs:
           set -euo pipefail
           (cd puppy-one-rust && python3 tools/verify.py)
           python3 puppy-one-rust/tools/release/verify-electron-to-gpui-ota.py
+
+      - name: Retain verification logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: internal-verification-logs
+          path: puppy-one-rust/artifacts/gpui-verification/
+          retention-days: 14
 
       - name: Build ad-hoc macOS package
         env:

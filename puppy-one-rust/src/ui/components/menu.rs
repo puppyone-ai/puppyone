@@ -354,6 +354,7 @@ pub struct Menu {
     absorb_mouse_down: bool,
     entries: Vec<MenuEntry>,
     on_dismiss: Option<Handler>,
+    depth: usize,
     style: StyleRefinement,
 }
 impl Menu {
@@ -373,6 +374,7 @@ impl Menu {
             absorb_mouse_down: false,
             entries: vec![],
             on_dismiss: None,
+            depth: 0,
             style: StyleRefinement::default(),
         }
     }
@@ -467,6 +469,9 @@ impl Menu {
             self.on_dismiss = handler;
         }
     }
+    fn submenu_depth(&mut self, depth: usize) {
+        self.depth = depth;
+    }
 }
 impl Styled for Menu {
     fn style(&mut self) -> &mut StyleRefinement {
@@ -479,7 +484,18 @@ impl RenderOnce for Menu {
         let s = self.variant.style();
         let max_height = window.viewport_size().height - px(24.);
         let dismiss = self.on_dismiss.clone();
+        let depth = self.depth;
         let id = self.id.clone();
+        let has_submenus = self.entries.iter().any(|entry| match entry {
+            MenuEntry::Item(item) => item.submenu.is_some(),
+            MenuEntry::List(items, _) => items.iter().any(|item| item.submenu.is_some()),
+            _ => false,
+        });
+        let coordinator = has_submenus.then(|| {
+            window.use_keyed_state(child_id(&id, "submenus"), cx, |_, _| {
+                SubmenuCoordinator::default()
+            })
+        });
         let keyboard = self.keyboard_navigation.then(|| {
             keyboard::Keyboard::new(
                 &id,
@@ -517,7 +533,16 @@ impl RenderOnce for Menu {
                         .gap(px(gap))
                         .children(items.into_iter().enumerate().map(|(row_index, item)| {
                             let fallback = child_id(&id, format!("{index}-{row_index}"));
-                            row(fallback, item, s, t, dismiss.clone(), keyboard.as_ref())
+                            row(
+                                fallback,
+                                item,
+                                s,
+                                t,
+                                dismiss.clone(),
+                                keyboard.as_ref(),
+                                coordinator.clone(),
+                                depth,
+                            )
                         })),
                 ),
                 MenuEntry::Item(item) => {
@@ -529,6 +554,8 @@ impl RenderOnce for Menu {
                         t,
                         dismiss.clone(),
                         keyboard.as_ref(),
+                        coordinator.clone(),
+                        depth,
                     ))
                 }
             };
@@ -594,15 +621,16 @@ fn separator(t: Theme) -> Div {
         .flex_shrink_0()
         .bg(t.divider)
 }
-/// Hover state of a row's submenu: open, and a generation that cancels a
-/// scheduled close when the pointer comes back (`scheduleCloseSubmenu`).
+/// Coordinates all sibling submenus inside one [`Menu`] surface so hovering
+/// another row switches or closes the previous submenu on the same frame
+/// without overlap, while still granting a brief grace window when crossing
+/// the 4px gap into the open submenu.
 #[derive(Default)]
-struct SubmenuState {
-    open: bool,
-    /// An `open_submenu` request was honoured.
-    requested: bool,
+struct SubmenuCoordinator {
+    active: Option<ElementId>,
+    /// One-shot `open_submenu(true)` request already honoured.
+    requested: Option<ElementId>,
     epoch: u64,
-    trigger: Bounds<Pixels>,
 }
 
 /// Live deferred submenu bounds currently on screen. Each entry is held alive
@@ -635,6 +663,7 @@ fn register_active_submenu(window: &Window, surface: &Rc<Cell<Bounds<Pixels>>>, 
     });
 }
 /// `.desktop-menu-item`.
+#[allow(clippy::too_many_arguments)]
 fn row(
     fallback_id: ElementId,
     item: MenuItem,
@@ -642,6 +671,8 @@ fn row(
     t: Theme,
     dismiss: Option<Handler>,
     keyboard: Option<&keyboard::Keyboard>,
+    coordinator: Option<Entity<SubmenuCoordinator>>,
+    depth: usize,
 ) -> AnyElement {
     let element_id = item.id.unwrap_or(fallback_id);
     let focus = keyboard.and_then(|keyboard| keyboard.focus(&element_id));
@@ -778,18 +809,30 @@ fn row(
                 .text_color(trailing_fg)
                 .child(text)
         }))
-        .children(item.trailing.map(|element| {
-            div()
-                .flex_shrink_0()
-                .flex()
-                .items_center()
-                .text_color(trailing_fg)
-                .when(has_hover_trailing, |d| {
-                    d.group_hover(group.clone(), |s| s.invisible())
+        .children(
+            item.trailing
+                .or_else(|| {
+                    submenu.is_some().then(|| {
+                        Icon::new("chevron-right")
+                            .with_size(px(12.))
+                            .color(trailing_fg)
+                            .group_hover_color(group.clone(), hover_fg)
+                            .into_any_element()
+                    })
                 })
-                .when(held, |d| d.invisible())
-                .child(element)
-        }))
+                .map(|element| {
+                    div()
+                        .flex_shrink_0()
+                        .flex()
+                        .items_center()
+                        .text_color(trailing_fg)
+                        .when(has_hover_trailing, |d| {
+                            d.group_hover(group.clone(), |s| s.invisible())
+                        })
+                        .when(held, |d| d.invisible())
+                        .child(element)
+                }),
+        )
         .children(item.hover_trailing.map(|element| {
             div()
                 .absolute()
@@ -805,6 +848,20 @@ fn row(
         }));
     let Some(submenu) = submenu else {
         return row
+            .when_some(coordinator, |d, coord| {
+                // Pointer movement, not `on_hover`: hover also fires for a row
+                // laid out under a resting pointer, which would close a
+                // submenu opened by `open_submenu(true)` before it is shown.
+                d.on_mouse_move(move |_, _, cx| {
+                    if coord.read(cx).active.is_some() {
+                        coord.update(cx, |s, cx| {
+                            s.epoch += 1;
+                            s.active = None;
+                            cx.notify();
+                        });
+                    }
+                })
+            })
             .when_some(action.filter(|_| !disabled), |d, action| {
                 d.on_click(move |_, window, cx| {
                     cx.stop_propagation();
@@ -827,11 +884,14 @@ fn row(
         build: submenu,
         open: open_submenu,
         dismiss,
+        coordinator,
+        depth,
     }
     .into_any_element()
 }
-/// A row whose submenu opens on hover or click and closes 180ms after the
-/// pointer leaves both, placed 4px past the row's end and 4px above it.
+/// A row whose submenu opens immediately on hover/click, yields immediately
+/// when a sibling row is hovered, and closes 120ms after the pointer leaves
+/// both trigger and submenu into empty space.
 #[derive(IntoElement)]
 struct SubmenuRow {
     id: ElementId,
@@ -840,43 +900,57 @@ struct SubmenuRow {
     /// Open once without a hover.
     open: bool,
     dismiss: Option<Handler>,
+    coordinator: Option<Entity<SubmenuCoordinator>>,
+    depth: usize,
 }
 impl RenderOnce for SubmenuRow {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let state = window.use_keyed_state(child_id(&self.id, "submenu"), cx, |_, _| {
-            SubmenuState::default()
+        let coord = self.coordinator.unwrap_or_else(|| {
+            window.use_keyed_state(child_id(&self.id, "submenu"), cx, |_, _| {
+                SubmenuCoordinator::default()
+            })
         });
+        let trigger_bounds =
+            window.use_keyed_state(child_id(&self.id, "submenu-trigger-bounds"), cx, |_, _| {
+                Rc::new(Cell::new(Bounds::default()))
+            });
+        let row_id = self.id.clone();
         if self.open {
-            state.update(cx, |s, _| {
-                if !s.requested {
-                    s.requested = true;
-                    s.open = true;
+            coord.update(cx, |s, _| {
+                if s.requested.as_ref() != Some(&row_id) {
+                    s.requested = Some(row_id.clone());
+                    s.active = Some(row_id.clone());
                 }
             });
         }
         let hover = {
-            let state = state.clone();
+            let coord = coord.clone();
+            let row_id = self.id.clone();
             move |hovered: bool, window: &mut Window, cx: &mut App| {
-                let epoch = state.update(cx, |s, cx| {
-                    s.epoch += 1;
-                    if hovered && !s.open {
-                        s.open = true;
-                        cx.notify();
-                    }
-                    s.epoch
-                });
                 if hovered {
+                    coord.update(cx, |s, cx| {
+                        s.epoch += 1;
+                        if s.active.as_ref() != Some(&row_id) {
+                            s.active = Some(row_id.clone());
+                            cx.notify();
+                        }
+                    });
                     return;
                 }
-                let state = state.clone();
+                let epoch = coord.update(cx, |s, _| {
+                    s.epoch += 1;
+                    s.epoch
+                });
+                let coord = coord.clone();
+                let row_id = row_id.clone();
                 window
                     .spawn(cx, async move |cx| {
                         cx.background_executor()
-                            .timer(Duration::from_millis(180))
+                            .timer(Duration::from_millis(120))
                             .await;
-                        state.update(cx, |s, cx| {
-                            if s.epoch == epoch && s.open {
-                                s.open = false;
+                        coord.update(cx, |s, cx| {
+                            if s.epoch == epoch && s.active.as_ref() == Some(&row_id) {
+                                s.active = None;
                                 cx.notify();
                             }
                         });
@@ -884,19 +958,19 @@ impl RenderOnce for SubmenuRow {
                     .detach();
             }
         };
-        let open = state.read(cx).open;
-        let trigger = state.read(cx).trigger;
+        let open = coord.read(cx).active.as_ref() == Some(&self.id);
+        let stored_bounds = trigger_bounds.read(cx).clone();
+        let trigger = stored_bounds.get();
         let corner_cell = Rc::new(Cell::new(point(
             trigger.right() + px(4.),
             trigger.top() - px(4.),
         )));
         let measure = {
-            let state = state.clone();
             let corner_cell = corner_cell.clone();
             canvas(
-                move |bounds, _, cx| {
+                move |bounds, _, _| {
+                    stored_bounds.set(bounds);
                     corner_cell.set(point(bounds.right() + px(4.), bounds.top() - px(4.)));
-                    state.update(cx, |s, _| s.trigger = bounds);
                 },
                 |_, _, _, _| {},
             )
@@ -906,7 +980,8 @@ impl RenderOnce for SubmenuRow {
             .size_full()
         };
         let hover_row = hover.clone();
-        let click_state = state.clone();
+        let click_coord = coord.clone();
+        let click_id = self.id.clone();
         let t = cx.palette();
         let mut row = self
             .row
@@ -916,14 +991,16 @@ impl RenderOnce for SubmenuRow {
             .on_hover(move |hovered, window, cx| hover_row(*hovered, window, cx))
             .on_click(move |_, _, cx| {
                 cx.stop_propagation();
-                click_state.update(cx, |s, cx| {
-                    s.open = true;
+                click_coord.update(cx, |s, cx| {
+                    s.epoch += 1;
+                    s.active = Some(click_id.clone());
                     cx.notify();
                 });
             });
         if open {
             let mut menu = (self.build)(window, cx);
             menu.dismiss_handler(self.dismiss);
+            menu.submenu_depth(self.depth + 1);
             let corner = corner_cell.get();
             let surface = Rc::new(Cell::new(Bounds::default()));
             register_active_submenu(window, &surface, cx);
@@ -945,7 +1022,7 @@ impl RenderOnce for SubmenuRow {
                                 .child(menu.w(px(184.))),
                         ),
                 )
-                .with_priority(gpui_kit::base::POPUP_PRIORITY + 1),
+                .with_priority(gpui_kit::base::POPUP_PRIORITY + 1 + self.depth),
             );
         }
         row

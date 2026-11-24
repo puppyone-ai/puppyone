@@ -527,12 +527,12 @@ impl Homepage {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         if self.session.restoring {
-            return self.restoring_view(cx).into_any_element();
+            return self.restoring_view(window, cx).into_any_element();
         }
         match self.first_paint_released(cx) {
             None => {
                 window.request_animation_frame();
-                return self.restoring_view(cx).into_any_element();
+                return self.restoring_view(window, cx).into_any_element();
             }
             Some(account) if self.released_for.as_ref() != Some(&account) => {
                 cx.defer_in(window, |h, window, cx| {

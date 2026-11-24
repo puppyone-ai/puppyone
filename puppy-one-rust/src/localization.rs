@@ -50,6 +50,7 @@ fn native() -> &'static Value {
             DOCUMENT_RECONCILE_MESSAGES,
             CROSS_PLATFORM_MESSAGES,
             CLOUD_AGENT_MESSAGES,
+            ISOLATED_AGENT_SANDBOXES_MESSAGES,
         ] {
             let extra: Value = serde_json::from_str(raw).expect("native extension catalogs");
             for (locale, messages) in extra.as_object().unwrap() {
@@ -137,6 +138,57 @@ const CLOUD_AGENT_MESSAGES: &str = r#"{
   }
 }"#;
 
+const ISOLATED_AGENT_SANDBOXES_MESSAGES: &str = r#"{
+  "en": {
+    "settings.experimental.isolatedAgentSandboxes.title": "Isolated Agent sandboxes",
+    "settings.experimental.isolatedAgentSandboxes.detail": "Show a per-project switch in Cloud Computer settings to run each external Agent in its own isolated sandbox mounted onto the shared workspace.",
+    "cloud.settings.computer.isolatedAgents": "Isolated Agent sandboxes",
+    "cloud.settings.computer.isolatedAgentsHelp": "Run each external Agent in its own isolated sandbox mounted onto this project's shared files. Applies to new Agent connections."
+  },
+  "es": {
+    "settings.experimental.isolatedAgentSandboxes.title": "Sandboxes aislados para Agents",
+    "settings.experimental.isolatedAgentSandboxes.detail": "Muestra un interruptor por proyecto en la configuración de Cloud Computer para ejecutar cada Agent externo en su propio sandbox aislado montado sobre el espacio compartido.",
+    "cloud.settings.computer.isolatedAgents": "Sandboxes aislados para Agents",
+    "cloud.settings.computer.isolatedAgentsHelp": "Ejecuta cada Agent externo en su propio sandbox aislado montado sobre los archivos compartidos del proyecto. Se aplica a nuevas conexiones."
+  },
+  "pt-BR": {
+    "settings.experimental.isolatedAgentSandboxes.title": "Sandboxes isolados para Agents",
+    "settings.experimental.isolatedAgentSandboxes.detail": "Mostra uma opção por projeto nas configurações do Cloud Computer para executar cada Agent externo em seu próprio sandbox isolado montado no workspace compartilhado.",
+    "cloud.settings.computer.isolatedAgents": "Sandboxes isolados para Agents",
+    "cloud.settings.computer.isolatedAgentsHelp": "Executa cada Agent externo em seu próprio sandbox isolado montado nos arquivos compartilhados do projeto. Aplica-se a novas conexões."
+  },
+  "fr": {
+    "settings.experimental.isolatedAgentSandboxes.title": "Sandboxes isolés pour Agents",
+    "settings.experimental.isolatedAgentSandboxes.detail": "Affiche une option par projet dans les paramètres Cloud Computer pour exécuter chaque Agent externe dans son propre sandbox isolé monté sur l'espace partagé.",
+    "cloud.settings.computer.isolatedAgents": "Sandboxes isolés pour Agents",
+    "cloud.settings.computer.isolatedAgentsHelp": "Exécute chaque Agent externe dans son propre sandbox isolé monté sur les fichiers partagés du projet. S'applique aux nouvelles connexions."
+  },
+  "de": {
+    "settings.experimental.isolatedAgentSandboxes.title": "Isolierte Agent-Sandboxes",
+    "settings.experimental.isolatedAgentSandboxes.detail": "Zeigt in den Cloud-Computer-Einstellungen einen projektspezifischen Schalter, um jeden externen Agent in einer eigenen isolierten Sandbox mit geteiltem Workspace auszuführen.",
+    "cloud.settings.computer.isolatedAgents": "Isolierte Agent-Sandboxes",
+    "cloud.settings.computer.isolatedAgentsHelp": "Führt jeden externen Agent in einer eigenen isolierten Sandbox aus, die auf die geteilten Projektdateien eingehängt ist. Gilt für neue Verbindungen."
+  },
+  "ja": {
+    "settings.experimental.isolatedAgentSandboxes.title": "分離された Agent サンドボックス",
+    "settings.experimental.isolatedAgentSandboxes.detail": "クラウドコンピューター設定にプロジェクト単位のスイッチを表示し、外部 Agent ごとに独立したサンドボックスから共有ワークスペースをマウントします。",
+    "cloud.settings.computer.isolatedAgents": "分離された Agent サンドボックス",
+    "cloud.settings.computer.isolatedAgentsHelp": "外部 Agent ごとに独立したサンドボックスを起動し、プロジェクトの共有ファイルをマウントします。次の接続から適用されます。"
+  },
+  "ko": {
+    "settings.experimental.isolatedAgentSandboxes.title": "격리된 Agent 샌드박스",
+    "settings.experimental.isolatedAgentSandboxes.detail": "클라우드 컴퓨터 설정에 프로젝트별 스위치를 표시하여 각 외부 Agent가 공유 워크스페이스를 마운트한 독립 샌드박스에서 실행되도록 합니다.",
+    "cloud.settings.computer.isolatedAgents": "격리된 Agent 샌드박스",
+    "cloud.settings.computer.isolatedAgentsHelp": "각 외부 Agent를 프로젝트 공유 파일이 마운트된 독립 샌드박스에서 실행합니다. 새 Agent 연결부터 적용됩니다."
+  },
+  "zh-Hans": {
+    "settings.experimental.isolatedAgentSandboxes.title": "外部 Agent 独立沙盒",
+    "settings.experimental.isolatedAgentSandboxes.detail": "在云电脑设置中显示项目级开关，让每个外部 Agent 在独立的云端沙盒中运行，并挂载共享工作区文件。",
+    "cloud.settings.computer.isolatedAgents": "外部 Agent 独立沙盒",
+    "cloud.settings.computer.isolatedAgentsHelp": "为每个外部 Agent 启动独立沙盒并挂载项目共享文件。开启后对后续外部 Agent 连接生效。"
+  }
+}"#;
+
 const CROSS_PLATFORM_MESSAGES: &str = r#"{
   "en": {
     "native.desktop.showInExplorer": "Show in Explorer",
@@ -150,7 +202,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "Minimize",
     "native.window.maximize": "Maximize",
     "native.window.restore": "Restore",
-    "native.window.close": "Close"
+    "native.window.close": "Close",
+    "native.window.menu": "Menu"
   },
   "zh-Hans": {
     "native.desktop.showInExplorer": "在资源管理器中显示",
@@ -164,7 +217,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "最小化",
     "native.window.maximize": "最大化",
     "native.window.restore": "还原",
-    "native.window.close": "关闭"
+    "native.window.close": "关闭",
+    "native.window.menu": "菜单"
   },
   "ja": {
     "native.desktop.showInExplorer": "エクスプローラーで表示",
@@ -178,7 +232,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "最小化",
     "native.window.maximize": "最大化",
     "native.window.restore": "元に戻す",
-    "native.window.close": "閉じる"
+    "native.window.close": "閉じる",
+    "native.window.menu": "メニュー"
   },
   "ko": {
     "native.desktop.showInExplorer": "탐색기에서 표시",
@@ -192,7 +247,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "최소화",
     "native.window.maximize": "최대화",
     "native.window.restore": "복원",
-    "native.window.close": "닫기"
+    "native.window.close": "닫기",
+    "native.window.menu": "메뉴"
   },
   "es": {
     "native.desktop.showInExplorer": "Mostrar en el Explorador",
@@ -206,7 +262,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "Minimizar",
     "native.window.maximize": "Maximizar",
     "native.window.restore": "Restaurar",
-    "native.window.close": "Cerrar"
+    "native.window.close": "Cerrar",
+    "native.window.menu": "Menú"
   },
   "pt-BR": {
     "native.desktop.showInExplorer": "Mostrar no Explorador",
@@ -220,7 +277,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "Minimizar",
     "native.window.maximize": "Maximizar",
     "native.window.restore": "Restaurar",
-    "native.window.close": "Fechar"
+    "native.window.close": "Fechar",
+    "native.window.menu": "Menu"
   },
   "fr": {
     "native.desktop.showInExplorer": "Afficher dans l’Explorateur",
@@ -234,7 +292,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "Réduire",
     "native.window.maximize": "Agrandir",
     "native.window.restore": "Restaurer",
-    "native.window.close": "Fermer"
+    "native.window.close": "Fermer",
+    "native.window.menu": "Menu"
   },
   "de": {
     "native.desktop.showInExplorer": "Im Explorer anzeigen",
@@ -248,7 +307,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "Minimieren",
     "native.window.maximize": "Maximieren",
     "native.window.restore": "Wiederherstellen",
-    "native.window.close": "Schließen"
+    "native.window.close": "Schließen",
+    "native.window.menu": "Menü"
   }
 }"#;
 
@@ -1493,6 +1553,10 @@ mod tests {
             "cloud.settings.computer.failed",
             "settings.experimental.cloudComputerScreen.title",
             "settings.experimental.cloudComputerScreen.detail",
+            "settings.experimental.isolatedAgentSandboxes.title",
+            "settings.experimental.isolatedAgentSandboxes.detail",
+            "cloud.settings.computer.isolatedAgents",
+            "cloud.settings.computer.isolatedAgentsHelp",
         ];
         for (code, _) in Locale::choices() {
             let locale = Locale { code: code.into() };

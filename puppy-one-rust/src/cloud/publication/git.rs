@@ -12,12 +12,13 @@
 use super::{
     Code, PublishError,
     journal::{CredentialConfig, Record, commit_id},
+    transfer::{ProgressReader, Transfer, strip_progress_output},
 };
 use base64::Engine as _;
 use std::{
     path::{Path, PathBuf},
     sync::atomic::AtomicBool,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub const REMOTE: &str = "puppyone";
@@ -75,7 +76,19 @@ pub trait GitOps: Send + Sync {
         record: &Record,
         secret: &str,
     ) -> Result<bool, PublishError>;
-    fn push(&self, root: &Path, record: &Record, secret: &str) -> Result<(), PublishError>;
+    /// Sends the attempt's commit, reporting Git's own progress to
+    /// `on_transfer` as it goes.
+    fn push(
+        &self,
+        root: &Path,
+        record: &Record,
+        secret: &str,
+        on_transfer: &(dyn Fn(Transfer) + Sync),
+    ) -> Result<(), PublishError>;
+    /// `readInitialPushReceipt`: Cloud's record of the current attempt — its
+    /// commit when committed onto an absent `main`, an error when rejected,
+    /// `None` when it says nothing.
+    fn receipt(&self, record: &Record, secret: &str) -> Result<Option<String>, PublishError>;
     /// `refs/heads/main` on the canonical URL (`None`: absent).
     fn remote_main(
         &self,
@@ -450,6 +463,38 @@ pub fn push_limit_failure(diagnostic: &str) -> bool {
     }
     pack_limit_failure(diagnostic) || PROCESSING.is_match(diagnostic)
 }
+/// A failed first push, settled by what Cloud says: the attempt's receipt
+/// first (a lost response resolves without asking for the ref), then one
+/// bounded read of Cloud main. Landed: `Ok`. Another commit on main: a
+/// conflict. Otherwise a limit refusal, then Cloud's rejection of this
+/// attempt, win over the disconnect Git may append (`stderr` holds Git's
+/// diagnostic without its progress).
+pub(super) fn settle_failed_push(
+    stderr: &str,
+    commit: &str,
+    receipt: Result<Option<String>, PublishError>,
+    remote_main: impl FnOnce() -> Option<String>,
+) -> Result<(), PublishError> {
+    let (landed, rejection) = match receipt {
+        Ok(landed) => (landed, None),
+        Err(rejection) => (None, Some(rejection)),
+    };
+    let head = landed.or_else(remote_main);
+    if head.as_deref() == Some(commit) {
+        return Ok(());
+    }
+    if head.is_some() {
+        return Err(PublishError::new(
+            Code::RemoteRefConflict,
+            "Cloud main changed while the initial push was in flight.",
+            false,
+        ));
+    }
+    if push_limit_failure(stderr) {
+        return Err(push_failure(stderr));
+    }
+    Err(rejection.unwrap_or_else(|| push_failure(stderr)))
+}
 /// What a failed first push is, once Cloud main is known not to hold its
 /// commit: an explicit refusal wins over the disconnect Git may append.
 pub(super) fn push_failure(stderr: &str) -> PublishError {
@@ -782,7 +827,13 @@ impl GitOps for Cli {
         assert_managed(root, config, &record.operation_id)?;
         Ok(created)
     }
-    fn push(&self, root: &Path, record: &Record, secret: &str) -> Result<(), PublishError> {
+    fn push(
+        &self,
+        root: &Path,
+        record: &Record,
+        secret: &str,
+        on_transfer: &(dyn Fn(Transfer) + Sync),
+    ) -> Result<(), PublishError> {
         let (url, _, _) = complete(record)?;
         if self.remote(root)? != Remote::Exact(url.to_owned()) {
             return Err(PublishError::new(
@@ -800,28 +851,53 @@ impl GitOps for Cli {
         let refspec = format!("{}:{DESTINATION_REF}", record.attempt.commit_oid);
         let args = self.secure(
             record,
-            &["-c", &header, "push", "--porcelain", &lease, url, &refspec],
+            // Git writes its progress without a terminal only when asked.
+            &[
+                "-c",
+                &header,
+                "push",
+                "--porcelain",
+                "--progress",
+                &lease,
+                url,
+                &refspec,
+            ],
         )?;
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
         let (_, config, _) = complete(record)?;
-        match git(root, &args, None, PUSH_TIMEOUT) {
+        let mut reader = ProgressReader::new(on_transfer, Instant::now);
+        let pushed = crate::platform::process::run_observed(
+            crate::platform::git::git_executable(),
+            &args,
+            root,
+            None,
+            PUSH_TIMEOUT,
+            &AtomicBool::new(false),
+            crate::platform::process::OutputOptions {
+                // Progress redraws are most of what a long push prints.
+                limits: crate::platform::process::OutputLimits {
+                    stdout: 8 * 1024 * 1024,
+                    stderr: 4 * 1024 * 1024,
+                },
+                environment: &[],
+            },
+            Some(&mut |chunk: &[u8]| reader.write(chunk)),
+        );
+        match pushed {
             Ok(_) => assert_managed(root, config, &record.operation_id),
             Err(stderr) => {
-                // One bounded check of what Cloud main now is.
-                let head = self.remote_main(root, record, secret).ok().flatten();
-                if head.as_deref() == Some(record.attempt.commit_oid.as_str()) {
-                    return assert_managed(root, config, &record.operation_id);
-                }
-                if head.is_some() {
-                    return Err(PublishError::new(
-                        Code::RemoteRefConflict,
-                        "Cloud main changed while the initial push was in flight.",
-                        false,
-                    ));
-                }
-                Err(push_failure(&stderr))
+                settle_failed_push(
+                    &strip_progress_output(&stderr),
+                    &record.attempt.commit_oid,
+                    self.receipt(record, secret),
+                    || self.remote_main(root, record, secret).ok().flatten(),
+                )?;
+                assert_managed(root, config, &record.operation_id)
             }
         }
+    }
+    fn receipt(&self, record: &Record, secret: &str) -> Result<Option<String>, PublishError> {
+        super::receipt::initial_push_receipt(&super::receipt::Http, record, secret)
     }
     fn remote_main(
         &self,

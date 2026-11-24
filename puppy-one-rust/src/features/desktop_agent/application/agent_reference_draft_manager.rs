@@ -317,7 +317,7 @@ impl AgentReferenceDraftManager {
         detach(&inner.options.runtime, inner.revoke(vec![reference]));
     }
 
-    #[cfg(test)]
+    /// `retry(id)`: a failed reference is acquired again in its place.
     pub fn retry(&self, id: &str) {
         let inner = self.0.clone();
         let references = inner.options.store.read(|state| state.references.clone());

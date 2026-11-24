@@ -549,6 +549,27 @@ impl Shell {
         }
         cx.notify();
     }
+    /// The Cloud account changed: its catalog, authority, other computers'
+    /// folders and a Cloud project waiting for the session follow it.
+    pub(in crate::app) fn account_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.refresh_cloud_catalog(false, cx);
+        self.guard_cloud_authority(window, cx);
+        self.restore_device(window, cx);
+        self.settle_cloud_open(cx);
+        self.session.docs.read(cx).wake().notify();
+        cx.notify();
+    }
+    /// A Cloud project chosen while the session was restoring, once the
+    /// session is known: it opens, or says that nobody is signed in.
+    pub(in crate::app) fn settle_cloud_open(&mut self, cx: &mut Context<Self>) {
+        let settled = self
+            .session
+            .project
+            .update(cx, |p, cx| p.session_settled(cx));
+        if let Some(Err(error)) = settled {
+            self.show_error(error, cx);
+        }
+    }
     /// `useHostFolderRestore`, when its account and access side are known.
     pub(in crate::app) fn restore_device(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self
@@ -848,9 +869,27 @@ impl Shell {
         }
     }
 
+    /// The window's bounds, maximize, or fullscreen state changed.
+    pub(in crate::app) fn window_bounds_changed(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.push_explorer_host(window, cx);
+        self.sync_window_title(window, cx);
+        self.chrome.update(cx, |_, cx| cx.notify());
+        if let Some(file) = &self.file {
+            file.update(cx, |_, cx| cx.notify());
+        }
+    }
+
     /// The window came forward or went behind.
     pub(in crate::app) fn window_activated(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let active = window.is_window_active();
+        self.chrome.update(cx, |_, cx| cx.notify());
+        if let Some(file) = &self.file {
+            file.update(cx, |_, cx| cx.notify());
+        }
         let source_control = self.sidebar.read(cx).source_control.clone();
         source_control.update(cx, |sc, cx| sc.set_focused(active, cx));
         if !active {

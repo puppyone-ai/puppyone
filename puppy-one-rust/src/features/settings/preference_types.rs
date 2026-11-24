@@ -173,6 +173,9 @@ pub struct Experimental {
     pub other_app_imports: bool,
     pub cloud_workspace: bool,
     pub cloud_computer_screen: bool,
+    /// `enableIsolatedAgentSandboxes`: show the per-project Tier 2 isolated
+    /// Agent sandbox switch in Cloud Computer settings.
+    pub isolated_agent_sandboxes: bool,
     /// `enableComputerMode`: Cloud spaces and this computer's workspaces
     /// shown as miniature computers with screens, plain folders kept quiet.
     pub computer_mode: bool,
@@ -189,6 +192,7 @@ impl Default for Experimental {
             other_app_imports: false,
             cloud_workspace: false,
             cloud_computer_screen: false,
+            isolated_agent_sandboxes: false,
             computer_mode: false,
             // `DEFAULT_EXPERIMENTAL_SETTINGS.enablePayments`.
             payments: true,

@@ -71,6 +71,8 @@ struct World {
     pushes: Mutex<Vec<String>>,
     /// Cloud main reads (`git ls-remote`).
     remote_reads: Mutex<usize>,
+    /// What Cloud's receipt says, in order (then nothing).
+    receipts: Mutex<std::collections::VecDeque<Result<Option<String>, PublishError>>>,
     secret_reads: Mutex<usize>,
 }
 impl World {
@@ -149,7 +151,13 @@ impl GitOps for Git {
         self.world.at(Point::AfterRemoteAdd);
         Ok(created)
     }
-    fn push(&self, root: &Path, record: &Record, secret: &str) -> Result<(), PublishError> {
+    fn push(
+        &self,
+        root: &Path,
+        record: &Record,
+        secret: &str,
+        on_transfer: &(dyn Fn(super::transfer::Transfer) + Sync),
+    ) -> Result<(), PublishError> {
         self.world.at(Point::BeforePush);
         let hook = self.world.before_push.lock().unwrap().take();
         if let Some(hook) = hook {
@@ -164,9 +172,18 @@ impl GitOps for Git {
         if let Some(error) = injected {
             return Err(error);
         }
-        self.cli.push(root, record, secret)?;
+        self.cli.push(root, record, secret, on_transfer)?;
         self.world.at(Point::AfterPush);
         Ok(())
+    }
+    fn receipt(&self, record: &Record, secret: &str) -> Result<Option<String>, PublishError> {
+        let _ = (record, secret);
+        self.world
+            .receipts
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or(Ok(None))
     }
     fn remote_main(
         &self,
@@ -356,6 +373,7 @@ impl Fixture {
             }),
             cloud: self.cloud.clone(),
             vault: self.vault.clone(),
+            lease: Default::default(),
         }
     }
     fn request(&self) -> Request {
@@ -474,6 +492,36 @@ fn an_unborn_branch_is_refused_before_anything_is_created() {
     assert!(outcome.state.is_none());
     assert_eq!(f.creates(), 0);
     assert!(f.journal_text().is_none());
+}
+
+/// `reports the transfer as part of the uploading step`: a real first push
+/// runs with `--progress`, and Git's own progress reaches the run as the
+/// Upload step's transfer, up to its finish.
+#[test]
+fn the_upload_reports_gits_own_transfer_progress() {
+    let f = Fixture::new("main");
+    let current = std::sync::Mutex::new(None::<Stage>);
+    let transfers = std::sync::Mutex::new(Vec::new());
+    let outcome = f.coordinator().start_with(
+        &f.request(),
+        &mut |stage| *current.lock().unwrap() = Some(stage),
+        &|transfer| {
+            let stage = *current.lock().unwrap();
+            transfers.lock().unwrap().push((stage, transfer));
+        },
+    );
+    assert!(outcome.ok, "{:?}", outcome.error);
+    let transfers = transfers.into_inner().unwrap();
+    assert!(!transfers.is_empty());
+    assert!(
+        transfers
+            .iter()
+            .all(|(stage, _)| *stage == Some(Stage::Uploading)),
+        "{transfers:?}"
+    );
+    let (_, last) = transfers.last().unwrap();
+    assert_eq!(last.percent, 100);
+    assert!(last.sent_bytes.is_some_and(|bytes| bytes > 0), "{last:?}");
 }
 
 #[test]
@@ -842,9 +890,44 @@ fn the_server_lease_refuses_a_competitor_that_lands_after_the_check() {
 
 // ----------------------------------------------------- retry and restart
 
+/// `retry of a rejected receipt uses a fresh attempt and only retargets
+/// after definitive rejection`: Cloud's receipt rejected the unresolved
+/// attempt, so Reconcile sends the source branch's tip in a fresh attempt
+/// (the earlier attempt's id is not sent again); nothing is created twice.
+#[test]
+fn a_rejected_receipt_retargets_the_retry_to_the_source_tip() {
+    let f = Fixture::new("main");
+    f.stop(Point::BeforePush, |f| f.start(&f.request()));
+    let record = f.pending();
+    let later = f.commit("later.md", "later local changes\n");
+    f.world
+        .receipts
+        .lock()
+        .unwrap()
+        .push_back(Err(PublishError::new(
+            Code::PushFailed,
+            "Cloud rejected this push attempt.",
+            true,
+        )));
+    let result = f.start(&f.with(Action::Reconcile, &record.operation_id));
+    assert!(result.ok, "{:?}", result.error);
+    assert_eq!(
+        *f.world.pushes.lock().unwrap(),
+        std::slice::from_ref(&later)
+    );
+    assert_eq!(f.cloud_main().as_deref(), Some(later.as_str()));
+    assert_eq!(f.sh(&["rev-parse", "HEAD"]), later);
+    assert_eq!(state(&result).push, Push::Accepted);
+    let sent = f.server.attempts.lock().unwrap().clone();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    assert_ne!(sent[0], record.attempt.attempt_id, "a fresh attempt");
+    assert_eq!(f.creates(), 1);
+    assert_eq!(f.world.log(|log| log.credentials.len()), 1);
+}
+
 /// A send whose result is unknown is retried with its exact commit in a
-/// fresh attempt, however the checkout moved (Rust reads Cloud main; it has
-/// no push receipt to consult).
+/// fresh attempt, however the checkout moved, when Cloud's receipt does not
+/// say it was rejected.
 #[test]
 fn an_unresolved_send_is_retried_with_its_commit_in_a_fresh_attempt() {
     let f = Fixture::new("main");
@@ -1009,6 +1092,45 @@ fn concurrent_publications_of_one_repository_create_one_project() {
     assert!(first.ok, "{:?}", first.error);
     assert!(second.ok, "{:?}", second.error);
     assert_eq!(f.creates(), 1);
+}
+
+/// `serializes two independent coordinator instances with the common
+/// repository lease`: while another Desktop process holds the repository's
+/// lease, a publication fails fast (retryable) before anything is created;
+/// once that process is gone its lease is reclaimed and the publication runs.
+#[test]
+fn another_process_holding_the_lease_makes_a_publication_fail_fast() {
+    let f = Fixture::new("main");
+    let common = f.root().join(".git");
+    let mut other = std::process::Command::new("sleep")
+        .arg("30")
+        .spawn()
+        .unwrap();
+    let directory = common.join("puppyone");
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join(super::lease::FILENAME);
+    let now = chrono::Utc::now();
+    let lease = serde_json::json!({
+        "version": 1, "owner_token": "another-process", "pid": other.id(),
+        "heartbeat_at": now.to_rfc3339(), "expires_at": (now + chrono::Duration::seconds(30)).to_rfc3339(),
+    });
+    std::fs::write(&path, format!("{lease}\n")).unwrap();
+    #[cfg(unix)]
+    std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o600)).unwrap();
+    let raced = f.start(&f.request());
+    let error = raced.error.as_ref().expect("refused");
+    assert_eq!((error.code, error.retryable), (Code::JournalIoFailed, true));
+    assert_eq!(
+        f.creates(),
+        0,
+        "nothing is created while another process works"
+    );
+    other.kill().unwrap();
+    other.wait().unwrap();
+    let outcome = f.start(&f.request());
+    assert!(outcome.ok, "{:?}", outcome.error);
+    assert_eq!(f.creates(), 1);
+    assert!(!path.exists(), "the lease is released");
 }
 
 // ------------------------------------------------- cleanup and migration

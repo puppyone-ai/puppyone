@@ -108,6 +108,52 @@ fn runtime() -> &'static tokio::runtime::Runtime {
             .expect("auth HTTP runtime")
     })
 }
+/// One credential-bearing `GET` of a JSON resource outside the API (a first
+/// push's receipt on the Git host): never cached, never redirected, bounded
+/// by `timeout`. Its status and body, or `None` when no response came.
+pub fn get_json(url: &url::Url, authorization: &str, timeout: Duration) -> Option<(u16, Value)> {
+    static CLIENTS: OnceLock<Option<(reqwest::Client, reqwest::Client)>> = OnceLock::new();
+    let (remote, loopback) = CLIENTS
+        .get_or_init(|| {
+            let remote = crate::platform::proxy::system(reqwest::Client::builder())
+                .redirect_policy(reqwest::redirect::Policy::none())
+                .build()
+                .ok()?;
+            // A configured proxy must never receive local-development credentials.
+            let loopback = reqwest::Client::builder()
+                .no_proxy()
+                .redirect_policy(reqwest::redirect::Policy::none())
+                .build()
+                .ok()?;
+            Some((remote, loopback))
+        })
+        .as_ref()?;
+    let client = if matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")) {
+        loopback
+    } else {
+        remote
+    };
+    runtime().block_on(async {
+        let read = async {
+            let response = client
+                .get(url.clone())
+                .header("Authorization", authorization)
+                .header("Cache-Control", "no-store")
+                .send()
+                .await
+                .ok()?;
+            let status = response.status().as_u16();
+            let bytes = response.bytes().await.ok()?;
+            (bytes.len() <= 64 * 1024).then(|| {
+                (
+                    status,
+                    serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+                )
+            })
+        };
+        tokio::time::timeout(timeout, read).await.ok().flatten()
+    })
+}
 impl Http {
     pub fn new() -> Result<Self> {
         Ok(Self {

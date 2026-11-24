@@ -131,7 +131,7 @@ fn authorize_target(
     target: &Target,
     scope: &Cancellation,
 ) -> std::result::Result<model::Context, Refusal> {
-    let project = target.project().map_err(|_| Refusal::Invalid)?;
+    let project = target.owner().ok_or(Refusal::Invalid)?;
     scope.check().map_err(Refusal::Auth)?;
     broker.check_binding(binding).map_err(Refusal::Auth)?;
     let query = ApiRequest {
@@ -149,10 +149,12 @@ fn authorize_target(
     }
     let context: model::Context =
         serde_json::from_value(response["data"].take()).map_err(|_| Refusal::Invalid)?;
-    if &context.target != target
-        || context.project.id != project
-        || context.scope_path.as_deref().is_some_and(|v| !v.is_empty())
-    {
+    // A Project root has no path inside it; a Scope names where it sits.
+    let placed = match target {
+        Target::ProjectRoot { .. } => context.scope_path.as_deref().is_none_or(str::is_empty),
+        Target::Scope { .. } => context.scope_path.as_deref().is_some_and(scope_path),
+    };
+    if &context.target != target || context.project.id != project || !placed {
         return Err(Refusal::Invalid);
     }
     if !context
@@ -170,6 +172,16 @@ fn authorize_target(
         return Err(Refusal::Invalid);
     }
     Ok(context)
+}
+
+/// A Scope's place in its Project: a relative path of plain segments.
+fn scope_path(path: &str) -> bool {
+    !path.is_empty()
+        && path.len() <= 4096
+        && !path.chars().any(char::is_control)
+        && path.split('/').all(|segment| {
+            !segment.is_empty() && segment != "." && segment != ".." && !segment.contains('\\')
+        })
 }
 
 fn prepare_verified(

@@ -1782,3 +1782,14 @@ fn a_reopened_lease_rebinds_a_document_baseline_and_saves() {
         Some(b"after reopening\n".to_vec())
     );
 }
+
+/// A Scope's place in its Project is a relative path of plain segments.
+#[test]
+fn a_scope_path_is_a_plain_relative_path() {
+    for good in ["docs", "docs/guides", "a b/ç"] {
+        assert!(super::scope_path(good), "{good}");
+    }
+    for bad in ["", "/docs", "docs/", "../x", "a/./b", "a\\b", "a\u{0}b"] {
+        assert!(!super::scope_path(bad), "{bad:?}");
+    }
+}

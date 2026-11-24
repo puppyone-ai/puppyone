@@ -14,20 +14,24 @@ use super::agent_chat_view_model::AgentChatViewModel;
 use super::agent_theme::AgentTheme;
 use super::elements::mention_chip;
 use super::pickers::SessionPickers;
-use crate::agent::contract::dto::{DraftReference, PromptMention, ReferenceStatus, SlashCommand};
+use crate::agent::contract::dto::{
+    DraftReference, PromptMention, ReferenceKind, ReferenceStatus, SlashCommand,
+};
 use crate::features::desktop_agent::application::agent_controller_state::AgentControllerState;
 use crate::features::desktop_agent::domain::agent_prompt_mentions::{
     agent_prompt_mention_text, is_agent_media_reference, normalize_agent_prompt_mentions,
 };
 use crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControl;
-use crate::localization::t;
+use crate::localization::{Arg, bidi_isolate, tf};
 use crate::theme;
 use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::Icon;
 use crate::ui::form_input::{InputEvent, PastedFiles, TextInput};
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
+use gpui_kit::component::Sizable as _;
 use gpui_kit::component::input::{InlineToken, InputContent};
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 /// What the composer shows: the draft and its references, and what the
 /// conversation allows.
@@ -99,6 +103,8 @@ pub enum ComposerEvent {
         removed: Vec<String>,
     },
     RemoveReference(String),
+    /// A failed inline reference's Retry (`onRetryReference`).
+    RetryReference(String),
     Submit,
     Stop,
     /// `onPaste`: images and files from the clipboard.
@@ -117,16 +123,130 @@ pub struct ComposerView {
     data: ComposerInput,
     /// The draft the editor last showed (text, mentions).
     shown_draft: (String, Vec<PromptMention>),
+    /// The draft's references by id, for the mention chips.
+    references: Rc<RefCell<HashMap<String, DraftReference>>>,
+    /// Mentions removed by their Retry: their reference is acquired again,
+    /// not released (`retryMentionRemoval`).
+    retried: Vec<String>,
 }
 
-/// `.desktop-agent-prompt-mention`: the chip a mention token renders as.
-fn token_renderer() -> crate::ui::form_input::TokenRenderer {
-    std::rc::Rc::new(|token, _, cx| {
-        let a = AgentTheme::new(&cx.palette());
-        mention_chip(&a, token.token().label().to_string(), false)
-            .when(token.is_selected(), |d| d.bg(theme::alpha(a.accent, 0.16)))
-            .into_any_element()
+/// `.desktop-agent-prompt-mention`: the chip a mention token renders as,
+/// in its reference's state (`is-resolving`, `is-ready`, `is-error`).
+fn token_renderer(
+    references: Rc<RefCell<HashMap<String, DraftReference>>>,
+    composer: WeakEntity<ComposerView>,
+) -> crate::ui::form_input::TokenRenderer {
+    Rc::new(move |token, _, cx| {
+        let palette = cx.palette();
+        let a = AgentTheme::new(&palette);
+        let label = token.token().label().to_string();
+        let reference = references
+            .borrow()
+            .get(token.token().id().as_ref())
+            .cloned();
+        let status = reference
+            .as_ref()
+            .map_or(ReferenceStatus::Ready, |r| r.status);
+        let selector = format!("agent-mention:{label}:{}", status_name(status));
+        let chip = mention_chip(&a, label, status == ReferenceStatus::Resolving)
+            .debug_selector(move || selector)
+            .when(token.is_selected(), |d| d.bg(theme::alpha(a.accent, 0.16)));
+        match reference.filter(|r| r.status == ReferenceStatus::Error) {
+            Some(reference) => {
+                failed_mention(chip, &reference, palette.danger, &composer).into_any_element()
+            }
+            None => chip.into_any_element(),
+        }
     })
+}
+
+fn status_name(status: ReferenceStatus) -> &'static str {
+    match status {
+        ReferenceStatus::Resolving => "resolving",
+        ReferenceStatus::Ready => "ready",
+        ReferenceStatus::Error => "error",
+    }
+}
+
+/// `AgentPromptReferenceWidget` of a failed reference: the error is its
+/// accessible description, never shown, and it offers Retry and Remove.
+fn failed_mention(
+    chip: Div,
+    reference: &DraftReference,
+    danger: Rgba,
+    composer: &WeakEntity<ComposerView>,
+) -> Stateful<Div> {
+    let name = bidi_isolate(&reference.display_name);
+    let action = |kind: &'static str, glyph: &'static str, label: String| {
+        let id = reference.id.clone();
+        let composer = composer.clone();
+        div()
+            .id(SharedString::from(format!("agent-mention-{kind}-{id}")))
+            .debug_selector({
+                let label = label.clone();
+                move || format!("agent-mention-{kind}:{label}")
+            })
+            .role(Role::Button)
+            .aria_label(label)
+            .size(px(16.))
+            .ml(px(2.))
+            .rounded(px(3.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor(theme::clickable_cursor())
+            .hover(|s| s.bg(theme::alpha(danger, 0.16)))
+            .child(Icon::new(glyph).with_size(px(11.)).stroke(2.).color(danger))
+            // The editor neither moves its caret nor selects the token.
+            .on_mouse_down(MouseButton::Left, |_, window, cx| {
+                window.prevent_default();
+                cx.stop_propagation();
+            })
+            .on_click(move |_, window, cx| {
+                cx.stop_propagation();
+                let _ = composer.update(cx, |c, cx| c.act_on_mention(kind, &id, window, cx));
+            })
+            .test_support()
+    };
+    chip.id(SharedString::from(format!(
+        "agent-mention-{}",
+        reference.id
+    )))
+    .flex()
+    .items_center()
+    .border_color(danger)
+    .text_color(danger)
+    .role(Role::Group)
+    .aria_label(agent_prompt_mention_text(reference))
+    .aria_description(reference_title(reference))
+    .child(action(
+        "retry",
+        "refresh-cw",
+        tf(
+            "agent.reference.retry",
+            &[("name", Arg::Text(name.clone()))],
+        ),
+    ))
+    .child(action(
+        "remove",
+        "x",
+        tf("agent.reference.remove", &[("name", Arg::Text(name))]),
+    ))
+}
+
+/// The failed mention's description: its identity, the localized error,
+/// then the raw error when it says more (`referenceDecorations`).
+fn reference_title(reference: &DraftReference) -> String {
+    let identity = if reference.kind == ReferenceKind::WorkspaceEntry {
+        reference.relative_path.clone().unwrap_or_default()
+    } else {
+        reference.display_name.clone()
+    };
+    std::iter::once(identity)
+        .chain(attachments::reference_details(reference))
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// `canSubmit` of `AgentComposer`.
@@ -200,8 +320,10 @@ impl ComposerView {
             input.appearance = false;
             input.submit_on_enter = true;
             input.paste_files = true;
-            input.token_renderer = Some(token_renderer());
         });
+        let references = Rc::<RefCell<HashMap<String, DraftReference>>>::default();
+        let renderer = token_renderer(references.clone(), cx.weak_entity());
+        input.update(cx, |input, _| input.token_renderer = Some(renderer));
         // `onPaste`: pasted images and files become references.
         cx.subscribe(&input, |_, _, pasted: &PastedFiles, cx| {
             cx.emit(ComposerEvent::Paste(pasted.clone()))
@@ -218,6 +340,8 @@ impl ComposerView {
             pickers,
             data: ComposerInput::default(),
             shown_draft: Default::default(),
+            references,
+            retried: Vec::new(),
         }
     }
     /// The conversation changed: the draft shows in the editor, and new
@@ -226,6 +350,11 @@ impl ComposerView {
         if data == self.data {
             return;
         }
+        *self.references.borrow_mut() = data
+            .references
+            .iter()
+            .map(|r| (r.id.clone(), r.clone()))
+            .collect();
         self.data = data;
         self.sync(window, cx);
         cx.notify();
@@ -313,6 +442,25 @@ impl ComposerView {
         }
     }
 
+    /// A failed mention's Retry or Remove: the mention leaves the editor;
+    /// Retry acquires its reference again in its place, Remove releases it.
+    fn act_on_mention(
+        &mut self,
+        kind: &str,
+        id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if kind == "retry" {
+            self.retried.push(id.to_owned());
+            cx.emit(ComposerEvent::RetryReference(id.to_owned()));
+        }
+        self.input
+            .update(cx, |input, cx| input.remove_token(id, window, cx));
+        self.changed(cx);
+        self.input.focus_handle(cx).focus(window, cx);
+    }
+
     /// The editor changed: a deleted mention takes its reference with it,
     /// and the document becomes the draft.
     fn changed(&mut self, cx: &mut Context<Self>) {
@@ -328,9 +476,10 @@ impl ComposerView {
             .collect();
         let next: Vec<String> = document.1.iter().map(|m| m.reference_id.clone()).collect();
         self.shown_draft = document.clone();
+        let retried = std::mem::take(&mut self.retried);
         let removed = previous
             .into_iter()
-            .filter(|id| !next.contains(id))
+            .filter(|id| !next.contains(id) && !retried.contains(id))
             .collect();
         cx.emit(ComposerEvent::DraftChanged {
             text: document.0,
@@ -357,10 +506,6 @@ impl ComposerView {
         let size = theme::ty().left.content;
         let visual = self.render_visual_attachments(cx);
         let commands = self.render_commands(cx);
-        let resolving = view
-            .references
-            .iter()
-            .any(|r| r.status == ReferenceStatus::Resolving && !is_agent_media_reference(r));
         v_flex()
             .w_full()
             .min_w_0()
@@ -390,13 +535,6 @@ impl ComposerView {
                                     .flex_wrap()
                                     .items_start()
                                     .gap_y(px(1.))
-                                    .when(resolving, |d| {
-                                        d.child(mention_chip(
-                                            &a,
-                                            t("agent.reference.resolving").into(),
-                                            true,
-                                        ))
-                                    })
                                     .child(div().flex_1().min_w(px(40.)).child(self.input.clone())),
                             ),
                     )

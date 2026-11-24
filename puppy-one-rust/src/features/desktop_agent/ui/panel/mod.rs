@@ -116,6 +116,8 @@ pub struct AgentChatTabPanel {
     wallet: Option<compute::ManagedCompute>,
     /// Periodic 30s managed-compute refresh while signed in and Payments is on.
     compute_poll: Option<Task<()>>,
+    /// `desktop-agent-announcer`: what the last reference drop or batch did.
+    announcement: Option<SharedString>,
     /// `usePaymentsExperience()`.
     payments: bool,
     /// The user's routing preferences (`preferredRuntimeId`, `preferredRoute`).
@@ -226,6 +228,7 @@ impl AgentChatTabPanel {
             compute_access_prompt: false,
             wallet: None,
             compute_poll: None,
+            announcement: None,
             payments: false,
             routing: AgentRouting::default(),
             #[cfg(feature = "dev-capture")]
@@ -458,6 +461,7 @@ impl AgentChatTabPanel {
                 self.controller.set_draft_document(text, mentions);
             }
             ComposerEvent::RemoveReference(id) => self.controller.remove_reference(id),
+            ComposerEvent::RetryReference(id) => self.controller.retry_reference(id),
             ComposerEvent::Submit => self.submit(window, cx),
             ComposerEvent::Stop => drop(self.controller.stop()),
             ComposerEvent::Paste(pasted) => self.paste_files(pasted, cx),
@@ -518,9 +522,7 @@ impl Render for AgentChatTabPanel {
             }))
             .on_drop(
                 cx.listener(|s, drag: &crate::ui::resource_drag::ResourceDrag, _, cx| {
-                    if let Some(paths) = drag.local_paths() {
-                        s.add_workspace_paths(paths, cx);
-                    }
+                    s.drop_resources(drag, cx)
                 }),
             );
         let status = view
@@ -541,6 +543,23 @@ impl Render for AgentChatTabPanel {
             .child(self.transcript.clone())
             .children(empty);
         let dock = (!view.startup_loading).then(|| self.render_dock(&state, &view, cx));
-        panel.children(status).child(conversation).children(dock)
+        // `role="status"`, read but not shown.
+        let announcer = self.announcement.clone().map(|text| {
+            let selector = format!("agent-announcer:{text}");
+            div()
+                .id("agent-announcer")
+                .role(Role::Status)
+                .aria_label(text)
+                .test_support()
+                .debug_selector(move || selector)
+                .absolute()
+                .size_0()
+                .overflow_hidden()
+        });
+        panel
+            .children(status)
+            .child(conversation)
+            .children(dock)
+            .children(announcer)
     }
 }
