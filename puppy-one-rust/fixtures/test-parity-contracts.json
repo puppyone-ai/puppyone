@@ -52921,6 +52921,33 @@
           "test": "cloud::publication::tests::coordinator_tests::push_latest_starts_a_new_attempt_from_the_branch_tip"
         }
       ]
+    },
+    {
+      "id": "cloud-context-retries-wait-for-a-visible-window",
+      "acceptance": "While the window is hidden, a repository-context retry that comes due does not run and a focus probe waits too; when the window is visible again it probes once (no sooner than five seconds after the previous attempt started). Once the context is gone (another checkout, account or none), its pending retry and later probes never read again.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/repositoryContextRecovery.test.ts",
+          "sha256": "53ac09316487134e15ab329613ed3e1d3a27744b701d09352c236755cb58a8cb",
+          "cases": [
+            {
+              "index": 14,
+              "name": "repository authorization read recovery > defers hidden-window retries until visible and removes listeners on disposal"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::repository::tests::a_hidden_window_defers_its_retries_until_it_is_visible"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::recovery::tests::a_hidden_window_skips_its_retry_and_probes_once_it_shows"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -60573,24 +60600,6 @@
             {
               "index": 5,
               "name": "Cloud publish task > gives error precedence over the completed view"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-context-retries-while-hidden",
-      "kind": "gap",
-      "reason": "TS defers a repository-context retry while the window is hidden until it is visible again, and removes its focus, visibility and online listeners when the context is disposed. The native retries (at most two, jittered) run on their timers whether or not the window is visible; a returning window still asks for the one throttled probe.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/context-recovery.md",
-      "typescript": [
-        {
-          "path": "tests/component/cloud/repositories/repositoryContextRecovery.test.ts",
-          "sha256": "53ac09316487134e15ab329613ed3e1d3a27744b701d09352c236755cb58a8cb",
-          "cases": [
-            {
-              "index": 14,
-              "name": "repository authorization read recovery > defers hidden-window retries until visible and removes listeners on disposal"
             }
           ]
         }

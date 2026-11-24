@@ -134,6 +134,13 @@ impl WindowCloud {
         .detach();
         let repository = cx.new(|_| RepositoryCloud::new());
         cx.observe(&repository, |s, _, cx| s.refresh(cx)).detach();
+        // A hidden window defers its association's retries until it shows.
+        let shown = repository.downgrade();
+        window
+            .observe_window_visibility(move |visibility, _, cx| {
+                let _ = shown.update(cx, |r, cx| r.set_visible(visibility.is_visible(), cx));
+            })
+            .detach();
         let agents = cx.new(|_| CloudAgents::new());
         cx.observe(&agents, |s, _, cx| s.refresh(cx)).detach();
         let screen = cx.new(|cx| CloudScreen::new(preferences.clone(), window, cx));
