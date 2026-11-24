@@ -607,6 +607,11 @@ impl AgentSessionController {
         self.0.reference_drafts.remove(id);
     }
 
+    /// `retryReference(id)`.
+    pub fn retry_reference(&self, id: &str) {
+        self.0.reference_drafts.retry(id);
+    }
+
     #[cfg(test)]
     pub fn remember_viewport(
         &self,

@@ -458,6 +458,7 @@ impl AgentChatTabPanel {
                 self.controller.set_draft_document(text, mentions);
             }
             ComposerEvent::RemoveReference(id) => self.controller.remove_reference(id),
+            ComposerEvent::RetryReference(id) => self.controller.retry_reference(id),
             ComposerEvent::Submit => self.submit(window, cx),
             ComposerEvent::Stop => drop(self.controller.stop()),
             ComposerEvent::Paste(pasted) => self.paste_files(pasted, cx),
