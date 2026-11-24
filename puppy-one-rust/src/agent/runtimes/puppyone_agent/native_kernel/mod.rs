@@ -481,8 +481,45 @@ impl Kernel {
     }
 }
 
-/// The production [`Complete`]: the leased connection through the native
-/// model client (PuppyOne compute through `account`'s broker).
+/// The production [`Complete`] backed by the process-wide
+/// [`crate::agent::model_connections::ModelConnectionService`]: resolves the
+/// leased connection from the authoritative snapshot, binds the active lease's
+/// cancellation token so revocation immediately aborts in-flight streams, and
+/// notifies the service when a managed call completes.
+pub fn service_complete(
+    service: Arc<crate::agent::model_connections::ModelConnectionService>,
+) -> Complete {
+    let account = crate::agent::model_connections::ServiceComputeAccount(service.clone());
+    let account = Arc::new(account);
+    Rc::new(move |request: CompleteRequest| {
+        let service = service.clone();
+        let account = account.clone();
+        Box::pin(async move {
+            let lease_cancel = request.configuration["leaseId"]
+                .as_str()
+                .and_then(|id| service.lease_cancellation(id));
+            let connection = crate::agent::model_connections::service::resolve_from_service(
+                &service,
+                &request.configuration,
+                &request.model_id,
+            )
+            .map_err(|error| error.message)?;
+            let delta = request.delta.clone();
+            super::model_client::complete_with_cancel(
+                &connection,
+                account.as_ref(),
+                &request.context,
+                request.tools,
+                lease_cancel,
+                |kind, text| delta(kind, text),
+            )
+            .await
+        })
+    })
+}
+
+/// The legacy [`Complete`] over a [`crate::agent::model_connections::ComputeAccountRef`]
+/// (retained for isolated tests without a `ModelConnectionService`).
 pub fn configured_complete(
     account: crate::agent::model_connections::ComputeAccountRef,
 ) -> Complete {

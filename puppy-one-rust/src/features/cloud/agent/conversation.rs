@@ -128,14 +128,51 @@ fn exceptional_state(chat: &CloudAgentState) -> Option<&str> {
         .filter(|state| matches!(*state, "conflict" | "outcome_unknown" | "failed"))
 }
 
-/// `errorLabelKey(error)`.
-fn error_label_key(status: Option<u16>) -> &'static str {
-    match status {
-        Some(401) => "cloud.auth.signInRequired",
-        Some(403) => "cloud.agent.permissionDenied",
-        Some(409) => "cloud.agent.busy",
+/// Classify a hosted Agent refusal strictly by `(status, allowlisted code)` so
+/// an unrelated HTTP 409 (e.g. unconfigured model, unready project, stale
+/// workbench) is never mislabeled as `cloud.agent.busy`.
+fn error_label_key(status: Option<u16>, code: Option<&str>) -> &'static str {
+    match (status, code) {
+        (Some(401), _) => "cloud.auth.signInRequired",
+        (Some(403), _) => "cloud.agent.permissionDenied",
+        (Some(409), Some("agent_session_busy")) => "cloud.agent.busy",
+        (Some(409), Some("agent_model_unconfigured")) => "native.cloudAgent.modelUnconfigured",
+        (Some(409), Some("project_agent_not_ready")) => "native.cloudAgent.projectNotReady",
+        (Some(409), Some("agent_unavailable")) => "native.cloudAgent.unavailable",
+        (Some(409), Some("agent_request_conflict")) => "native.cloudAgent.requestConflict",
+        (
+            Some(409 | 404),
+            Some(
+                "interactive_workspace_required"
+                | "workbench_not_running"
+                | "workbench_generation_changed"
+                | "workbench_not_found",
+            ),
+        ) => "native.cloudAgent.workspaceChanged",
+        (
+            Some(503),
+            Some("managed_agent_inference_disabled" | "cloud_workbench_unavailable"),
+        ) => "native.cloudAgent.serviceUnavailable",
+        (Some(409), _) => "native.cloudAgent.conflict",
         _ => "cloud.agent.connectionError",
     }
+}
+
+fn error_diagnostic_lines(chat: &CloudAgentState, error: String) -> Vec<String> {
+    let mut lines = Vec::new();
+    match (chat.error_status, chat.error_code) {
+        (Some(status), Some(code)) => lines.push(format!("HTTP {status} · {code}")),
+        (Some(status), None) => lines.push(format!("HTTP {status}")),
+        (None, Some(code)) => lines.push(code.to_owned()),
+        (None, None) => {}
+    }
+    if let Some(request_id) = &chat.error_request_id {
+        lines.push(format!("Request ID: {request_id}"));
+    }
+    if !error.is_empty() {
+        lines.push(error);
+    }
+    lines
 }
 
 /// `CloudAgentWorkbench.update(id)`: the tab's title and status.
@@ -385,6 +422,7 @@ impl CloudAgentConversation {
         }
         if let Some(error) = chat.error.clone() {
             let open = self.diagnostics_open;
+            let diagnostics = error_diagnostic_lines(chat, error);
             status = status.child(
                 v_flex()
                     .gap(px(8.))
@@ -398,7 +436,7 @@ impl CloudAgentConversation {
                         div()
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(a.text)
-                            .child(t(error_label_key(chat.error_status))),
+                            .child(t(error_label_key(chat.error_status, chat.error_code))),
                     )
                     .child(
                         div()
@@ -417,13 +455,15 @@ impl CloudAgentConversation {
                             })),
                     )
                     .when(open, |d| {
-                        d.child(
-                            div()
-                                .whitespace_normal()
-                                .text_size(px(m.right.caption))
-                                .text_color(a.text_muted)
-                                .child(error),
-                        )
+                        d.child(v_flex().gap(px(4.)).children(diagnostics.into_iter().map(
+                            |line| {
+                                div()
+                                    .whitespace_normal()
+                                    .text_size(px(m.right.caption))
+                                    .text_color(a.text_muted)
+                                    .child(line)
+                            },
+                        )))
                     })
                     .child(
                         h_flex().child(
@@ -484,5 +524,66 @@ impl Render for CloudAgentConversation {
             .children(status)
             .child(conversation)
             .child(self.render_dock(&view, cx))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn error_label_only_reports_busy_for_agent_session_busy() {
+        assert_eq!(
+            error_label_key(Some(409), Some("agent_session_busy")),
+            "cloud.agent.busy"
+        );
+        assert_eq!(
+            error_label_key(Some(409), Some("agent_model_unconfigured")),
+            "native.cloudAgent.modelUnconfigured"
+        );
+        assert_eq!(
+            error_label_key(Some(409), Some("project_agent_not_ready")),
+            "native.cloudAgent.projectNotReady"
+        );
+        assert_eq!(
+            error_label_key(Some(409), Some("agent_unavailable")),
+            "native.cloudAgent.unavailable"
+        );
+        assert_eq!(
+            error_label_key(Some(409), Some("workbench_not_running")),
+            "native.cloudAgent.workspaceChanged"
+        );
+        assert_eq!(
+            error_label_key(Some(503), Some("managed_agent_inference_disabled")),
+            "native.cloudAgent.serviceUnavailable"
+        );
+        // An unknown HTTP 409 must never falsely claim an active task.
+        assert_eq!(
+            error_label_key(Some(409), None),
+            "native.cloudAgent.conflict"
+        );
+        assert_eq!(
+            error_label_key(Some(409), Some("unknown_conflict")),
+            "native.cloudAgent.conflict"
+        );
+    }
+
+    #[test]
+    fn diagnostics_surface_status_code_and_request_id() {
+        let state = CloudAgentState {
+            error_status: Some(409),
+            error_code: Some("agent_model_unconfigured"),
+            error_request_id: Some("req-xyz".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            error_diagnostic_lines(&state, "The service rejected this request.".into()),
+            vec![
+                "HTTP 409 · agent_model_unconfigured".to_owned(),
+                "Request ID: req-xyz".to_owned(),
+                "The service rejected this request.".to_owned(),
+            ]
+        );
     }
 }

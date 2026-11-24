@@ -641,3 +641,43 @@ fn native_puppyone_http_approval_resume_stop_and_binding() {
     });
     drop(server);
 }
+
+#[test]
+fn chat_context_replays_reasoning_content_and_details_across_tool_turns() {
+    let cwd = Path::new("/tmp/project");
+    let messages = vec![
+        json!({ "role": "user", "content": [{"type": "text", "text": "Inspect file"}] }),
+        json!({
+            "role": "assistant",
+            "reasoning_content": "Let me read README.md first.",
+            "content": [
+                { "type": "thinking", "thinking": "Let me read README.md first." },
+                { "type": "toolCall", "id": "call_1", "name": "read", "arguments": { "path": "README.md" } }
+            ]
+        }),
+        json!({
+            "role": "toolResult",
+            "toolCallId": "call_1",
+            "content": [{ "type": "text", "text": "# Hello" }]
+        }),
+        json!({
+            "role": "assistant",
+            "reasoning_details": [
+                { "type": "reasoning.text", "id": "r1", "index": 0, "text": "Saw hello", "signature": "sig" }
+            ],
+            "content": [
+                { "type": "toolCall", "id": "call_2", "name": "ls", "arguments": {} }
+            ]
+        }),
+        json!({
+            "role": "toolResult",
+            "toolCallId": "call_2",
+            "content": [{ "type": "text", "text": "README.md" }]
+        }),
+    ];
+    let ctx = super::turn::chat_context(cwd, &messages);
+    assert_eq!(ctx[2]["role"], "assistant");
+    assert_eq!(ctx[2]["reasoning_content"], "Let me read README.md first.");
+    assert_eq!(ctx[4]["role"], "assistant");
+    assert_eq!(ctx[4]["reasoning_details"][0]["signature"], "sig");
+}

@@ -77,7 +77,6 @@ impl RuntimeResolutionCoordinator {
         if refresh {
             self.store.clear();
         }
-        let generation = self.store.generation();
         // A bound conversation must not wait for unrelated CLI installation/auth
         // probes. Only the unbound launcher/history query needs the full catalog.
         let catalog = self.registry.discover(refresh, runtime_id.as_deref()).await;
@@ -104,6 +103,7 @@ impl RuntimeResolutionCoordinator {
             .map(str::to_string)
             .unwrap_or_else(neutral_inspection_root);
         let id = selected.descriptor["id"].as_str().unwrap_or("").to_string();
+        let runtime_gen = self.store.runtime_generation(&id);
         if !refresh && let Some(cached) = self.store.get(&id, &inspection_root) {
             update_runtime_row(&mut runtimes, &id, &cached.public_readiness);
             return Ok(catalog_result(
@@ -114,13 +114,18 @@ impl RuntimeResolutionCoordinator {
             ));
         }
         match self
-            .inspect_runtime_single_flight(&selected, &inspection_root, generation)
+            .inspect_runtime_single_flight(&selected, &inspection_root, runtime_gen)
             .await
         {
             Ok(inspection) => {
                 let effective =
                     effective_readiness_after_inspection(&selected, &public_readiness, &inspection);
-                if self.store.generation() == generation {
+                // Dynamic model-connection runtimes must not cache an empty /
+                // setup-required snapshot for 5 minutes: sign-in, trial claim,
+                // or connection setup may land moments later.
+                let skip_cache = inspection["capabilities"]["modelConnections"] == true
+                    && effective["status"] != "ready";
+                if !skip_cache && self.store.runtime_generation(&id) == runtime_gen {
                     self.store
                         .set(&id, &inspection_root, effective.clone(), inspection.clone());
                 }
@@ -217,6 +222,22 @@ impl RuntimeResolutionCoordinator {
     pub fn clear(&self) -> u64 {
         self.inspection_flights.borrow_mut().clear();
         self.store.clear()
+    }
+
+    /// Invalidates cached readiness inspections without discarding CLI
+    /// executable discovery. When `runtime_id` is `Some`, only that runtime's
+    /// cached inspections and in-flight entries are invalidated.
+    pub fn invalidate_readiness(&self, runtime_id: Option<&str>) -> u64 {
+        match runtime_id {
+            Some(id) => {
+                let needle = format!("\0{id}\0");
+                self.inspection_flights
+                    .borrow_mut()
+                    .retain(|k, _| !k.contains(&needle));
+                self.store.invalidate_runtime(id)
+            }
+            None => self.clear(),
+        }
     }
 
     async fn inspect_runtime(

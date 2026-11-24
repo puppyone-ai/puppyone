@@ -48,7 +48,6 @@ impl CloudAccount {
         cx: &mut Context<Self>,
     ) -> Self {
         let mut updates = broker.subscribe();
-        crate::cloud::auth::install_current(Some(broker.clone()));
         broker.restore();
         let snapshot = Some(updates.borrow_and_update().clone());
         cx.spawn(async move |this, cx| {

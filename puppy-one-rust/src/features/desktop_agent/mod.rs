@@ -13,7 +13,6 @@ mod workbench;
 
 pub use application::ui_runtime::UiRuntime;
 pub use domain::agent_workspace_path::resolve_agent_workspace_provider_path;
-pub use infrastructure::host::agent_host_global::CloudCompute;
 
 pub use domain::agent_chat_history_target::AuxiliaryWorkbenchHistoryTarget as HistoryTarget;
 pub use ui::agent_conversation_history::{HistoryBrowser, HistoryBrowserEvent};

@@ -65,6 +65,9 @@ enum Command {
     CloseWindow {
         window: u64,
     },
+    InvalidateReadiness {
+        runtime_id: Option<String>,
+    },
     Shutdown {
         reply: oneshot::Sender<()>,
     },
@@ -81,7 +84,9 @@ pub struct AgentHostHandle {
 #[derive(Clone, Default)]
 pub struct AgentHostOptions {
     pub user_data_path: PathBuf,
-    /// The account PuppyOne compute bills (none: no managed compute).
+    /// Process-wide unified Model Connections & Managed Compute authority.
+    pub model_connections: Option<Arc<crate::agent::model_connections::ModelConnectionService>>,
+    /// The account PuppyOne compute bills (fallback when `model_connections` is `None`).
     pub compute_account: Option<crate::agent::model_connections::ComputeAccountRef>,
     pub app_version: String,
     pub app_path: Option<String>,
@@ -162,6 +167,11 @@ impl AgentHostHandle {
                                     store.revoke_owner(window as i64);
                                 }
                             }
+                            Command::InvalidateReadiness { runtime_id } => {
+                                services
+                                    .service
+                                    .invalidate_runtime_readiness(runtime_id.as_deref());
+                            }
                             Command::Shutdown { reply } => {
                                 let closed = services.service.close_all().await;
                                 if let Some(store) = services.attachment_store.as_ref() {
@@ -186,7 +196,39 @@ impl AgentHostHandle {
 
     /// Starts the production composition.
     pub fn start_production(options: AgentHostOptions) -> AgentResult<Self> {
-        Self::start(Box::new(move |roots| production_services(options, roots)))
+        let model_connections = options.model_connections.clone();
+        let handle = Self::start(Box::new(move |roots| production_services(options, roots)))?;
+        if let Some(service) = model_connections {
+            let mut updates = service.subscribe();
+            let host = handle.clone();
+            std::thread::Builder::new()
+                .name("puppyone-agent-readiness-sync".into())
+                .spawn(move || {
+                    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                    else {
+                        return;
+                    };
+                    rt.block_on(async move {
+                        while updates.changed().await.is_ok() {
+                            host.invalidate_runtime_readiness(Some(
+                                crate::agent::runtimes::puppyone_agent::puppyone_agent_identity::PUPPYONE_AGENT_RUNTIME_ID,
+                            ));
+                        }
+                    });
+                })
+                .ok();
+        }
+        Ok(handle)
+    }
+
+    /// Invalidates cached runtime readiness inspections (e.g. when model
+    /// connections or managed compute change) without re-probing CLI binaries.
+    pub fn invalidate_runtime_readiness(&self, runtime_id: Option<&str>) {
+        let _ = self.commands.send(Command::InvalidateReadiness {
+            runtime_id: runtime_id.map(str::to_owned),
+        });
     }
 
     /// The window's event channel opens (`webContents` creation).
@@ -307,10 +349,30 @@ fn production_services(
     // app's model connections.
     use crate::agent::runtimes::puppyone_agent::{native_kernel, native_model_connections};
     let user_data = options.user_data_path.to_string_lossy().into_owned();
-    let compute = options
-        .compute_account
-        .clone()
-        .unwrap_or_else(|| std::sync::Arc::new(crate::agent::model_connections::NoComputeAccount));
+    let (model_connection_port, puppyone_agent_spawner): (
+        Rc<dyn crate::agent::runtimes::puppyone_agent::model_connection_binding::ModelConnectionPort>,
+        crate::agent::transports::jsonl_rpc_connection::Spawner,
+    ) = if let Some(service) = options.model_connections.clone() {
+        (
+            Rc::new(native_model_connections::ServiceModelConnectionPort(
+                service.clone(),
+            )),
+            native_kernel::native_kernel_spawner(native_kernel::service_complete(service)),
+        )
+    } else {
+        let compute = options
+            .compute_account
+            .clone()
+            .unwrap_or_else(|| {
+                std::sync::Arc::new(crate::agent::model_connections::NoComputeAccount)
+            });
+        (
+            Rc::new(native_model_connections::NativeModelConnectionPort::new(
+                native_model_connections::configured_connections(compute.clone()),
+            )),
+            native_kernel::native_kernel_spawner(native_kernel::configured_complete(compute)),
+        )
+    };
     let registry = create_default_agent_runtime_host(DefaultRuntimeHostOptions {
         app_version: Some(options.app_version.clone()),
         app_path: options.app_path.clone(),
@@ -320,14 +382,8 @@ fn production_services(
             user_data,
             options.executable_path.clone().unwrap_or_default(),
         ))),
-        model_connection_port: Some(Rc::new(
-            native_model_connections::NativeModelConnectionPort::new(
-                native_model_connections::configured_connections(compute.clone()),
-            ),
-        )),
-        puppyone_agent_spawner: Some(native_kernel::native_kernel_spawner(
-            native_kernel::configured_complete(compute),
-        )),
+        model_connection_port: Some(model_connection_port),
+        puppyone_agent_spawner: Some(puppyone_agent_spawner),
         ..Default::default()
     })?;
     let attachment_store = AgentAttachmentStore::new(AttachmentStoreOptions {

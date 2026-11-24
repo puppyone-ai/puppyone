@@ -51,19 +51,22 @@ pub fn config_generation(generation: &str) -> u64 {
 }
 
 fn model_entry(connection: &ModelConnection) -> Value {
+    let images = match connection.images {
+        Some(true) => "supported",
+        Some(false) => "unsupported",
+        None => "unknown",
+    };
     json!({
         "id": connection.model,
         "name": connection.model,
         "available": true,
-        // PuppyOne compute's catalog reports no window; it keeps the one
-        // saved connections had before budgets were configurable.
         "contextWindow": connection
             .manual_context_window
             .unwrap_or(configuration::LEGACY_CONTEXT_WINDOW),
         "capabilities": {
             "text": "supported",
             "tools": "supported",
-            "images": "unknown",
+            "images": images,
         },
     })
 }
@@ -127,7 +130,7 @@ pub fn lease_configuration(members: &[&ModelConnection], selected: &ModelConnect
         "schemaVersion": 1,
         "connectionId": product_connection_id(&selected.id),
         "connectionName": selected.name,
-        "securityGeneration": selected.generation,
+        "securityGeneration": selected.security_gen(),
         "configGeneration": config_generation(&selected.generation),
         "baseUrl": selected.endpoint,
         "auth": selected.auth.key(),
@@ -191,7 +194,7 @@ impl ModelConnectionPort for NativeModelConnectionPort {
                 lease_id.clone(),
                 Lease {
                     connection_id: selected.id.clone(),
-                    security_generation: selected.generation.clone(),
+                    security_generation: selected.security_gen().to_owned(),
                 },
             );
             Ok(json!({
@@ -218,7 +221,7 @@ impl ModelConnectionPort for NativeModelConnectionPort {
             let connections = source().await?;
             let current = connections.iter().find(|c| c.id == connection_id);
             match current {
-                Some(current) if current.generation == generation => {}
+                Some(current) if current.security_gen() == generation => {}
                 Some(_) => return Err(connection_error("MODEL_BINDING_CHANGED")),
                 None => return Err(connection_error("CONNECTION_UNAVAILABLE")),
             }
@@ -259,7 +262,7 @@ pub fn resolve_leased_connection(
     if matching.is_empty() {
         return Err(connection_error("CONNECTION_UNAVAILABLE"));
     }
-    if matching.iter().any(|c| c.generation != generation) {
+    if matching.iter().any(|c| c.security_gen() != generation) {
         return Err(connection_error("MODEL_BINDING_CHANGED"));
     }
     matching
@@ -267,4 +270,43 @@ pub fn resolve_leased_connection(
         .find(|c| c.model == model_id)
         .cloned()
         .ok_or_else(|| connection_error("MODEL_UNAVAILABLE"))
+}
+
+/// [`ModelConnectionPort`] backed directly by the process-wide
+/// [`crate::agent::model_connections::ModelConnectionService`], sharing its
+/// authoritative snapshot and active lease revocation table.
+pub struct ServiceModelConnectionPort(
+    pub std::sync::Arc<crate::agent::model_connections::ModelConnectionService>,
+);
+
+impl ModelConnectionPort for ServiceModelConnectionPort {
+    fn read(&self) -> LocalBoxFuture<'static, AgentResult<Value>> {
+        let service = self.0.clone();
+        Box::pin(async move {
+            let connections = service.snapshot().agent_connections();
+            Ok(connection_catalog(&connections))
+        })
+    }
+
+    fn acquire(&self, route: Option<String>) -> LocalBoxFuture<'static, AgentResult<Value>> {
+        let service = self.0.clone();
+        Box::pin(async move { service.acquire_lease(route.as_deref()) })
+    }
+
+    fn validate(
+        &self,
+        lease_id: String,
+        route: Option<String>,
+    ) -> LocalBoxFuture<'static, AgentResult<()>> {
+        let service = self.0.clone();
+        Box::pin(async move { service.validate_lease(&lease_id, route.as_deref()) })
+    }
+
+    fn release(&self, lease_id: String) -> LocalBoxFuture<'static, AgentResult<()>> {
+        let service = self.0.clone();
+        Box::pin(async move {
+            service.release_lease(&lease_id);
+            Ok(())
+        })
+    }
 }

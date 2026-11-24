@@ -44,4 +44,9 @@ impl AgentRuntimeCatalog {
             .await?["account"]
             .clone())
     }
+    /// `invalidateRuntimeReadiness()`: drops cached inspection snapshots
+    /// without re-running executable discovery.
+    pub fn invalidate_readiness(&self, runtime_id: Option<&str>) -> u64 {
+        self.coordinator.invalidate_readiness(runtime_id)
+    }
 }

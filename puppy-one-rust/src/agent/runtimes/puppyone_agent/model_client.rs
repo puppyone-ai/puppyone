@@ -7,6 +7,9 @@ use std::collections::BTreeMap;
 pub struct Completion {
     pub text: String,
     pub reasoning: String,
+    /// Structured provider reasoning entries (e.g. OpenRouter `reasoning_details`),
+    /// preserved for multi-turn tool-call replay alongside `reasoning`.
+    pub reasoning_details: Option<Vec<Value>>,
     pub calls: Vec<Value>,
     pub usage: Value,
 }
@@ -16,6 +19,13 @@ impl Completion {
         if !self.calls.is_empty() {
             v["tool_calls"] = json!(self.calls);
         }
+        if let Some(details) = &self.reasoning_details
+            && !details.is_empty()
+        {
+            v["reasoning_details"] = Value::Array(details.clone());
+        } else if !self.reasoning.is_empty() {
+            v["reasoning_content"] = Value::from(self.reasoning.clone());
+        }
         v
     }
 }
@@ -24,12 +34,26 @@ pub async fn complete(
     account: &dyn crate::agent::model_connections::ComputeAccount,
     context: &[Value],
     tool_schema: Value,
+    delta: impl FnMut(&str, &str),
+) -> Result<Completion, String> {
+    complete_with_cancel(connection, account, context, tool_schema, None, delta).await
+}
+
+pub async fn complete_with_cancel(
+    connection: &ModelConnection,
+    account: &dyn crate::agent::model_connections::ComputeAccount,
+    context: &[Value],
+    tool_schema: Value,
+    lease_cancel: Option<crate::cloud::auth::Cancellation>,
     mut delta: impl FnMut(&str, &str),
 ) -> Result<Completion, String> {
+    if lease_cancel.as_ref().is_some_and(|c| c.is_cancelled()) {
+        return Err("Model connection: LEASE_REVOKED".into());
+    }
     connection.validate()?;
     let body = json!({"model":connection.model,"messages":context,"tools":tool_schema,"stream":true,"stream_options":{"include_usage":true}});
     if connection.managed {
-        return complete_managed(account, body, delta).await;
+        return complete_managed(account, body, lease_cancel, delta).await;
     }
     let mut request = crate::platform::proxy::system(reqwest::Client::builder())
         .redirect_policy(reqwest::redirect::Policy::none())
@@ -45,7 +69,14 @@ pub async fn complete(
     if let Some(secret) = &secret {
         request = request.bearer_auth(secret);
     }
-    let response = request.json(&body).send().await.map_err(
+    let response = match lease_cancel.as_ref() {
+        Some(cancel) => tokio::select! {
+            _ = cancel.cancelled() => return Err("Model connection: LEASE_REVOKED".into()),
+            res = request.json(&body).send() => res,
+        },
+        None => request.json(&body).send().await,
+    }
+    .map_err(
         |_| "Model request failed before a response. Check the configured endpoint and connection.",
     )?;
     if !response.status().is_success() {
@@ -58,7 +89,17 @@ pub async fn complete(
     let mut parser = Parser::default();
     let mut redactor = Redactor::new(secret.as_deref());
     let mut done = false;
-    while let Some(chunk) = stream.next().await {
+    loop {
+        let next = match lease_cancel.as_ref() {
+            Some(cancel) => tokio::select! {
+                _ = cancel.cancelled() => return Err("Model connection: LEASE_REVOKED".into()),
+                item = stream.next() => item,
+            },
+            None => stream.next().await,
+        };
+        let Some(chunk) = next else {
+            break;
+        };
         let chunk =
             chunk.map_err(|_| "Model stream was interrupted; the request was not replayed")?;
         if parser.feed(&redactor.feed(&chunk), &mut delta)? {
@@ -122,6 +163,7 @@ const MANAGED_REQUEST_LIMIT: usize = 512 * 1024;
 async fn complete_managed(
     account: &dyn crate::agent::model_connections::ComputeAccount,
     body: Value,
+    lease_cancel: Option<crate::cloud::auth::Cancellation>,
     mut delta: impl FnMut(&str, &str),
 ) -> Result<Completion, String> {
     let request_id = uuid::Uuid::new_v4().to_string();
@@ -134,20 +176,36 @@ async fn complete_managed(
     let (broker, binding) = account.current().ok_or_else(|| {
         crate::localization::t("settings.account.signedOutDetailCompute").to_owned()
     })?;
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Result<Vec<u8>, String>>();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Result<ManagedStreamItem, String>>();
     let cancel = crate::cloud::auth::Cancellation::default();
     let guard = cancel.clone();
+    let lease_for_worker = lease_cancel.clone();
+    let binding_for_reservation = binding.clone();
     std::thread::spawn(move || {
         let sink_tx = tx.clone();
         let model = body["model"].as_str().unwrap_or_default().to_owned();
+        if lease_for_worker.as_ref().is_some_and(|c| c.is_cancelled()) {
+            let _ = tx.send(Err("Model connection: LEASE_REVOKED".to_owned()));
+            return;
+        }
         let result = broker.completion(&binding, &body, &request_id, &cancel, &mut |event| {
+            if lease_for_worker.as_ref().is_some_and(|c| c.is_cancelled()) {
+                return Err(crate::cloud::auth::Error::Cancelled);
+            }
             match event {
-                // Its receipt is read after the wallet's next refresh.
+                // Its receipt is read after the wallet refreshes.
                 crate::cloud::auth::StreamEvent::Reservation(id) => {
-                    crate::cloud::auth::reservation::note(&binding, id, &model)
+                    crate::cloud::auth::reservation::note(&binding, id, &model);
+                    let _ = sink_tx.send(Ok(ManagedStreamItem::Reservation(
+                        id.to_owned(),
+                        model.clone(),
+                    )));
                 }
                 crate::cloud::auth::StreamEvent::Data(bytes) => {
-                    if sink_tx.send(Ok(bytes.to_vec())).is_err() {
+                    if sink_tx
+                        .send(Ok(ManagedStreamItem::Data(bytes.to_vec())))
+                        .is_err()
+                    {
                         return Err(crate::cloud::auth::Error::Cancelled);
                     }
                 }
@@ -156,24 +214,62 @@ async fn complete_managed(
             Ok(())
         });
         if let Err(error) = result {
-            let _ = tx.send(Err(managed_refusal(error)));
+            let msg = if lease_for_worker.as_ref().is_some_and(|c| c.is_cancelled()) {
+                "Model connection: LEASE_REVOKED".to_owned()
+            } else {
+                managed_refusal(error)
+            };
+            let _ = tx.send(Err(msg));
         }
     });
-    // Dropping the turn cancels the request.
-    struct Stop(crate::cloud::auth::Cancellation);
-    impl Drop for Stop {
+    // Dropping the turn cancels the request and notifies the wallet to refresh
+    // balance & settled usage receipt.
+    struct Stop<'a> {
+        cancel: crate::cloud::auth::Cancellation,
+        account: &'a dyn crate::agent::model_connections::ComputeAccount,
+    }
+    impl Drop for Stop<'_> {
         fn drop(&mut self) {
-            self.0.cancel();
+            self.cancel.cancel();
+            self.account.on_inference_finished();
         }
     }
-    let _stop = Stop(guard);
+    let _stop = Stop {
+        cancel: guard.clone(),
+        account,
+    };
     let mut parser = Parser::default();
-    while let Some(chunk) = rx.recv().await {
-        if parser.feed(&chunk?, &mut delta)? {
+    loop {
+        let next = match lease_cancel.as_ref() {
+            Some(lease) => tokio::select! {
+                _ = lease.cancelled() => {
+                    guard.cancel();
+                    return Err("Model connection: LEASE_REVOKED".into());
+                }
+                item = rx.recv() => item,
+            },
+            None => rx.recv().await,
+        };
+        let Some(item) = next else {
             break;
+        };
+        match item? {
+            ManagedStreamItem::Reservation(id, model) => {
+                account.note_reservation(&binding_for_reservation, &id, &model);
+            }
+            ManagedStreamItem::Data(chunk) => {
+                if parser.feed(&chunk, &mut delta)? {
+                    break;
+                }
+            }
         }
     }
     parser.finish()
+}
+
+enum ManagedStreamItem {
+    Reservation(String, String),
+    Data(Vec<u8>),
 }
 
 /// What a refused managed request says: the service's reviewed code as
@@ -203,6 +299,9 @@ fn managed_refusal(error: crate::cloud::auth::Error) -> String {
         "ai_rate_limited" => "PuppyOne compute is busy. Try again shortly.",
         "ai_access_denied" | "ai_authentication_required" => {
             "Sign in again to use PuppyOne compute."
+        }
+        "ai_provider_unavailable" | "ai_provider_unconfigured" => {
+            "The model provider is temporarily unavailable. Try again shortly."
         }
         _ => "PuppyOne compute could not answer the request.",
     };
@@ -249,8 +348,8 @@ impl Parser {
             }
             let v: Value =
                 serde_json::from_str(data).map_err(|_| "Malformed model stream event")?;
-            if v.get("error").is_some() {
-                return Err("The model endpoint reported an inference error".into());
+            if let Some(error) = v.get("error").filter(|e| !e.is_null()) {
+                return Err(stream_error_message(error));
             }
             if !v["usage"].is_null() {
                 self.result.usage = v["usage"].clone();
@@ -260,9 +359,33 @@ impl Parser {
                 self.result.text.push_str(t);
                 delta("text", t);
             }
-            if let Some(t) = d["reasoning_content"].as_str() {
+            let mut streamed_reasoning = false;
+            if let Some(t) = d["reasoning_content"]
+                .as_str()
+                .or_else(|| d["reasoning"].as_str())
+                .filter(|t| !t.is_empty())
+            {
                 self.result.reasoning.push_str(t);
                 delta("reasoning", t);
+                streamed_reasoning = true;
+            }
+            if let Some(details) = d["reasoning_details"].as_array() {
+                let target = self
+                    .result
+                    .reasoning_details
+                    .get_or_insert_with(Vec::new);
+                for item in details {
+                    merge_reasoning_detail(target, item);
+                    if !streamed_reasoning
+                        && let Some(t) = item["text"]
+                            .as_str()
+                            .or_else(|| item["summary"].as_str())
+                            .filter(|t| !t.is_empty())
+                    {
+                        self.result.reasoning.push_str(t);
+                        delta("reasoning", t);
+                    }
+                }
             }
             for call in d["tool_calls"].as_array().into_iter().flatten() {
                 let index = call["index"]
@@ -306,6 +429,79 @@ impl Parser {
         }
         Ok(self.result)
     }
+}
+
+/// Formats an SSE `{"error": ...}` payload into a bounded user-readable error.
+fn stream_error_message(error: &Value) -> String {
+    if let Some(code) = error["code"].as_str() {
+        let words = match code {
+            "ai_usage_pending" => {
+                "The model request was interrupted. Balance will refresh after usage is reconciled."
+            }
+            "ai_provider_unavailable" => {
+                "The model provider is temporarily unavailable. Try again shortly."
+            }
+            "ai_balance_insufficient" => "Add credit to use this model.",
+            "ai_rate_limited" => "PuppyOne compute is busy. Try again shortly.",
+            _ => "",
+        };
+        if !words.is_empty() {
+            return words.to_owned();
+        }
+    }
+    if let Some(msg) = error
+        .as_str()
+        .or_else(|| error["message"].as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        return crate::text::head16(msg, 300).to_owned();
+    }
+    "The model endpoint reported an inference error".into()
+}
+
+/// Accumulates streamed OpenRouter `reasoning_details` chunks by `(type, id, index)`.
+fn merge_reasoning_detail(target: &mut Vec<Value>, item: &Value) {
+    let kind = item["type"].as_str().unwrap_or_default();
+    let id = item.get("id").and_then(Value::as_str);
+    let index = item.get("index").and_then(Value::as_u64);
+    if let Some(existing) = target.iter_mut().find(|entry| {
+        entry["type"].as_str().unwrap_or_default() == kind
+            && entry.get("id").and_then(Value::as_str) == id
+            && entry.get("index").and_then(Value::as_u64) == index
+    }) {
+        match kind {
+            "reasoning.text" => {
+                if let Some(t) = item["text"].as_str() {
+                    let mut s = existing["text"].as_str().unwrap_or("").to_owned();
+                    s.push_str(t);
+                    existing["text"] = Value::from(s);
+                }
+                if let Some(sig) = item["signature"].as_str() {
+                    existing["signature"] = Value::from(sig);
+                }
+                return;
+            }
+            "reasoning.summary" => {
+                if let Some(t) = item["summary"].as_str() {
+                    let mut s = existing["summary"].as_str().unwrap_or("").to_owned();
+                    s.push_str(t);
+                    existing["summary"] = Value::from(s);
+                }
+                return;
+            }
+            "reasoning.encrypted" => {
+                if let Some(d) = item["data"].as_str() {
+                    let mut s = existing["data"].as_str().unwrap_or("").to_owned();
+                    s.push_str(d);
+                    existing["data"] = Value::from(s);
+                }
+                return;
+            }
+            _ => {}
+        }
+    }
+    target.push(item.clone());
 }
 
 #[cfg(test)]
@@ -354,10 +550,14 @@ mod tests {
         }
         let asked = Asked(Default::default());
         let body = json!({"model": "test/model", "messages": [{"role": "user", "content": "x".repeat(524_289)}]});
-        let error =
-            futures_util::FutureExt::now_or_never(complete_managed(&asked, body, |_, _| {}))
-                .unwrap()
-                .err()
+        let error = futures_util::FutureExt::now_or_never(complete_managed(
+            &asked,
+            body,
+            None,
+            |_, _| {},
+        ))
+        .unwrap()
+        .err()
                 .unwrap();
         let reference = error
             .strip_prefix("This conversation is too large. Start a new conversation. Reference: ")
@@ -369,7 +569,12 @@ mod tests {
         );
         // Within the limit, the account is asked.
         let small = json!({"model": "test/model", "messages": []});
-        let _ = futures_util::FutureExt::now_or_never(complete_managed(&asked, small, |_, _| {}));
+        let _ = futures_util::FutureExt::now_or_never(complete_managed(
+            &asked,
+            small,
+            None,
+            |_, _| {},
+        ));
         assert!(asked.0.load(std::sync::atomic::Ordering::SeqCst));
     }
 
@@ -432,5 +637,111 @@ mod tests {
         assert_eq!(parser.finish().unwrap().text, "中文😀 [redacted] done");
         // Without a key the stream passes through untouched.
         assert_eq!(Redactor::new(None).feed(b"abc"), b"abc");
+    }
+
+    #[test]
+    fn parser_ignores_null_error_surfaces_stream_error_and_parses_reasoning_dialects() {
+        let mut parser = Parser::default();
+        let mut deltas = vec![];
+        let mut sink = |kind: &str, text: &str| deltas.push((kind.to_owned(), text.to_owned()));
+        let events = concat!(
+            "data: {\"error\":null,\"choices\":[{\"delta\":{\"reasoning\":\"step 1 \"}}]}\n",
+            "data: {\"choices\":[{\"delta\":{\"reasoning_details\":[{\"type\":\"reasoning.text\",\"id\":\"r1\",\"index\":0,\"text\":\"step 2\"}]}}]}\n",
+            "data: {\"choices\":[{\"delta\":{\"reasoning_details\":[{\"type\":\"reasoning.text\",\"id\":\"r1\",\"index\":0,\"text\":\" done\",\"signature\":\"sig1\"}]}}]}\n",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Answer\"}}]}\n",
+            "data: [DONE]\n"
+        );
+        assert!(parser.feed(events.as_bytes(), &mut sink).unwrap());
+        let completion = parser.finish().unwrap();
+        assert_eq!(completion.text, "Answer");
+        assert_eq!(completion.reasoning, "step 1 step 2 done");
+        let details = completion.reasoning_details.as_ref().unwrap();
+        assert_eq!(details.len(), 1);
+        assert_eq!(details[0]["text"], "step 2 done");
+        assert_eq!(details[0]["signature"], "sig1");
+        assert_eq!(
+            completion.message()["reasoning_details"][0]["signature"],
+            "sig1"
+        );
+
+        let mut err_parser = Parser::default();
+        let err = err_parser
+            .feed(
+                b"data: {\"error\":{\"code\":\"ai_usage_pending\",\"message\":\"interrupted\"}}\n",
+                &mut |_, _| {},
+            )
+            .unwrap_err();
+        assert!(err.contains("interrupted") || err.contains("reconciled"), "{err}");
+    }
+
+    #[test]
+    fn complete_with_cancel_aborts_active_http_stream_immediately() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let (hold_tx, hold_rx) = tokio::sync::oneshot::channel::<()>();
+            let server = tokio::spawn(async move {
+                let (mut sock, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let _ = sock.read(&mut buf).await;
+                let head = concat!(
+                    "HTTP/1.1 200 OK\r\n",
+                    "content-type: text/event-stream\r\n",
+                    "transfer-encoding: chunked\r\n",
+                    "connection: keep-alive\r\n\r\n"
+                );
+                let chunk = "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n";
+                let framed = format!("{:x}\r\n{chunk}\r\n", chunk.len());
+                let _ = sock.write_all(head.as_bytes()).await;
+                let _ = sock.write_all(framed.as_bytes()).await;
+                let _ = sock.flush().await;
+                // Keep stream open indefinitely until the test finishes.
+                let _ = hold_rx.await;
+            });
+
+            let conn = ModelConnection {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: "Loopback".into(),
+                endpoint: format!("http://127.0.0.1:{port}/v1"),
+                model: "test-model".into(),
+                ..Default::default()
+            };
+            let cancel = crate::cloud::auth::Cancellation::default();
+            let trigger = cancel.clone();
+            let mut seen = String::new();
+            let started = std::time::Instant::now();
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                complete_with_cancel(
+                    &conn,
+                    &crate::agent::model_connections::NoComputeAccount,
+                    &[json!({"role": "user", "content": "hi"})],
+                    json!([]),
+                    Some(cancel),
+                    |kind, text| {
+                        if kind == "text" {
+                            seen.push_str(text);
+                            trigger.cancel();
+                        }
+                    },
+                ),
+            )
+            .await
+            .expect("cancelled stream must abort promptly, not wait for HTTP timeout");
+            let err = match result {
+                Ok(_) => panic!("expected LEASE_REVOKED error"),
+                Err(err) => err,
+            };
+            assert_eq!(seen, "partial");
+            assert!(err.contains("LEASE_REVOKED"), "{err}");
+            assert!(started.elapsed() < std::time::Duration::from_secs(3));
+            let _ = hold_tx.send(());
+            let _ = server.await;
+        });
     }
 }

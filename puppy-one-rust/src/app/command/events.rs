@@ -906,8 +906,10 @@ impl Shell {
         crate::features::sub_theme_catalog::refresh(cx);
         // `browser-window-focus`: bounded foreground activity.
         crate::features::telemetry::note_foreground(cx);
-        // A returning window may probe the Cloud association once.
+        // A returning window may probe the Cloud association once and refresh
+        // the PuppyOne compute wallet (throttled at 15 s).
         self.cloud.update(cx, |c, cx| c.probe(cx));
+        crate::features::model_connections::refresh_managed(false, cx);
         // Focus revalidation complements the bound file's subscription.
         if self.file_mode() {
             self.session.docs.update(cx, |d, _| d.revalidate());
