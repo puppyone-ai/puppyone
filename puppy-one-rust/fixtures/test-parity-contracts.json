@@ -52431,6 +52431,29 @@
           "test": "features::desktop_agent::ui::transcript::tests::only_new_answers_fade_in_and_only_once"
         }
       ]
+    },
+    {
+      "id": "agent-workspace-image-drop-preview",
+      "acceptance": "Workspace entries dropped on an Agent chat from its own workspace are resolved by their paths; for each raster image (png, jpeg, gif, webp, avif) the drop also passes the image's local file as its visual preview, kept apart from the path the runtime is asked to resolve, so the reference's card on the shelf shows the thumbnail (even when resolution fails); other files get no preview.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Desktop Agent reference ingestion > loads an authorized visual preview for a workspace image without putting its URL in the path"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::a_dropped_workspace_image_keeps_its_preview"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62857,24 +62880,6 @@
             {
               "index": 0,
               "name": "Desktop Agent renderer surfaces > registers semantic part extensions by kind and restores the previous renderer on dispose"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "workspace-image-drop-preview",
-      "kind": "gap",
-      "reason": "A workspace image dropped on the chat is added without a visual preview (the panel passes no previews to add_workspace_paths), so its shelf card shows a placeholder icon instead of the authorized thumbnail.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
-          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
-          "cases": [
-            {
-              "index": 7,
-              "name": "Desktop Agent reference ingestion > loads an authorized visual preview for a workspace image without putting its URL in the path"
             }
           ]
         }

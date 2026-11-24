@@ -5,6 +5,7 @@
 use super::AgentChatTabPanel;
 use crate::agent::contract::dto::ReferenceStatus;
 use crate::features::desktop_agent::application::agent_client_port::{AgentFile, AgentFileSource};
+use crate::features::desktop_agent::application::agent_reference_preview_store::create_agent_file_visual_preview;
 use crate::features::desktop_agent::ui::composer::mime_for;
 use crate::localization::{t, tf};
 use crate::ui::resource_drag::ResourceDrag;
@@ -149,14 +150,32 @@ impl AgentChatTabPanel {
         cx.notify();
     }
 
-    /// Explorer entries: workspace-relative paths.
+    /// Explorer entries: their local paths, and for a raster image its
+    /// file as the preview its card shows (`loadVisualPreview`), apart from
+    /// the path the runtime is asked to resolve.
     pub(super) fn add_workspace_paths(&mut self, paths: Vec<PathBuf>, cx: &mut Context<Self>) {
         let paths: Vec<String> = paths
             .iter()
             .map(|p| p.to_string_lossy().into_owned())
             .collect();
+        let previews = paths
+            .iter()
+            .filter_map(|path| {
+                let name = std::path::Path::new(path)
+                    .file_name()?
+                    .to_string_lossy()
+                    .into_owned();
+                let file = AgentFile {
+                    mime: mime_for(&name).into(),
+                    name,
+                    size: 0.,
+                    source: AgentFileSource::Path(path.clone()),
+                };
+                Some((path.clone(), create_agent_file_visual_preview(&file)?))
+            })
+            .collect();
         let before = self.reference_ids();
-        let batch = self.controller.add_workspace_paths(paths, Vec::new());
+        let batch = self.controller.add_workspace_paths(paths, previews);
         self.announce_batch(before, batch, cx);
         cx.notify();
     }

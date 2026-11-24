@@ -927,3 +927,60 @@ fn a_staged_files_mention_follows_its_reference_once_staging_ends(cx: &mut TestA
     let document = panel.update(cx, |p, cx| p.composer.read(cx).document(cx));
     assert_eq!(document.0.matches("@notes.txt").count(), 1, "{document:?}");
 }
+
+/// `loads an authorized visual preview for a workspace image without
+/// putting its URL in the path`: an image dragged from this chat's
+/// workspace is resolved by its path and keeps its file as its card's
+/// preview; a Markdown file gets none.
+#[gpui::test]
+fn a_dropped_workspace_image_keeps_its_preview(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let ours = tempfile::tempdir().unwrap();
+    std::fs::write(ours.path().join("capture.png"), b"png").unwrap();
+    std::fs::write(ours.path().join("notes.md"), b"# notes").unwrap();
+    let root = ours.path().to_string_lossy().into_owned();
+    let (panel, cx) = cx.add_window_view(|window, cx| {
+        AgentChatTabPanel::seeded_fixture_at(&root, true, None, "", window, cx).0
+    });
+    draw(cx);
+    let workspace = crate::workspace::Workspace::open(ours.path()).unwrap();
+    let drag = crate::ui::resource_drag::ResourceDrag {
+        single_file: false,
+        paths: vec!["capture.png".into(), "notes.md".into()],
+        label: "2 items".into(),
+        workspace: Some(workspace.clone()),
+        native: std::rc::Rc::new(std::cell::Cell::new(false)),
+    };
+    panel.update(cx, |p, cx| p.drop_resources(&drag, cx));
+    draw(cx);
+    let local = drag.local_paths().unwrap();
+    let previews: Vec<(String, Option<String>)> = panel.read_with(cx, |p, _| {
+        p.controller
+            .get_snapshot()
+            .references
+            .iter()
+            .map(|r| {
+                (
+                    r.display_name.clone(),
+                    p.controller.get_reference_preview_url(&r.id),
+                )
+            })
+            .collect()
+    });
+    assert_eq!(
+        previews,
+        [
+            (
+                "capture.png".to_owned(),
+                Some(local[0].to_string_lossy().into_owned())
+            ),
+            ("notes.md".to_owned(), None),
+        ]
+    );
+    assert!(
+        cx.debug_bounds("agent-attachment:capture.png:error")
+            .is_some()
+    );
+}
