@@ -2,11 +2,16 @@
 //! office-document-converter.mjs`): legacy Word (.doc) and RTF become DOCX
 //! through macOS `textutil` in a private temporary folder, under the product's
 //! input, output and time limits; the Office preview renders the result like
-//! any DOCX. The source file is only read.
+//! any DOCX. The source file is only read. A window runs at most
+//! [`PER_WINDOW`] conversions at once (`workspace-files-ipc.mjs`).
 use std::{
+    collections::HashMap,
     io::{Read, Write},
     path::Path,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -28,12 +33,87 @@ fn size(bytes: u64) -> String {
 
 const CANCELLED: &str = "Office conversion was cancelled.";
 
+/// `MAX_OFFICE_CONVERSIONS_PER_WINDOW`.
+pub const PER_WINDOW: usize = 2;
+const TEXTUTIL: &str = "/usr/bin/textutil";
+
+/// The conversions each window is running
+/// (`officeConversionSessionsBySender`), by window id.
+#[derive(Clone, Default)]
+pub struct Conversions(Arc<Mutex<HashMap<u64, usize>>>);
+
+impl Conversions {
+    /// [`convert_to_docx_cancellable`] for `window`, refused while the
+    /// window already runs [`PER_WINDOW`] conversions. Its place is free
+    /// again once the conversion has ended, cancelled or not.
+    pub fn convert(
+        &self,
+        window: u64,
+        path: &Path,
+        cancel: &AtomicBool,
+    ) -> Result<Converted, String> {
+        self.convert_with(window, path, cancel, Path::new(TEXTUTIL), TIMEOUT)
+    }
+    fn convert_with(
+        &self,
+        window: u64,
+        path: &Path,
+        cancel: &AtomicBool,
+        converter: &Path,
+        timeout: Duration,
+    ) -> Result<Converted, String> {
+        let _running = self.admit(window)?;
+        convert_with(path, cancel, converter, timeout)
+    }
+    fn admit(&self, window: u64) -> Result<Running, String> {
+        let mut running = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        let count = running.entry(window).or_default();
+        if *count >= PER_WINDOW {
+            return Err(format!(
+                "Only {PER_WINDOW} Office conversions may run in one window at a time."
+            ));
+        }
+        *count += 1;
+        Ok(Running {
+            conversions: self.clone(),
+            window,
+        })
+    }
+    /// How many conversions `window` is running.
+    pub fn running(&self, window: u64) -> usize {
+        let running = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        running.get(&window).copied().unwrap_or(0)
+    }
+    /// Tests: take one of `window`'s places, as a running conversion does.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn hold(&self, window: u64) -> Result<Running, String> {
+        self.admit(window)
+    }
+}
+
+/// One admitted conversion; a window with none left is forgotten.
+pub struct Running {
+    conversions: Conversions,
+    window: u64,
+}
+impl Drop for Running {
+    fn drop(&mut self) {
+        let mut running = self.conversions.0.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(count) = running.get_mut(&self.window) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                running.remove(&self.window);
+            }
+        }
+    }
+}
+
 pub fn convert_to_docx(path: &Path) -> Result<Converted, String> {
     convert_to_docx_cancellable(path, &AtomicBool::new(false))
 }
 
 pub fn convert_to_docx_cancellable(path: &Path, cancel: &AtomicBool) -> Result<Converted, String> {
-    convert_with(path, cancel, Path::new("/usr/bin/textutil"), TIMEOUT)
+    convert_with(path, cancel, Path::new(TEXTUTIL), TIMEOUT)
 }
 
 fn convert_with(
@@ -370,6 +450,66 @@ mod lifetime_tests {
                 assert!(!overflow, "output overflow requires an executed converter");
             }
         }
+    }
+    /// `workspace file IPC authorization` #19: a finished conversion frees
+    /// its window's place; a window runs at most two at once and a third is
+    /// refused before its converter runs, while another window still
+    /// converts; cancelled conversions end as cancelled and free theirs.
+    #[test]
+    fn a_window_runs_at_most_two_conversions_and_each_frees_its_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = input(dir.path());
+        let finished = tempfile::tempdir().unwrap();
+        let finished = fixture(finished.path(), "printf 'PK\\003\\004docx' > \"$5\"");
+        let conversions = Conversions::default();
+        let convert = |window, script: &Path, cancel: &AtomicBool| {
+            conversions.convert_with(window, &original, cancel, script, TIMEOUT)
+        };
+        let done = convert(24, &finished, &AtomicBool::new(false)).unwrap();
+        assert_eq!(done.bytes, b"PK\x03\x04docx");
+        assert_eq!(conversions.running(24), 0);
+
+        let started = dir.path().join("started");
+        std::fs::create_dir(&started).unwrap();
+        let waiting = tempfile::tempdir().unwrap();
+        let waiting = fixture(
+            waiting.path(),
+            &format!("touch '{}'/$$\nexec /bin/sleep 30", started.display()),
+        );
+        let cancels = [0, 1].map(|_| Arc::new(AtomicBool::new(false)));
+        let workers = cancels.clone().map(|cancel| {
+            let (conversions, original, waiting) =
+                (conversions.clone(), original.clone(), waiting.clone());
+            thread::spawn(move || {
+                conversions.convert_with(25, &original, &cancel, &waiting, TIMEOUT)
+            })
+        });
+        let runs = || std::fs::read_dir(&started).unwrap().count();
+        let deadline = Instant::now() + Duration::from_secs(15);
+        while runs() < 2 {
+            assert!(
+                Instant::now() < deadline,
+                "both conversions reach the converter"
+            );
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(conversions.running(25), 2);
+        assert_eq!(
+            convert(25, &waiting, &AtomicBool::new(false)).unwrap_err(),
+            "Only 2 Office conversions may run in one window at a time."
+        );
+        assert_eq!(runs(), 2, "the refused conversion never ran");
+        assert_eq!(conversions.running(25), 2);
+        // Another window has places of its own.
+        assert!(convert(26, &finished, &AtomicBool::new(false)).is_ok());
+        for cancel in &cancels {
+            cancel.store(true, Ordering::Release);
+        }
+        for worker in workers {
+            assert_eq!(worker.join().unwrap().unwrap_err(), CANCELLED);
+        }
+        assert_eq!(conversions.running(25), 0);
+        assert!(convert(25, &finished, &AtomicBool::new(false)).is_ok());
     }
     #[test]
     fn missing_or_symlinked_outputs_are_never_returned_as_converted_bytes() {

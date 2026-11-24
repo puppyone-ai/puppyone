@@ -51998,6 +51998,32 @@
           "test": "app::tests::pane_actions::a_stacked_split_steps_with_up_and_down_and_equalizes"
         }
       ]
+    },
+    {
+      "id": "office-conversion-concurrency",
+      "acceptance": "A window runs at most two Office (.doc / .rtf to DOCX) conversions at once. A third is refused with 'Only 2 Office conversions may run in one window at a time.' before its converter runs, and the preview shows that as its conversion error; another window still converts. A conversion's place is free again once it has ended: finished, failed or cancelled (a cancelled one ends as 'Office conversion was cancelled.' after its converter exited), and a window with none left is forgotten.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
+          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
+          "cases": [
+            {
+              "index": 19,
+              "name": "workspace file IPC authorization > cleans up successful conversions and enforces the per-window concurrency limit"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::a_window_runs_at_most_two_conversions_and_each_frees_its_place"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::a_window_running_two_conversions_refuses_a_third_preview"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -54912,24 +54938,6 @@
             {
               "index": 0,
               "name": "workspace file IPC authorization > acknowledges a committed save and rename even if review bookkeeping fails"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "office-conversion-concurrency",
-      "kind": "gap",
-      "reason": "TS caps concurrent Office conversions per window and cleans up each finished session. Rust cleans each conversion's private files (covered by workspace-file-authority) but has no per-window limit on concurrent textutil conversions.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/office.md",
-      "typescript": [
-        {
-          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
-          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
-          "cases": [
-            {
-              "index": 19,
-              "name": "workspace file IPC authorization > cleans up successful conversions and enforces the per-window concurrency limit"
             }
           ]
         }
