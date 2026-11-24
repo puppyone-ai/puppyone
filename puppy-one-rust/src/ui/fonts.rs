@@ -7,6 +7,11 @@
 //! system language's face. Resolution probes the text system once per
 //! (locale, selection) and is kept as the thread's active stacks; text
 //! styles without an `App` read the cascade lists from there.
+//!
+//! Text inside a content boundary with its own language (a Markdown
+//! document's `lang`) takes that language's script cascade instead
+//! (`:lang(...)` in typography/locales.css): see
+//! [`with_content_language`].
 use crate::typography::fonts::{self, Category, Role, Selection};
 use gpui::{App, Font, FontFallbacks, FontFeatures, FontStyle, FontWeight, SharedString};
 use std::cell::RefCell;
@@ -91,6 +96,41 @@ pub fn walk(css: &[&str], category: Category, installed: &mut dyn FnMut(&str) ->
     }
 }
 
+/// `--po-font-locale-*` cascades for text that names its own face.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Cascades {
+    sans: Vec<String>,
+    serif: Vec<String>,
+    mono: Vec<String>,
+}
+
+impl Cascades {
+    fn of(&self, category: Category) -> &[String] {
+        match category {
+            Category::Sans => &self.sans,
+            Category::Serif => &self.serif,
+            Category::Monospace => &self.mono,
+        }
+    }
+}
+
+/// The languages with a script cascade of their own (`:lang(zh-Hans)`,
+/// `:lang(zh-Hant)`, `:lang(ja)`, `:lang(ko)`); every other content language
+/// takes the generic one, keyed `und`.
+const CONTENT_LANGUAGES: [&str; 4] = ["zh-Hans", "zh-Hant", "ja", "ko"];
+const GENERIC: &str = "und";
+
+/// The cascade key of content language `language`.
+fn content_key(language: &str) -> &'static str {
+    CONTENT_LANGUAGES
+        .into_iter()
+        .find(|key| {
+            fonts::locale_stack(language, Category::Sans)
+                == fonts::locale_stack(key, Category::Sans)
+        })
+        .unwrap_or(GENERIC)
+}
+
 #[derive(Clone)]
 struct Active {
     locale: String,
@@ -99,14 +139,25 @@ struct Active {
     content: Stack,
     code: Stack,
     terminal: Stack,
-    /// `--po-font-locale-*` cascades for text that names its own face.
-    sans: Vec<String>,
-    serif: Vec<String>,
-    mono: Vec<String>,
+    /// The interface language's cascades.
+    cascades: Cascades,
+    /// Each content language's, by [`content_key`].
+    languages: Vec<(&'static str, Cascades)>,
 }
 
 thread_local! {
     static ACTIVE: RefCell<Option<Active>> = const { RefCell::new(None) };
+    /// The language of the content being built or painted, if it names one.
+    static CONTENT: RefCell<Option<SharedString>> = const { RefCell::new(None) };
+}
+
+/// Build or paint text inside a content boundary of `language` (`None`:
+/// the interface's): [`fallbacks`] answer with that language's cascade.
+pub fn with_content_language<R>(language: Option<&SharedString>, f: impl FnOnce() -> R) -> R {
+    let previous = CONTENT.with_borrow_mut(|c| std::mem::replace(c, language.cloned()));
+    let result = f();
+    CONTENT.with_borrow_mut(|c| *c = previous);
+    result
 }
 
 fn selection(cx: &App) -> Selection {
@@ -136,6 +187,16 @@ fn resolve(locale: &str, selection: &Selection, cx: &App) -> Active {
         probed.push((family.to_owned(), present));
         present
     };
+    resolve_with(locale, selection, &mut installed)
+}
+
+/// [`resolve`] with `installed` answering for families that are neither
+/// bundled nor aliased.
+fn resolve_with(
+    locale: &str,
+    selection: &Selection,
+    mut installed: &mut dyn FnMut(&str) -> bool,
+) -> Active {
     let resolved = fonts::resolve(selection);
     let mut role =
         |entry: &fonts::Entry| walk(&fonts::stack(entry, locale), entry.category, &mut installed);
@@ -145,24 +206,32 @@ fn resolve(locale: &str, selection: &Selection, cx: &App) -> Active {
         role(resolved.code),
         role(resolved.terminal),
     );
-    let mut cascade = |category: Category| {
-        let css: Vec<&str> = fonts::locale_stack(locale, category)
-            .iter()
-            .chain(fonts::EMOJI.iter())
-            .copied()
-            .collect();
-        let stack = walk(&css, category, &mut installed);
-        // Every installed family of the stack, the face included.
-        std::iter::once(stack.family.to_string())
-            .filter(|f| f != SYSTEM_UI && !always_available(f))
-            .chain(stack.fallbacks)
-            .collect::<Vec<_>>()
+    let mut cascades = |locale: &str| {
+        let mut cascade = |category: Category| {
+            let css: Vec<&str> = fonts::locale_stack(locale, category)
+                .iter()
+                .chain(fonts::EMOJI.iter())
+                .copied()
+                .collect();
+            let stack = walk(&css, category, &mut installed);
+            // Every installed family of the stack, the face included.
+            std::iter::once(stack.family.to_string())
+                .filter(|f| f != SYSTEM_UI && !always_available(f))
+                .chain(stack.fallbacks)
+                .collect::<Vec<_>>()
+        };
+        Cascades {
+            sans: cascade(Category::Sans),
+            serif: cascade(Category::Serif),
+            mono: cascade(Category::Monospace),
+        }
     };
-    let (sans, serif, mono) = (
-        cascade(Category::Sans),
-        cascade(Category::Serif),
-        cascade(Category::Monospace),
-    );
+    let interface = cascades(locale);
+    let mut languages: Vec<_> = CONTENT_LANGUAGES
+        .into_iter()
+        .map(|key| (key, cascades(key)))
+        .collect();
+    languages.push((GENERIC, cascades("en")));
     Active {
         locale: locale.to_owned(),
         selection: selection.clone(),
@@ -170,9 +239,8 @@ fn resolve(locale: &str, selection: &Selection, cx: &App) -> Active {
         content,
         code,
         terminal,
-        sans,
-        serif,
-        mono,
+        cascades: interface,
+        languages,
     }
 }
 
@@ -218,14 +286,20 @@ pub fn font(role: Role, cx: &App) -> Font {
 }
 
 /// The locale's script cascade for text that names its own face (the
-/// editor's weight-specific Geist builds). Before the first install it is
-/// the default locale's unprobed bundled order.
+/// editor's weight-specific Geist builds): the content language's inside
+/// [`with_content_language`], else the interface's. Before the first
+/// install it is the default locale's unprobed bundled order.
 pub fn fallbacks(category: Category) -> FontFallbacks {
+    #[cfg(any(test, feature = "test-support"))]
+    test_support::record();
+    let content = CONTENT.with_borrow(|c| c.as_deref().map(content_key));
     let names = ACTIVE.with_borrow(|a| {
-        a.as_ref().map(|a| match category {
-            Category::Sans => a.sans.clone(),
-            Category::Serif => a.serif.clone(),
-            Category::Monospace => a.mono.clone(),
+        a.as_ref().map(|a| {
+            content
+                .and_then(|key| a.languages.iter().find(|(k, _)| *k == key))
+                .map_or(&a.cascades, |(_, c)| c)
+                .of(category)
+                .to_vec()
         })
     });
     FontFallbacks::from_fonts(names.unwrap_or_else(|| {
@@ -237,6 +311,31 @@ pub fn fallbacks(category: Category) -> FontFallbacks {
     }))
 }
 
+/// Tests: under which content languages text asked for its cascade.
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support {
+    use super::*;
+
+    thread_local! {
+        static ASKED: RefCell<Vec<Option<SharedString>>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub(super) fn record() {
+        let language = CONTENT.with_borrow(Clone::clone);
+        ASKED.with_borrow_mut(|asked| {
+            if !asked.contains(&language) {
+                asked.push(language);
+            }
+        });
+    }
+
+    /// The distinct content languages asked under since the last call
+    /// (`None`: the interface's).
+    pub fn take_asked() -> Vec<Option<SharedString>> {
+        ASKED.with_borrow_mut(std::mem::take)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,6 +343,55 @@ mod tests {
 
     fn with<'a>(installed: &'a [&'a str]) -> impl FnMut(&str) -> bool + 'a {
         move |family| installed.contains(&family)
+    }
+
+    /// `markdownContentLanguage.test.ts` #0 and #2 through
+    /// `typography/locales.css`: text inside a content boundary takes its
+    /// language's script cascade (`:lang(...)`), whatever the interface's;
+    /// a language without one takes the generic cascade, and outside the
+    /// boundary the interface's applies again.
+    #[test]
+    fn content_text_takes_its_languages_script_cascade() {
+        let installed = [
+            "PingFang SC",
+            "PingFang TC",
+            "Hiragino Sans",
+            "Apple SD Gothic Neo",
+            "Apple Color Emoji",
+        ];
+        let active = resolve_with("en", &Selection::default(), &mut with(&installed));
+        ACTIVE.with_borrow_mut(|a| *a = Some(active));
+        let first = |category| fallbacks(category).fallback_list().first().cloned();
+        let within = |language: &str| {
+            with_content_language(Some(&SharedString::from(language.to_owned())), || {
+                first(Category::Sans)
+            })
+        };
+        let interface = first(Category::Sans);
+        assert_ne!(interface.as_deref(), Some("PingFang TC"));
+        assert_eq!(within("zh-Hant").as_deref(), Some("PingFang TC"));
+        assert_eq!(within("zh-Hans").as_deref(), Some("PingFang SC"));
+        assert_eq!(within("ja").as_deref(), Some("Hiragino Sans"));
+        assert_eq!(within("ko").as_deref(), Some("Apple SD Gothic Neo"));
+        assert_eq!(within("en-US"), interface, "the generic cascade");
+        // The code font's cascade follows the language too.
+        assert_eq!(
+            with_content_language(Some(&"zh-Hant".into()), || first(Category::Monospace))
+                .as_deref(),
+            Some("PingFang TC")
+        );
+        // Boundaries nest and restore.
+        with_content_language(Some(&"ja".into()), || {
+            assert_eq!(within("zh-Hant").as_deref(), Some("PingFang TC"));
+            assert_eq!(first(Category::Sans).as_deref(), Some("Hiragino Sans"));
+        });
+        assert_eq!(first(Category::Sans), interface);
+        // A Chinese interface's own cascade outside any boundary.
+        let active = resolve_with("zh-Hant", &Selection::default(), &mut with(&installed));
+        ACTIVE.with_borrow_mut(|a| *a = Some(active));
+        assert_eq!(first(Category::Sans).as_deref(), Some("PingFang TC"));
+        assert_eq!(within("zh-Hans").as_deref(), Some("PingFang SC"));
+        ACTIVE.with_borrow_mut(|a| *a = None);
     }
 
     #[test]

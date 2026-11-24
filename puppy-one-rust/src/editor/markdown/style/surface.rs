@@ -4,7 +4,7 @@ use crate::editor::{
     tokens::{Tokens, over},
     view::style::Edges,
 };
-use gpui::Rgba;
+use gpui::{Rgba, SharedString};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SurfaceStyle {
@@ -23,6 +23,8 @@ pub struct SurfaceStyle {
     pub selection_inactive: Rgba,
     /// `.cm-content { caret-color: var(--po-text) }`.
     pub caret: Rgba,
+    /// The document's language (`lang`), once the editor resolved it.
+    pub language: Option<SharedString>,
 }
 
 impl SurfaceStyle {
@@ -38,6 +40,7 @@ impl SurfaceStyle {
                 t.color("--po-canvas"),
             ),
             caret: t.color("--po-text"),
+            language: None,
         }
     }
 

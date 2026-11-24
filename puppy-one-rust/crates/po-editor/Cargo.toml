@@ -58,6 +58,8 @@ gpui-pre-apple = { version = "=0.3.9", features = ["font-kit"] }
 # Its tests open fixture workspaces and PDFs.
 po-platform = { path = "../po-platform", features = ["test-support"] }
 po-workspace = { path = "../po-workspace", features = ["test-support"] }
+# Tests read which script cascade the editor's text asked for.
+po-ui = { path = "../po-ui", features = ["test-support"] }
 gpui-kit = { version = "=0.8.0", features = ["test-support"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 # A local HTTPS server behind a proxy stub (remote image proxy tests).

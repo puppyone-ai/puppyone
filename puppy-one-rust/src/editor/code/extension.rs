@@ -208,6 +208,7 @@ impl CodeExtension {
             inline_code: None,
             inline_code_background: None,
             inline_code_padding: None,
+            language: None,
         }
     }
 
