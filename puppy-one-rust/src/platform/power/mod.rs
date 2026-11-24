@@ -40,12 +40,11 @@ pub fn watch(listener: impl Fn(Event) + Send + Sync + 'static) -> bool {
     imp::watch(Box::new(listener))
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod tests {
     use core::prelude::v1::test;
 
     /// This Mac answers the registration (IOKit's root power domain).
-    #[cfg(target_os = "macos")]
     #[test]
     fn this_mac_tells_its_sleep_and_wake() {
         assert!(super::watch(|_| {}));
