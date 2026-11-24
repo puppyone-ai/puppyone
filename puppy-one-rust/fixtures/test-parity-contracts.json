@@ -52783,6 +52783,47 @@
           "test": "app::tests::cloud_opening::opening_a_cloud_project_waits_for_the_restoring_session"
         }
       ]
+    },
+    {
+      "id": "scoped-checkout-cloud-notice",
+      "acceptance": "A local checkout whose Git remote is a Scope locator (`/git/<project>/scopes/<scope>.git`) is resolved for its exact Scope: the repository-context request names the Scope target, and an answer for that Scope with its owning Project, read access and a plain relative scope path (no empty, `.`, `..` or backslash segments) resolves the folder as linked to that Project with its place in it. Its notice says it is linked to the Project but offers no way to open it (asking explains instead), so a scoped checkout is never broadened into its whole Cloud Project; a running or saved first publication still continues instead.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/repositories/localFolderCloudNoticeState.test.ts",
+          "sha256": "96b306e711aad3bd41e9194aebe3d8eb63e4d99c49af6eb4e993a782f5376262",
+          "cases": [
+            {
+              "index": 2,
+              "name": "local folder Cloud notice > never broadens a scoped checkout into its whole Cloud project"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/cloud/repositories/contextualCloudResolution.test.tsx",
+          "sha256": "33a10f8adcf97b563952d6c6cd04e686db5e4428e0fbb548927137c272493838",
+          "cases": [
+            {
+              "index": 5,
+              "name": "current-repository Cloud context > resolves an exact Scope while preserving its owning Project"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::a_scope_checkout_is_linked_to_its_project_but_never_opens_it"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::repository::tests::remotes_decide_before_any_request"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::tests::a_scope_path_is_a_plain_relative_path"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -59729,34 +59770,6 @@
             {
               "index": 22,
               "name": "Initialize Git state race guard > rejects when the branch changed"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "scoped-checkout-cloud-notice",
-      "kind": "gap",
-      "reason": "TS resolves a Scope checkout's Cloud context and shows it as linked to its Project, not openable, so asking for it explains rather than opening the whole Project. The native app decides a Scope locator as unresolvable before any request (workspace::cloud::repository::precheck), so the notice reads as unreachable. Neither broadens a scoped checkout into its whole Project.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/README.md",
-      "typescript": [
-        {
-          "path": "tests/unit/cloud/repositories/localFolderCloudNoticeState.test.ts",
-          "sha256": "96b306e711aad3bd41e9194aebe3d8eb63e4d99c49af6eb4e993a782f5376262",
-          "cases": [
-            {
-              "index": 2,
-              "name": "local folder Cloud notice > never broadens a scoped checkout into its whole Cloud project"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/cloud/repositories/contextualCloudResolution.test.tsx",
-          "sha256": "33a10f8adcf97b563952d6c6cd04e686db5e4428e0fbb548927137c272493838",
-          "cases": [
-            {
-              "index": 5,
-              "name": "current-repository Cloud context > resolves an exact Scope while preserving its owning Project"
             }
           ]
         }

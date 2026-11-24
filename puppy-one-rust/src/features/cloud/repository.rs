@@ -130,9 +130,9 @@ impl RepositoryCloud {
                 account.is_some(),
             ) {
                 Precheck::Decided(context) => Ok(context),
-                Precheck::Authorize(project) => {
+                Precheck::Authorize(target) => {
                     let (broker, binding) = account.expect("signed in");
-                    repository::authorize(&broker, &binding, &project, &cancel)
+                    repository::authorize(&broker, &binding, &target, &cancel)
                 }
             }
         });

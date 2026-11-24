@@ -50,10 +50,15 @@ pub(super) enum Notice {
 pub(super) fn notice_of(context: &Association) -> Option<Notice> {
     Some(match context {
         Association::LocalOnly | Association::Resolving => return None,
-        Association::Resolved { project, name } => Notice::Linked {
+        Association::Resolved {
+            project,
+            name,
+            scope,
+        } => Notice::Linked {
             project: project.clone(),
             name: Some(name.trim().to_owned()).filter(|n| !n.is_empty()),
-            openable: true,
+            // A Scope checkout is never broadened into its whole Project.
+            openable: scope.is_none(),
         },
         Association::WrongAccount => Notice::SignIn,
         Association::WrongHost { origin } => Notice::OtherEnvironment {
@@ -78,10 +83,15 @@ pub(super) enum LinkedEntry {
     /// Continues the first publication that is still running or saved,
     /// instead of opening the Cloud project it is creating.
     Publish,
+    /// A Scope checkout: the notice explains the link instead of opening
+    /// the whole Project.
+    Explain,
 }
-pub(super) fn linked_entry(publication_pending: bool) -> LinkedEntry {
+pub(super) fn linked_entry(openable: bool, publication_pending: bool) -> LinkedEntry {
     if publication_pending {
         LinkedEntry::Publish
+    } else if !openable {
+        LinkedEntry::Explain
     } else {
         LinkedEntry::Open
     }
@@ -588,11 +598,12 @@ impl WindowCloud {
                     tr("cloud.localFolderNotice.openProject"),
                     move |w, cx| {
                         let _ = host.update(cx, |s, cx| {
-                            match linked_entry(s.publication_pending(cx)) {
+                            match linked_entry(true, s.publication_pending(cx)) {
                                 LinkedEntry::Publish => s.put_in_cloud(w, cx),
                                 LinkedEntry::Open => {
                                     cx.emit(CloudEvent::OpenCloud(project.clone()))
                                 }
+                                LinkedEntry::Explain => {}
                             }
                         });
                     },
@@ -1039,6 +1050,7 @@ mod tests {
         let resolved = Association::Resolved {
             project: "p1".into(),
             name: " Vault ".into(),
+            scope: None,
         };
         assert_eq!(
             notice_of(&resolved),
@@ -1087,8 +1099,8 @@ mod tests {
                 "{unreachable:?}"
             );
         }
-        assert_eq!(linked_entry(false), LinkedEntry::Open);
-        assert_eq!(linked_entry(true), LinkedEntry::Publish);
+        assert_eq!(linked_entry(true, false), LinkedEntry::Open);
+        assert_eq!(linked_entry(true, true), LinkedEntry::Publish);
         let linked = notice_of(&resolved).unwrap();
         let other = Notice::OtherEnvironment { origin: None };
         let (a, b) = (std::path::Path::new("/a"), std::path::Path::new("/b"));
@@ -1131,7 +1143,8 @@ mod tests {
         assert_eq!(
             notice_of(&Association::Resolved {
                 project: "p".into(),
-                name: "  ".into()
+                name: "  ".into(),
+                scope: None,
             }),
             Some(Notice::Linked {
                 project: "p".into(),
