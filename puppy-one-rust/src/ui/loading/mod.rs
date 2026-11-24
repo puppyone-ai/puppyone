@@ -1,6 +1,11 @@
 //! Shared LoadingMark / placeholder material, not page-owned spinners.
 //! One window-independent clock, one bounded timer per App; only views that
 //! actually paint a visible loading surface subscribe for the next tick.
+//!
+//! A mark is announced once, as a status: by the name it is given, else by
+//! the words it stands beside (`InlineLoading`, `PageLoading`), else by its
+//! localized name. A mark whose host already announces the loading is
+//! silent (`ariaHidden`).
 pub mod model;
 use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
@@ -113,6 +118,12 @@ pub struct LoadingMark {
     layout: Layout,
     color: Option<Rgba>,
     tone: Tone,
+    /// `ariaLabel`.
+    label: Option<SharedString>,
+    /// The words it stands beside.
+    words: Option<SharedString>,
+    /// `ariaHidden`.
+    silent: bool,
 }
 impl LoadingMark {
     pub fn new(id: impl Into<ElementId>) -> Self {
@@ -122,7 +133,35 @@ impl LoadingMark {
             layout: Layout::Inline,
             color: None,
             tone: Tone::Neutral,
+            label: None,
+            words: None,
+            silent: false,
         }
+    }
+    /// What it is announced as (`ariaLabel`), whatever words it stands beside.
+    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+    /// The words shown beside it: what it is announced as unless it is given
+    /// a name.
+    pub fn beside(mut self, words: impl Into<SharedString>) -> Self {
+        self.words = Some(words.into());
+        self
+    }
+    /// Its host already announces the loading (`ariaHidden`).
+    pub fn silent(mut self) -> Self {
+        self.silent = true;
+        self
+    }
+    /// The one announcement, if it makes it.
+    fn announced(&self) -> Option<SharedString> {
+        (!self.silent).then(|| {
+            self.label
+                .clone()
+                .or_else(|| self.words.clone())
+                .unwrap_or_else(|| crate::localization::t("shared-ui.loading").into())
+        })
     }
     pub fn size(mut self, size: LoaderSize) -> Self {
         self.size = size;
@@ -145,8 +184,11 @@ impl RenderOnce for LoadingMark {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let color = self.color.unwrap_or_else(|| self.tone.color(cx));
         let (w, h) = model::dimensions(self.size, self.layout);
+        let announced = self.announced();
         div()
             .id(self.id)
+            .when_some(announced, |d, name| d.role(Role::Status).aria_label(name))
+            .test_support()
             .flex_shrink_0()
             .w(px(w as f32))
             .h(px(h as f32))
@@ -221,5 +263,80 @@ mod tests {
             assert_ne!(Tone::Neutral.color(cx), t.accent);
             assert_eq!(Tone::Danger.color(cx), t.danger);
         });
+    }
+
+    struct Marks(fn() -> Vec<LoadingMark>);
+    impl Render for Marks {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div().flex().children((self.0)())
+        }
+    }
+    /// What the window announces as loading: every status, by name.
+    fn statuses(cx: &mut gpui::TestAppContext, marks: fn() -> Vec<LoadingMark>) -> Vec<String> {
+        use gpui_kit::test::TestQueryExt as _;
+        cx.update(gpui_kit::init);
+        let (_, cx) = cx.add_window_view(|_, _| Marks(marks));
+        cx.update(|window, cx| {
+            window.draw(cx).clear(cx);
+            window
+                .find_all_by_role(Role::Status)
+                .iter()
+                .map(|status| status.label().unwrap_or_default().to_owned())
+                .collect()
+        })
+    }
+
+    /// `LoadingMark`: `announces loading unless the host already does`.
+    #[gpui::test]
+    fn a_mark_announces_loading_unless_its_host_does(cx: &mut gpui::TestAppContext) {
+        let names = statuses(cx, || {
+            vec![
+                LoadingMark::new("announced").label("Opening project"),
+                LoadingMark::new("hidden").silent(),
+            ]
+        });
+        assert_eq!(names, ["Opening project"]);
+    }
+
+    /// `what a loading mark is called`: once, by what its caller says.
+    #[gpui::test]
+    fn a_mark_is_announced_once_by_the_words_beside_it(cx: &mut gpui::TestAppContext) {
+        assert_eq!(
+            statuses(cx, || vec![LoadingMark::new("saving").beside("Saving")]),
+            ["Saving"]
+        );
+    }
+
+    /// `prefers the name it is given over its words`.
+    #[gpui::test]
+    fn a_given_name_wins_over_the_words(cx: &mut gpui::TestAppContext) {
+        let names = statuses(cx, || {
+            vec![
+                LoadingMark::new("saving")
+                    .beside("Saving")
+                    .label("Saving the project"),
+            ]
+        });
+        assert_eq!(names, ["Saving the project"]);
+    }
+
+    /// `falls back to the mark's localized name when an inline mark has no
+    /// words`.
+    #[gpui::test]
+    fn an_inline_mark_without_words_is_called_loading(cx: &mut gpui::TestAppContext) {
+        assert_eq!(
+            statuses(cx, || vec![LoadingMark::new("inline")]),
+            ["Loading…"]
+        );
+    }
+
+    /// `falls back to the mark's localized name when a page mark has no
+    /// words`.
+    #[gpui::test]
+    fn a_page_mark_without_words_is_called_loading(cx: &mut gpui::TestAppContext) {
+        let names = statuses(cx, || {
+            vec![LoadingMark::new("page").area().size(LoaderSize::Md)]
+        });
+        assert_eq!(names, ["Loading…"]);
     }
 }

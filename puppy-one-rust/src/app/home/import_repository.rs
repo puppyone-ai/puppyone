@@ -499,7 +499,8 @@ impl Homepage {
                     .child(
                         crate::ui::loading::LoadingMark::new("import-cloning")
                             .size(crate::ui::loading::LoaderSize::Xs)
-                            .tone(crate::ui::loading::Tone::Neutral),
+                            .tone(crate::ui::loading::Tone::Neutral)
+                            .beside(tr("onboarding.status.loadingProject")),
                     )
                     .child(tr("onboarding.status.loadingProject")),
             );

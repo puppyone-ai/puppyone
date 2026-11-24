@@ -1185,7 +1185,7 @@ impl Render for DatabaseView {
                 .gap(px(8.))
                 .text_size(px(theme::ty().ui.meta))
                 .text_color(p.subtle)
-                .child(LoadingMark::new("database-pending"))
+                .child(LoadingMark::new("database-pending").beside(t("editor.loadingFile")))
                 .child(t("editor.loadingFile"))
                 .into_any_element();
         };

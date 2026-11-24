@@ -546,7 +546,7 @@ impl Render for WebFrame {
                         .gap(px(8.))
                         .text_size(px(theme::ty().ui.meta))
                         .text_color(p.subtle)
-                        .child(LoadingMark::new("web-pending"))
+                        .child(LoadingMark::new("web-pending").beside(t("editor.preview.loading")))
                         .child(t("editor.preview.loading")),
                 )
             })

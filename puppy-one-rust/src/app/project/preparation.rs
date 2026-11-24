@@ -88,13 +88,17 @@ impl ProjectLifecycle {
         let top = metric::CHROME_HEIGHT;
         let cloud = self.files(cx).cloud_opening();
         let docs = self.docs.downgrade();
-        // `CloudWorkspaceOpeningLoading`: one line for the stage, and Cancel.
-        let detail = cloud.map(|phase| {
+        // `CloudWorkspaceOpeningLoading`: one line for the stage, and Cancel;
+        // the mark is announced by that line, else as the project loading
+        // (`ProjectOpeningSurface`).
+        let stage = cloud.map(|phase| {
             use crate::workspace::cloud::opening::Phase;
-            let label = tr(match phase {
+            tr(match phase {
                 Phase::Checking | Phase::Connecting => "cloud.loading.startingWorkspace",
                 Phase::Files => "cloud.loading.files",
-            });
+            })
+        });
+        let detail = stage.map(|label| {
             let ty = theme::ty().ui;
             v_flex()
                 .absolute()
@@ -138,7 +142,8 @@ impl ProjectLifecycle {
                 LoadingMark::new("project-opening")
                     .area()
                     .size(LoaderSize::Md)
-                    .tone(Tone::Neutral),
+                    .tone(Tone::Neutral)
+                    .label(stage.unwrap_or(tr("onboarding.status.loadingProject"))),
             )
             .children(detail);
         // Over what the window showed before: none of it takes the pointer

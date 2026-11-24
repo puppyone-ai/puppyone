@@ -80,7 +80,8 @@ impl Homepage {
                         crate::ui::loading::LoadingMark::new("home-projects-loading")
                             .area()
                             .size(crate::ui::loading::LoaderSize::Md)
-                            .tone(crate::ui::loading::Tone::Neutral),
+                            .tone(crate::ui::loading::Tone::Neutral)
+                            .label(tr("common.status.loading")),
                     )
                 })
                 .into_any_element();

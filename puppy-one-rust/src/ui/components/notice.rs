@@ -183,7 +183,8 @@ impl RenderOnce for FloatingNotice {
                         .items_center()
                         .child(
                             crate::ui::loading::LoadingMark::new(child_id(&id, "busy"))
-                                .size(crate::ui::loading::LoaderSize::Xs),
+                                .size(crate::ui::loading::LoaderSize::Xs)
+                                .beside(message.clone()),
                         ),
                 )
             })
