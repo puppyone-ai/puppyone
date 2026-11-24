@@ -103,6 +103,14 @@ pub struct TranscriptView {
     /// and the frame driver that catches it up.
     pub(super) stream_text: HashMap<String, String>,
     pub(super) stream_frames: Option<Task<()>>,
+    /// `seenPartIdsRef`: parts already shown, or there when the
+    /// conversation first showed; only others enter with motion.
+    pub(super) seen_parts: HashSet<String>,
+    seeded: bool,
+    /// Rows fading in (`.desktop-agent-virtual-row.is-new`), by row id.
+    pub(super) entering: HashMap<String, crate::ui::motion::Timeline>,
+    /// `prefers-reduced-motion: reduce`: rows enter without motion.
+    pub(super) reduce_motion: bool,
 }
 
 impl TranscriptView {
@@ -135,6 +143,10 @@ impl TranscriptView {
             history_notice_open: false,
             stream_text: HashMap::new(),
             stream_frames: None,
+            seen_parts: HashSet::new(),
+            seeded: false,
+            entering: HashMap::new(),
+            reduce_motion: crate::platform::accessibility::reduce_motion(),
         }
     }
     /// The conversation changed.
@@ -194,6 +206,14 @@ impl TranscriptView {
         let history_notice = agent_history_notice(&input.projection);
         self.parts = timeline.parts;
         self.rows = rows;
+        if !self.seeded {
+            self.seeded = true;
+            let shown = self
+                .rows
+                .iter()
+                .flat_map(|row| row.part_ids.iter().cloned());
+            self.seen_parts.extend(shown);
+        }
         let mut next: Vec<(String, blake3::Hash)> = self
             .rows
             .iter()
