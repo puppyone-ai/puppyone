@@ -203,23 +203,37 @@ impl crate::workspace::hosts::connector::Gateway for Offline {
     }
 }
 
-/// Opening a folder here to my other computers: asked first, registered
-/// through this computer's own host (in this process, on its control
-/// socket), remembered with the folder, widened only after another yes,
-/// and stopped after one more.
-#[gpui::test]
-fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppContext) {
+const USER: &str = "1e8a6c52-2222-4b3a-9c3f-6b5a4c3d2e1f";
+const DEVICE: &str = "0d9b7f61-1111-4c2a-8b2e-7a6b5c4d3e2f";
+
+/// This computer's own host, in this process on its control socket, for a
+/// signed-in fixture account whose Cloud records every request in `asked`.
+struct HostHere {
+    host: std::sync::Arc<crate::workspace::hosts::service::HostService>,
+    asked: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    /// Signs the fixture account in again.
+    sign_in_again: Box<dyn Fn()>,
+    temp: tempfile::TempDir,
+    _shutdown: tokio::sync::mpsc::UnboundedReceiver<()>,
+}
+fn host_here<'a>(
+    cx: &'a mut TestAppContext,
+    remember: &[&str],
+) -> (Entity<Shell>, &'a mut VisualTestContext, HostHere) {
     use crate::workspace::hosts::{
         control,
         identity::{KeyStore, MemoryKeys},
-        registry::Execution,
         service::HostService,
     };
-    const USER: &str = "1e8a6c52-2222-4b3a-9c3f-6b5a4c3d2e1f";
-    const DEVICE: &str = "0d9b7f61-1111-4c2a-8b2e-7a6b5c4d3e2f";
     let temp = tempfile::tempdir().unwrap();
-    let folder = temp.path().canonicalize().unwrap().join("notes");
-    std::fs::create_dir(&folder).unwrap();
+    let folders: Vec<_> = remember
+        .iter()
+        .map(|name| {
+            let folder = temp.path().canonicalize().unwrap().join(name);
+            std::fs::create_dir(&folder).unwrap();
+            folder
+        })
+        .collect();
     let asked = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let seen = asked.clone();
     // The Cloud's view: the folder this computer registered, at its revision.
@@ -263,7 +277,9 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
         s.prefs.store.update(cx, |p, _| {
             p.state.experimental.cloud_workspace = true;
             p.state.experimental.host_devices = true;
-            p.state.remember_project(&folder, 1);
+            for folder in &folders {
+                p.state.remember_project(folder, 1);
+            }
         });
     });
     cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
@@ -296,7 +312,7 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
         std::sync::Arc::new(move || Box::new(Same(keys.clone())) as Box<dyn KeyStore>),
         None,
     );
-    let (stop, _stopped) = tokio::sync::mpsc::unbounded_channel();
+    let (stop, shutdown) = tokio::sync::mpsc::unbounded_channel();
     runtime().spawn(control::serve(dir.clone(), host.clone(), stop));
     while !control::paths(&dir).1.exists() {
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -304,6 +320,35 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
     cx.update(|_, cx| {
         crate::features::hosts::host_link(cx).update(cx, |l, _| l.use_dir(dir.clone()))
     });
+    (
+        view,
+        cx,
+        HostHere {
+            host,
+            asked,
+            sign_in_again: Box::new(move || crate::cloud::auth::sign_in_again(&kept, USER)),
+            temp,
+            _shutdown: shutdown,
+        },
+    )
+}
+
+/// Opening a folder here to my other computers: asked first, registered
+/// through this computer's own host (in this process, on its control
+/// socket), remembered with the folder, widened only after another yes,
+/// and stopped after one more.
+#[gpui::test]
+fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppContext) {
+    use crate::workspace::hosts::registry::Execution;
+    let (view, cx, here) = host_here(cx, &["notes"]);
+    let HostHere {
+        host,
+        asked,
+        sign_in_again,
+        temp,
+        _shutdown,
+    } = here;
+    let folder = temp.path().canonicalize().unwrap().join("notes");
     // Asked, then answered under another sign-in: nothing is shared and
     // the question goes.
     view.update_in(cx, |s, w, cx| {
@@ -319,7 +364,7 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
             .1
             .epoch
     });
-    crate::cloud::auth::sign_in_again(&kept, USER);
+    sign_in_again();
     settle_cloud(&view, cx, "the new sign-in", &|_, cx| {
         crate::features::cloud::account::broker_and_binding(cx)
             .is_some_and(|(_, b)| b.epoch > before)
@@ -471,4 +516,78 @@ fn a_folder_here_opens_to_my_other_computers_after_i_allow_it(cx: &mut TestAppCo
             .any(|a| a.starts_with("DELETE "))
     );
     host.dispose();
+}
+
+/// `withdraws only a share whose folder has gone from disk, once its
+/// project was found elsewhere` (`hostIpc.test.mjs`): two folders shared;
+/// one moves away and is found at its new place. Only its share goes, the
+/// Cloud is told, and nobody is asked.
+#[gpui::test]
+fn only_a_share_whose_folder_has_gone_is_withdrawn_once_found_elsewhere(cx: &mut TestAppContext) {
+    let (view, cx, here) = host_here(cx, &["Ambassadors", "Notes"]);
+    let root = here.temp.path().canonicalize().unwrap();
+    let (moved, kept) = (root.join("Ambassadors"), root.join("Notes"));
+    let link = cx.update(|_, cx| crate::features::hosts::host_link(cx));
+    link.update(cx, |l, cx| l.ensure(true, cx));
+    settle_cloud(&view, cx, "the host", &|_, cx| {
+        crate::features::hosts::read_link(cx).is_some_and(|l| l.status.is_some())
+    });
+    for folder in [&moved, &kept] {
+        link.update(cx, |l, cx| l.share(folder.clone(), false, cx, |_, _, _| {}));
+    }
+    // The screen sees shared folders by name only; their paths stay here.
+    let shared = |cx: &App| {
+        let mut names: Vec<String> = crate::features::hosts::read_link(cx)
+            .and_then(|l| l.status.as_ref())
+            .map(|s| s.folders.iter().map(|f| f.name.clone()).collect())
+            .unwrap_or_default();
+        names.sort();
+        names
+    };
+    settle_cloud(&view, cx, "two shares", &|_, cx| {
+        shared(cx) == ["Ambassadors", "Notes"]
+    });
+    let retire = |cx: &mut VisualTestContext, root: std::path::PathBuf| {
+        let retired = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let seen = retired.clone();
+        link.update(cx, |l, cx| {
+            l.retire_at_missing_root(root, cx, move |_, n, _| *seen.lock().unwrap() = Some(n))
+        });
+        settle_cloud(&view, cx, "the withdrawal", &|_, _| {
+            retired.lock().unwrap().is_some()
+        });
+        retired.lock().unwrap().unwrap()
+    };
+    // A folder still on disk is never withdrawn this way, whatever asks.
+    assert_eq!(retire(cx, kept.clone()), 0);
+    assert_eq!(retire(cx, "relative/path".into()), 0);
+    // Moved away and found at its new place: Relocate withdraws it.
+    let to = root.join("Ambassadors moved");
+    std::fs::rename(&moved, &to).unwrap();
+    view.update(cx, |s, cx| {
+        s.home
+            .update(cx, |h, cx| h.relocate_folder(moved.clone(), to.clone(), cx))
+    });
+    settle_cloud(&view, cx, "the moved folder's share withdrawn", &|_, cx| {
+        shared(cx) == ["Notes"]
+    });
+    // The Cloud is told too, so the owner's other computers stop listing it.
+    let deletes = here
+        .asked
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|a| a.starts_with("DELETE "))
+        .count();
+    assert_eq!(deletes, 1);
+    // Narrowing only: nobody was asked.
+    view.read_with(cx, |s, cx| {
+        assert!(s.cloud.read(cx).sharing_state().is_none());
+        assert!(
+            !s.cloud
+                .read(cx)
+                .dialog_open(crate::app::dialogs::DialogKey::HostSharing, cx)
+        );
+    });
+    here.host.dispose();
 }

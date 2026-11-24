@@ -271,7 +271,7 @@ impl Homepage {
                     return cx.notify();
                 }
                 // Sharing named the old place; it does not follow the folder
-                // (other computers are not offered in this release).
+                // (offering to share it again stays out of this release).
                 s.preferences.update(cx, |p, cx| {
                     p.change(
                         |p| {
@@ -279,6 +279,10 @@ impl Homepage {
                         },
                         cx,
                     )
+                });
+                // What this computer shared from the old place is withdrawn.
+                crate::features::hosts::host_link(cx).update(cx, |link, cx| {
+                    link.retire_at_missing_root(from.clone(), cx, |_, _, _| {})
                 });
                 s.unavailable.remove(&from);
                 if s.window_folder
