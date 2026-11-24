@@ -738,7 +738,7 @@ impl Render for CloudScreen {
                         s.apply_setting(
                             SandboxSettings {
                                 desktop: Some(true),
-                                screen_stream: None,
+                                ..Default::default()
                             },
                             cx,
                         );
@@ -756,8 +756,8 @@ impl Render for CloudScreen {
                     |s, _, _, cx| {
                         s.apply_setting(
                             SandboxSettings {
-                                desktop: None,
                                 screen_stream: Some(true),
+                                ..Default::default()
                             },
                             cx,
                         );

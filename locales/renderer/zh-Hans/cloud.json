@@ -112,7 +112,7 @@
   "auth.explainer.cloud.body": "Claude、ChatGPT、Codex 直接访问，手机上也能随时打开。",
   "auth.explainer.share.label": "分享链接",
   "auth.explainer.share.title": "一条链接，\n交给任何人和 Agent",
-  "auth.explainer.share.body": "发短信给同事，或者发给你的 Grok\u00a0Bot，对方点开就能看、能接着改。",
+  "auth.explainer.share.body": "发短信给同事，或者发给你的 Grok Bot，对方点开就能看、能接着改。",
   "auth.explainer.submit": "登录，开启 Cloud",
   "auth.explainer.later": "以后再说",
   "activation.overview.description": "让文件始终在线，随时供成员、Agent 和自动化使用。",
@@ -1173,5 +1173,7 @@
   "settings.computer.desktopPending": "已更改，在这个项目的下一台云电脑创建时生效。",
   "settings.computer.stream": "传输屏幕",
   "settings.computer.streamHelp": "在 App 里显示桌面。关闭后，屏幕画面不会传到这台电脑。",
-  "settings.computer.failed": "云电脑设置没能保存，请重试。"
+  "settings.computer.failed": "云电脑设置没能保存，请重试。",
+  "settings.computer.isolatedAgents": "外部 Agent 独立沙盒",
+  "settings.computer.isolatedAgentsHelp": "为每个外部 Agent 启动独立沙盒并挂载项目共享文件。开启后对后续外部 Agent 连接生效。"
 }

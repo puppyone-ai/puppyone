@@ -221,4 +221,25 @@ describe("Experimental settings", () => {
 
     expect(host.querySelector('input[aria-label="Automation"]')).toBeNull();
   });
+
+  it("offers an off-by-default Isolated Agent sandboxes experiment under Cloud", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    act(() => root?.render(withTestLocalization(
+      <ExperimentalSettingsView />,
+    )));
+
+    const toggle = host.querySelector<HTMLInputElement>(
+      'input[aria-label="Isolated Agent sandboxes"]',
+    );
+    expect(toggle).not.toBeNull();
+    expect(toggle?.checked).toBe(false);
+    act(() => toggle?.click());
+    expect(store.getState().experimentalSettings).toEqual({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS,
+      enableIsolatedAgentSandboxes: true,
+    });
+  });
 });

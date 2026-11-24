@@ -112,7 +112,7 @@
   "auth.explainer.cloud.body": "Claude, ChatGPT et Codex y accèdent directement, et tout s’ouvre aussi sur votre téléphone.",
   "auth.explainer.share.label": "Partager le lien",
   "auth.explainer.share.title": "Un seul lien,\npour chacun et chaque Agent",
-  "auth.explainer.share.body": "Envoyez-le par message à un collègue ou à votre Grok\u00a0Bot : il suffit de l’ouvrir pour lire et continuer à modifier.",
+  "auth.explainer.share.body": "Envoyez-le par message à un collègue ou à votre Grok Bot : il suffit de l’ouvrir pour lire et continuer à modifier.",
   "auth.explainer.submit": "Se connecter et activer Cloud",
   "auth.explainer.later": "Plus tard",
   "activation.overview.description": "Gardez vos fichiers en ligne, à disposition des personnes, agents et automatisations.",
@@ -1173,5 +1173,7 @@
   "settings.computer.desktopPending": "Changed. Takes effect when this project's next Cloud Computer is created.",
   "settings.computer.stream": "Show screen",
   "settings.computer.streamHelp": "Show the desktop in this app. When off, the screen is never sent to this computer.",
-  "settings.computer.failed": "Couldn't update the Cloud Computer. Try again."
+  "settings.computer.failed": "Couldn't update the Cloud Computer. Try again.",
+  "settings.computer.isolatedAgents": "Sandboxes isolés pour Agents",
+  "settings.computer.isolatedAgentsHelp": "Exécute chaque Agent externe dans son propre sandbox isolé monté sur les fichiers partagés du projet. S'applique aux nouvelles connexions."
 }
