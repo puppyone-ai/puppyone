@@ -52024,6 +52024,32 @@
           "test": "editor::viewers::office::admission_tests::a_window_running_two_conversions_refuses_a_third_preview"
         }
       ]
+    },
+    {
+      "id": "markdown-format-shortcut-repeat",
+      "acceptance": "Holding one of the window's format shortcuts (Bold, Italic, Underline and Strike: secondary-b, -i, -u, -d and -shift-x) applies it once: the system's auto-repeats of the held key do nothing, and a fresh press after the key was released applies it again. The repeat is AppKit's current key event's isARepeat on macOS; other systems give the key bindings no repeat flag. Option, Control on macOS (Command elsewhere), both platform modifiers together and a released key are no format shortcut.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatShortcuts.electron.test.mjs",
+          "sha256": "e51b314e73668eeec13d0a33c5782e6d9c049597cff6fc054701b5de83f11e48",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown format window shortcuts > rejects repeated, modified, released, and cross-platform modifier inputs"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::held_format_shortcuts_apply_once_and_other_inputs_are_ignored"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::key_repeat::tests::a_keystroke_outside_a_key_event_is_a_press"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -63826,24 +63852,6 @@
             {
               "index": 5,
               "name": "Markdown link pointer gesture > suppresses only the browser click paired with a handled pointer release"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-format-shortcut-repeat",
-      "kind": "gap",
-      "reason": "GPUI dispatches a held keystroke to its action again on every key repeat, so holding ⌘B toggles bold on and off natively; the product ignores auto-repeated format shortcuts (and Option, Control-on-macOS and released inputs, which the native key bindings also ignore).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/editing-commands.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatShortcuts.electron.test.mjs",
-          "sha256": "e51b314e73668eeec13d0a33c5782e6d9c049597cff6fc054701b5de83f11e48",
-          "cases": [
-            {
-              "index": 3,
-              "name": "Markdown format window shortcuts > rejects repeated, modified, released, and cross-platform modifier inputs"
             }
           ]
         }

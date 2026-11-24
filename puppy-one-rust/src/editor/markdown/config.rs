@@ -128,13 +128,29 @@ pub(super) fn register_markdown_keymap(cx: &mut App) {
     }
 }
 
+/// `matchMarkdownFormatInput`: the window's format shortcuts, which apply
+/// once while held; their auto-repeats do nothing.
+fn applies_once_while_held(cmd: FormatCommand) -> bool {
+    matches!(
+        cmd,
+        FormatCommand::Bold
+            | FormatCommand::Italic
+            | FormatCommand::Underline
+            | FormatCommand::Strike
+    )
+}
+
 pub(super) fn bind_markdown_actions(root: Div, cx: &mut Context<EditorView>) -> Div {
     macro_rules! bind_fmt {
         ($div:expr, $($action:ty => $cmd:expr),* $(,)?) => {{
             let mut d = $div;
             $(
                 d = d.on_action(cx.listener(|view, _: &$action, window, cx| {
-                    view.run_command(&format_command($cmd), window, cx);
+                    let cmd = $cmd;
+                    if applies_once_while_held(cmd) && crate::platform::key_repeat::repeating() {
+                        return;
+                    }
+                    view.run_command(&format_command(cmd), window, cx);
                 }));
             )*
             d
