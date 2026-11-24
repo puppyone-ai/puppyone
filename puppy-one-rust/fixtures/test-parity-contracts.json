@@ -52877,6 +52877,7 @@
       "rust": [
         {
           "package": "po-app",
+          "target": "puppy-one-rust",
           "test": "features::source_control::cloud_history::tests::the_page_draws_as_a_lane_graph_with_buttons_for_commits_only"
         }
       ]
