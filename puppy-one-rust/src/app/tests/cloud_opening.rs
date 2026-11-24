@@ -671,6 +671,11 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
             s.cloud.read(cx).publish.read(cx).header_status(),
             Some(crate::features::cloud::HeaderStatus::Completed)
         );
+        // Finished while its dialog was put away: the Header announces it.
+        assert_eq!(
+            s.cloud.read(cx).publish.read(cx).header_mark(),
+            Some(crate::features::cloud::HeaderStatus::Completed)
+        );
         // The folder stays open: its Cloud project is another project.
         assert_eq!(s.workspace_root(cx).as_deref(), Some(root.as_path()));
         assert!(s.hosted_project(cx).is_none());
