@@ -112,6 +112,8 @@ pub struct AgentChatTabPanel {
     compute: Option<compute::ComputeSnapshot>,
     compute_revision: Option<String>,
     compute_access_prompt: bool,
+    /// The app's compute wallet, as it is now (`snapshot.managed`).
+    wallet: Option<compute::ManagedCompute>,
     /// `usePaymentsExperience()`.
     payments: bool,
     /// The user's routing preferences (`preferredRuntimeId`, `preferredRoute`).
@@ -153,6 +155,7 @@ impl AgentChatTabPanel {
             window,
             cx,
         );
+        panel.watch_wallet(cx);
         panel.reload_model_connections(cx);
         panel.on_state_change(window, cx);
         panel
@@ -219,6 +222,7 @@ impl AgentChatTabPanel {
             compute: None,
             compute_revision: None,
             compute_access_prompt: false,
+            wallet: None,
             payments: false,
             routing: AgentRouting::default(),
             #[cfg(feature = "dev-capture")]

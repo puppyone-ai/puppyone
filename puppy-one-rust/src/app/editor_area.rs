@@ -79,6 +79,8 @@ pub(super) struct EditorArea {
     pub drop: Option<EditorDrop>,
     /// Each tab's own focus handle, by slot id.
     pub tab_focus: BTreeMap<u64, FocusHandle>,
+    /// Each split's handle is a tab stop, by split id.
+    pub(super) split_focus: BTreeMap<String, FocusHandle>,
     /// The save failure whose notice the person dismissed
     /// (`useDismissibleNotice`).
     pub dismissed_save_error: Option<String>,
@@ -176,6 +178,7 @@ impl EditorArea {
             resize: None,
             drop: None,
             tab_focus: Default::default(),
+            split_focus: Default::default(),
             dismissed_save_error: None,
             comparing_conflict: false,
             pending_external_drop: None,
@@ -456,7 +459,11 @@ impl EditorArea {
             let mut editor = DocumentEditor::new(cx);
             editor.workbench = true;
             editor.file_mode = file_mode;
-            editor.pane_drag = Some(crate::editor::workbench::pane::PaneDrag { owner, slot });
+            editor.pane_drag = Some(crate::editor::workbench::pane::PaneDrag {
+                owner,
+                slot,
+                pane: None,
+            });
             editor
         });
         cx.subscribe_in(
@@ -519,9 +526,15 @@ impl EditorArea {
                     .read(cx)
                     .slot(slot)
                     .is_none_or(|f| f.busy() || f.allow_quit);
+            let docs = self.docs.read(cx);
+            let loading = docs
+                .slot(slot)
+                .is_some_and(|f| f.busy() && f.opened().is_none());
+            let failure = docs.read_failure(slot);
             editor.update(cx, |s, cx| {
                 s.set_reference_context(references, cx);
                 s.read_only = read_only;
+                s.set_reading(loading, failure, cx);
                 s.gate(blocked, gate.dark, window, cx);
             });
         }
@@ -547,8 +560,17 @@ impl Render for EditorArea {
             .state()
             .map(|state| state.layout.root.clone());
         if let Some(root) = root {
+            let splits = root.splits();
+            self.split_focus
+                .retain(|id, _| splits.contains(&id.as_str()));
+            for split in splits {
+                if !self.split_focus.contains_key(split) {
+                    let focus = cx.focus_handle().tab_stop(true);
+                    self.split_focus.insert(split.to_owned(), focus);
+                }
+            }
             let whole = crate::geometry::Rect::new(0., 0., 1., 1.);
-            canvas = canvas.child(self.editor_node(&root, whole, cx));
+            canvas = canvas.child(self.editor_node(&root, whole, window, cx));
         } else if self.docs.read(cx).opened().is_some() {
             canvas = canvas.child(div().absolute().size_full().child(self.front.clone()));
         }

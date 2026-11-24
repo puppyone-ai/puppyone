@@ -5,19 +5,20 @@
 pub mod block;
 pub mod inline;
 pub mod render;
+pub mod run;
 pub mod sanitize;
 pub mod structure;
 pub mod tokenizer;
 
-pub use block::{HtmlBlock, ShowSource};
+pub use block::{HtmlBlock, HtmlState, RenderDeferred, ShowSource};
 
 use crate::editor::{
     markdown::core::{
-        decorations::BlockDecoration,
+        decorations::{BlockDecoration, InlineDecoration, LineDecoration},
         features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
         plans::{BlockEmbed, Plan},
         state::PreviewState,
-        syntax::{Element, Syntax},
+        syntax::{Element, Kind, Syntax},
     },
     text::{
         buffer::Buffer,
@@ -52,12 +53,33 @@ impl MarkdownFeature for HtmlFeature {
         block::compile_blocks(cx, out);
     }
 
+    fn semantic_kinds(&self) -> &'static [Kind] {
+        &[Kind::HtmlRun]
+    }
+
+    fn compile_element(&self, index: usize, element: &Element, cx: &CompileCx) -> Option<Plan> {
+        run::compile(index, element, cx)
+    }
+
+    fn decorate_line(&self, cx: &mut LineDecoration) {
+        run::decorate_line(cx);
+    }
+
+    fn decorate_inline_content(&self, cx: &mut InlineDecoration) {
+        run::decorate_inline(cx);
+    }
+
     fn block_widget(
         &self,
         embed: &BlockEmbed,
         cx: &WidgetFactoryCx,
     ) -> Option<Rc<dyn BlockWidget>> {
         let block = embed.model::<HtmlBlock>()?;
+        let deferred = block.deferred
+            && !cx
+                .state
+                .get::<HtmlState>(ID)
+                .is_some_and(|s| s.activated(block.range.start));
         let nodes = match &block.embed {
             Some(_) => Vec::new(),
             None => match structure::parse(&block.html) {
@@ -71,6 +93,7 @@ impl MarkdownFeature for HtmlFeature {
             embed: block.embed.clone(),
             theme: cx.theme.clone(),
             assets: cx.assets.cloned(),
+            deferred,
         }))
     }
 
@@ -87,6 +110,12 @@ impl MarkdownFeature for HtmlFeature {
         preview: &mut PreviewState,
         state: &EditorState,
     ) -> Option<Transaction> {
+        if let Some(RenderDeferred(at)) = command.payload::<RenderDeferred>() {
+            preview
+                .state_mut::<HtmlState>(ID)
+                .activate(*at, state.revision);
+            return Some(Transaction::select(state.selection));
+        }
         let ShowSource(range) = command.payload::<ShowSource>()?;
         let range = state.doc.clamp_range(range.clone());
         let caret = state

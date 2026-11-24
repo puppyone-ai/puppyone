@@ -547,3 +547,64 @@ fn panes_split_close_and_move_as_the_layout_model_says() {
         ]
     );
 }
+
+/// `editorPaneSourceSwitching.test.tsx` #0 (gap `viewer-host-read-failure-card`):
+/// a file the pane could not read stays in its pane, which says why
+/// instead of a window dialog; reading it again (the pane's Retry, or
+/// opening it again) loads it in that same pane.
+#[test]
+fn a_failed_read_stays_in_its_pane_and_reads_again_there() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("a.md"), "a").unwrap();
+    let wake = Wake::default();
+    let mut r = Runtime::default();
+    workspace(&mut r, &wake, temp.path().into());
+    open(&mut r, &wake, "a.md");
+    r.begin(Intent::OpenFile("later.md".into()), &wake);
+    wait(&mut r, &wake, |r| r.read_failure(r.active_slot()).is_some());
+    let failed = r.active_slot();
+    let failure = r.read_failure(failed).unwrap();
+    assert_eq!(failure.path, PathBuf::from("later.md"));
+    assert!(!failure.error.is_empty());
+    assert_eq!(
+        failure.local,
+        Some(temp.path().canonicalize().unwrap().join("later.md"))
+    );
+    assert!(r.error.is_none(), "no window dialog: {:?}", r.error);
+    let catalog = &r.state().unwrap().catalog;
+    assert_eq!(catalog.editors.len(), 2);
+    assert_eq!(catalog.editors[1].label, "later.md");
+    // Retry: the pane loads (no failure while reading), then shows it.
+    std::fs::write(temp.path().join("later.md"), "Recovered").unwrap();
+    r.client_for(failed, ClientMessage::RetryRead, &wake);
+    assert_eq!(r.read_failure(failed), None);
+    wait(&mut r, &wake, |r| {
+        r.slot(failed)
+            .and_then(|f| f.opened())
+            .is_some_and(|(_, p)| p == std::path::Path::new("later.md"))
+    });
+    assert_eq!(r.active_slot(), failed);
+    assert_eq!(
+        r.slot(failed)
+            .unwrap()
+            .document
+            .as_ref()
+            .unwrap()
+            .text
+            .as_str(),
+        "Recovered"
+    );
+    assert_eq!(r.state().unwrap().catalog.editors.len(), 2);
+    // Opening a failed file again reads it again, in its pane.
+    r.begin(Intent::OpenFile("gone.md".into()), &wake);
+    wait(&mut r, &wake, |r| r.read_failure(r.active_slot()).is_some());
+    let gone = r.active_slot();
+    std::fs::write(temp.path().join("gone.md"), "back").unwrap();
+    r.begin(Intent::OpenFile("a.md".into()), &wake);
+    r.begin(Intent::OpenFile("gone.md".into()), &wake);
+    wait(&mut r, &wake, |r| {
+        r.slot(gone).and_then(|f| f.opened()).is_some()
+    });
+    assert_eq!(r.active_slot(), gone);
+    assert!(r.error.is_none());
+}

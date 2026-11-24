@@ -17,7 +17,7 @@ mod marks;
 mod reveal;
 
 pub use block::{LazyEnvSlot, LazyWidgetEnv};
-pub use builder::{BlockDecoration, InlineDecoration, LineDecoration};
+pub use builder::{BlockDecoration, ClassSpan, InlineDecoration, LineDecoration};
 pub use incremental::{decorate_incremental, decorate_incremental_in_place};
 pub use reveal::{decorate_reveal, decorate_reveal_with_fallbacks};
 
@@ -75,6 +75,7 @@ pub fn surface(theme: &MarkdownTheme) -> Surface {
         inline_code_padding: Some(theme.inline.code_padding.left),
         // `.cm-md-syntax-link` has no text decoration.
         link_plain: true,
+        language: s.language.clone(),
     }
 }
 

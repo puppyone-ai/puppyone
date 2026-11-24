@@ -59,6 +59,9 @@ impl Cancellation {
 pub enum StreamEvent<'a> {
     Connected,
     Data(&'a [u8]),
+    /// A managed inference's reservation (`x-puppyone-reservation-id`), as
+    /// sent: its receipt is read later.
+    Reservation(&'a str),
 }
 pub type StreamSink<'a> = dyn FnMut(StreamEvent<'_>) -> Result<()> + Send + 'a;
 
@@ -234,6 +237,55 @@ fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
         }
     };
     Error::Service(status, code)
+}
+
+/// The managed inference service's reviewed refusal codes
+/// (`ai_*`, `openAgentStream`).
+const AI_CODES: [&str; 16] = [
+    "ai_access_denied",
+    "ai_authentication_required",
+    "ai_balance_insufficient",
+    "ai_context_limit",
+    "ai_generation_invalid",
+    "ai_generation_mismatch",
+    "ai_model_unavailable",
+    "ai_provider_unavailable",
+    "ai_provider_unconfigured",
+    "ai_rate_limited",
+    "ai_request_already_started",
+    "ai_request_invalid",
+    "ai_request_too_large",
+    "ai_route_unavailable",
+    "ai_unavailable",
+    "ai_usage_pending",
+];
+/// A refused managed inference: the service's reviewed `ai_*` code and its
+/// request id (the `X-Request-Id` header, else the body's) survive, as the
+/// product's proxy keeps them; its prose never does.
+pub(super) fn completion_error(
+    status: u16,
+    value: &serde_json::Value,
+    request_id: Option<&str>,
+) -> Error {
+    let code = value
+        .pointer("/error/code")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|code| AI_CODES.iter().find(|known| **known == code).copied());
+    match code {
+        Some(code) => {
+            let request_id = request_id.or_else(|| {
+                value
+                    .pointer("/error/request_id")
+                    .and_then(serde_json::Value::as_str)
+            });
+            Error::Response(
+                status,
+                Some(code),
+                super::model::Diagnostic::read(value, request_id),
+            )
+        }
+        None => response_error(status, value),
+    }
 }
 
 /// `billingUnavailable` (`CloudPlans.tsx`): hosted subscriptions switched off

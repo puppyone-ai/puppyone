@@ -128,9 +128,29 @@ impl AgentChatTabPanel {
         .detach();
     }
 
+    /// Follow the app's compute wallet (`snapshot.managed`), and read it.
+    pub(super) fn watch_wallet(&mut self, cx: &mut Context<Self>) {
+        let wallet = crate::features::model_connections::global_compute(cx);
+        cx.observe(&wallet, |s, wallet, cx| {
+            let managed = ManagedCompute::of(wallet.read(cx));
+            if let Some(compute) = s.compute.as_mut() {
+                compute.managed = Some(managed.clone());
+            }
+            s.wallet = Some(managed);
+            s.refresh_views();
+            cx.notify();
+        })
+        .detach();
+        self.wallet = Some(ManagedCompute::of(wallet.read(cx)));
+        wallet.update(cx, |w, cx| w.refresh(false, cx));
+    }
+
     /// A read of the connections; a new revision rediscovers the runtime's
     /// models.
-    pub(super) fn apply_compute(&mut self, snapshot: ComputeSnapshot, cx: &mut Context<Self>) {
+    pub(super) fn apply_compute(&mut self, mut snapshot: ComputeSnapshot, cx: &mut Context<Self>) {
+        if snapshot.managed.is_none() {
+            snapshot.managed = self.wallet.clone();
+        }
         let revision = Some(snapshot.revision.clone());
         if self.compute_revision.is_some() && self.compute_revision != revision {
             drop(self.controller.refresh_model_connections());
@@ -244,7 +264,9 @@ impl AgentChatTabPanel {
                         .child(title),
                 )
                 .children(detail.map(|detail| {
+                    let selector = format!("agent-compute-detail:{detail}");
                     div()
+                        .debug_selector(move || selector)
                         .whitespace_normal()
                         .text_color(a.text_muted)
                         .child(detail)
@@ -298,7 +320,23 @@ impl AgentChatTabPanel {
             } else {
                 t("agent.compute.connectionUnavailable")
             };
-            let detail = (!signed_in).then(|| t("agent.compute.walletDetail").into());
+            // Before sign-in: the server's one-time credit, if it offers one.
+            let trial = managed.as_ref().map_or(0, |m| m.trial_credit_micro_usd);
+            let detail = (!signed_in).then(|| {
+                if trial > 0 {
+                    crate::localization::tf(
+                        "agent.compute.trialOffer",
+                        &[(
+                            "amount",
+                            crate::features::model_connections::money(trial).into(),
+                        )],
+                    )
+                    .into()
+                } else {
+                    t("agent.compute.walletDetail").into()
+                }
+            });
+            let pending = managed.as_ref().is_some_and(|m| m.pending);
             let action = if compute.connecting {
                 agent_button(
                     "agent-compute-connecting",
@@ -313,11 +351,15 @@ impl AgentChatTabPanel {
                     "agent-compute-sign-in",
                     t("agent.compute.signInToStart").into(),
                     ButtonTone::Primary,
-                    disabled,
+                    disabled || pending,
                     &a,
                 )
                 .debug_selector(|| "agent-compute-sign-in".into())
-                .on_click(cx.listener(|_, _, _, cx| cx.emit(AgentChatPanelEvent::OpenAccount)))
+                // `managed({action: "sign-in"})`: the browser sign-in.
+                .on_click(cx.listener(|_, _, _, cx| {
+                    crate::features::model_connections::global_compute(cx)
+                        .update(cx, |w, cx| w.sign_in(cx))
+                }))
             } else if managed
                 .as_ref()
                 .is_some_and(|m| m.reason == "insufficient-credit")
@@ -336,11 +378,15 @@ impl AgentChatTabPanel {
                     "agent-compute-retry",
                     t("common.action.retry").into(),
                     ButtonTone::Primary,
-                    false,
+                    pending,
                     &a,
                 )
                 .debug_selector(|| "agent-compute-retry".into())
-                .on_click(cx.listener(|s, _, _, cx| s.reload_model_connections(cx)))
+                // `managed({action: "refresh"})`, which shows its progress.
+                .on_click(cx.listener(|_, _, _, cx| {
+                    crate::features::model_connections::global_compute(cx)
+                        .update(cx, |w, cx| w.refresh(true, cx))
+                }))
             };
             let mut actions = h_flex().gap(px(6.)).child(action);
             if !signed_in {
@@ -359,7 +405,28 @@ impl AgentChatTabPanel {
                         })),
                     );
             }
-            section = section.child(frame().child(prompt(title.into(), detail)).child(actions));
+            // A browser sign-in that could not start is a sign-in problem,
+            // not a billing one.
+            let alert = (!compute.connecting
+                && managed.as_ref().is_some_and(|m| {
+                    m.sign_in_failed && (!m.signed_in || m.reason != "gateway-unavailable")
+                }))
+            .then(|| {
+                div()
+                    .id("agent-compute-alert")
+                    .role(Role::Alert)
+                    .aria_label(t("agent.compute.signInUnavailable"))
+                    .test_support()
+                    .debug_selector(|| "agent-compute-alert".into())
+                    .text_color(a.text_muted)
+                    .child(t("agent.compute.signInUnavailable"))
+            });
+            section = section.child(
+                frame()
+                    .child(prompt(title.into(), detail))
+                    .child(actions)
+                    .children(alert),
+            );
         }
         section.into_any_element()
     }
@@ -416,6 +483,7 @@ mod tests {
             signed_in: false,
             available: false,
             reason: "sign-in-required",
+            ..Default::default()
         }));
         let view = derive_compute(Some(&signed_out), &models, true, Some("mc_paid/gpt"), true);
         assert!(!view.ready);
@@ -425,6 +493,7 @@ mod tests {
             signed_in: true,
             available: true,
             reason: "ready",
+            ..Default::default()
         }));
         let view = derive_compute(Some(&ready), &models, true, Some("mc_paid/gpt"), false);
         assert!(view.ready);
@@ -442,6 +511,7 @@ mod tests {
             signed_in,
             available,
             reason,
+            ..Default::default()
         })
     }
 

@@ -47972,7 +47972,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::cloud::managed_compute::tests::the_wallet_reads_like_the_product"
+          "test": "features::model_connections::managed::tests::the_wallet_reads_like_the_product"
         },
         {
           "package": "po-app",
@@ -49297,7 +49297,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::cloud::managed_compute::tests::the_wallet_reads_like_the_product"
+          "test": "features::model_connections::managed::tests::the_wallet_reads_like_the_product"
         },
         {
           "package": "po-app",
@@ -50498,7 +50498,7 @@
     },
     {
       "id": "markdown-single-list-incremental-reparse",
-      "acceptance": "Single-line edits and GFM task checkbox toggles inside a 10,000-line flat single-list document patch Syntax, Plans, Decorations, and HeightMap incrementally without full-document reparses or full height-map rebuilds.",
+      "acceptance": "Single-line edits and GFM task checkbox toggles inside a 10,000-line flat single-list document patch Syntax, Plans, Decorations, and HeightMap incrementally without full-document reparses or full height-map rebuilds; the block features compiling the edit see only the edited lines, not the whole list, and the result matches a full compile with a formula elsewhere in the list.",
       "typescript": [
         {
           "path": "tests/unit/editor/formats/markdown/rendering/markdownPerformanceProjection.test.ts",
@@ -50515,6 +50515,10 @@
         {
           "package": "po-editor",
           "test": "editor::markdown::tests::scale_and_resize_acceptance::t4_single_list_10k_task_toggle_and_typing_patch_incrementally"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::scale_and_resize_acceptance::a_one_item_edit_in_a_long_list_compiles_only_its_lines"
         }
       ]
     },
@@ -50669,18 +50673,1214 @@
           "test": "editor::markdown::tests::concurrent_edit_acceptance::t5_b6_block_move_relocates_contained_maps_disjoint_and_resolves_partial_overlap"
         }
       ]
-    }
-  ],
-  "openAcceptance": [
-    "Automated real OS/WebView smoke, beyond the manually exercised native Markdown/source window",
-    "Real Cloud and cross-device deployment acceptance"
-  ],
-  "knownDifferences": [
+    },
+    {
+      "id": "markdown-inline-html-runs",
+      "acceptance": "Balanced inline HTML the inline-editable profile cannot style (images, linked images, theme pictures, passive elements such as font, big, dfn, nobr, center or meter, empty elements, nested blocked elements, an HTML block sharing its line with a list or quote marker, inline audio and a single-line video) draws as one run in paragraphs, list and task items, headings, quotes and table cells. A run filling its lines is drawn by the HTML surface in place of the lines' text (the marker stays); one sharing its line keeps the surrounding Markdown as text, hides its tags, draws its images and players in the text and styles the text between tags. Classification covers the whole container; quote prefixes leave a multi-line run's source; Markdown inside renders but escaped text never becomes HTML; media need the document's asset broker, else the run stays source. A picture follows the editor's colour mode. A caret on either edge or inside reveals the exact source (nested Markdown cannot take the reveal), leaving folds it again, a read-only surface never reveals, a selection across keeps it drawn, and deletion at its edges removes one character. Links, linked images and disclosure summaries keep their gestures; any other click reveals. Native players differ from DOM media attributes: the run's own src plays through the workspace player (no autoplay); poster and fallback sources are not used.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown HTML run projection > renders the linked theme-aware download cards of a README list item"
+            },
+            {
+              "index": 1,
+              "name": "Markdown HTML run projection > keeps the list continuation indent out of the replaced range"
+            },
+            {
+              "index": 2,
+              "name": "Markdown HTML run projection > renders a linked image without exposing tags"
+            },
+            {
+              "index": 3,
+              "name": "Markdown HTML run projection > renders two images on one line without exposing tags"
+            },
+            {
+              "index": 4,
+              "name": "Markdown HTML run projection > renders a span around an image without exposing tags"
+            },
+            {
+              "index": 5,
+              "name": "Markdown HTML run projection > renders a heading image without exposing tags"
+            },
+            {
+              "index": 6,
+              "name": "Markdown HTML run projection > renders a list marker image without exposing tags"
+            },
+            {
+              "index": 7,
+              "name": "Markdown HTML run projection > renders a quote marker image without exposing tags"
+            },
+            {
+              "index": 8,
+              "name": "Markdown HTML run projection > renders a theme picture without exposing tags"
+            },
+            {
+              "index": 9,
+              "name": "Markdown HTML run projection > keeps the text around a run as ordinary document text"
+            },
+            {
+              "index": 10,
+              "name": "Markdown HTML run projection > renders Markdown inside an inline run but never re-reads escaped text as HTML"
+            },
+            {
+              "index": 11,
+              "name": "Markdown HTML run projection > projects an HTML block sharing its line with a list marker"
+            },
+            {
+              "index": 12,
+              "name": "Markdown HTML run projection > projects an HTML block sharing its line with an ordered list marker"
+            },
+            {
+              "index": 13,
+              "name": "Markdown HTML run projection > projects an HTML block sharing its line with a quote marker"
+            },
+            {
+              "index": 14,
+              "name": "Markdown HTML run projection > keeps one classification however a range query slices a multi-line run"
+            },
+            {
+              "index": 15,
+              "name": "Markdown HTML run projection > strips quote prefixes from the source of a multi-line run"
+            },
+            {
+              "index": 18,
+              "name": "Markdown HTML run projection > renders an image inside a task item"
+            },
+            {
+              "index": 20,
+              "name": "Markdown HTML run projection > renders a multi-line HTML block that starts after a quote marker"
+            },
+            {
+              "index": 21,
+              "name": "Markdown HTML run projection > gives an image on its own line between text lines one run"
+            },
+            {
+              "index": 22,
+              "name": "Markdown HTML run projection > renders the passive font element"
+            },
+            {
+              "index": 23,
+              "name": "Markdown HTML run projection > renders the passive big element"
+            },
+            {
+              "index": 24,
+              "name": "Markdown HTML run projection > renders the passive dfn element"
+            },
+            {
+              "index": 25,
+              "name": "Markdown HTML run projection > renders the passive nobr element"
+            },
+            {
+              "index": 26,
+              "name": "Markdown HTML run projection > renders the passive center element"
+            },
+            {
+              "index": 27,
+              "name": "Markdown HTML run projection > renders the passive meter element"
+            },
+            {
+              "index": 28,
+              "name": "Markdown HTML run projection > hides an empty element while keeping its source"
+            },
+            {
+              "index": 34,
+              "name": "Markdown HTML run source fallbacks > removes a nested blocked element and keeps the rest of the run"
+            },
+            {
+              "index": 35,
+              "name": "Markdown HTML run source fallbacks > does not render media on a surface without an asset broker"
+            },
+            {
+              "index": 36,
+              "name": "Markdown HTML run editing > shows the exact source for a caret at its opening edge"
+            },
+            {
+              "index": 37,
+              "name": "Markdown HTML run editing > shows the exact source for a caret at its closing edge"
+            },
+            {
+              "index": 38,
+              "name": "Markdown HTML run editing > shows the exact source for a caret at its interior"
+            },
+            {
+              "index": 39,
+              "name": "Markdown HTML run editing > folds the run again when the caret leaves, without touching the document"
+            },
+            {
+              "index": 40,
+              "name": "Markdown HTML run editing > does not let Markdown nested in a revealed run steal the reveal"
+            },
+            {
+              "index": 41,
+              "name": "Markdown HTML run editing > never reveals on a read-only surface"
+            },
+            {
+              "index": 42,
+              "name": "Markdown HTML run editing > keeps a selection across the run in one projection"
+            },
+            {
+              "index": 43,
+              "name": "Markdown HTML run editing > deletes source text one character at a time at the run edges"
+            },
+            {
+              "index": 44,
+              "name": "Markdown HTML run editing > reports the run as the reveal element for a caret on either edge"
+            },
+            {
+              "index": 45,
+              "name": "Markdown HTML run editing > lets links and disclosure controls keep their pointer gestures"
+            },
+            {
+              "index": 85,
+              "name": "Markdown inline SVG and audio > resolves audio through the broker as audio"
+            },
+            {
+              "index": 86,
+              "name": "Markdown HTML in isolated table-cell previews > hydrates a picture through the same media path"
+            },
+            {
+              "index": 87,
+              "name": "Markdown HTML in isolated table-cell previews > renders a linked image inside a table cell"
+            },
+            {
+              "index": 88,
+              "name": "Markdown HTML in isolated table-cell previews > keeps the whole label of a badge link"
+            },
+            {
+              "index": 89,
+              "name": "Markdown HTML in isolated table-cell previews > keeps media as visible source without an asset broker"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownImageReadiness.test.ts",
+          "sha256": "54bc46ebba0da0532089534f66ae03d33cd9a93faeb79fb9c3cd6f03692a2be6",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown image readiness > renders a raw HTML image inside a paragraph through the brokered media path"
+            },
+            {
+              "index": 2,
+              "name": "Markdown image readiness > edits a raw HTML image inside a paragraph through the canonical source"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/embeds/markdownVideoEmbed.test.ts",
+          "sha256": "701911c4d06ff7dad486f4f856bfdc181b85ac7f17c996fde85c18b76d337d59",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Markdown video embeds > hydrates a standalone single-line HTML video through the typed broker path"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::readme_download_cards_draw_as_linked_theme_pictures"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_picture_follows_the_colour_mode"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::the_list_continuation_indent_stays_outside_the_run"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::runs_draw_without_exposing_tags"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::text_around_a_run_stays_ordinary_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::markdown_inside_a_run_renders_but_escaped_text_stays_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::html_blocks_on_marker_lines_draw_as_block_runs"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_multi_line_run_keeps_one_classification_in_any_slice"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_quoted_multi_line_run_drops_its_quote_prefixes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::an_image_inside_a_task_item_draws"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_multi_line_block_after_a_quote_marker_draws_as_one_run"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::an_image_line_inside_a_paragraph_is_a_run_not_a_block"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::passive_elements_draw_without_exposing_tags"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::an_empty_element_hides_and_its_source_stays"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_nested_blocked_element_is_removed"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::without_an_asset_broker_media_stays_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_caret_at_either_edge_or_inside_shows_the_exact_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::the_run_draws_again_when_the_caret_leaves"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::markdown_nested_in_a_run_does_not_take_the_reveal"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_read_only_surface_never_reveals"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_selection_across_the_run_keeps_it_drawn"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::deletion_at_the_run_edges_removes_one_character"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::the_run_is_the_reveal_element_on_either_edge"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::links_and_disclosures_keep_their_gestures_and_other_clicks_reveal"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::runs_in_table_cells_draw_through_the_media_path"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_raw_html_image_in_a_paragraph_draws_through_the_broker"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_raw_html_image_edits_through_its_revealed_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::a_single_line_html_video_draws_through_the_media_path"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_run_acceptance::audio_in_a_sentence_resolves_through_the_media_path_as_audio"
+        }
+      ]
+    },
+    {
+      "id": "markdown-html-presentational-attributes",
+      "acceptance": "The HTML surface keeps and draws valid legacy presentation values: percentage image widths (a share of the column), image placement (left, right, centre; top, middle, bottom in the line), table alignment and width, cell width and vertical alignment, and ordered list types (1, a, A, i, I). An invalid value is omitted and the element kept. A <source> media or sizes condition is kept only when it cannot load anything. Style values follow the product's isSafeStyleValue: CSS variables only on colour properties (with a colour fallback), bounded non-negative lengths, keyword sets per property. A <picture> shows its first candidate the editor's colour mode selects and the document's media policy allows, never loading the fallback image first, and falls back to its <img>, then its alt text.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 46,
+              "name": "Markdown theme-aware picture media > waits for picture candidates before giving the fallback image a URL"
+            },
+            {
+              "index": 47,
+              "name": "Markdown theme-aware picture media > removes an unauthorized candidate so the fallback image still shows"
+            },
+            {
+              "index": 48,
+              "name": "Markdown theme-aware picture media > falls back to alt text when no picture candidate is authorized"
+            },
+            {
+              "index": 57,
+              "name": "Markdown HTML reduction > keeps img width percent"
+            },
+            {
+              "index": 59,
+              "name": "Markdown HTML reduction > keeps img placement"
+            },
+            {
+              "index": 60,
+              "name": "Markdown HTML reduction > keeps table alignment"
+            },
+            {
+              "index": 61,
+              "name": "Markdown HTML reduction > keeps table width"
+            },
+            {
+              "index": 62,
+              "name": "Markdown HTML reduction > keeps cell width"
+            },
+            {
+              "index": 63,
+              "name": "Markdown HTML reduction > keeps cell vertical alignment"
+            },
+            {
+              "index": 65,
+              "name": "Markdown HTML reduction > keeps list type"
+            },
+            {
+              "index": 68,
+              "name": "Markdown HTML reduction > omits an invalid value for an img placement"
+            },
+            {
+              "index": 69,
+              "name": "Markdown HTML reduction > omits an invalid value for a cell alignment"
+            },
+            {
+              "index": 71,
+              "name": "Markdown HTML reduction > omits an invalid value for a list type"
+            },
+            {
+              "index": 72,
+              "name": "Markdown HTML reduction > omits an invalid value for a source condition"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
+          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Markdown HTML profile convergence > does not let CSS variables or unbounded geometry bypass presentation policy"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::a_picture_loads_its_matching_candidate_without_the_fallback_first"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::a_refused_candidate_gives_way_to_the_fallback_image"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::a_picture_with_no_allowed_candidate_shows_its_alt_text"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::valid_presentation_values_are_kept"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::invalid_presentation_values_are_omitted"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::kept_presentation_values_draw"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_presentation_acceptance::cell_vertical_alignment_places_the_content"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::html::render::blocks::tests::ordered_list_types_number_their_markers"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::policy::presentation::tests::css_variables_and_unbounded_geometry_cannot_bypass_the_policy"
+        }
+      ]
+    },
+    {
+      "id": "markdown-inline-html-breaks-and-styles",
+      "acceptance": "A bare <br> in a paragraph compiles into an atomic line-break atom deleted as a unit, draws a line break in its text (two rows where a space draws one) and reveals its tag source on demand. An inline style keeps its presentation subset, including font-weight (bold from 600), and inline surfaces get a narrower style capability (no layout properties such as display) than sandboxed blocks.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/html/markdownInlineHtml.test.ts",
+          "sha256": "167b22ba4e55afd07a148211a4d96f0db0209f18f6a8db566ef4d8e56faf901c",
+          "cases": [
+            {
+              "index": 11,
+              "name": "Markdown inline HTML policy > compiles the presentation-only style subset"
+            },
+            {
+              "index": 12,
+              "name": "Markdown inline HTML policy > compiles a bare br into a typed line-break plan"
+            },
+            {
+              "index": 13,
+              "name": "Markdown inline HTML policy > uses a narrower style capability in inline surfaces than sandboxed blocks"
+            },
+            {
+              "index": 18,
+              "name": "Markdown inline HTML live decorations > renders br as an atomic typed widget and reveals its source on demand"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/render-plan.test.ts",
+          "sha256": "f4b93565d9a17d7b2c3c164f28365ba91a4536b4f9202b3a626d23359f3a5249",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Markdown render-plan compiler > compiles bare br into an expandable inlineAtom with lineBreaks metadata"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_break_acceptance::a_bare_br_compiles_into_a_line_break_atom"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_break_acceptance::a_bare_br_draws_a_line_break_and_reveals_its_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::inline_html_break_acceptance::inline_style_font_weight_applies"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::policy::presentation::tests::inline_surfaces_style_less_than_blocks"
+        }
+      ]
+    },
+    {
+      "id": "markdown-html-id-fragment-targets",
+      "acceptance": "Controlled inline HTML ids (<a id>, <span id>, and a legacy <a name> without an id) in prose are in-page fragment targets; literal, code, commented, escaped, incomplete, unsafe-href or whitespace-separated ids are not. A fragment is percent-decoded once (a malformed escape names nothing), ids keep their authored case, the first duplicate wins, and an explicit id wins over a heading slug while headings stay reachable. Targets are per document, follow edits to positions and ids, disappear inside code fences, and a distant edit reparses only its block. An empty anchor is one hidden marker and one deletion unit, reveals for editing and folds again; incomplete or unsupported anchors stay visible source. Markdown links, wiki links and inline <a href> reach explicit targets by moving only the view; a renamed target is unavailable until restored. The HTML sanitizer turns a legacy anchor name into its id unless an id is given.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/links/markdownFragmentTargets.test.ts",
+          "sha256": "119ffecd0d2851b709b5ecf2ad26bf94e13b818baa0900aa248a6f53a9018291",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <a id=\"target\"></a>"
+            },
+            {
+              "index": 1,
+              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <a id=target></a>"
+            },
+            {
+              "index": 2,
+              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <span id=\"target\">text</span>"
+            },
+            {
+              "index": 3,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: `<a id=\"target\"></a>`"
+            },
+            {
+              "index": 4,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: ```html\n<a id=\"target\"></a>\n```"
+            },
+            {
+              "index": 5,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <!-- <a id=\"target\"></a> -->"
+            },
+            {
+              "index": 6,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: Text \\<a id=\"target\"></a>"
+            },
+            {
+              "index": 7,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=target><a>"
+            },
+            {
+              "index": 8,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=target href=\"javascript:alert(1)\"></a>"
+            },
+            {
+              "index": 9,
+              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=\"target other\"></a>"
+            },
+            {
+              "index": 10,
+              "name": "Markdown source fragment targets > decodes fragments once, preserves authored case, and chooses the first duplicate"
+            },
+            {
+              "index": 11,
+              "name": "Markdown source fragment targets > prefers explicit IDs to heading slugs and retains heading fallback"
+            },
+            {
+              "index": 12,
+              "name": "Markdown source fragment targets > keeps lookups pane-local and reuses them for selection-only transactions"
+            },
+            {
+              "index": 13,
+              "name": "Markdown source fragment targets > maps reused HTML subtrees after a distant edit and rescans only changed blocks"
+            },
+            {
+              "index": 14,
+              "name": "Markdown source fragment targets > removes targets when Markdown context changes to a code fence"
+            },
+            {
+              "index": 15,
+              "name": "Markdown source fragment targets > treats an empty anchor as one hidden deletion unit"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
+          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
+          "cases": [
+            {
+              "index": 29,
+              "name": "Markdown HTML run projection > treats a legacy named anchor as an in-page target"
+            },
+            {
+              "index": 66,
+              "name": "Markdown HTML reduction > keeps anchor name"
+            },
+            {
+              "index": 73,
+              "name": "Markdown HTML reduction > prefers an explicit id over a legacy anchor name"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlConformance.test.ts",
+          "sha256": "fe6ac14a8876cc8f777a11850666bf4e3dfe7fba0666e5f1256b4d5cbc52da07",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown empty HTML anchors > hides <a id=\"target\"></a> in both live preview and isolated inline preview"
+            },
+            {
+              "index": 1,
+              "name": "Markdown empty HTML anchors > hides <a id=target></a> in both live preview and isolated inline preview"
+            },
+            {
+              "index": 2,
+              "name": "Markdown empty HTML anchors > keeps an unclosed anchor visible instead of repairing the authored source"
+            },
+            {
+              "index": 3,
+              "name": "Markdown empty HTML anchors > reveals an anchor for editing and folds it again without changing source"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownHtmlAnchors.test.ts",
+          "sha256": "d5aefafdb11d1126ea4cdb4d588787bb3e57d639e07d2243ce6cfdc3e0f6cc28",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown HTML anchor targets > hides a valid empty anchor in preview without changing its source: <a id=\"section\"></a>"
+            },
+            {
+              "index": 1,
+              "name": "Markdown HTML anchor targets > hides a valid empty anchor in preview without changing its source: <a id=section></a>"
+            },
+            {
+              "index": 2,
+              "name": "Markdown HTML anchor targets > preserves anchor source in source mode and reveals it for editing"
+            },
+            {
+              "index": 3,
+              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section><a>"
+            },
+            {
+              "index": 4,
+              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section>"
+            },
+            {
+              "index": 5,
+              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section href=\"javascript:alert(1)\"></a>"
+            },
+            {
+              "index": 6,
+              "name": "Markdown HTML anchor targets > navigates to an explicit target without changing the caret or document"
+            },
+            {
+              "index": 7,
+              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: `<a id=\"section\"></a>`"
+            },
+            {
+              "index": 8,
+              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: ```html\n<a id=\"section\"></a>\n```"
+            },
+            {
+              "index": 9,
+              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: \\<a id=\"section\"></a>"
+            },
+            {
+              "index": 10,
+              "name": "Markdown HTML anchor targets > keeps targets local to each document and updates positions and IDs after edits"
+            },
+            {
+              "index": 11,
+              "name": "Markdown HTML anchor targets > resolves the first exact explicit ID before a generated heading slug"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/rendering/markdownLinkActivation.test.ts",
+          "sha256": "a968e52cd4ef0b05307543491508a51b954cfff25eec60eb871e883842a804dc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown live-preview link activation > resolves an empty explicit HTML anchor without a mounted target DOM element"
+            },
+            {
+              "index": 1,
+              "name": "Markdown live-preview link activation > updates remote link affordances when a target is removed and restored"
+            },
+            {
+              "index": 3,
+              "name": "Markdown live-preview link activation > routes [Jump](#target) through the same explicit target resolver"
+            },
+            {
+              "index": 4,
+              "name": "Markdown live-preview link activation > routes [[#target]] through the same explicit target resolver"
+            },
+            {
+              "index": 5,
+              "name": "Markdown live-preview link activation > routes <a href=\"#target\">Jump</a> through the same explicit target resolver"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::controlled_inline_html_ids_resolve"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::literal_incomplete_or_unsupported_html_registers_nothing"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::fragments_decode_once_and_ids_keep_their_case"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::explicit_ids_win_over_heading_slugs"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::targets_are_per_document_and_follow_edits"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::a_distant_edit_reparses_only_its_block_and_moves_the_target"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::a_target_turned_into_code_disappears"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::an_empty_anchor_is_one_hidden_deletion_unit"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::empty_anchors_hide_without_changing_their_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::incomplete_or_unsupported_anchors_stay_source"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::an_anchor_reveals_for_editing_and_folds_again"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::links_reach_an_explicit_target"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::a_renamed_target_is_unavailable_until_restored"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::html_fragment_targets_acceptance::a_legacy_anchor_name_is_its_id_unless_an_id_is_given"
+        }
+      ]
+    },
+    {
+      "id": "markdown-soft-budget-deferred-preview",
+      "acceptance": "An HTML block over its rich budget (48 KiB, 800 estimated DOM nodes, depth 48 or 32 assets in a normal document; smaller in large ones) but within the deferred ceiling (256 KiB, 5,000 nodes, depth 96, 128 assets) shows a 'Large HTML preview is paused.' card whose 'Render preview' button renders the surface for the pane; beyond the ceiling it stays source. A Mermaid diagram over its rich budget waits to be rendered. A code fence over the code budget (512 lines or 128 KiB in a normal document) stays source instead of a code widget; the document never changes.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/parsing/markdownOversizedBlocks.test.ts",
+          "sha256": "84f3e23ab234cd49262765a65edd01b613354fa936411f74272c6e9485ec70f2",
+          "cases": [
+            {
+              "index": 11,
+              "name": "Markdown compound HTML media > defers a soft-over-budget HTML subtree until explicit activation"
+            },
+            {
+              "index": 12,
+              "name": "Markdown compound HTML media > defers a large Mermaid computation and keeps a long code fence as source"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::render_budget_acceptance::a_soft_over_budget_html_block_waits_for_activation"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::render_budget_acceptance::a_large_diagram_waits_and_a_long_fence_stays_source"
+        }
+      ]
+    },
+    {
+      "id": "hosted-absolute-asset-urls",
+      "acceptance": "In a hosted (Cloud) document, a relative reference, a root path and an authored absolute puppyone-cloud: URL inside the document's own account/project/scope root all resolve to the same workspace file and load through the asset broker, from a Markdown image, an HTML block and an inline HTML run. A reference that leaves the root, a sibling root, another host and an absolute URL with a query (capability token) or fragment are refused before any read. An absolute URL needs the document's hosted root: without one, or in a local workspace, it is refused while relative references still load.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/embeds/markdownAssetPolicy.test.ts",
+          "sha256": "d9a8572fbb6ceb73d0375b0c71f9a51708d52a60c503ed2e089df617823ef515",
+          "cases": [
+            {
+              "index": 0,
+              "name": "markdownAssetPolicy > resolves Cloud relative and root assets within the complete account/project/scope root"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::shared::media::tests::hosted_absolute_references_resolve_only_inside_the_documents_root"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::hosted_asset_acceptance::a_hosted_document_loads_absolute_assets_only_inside_its_own_root"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::hosted_asset_acceptance::a_local_document_never_loads_an_absolute_hosted_url"
+        }
+      ]
+    },
+    {
+      "id": "markdown-table-horizontal-scroll",
+      "acceptance": "A Markdown table wider than the reading column scrolls horizontally inside a scrollport that reaches the editor's edges: at offset zero the table starts at the reading column, and the range ends with the table's end at the column's end. Horizontal wheel and trackpad deltas, and Shift with a vertical wheel, scroll the table and never reach the document; a vertical wheel over the table scrolls the document. A reading-rail scrollbar (the product scrollbar, 12px, the reading column's width) shows only while the table overflows, and it and the table follow each other proportionally. The offset is kept as a per-view semantic anchor (column and offset inside it, never raw pixels), which survives a structural rewrite, its undo and redo (an invertible continuity effect kept by history), an unrelated edit before the table and a cell edit, follows inserted, deleted and moved columns, and is not inherited by an unrelated replacement table. Detached sessions expire after 120 s and at most 64 are kept. Moving the caret into a column outside the scrollport brings that column into view without moving the editor. Offsets normalise every RTL scroll model to zero at the inline start.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/rendering/markdownInlineViewportSession.test.ts",
+          "sha256": "77df0a9acb0ffeb7673c822dd8763ff38af8bc971424606047f89bbc15ded95a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown embedded inline viewport sessions > keeps one semantic anchor across an explicitly continuous Widget replacement"
+            },
+            {
+              "index": 1,
+              "name": "Markdown embedded inline viewport sessions > maps non-overlapping edits but rejects overlapping replacement without continuity"
+            },
+            {
+              "index": 2,
+              "name": "Markdown embedded inline viewport sessions > expires detached sessions and bounds their least-recently-used set"
+            },
+            {
+              "index": 3,
+              "name": "Markdown inline viewport anchor math > maps insert, delete, and move operations without using raw pixels as identity"
+            },
+            {
+              "index": 4,
+              "name": "Markdown inline viewport anchor math > normalizes every RTL browser scroll model to zero-at-inline-start"
+            },
+            {
+              "index": 5,
+              "name": "Markdown inline viewport anchor math > maps the table offset proportionally onto a differently sized scrollbar range"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/viewport.test.ts",
+          "sha256": "bf59902d51de48d598afa6c07359b72cd1fb3c82b6e8443a3f2a52e9ccdc73b5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table EditorView interactions > keeps the inline viewport session across a structural Widget replacement"
+            },
+            {
+              "index": 1,
+              "name": "Markdown table EditorView interactions > syncs a reading-rail scrollbar with the wider table viewport"
+            },
+            {
+              "index": 2,
+              "name": "Markdown table EditorView interactions > maps viewport lineage through an unrelated edit before the table"
+            },
+            {
+              "index": 3,
+              "name": "Markdown table EditorView interactions > keeps viewport lineage when a cell commit replaces the table Widget"
+            },
+            {
+              "index": 4,
+              "name": "Markdown table EditorView interactions > does not leak viewport state into an unrelated replacement table"
+            },
+            {
+              "index": 5,
+              "name": "Markdown table EditorView interactions > reveals the focused column without scrolling the outer editor horizontally"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
+          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
+          "cases": [
+            {
+              "index": 25,
+              "name": "Markdown table affordance layout > splits the editor-edge scrollport from the reading-rail table track"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::inline_viewport::tests::keeps_one_semantic_anchor_across_an_explicitly_continuous_replacement"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::inline_viewport::tests::maps_unrelated_edits_but_ends_on_a_touching_replacement_without_continuity"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::inline_viewport::tests::detached_sessions_expire_and_keep_a_bounded_least_recently_used_set"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::inline_viewport::tests::anchors_follow_inserted_deleted_and_moved_items_not_pixels"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::continuity::tests::a_cell_edit_is_inside_and_a_replacement_from_the_start_is_not"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::viewport::tests::every_rtl_scroll_model_normalizes_to_zero_at_the_inline_start"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::viewport::tests::the_table_offset_maps_proportionally_onto_a_differently_sized_scrollbar"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::viewport::tests::anchors_restore_the_offset_and_reveal_scrolls_as_little_as_possible"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::text::history::tests::invertible_effects_travel_with_undo_and_redo"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::a_wide_table_scrolls_in_an_editor_edge_scrollport_with_a_reading_rail_scrollbar"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::the_reading_rail_scrollbar_and_the_table_follow_each_other"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::sessions_survive_a_structural_replacement_its_undo_and_redo"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::an_edit_before_the_table_and_a_cell_edit_keep_the_viewport"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::an_unrelated_replacement_table_starts_its_own_viewport"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::the_caret_column_comes_into_view"
+        }
+      ]
+    },
+    {
+      "id": "markdown-table-column-width-sessions",
+      "acceptance": "A table's column tracks live in a per-view column layout session that follows the table through transactions: content edits and source movement keep them; a column move carries each track with its column; an inserted column starts at the 48px floor and a deleted one drops its track; automatic tracks reflow only when the reading width changes (or after a column was added or removed), never while a cell is edited; explicit tracks (resized or auto-fitted) stay fixed, persist per document, table content and position with the 300 newest layouts kept, restore only for the same content and column count when the document opens again, and a reset forgets them and returns to automatic layout.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/tables/markdownTableColumnLayoutSession.test.ts",
+          "sha256": "c9538123e9849812742d861001a4c7eabb5a208c124fd9f7af1e177683d1fb8e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table column layout session > keeps widths stable through content edits and source movement"
+            },
+            {
+              "index": 1,
+              "name": "Markdown table column layout session > moves widths with their semantic columns and initializes only inserted tracks"
+            },
+            {
+              "index": 2,
+              "name": "Markdown table column layout session > keeps automatic tracks reflowable and explicit tracks fixed"
+            },
+            {
+              "index": 3,
+              "name": "Markdown table column layout session > re-lays automatic tracks out when a column is added or removed, not when one moves"
+            },
+            {
+              "index": 4,
+              "name": "Markdown table column layout persistence > restores only the matching document revision and column count"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/column-widths.test.ts",
+          "sha256": "dd86e859fbbd45c9f0527aef5109782315a3e3a5b53ab4b7b504904b30179de0",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown table EditorView interactions > keeps a user-resized track stable across content commits and reopening"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::column_layout::tests::widths_stay_through_content_edits_source_movement_and_reopening"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::column_layout::tests::widths_move_with_their_columns_and_only_inserted_tracks_start_fresh"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::column_layout::tests::automatic_tracks_reflow_and_explicit_tracks_stay_fixed"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::column_layout::tests::automatic_tracks_relay_out_when_a_column_is_added_or_removed_not_moved"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::column_layout::tests::persisted_widths_restore_only_for_the_same_content_and_column_count"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::a_resized_track_stays_through_cell_commits_and_reopening"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::sessions_survive_a_structural_replacement_its_undo_and_redo"
+        }
+      ]
+    },
+    {
+      "id": "html-preview-link-routing",
+      "acceptance": "A link the person clicks in an Interact page is resolved against the page's own <base> (relative, root, scheme-relative, percent-decoded and mailto forms; fragment-only, empty, malformed, control-character, encoded-separator and broken-escape inputs refused) and never followed by the page: web addresses go to the host's external route, workspace documents to the workbench. Unsafe protocols, files, data URLs and credentials never reach the system and say the link is unavailable; a missing file, a failed opening and a workspace that cannot answer are reported; a page allowed its folder stays offline. Only the shown page's own channel reaches the routes (a replaced page's channel is closed, the page may load no frames, and its script reports only trusted clicks), and a late answer for a replaced page is dropped. The fixed UI scripts lead the author's own policy, which stays as written and keeps governing authored scripts, and the projection keeps the author's base.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/html/htmlLinkNavigation.test.tsx",
+          "sha256": "0f7281d87dc563b0d36deaf1eea3b0b59edccc5ed886a4b747911f497445b240",
+          "cases": [
+            {
+              "index": 0,
+              "name": "HTML link destinations > resolves notes.md with author base null"
+            },
+            {
+              "index": 1,
+              "name": "HTML link destinations > resolves notes%20%E4%B8%AD.md with author base null"
+            },
+            {
+              "index": 2,
+              "name": "HTML link destinations > resolves ../other.html#section with author base null"
+            },
+            {
+              "index": 3,
+              "name": "HTML link destinations > resolves other.html with author base ../pages/"
+            },
+            {
+              "index": 4,
+              "name": "HTML link destinations > resolves other.html with author base ../pages/index.html"
+            },
+            {
+              "index": 5,
+              "name": "HTML link destinations > resolves /notes.md with author base pages/"
+            },
+            {
+              "index": 6,
+              "name": "HTML link destinations > resolves other.html?q=1#section with author base https://example.test/docs/"
+            },
+            {
+              "index": 7,
+              "name": "HTML link destinations > resolves //example.test/docs with author base null"
+            },
+            {
+              "index": 8,
+              "name": "HTML link destinations > resolves //example.test/docs with author base http://example.test/"
+            },
+            {
+              "index": 9,
+              "name": "HTML link destinations > resolves guide.html with author base //example.test/docs/"
+            },
+            {
+              "index": 10,
+              "name": "HTML link destinations > resolves mailto:person@example.test with author base null"
+            },
+            {
+              "index": 11,
+              "name": "HTML link destinations > rejects malformed or frame-local input #section"
+            },
+            {
+              "index": 12,
+              "name": "HTML link destinations > rejects malformed or frame-local input "
+            },
+            {
+              "index": 13,
+              "name": "HTML link destinations > rejects malformed or frame-local input //"
+            },
+            {
+              "index": 14,
+              "name": "HTML link destinations > rejects malformed or frame-local input a\n.md"
+            },
+            {
+              "index": 15,
+              "name": "HTML link destinations > rejects malformed or frame-local input %2fetc/passwd"
+            },
+            {
+              "index": 16,
+              "name": "HTML link destinations > rejects malformed or frame-local input a%5cb.md"
+            },
+            {
+              "index": 17,
+              "name": "HTML link destinations > rejects malformed or frame-local input %00.md"
+            },
+            {
+              "index": 18,
+              "name": "HTML link destinations > rejects malformed or frame-local input %broken"
+            },
+            {
+              "index": 19,
+              "name": "HTML link destinations > authorizes only fixed UI scripts without enabling authored inline scripts"
+            },
+            {
+              "index": 20,
+              "name": "HTML link destinations > preserves author CSP and base semantics in a disposable projection"
+            },
+            {
+              "index": 21,
+              "name": "HTML navigation capability > uses the host's existing external and workspace routes"
+            },
+            {
+              "index": 22,
+              "name": "HTML navigation capability > rejects another frame, stale sessions and messages without user activation"
+            },
+            {
+              "index": 23,
+              "name": "HTML navigation capability > never hands javascript:alert(1) to the OS"
+            },
+            {
+              "index": 24,
+              "name": "HTML navigation capability > never hands file:///etc/passwd to the OS"
+            },
+            {
+              "index": 25,
+              "name": "HTML navigation capability > never hands data:text/html,x to the OS"
+            },
+            {
+              "index": 26,
+              "name": "HTML navigation capability > never hands https://user:password@example.test/ to the OS"
+            },
+            {
+              "index": 27,
+              "name": "HTML navigation capability > reports missing files and external-opening failures"
+            },
+            {
+              "index": 28,
+              "name": "HTML navigation capability > keeps folder-authorized pages offline"
+            },
+            {
+              "index": 29,
+              "name": "HTML navigation capability > reports a host resolution error without navigating the frame"
+            },
+            {
+              "index": 30,
+              "name": "HTML navigation capability > does not show a late opening error in a replacement document"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::links_resolve_against_the_pages_own_base"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::malformed_or_frame_local_links_are_refused"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::fixed_ui_scripts_lead_the_authors_policy_without_enabling_its_scripts"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::the_projection_keeps_the_authors_policy_and_base"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::links_use_the_hosts_external_and_workspace_routes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::only_the_current_pages_channel_reaches_the_routes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::unsafe_addresses_never_reach_the_system"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::missing_files_and_failed_openings_are_reported"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::a_folder_page_keeps_its_links_offline"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::a_workspace_that_cannot_answer_reports_a_failure"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::a_late_failure_does_not_reach_a_replacement_page"
+        }
+      ]
+    },
     {
       "id": "viewer-host-read-failure-card",
-      "kind": "gap",
-      "reason": "TS shows a failed read in the pane (Cannot open in editor, the read error, Open in default app) and announces loading as a status. Rust removes the unadmitted slot and reports the error in the window error dialog (Close, Retry when retryable); no content viewer mounts and loading draws no text, but neither the dialog nor the file window's Cannot open in editor state offers Open in default app, and neither loading state is announced to assistive technology.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/retained-runtime.md",
+      "acceptance": "A workbench pane whose file could not be read (missing, permission, I/O or a provider failure; not a folder or link, and not a Cloud read refused by an ended lease, which reopens by itself) stays in its pane instead of a window dialog: the pane says it cannot open the file in the editor and why, offers the default app for a file on this computer and Retry. Retry, or opening the file again, reads it in the same pane: while it reads the failure is gone and the pane draws nothing but announces 'Loading file…' as a status; the file then opens there.",
       "typescript": [
         {
           "path": "tests/integration/editor/runtime/viewerHost.integration.test.ts",
@@ -50702,8 +51902,408 @@
             }
           ]
         }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::host::tests::a_pane_announces_loading_and_shows_a_read_failure"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::tests::a_failed_read_stays_in_its_pane_and_reads_again_there"
+        }
       ]
     },
+    {
+      "id": "pane-move-snapshot-preview",
+      "acceptance": "Moving a pane by its handle shows at once a themed shell of the pane's shape (at most 240 × 156 and 0.36 of its size, three placeholder rules, never a copy of the pane's live content) centred under the pointer and 10px below it, asks the platform once for a bitmap of the pane's content bounds clipped to the window and scaled to the preview, shows that bitmap when it arrives, follows the pointer, and is gone after the drop. A capture request is clipped to the window's content (nothing left, no content or a window that is gone gives no bitmap); the bitmap is the window server's composited pixels on macOS and absent elsewhere, where the shell stays.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tabs/paneMovePreview.test.ts",
+          "sha256": "4c51620363149adf30d878bc0d007bd482b3640a698520050b5aca035f61efa4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pane move preview > builds an immediate themed shell that follows the pointer without cloning pane DOM"
+            },
+            {
+              "index": 1,
+              "name": "pane move preview > requests a compositor snapshot for the pane content bounds"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/ipc/electron.pane-preview-ipc.test.mjs",
+          "sha256": "561d7ded68055374a5c77d58630fac9205265fa2a61d8ee8a1d4dc170abbcde7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pane preview IPC > captures a bounded sender rectangle and returns a small bitmap"
+            },
+            {
+              "index": 1,
+              "name": "pane preview IPC > rejects invalid or unavailable capture surfaces"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_moved_pane_shows_its_shape_then_its_snapshot_under_the_pointer"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::pane_preview::tests::previews_keep_the_panes_shape_and_captures_stay_in_the_window"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::window_capture::tests::unavailable_windows_give_no_bitmap"
+        }
+      ]
+    },
+    {
+      "id": "editor-split-keyboard-resize",
+      "acceptance": "An editor split's handle is a separator across the split's axis (upright between side-by-side panes) labelled 'Resize editor panes', announcing its ratio in percent within 15..85, and a tab stop that shows the focus ring while focused. While focused, the arrows on the split's own axis (Left/Right side by side, Up/Down stacked) step the ratio by 0.025 at once, kept within 0.15..0.85, and the arrows across it do nothing; a double press on the handle equalizes the split. Each is a single commit with no preview and nothing held back from the workspace's metadata.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitResizeInteraction.test.tsx",
+          "sha256": "87523424462d2efd9bf544dc1e52af1244f28936cb10ab7c3a7f17063a26a88e",
+          "cases": [
+            {
+              "index": 3,
+              "name": "EditorSplitResizeHandle > keeps keyboard and equalize operations as immediate single commits"
+            },
+            {
+              "index": 20,
+              "name": "horizontal editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
+            },
+            {
+              "index": 37,
+              "name": "vertical editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_side_by_side_split_steps_with_left_and_right_and_equalizes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_stacked_split_steps_with_up_and_down_and_equalizes"
+        }
+      ]
+    },
+    {
+      "id": "office-conversion-concurrency",
+      "acceptance": "A window runs at most two Office (.doc / .rtf to DOCX) conversions at once. A third is refused with 'Only 2 Office conversions may run in one window at a time.' before its converter runs, and the preview shows that as its conversion error; another window still converts. A conversion's place is free again once it has ended: finished, failed or cancelled (a cancelled one ends as 'Office conversion was cancelled.' after its converter exited), and a window with none left is forgotten.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
+          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
+          "cases": [
+            {
+              "index": 19,
+              "name": "workspace file IPC authorization > cleans up successful conversions and enforces the per-window concurrency limit"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::a_window_runs_at_most_two_conversions_and_each_frees_its_place"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::a_window_running_two_conversions_refuses_a_third_preview"
+        }
+      ]
+    },
+    {
+      "id": "markdown-format-shortcut-repeat",
+      "acceptance": "Holding one of the window's format shortcuts (Bold, Italic, Underline and Strike: secondary-b, -i, -u, -d and -shift-x) applies it once: the system's auto-repeats of the held key do nothing, and a fresh press after the key was released applies it again. The repeat is AppKit's current key event's isARepeat on macOS; other systems give the key bindings no repeat flag. Option, Control on macOS (Command elsewhere), both platform modifiers together and a released key are no format shortcut.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatShortcuts.electron.test.mjs",
+          "sha256": "e51b314e73668eeec13d0a33c5782e6d9c049597cff6fc054701b5de83f11e48",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown format window shortcuts > rejects repeated, modified, released, and cross-platform modifier inputs"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::held_format_shortcuts_apply_once_and_other_inputs_are_ignored"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::key_repeat::tests::a_keystroke_outside_a_key_event_is_a_press"
+        }
+      ]
+    },
+    {
+      "id": "mdx-tabs-keyboard",
+      "acceptance": "An MDX Tabs block's labels are a tab list ('Tabs') of tabs, each announcing whether it is shown. Each tab takes keyboard focus and only the shown tab is a tab stop. While a tab has focus, ArrowRight and ArrowLeft (both wrapping), Home and End show and focus another tab without changing the source, and the focused tab shows the focus ring when the keyboard put it there. A pressed tab shows and takes focus. While a widget inside the editor holds the keyboard, the editor's key bindings stand aside: editing keys and typing reach nothing.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownMdxComponent.test.ts",
+          "sha256": "fa84a6ab1df972d4fe06abe3d3b270e6921c9dbfbb59449d65a6c403836636d8",
+          "cases": [
+            {
+              "index": 22,
+              "name": "declarative OpenKnowledge MDX components > supports roving tabindex and the standard tab-list keyboard contract"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::mdx_acceptance::the_tabs_take_focus_and_switch_with_arrows_home_and_end"
+        }
+      ]
+    },
+    {
+      "id": "markdown-content-language-tag",
+      "acceptance": "A Markdown document names its editing surface's language (lang) the way the product resolves it: explicit language metadata wins, normalized (zh_TW to zh-Hant, zh-CN to zh-Hans, ja-JP to ja, en-US as written); otherwise Kana means Japanese and Hangul Korean before the shared Han script, Han telling Simplified from Traditional Chinese by high-signal characters (a tie follows the interface's variant), whatever the interface language; otherwise the interface's language. The language is latched like the reading weight. Text the editor builds and lays out for the document takes that language's script fallback faces (PingFang SC / TC, Hiragino, Apple SD Gothic Neo, or the generic cascade), its code text too, while the editor's chrome keeps the interface's.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/markdownContentLanguage.test.ts",
+          "sha256": "5b74632054d7832342ee6dcc986a7dec19adf72eddbd1a7ca6d6c5075f834a67",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown content language > detects a Chinese document independently from the interface locale"
+            },
+            {
+              "index": 2,
+              "name": "Markdown content language > keeps explicit metadata authoritative and normalizes locale variants"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::content_language::tests::a_chinese_document_names_its_script_whatever_the_interface"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::content_language::tests::explicit_metadata_wins_and_locales_normalize"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::the_documents_script_names_the_surface_language"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::fonts::tests::content_text_takes_its_languages_script_cascade"
+        }
+      ]
+    },
+    {
+      "id": "managed-compute-failure-and-trial-states",
+      "acceptance": "PuppyOne compute's wallet (features::model_connections::managed) follows the account. A refresh reads the public directory (reused for a minute) and the wallet at once, claims the one-time trial once per account from the claim's own answer (never for an account already granted), and fails at its deadline; until it ends the state is loading, also through sign-in, and only a failed request makes the gateway unavailable (GATEWAY_UNAVAILABLE, or TIMEOUT at the deadline), an empty directory included; a late answer is dropped, and a session that changed during a refresh is read again at once. After a model call it reads that call's usage receipt (its reservation streamed by the transport) without holding the wallet, keeps only the customer's settled amounts and tokens, and drops it with the account. A checkout opens only the payment provider's address. A browser sign-in that cannot start is a sign-in error. Chat follows the wallet: signing in starts the browser sign-in and a failed handoff shows 'Could not open the sign-in page. Please retry.'; a confirmed failure offers Retry, which shows 'Connecting to compute…' while it runs; before sign-in, after the first send, the server's one-time trial credit is offered. A managed request over 512 KiB is refused locally with its reference, and a refused one keeps the service's reviewed ai_* code and reference (X-Request-Id), never its prose.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
+          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
+          "cases": [
+            {
+              "index": 6,
+              "name": "labels a failed browser handoff as a sign-in problem"
+            },
+            {
+              "index": 9,
+              "name": "offers retry after a confirmed failure and shows progress while retrying"
+            },
+            {
+              "index": 11,
+              "name": "offers the server-configured trial only after the first send attempt"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/model-connections/security/managedConnection.test.mjs",
+          "sha256": "a7b4d109c61f90b276533aa9244e75a1aa91fceaecdd01d0008ac437ba45a4e4",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Main-owned managed Agent connection > maps browser handoff failures to a safe sign-in error"
+            },
+            {
+              "index": 6,
+              "name": "Main-owned managed Agent connection > reports loading through sign-in and retries, and failure only after a request fails"
+            },
+            {
+              "index": 7,
+              "name": "Main-owned managed Agent connection > leaves loading when the public request fails synchronously"
+            },
+            {
+              "index": 8,
+              "name": "Main-owned managed Agent connection > reads directory and wallet concurrently, then reuses the directory for balance refreshes"
+            },
+            {
+              "index": 9,
+              "name": "Main-owned managed Agent connection > ends a stuck request at the deadline, allows retry, and ignores its late response"
+            },
+            {
+              "index": 10,
+              "name": "Main-owned managed Agent connection > reloads the public directory after its short cache expires"
+            },
+            {
+              "index": 11,
+              "name": "Main-owned managed Agent connection > rejects an empty model directory instead of leaving a funded account connecting forever"
+            },
+            {
+              "index": 15,
+              "name": "Main-owned managed Agent connection > keeps the server's protocol error and reference through the Main proxy"
+            },
+            {
+              "index": 17,
+              "name": "Main-owned managed Agent connection > returns a readable local protocol error for invalid input (1)"
+            },
+            {
+              "index": 20,
+              "name": "Main-owned managed Agent connection > opens a server-created sandbox checkout without exposing credentials to the renderer"
+            },
+            {
+              "index": 21,
+              "name": "one-time trial activation > refreshes the new account immediately when sign-in finishes during a catalog request"
+            },
+            {
+              "index": 22,
+              "name": "one-time trial activation > claims only after sign-in and uses the claim response without reading the same balance twice"
+            },
+            {
+              "index": 23,
+              "name": "one-time trial activation > does not claim again for an account whose server wallet already has a trial grant"
+            },
+            {
+              "index": 24,
+              "name": "server-owned usage receipts > keeps a usable wallet ready while its previous usage receipt is still loading"
+            },
+            {
+              "index": 25,
+              "name": "server-owned usage receipts > reads the settled charge after streaming and clears it on signOut"
+            },
+            {
+              "index": 26,
+              "name": "server-owned usage receipts > reads the settled charge after streaming and clears it on replaceUser"
+            },
+            {
+              "index": 27,
+              "name": "server-owned usage receipts > does not turn missing usage or a mismatched receipt into a charge"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::a_browser_handoff_that_cannot_start_is_a_sign_in_error"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::loading_lasts_through_sign_in_and_retries_until_a_request_fails"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::a_directory_read_that_fails_at_once_is_unavailable_until_a_retry"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::the_directory_and_wallet_are_read_at_once_and_the_directory_reused"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::a_stuck_refresh_ends_at_its_deadline_and_its_late_answer_is_dropped"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::the_directory_is_read_again_after_a_minute"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::an_empty_directory_leaves_no_funded_account_waiting"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::a_checkout_opens_only_at_the_payment_provider"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::signing_in_during_a_directory_read_reads_the_new_account_at_once"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::the_trial_is_claimed_once_after_sign_in_from_its_own_answer"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::an_account_that_has_its_grant_is_not_claimed_again"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::a_receipt_still_loading_never_holds_the_wallet"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::the_settled_charge_is_read_after_a_call_and_cleared_with_its_account"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::missing_usage_or_a_mismatched_receipt_is_no_charge"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::the_access_prompt_signs_in_retries_with_progress_and_offers_the_trial"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::a_refused_inference_keeps_its_code_and_reference_and_a_reply_its_reservation"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::model_client::tests::an_oversized_managed_request_is_refused_before_it_is_sent"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::model_client::tests::a_reviewed_refusal_reads_as_words_with_its_reference"
+        }
+      ]
+    }
+  ],
+  "openAcceptance": [
+    "Automated real OS/WebView smoke, beyond the manually exercised native Markdown/source window",
+    "Real Cloud and cross-device deployment acceptance"
+  ],
+  "knownDifferences": [
     {
       "id": "viewer-plugins-experimental",
       "kind": "out-of-scope",
@@ -53611,24 +55211,6 @@
             {
               "index": 0,
               "name": "workspace file IPC authorization > acknowledges a committed save and rename even if review bookkeeping fails"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "office-conversion-concurrency",
-      "kind": "gap",
-      "reason": "TS caps concurrent Office conversions per window and cleans up each finished session. Rust cleans each conversion's private files (covered by workspace-file-authority) but has no per-window limit on concurrent textutil conversions.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/office.md",
-      "typescript": [
-        {
-          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
-          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
-          "cases": [
-            {
-              "index": 19,
-              "name": "workspace file IPC authorization > cleans up successful conversions and enforces the per-window concurrency limit"
             }
           ]
         }
@@ -60271,32 +61853,6 @@
       ]
     },
     {
-      "id": "editor-split-keyboard-resize",
-      "kind": "gap",
-      "reason": "An editor split's handle takes no keyboard focus: there is no arrow-key adjustment on the split's own axis and no equalize command, so the ratio changes only by dragging.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/pane-tree.md",
-      "typescript": [
-        {
-          "path": "tests/component/workbench/layout/editorSplitResizeInteraction.test.tsx",
-          "sha256": "87523424462d2efd9bf544dc1e52af1244f28936cb10ab7c3a7f17063a26a88e",
-          "cases": [
-            {
-              "index": 3,
-              "name": "EditorSplitResizeHandle > keeps keyboard and equalize operations as immediate single commits"
-            },
-            {
-              "index": 20,
-              "name": "horizontal editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
-            },
-            {
-              "index": 37,
-              "name": "vertical editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "pane-window-paint-edge",
       "kind": "out-of-scope",
       "reason": "TS marks the pane leaves that touch the bottom of the BrowserWindow so its rounded paint edge clips them. A native window clips its own corners, so panes carry no such mark.",
@@ -60327,42 +61883,6 @@
             {
               "index": 9,
               "name": "DesktopEditorSplitView: pane chrome, dropping and moving > activates a non-focusable pane after pointer selection completes"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "pane-move-snapshot-preview",
-      "kind": "gap",
-      "reason": "While a pane is moved, TS shows a themed shell with a compositor snapshot of the pane following the pointer. The native drag shows a small text chip instead (the handle's tooltip text); there is no snapshot of the pane.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/drops.md",
-      "typescript": [
-        {
-          "path": "tests/component/workbench/tabs/paneMovePreview.test.ts",
-          "sha256": "4c51620363149adf30d878bc0d007bd482b3640a698520050b5aca035f61efa4",
-          "cases": [
-            {
-              "index": 0,
-              "name": "pane move preview > builds an immediate themed shell that follows the pointer without cloning pane DOM"
-            },
-            {
-              "index": 1,
-              "name": "pane move preview > requests a compositor snapshot for the pane content bounds"
-            }
-          ]
-        },
-        {
-          "path": "tests/unit/platform/ipc/electron.pane-preview-ipc.test.mjs",
-          "sha256": "561d7ded68055374a5c77d58630fac9205265fa2a61d8ee8a1d4dc170abbcde7",
-          "cases": [
-            {
-              "index": 0,
-              "name": "pane preview IPC > captures a bounded sender rectangle and returns a small bitmap"
-            },
-            {
-              "index": 1,
-              "name": "pane preview IPC > rejects invalid or unavailable capture surfaces"
             }
           ]
         }
@@ -61101,108 +62621,22 @@
       ]
     },
     {
-      "id": "managed-compute-failure-and-trial-states",
+      "id": "managed-compute-loopback-proxy",
       "kind": "gap",
-      "reason": "Chat's compute snapshot (`read_compute_snapshot`) only knows signed out, no credit and ready: it has no managed-compute failure code (gateway unavailable), no Retry that refreshes with progress (the dock's Retry only rereads, and its 'temporarily unavailable' state is unreachable), no in-Chat browser sign-in handoff whose failure could be labelled (sign-in goes to the account), and no server-configured trial credit line (`agent.compute.trialGranted`, `signInUnavailable` are unused).",
+      "reason": "The product's managed connection is a Main-owned loopback HTTP proxy: the Agent worker gets only a random per-lease capability, and the proxy refuses a request without it, with a browser Origin, on another path or for an unconfigured model, and answers invalid JSON locally. The native Agent runs in the app's own process and calls the managed gateway in place (model_client::complete_managed): there is no loopback listener, capability, Origin or path to check, and the request body is built in process, never parsed from a client.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/routing-and-compute.md",
       "typescript": [
-        {
-          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
-          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
-          "cases": [
-            {
-              "index": 6,
-              "name": "labels a failed browser handoff as a sign-in problem"
-            },
-            {
-              "index": 9,
-              "name": "offers retry after a confirmed failure and shows progress while retrying"
-            },
-            {
-              "index": 11,
-              "name": "offers the server-configured trial only after the first send attempt"
-            }
-          ]
-        },
         {
           "path": "tests/unit/model-connections/security/managedConnection.test.mjs",
           "sha256": "a7b4d109c61f90b276533aa9244e75a1aa91fceaecdd01d0008ac437ba45a4e4",
           "cases": [
             {
-              "index": 5,
-              "name": "Main-owned managed Agent connection > maps browser handoff failures to a safe sign-in error"
-            },
-            {
-              "index": 6,
-              "name": "Main-owned managed Agent connection > reports loading through sign-in and retries, and failure only after a request fails"
-            },
-            {
-              "index": 7,
-              "name": "Main-owned managed Agent connection > leaves loading when the public request fails synchronously"
-            },
-            {
-              "index": 8,
-              "name": "Main-owned managed Agent connection > reads directory and wallet concurrently, then reuses the directory for balance refreshes"
-            },
-            {
-              "index": 9,
-              "name": "Main-owned managed Agent connection > ends a stuck request at the deadline, allows retry, and ignores its late response"
-            },
-            {
-              "index": 10,
-              "name": "Main-owned managed Agent connection > reloads the public directory after its short cache expires"
-            },
-            {
-              "index": 11,
-              "name": "Main-owned managed Agent connection > rejects an empty model directory instead of leaving a funded account connecting forever"
-            },
-            {
               "index": 12,
               "name": "Main-owned managed Agent connection > accepts only the private capability, fixed path, no browser Origin and configured model"
             },
             {
-              "index": 15,
-              "name": "Main-owned managed Agent connection > keeps the server's protocol error and reference through the Main proxy"
-            },
-            {
               "index": 16,
               "name": "Main-owned managed Agent connection > returns a readable local protocol error for invalid input (0)"
-            },
-            {
-              "index": 17,
-              "name": "Main-owned managed Agent connection > returns a readable local protocol error for invalid input (1)"
-            },
-            {
-              "index": 20,
-              "name": "Main-owned managed Agent connection > opens a server-created sandbox checkout without exposing credentials to the renderer"
-            },
-            {
-              "index": 21,
-              "name": "one-time trial activation > refreshes the new account immediately when sign-in finishes during a catalog request"
-            },
-            {
-              "index": 22,
-              "name": "one-time trial activation > claims only after sign-in and uses the claim response without reading the same balance twice"
-            },
-            {
-              "index": 23,
-              "name": "one-time trial activation > does not claim again for an account whose server wallet already has a trial grant"
-            },
-            {
-              "index": 24,
-              "name": "server-owned usage receipts > keeps a usable wallet ready while its previous usage receipt is still loading"
-            },
-            {
-              "index": 25,
-              "name": "server-owned usage receipts > reads the settled charge after streaming and clears it on signOut"
-            },
-            {
-              "index": 26,
-              "name": "server-owned usage receipts > reads the settled charge after streaming and clears it on replaceUser"
-            },
-            {
-              "index": 27,
-              "name": "server-owned usage receipts > does not turn missing usage or a mismatched receipt into a charge"
             }
           ]
         }
@@ -62047,24 +63481,6 @@
       ]
     },
     {
-      "id": "hosted-absolute-asset-urls",
-      "kind": "gap",
-      "reason": "A hosted Markdown document resolves relative and root-relative assets inside its project through the provider, but an authored absolute `puppyone-cloud://` URL that points inside the same project root is refused natively (the product accepts it and rejects only other roots and token queries).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/assets.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/embeds/markdownAssetPolicy.test.ts",
-          "sha256": "d9a8572fbb6ceb73d0375b0c71f9a51708d52a60c503ed2e089df617823ef515",
-          "cases": [
-            {
-              "index": 0,
-              "name": "markdownAssetPolicy > resolves Cloud relative and root assets within the complete account/project/scope root"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "markdown-asset-broker-architecture",
       "kind": "out-of-scope",
       "reason": "These test TS's browser-DOM Asset Broker and isolated-renderer protocol (explicit broker capability plumbing, inert HTML media placeholders before browser hydration, HTTPS privacy attributes on DOM img sinks, and revision-scoped WebView session grants). Native Rust loads media directly through DocumentAssets and safe usvg/image decoders without browser DOM sinks. Concurrent external edit mapping, offscreen detach/remount, and block-move selection relocation are covered natively in markdown-concurrent-edit-mapping.",
@@ -62307,204 +63723,6 @@
       ]
     },
     {
-      "id": "markdown-html-id-fragment-targets",
-      "kind": "gap",
-      "reason": "Fragment links resolve only to headings natively. Controlled inline HTML ids (`<a id>`, `<span id>`) are not fragment targets, so explicit ids, their case-preserving lookup and precedence over heading slugs, their incremental rescans and the empty anchor as one deletion unit do not exist. Nor does a legacy named anchor (`<a name>`) become a target or yield to an explicit id; an empty one stays visible source. An empty `<a id>` anchor is therefore not hidden or revealed for editing either.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/link-activation.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/links/markdownFragmentTargets.test.ts",
-          "sha256": "119ffecd0d2851b709b5ecf2ad26bf94e13b818baa0900aa248a6f53a9018291",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <a id=\"target\"></a>"
-            },
-            {
-              "index": 1,
-              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <a id=target></a>"
-            },
-            {
-              "index": 2,
-              "name": "Markdown source fragment targets > resolves controlled inline HTML ID in <span id=\"target\">text</span>"
-            },
-            {
-              "index": 3,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: `<a id=\"target\"></a>`"
-            },
-            {
-              "index": 4,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: ```html\n<a id=\"target\"></a>\n```"
-            },
-            {
-              "index": 5,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <!-- <a id=\"target\"></a> -->"
-            },
-            {
-              "index": 6,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: Text \\<a id=\"target\"></a>"
-            },
-            {
-              "index": 7,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=target><a>"
-            },
-            {
-              "index": 8,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=target href=\"javascript:alert(1)\"></a>"
-            },
-            {
-              "index": 9,
-              "name": "Markdown source fragment targets > does not register literal, incomplete or unsupported HTML: <a id=\"target other\"></a>"
-            },
-            {
-              "index": 10,
-              "name": "Markdown source fragment targets > decodes fragments once, preserves authored case, and chooses the first duplicate"
-            },
-            {
-              "index": 11,
-              "name": "Markdown source fragment targets > prefers explicit IDs to heading slugs and retains heading fallback"
-            },
-            {
-              "index": 12,
-              "name": "Markdown source fragment targets > keeps lookups pane-local and reuses them for selection-only transactions"
-            },
-            {
-              "index": 13,
-              "name": "Markdown source fragment targets > maps reused HTML subtrees after a distant edit and rescans only changed blocks"
-            },
-            {
-              "index": 14,
-              "name": "Markdown source fragment targets > removes targets when Markdown context changes to a code fence"
-            },
-            {
-              "index": 15,
-              "name": "Markdown source fragment targets > treats an empty anchor as one hidden deletion unit"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
-          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
-          "cases": [
-            {
-              "index": 29,
-              "name": "Markdown HTML run projection > treats a legacy named anchor as an in-page target"
-            },
-            {
-              "index": 66,
-              "name": "Markdown HTML reduction > keeps anchor name"
-            },
-            {
-              "index": 73,
-              "name": "Markdown HTML reduction > prefers an explicit id over a legacy anchor name"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlConformance.test.ts",
-          "sha256": "fe6ac14a8876cc8f777a11850666bf4e3dfe7fba0666e5f1256b4d5cbc52da07",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown empty HTML anchors > hides <a id=\"target\"></a> in both live preview and isolated inline preview"
-            },
-            {
-              "index": 1,
-              "name": "Markdown empty HTML anchors > hides <a id=target></a> in both live preview and isolated inline preview"
-            },
-            {
-              "index": 2,
-              "name": "Markdown empty HTML anchors > keeps an unclosed anchor visible instead of repairing the authored source"
-            },
-            {
-              "index": 3,
-              "name": "Markdown empty HTML anchors > reveals an anchor for editing and folds it again without changing source"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlAnchors.test.ts",
-          "sha256": "d5aefafdb11d1126ea4cdb4d588787bb3e57d639e07d2243ce6cfdc3e0f6cc28",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown HTML anchor targets > hides a valid empty anchor in preview without changing its source: <a id=\"section\"></a>"
-            },
-            {
-              "index": 1,
-              "name": "Markdown HTML anchor targets > hides a valid empty anchor in preview without changing its source: <a id=section></a>"
-            },
-            {
-              "index": 2,
-              "name": "Markdown HTML anchor targets > preserves anchor source in source mode and reveals it for editing"
-            },
-            {
-              "index": 3,
-              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section><a>"
-            },
-            {
-              "index": 4,
-              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section>"
-            },
-            {
-              "index": 5,
-              "name": "Markdown HTML anchor targets > keeps unsupported or incomplete source visible: <a id=section href=\"javascript:alert(1)\"></a>"
-            },
-            {
-              "index": 6,
-              "name": "Markdown HTML anchor targets > navigates to an explicit target without changing the caret or document"
-            },
-            {
-              "index": 7,
-              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: `<a id=\"section\"></a>`"
-            },
-            {
-              "index": 8,
-              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: ```html\n<a id=\"section\"></a>\n```"
-            },
-            {
-              "index": 9,
-              "name": "Markdown HTML anchor targets > does not turn literal code/examples into destinations: \\<a id=\"section\"></a>"
-            },
-            {
-              "index": 10,
-              "name": "Markdown HTML anchor targets > keeps targets local to each document and updates positions and IDs after edits"
-            },
-            {
-              "index": 11,
-              "name": "Markdown HTML anchor targets > resolves the first exact explicit ID before a generated heading slug"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/rendering/markdownLinkActivation.test.ts",
-          "sha256": "a968e52cd4ef0b05307543491508a51b954cfff25eec60eb871e883842a804dc",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown live-preview link activation > resolves an empty explicit HTML anchor without a mounted target DOM element"
-            },
-            {
-              "index": 1,
-              "name": "Markdown live-preview link activation > updates remote link affordances when a target is removed and restored"
-            },
-            {
-              "index": 3,
-              "name": "Markdown live-preview link activation > routes [Jump](#target) through the same explicit target resolver"
-            },
-            {
-              "index": 4,
-              "name": "Markdown live-preview link activation > routes [[#target]] through the same explicit target resolver"
-            },
-            {
-              "index": 5,
-              "name": "Markdown live-preview link activation > routes <a href=\"#target\">Jump</a> through the same explicit target resolver"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "markdown-presentation-overrides",
       "kind": "gap",
       "reason": "The native Markdown editor always takes heading sizes and strong-text weight and colour from the active theme. It does not read the stored Markdown presentation overrides the product still parses and applies (the Appearance document's bySurface.markdown, the version 2 settings, the legacy emphasis colour and per-heading scales), so a profile that chose large headings or accent bold text shows the theme's instead. Neither product offers these overrides in Settings.",
@@ -62547,46 +63765,6 @@
       ]
     },
     {
-      "id": "markdown-inline-html-breaks-and-styles",
-      "kind": "gap",
-      "reason": "Natively inline HTML styles only text and background colour: `font-weight` in an inline style is not applied, and block HTML gets no wider style capability (`display`) either. A bare `<br>` inside a paragraph stays visible source instead of a line break that reveals its tag on demand.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/syntax/inline-html.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/html/markdownInlineHtml.test.ts",
-          "sha256": "167b22ba4e55afd07a148211a4d96f0db0209f18f6a8db566ef4d8e56faf901c",
-          "cases": [
-            {
-              "index": 11,
-              "name": "Markdown inline HTML policy > compiles the presentation-only style subset"
-            },
-            {
-              "index": 12,
-              "name": "Markdown inline HTML policy > compiles a bare br into a typed line-break plan"
-            },
-            {
-              "index": 13,
-              "name": "Markdown inline HTML policy > uses a narrower style capability in inline surfaces than sandboxed blocks"
-            },
-            {
-              "index": 18,
-              "name": "Markdown inline HTML live decorations > renders br as an atomic typed widget and reveals its source on demand"
-            }
-          ]
-        },
-        {
-          "path": "tests/unit/editor/formats/markdown/parsing/render-plan.test.ts",
-          "sha256": "f4b93565d9a17d7b2c3c164f28365ba91a4536b4f9202b3a626d23359f3a5249",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Markdown render-plan compiler > compiles bare br into an expandable inlineAtom with lineBreaks metadata"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "markdown-code-fence-serialization",
       "kind": "out-of-scope",
       "reason": "The native code block shows the fence's own source lines and is edited as text, so the editor never re-writes a fence: there is no serializer putting a standard language first with `file=`/`lines=` metadata or choosing a tilde fence for a path with a backtick.",
@@ -62613,28 +63791,6 @@
             {
               "index": 19,
               "name": "Markdown embedded runtime > separates legacy source metadata from language and preserves it on commit"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-content-language-tag",
-      "kind": "gap",
-      "reason": "The native editor derives only the reading weight from a document's script. It does not name the content language (Simplified versus Traditional Chinese, Japanese, Korean) or honour a document's explicit language metadata, so CJK glyph variants follow the system font fallback rather than the document's language.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/state-and-content-language.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/parsing/markdownContentLanguage.test.ts",
-          "sha256": "5b74632054d7832342ee6dcc986a7dec19adf72eddbd1a7ca6d6c5075f834a67",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown content language > detects a Chinese document independently from the interface locale"
-            },
-            {
-              "index": 2,
-              "name": "Markdown content language > keeps explicit metadata authoritative and normalizes locale variants"
             }
           ]
         }
@@ -62767,84 +63923,6 @@
       ]
     },
     {
-      "id": "markdown-table-horizontal-scroll",
-      "kind": "gap",
-      "reason": "A Markdown table wider than the reading column (columns at their readable minimum that still do not fit, or explicit tracks wider than the column) has no scrollport of its own natively: the editor clips it at the pane edge. Its horizontal scroll offset, the anchor kept across a widget replacement, RTL scroll normalisation and the proportional scrollbar mapping therefore do not exist.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/table.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/rendering/markdownInlineViewportSession.test.ts",
-          "sha256": "77df0a9acb0ffeb7673c822dd8763ff38af8bc971424606047f89bbc15ded95a",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown embedded inline viewport sessions > keeps one semantic anchor across an explicitly continuous Widget replacement"
-            },
-            {
-              "index": 1,
-              "name": "Markdown embedded inline viewport sessions > maps non-overlapping edits but rejects overlapping replacement without continuity"
-            },
-            {
-              "index": 2,
-              "name": "Markdown embedded inline viewport sessions > expires detached sessions and bounds their least-recently-used set"
-            },
-            {
-              "index": 3,
-              "name": "Markdown inline viewport anchor math > maps insert, delete, and move operations without using raw pixels as identity"
-            },
-            {
-              "index": 4,
-              "name": "Markdown inline viewport anchor math > normalizes every RTL browser scroll model to zero-at-inline-start"
-            },
-            {
-              "index": 5,
-              "name": "Markdown inline viewport anchor math > maps the table offset proportionally onto a differently sized scrollbar range"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/tables/viewport.test.ts",
-          "sha256": "bf59902d51de48d598afa6c07359b72cd1fb3c82b6e8443a3f2a52e9ccdc73b5",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown table EditorView interactions > keeps the inline viewport session across a structural Widget replacement"
-            },
-            {
-              "index": 1,
-              "name": "Markdown table EditorView interactions > syncs a reading-rail scrollbar with the wider table viewport"
-            },
-            {
-              "index": 2,
-              "name": "Markdown table EditorView interactions > maps viewport lineage through an unrelated edit before the table"
-            },
-            {
-              "index": 3,
-              "name": "Markdown table EditorView interactions > keeps viewport lineage when a cell commit replaces the table Widget"
-            },
-            {
-              "index": 4,
-              "name": "Markdown table EditorView interactions > does not leak viewport state into an unrelated replacement table"
-            },
-            {
-              "index": 5,
-              "name": "Markdown table EditorView interactions > reveals the focused column without scrolling the outer editor horizontally"
-            }
-          ]
-        },
-        {
-          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
-          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
-          "cases": [
-            {
-              "index": 25,
-              "name": "Markdown table affordance layout > splits the editor-edge scrollport from the reading-rail table track"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "markdown-table-fit-to-viewport",
       "kind": "out-of-scope",
       "reason": "fitMarkdownTableColumnWidths backs the Markdown table controller's fitToViewport, which no product surface calls; the native table offers no such command either.",
@@ -62857,50 +63935,6 @@
             {
               "index": 8,
               "name": "Markdown table column layout > fits explicit tracks onto the reading column proportionally"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-table-column-width-sessions",
-      "kind": "gap",
-      "reason": "Natively a table's resized widths live with its widget, plus a 64-table in-memory store keyed by the table's start offset: they survive edits that keep the column count, but a column move keeps widths by position instead of moving them with their columns, an inserted or deleted column returns every track to automatic layout, there is no reset to automatic, and widths are not persisted per document revision and column count across reopening.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/table.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/tables/markdownTableColumnLayoutSession.test.ts",
-          "sha256": "c9538123e9849812742d861001a4c7eabb5a208c124fd9f7af1e177683d1fb8e",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown table column layout session > keeps widths stable through content edits and source movement"
-            },
-            {
-              "index": 1,
-              "name": "Markdown table column layout session > moves widths with their semantic columns and initializes only inserted tracks"
-            },
-            {
-              "index": 2,
-              "name": "Markdown table column layout session > keeps automatic tracks reflowable and explicit tracks fixed"
-            },
-            {
-              "index": 3,
-              "name": "Markdown table column layout session > re-lays automatic tracks out when a column is added or removed, not when one moves"
-            },
-            {
-              "index": 4,
-              "name": "Markdown table column layout persistence > restores only the matching document revision and column count"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/tables/column-widths.test.ts",
-          "sha256": "dd86e859fbbd45c9f0527aef5109782315a3e3a5b53ab4b7b504904b30179de0",
-          "cases": [
-            {
-              "index": 3,
-              "name": "Markdown table EditorView interactions > keeps a user-resized track stable across content commits and reopening"
             }
           ]
         }
@@ -62957,24 +63991,6 @@
             {
               "index": 5,
               "name": "Markdown link pointer gesture > suppresses only the browser click paired with a handled pointer release"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-format-shortcut-repeat",
-      "kind": "gap",
-      "reason": "GPUI dispatches a held keystroke to its action again on every key repeat, so holding ⌘B toggles bold on and off natively; the product ignores auto-repeated format shortcuts (and Option, Control-on-macOS and released inputs, which the native key bindings also ignore).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/editing-commands.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatShortcuts.electron.test.mjs",
-          "sha256": "e51b314e73668eeec13d0a33c5782e6d9c049597cff6fc054701b5de83f11e48",
-          "cases": [
-            {
-              "index": 3,
-              "name": "Markdown format window shortcuts > rejects repeated, modified, released, and cross-platform modifier inputs"
             }
           ]
         }
@@ -63671,296 +64687,6 @@
       ]
     },
     {
-      "id": "markdown-inline-html-runs",
-      "kind": "gap",
-      "reason": "Natively HTML renders only as its own block. Inline HTML runs stay visible source: images, linked images and theme pictures inside a paragraph, list item, task, heading, quote or table cell (README badge and download-card lines), passive elements such as font, big, dfn, nobr, meter or an inline center, Markdown inside an inline run, an HTML block on the same line as a list or quote marker, empty elements that the product hides, and inline audio. With no runs there is also no run reveal on caret entry, fold on caret exit, selection spanning a run, nested blocked element reduction inside a run or isolated table-cell run preview.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/syntax/inline-html.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
-          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown HTML run projection > renders the linked theme-aware download cards of a README list item"
-            },
-            {
-              "index": 1,
-              "name": "Markdown HTML run projection > keeps the list continuation indent out of the replaced range"
-            },
-            {
-              "index": 2,
-              "name": "Markdown HTML run projection > renders a linked image without exposing tags"
-            },
-            {
-              "index": 3,
-              "name": "Markdown HTML run projection > renders two images on one line without exposing tags"
-            },
-            {
-              "index": 4,
-              "name": "Markdown HTML run projection > renders a span around an image without exposing tags"
-            },
-            {
-              "index": 5,
-              "name": "Markdown HTML run projection > renders a heading image without exposing tags"
-            },
-            {
-              "index": 6,
-              "name": "Markdown HTML run projection > renders a list marker image without exposing tags"
-            },
-            {
-              "index": 7,
-              "name": "Markdown HTML run projection > renders a quote marker image without exposing tags"
-            },
-            {
-              "index": 8,
-              "name": "Markdown HTML run projection > renders a theme picture without exposing tags"
-            },
-            {
-              "index": 9,
-              "name": "Markdown HTML run projection > keeps the text around a run as ordinary document text"
-            },
-            {
-              "index": 10,
-              "name": "Markdown HTML run projection > renders Markdown inside an inline run but never re-reads escaped text as HTML"
-            },
-            {
-              "index": 11,
-              "name": "Markdown HTML run projection > projects an HTML block sharing its line with a list marker"
-            },
-            {
-              "index": 12,
-              "name": "Markdown HTML run projection > projects an HTML block sharing its line with an ordered list marker"
-            },
-            {
-              "index": 13,
-              "name": "Markdown HTML run projection > projects an HTML block sharing its line with a quote marker"
-            },
-            {
-              "index": 14,
-              "name": "Markdown HTML run projection > keeps one classification however a range query slices a multi-line run"
-            },
-            {
-              "index": 15,
-              "name": "Markdown HTML run projection > strips quote prefixes from the source of a multi-line run"
-            },
-            {
-              "index": 18,
-              "name": "Markdown HTML run projection > renders an image inside a task item"
-            },
-            {
-              "index": 20,
-              "name": "Markdown HTML run projection > renders a multi-line HTML block that starts after a quote marker"
-            },
-            {
-              "index": 21,
-              "name": "Markdown HTML run projection > gives an image on its own line between text lines one run"
-            },
-            {
-              "index": 22,
-              "name": "Markdown HTML run projection > renders the passive font element"
-            },
-            {
-              "index": 23,
-              "name": "Markdown HTML run projection > renders the passive big element"
-            },
-            {
-              "index": 24,
-              "name": "Markdown HTML run projection > renders the passive dfn element"
-            },
-            {
-              "index": 25,
-              "name": "Markdown HTML run projection > renders the passive nobr element"
-            },
-            {
-              "index": 26,
-              "name": "Markdown HTML run projection > renders the passive center element"
-            },
-            {
-              "index": 27,
-              "name": "Markdown HTML run projection > renders the passive meter element"
-            },
-            {
-              "index": 28,
-              "name": "Markdown HTML run projection > hides an empty element while keeping its source"
-            },
-            {
-              "index": 34,
-              "name": "Markdown HTML run source fallbacks > removes a nested blocked element and keeps the rest of the run"
-            },
-            {
-              "index": 35,
-              "name": "Markdown HTML run source fallbacks > does not render media on a surface without an asset broker"
-            },
-            {
-              "index": 36,
-              "name": "Markdown HTML run editing > shows the exact source for a caret at its opening edge"
-            },
-            {
-              "index": 37,
-              "name": "Markdown HTML run editing > shows the exact source for a caret at its closing edge"
-            },
-            {
-              "index": 38,
-              "name": "Markdown HTML run editing > shows the exact source for a caret at its interior"
-            },
-            {
-              "index": 39,
-              "name": "Markdown HTML run editing > folds the run again when the caret leaves, without touching the document"
-            },
-            {
-              "index": 40,
-              "name": "Markdown HTML run editing > does not let Markdown nested in a revealed run steal the reveal"
-            },
-            {
-              "index": 41,
-              "name": "Markdown HTML run editing > never reveals on a read-only surface"
-            },
-            {
-              "index": 42,
-              "name": "Markdown HTML run editing > keeps a selection across the run in one projection"
-            },
-            {
-              "index": 43,
-              "name": "Markdown HTML run editing > deletes source text one character at a time at the run edges"
-            },
-            {
-              "index": 44,
-              "name": "Markdown HTML run editing > reports the run as the reveal element for a caret on either edge"
-            },
-            {
-              "index": 45,
-              "name": "Markdown HTML run editing > lets links and disclosure controls keep their pointer gestures"
-            },
-            {
-              "index": 85,
-              "name": "Markdown inline SVG and audio > resolves audio through the broker as audio"
-            },
-            {
-              "index": 86,
-              "name": "Markdown HTML in isolated table-cell previews > hydrates a picture through the same media path"
-            },
-            {
-              "index": 87,
-              "name": "Markdown HTML in isolated table-cell previews > renders a linked image inside a table cell"
-            },
-            {
-              "index": 88,
-              "name": "Markdown HTML in isolated table-cell previews > keeps the whole label of a badge link"
-            },
-            {
-              "index": 89,
-              "name": "Markdown HTML in isolated table-cell previews > keeps media as visible source without an asset broker"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/embeds/markdownImageReadiness.test.ts",
-          "sha256": "54bc46ebba0da0532089534f66ae03d33cd9a93faeb79fb9c3cd6f03692a2be6",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Markdown image readiness > renders a raw HTML image inside a paragraph through the brokered media path"
-            },
-            {
-              "index": 2,
-              "name": "Markdown image readiness > edits a raw HTML image inside a paragraph through the canonical source"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/embeds/markdownVideoEmbed.test.ts",
-          "sha256": "701911c4d06ff7dad486f4f856bfdc181b85ac7f17c996fde85c18b76d337d59",
-          "cases": [
-            {
-              "index": 4,
-              "name": "Markdown video embeds > hydrates a standalone single-line HTML video through the typed broker path"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-html-presentational-attributes",
-      "kind": "gap",
-      "reason": "The native HTML surface applies block alignment, ordered list starts and pixel image sizes, but not percentage image widths, image placement (align left/right), table alignment and width, cell width and vertical alignment or ordered list types, so their valid and invalid values are not distinguished either; and a picture always shows its fallback image, never a candidate chosen by its source's media condition (no dark-mode picture).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/html-block.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownHtmlRun.test.ts",
-          "sha256": "f60dba402023a35d9f86d94e0a5a85ae3dfb9419918060bc540671016b8f9383",
-          "cases": [
-            {
-              "index": 46,
-              "name": "Markdown theme-aware picture media > waits for picture candidates before giving the fallback image a URL"
-            },
-            {
-              "index": 47,
-              "name": "Markdown theme-aware picture media > removes an unauthorized candidate so the fallback image still shows"
-            },
-            {
-              "index": 48,
-              "name": "Markdown theme-aware picture media > falls back to alt text when no picture candidate is authorized"
-            },
-            {
-              "index": 57,
-              "name": "Markdown HTML reduction > keeps img width percent"
-            },
-            {
-              "index": 59,
-              "name": "Markdown HTML reduction > keeps img placement"
-            },
-            {
-              "index": 60,
-              "name": "Markdown HTML reduction > keeps table alignment"
-            },
-            {
-              "index": 61,
-              "name": "Markdown HTML reduction > keeps table width"
-            },
-            {
-              "index": 62,
-              "name": "Markdown HTML reduction > keeps cell width"
-            },
-            {
-              "index": 63,
-              "name": "Markdown HTML reduction > keeps cell vertical alignment"
-            },
-            {
-              "index": 65,
-              "name": "Markdown HTML reduction > keeps list type"
-            },
-            {
-              "index": 68,
-              "name": "Markdown HTML reduction > omits an invalid value for an img placement"
-            },
-            {
-              "index": 69,
-              "name": "Markdown HTML reduction > omits an invalid value for a cell alignment"
-            },
-            {
-              "index": 71,
-              "name": "Markdown HTML reduction > omits an invalid value for a list type"
-            },
-            {
-              "index": 72,
-              "name": "Markdown HTML reduction > omits an invalid value for a source condition"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/parsing/markdownConvergence.test.ts",
-          "sha256": "f5aff43f47b23969d14e1266af0f00fb1bb39b34a8412c56b52e7d4585bb5def",
-          "cases": [
-            {
-              "index": 9,
-              "name": "Markdown HTML profile convergence > does not let CSS variables or unbounded geometry bypass presentation policy"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "markdown-conformance-surfaces",
       "kind": "out-of-scope",
       "reason": "TS projects one HTML classification onto five surfaces (live editable, live read-only, isolated fragment, export and index), each only reducing capability, and checks that none upgrades an unsupported result. The native editor has only the two live surfaces, which share one plan set (covered by the policy and README header tests); there is no fragment, export or index projection.",
@@ -63977,162 +64703,6 @@
             {
               "index": 55,
               "name": "Markdown HTML cross-surface conformance > never lets a surface upgrade an unsupported HTML result"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "html-preview-link-routing",
-      "kind": "gap",
-      "reason": "A native HTML preview keeps link clicks inside its own page. The product instead resolves each activated link against the page's base (relative, root, scheme-relative, percent-decoded and mailto forms; frame-local, malformed and traversal inputs refused), hands safe external links to the system browser and workspace links to the editor through the host's routes, never gives unsafe protocols, files, data URLs or credentials to the OS, reports missing files, opening failures and offline folder pages, ignores other frames, stale sessions and messages without user activation, and authorizes only its own fixed UI script through the author's CSP. None of that routing exists natively.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/html/interact.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/html/htmlLinkNavigation.test.tsx",
-          "sha256": "0f7281d87dc563b0d36deaf1eea3b0b59edccc5ed886a4b747911f497445b240",
-          "cases": [
-            {
-              "index": 0,
-              "name": "HTML link destinations > resolves notes.md with author base null"
-            },
-            {
-              "index": 1,
-              "name": "HTML link destinations > resolves notes%20%E4%B8%AD.md with author base null"
-            },
-            {
-              "index": 2,
-              "name": "HTML link destinations > resolves ../other.html#section with author base null"
-            },
-            {
-              "index": 3,
-              "name": "HTML link destinations > resolves other.html with author base ../pages/"
-            },
-            {
-              "index": 4,
-              "name": "HTML link destinations > resolves other.html with author base ../pages/index.html"
-            },
-            {
-              "index": 5,
-              "name": "HTML link destinations > resolves /notes.md with author base pages/"
-            },
-            {
-              "index": 6,
-              "name": "HTML link destinations > resolves other.html?q=1#section with author base https://example.test/docs/"
-            },
-            {
-              "index": 7,
-              "name": "HTML link destinations > resolves //example.test/docs with author base null"
-            },
-            {
-              "index": 8,
-              "name": "HTML link destinations > resolves //example.test/docs with author base http://example.test/"
-            },
-            {
-              "index": 9,
-              "name": "HTML link destinations > resolves guide.html with author base //example.test/docs/"
-            },
-            {
-              "index": 10,
-              "name": "HTML link destinations > resolves mailto:person@example.test with author base null"
-            },
-            {
-              "index": 11,
-              "name": "HTML link destinations > rejects malformed or frame-local input #section"
-            },
-            {
-              "index": 12,
-              "name": "HTML link destinations > rejects malformed or frame-local input "
-            },
-            {
-              "index": 13,
-              "name": "HTML link destinations > rejects malformed or frame-local input //"
-            },
-            {
-              "index": 14,
-              "name": "HTML link destinations > rejects malformed or frame-local input a\n.md"
-            },
-            {
-              "index": 15,
-              "name": "HTML link destinations > rejects malformed or frame-local input %2fetc/passwd"
-            },
-            {
-              "index": 16,
-              "name": "HTML link destinations > rejects malformed or frame-local input a%5cb.md"
-            },
-            {
-              "index": 17,
-              "name": "HTML link destinations > rejects malformed or frame-local input %00.md"
-            },
-            {
-              "index": 18,
-              "name": "HTML link destinations > rejects malformed or frame-local input %broken"
-            },
-            {
-              "index": 19,
-              "name": "HTML link destinations > authorizes only fixed UI scripts without enabling authored inline scripts"
-            },
-            {
-              "index": 20,
-              "name": "HTML link destinations > preserves author CSP and base semantics in a disposable projection"
-            },
-            {
-              "index": 21,
-              "name": "HTML navigation capability > uses the host's existing external and workspace routes"
-            },
-            {
-              "index": 22,
-              "name": "HTML navigation capability > rejects another frame, stale sessions and messages without user activation"
-            },
-            {
-              "index": 23,
-              "name": "HTML navigation capability > never hands javascript:alert(1) to the OS"
-            },
-            {
-              "index": 24,
-              "name": "HTML navigation capability > never hands file:///etc/passwd to the OS"
-            },
-            {
-              "index": 25,
-              "name": "HTML navigation capability > never hands data:text/html,x to the OS"
-            },
-            {
-              "index": 26,
-              "name": "HTML navigation capability > never hands https://user:password@example.test/ to the OS"
-            },
-            {
-              "index": 27,
-              "name": "HTML navigation capability > reports missing files and external-opening failures"
-            },
-            {
-              "index": 28,
-              "name": "HTML navigation capability > keeps folder-authorized pages offline"
-            },
-            {
-              "index": 29,
-              "name": "HTML navigation capability > reports a host resolution error without navigating the frame"
-            },
-            {
-              "index": 30,
-              "name": "HTML navigation capability > does not show a late opening error in a replacement document"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "mdx-tabs-keyboard",
-      "kind": "gap",
-      "reason": "TS mounts each tab as a focusable button with a roving tabindex and switches tabs with ArrowLeft/ArrowRight/Home/End while a tab has focus. The native Tabs widget's labels are pointer targets only: block widgets have no focus of their own, so the tab bar cannot be reached or switched from the keyboard.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/mdx.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownMdxComponent.test.ts",
-          "sha256": "fa84a6ab1df972d4fe06abe3d3b270e6921c9dbfbb59449d65a6c403836636d8",
-          "cases": [
-            {
-              "index": 22,
-              "name": "declarative OpenKnowledge MDX components > supports roving tabindex and the standard tab-list keyboard contract"
             }
           ]
         }
@@ -64279,28 +64849,6 @@
             {
               "index": 11,
               "name": "document layout ownership > shares observation and makes old unsubscribe/late delivery harmless"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-soft-budget-deferred-preview",
-      "kind": "gap",
-      "reason": "TS defers soft-over-budget HTML subtrees (48 KiB-256 KiB) and large Mermaid diagrams (>32 KiB) behind a paused click-to-preview placeholder card, and drops code fences over 512 lines out of the code widget. Natively HtmlBlockWidget renders directly and Mermaid rejects over MAX_SOURCE_BYTES (256 KiB) without an intermediate click-to-activate deferred preview card, while code fences over 512 lines stay rendered in the code block widget with plain unhighlighted text.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/README.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/markdown/parsing/markdownOversizedBlocks.test.ts",
-          "sha256": "84f3e23ab234cd49262765a65edd01b613354fa936411f74272c6e9485ec70f2",
-          "cases": [
-            {
-              "index": 11,
-              "name": "Markdown compound HTML media > defers a soft-over-budget HTML subtree until explicit activation"
-            },
-            {
-              "index": 12,
-              "name": "Markdown compound HTML media > defers a large Mermaid computation and keeps a long code fence as source"
             }
           ]
         }

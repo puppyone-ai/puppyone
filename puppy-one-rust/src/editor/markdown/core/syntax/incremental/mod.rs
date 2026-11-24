@@ -177,6 +177,7 @@ pub(super) fn shift_common_suffix(prev: &mut Syntax, ob_end: usize, bd: isize, b
     }
     shift_after_byte(&mut prev.code_blocks, ob_end, bd);
     shift_after_byte(&mut prev.html_blocks, ob_end, bd);
+    shift_after_byte(&mut prev.marker_html, ob_end, bd);
     shift_after_byte(&mut prev.comment_spans, ob_end, bd);
     shift_after_byte(&mut prev.footnote_spans, ob_end, bd);
     let f_pos = prev.fences.partition_point(|f| f.range.start < ob_end);
@@ -348,6 +349,7 @@ impl Syntax {
         splice_spans(&mut prev.table_cells, win.table_cells);
         splice_spans(&mut prev.inline_tags, win.inline_tags);
         splice_spans(&mut prev.html_blocks, win.html_blocks);
+        splice_spans(&mut prev.marker_html, win.marker_html);
         splice_spans(&mut prev.top_blocks, win.top_blocks);
         splice_spans(&mut prev.comment_spans, win.comment_spans);
         splice_spans(&mut prev.footnote_spans, win.footnote_spans);

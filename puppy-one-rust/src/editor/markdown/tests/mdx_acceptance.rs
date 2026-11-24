@@ -133,3 +133,81 @@ fn the_regression_document_mounts_a_table_and_tabs(cx: &mut TestAppContext) {
     assert!(cx.debug_bounds("md-mdx-tab:Tab 2:hidden").is_some());
     view.read_with(cx, |v, _| assert_eq!(v.text(), source));
 }
+
+/// `supports roving tabindex and the standard tab-list keyboard contract`:
+/// the labels are a tab list whose shown tab alone is a tab stop; a focused
+/// tab's ArrowRight / ArrowLeft (wrapping), Home and End show and focus
+/// another tab, and no key reaches the source meanwhile.
+#[gpui::test]
+fn the_tabs_take_focus_and_switch_with_arrows_home_and_end(cx: &mut TestAppContext) {
+    use gpui::Role;
+    use gpui_kit::test::TestQueryExt as _;
+    let (view, cx) = setup(cx, TABS);
+    // Each tab: its label, whether it is shown and whether it has focus.
+    let tabs = |cx: &mut VisualTestContext| {
+        draw(cx);
+        cx.update(|w, _| {
+            w.find_all_by_role(Role::Tab)
+                .iter()
+                .map(|t| {
+                    (
+                        t.label().unwrap_or_default().to_owned(),
+                        t.selected() == Some(true),
+                        t.focused() == Some(true),
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+    };
+    let state = |shown: usize, focused: Option<usize>| {
+        ["Tab 1", "Tab 2"]
+            .iter()
+            .enumerate()
+            .map(|(i, label)| (label.to_string(), i == shown, focused == Some(i)))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(cx.update(|w, _| w.find_all_by_role(Role::TabList).len()), 1);
+    assert_eq!(tabs(cx), state(0, None));
+    // The shown tab is the only tab stop.
+    cx.update(|w, cx| w.focus_next(cx));
+    assert_eq!(tabs(cx), state(0, Some(0)));
+
+    let shown_in_state = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |v, _| {
+            let md = v.extension::<MarkdownExtension>().unwrap();
+            md.preview
+                .state::<mdx::TabsState>(mdx::ID)
+                .map_or(0, |s| s.get(0))
+        })
+    };
+    cx.simulate_keystrokes("right");
+    assert_eq!(tabs(cx), state(1, Some(1)));
+    assert!(shown(cx, "Tab 2"));
+    assert_eq!(shown_in_state(cx), 1);
+    cx.simulate_keystrokes("home");
+    assert_eq!(tabs(cx), state(0, Some(0)));
+    cx.simulate_keystrokes("end");
+    assert_eq!(tabs(cx), state(1, Some(1)));
+    cx.simulate_keystrokes("left");
+    assert_eq!(tabs(cx), state(0, Some(0)));
+    // Both directions wrap.
+    cx.simulate_keystrokes("left");
+    assert_eq!(tabs(cx), state(1, Some(1)));
+    cx.simulate_keystrokes("right");
+    assert_eq!(tabs(cx), state(0, Some(0)));
+    // Now Tab 2 shows; it alone is the stop.
+    cx.simulate_keystrokes("end");
+    view.update_in(cx, |v, w, cx| v.focus(w, cx));
+    draw(cx);
+    cx.update(|w, cx| w.focus_next(cx));
+    assert_eq!(tabs(cx), state(1, Some(1)));
+    // Editing keys and typing reach nothing while a tab has focus.
+    cx.simulate_keystrokes("backspace delete enter tab");
+    cx.simulate_input("x");
+    view.read_with(cx, |v, _| assert_eq!(v.text(), TABS));
+    // A pressed tab shows and takes focus.
+    view.update_in(cx, |v, w, cx| v.focus(w, cx));
+    click(cx, "md-mdx-tab:Tab 1:hidden");
+    assert_eq!(tabs(cx), state(0, Some(0)));
+    view.read_with(cx, |v, _| assert_eq!(v.text(), TABS));
+}

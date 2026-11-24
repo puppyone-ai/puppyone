@@ -576,7 +576,28 @@ impl Remote for Http {
             let operation = async {
                 let response = tokio::time::timeout(Duration::from_secs(30), http.send()).await.map_err(|_| Error::OutcomeUnknown)?.map_err(|_| Error::Unavailable)?;
                 let status = response.status().as_u16();
-                if status != 200 { return Err(response_error(status, &Value::Null)); }
+                let header = |name: &str| response.headers().get(name).and_then(|v| v.to_str().ok()).filter(|v| v.len() <= 128).map(str::to_owned);
+                if status != 200 {
+                    // The refusal's reviewed code and reference say why.
+                    let request_id = header("x-request-id");
+                    let mut bytes = Vec::new();
+                    let mut parts = response.bytes_stream();
+                    let _ = tokio::time::timeout(Duration::from_secs(5), async {
+                        while let Some(Ok(part)) = parts.next().await {
+                            bytes.extend_from_slice(&part);
+                            if bytes.len() > STREAM_REFUSAL_BYTES {
+                                bytes.clear();
+                                break;
+                            }
+                        }
+                    })
+                    .await;
+                    let value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+                    return Err(super::transport::completion_error(status, &value, request_id.as_deref()));
+                }
+                if let Some(reservation) = header("x-puppyone-reservation-id") {
+                    fence.check()?; sink(StreamEvent::Reservation(&reservation))?;
+                }
                 fence.check()?; sink(StreamEvent::Connected)?;
                 let mut body = response.bytes_stream();
                 while let Some(part) = tokio::time::timeout(Duration::from_secs(120), body.next()).await.map_err(|_| Error::OutcomeUnknown)? {

@@ -6,4 +6,5 @@
 pub mod assets;
 pub mod embed;
 pub mod link;
+pub mod preferences;
 pub mod render;

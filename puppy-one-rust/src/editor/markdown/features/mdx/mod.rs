@@ -12,6 +12,7 @@ mod widget;
 
 pub use model::{Tab, TabsBlock};
 pub use state::{Action, TabsState};
+pub use widget::{FirstTab, LastTab, NextTab, PreviousTab, TAB_KEY_CONTEXT};
 
 use crate::editor::{
     markdown::core::{

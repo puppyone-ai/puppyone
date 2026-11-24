@@ -16,6 +16,11 @@ pub struct InlineTag {
     /// `style` colours (`color`, `background-color`), as CSS colours.
     pub color: Option<String>,
     pub background: Option<String>,
+    /// `style` `font-weight`, as authored (within the style policy).
+    pub weight: Option<String>,
+    /// The in-page target it names: `id` (entity-decoded, one token), else a
+    /// legacy anchor's `name`.
+    pub id: Option<String>,
 }
 
 /// Pure navigation index of footnotes derived from `Kind::FootnoteDefinition`

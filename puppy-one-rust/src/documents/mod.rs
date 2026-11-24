@@ -133,6 +133,8 @@ pub enum ClientMessage {
     RetryInput {
         id: String,
     },
+    /// Read a pane's file again after its read failed (the workbench's).
+    RetryRead,
     Dirty {
         id: String,
         revision: u64,

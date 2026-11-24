@@ -20,6 +20,7 @@ use super::{
     },
     features,
     pipeline::{PipelineCache, PipelineInput},
+    platform::sessions::{self, Sessions},
     style::MarkdownTheme,
 };
 use crate::{
@@ -75,13 +76,15 @@ pub struct MarkdownExtension {
 
 impl MarkdownExtension {
     pub fn new(dark: bool, scale: Scale) -> Self {
+        let mut preview = PreviewState::default();
+        sessions::install(&mut preview.features);
         Self {
             theme: MarkdownTheme::resolve(dark, scale),
             scale,
             live: true,
             live_flag: Rc::new(Cell::new(true)),
             read_only: false,
-            preview: PreviewState::default(),
+            preview,
             references: None,
             assets: None,
             dialect: MarkdownDialect::default(),
@@ -90,6 +93,11 @@ impl MarkdownExtension {
             theme_key: crate::editor::tokens::theme_key(),
             cache: Rc::new(RefCell::new(PipelineCache::default())),
         }
+    }
+
+    /// The view's table viewport and column layout sessions.
+    pub fn sessions(&self) -> Option<&Sessions> {
+        self.preview.features.get::<Sessions>(sessions::SLOT)
     }
 
     /// The OpenKnowledge MDX dialect (project metadata or `.mdx` documents).
@@ -392,6 +400,9 @@ impl EditorExtension for MarkdownExtension {
     }
 
     fn prepare_applied(&mut self, applied: &Applied, state: &EditorState) {
+        if let Some(sessions) = self.sessions() {
+            sessions.map(applied, state.revision);
+        }
         self.preview
             .features
             .map(&applied.changes, &state.doc, state.revision);

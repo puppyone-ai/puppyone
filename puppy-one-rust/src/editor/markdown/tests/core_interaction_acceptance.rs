@@ -1094,6 +1094,56 @@ fn format_shortcuts_follow_the_product_contract(cx: &mut TestAppContext) {
     view.update(cx, |v, _| assert_eq!(v.text(), "word"));
 }
 
+/// `markdownFormatShortcuts.electron.test.mjs` #3: holding a format
+/// shortcut applies it once; its auto-repeats do nothing, and a fresh press
+/// after the key was released applies it again. Option, Control on macOS
+/// (Command elsewhere), both platform modifiers and a released key are no
+/// format shortcut.
+#[gpui::test]
+fn held_format_shortcuts_apply_once_and_other_inputs_are_ignored(cx: &mut TestAppContext) {
+    use crate::platform::key_repeat::test_support::simulate as repeating;
+    for (chord, formatted) in [
+        ("secondary-b", "**word**"),
+        ("secondary-i", "*word*"),
+        ("secondary-u", "<u>word</u>"),
+        ("secondary-d", "~~word~~"),
+        ("secondary-shift-x", "~~word~~"),
+    ] {
+        let (view, cx) = setup(cx, "word");
+        view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
+        cx.simulate_keystrokes(chord);
+        view.update(cx, |v, _| assert_eq!(v.text(), formatted, "{chord}"));
+        repeating(true);
+        for _ in 0..3 {
+            cx.simulate_keystrokes(chord);
+            view.update(cx, |v, _| {
+                assert_eq!(v.text(), formatted, "{chord}: an auto-repeat")
+            });
+        }
+        repeating(false);
+        cx.simulate_keystrokes(chord);
+        view.update(cx, |v, _| {
+            assert_eq!(v.text(), "word", "{chord}: a fresh press toggles back")
+        });
+    }
+    let (view, cx) = setup(cx, "word");
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
+    let mut ignored = vec!["secondary-alt-i"];
+    ignored.extend(if crate::platform::os::Os::current().is_macos() {
+        ["ctrl-i", "secondary-ctrl-i"]
+    } else {
+        ["super-i", "secondary-super-i"]
+    });
+    for chord in ignored {
+        cx.simulate_keystrokes(chord);
+        view.update(cx, |v, _| assert_eq!(v.text(), "word", "{chord}"));
+    }
+    cx.simulate_event(gpui::KeyUpEvent {
+        keystroke: gpui::Keystroke::parse("secondary-i").unwrap(),
+    });
+    view.update(cx, |v, _| assert_eq!(v.text(), "word", "a released key"));
+}
+
 #[gpui::test]
 fn missing_and_ambiguous_link_targets_are_underlined(cx: &mut TestAppContext) {
     use crate::editor::navigation::{Document, ReferenceContext, ReferenceIndex};
@@ -1512,4 +1562,47 @@ fn resizing_keeps_the_markdown_at_the_viewport_top(cx: &mut TestAppContext) {
             now - row
         );
     }
+}
+
+/// `markdownContentLanguage.test.ts` #0 in the editor: a document names its
+/// surface's language (`lang`) from its own script rather than the
+/// interface's, and keeps it while it is edited; a document without a
+/// script signal takes the interface's.
+#[gpui::test]
+fn the_documents_script_names_the_surface_language(cx: &mut TestAppContext) {
+    let language = |view: &gpui::Entity<crate::editor::view::EditorView>,
+                    cx: &mut gpui::VisualTestContext| {
+        view.update(cx, |v, _| {
+            v.surface().language.as_ref().map(|l| l.to_string())
+        })
+    };
+    use crate::ui::fonts::test_support::take_asked;
+    let (view, cx) = setup(cx, "# 計畫\n\n- 使用者訪談集齊十個\n- 修復編輯器問題");
+    assert_eq!(language(&view, cx).as_deref(), Some("zh-Hant"));
+    // Built, laid out and painted, every text of the editor takes the
+    // document language's script cascade.
+    take_asked();
+    view.update(cx, |_, cx| cx.notify());
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    assert_eq!(take_asked(), [Some("zh-Hant".into())]);
+    view.update_in(cx, |v, _, cx| {
+        let end = v.text().len();
+        v.set_selection(Selection::cursor(end), cx)
+    });
+    cx.simulate_input("\n计划用户访谈问题");
+    cx.run_until_parked();
+    assert_eq!(
+        language(&view, cx).as_deref(),
+        Some("zh-Hant"),
+        "an edit keeps the language"
+    );
+    let (view, cx) = setup(cx, "# 计划\n\n- 用户访谈集齐十个\n- 修复编辑器问题");
+    assert_eq!(language(&view, cx).as_deref(), Some("zh-Hans"));
+    let (view, cx) = setup(cx, "# Release notes");
+    let interface = crate::editor::markdown::core::presentation::content_language::normalize(
+        &crate::localization::current().code,
+    );
+    assert_eq!(language(&view, cx), Some(interface));
 }

@@ -23,6 +23,29 @@ fn compile_core_element(index: usize, e: &Element) -> Plan {
         delete_units: Vec::new(),
     };
     match e.kind {
+        // A bare `<br>`: one atomic line break, deleted as a unit.
+        Kind::InlineHtml if e.html.as_ref().is_some_and(|h| h.name == "br") => Plan {
+            presentation: Presentation::InlineAtom(Atom::Text("\n".into())),
+            delete_units: vec![e.range.clone()],
+            ..visible
+        },
+        // An empty target anchor (`<a id="x"></a>`): its whole source is one
+        // hidden marker, deleted as a unit, so no caret rests between tags.
+        Kind::InlineHtml
+            if e.content.as_ref().is_some_and(|c| c.is_empty())
+                && e.html
+                    .as_ref()
+                    .is_some_and(|h| h.name == "a" && h.id.is_some()) =>
+        {
+            Plan {
+                presentation: Presentation::InlineMark {
+                    content: e.range.end..e.range.end,
+                    markers: vec![e.range.clone()],
+                },
+                delete_units: vec![e.range.clone()],
+                ..visible
+            }
+        }
         Kind::Strong
         | Kind::Emphasis
         | Kind::Strike
@@ -139,7 +162,14 @@ pub fn window_syntax_view(
         note_definitions: Vec::new(),
         inline_tags: Vec::new(),
         html_blocks: slice_spans(&syntax.html_blocks),
-        top_blocks: slice_spans(&syntax.top_blocks),
+        marker_html: slice_spans(&syntax.marker_html),
+        // Clamped to the window: block features scan only its lines. The
+        // incremental compile runs only when no multi-block delimiter falls in
+        // or opens around the window, so no block they find can reach past it.
+        top_blocks: slice_spans(&syntax.top_blocks)
+            .into_iter()
+            .map(|b| b.start.max(byte_window.start)..b.end.min(byte_window.end))
+            .collect(),
         footnotes: Default::default(),
         link_defs: Vec::new(),
         block_delimiters: Vec::new(),

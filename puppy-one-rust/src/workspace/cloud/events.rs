@@ -207,6 +207,7 @@ fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation
                             hub.publish(run, WatchEvent::Invalidated);
                         }
                     }
+                    StreamEvent::Reservation(_) => {}
                     StreamEvent::Data(bytes) => {
                         parser.feed(bytes, &shared.runtime.generation, &mut |paths| {
                             if let Some(hub) = hub.upgrade() {

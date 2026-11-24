@@ -228,7 +228,7 @@ impl SettingsWorkspaceSurface {
         if !crate::features::flags::payments_enabled(&self.preferences, cx) {
             return;
         }
-        let compute = crate::features::cloud::global_compute(cx);
+        let compute = crate::features::model_connections::global_compute(cx);
         compute.update(cx, |c, cx| c.refresh(false, cx));
         if self.compute_timer.is_none() {
             self.compute_timer = Some(cx.spawn(async move |this, cx| {
@@ -238,7 +238,7 @@ impl SettingsWorkspaceSurface {
                         .await;
                     let alive = this.update(cx, |s, cx| {
                         if s.page == Page::Account {
-                            crate::features::cloud::global_compute(cx)
+                            crate::features::model_connections::global_compute(cx)
                                 .update(cx, |c, cx| c.refresh(true, cx));
                         }
                     });
@@ -254,7 +254,7 @@ impl SettingsWorkspaceSurface {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let compute = crate::features::cloud::global_compute(cx);
+        let compute = crate::features::model_connections::global_compute(cx);
         cx.observe(&compute, |_, _, cx| cx.notify()).detach();
         // Product Analytics follows the process-wide telemetry state.
         if let Some(telemetry) = crate::features::telemetry::global(cx) {

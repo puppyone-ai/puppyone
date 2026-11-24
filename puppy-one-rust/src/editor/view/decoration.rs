@@ -98,6 +98,9 @@ pub struct Surface {
     pub inline_code_padding: Option<f32>,
     /// Kit underlines links unless told not to.
     pub link_plain: bool,
+    /// The content's language (the surface's `lang`), which picks the
+    /// script fallback faces of its text; `None` follows the interface.
+    pub language: Option<SharedString>,
 }
 
 /// `text-decoration` in a dotted or dashed style: 1px segments `dash` long,
@@ -124,6 +127,19 @@ pub type DrawInline = Rc<
     ) -> Option<crate::render_service::Rendered>,
 >;
 
+/// An element drawn over an inline image's room instead of its image (an
+/// audio player in a sentence): the owning view, the room's width and
+/// height.
+pub type DrawElement = Rc<
+    dyn Fn(
+        &gpui::WeakEntity<super::editor::EditorView>,
+        f32,
+        f32,
+        &mut gpui::Window,
+        &mut gpui::App,
+    ) -> gpui::AnyElement,
+>;
+
 /// A replaced range drawn as an image in the text flow once it is ready
 /// (an inline formula, a picture beside text).
 #[derive(Clone)]
@@ -134,6 +150,9 @@ pub struct InlineImage {
     /// Corner radius of the drawn image.
     pub radius: f32,
     pub draw: DrawInline,
+    /// Drawn in the image's room instead of the image, when set; `draw`
+    /// still gives the room's size and baseline.
+    pub element: Option<DrawElement>,
 }
 
 /// Text set as `<sup>` or `<sub>`: at its own size and colour, its baseline

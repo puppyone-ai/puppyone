@@ -100,7 +100,12 @@ pub(super) fn align_of(e: &Element, inherited: TextAlign) -> TextAlign {
     let style_align = e.attribute("style").and_then(|s| {
         s.split(';').find_map(|d| {
             let (k, v) = d.split_once(':')?;
-            (k.trim().eq_ignore_ascii_case("text-align")).then(|| v.trim().to_ascii_lowercase())
+            (k.trim().eq_ignore_ascii_case("text-align")
+                && crate::editor::markdown::platform::policy::presentation::is_safe_style_value(
+                    "text-align",
+                    v,
+                ))
+            .then(|| v.trim().to_ascii_lowercase())
         })
     });
     let value = style_align.or_else(|| e.attribute("align").map(str::to_ascii_lowercase));
@@ -114,11 +119,14 @@ pub(super) fn align_of(e: &Element, inherited: TextAlign) -> TextAlign {
 }
 
 pub(super) fn style_color(e: &Element, property: &str) -> Option<Rgba> {
+    use crate::editor::markdown::platform::policy::presentation::{
+        color_fallback, is_safe_style_value,
+    };
     let style = e.attribute("style")?;
     style.split(';').find_map(|d| {
         let (k, v) = d.split_once(':')?;
-        if k.trim().eq_ignore_ascii_case(property) {
-            parse_css_color(v)
+        if k.trim().eq_ignore_ascii_case(property) && is_safe_style_value(property, v) {
+            parse_css_color(color_fallback(v)?)
         } else {
             None
         }

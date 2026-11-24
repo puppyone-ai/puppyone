@@ -14,6 +14,11 @@ pub fn vertical<H: ScrollbarHandle + Clone>(id: impl Into<ElementId>, handle: &H
     unmeasured(Scrollbar::vertical(handle).id(id))
 }
 
+/// The horizontal scrollbar of `handle`'s viewport (a wide table's rail).
+pub fn horizontal<H: ScrollbarHandle + Clone>(id: impl Into<ElementId>, handle: &H) -> Div {
+    unmeasured(Scrollbar::horizontal(handle).id(id))
+}
+
 /// Both scrollbars of a two-axis viewport (a page or a table).
 pub fn both<H: ScrollbarHandle + Clone>(id: impl Into<ElementId>, handle: &H) -> Div {
     unmeasured(Scrollbar::new(handle).id(id))

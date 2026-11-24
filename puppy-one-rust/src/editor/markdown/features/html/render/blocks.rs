@@ -159,7 +159,7 @@ impl Surface<'_, '_, '_> {
                 continue;
             }
             let marker = if ordered {
-                let m = format!("{n}.");
+                let m = format!("{}.", list_marker(n, e.attribute("type")));
                 n += 1;
                 m
             } else {
@@ -268,6 +268,33 @@ impl Surface<'_, '_, '_> {
                 widths[i] = widths[i].max(w.ceil() + pad);
             }
         }
+        // `width` on a cell: at least that wide (pixels, or a share of the
+        // column).
+        let length = |value: Option<&str>, of: f32| -> Option<f32> {
+            let value = value?.trim();
+            match value.strip_suffix('%') {
+                Some(p) => p.parse::<f32>().ok().map(|p| of * p.min(100.) / 100.),
+                None => value.trim_end_matches("px").parse::<f32>().ok(),
+            }
+            .filter(|v| v.is_finite() && *v > 0.)
+        };
+        for (row, _) in &rows {
+            for (i, cell) in cells(row).iter().enumerate() {
+                if let Some(w) = length(cell.attribute("width"), width - 2.) {
+                    widths[i] = widths[i].max(w.min(width - 2.));
+                }
+            }
+        }
+        // `width` on the table: its columns share that width.
+        let total: f32 = widths.iter().sum::<f32>() + 2.;
+        if let Some(target) = length(e.attribute("width"), width).map(|w| w.min(width))
+            && target > total
+        {
+            let k = (target - 2.).max(0.) / (total - 2.).max(1.);
+            for w in &mut widths {
+                *w *= k;
+            }
+        }
         let total: f32 = widths.iter().sum::<f32>() + 2.;
         if total > width {
             let k = (width - 2.).max(0.) / (total - 2.).max(1.);
@@ -276,6 +303,7 @@ impl Surface<'_, '_, '_> {
             }
         }
         let mut table = div()
+            .debug_selector(|| "md-html-table".into())
             .flex()
             .flex_col()
             .border_1()
@@ -300,7 +328,11 @@ impl Surface<'_, '_, '_> {
                 } else {
                     cell_inherit.text.color = s.body_color;
                 }
+                let id = format!("md-html-cell-{r}-{i}");
                 let mut td = div()
+                    .debug_selector(move || id.clone())
+                    .flex()
+                    .flex_col()
                     .w(px(widths[i]))
                     .pt(px(s.cell_padding.top))
                     .pr(px(s.cell_padding.right))
@@ -324,6 +356,12 @@ impl Surface<'_, '_, '_> {
                         },
                     );
                 }
+                // `valign`: where the cell's content sits in its row.
+                td = match cell.attribute("valign") {
+                    Some("middle") => td.justify_center(),
+                    Some("bottom") => td.justify_end(),
+                    _ => td.justify_start(),
+                };
                 cell_inherit.text.apply(td.style());
                 td.style().text.text_align = Some(cell_inherit.align);
                 let content = self.flow(
@@ -336,7 +374,15 @@ impl Surface<'_, '_, '_> {
             }
             table = table.child(tr);
         }
-        div().flex().child(table).into_any_element()
+        // `align` on the table: where it sits in the column.
+        let placed = div().flex();
+        match e.attribute("align") {
+            Some("center") => placed.justify_center(),
+            Some("right") => placed.justify_end(),
+            _ => placed,
+        }
+        .child(table)
+        .into_any_element()
     }
 
     pub(super) fn details(
@@ -409,5 +455,76 @@ impl Surface<'_, '_, '_> {
             d = d.children(self.flow(&rest, inherit, width, depth + 1));
         }
         d.into_any_element()
+    }
+}
+
+/// An ordered list's marker for item `n` in `type` (`1`, `a`, `A`, `i`, `I`).
+fn list_marker(n: i64, kind: Option<&str>) -> String {
+    let letters = |n: i64, base: u8| {
+        if n < 1 {
+            return n.to_string();
+        }
+        let mut n = n;
+        let mut out = Vec::new();
+        while n > 0 {
+            n -= 1;
+            out.push((base + (n % 26) as u8) as char);
+            n /= 26;
+        }
+        out.iter().rev().collect()
+    };
+    let roman = |n: i64| {
+        if !(1..4000).contains(&n) {
+            return n.to_string();
+        }
+        let mut n = n;
+        let mut out = String::new();
+        for (value, numeral) in [
+            (1000, "m"),
+            (900, "cm"),
+            (500, "d"),
+            (400, "cd"),
+            (100, "c"),
+            (90, "xc"),
+            (50, "l"),
+            (40, "xl"),
+            (10, "x"),
+            (9, "ix"),
+            (5, "v"),
+            (4, "iv"),
+            (1, "i"),
+        ] {
+            while n >= value {
+                out.push_str(numeral);
+                n -= value;
+            }
+        }
+        out
+    };
+    match kind {
+        Some("a") => letters(n, b'a'),
+        Some("A") => letters(n, b'A'),
+        Some("i") => roman(n),
+        Some("I") => roman(n).to_ascii_uppercase(),
+        _ => n.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::list_marker;
+    use core::prelude::v1::test;
+
+    /// `<ol type>` markers (`markdownHtmlRun.test.ts` #65 keeps `type="a"`).
+    #[test]
+    fn ordered_list_types_number_their_markers() {
+        let markers =
+            |kind: Option<&str>| (1..=4).map(|n| list_marker(n, kind)).collect::<Vec<_>>();
+        assert_eq!(markers(Some("a")), ["a", "b", "c", "d"]);
+        assert_eq!(markers(Some("A")), ["A", "B", "C", "D"]);
+        assert_eq!(markers(Some("i")), ["i", "ii", "iii", "iv"]);
+        assert_eq!(markers(Some("I")), ["I", "II", "III", "IV"]);
+        assert_eq!(markers(None), ["1", "2", "3", "4"]);
+        assert_eq!(list_marker(27, Some("a")), "aa");
     }
 }

@@ -319,6 +319,7 @@ fn panicking_inline_content_hooks_discard_partial_output_and_preserve_healthy_me
                 range: cx.range.clone(),
                 pad: 0.,
                 radius: 0.,
+                element: None,
                 draw: Rc::new(|_, _, _, _, _| panic!("discarded loader must never run")),
             });
             panic!("partial inline output");

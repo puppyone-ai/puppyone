@@ -147,6 +147,7 @@ mod interaction {
                             .push(*command.payload::<Structure>().unwrap())
                     }),
                     focus_editor: Rc::new(|_, _| {}),
+                    layout: None,
                 }),
                 ..TableUi::default()
             })

@@ -7,12 +7,12 @@ use crate::editor::{
             links::find_links,
             syntax::{Element, Kind, Syntax},
         },
-        shared::media::{parse_image_size, split_image_alt},
+        shared::media::{Base, parse_image_size, split_image_alt},
     },
     navigation::ReferenceContext,
     text::buffer::Buffer,
 };
-use std::{ops::Range, path::Path};
+use std::ops::Range;
 
 /// The image an element shows, if it is one (a link around exactly one
 /// image is that image, linked).
@@ -21,7 +21,7 @@ pub fn resolve_item(
     syntax: &Syntax,
     references: Option<&ReferenceContext>,
     e: &Element,
-    document: &Path,
+    base: Base<'_>,
 ) -> Option<Item> {
     let is_image = |e: &Element| matches!(e.kind, Kind::Image | Kind::ImageEmbed);
     let (image_el, link) = if is_image(e) {
@@ -46,7 +46,7 @@ pub fn resolve_item(
         let alt = alias
             .filter(|_| size.is_none())
             .unwrap_or_else(|| href.clone());
-        (alt, size, resolve_embed(document, &href, references))
+        (alt, size, resolve_embed(base.document, &href, references))
     } else {
         let alt = image_el
             .content
@@ -54,7 +54,7 @@ pub fn resolve_item(
             .map(|c| doc.slice(c).to_owned())
             .unwrap_or_default();
         let (alt, size) = split_image_alt(&alt);
-        (alt, size, resolve_markdown(document, &href))
+        (alt, size, resolve_markdown(base, &href))
     };
     Some(Item {
         range: e.range.clone(),
@@ -71,7 +71,7 @@ pub fn collect_items(
     doc: &Buffer,
     syntax: &Syntax,
     range: Range<usize>,
-    document: &Path,
+    base: Base<'_>,
     references: Option<&ReferenceContext>,
 ) -> (Vec<Item>, bool) {
     let text = doc.slice(range.clone());
@@ -106,7 +106,7 @@ pub fn collect_items(
         if !doc.slice(at..e.range.start).trim().is_empty() {
             mixed = true;
         }
-        let Some(item) = resolve_item(doc, syntax, references, e, document) else {
+        let Some(item) = resolve_item(doc, syntax, references, e, base) else {
             mixed = true;
             continue;
         };

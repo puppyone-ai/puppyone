@@ -32,6 +32,7 @@ pub mod git_watch;
 pub mod host_budget;
 pub mod html_page_store;
 pub mod image_transcode;
+pub mod key_repeat;
 pub mod local_agent_setup;
 pub mod local_computers;
 pub mod local_ipc;
@@ -63,6 +64,7 @@ pub mod viewer_packs;
 pub mod watchdog;
 pub mod webview;
 pub mod window;
+pub mod window_capture;
 
 /// The native product's data directory, separate from the Electron product's
 /// (`PUPPYONE_RUST_DATA_DIR` isolates tests and captures).

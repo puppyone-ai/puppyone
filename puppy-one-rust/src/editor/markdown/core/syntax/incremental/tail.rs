@@ -15,6 +15,7 @@ impl Syntax {
             || !self.block_delimiters.is_empty()
             || fence_straddles(&self.fences, split_byte)
             || span_straddles(&self.html_blocks, split_byte)
+            || span_straddles(&self.marker_html, split_byte)
             || span_straddles(&self.comment_spans, split_byte)
             || span_straddles(&self.footnote_spans, split_byte)
         {
@@ -84,6 +85,7 @@ impl Syntax {
             return None;
         }
         let hb_idx = self.html_blocks.partition_point(|r| r.start < split_byte);
+        let mh_idx = self.marker_html.partition_point(|r| r.start < split_byte);
         let cs_idx = self.comment_spans.partition_point(|r| r.start < split_byte);
         let fs_idx = self
             .footnote_spans
@@ -103,6 +105,7 @@ impl Syntax {
             note_definitions: self.note_definitions.split_off(nd_idx),
             inline_tags: self.inline_tags.split_off(it_idx),
             html_blocks: self.html_blocks.split_off(hb_idx),
+            marker_html: self.marker_html.split_off(mh_idx),
             top_blocks: self.top_blocks.split_off(tb_idx),
             footnotes: Footnotes::default(),
             link_defs: Vec::new(),
@@ -151,6 +154,7 @@ impl Syntax {
                 &mut tail.table_cells,
                 &mut tail.inline_tags,
                 &mut tail.html_blocks,
+                &mut tail.marker_html,
                 &mut tail.top_blocks,
                 &mut tail.comment_spans,
                 &mut tail.footnote_spans,
@@ -175,6 +179,7 @@ impl Syntax {
         self.table_cells.append(&mut tail.table_cells);
         self.inline_tags.append(&mut tail.inline_tags);
         self.html_blocks.append(&mut tail.html_blocks);
+        self.marker_html.append(&mut tail.marker_html);
         self.top_blocks.append(&mut tail.top_blocks);
         self.comment_spans.append(&mut tail.comment_spans);
         self.footnote_spans.append(&mut tail.footnote_spans);

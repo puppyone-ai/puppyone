@@ -28,7 +28,7 @@ use crate::{
     },
     theme,
     ui::appearance::ActiveAppearance,
-    workspace::Workspace,
+    workspace::{ErrorKind, Workspace},
 };
 use gpui::{prelude::*, *};
 use std::{
@@ -82,6 +82,18 @@ pub fn preview_html(text: &str, csp: &str, scripts: &str) -> String {
 }
 
 type EditCallback = Rc<dyn Fn(&mut App)>;
+/// The host's external route (`openExternalUrl`): opens a web address in
+/// the system browser, or says why it could not.
+pub type ExternalRoute = Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
+
+/// The product's external route: the system browser, failing when it
+/// cannot be asked. Tests leave web addresses to the app, which records them.
+fn external_route() -> Option<ExternalRoute> {
+    #[cfg(test)]
+    return None;
+    #[cfg(not(test))]
+    Some(Arc::new(crate::platform::desktop::open_url))
+}
 type FullpageSlices = (u64, Vec<(f32, Vec<u8>)>);
 
 #[derive(Default)]
@@ -95,6 +107,13 @@ struct State {
     on_edit: Option<EditCallback>,
     /// The shown page's messages.
     inbox: Option<Task<()>>,
+    /// Which shown page this is: a link's late answer for an earlier page
+    /// is dropped.
+    generation: u64,
+    external: Option<ExternalRoute>,
+    /// The shown page's message channel (tests post into it).
+    #[cfg(test)]
+    channel: Option<async_channel::Sender<String>>,
     tool_mode: HtmlToolMode,
     js_errors: Vec<HtmlJsError>,
     has_annotations: bool,
@@ -146,6 +165,7 @@ impl Interact {
         let (name, dark) = (request.name.to_owned(), request.dark);
         let state = State {
             references: request.references.clone(),
+            external: external_route(),
             ..State::default()
         };
         Self(Rc::new(Inner {
@@ -218,6 +238,16 @@ impl Interact {
     }
     pub fn set_events(&self, events: SurfaceEvents) {
         self.state.borrow_mut().events = Some(events);
+    }
+    /// The route web addresses open through.
+    #[cfg(test)]
+    pub fn set_external_route(&self, route: Option<ExternalRoute>) {
+        self.state.borrow_mut().external = route;
+    }
+    /// The shown page's message channel, as its web view posts into it.
+    #[cfg(test)]
+    pub fn channel(&self) -> Option<async_channel::Sender<String>> {
+        self.state.borrow().channel.clone()
     }
     pub fn set_on_edit(&self, on_edit: Rc<dyn Fn(&mut App)>) {
         self.state.borrow_mut().on_edit = Some(on_edit);
@@ -468,6 +498,14 @@ impl Interact {
         }
         let budget = viewer_budget("html-artifact");
         let (tx, rx) = async_channel::unbounded::<String>();
+        {
+            let mut st = self.state.borrow_mut();
+            st.generation += 1;
+            #[cfg(test)]
+            {
+                st.channel = Some(tx.clone());
+            }
+        }
         let source = self
             .assets
             .clone()
@@ -889,20 +927,23 @@ impl Interact {
             _ => {}
         }
     }
-    /// `useHtmlLinkNavigation`: what a clicked link opens, or why not.
+    /// `useHtmlLinkNavigation`: what a clicked link opens, or why not. An
+    /// answer that arrives after the page was replaced is dropped.
     fn follow(&self, href: &str, base: Option<&str>, offline: bool, cx: &mut App) {
         if offline {
             return self.fail("offline", cx);
         }
+        let generation = self.state.borrow().generation;
         let references = self.state.borrow().references.clone();
         let resolve = move |target: &str| references.as_ref().map(|r| r.resolve(target));
         let reference = html_page::navigation_href(href, base)
             .and_then(|target| navigation::resolve(&target, Some(&resolve)));
         match reference {
             Some(reference) if navigation::can_open(&reference) => match reference {
-                Reference::External { href, .. } => cx.open_url(&href),
+                Reference::External { href, .. } => self.open_external(href, generation, cx),
                 // Not in the Explorer yet: the paths that are there open, and
-                // none means the linked file is missing.
+                // none means the linked file is missing; a workspace that
+                // cannot answer is a failure.
                 Reference::Workspace {
                     status: Status::Unresolved,
                     candidates,
@@ -910,24 +951,31 @@ impl Interact {
                 } if self.workspace.is_some() => {
                     let workspace = self.workspace.clone();
                     let found = cx.background_executor().spawn(async move {
-                        candidates
-                            .into_iter()
-                            .filter(|path| {
-                                workspace.as_ref().is_some_and(|w| {
-                                    w.entry_exists(Path::new(path.trim_start_matches('/')))
-                                        .unwrap_or(false)
-                                })
-                            })
-                            .collect::<Vec<_>>()
+                        let mut found = Vec::new();
+                        for path in candidates {
+                            let exists = workspace.as_ref().map_or(Ok(false), |w| {
+                                w.entry_exists(Path::new(path.trim_start_matches('/')))
+                            });
+                            match exists {
+                                Ok(true) => found.push(path),
+                                Ok(false) => {}
+                                Err(e) if e.kind == ErrorKind::NotFound => {}
+                                Err(_) => return Err(()),
+                            }
+                        }
+                        Ok(found)
                     });
                     let this = self.clone();
                     cx.spawn(async move |cx| {
                         let found = found.await;
                         cx.update(|cx| {
-                            if found.is_empty() {
-                                this.fail("missing", cx)
-                            } else {
-                                this.open(found, cx)
+                            if this.state.borrow().generation != generation {
+                                return;
+                            }
+                            match found {
+                                Err(()) => this.fail("failed", cx),
+                                Ok(found) if found.is_empty() => this.fail("missing", cx),
+                                Ok(found) => this.open(found, cx),
                             }
                         });
                     })
@@ -942,6 +990,26 @@ impl Interact {
             }) => self.fail("missing", cx),
             _ => self.fail("unavailable", cx),
         }
+    }
+    /// The host's external route: web addresses through the system browser
+    /// (which can fail), other addresses (`mailto:`) through the app.
+    fn open_external(&self, href: String, generation: u64, cx: &mut App) {
+        let web = url::Url::parse(&href).is_ok_and(|u| matches!(u.scheme(), "http" | "https"));
+        let route = self.state.borrow().external.clone().filter(|_| web);
+        let Some(route) = route else {
+            return cx.open_url(&href);
+        };
+        let opened = cx.background_executor().spawn(async move { route(&href) });
+        let this = self.clone();
+        cx.spawn(async move |cx| {
+            let opened = opened.await;
+            cx.update(|cx| {
+                if opened.is_err() && this.state.borrow().generation == generation {
+                    this.fail("failed", cx);
+                }
+            });
+        })
+        .detach();
     }
     /// The workbench opens the linked document.
     fn open(&self, paths: Vec<String>, cx: &mut App) {
@@ -1055,3 +1123,7 @@ impl Render for Waiting {
             })
     }
 }
+
+#[cfg(test)]
+#[path = "html_link_tests.rs"]
+mod link_tests;
