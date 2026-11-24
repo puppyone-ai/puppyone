@@ -75,6 +75,15 @@ pub(super) fn terminate_child(child: &mut Child) {
     let _ = child.wait();
 }
 
+pub(super) fn is_alive(pid: u32) -> bool {
+    let Ok(pid) = i32::try_from(pid) else {
+        return false;
+    };
+    // SAFETY: signal 0 only checks that the process exists.
+    let signalled = unsafe { libc::kill(pid, 0) } == 0;
+    signalled || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+}
+
 pub(super) fn terminate_pid(pid: u32, grouped: bool, force: bool) -> bool {
     let signal = if force { libc::SIGKILL } else { libc::SIGTERM };
     if grouped && unsafe { libc::kill(-(pid as i32), signal) } == 0 {

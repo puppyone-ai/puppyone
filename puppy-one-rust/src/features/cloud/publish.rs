@@ -100,6 +100,7 @@ fn coordinator(cx: &App) -> Option<Coordinator> {
             hosted_git_origin: hosted,
         }),
         vault: Arc::new(vault::Keychain),
+        lease: Default::default(),
     })
 }
 

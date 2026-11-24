@@ -239,6 +239,7 @@ pub fn coordinator(fake: &Arc<Fake>) -> (Coordinator, Arc<Memory>) {
             git: fake.clone(),
             cloud: fake.clone(),
             vault: vault.clone(),
+            lease: Default::default(),
         },
         vault,
     )

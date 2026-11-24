@@ -373,6 +373,7 @@ impl Fixture {
             }),
             cloud: self.cloud.clone(),
             vault: self.vault.clone(),
+            lease: Default::default(),
         }
     }
     fn request(&self) -> Request {
@@ -1091,6 +1092,45 @@ fn concurrent_publications_of_one_repository_create_one_project() {
     assert!(first.ok, "{:?}", first.error);
     assert!(second.ok, "{:?}", second.error);
     assert_eq!(f.creates(), 1);
+}
+
+/// `serializes two independent coordinator instances with the common
+/// repository lease`: while another Desktop process holds the repository's
+/// lease, a publication fails fast (retryable) before anything is created;
+/// once that process is gone its lease is reclaimed and the publication runs.
+#[test]
+fn another_process_holding_the_lease_makes_a_publication_fail_fast() {
+    let f = Fixture::new("main");
+    let common = f.root().join(".git");
+    let mut other = std::process::Command::new("sleep")
+        .arg("30")
+        .spawn()
+        .unwrap();
+    let directory = common.join("puppyone");
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join(super::lease::FILENAME);
+    let now = chrono::Utc::now();
+    let lease = serde_json::json!({
+        "version": 1, "owner_token": "another-process", "pid": other.id(),
+        "heartbeat_at": now.to_rfc3339(), "expires_at": (now + chrono::Duration::seconds(30)).to_rfc3339(),
+    });
+    std::fs::write(&path, format!("{lease}\n")).unwrap();
+    #[cfg(unix)]
+    std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o600)).unwrap();
+    let raced = f.start(&f.request());
+    let error = raced.error.as_ref().expect("refused");
+    assert_eq!((error.code, error.retryable), (Code::JournalIoFailed, true));
+    assert_eq!(
+        f.creates(),
+        0,
+        "nothing is created while another process works"
+    );
+    other.kill().unwrap();
+    other.wait().unwrap();
+    let outcome = f.start(&f.request());
+    assert!(outcome.ok, "{:?}", outcome.error);
+    assert_eq!(f.creates(), 1);
+    assert!(!path.exists(), "the lease is released");
 }
 
 // ------------------------------------------------- cleanup and migration

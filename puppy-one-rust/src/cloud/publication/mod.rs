@@ -17,6 +17,7 @@ pub mod api;
 pub mod fixtures;
 pub mod git;
 pub mod journal;
+pub mod lease;
 mod migrate;
 pub mod preparation;
 pub mod receipt;
@@ -291,12 +292,16 @@ pub struct Coordinator {
     pub git: Arc<dyn GitOps>,
     pub cloud: Arc<dyn CloudOps>,
     pub vault: Arc<dyn SecretVault>,
+    /// How the cross-process repository lease decides (tests replace it).
+    pub lease: lease::Options,
 }
 
 struct Context {
     journal: Journal,
     fingerprint: String,
     _ownership: crate::platform::git::coordinator::Lease<'static>,
+    /// Other Desktop processes stay out while this one works.
+    _lease: lease::Lease,
 }
 
 impl Coordinator {
@@ -306,6 +311,7 @@ impl Coordinator {
         use sha2::Digest as _;
         let identity = self.git.identity(root)?;
         let ownership = git::repository_ownership(&identity.common_dir)?;
+        let held = lease::acquire(&identity.common_dir, &self.lease)?;
         let metadata = std::fs::metadata(&identity.common_dir).map_err(|_| {
             PublishError::new(
                 Code::RepositoryRequired,
@@ -333,6 +339,7 @@ impl Coordinator {
             journal: Journal::in_git_dir(&identity.git_dir),
             fingerprint,
             _ownership: ownership,
+            _lease: held,
         })
     }
     /// `assertTrustedJournalRemote`: a journaled remote is this Cloud's

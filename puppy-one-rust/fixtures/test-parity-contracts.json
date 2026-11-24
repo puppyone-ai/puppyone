@@ -52650,6 +52650,62 @@
           "test": "cloud::publication::tests::coordinator_tests::a_rejected_receipt_retargets_the_retry_to_the_source_tip"
         }
       ]
+    },
+    {
+      "id": "cloud-git-cross-process-lease",
+      "acceptance": "Reading, starting or cleaning up a first publication holds, besides the in-process repository owner, a lease across processes in the repository's common Git directory (`<common dir>/puppyone/cloud-git-operation.lease.json`, private, recording a random owner token, the owner PID, a heartbeat and an expiry 30 s ahead that the owner refreshes every 5 s), so linked worktrees contend on one lease. A live owner PID always keeps the lease, even long past its expiry; a dead owner's lease is reclaimed at once, before its expiry; expiry alone only recovers residue without an owner. Reclaiming happens under a takeover lock that re-reads the lease, so two contenders that both saw the same dead lease are serialized: one takes it over, the other is refused. While another live process holds the lease a publication fails fast with retryable JOURNAL_IO_FAILED before anything is created; once that process is gone the publication runs and releases the lease when done.",
+      "typescript": [
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-git-operation-lease.test.mjs",
+          "sha256": "dcd8eb75f51bfc4fa5853be09dbde1357e3bc14256a8b2b23ef0c362f91555b1",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Cloud Git cross-process lease > never steals an expired lease while its owner PID is alive"
+            },
+            {
+              "index": 2,
+              "name": "Cloud Git cross-process lease > reclaims a lease owned by a dead PID even before its timestamp expires"
+            },
+            {
+              "index": 3,
+              "name": "Cloud Git cross-process lease > serializes two contenders that both observed the same dead lease"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
+          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
+          "cases": [
+            {
+              "index": 9,
+              "name": "Cloud publish coordinator: retry and restart > serializes two independent coordinator instances with the common repository lease"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::lease::tests::linked_worktrees_contend_on_the_common_directory"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::lease::tests::a_live_owner_keeps_its_lease_past_its_expiry"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::lease::tests::a_dead_owners_lease_is_reclaimed_before_its_expiry"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::lease::tests::two_contenders_for_one_dead_lease_are_serialized"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::another_process_holding_the_lease_makes_a_publication_fail_fast"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -56620,42 +56676,6 @@
             {
               "index": 11,
               "name": "native Agent round-trip smoke runner > fails closed when the canonical feed omits the submitted user message"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-git-cross-process-lease",
-      "kind": "gap",
-      "reason": "TS takes a cross-process operation lease in the repository's common Git directory, recording the owner PID and an expiry. It never steals the lease from a live owner, reclaims it from a dead one before expiry, and serializes two contenders. A second app process therefore fails fast instead of interleaving. Rust serializes publication only within its own process (the repository mutation owner). Its journal lock is held per write and goes stale by age, so another process publishing the same repository at the same time is not excluded.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
-      "typescript": [
-        {
-          "path": "tests/integration/cloud/publish/electron.cloud-git-operation-lease.test.mjs",
-          "sha256": "dcd8eb75f51bfc4fa5853be09dbde1357e3bc14256a8b2b23ef0c362f91555b1",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Cloud Git cross-process lease > never steals an expired lease while its owner PID is alive"
-            },
-            {
-              "index": 2,
-              "name": "Cloud Git cross-process lease > reclaims a lease owned by a dead PID even before its timestamp expires"
-            },
-            {
-              "index": 3,
-              "name": "Cloud Git cross-process lease > serializes two contenders that both observed the same dead lease"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
-          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
-          "cases": [
-            {
-              "index": 9,
-              "name": "Cloud publish coordinator: retry and restart > serializes two independent coordinator instances with the common repository lease"
             }
           ]
         }
