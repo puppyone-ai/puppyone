@@ -692,5 +692,7 @@
   "experimental.cloudComputerScreen.title": "云电脑屏幕",
   "experimental.cloudComputerScreen.detail": "在云端项目的文件列表下方显示云电脑屏幕。桌面就绪前显示为预览。",
   "experimental.computerMode.title": "小电脑模式",
-  "experimental.computerMode.detail": "将云端空间与这台电脑上的工作环境呈现为带屏幕的小电脑，并将普通文件夹收纳在底部。"
+  "experimental.computerMode.detail": "将云端空间与这台电脑上的工作环境呈现为带屏幕的小电脑，并将普通文件夹收纳在底部。",
+  "experimental.isolatedAgentSandboxes.title": "外部 Agent 独立沙盒",
+  "experimental.isolatedAgentSandboxes.detail": "在云电脑设置中显示项目级开关，让每个外部 Agent 在独立的云端沙盒中运行，并挂载共享工作区文件。"
 }

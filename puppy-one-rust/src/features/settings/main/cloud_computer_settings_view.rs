@@ -23,6 +23,7 @@ use gpui_kit::{
 enum SavingKey {
     Desktop,
     Stream,
+    IsolatedAgents,
 }
 
 #[derive(Default)]
@@ -96,11 +97,15 @@ impl SettingsWorkspaceSurface {
         let patch = match key {
             SavingKey::Desktop => SandboxSettings {
                 desktop: Some(value),
-                screen_stream: None,
+                ..Default::default()
             },
             SavingKey::Stream => SandboxSettings {
-                desktop: None,
                 screen_stream: Some(value),
+                ..Default::default()
+            },
+            SavingKey::IsolatedAgents => SandboxSettings {
+                isolated_agent_sandboxes: Some(value),
+                ..Default::default()
             },
         };
         let cancel = Cancellation::default();
@@ -139,8 +144,13 @@ impl SettingsWorkspaceSurface {
 
     pub(super) fn cloud_computer(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let sandbox = self.computer_page.sandbox.as_ref();
+        let show_desktop = crate::features::flags::cloud_screen_enabled(&self.preferences, cx);
+        let show_isolated_agents =
+            crate::features::flags::isolated_agent_sandboxes_enabled(&self.preferences, cx);
         let desktop_on = sandbox.is_some_and(CloudSandbox::desktop_enabled);
         let stream_on = sandbox.is_none_or(CloudSandbox::stream_enabled);
+        let isolated_agents_on =
+            sandbox.is_some_and(CloudSandbox::isolated_agent_sandboxes_enabled);
         let pending = sandbox.is_some_and(CloudSandbox::desktop_pending);
         let disabled = sandbox.is_none() || self.computer_page.saving.is_some();
 
@@ -151,6 +161,7 @@ impl SettingsWorkspaceSurface {
             "cloud.settings.computer.desktopHelp"
         });
         let stream_help = tr("cloud.settings.computer.streamHelp");
+        let isolated_agents_help = tr("cloud.settings.computer.isolatedAgentsHelp");
 
         let card = |id: &'static str,
                     key: SavingKey,
@@ -249,8 +260,9 @@ impl SettingsWorkspaceSurface {
                     .child(MutedRow::new(tr("cloud.settings.computer.failed")).danger()),
             );
         }
-        section
-            .child(
+        let mut rows = v_flex().w_full().gap(px(12.));
+        if show_desktop {
+            rows = rows.child(
                 h_flex()
                     .w_full()
                     .items_stretch()
@@ -271,8 +283,19 @@ impl SettingsWorkspaceSurface {
                         stream_help,
                         cx,
                     )),
-            )
-            .into_any_element()
+            );
+        }
+        if show_isolated_agents {
+            rows = rows.child(h_flex().w_full().items_stretch().gap(px(12.)).child(card(
+                "cloud-computer-isolated-agents-toggle",
+                SavingKey::IsolatedAgents,
+                isolated_agents_on,
+                tr("cloud.settings.computer.isolatedAgents"),
+                isolated_agents_help,
+                cx,
+            )));
+        }
+        section.child(rows).into_any_element()
     }
 
     #[cfg(test)]
