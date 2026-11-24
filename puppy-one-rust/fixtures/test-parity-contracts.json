@@ -52752,6 +52752,37 @@
           "test": "app::tests::cloud_opening::an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"
         }
       ]
+    },
+    {
+      "id": "cloud-open-during-session-restore",
+      "acceptance": "Opening a Cloud project (from the cached Homepage list or a command) while Cloud is on and its session is still being restored (no status reported yet, or Restoring) waits instead of reporting that nobody is signed in: nothing opens and no error is shown. When the session becomes known it opens the project if someone is signed in, or reports the sign-in-required error if the session is gone. Opening a local folder, another computer's folder or the folder picker in the meantime drops the waiting choice, so a project the person has since left is never opened.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/cloudOpenWaitsForSession.test.tsx",
+          "sha256": "37017ca7e80fe08202e1e270812e43d8574d4b52de8220372b89975593306582",
+          "cases": [
+            {
+              "index": 0,
+              "name": "opening a Cloud project from the cached list > waits for the session instead of reporting that nobody is signed in"
+            },
+            {
+              "index": 1,
+              "name": "opening a Cloud project from the cached list > fails as signed out only once the session is known to be gone"
+            },
+            {
+              "index": 2,
+              "name": "opening a Cloud project from the cached list > does not open a project the user has since left"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::opening_a_cloud_project_waits_for_the_restoring_session"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -60522,32 +60553,6 @@
             {
               "index": 14,
               "name": "repository authorization read recovery > defers hidden-window retries until visible and removes listeners on disposal"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-open-during-session-restore",
-      "kind": "gap",
-      "reason": "TS opening a Cloud project from the cached Home list while the session is still being restored waits for it (and opens nothing if the person left meanwhile), failing as signed out only once the session is known to be gone. The native open_cloud answers at once from the account it has: while the session is restoring it reports that sign-in is required.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/opening.md",
-      "typescript": [
-        {
-          "path": "tests/component/cloud/repositories/cloudOpenWaitsForSession.test.tsx",
-          "sha256": "37017ca7e80fe08202e1e270812e43d8574d4b52de8220372b89975593306582",
-          "cases": [
-            {
-              "index": 0,
-              "name": "opening a Cloud project from the cached list > waits for the session instead of reporting that nobody is signed in"
-            },
-            {
-              "index": 1,
-              "name": "opening a Cloud project from the cached list > fails as signed out only once the session is known to be gone"
-            },
-            {
-              "index": 2,
-              "name": "opening a Cloud project from the cached list > does not open a project the user has since left"
             }
           ]
         }
