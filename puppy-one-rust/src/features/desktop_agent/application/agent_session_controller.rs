@@ -572,6 +572,11 @@ impl AgentSessionController {
         })
     }
 
+    /// The workspace this chat belongs to (`workspaceRoot`).
+    pub fn workspace_root(&self) -> &str {
+        &self.0.workspace_root
+    }
+
     pub fn add_workspace_paths(
         &self,
         paths: Vec<String>,

@@ -52297,6 +52297,84 @@
           "test": "agent::runtimes::puppyone_agent::model_client::tests::a_reviewed_refusal_reads_as_words_with_its_reference"
         }
       ]
+    },
+    {
+      "id": "agent-markdown-gfm-extras",
+      "acceptance": "An Agent answer names its language from its own script before the interface's (resolveMarkdownContentLanguage: a Chinese answer is zh-Hans in an English interface), and its text takes that language's script faces. GFM tables keep each column's authored alignment (:---, :---:, ---:) in a viewport as wide as the answer, which is a tab stop whose arrows scroll it, never before its start. Bare http(s)://, www. and e-mail addresses become links to their normalized address (https://example.com/), without a sentence's trailing punctuation or an unbalanced ')'; a domain needs a period. Footnote references are numbered by first use and shown raised; the referenced footnotes follow the answer after a rule, unreferenced definitions are dropped. Task lists, nested lists, strikethrough and rules still parse.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/transcript/desktop-agent.markdown-renderer.test.tsx",
+          "sha256": "339b2a5c7ca5ee5827699963ae3cfe492e100e1157ea1fbb41847fbadd9612a6",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Agent Markdown renderer > uses the message language for locale-aware reading typography"
+            },
+            {
+              "index": 1,
+              "name": "Agent Markdown renderer > renders semantic GFM tables inside a bounded horizontal viewport"
+            },
+            {
+              "index": 2,
+              "name": "Agent Markdown renderer > supports task lists, nested lists, strikethrough, autolinks, rules, and footnotes"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::an_answer_names_its_language_and_its_table_viewport_takes_the_keyboard"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::table_columns_keep_their_authored_alignment"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::bare_urls_link_and_footnotes_follow_the_answer"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::agent_markdown::tests::autolink_literals_end_where_the_address_does"
+        }
+      ]
+    },
+    {
+      "id": "agent-reference-drop-feedback",
+      "acceptance": "Workspace entries dropped on an Agent chat are granted only when they come from the chat's own workspace (its local root): entries dragged from another workspace are refused without asking the runtime to resolve or stage them, and a status (role=status, read but not shown) says the item belongs to another workspace and was not added; entries of a workspace without local files are refused as no longer available. Once a dropped, pasted or picked batch settles, the status says how many references it added and, when some of its own items failed, how many could not be added (Added 0; 1 could not be added.), while a refused file stays in the draft as a failed reference.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Desktop Agent reference ingestion > marks cross-workspace drags invalid and never grants their paths"
+            },
+            {
+              "index": 16,
+              "name": "Desktop Agent reference ingestion > announces partial batches while retaining the rejected item as an actionable error"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::cross_workspace_drags_are_refused_and_announced"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::a_partial_batch_is_announced_and_keeps_its_failed_reference"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62519,32 +62597,6 @@
       ]
     },
     {
-      "id": "agent-markdown-gfm-extras",
-      "kind": "gap",
-      "reason": "Agent Markdown in the native transcript has no footnotes, no bare-URL autolinks (only <url> and [text](url)), no table column alignment (`:---:`) and no lang attribute for locale-aware reading typography; tables, task lists, nested lists, strikethrough and rules do parse.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/agent-markdown.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/transcript/desktop-agent.markdown-renderer.test.tsx",
-          "sha256": "339b2a5c7ca5ee5827699963ae3cfe492e100e1157ea1fbb41847fbadd9612a6",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Agent Markdown renderer > uses the message language for locale-aware reading typography"
-            },
-            {
-              "index": 1,
-              "name": "Agent Markdown renderer > renders semantic GFM tables inside a bounded horizontal viewport"
-            },
-            {
-              "index": 2,
-              "name": "Agent Markdown renderer > supports task lists, nested lists, strikethrough, autolinks, rules, and footnotes"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "agent-markdown-block-registry",
       "kind": "out-of-scope",
       "reason": "TS lets features register rich Markdown blocks by fence language and guards external navigation behind an optional host capability. The native transcript draws only its built-in mermaid block and always has the host's link opener, so there is no registry or absent capability to test.",
@@ -62767,28 +62819,6 @@
             {
               "index": 0,
               "name": "Desktop Agent renderer surfaces > registers semantic part extensions by kind and restores the previous renderer on dispose"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "reference-drop-feedback",
-      "kind": "gap",
-      "reason": "The chat gives no drop-time feedback: a workspace drag from another workspace is not marked invalid (it is accepted and left to the host, which refuses paths outside the chat's root), and no status announces how many references a drop added or which items of a batch were rejected.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
-          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
-          "cases": [
-            {
-              "index": 4,
-              "name": "Desktop Agent reference ingestion > marks cross-workspace drags invalid and never grants their paths"
-            },
-            {
-              "index": 16,
-              "name": "Desktop Agent reference ingestion > announces partial batches while retaining the rejected item as an actionable error"
             }
           ]
         }
