@@ -182,6 +182,26 @@ pub fn terminate(child: &mut std::process::Child) {
     }
 }
 
+/// Whether a process with this PID is running (one this user may not
+/// signal still counts).
+pub fn is_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        unix::is_alive(pid)
+    }
+    #[cfg(windows)]
+    {
+        windows::is_alive(pid)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        true
+    }
+}
+
 /// Terminates a managed process by PID (and its process group when `grouped`).
 pub fn terminate_pid(pid: u32, grouped: bool, force: bool) -> bool {
     if pid == 0 {

@@ -160,6 +160,26 @@ pub(super) fn terminate_child(child: &mut Child) {
     let _ = child.wait();
 }
 
+pub(super) fn is_alive(pid: u32) -> bool {
+    use windows::Win32::System::Threading::{
+        GetExitCodeProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    /// `STILL_ACTIVE`.
+    const RUNNING: u32 = 259;
+    // SAFETY: opens the process for a status query and closes the handle.
+    unsafe {
+        let handle = match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+            Ok(handle) => handle,
+            // A process this user may not query still exists.
+            Err(error) => return error.code() == windows::Win32::Foundation::E_ACCESSDENIED,
+        };
+        let mut code = 0u32;
+        let running = GetExitCodeProcess(handle, &mut code).is_ok() && code == RUNNING;
+        let _ = CloseHandle(handle);
+        running
+    }
+}
+
 pub(super) fn terminate_pid(pid: u32, _grouped: bool, _force: bool) -> bool {
     // SAFETY: opens the process with terminate right and closes the handle.
     unsafe {
