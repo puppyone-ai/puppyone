@@ -1,4 +1,5 @@
 """Unit tests for the release tooling: `python3 -m unittest discover -s tools/release`."""
+import hashlib
 import importlib.util
 import sys
 import tempfile
@@ -141,6 +142,27 @@ class SigningPlanTest(unittest.TestCase):
             'CSC_LINK must be protected by CSC_KEY_PASSWORD',
             'App Store Connect API key notarization credentials are incomplete: missing '
             'APPLE_API_KEY_ID, APPLE_API_ISSUER'])
+
+    def test_a_failed_signing_command_reports_its_error_but_never_its_arguments(self):
+        self.assertEqual(sign._describe(['security', 'import', '/x.p12', '-k', '/k', '-P', 'p12-password']),
+                         'security import')
+        self.assertEqual(sign._describe(['security', 'set-key-partition-list', '-S', 'apple-tool:,apple:',
+                                         '-s', '-k', 'keychain-password', '/k']), 'security set-key-partition-list')
+        self.assertEqual(sign._describe(['codesign', '--force', '--sign', 'X', '/a/PuppyOne.app']),
+                         'codesign PuppyOne.app')
+        with self.assertRaises(SystemExit) as failure:
+            sign._run([sys.executable, '-c', 'import sys; sys.exit("errSecInternalComponent")', '/a/lib.dylib'])
+        self.assertIn('lib.dylib failed with exit 1', str(failure.exception))
+        self.assertIn('errSecInternalComponent', str(failure.exception))
+
+    def test_apples_developer_id_intermediates_are_the_published_certificates(self):
+        # apple.com/certificateauthority; G2 issues current Developer ID Application certificates.
+        digests = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                   for path in sign.CERTIFICATES.glob('*.cer')}
+        self.assertEqual(digests, {
+            'DeveloperIDCA.cer': '7afc9d01a62f03a2de9637936d4afe68090d2de18d03f29c88cfb0b1ba63587f',
+            'DeveloperIDG2CA.cer': 'f16cd3c54c7f83cea4bf1a3e6a0819c8aaa8e4a1528fd144715f350643d2df3a',
+        })
 
 
 class FeedTest(unittest.TestCase):
