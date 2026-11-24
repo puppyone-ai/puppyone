@@ -38,6 +38,17 @@ pub fn cloud_screen_enabled(preferences: &Entity<PreferencesStore>, cx: &App) ->
     cloud_enabled(preferences, cx)
         && (experimental.cloud_computer_screen || experimental.computer_mode)
 }
+pub fn isolated_agent_sandboxes_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
+    cloud_enabled(preferences, cx)
+        && preferences
+            .read(cx)
+            .state
+            .experimental
+            .isolated_agent_sandboxes
+}
+pub fn cloud_computer_settings_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
+    cloud_screen_enabled(preferences, cx) || isolated_agent_sandboxes_enabled(preferences, cx)
+}
 /// `useComputerModeEnabled`: needs no account; on-device computers are local.
 pub fn computer_mode_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
     preferences.read(cx).state.experimental.computer_mode

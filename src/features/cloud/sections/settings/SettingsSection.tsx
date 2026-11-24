@@ -45,7 +45,9 @@ export function CloudProjectSettingsSection({
   const { t } = useLocalization();
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   // Each member owns their own Cloud Computer, so this tab is not project administration.
-  const computerEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudComputerScreen);
+  const computerScreenEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudComputerScreen);
+  const isolatedAgentsEnabled = useDesktopPreference(s => s.experimentalSettings.enableIsolatedAgentSandboxes);
+  const computerEnabled = computerScreenEnabled || isolatedAgentsEnabled;
   const tabs: SettingsTab[] = computerEnabled ? [...SETTINGS_TABS, "computer"] : SETTINGS_TABS;
   const [currentProject, setCurrentProject] = useState(project);
   const [name, setName] = useState(project.name);
@@ -188,7 +190,10 @@ export function CloudProjectSettingsSection({
 
           {activeTab === "computer" && computerEnabled && (
             <CloudComputerSettings projectId={currentProject.id} session={cloudSession}
-              apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} />
+              apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange}
+              showDesktopControls={computerScreenEnabled}
+              showIsolatedAgentsControl={isolatedAgentsEnabled}
+              canManageProjectSettings={canManage} />
           )}
           {activeTab !== "computer" && (!canManage ? (
             <section className="desktop-cloud-settings-panel desktop-cloud-settings-restricted" role="tabpanel">
