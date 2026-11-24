@@ -71,6 +71,8 @@ struct World {
     pushes: Mutex<Vec<String>>,
     /// Cloud main reads (`git ls-remote`).
     remote_reads: Mutex<usize>,
+    /// What Cloud's receipt says, in order (then nothing).
+    receipts: Mutex<std::collections::VecDeque<Result<Option<String>, PublishError>>>,
     secret_reads: Mutex<usize>,
 }
 impl World {
@@ -173,6 +175,15 @@ impl GitOps for Git {
         self.cli.push(root, record, secret, on_transfer)?;
         self.world.at(Point::AfterPush);
         Ok(())
+    }
+    fn receipt(&self, record: &Record, secret: &str) -> Result<Option<String>, PublishError> {
+        let _ = (record, secret);
+        self.world
+            .receipts
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or(Ok(None))
     }
     fn remote_main(
         &self,
@@ -878,9 +889,44 @@ fn the_server_lease_refuses_a_competitor_that_lands_after_the_check() {
 
 // ----------------------------------------------------- retry and restart
 
+/// `retry of a rejected receipt uses a fresh attempt and only retargets
+/// after definitive rejection`: Cloud's receipt rejected the unresolved
+/// attempt, so Reconcile sends the source branch's tip in a fresh attempt
+/// (the earlier attempt's id is not sent again); nothing is created twice.
+#[test]
+fn a_rejected_receipt_retargets_the_retry_to_the_source_tip() {
+    let f = Fixture::new("main");
+    f.stop(Point::BeforePush, |f| f.start(&f.request()));
+    let record = f.pending();
+    let later = f.commit("later.md", "later local changes\n");
+    f.world
+        .receipts
+        .lock()
+        .unwrap()
+        .push_back(Err(PublishError::new(
+            Code::PushFailed,
+            "Cloud rejected this push attempt.",
+            true,
+        )));
+    let result = f.start(&f.with(Action::Reconcile, &record.operation_id));
+    assert!(result.ok, "{:?}", result.error);
+    assert_eq!(
+        *f.world.pushes.lock().unwrap(),
+        std::slice::from_ref(&later)
+    );
+    assert_eq!(f.cloud_main().as_deref(), Some(later.as_str()));
+    assert_eq!(f.sh(&["rev-parse", "HEAD"]), later);
+    assert_eq!(state(&result).push, Push::Accepted);
+    let sent = f.server.attempts.lock().unwrap().clone();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    assert_ne!(sent[0], record.attempt.attempt_id, "a fresh attempt");
+    assert_eq!(f.creates(), 1);
+    assert_eq!(f.world.log(|log| log.credentials.len()), 1);
+}
+
 /// A send whose result is unknown is retried with its exact commit in a
-/// fresh attempt, however the checkout moved (Rust reads Cloud main; it has
-/// no push receipt to consult).
+/// fresh attempt, however the checkout moved, when Cloud's receipt does not
+/// say it was rejected.
 #[test]
 fn an_unresolved_send_is_retried_with_its_commit_in_a_fresh_attempt() {
     let f = Fixture::new("main");

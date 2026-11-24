@@ -52570,6 +52570,86 @@
           "test": "app::tests::cloud_publish_dialog::the_upload_row_and_the_header_read_the_transfer"
         }
       ]
+    },
+    {
+      "id": "cloud-publish-push-receipts",
+      "acceptance": "A first push whose response was lost asks Cloud for the attempt's receipt: one GET of `<canonical remote>/operations/<attempt id>` with the operation's Basic credential, uncached and never following a redirect, and only when the journaled remote is exactly `/git/<project>.git` over HTTPS (HTTP only on loopback) without credentials, query or fragment. A receipt bound to this project and attempt, with one `refs/heads/main` update to the attempt's commit, settles the push: committed onto an absent main is success without reading the ref; rejected fails the push for good (PUSH_FAILED, retryable). Any other answer (another project, attempt, commit or ref, pending, missing, a redirect, no response) says nothing, and the push falls back to one read of Cloud main; a limit refusal still wins over the rejection. When reconciling, a rejected receipt marks the unresolved attempt failed (unless an earlier attempt is still unresolved), so Reconcile sends the source branch's current tip in a fresh attempt instead of the rejected commit, without creating the project or credential again.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/publish/cloudPublishReceipt.test.mjs",
+          "sha256": "be7460ee1e60dbd262163da4adf3f1e9fa6ba9a5ab658ea68a8677fc9d598e08",
+          "cases": [
+            {
+              "index": 1,
+              "name": "initial push receipt > lost push response resolves by the bound receipt without ref discovery or backoff"
+            },
+            {
+              "index": 2,
+              "name": "initial push receipt > does not accept a project mismatch as success"
+            },
+            {
+              "index": 3,
+              "name": "initial push receipt > does not accept a attempt mismatch as success"
+            },
+            {
+              "index": 4,
+              "name": "initial push receipt > does not accept a commit mismatch as success"
+            },
+            {
+              "index": 5,
+              "name": "initial push receipt > does not accept a ref mismatch as success"
+            },
+            {
+              "index": 6,
+              "name": "initial push receipt > does not accept a pending mismatch as success"
+            },
+            {
+              "index": 7,
+              "name": "initial push receipt > does not accept a absent mismatch as success"
+            },
+            {
+              "index": 8,
+              "name": "initial push receipt > does not accept a redirect mismatch as success"
+            },
+            {
+              "index": 9,
+              "name": "initial push receipt > a durable rejection terminates reconciliation"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
+          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Cloud publish coordinator: retry and restart > retry of a rejected receipt uses a fresh attempt and only retargets after definitive rejection"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::receipt::tests::a_lost_push_response_resolves_by_its_receipt_without_reading_the_ref"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::receipt::tests::a_receipt_that_does_not_bind_this_attempt_says_nothing"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::receipt::tests::a_durable_rejection_fails_the_push"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::receipt::tests::the_http_receipt_is_uncached_and_never_follows_a_redirect"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::a_rejected_receipt_retargets_the_retry_to_the_source_tip"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -56540,66 +56620,6 @@
             {
               "index": 11,
               "name": "native Agent round-trip smoke runner > fails closed when the canonical feed omits the submitted user message"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-publish-push-receipts",
-      "kind": "gap",
-      "reason": "When reconciling, TS asks Cloud for the attempt's push receipt, and a send Cloud definitively rejected is retargeted to the source branch's current tip. Rust has no push-receipt query: it reconciles from Cloud main alone. An unresolved send keeps its commit even after Cloud rejected it, until the person chooses Push latest.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
-      "typescript": [
-        {
-          "path": "tests/integration/cloud/publish/electron.cloud-publish-retry.test.mjs",
-          "sha256": "fd48be535a0f37ec0446385c51ff74bdefc2a15d675fc0e7322f16a6e0101892",
-          "cases": [
-            {
-              "index": 2,
-              "name": "Cloud publish coordinator: retry and restart > retry of a rejected receipt uses a fresh attempt and only retargets after definitive rejection"
-            }
-          ]
-        },
-        {
-          "path": "tests/unit/cloud/publish/cloudPublishReceipt.test.mjs",
-          "sha256": "be7460ee1e60dbd262163da4adf3f1e9fa6ba9a5ab658ea68a8677fc9d598e08",
-          "cases": [
-            {
-              "index": 1,
-              "name": "initial push receipt > lost push response resolves by the bound receipt without ref discovery or backoff"
-            },
-            {
-              "index": 2,
-              "name": "initial push receipt > does not accept a project mismatch as success"
-            },
-            {
-              "index": 3,
-              "name": "initial push receipt > does not accept a attempt mismatch as success"
-            },
-            {
-              "index": 4,
-              "name": "initial push receipt > does not accept a commit mismatch as success"
-            },
-            {
-              "index": 5,
-              "name": "initial push receipt > does not accept a ref mismatch as success"
-            },
-            {
-              "index": 6,
-              "name": "initial push receipt > does not accept a pending mismatch as success"
-            },
-            {
-              "index": 7,
-              "name": "initial push receipt > does not accept a absent mismatch as success"
-            },
-            {
-              "index": 8,
-              "name": "initial push receipt > does not accept a redirect mismatch as success"
-            },
-            {
-              "index": 9,
-              "name": "initial push receipt > a durable rejection terminates reconciliation"
             }
           ]
         }
