@@ -4,6 +4,9 @@ dist/
 /release/
 artifacts/terminal-preview/
 artifacts/release-checks/
+# Release jobs build these before packaging, which requires a clean tree.
+/artifacts/viewer-packs/
+/artifacts/ota-drill-bundle-*/
 generated/
 .vite/
 .vite-website-demo/
