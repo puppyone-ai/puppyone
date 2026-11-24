@@ -56,6 +56,8 @@ struct State {
     initializing: Option<Arc<Flight<()>>>,
     closing: bool,
     logout_pending: bool,
+    /// Sign-ins committed so far: a newer one is a new session generation.
+    sign_ins: u64,
 }
 pub struct Broker {
     pub(super) control: Arc<Control>,
@@ -112,6 +114,7 @@ impl Broker {
                     initializing: None,
                     closing: false,
                     logout_pending: false,
+                    sign_ins: 0,
                 }),
                 remote,
                 store,
@@ -405,6 +408,7 @@ impl Broker {
                 s.error = None;
                 s.login = None;
                 s.logout_pending = false;
+                s.sign_ins += 1;
             })
         });
         if committed.is_ok() {
@@ -610,7 +614,10 @@ impl Broker {
     /// Internal native consumer API: no caller receives an access token. A
     /// 401 refreshes the session and replays the request once, whatever its
     /// method (`requestSessionApi`): the server refused it before acting.
-    /// Nothing else is replayed.
+    /// When the same account signs in again while a request is in flight,
+    /// what is safe to send again (`ApiRequest::safe_session_retry`) is
+    /// replayed once under the newer session
+    /// (`retrySessionApiWithCurrentGeneration`). Nothing else is replayed.
     pub fn request(&self, binding: &Binding, request: &ApiRequest) -> Result<serde_json::Value> {
         self.request_scoped(binding, request, &super::Cancellation::default())
     }
@@ -618,6 +625,34 @@ impl Broker {
         self.authorized(binding).map(|_| ())
     }
     pub fn request_scoped(
+        &self,
+        binding: &Binding,
+        request: &ApiRequest,
+        cancel: &super::Cancellation,
+    ) -> Result<serde_json::Value> {
+        let sign_ins = || self.state.lock().unwrap().sign_ins;
+        let before = sign_ins();
+        match self.request_once(binding, request, cancel) {
+            Err(error @ (Error::SessionChanged | Error::OutcomeUnknown))
+                if request.safe_session_retry() && sign_ins() > before =>
+            {
+                // Only a newer sign-in of the same account in the same
+                // environment, never another actor.
+                match self.signed_in_binding().filter(|current| {
+                    current != binding
+                        && current.user == binding.user
+                        && current.environment == binding.environment
+                }) {
+                    Some(current) if cancel.check().is_ok() => {
+                        self.request_once(&current, request, cancel)
+                    }
+                    _ => Err(error),
+                }
+            }
+            result => result,
+        }
+    }
+    fn request_once(
         &self,
         binding: &Binding,
         request: &ApiRequest,

@@ -52824,6 +52824,36 @@
           "test": "workspace::cloud::tests::a_scope_path_is_a_plain_relative_path"
         }
       ]
+    },
+    {
+      "id": "cloud-auth-replay-after-same-account-sign-in",
+      "acceptance": "When the same account signs in again (a newer session generation commits) while a request is in flight, the broker sends that request once more under the newer session if it is safe to: reads, the read-only repository-context POST, and the publication's creations and credential/abandon mutations that carry a canonical UUIDv4 idempotency key (sent again with the same key). Nothing is replayed under another account or environment, a mutation without a canonical key is not replayed (the caller learns of the change or an unknown outcome), and a lease change that is not a new sign-in (a cancelled attempt) still discards the late read.",
+      "typescript": [
+        {
+          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
+          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
+          "cases": [
+            {
+              "index": 16,
+              "name": "main-owned Cloud Auth Broker > replays a read-only repository-context POST once after a newer session generation wins"
+            },
+            {
+              "index": 17,
+              "name": "main-owned Cloud Auth Broker > replays a keyed main-owned mutation once when only the same user's generation changes"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::a_same_account_sign_in_replays_what_is_safe_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::tests::late_read_is_discarded_and_late_write_reports_unknown"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -59872,28 +59902,6 @@
             {
               "index": 19,
               "name": "session / api-base guards > rejects with 401 when the desktop session bridge is unavailable"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-auth-replay-after-same-account-sign-in",
-      "kind": "gap",
-      "reason": "When the same account signs in again while a request is in flight, TS replays it once under the new session if it is a read-only repository-context POST or a mutation with a canonical idempotency key. The native broker ends the old lease instead: the read reports a changed session and the mutation an unknown outcome, so the caller has to ask again.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/account/auth/refresh-and-generations.md",
-      "typescript": [
-        {
-          "path": "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs",
-          "sha256": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02",
-          "cases": [
-            {
-              "index": 16,
-              "name": "main-owned Cloud Auth Broker > replays a read-only repository-context POST once after a newer session generation wins"
-            },
-            {
-              "index": 17,
-              "name": "main-owned Cloud Auth Broker > replays a keyed main-owned mutation once when only the same user's generation changes"
             }
           ]
         }
