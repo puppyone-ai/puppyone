@@ -253,22 +253,12 @@ impl Render for SiblingSubmenusHarness {
                 .trigger(Button::new("open-siblings").label("Open"))
                 .menu(|menu, _, _| {
                     menu.w(px(180.))
-                        .item(
-                            MenuItem::new("First Group")
-                                .id("group-a")
-                                .submenu(|_, _| {
-                                    Menu::new("sub-a")
-                                        .item(MenuItem::new("Alpha Action").id("alpha"))
-                                }),
-                        )
-                        .item(
-                            MenuItem::new("Second Group")
-                                .id("group-b")
-                                .submenu(|_, _| {
-                                    Menu::new("sub-b")
-                                        .item(MenuItem::new("Beta Action").id("beta"))
-                                }),
-                        )
+                        .item(MenuItem::new("First Group").id("group-a").submenu(|_, _| {
+                            Menu::new("sub-a").item(MenuItem::new("Alpha Action").id("alpha"))
+                        }))
+                        .item(MenuItem::new("Second Group").id("group-b").submenu(|_, _| {
+                            Menu::new("sub-b").item(MenuItem::new("Beta Action").id("beta"))
+                        }))
                         .item(MenuItem::new("Direct Settings").id("direct-settings"))
                 }),
         )

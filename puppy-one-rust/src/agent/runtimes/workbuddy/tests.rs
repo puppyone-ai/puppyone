@@ -498,7 +498,8 @@ fn detects_lite_wb_only_desktop_bundles_and_launches_via_serve_stdio_acp() {
         assert_eq!(launch.max_leading_non_json_lines, Some(32));
         let env = env_of(&launch);
         assert_eq!(
-            env.get("CODEBUDDY_FORCE_LITE_WB_BUNDLE").map(String::as_str),
+            env.get("CODEBUDDY_FORCE_LITE_WB_BUNDLE")
+                .map(String::as_str),
             Some("1")
         );
     });

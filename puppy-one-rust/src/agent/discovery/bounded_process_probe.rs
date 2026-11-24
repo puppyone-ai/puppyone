@@ -172,10 +172,7 @@ pub async fn run_bounded_process_probe(
         .isolated_process_group
         .then(|| crate::platform::process::SubtreeGuard::attach_pid(child.id()));
     let kill = |child: &mut tokio::process::Child| {
-        if subtree
-            .as_ref()
-            .is_some_and(|guard| guard.terminate(true))
-        {
+        if subtree.as_ref().is_some_and(|guard| guard.terminate(true)) {
             return;
         }
         let _ = child.start_kill();

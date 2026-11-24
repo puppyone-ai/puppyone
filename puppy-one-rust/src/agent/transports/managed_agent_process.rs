@@ -86,7 +86,11 @@ pub fn create_managed_agent_process(
                 &invocation_env,
             )?;
             let mut command = Command::new(&invocation.file);
-            process::apply_tokio_args(&mut command, &invocation.args, invocation.verbatim_arguments);
+            process::apply_tokio_args(
+                &mut command,
+                &invocation.args,
+                invocation.verbatim_arguments,
+            );
             command
         }
         None => {

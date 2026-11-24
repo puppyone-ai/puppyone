@@ -180,7 +180,8 @@ impl Homepage {
     ) -> Div {
         let t = cx.palette();
         let conventions = crate::platform::conventions::Conventions::current();
-        let trailing_controls = crate::app::chrome::window_frame::window_controls::render(window, cx);
+        let trailing_controls =
+            crate::app::chrome::window_frame::window_controls::render(window, cx);
         div()
             .relative()
             .size_full()

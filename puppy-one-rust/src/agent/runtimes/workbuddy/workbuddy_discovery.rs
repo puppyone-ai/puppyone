@@ -59,8 +59,8 @@ pub(crate) fn is_lite_wb_only_bundle(entrypoint: &str) -> bool {
         return false;
     };
     let dist = cli_root.join("dist");
-    let has_lite_wb = dist.join("codebuddy-lite-wb.mjs").is_file()
-        || dist.join("codebuddy-lite-wb.js").is_file();
+    let has_lite_wb =
+        dist.join("codebuddy-lite-wb.mjs").is_file() || dist.join("codebuddy-lite-wb.js").is_file();
     if !has_lite_wb {
         return false;
     }

@@ -907,11 +907,10 @@ impl RenderOnce for SubmenuRow {
                 SubmenuCoordinator::default()
             })
         });
-        let trigger_bounds = window.use_keyed_state(
-            child_id(&self.id, "submenu-trigger-bounds"),
-            cx,
-            |_, _| Rc::new(Cell::new(Bounds::default())),
-        );
+        let trigger_bounds =
+            window.use_keyed_state(child_id(&self.id, "submenu-trigger-bounds"), cx, |_, _| {
+                Rc::new(Cell::new(Bounds::default()))
+            });
         let row_id = self.id.clone();
         if self.open {
             coord.update(cx, |s, _| {

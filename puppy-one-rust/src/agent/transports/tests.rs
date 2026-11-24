@@ -399,8 +399,8 @@ mod windows_real_process_tests {
     fn spawn_managed_process_keeps_native_windows_child_alive_for_stdio_roundtrip() {
         crate::agent::application::tests_support::run_local(async {
             use tokio::io::AsyncWriteExt;
-            let mut io = super::super::jsonl_rpc_connection::spawn_managed_process(
-                &ConnectionOptions {
+            let mut io =
+                super::super::jsonl_rpc_connection::spawn_managed_process(&ConnectionOptions {
                     executable_path: cmd_exe(),
                     args: vec![
                         "/d".into(),
@@ -409,9 +409,8 @@ mod windows_real_process_tests {
                     ],
                     cwd: std::env::temp_dir(),
                     ..Default::default()
-                },
-            )
-            .unwrap();
+                })
+                .unwrap();
             io.stdin.write_all(b"alive-on-windows\r\n").await.unwrap();
             io.stdin.flush().await.unwrap();
             let mut output = String::new();
