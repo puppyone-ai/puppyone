@@ -238,3 +238,80 @@ fn confirming_runs_the_publication_for_the_chosen_space() {
         });
     });
 }
+
+/// `Cloud publish upload progress` and `answers an unwatched upload with how
+/// far it has got`: while files move, the Upload row reads the transfer's
+/// share, bytes and rate in place of its label, beside its own meter, and
+/// the Header's name says the same; neither is a live region, and nothing
+/// claims a total or a time left. Another step, a stopped run, or an upload
+/// Git has not measured yet draws nothing extra.
+#[test]
+fn the_upload_row_and_the_header_read_the_transfer() {
+    use crate::cloud::publication::{Stage, transfer::Transfer};
+    use gpui_kit::test::TestQueryExt as _;
+    with_publish_dialog(|view, cx, text| {
+        let sending = Transfer {
+            percent: 45,
+            sent_bytes: Some(12_340_000),
+            bytes_per_second: Some(1_060_000),
+        };
+        let reading = "45% · 12.3 MB · 1.1 MB/s";
+        publish(view, cx, |p| {
+            p.running = Some(Stage::Uploading);
+            p.transfer = Some(sending);
+        });
+        let painted = redraw(cx, text);
+        assert!(shown(
+            cx,
+            "publish-transfer-reading:45% · 12.3 MB · 1.1 MB/s"
+        ));
+        assert!(painted.contains(reading));
+        assert!(!painted.contains(tr("cloud.initialize.progress.uploading")));
+        let meters = cx.update(|w, _| w.find_all_by_role(gpui::Role::ProgressIndicator));
+        assert_eq!(meters.len(), 1, "the upload's own meter");
+        assert_eq!(meters[0].numeric_value(), Some(45.));
+        assert_eq!(meters[0].value(), Some(reading));
+        let live = cx.update(|w, _| w.find_all_by_role(gpui::Role::Status));
+        assert!(
+            live.iter()
+                .all(|s| !s.label().unwrap_or_default().contains("45%")),
+            "the numbers are not a live region"
+        );
+        let words = regex::Regex::new(r"(?i)\bof\b|left|remaining|ETA|\bmin\b|\bsec\b").unwrap();
+        assert!(!words.is_match(reading));
+        let header =
+            cx.update(|w, _| w.try_find_by_label("Sending to the cloud. 45% · 12.3 MB · 1.1 MB/s"));
+        assert!(header.is_some(), "the Header answers how far it has got");
+
+        for (stage, transfer) in [
+            (Stage::CreatingProject, Some(sending)),
+            (Stage::Uploading, None),
+        ] {
+            publish(view, cx, |p| {
+                p.running = Some(stage);
+                p.transfer = transfer;
+            });
+            draw(cx);
+            assert!(!shown(cx, "publish-transfer"), "{stage:?}");
+            assert!(
+                !shown(cx, "publish-transfer-reading:45% · 12.3 MB · 1.1 MB/s"),
+                "{stage:?}"
+            );
+        }
+        // A stopped upload: its saved state, never the last reading.
+        publish(view, cx, |p| {
+            p.running = None;
+            p.transfer = Some(sending);
+            p.outcome = Some(saved(
+                state(Push::Failed, Cleanup::None, &[A::RetryPush]),
+                None,
+            ));
+        });
+        draw(cx);
+        assert!(!shown(cx, "publish-transfer"));
+        publish(view, cx, |p| {
+            p.outcome = None;
+            p.transfer = None;
+        });
+    });
+}

@@ -50,7 +50,8 @@ fn push_contract(index: &Value) -> Result<(), String> {
         (
             "src/cloud/publication/git.rs".into(),
             vec![
-                json!(["-c", {"borrow":{"path":"header"}}, "push", "--porcelain", {"borrow":{"path":"lease"}}, {"path":"url"}, {"borrow":{"path":"refspec"}}]),
+                // `--progress` only asks Git to report the transfer.
+                json!(["-c", {"borrow":{"path":"header"}}, "push", "--porcelain", "--progress", {"borrow":{"path":"lease"}}, {"path":"url"}, {"borrow":{"path":"refspec"}}]),
             ],
         ),
     ]);

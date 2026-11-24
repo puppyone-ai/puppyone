@@ -6,7 +6,9 @@
 use crate::cloud::publication::{
     Action, Coordinator, Outcome, Request, Stage,
     api::{self, CloudOps, Organization},
-    git, vault,
+    git,
+    transfer::Transfer,
+    vault,
 };
 use gpui::*;
 use std::{
@@ -33,6 +35,43 @@ pub enum HeaderStatus {
     DiscardPaused,
     /// Stopped without a way to continue by retrying.
     Attention,
+}
+
+/// `formatCloudPublishTransfer`: "45% · 12.3 MB · 1.1 MB/s", leaving out
+/// what Git has not measured yet, and the rate once the send is done. No
+/// total and no time left: Git does not know the total until it finishes.
+pub fn format_transfer(transfer: &Transfer) -> String {
+    use crate::localization::format_percent;
+    let mut parts = vec![format_percent(f64::from(transfer.percent) / 100.)];
+    if let Some(sent) = transfer.sent_bytes {
+        parts.push(transfer_bytes(sent, false));
+    }
+    if let Some(rate) = transfer.bytes_per_second.filter(|_| transfer.percent < 100) {
+        parts.push(transfer_bytes(rate, true));
+    }
+    parts.join(" · ")
+}
+
+/// `formatTransferBytes`: decimal units, as network speeds are quoted, in
+/// the locale's short unit names.
+fn transfer_bytes(bytes: u64, per_second: bool) -> String {
+    let code = crate::localization::current_code();
+    let (unit, scale) = [(3, 1e9), (2, 1e6), (1, 1e3)]
+        .into_iter()
+        .find(|(_, scale)| bytes as f64 >= *scale)
+        .unwrap_or((0, 1.));
+    let amount = bytes as f64 / scale;
+    let fraction = if unit == 0 || amount >= 100. { 0 } else { 1 };
+    let number = crate::localization::format_decimal_in(&code, amount, fraction);
+    let names: [&str; 4] = match code.as_str() {
+        "fr" => ["octet", "ko", "Mo", "Go"],
+        "de" => ["Byte", "kB", "MB", "GB"],
+        "es" => ["B", "kB", "MB", "GB"],
+        _ => ["byte", "kB", "MB", "GB"],
+    };
+    let space = if code == "en" { " " } else { "\u{a0}" };
+    let suffix = if per_second { "/s" } else { "" };
+    format!("{number}{space}{}{suffix}", names[unit])
 }
 
 /// Builds the coordinator for an account (tests replace it).
@@ -64,6 +103,12 @@ fn coordinator(cx: &App) -> Option<Coordinator> {
     })
 }
 
+/// What a run in flight reports: its step, or how far its upload has got.
+enum Running {
+    Stage(Stage),
+    Transfer(Transfer),
+}
+
 pub struct CloudPublish {
     key: Option<String>,
     root: Option<PathBuf>,
@@ -78,6 +123,8 @@ pub struct CloudPublish {
     pub has_head: bool,
     /// The visible step while a run is in flight.
     pub running: Option<Stage>,
+    /// How far the upload has got, while uploading (`progress.transfer`).
+    pub transfer: Option<Transfer>,
     /// The saved operation and the last result, when one is pending.
     pub outcome: Option<Outcome>,
     pub reading: bool,
@@ -97,6 +144,7 @@ impl Default for CloudPublish {
             target: None,
             has_head: true,
             running: None,
+            transfer: None,
             outcome: None,
             reading: false,
             confirming_discard: false,
@@ -326,18 +374,18 @@ impl CloudPublish {
         let author = crate::features::cloud::account::snapshot(cx)
             .and_then(|s| s.account)
             .map(|a| a.email);
-        let (tx, rx) = async_channel::unbounded::<Result<Stage, Outcome>>();
+        let (tx, rx) = async_channel::unbounded::<Result<Running, Outcome>>();
         std::thread::spawn(move || {
             let progress_tx = tx.clone();
             let mut request = request;
             if prepare {
                 use crate::cloud::publication::preparation::{Step, prepare};
                 let prepared = prepare(&request.root, author.as_deref(), &mut |step| {
-                    let _ = progress_tx.send_blocking(Ok(match step {
+                    let _ = progress_tx.send_blocking(Ok(Running::Stage(match step {
                         Step::EnablingVersionControl => Stage::EnablingVersionControl,
                         Step::CreatingSnapshot => Stage::CreatingSnapshot,
                         Step::CreatingBranch => Stage::CreatingBranch,
-                    }));
+                    })));
                 });
                 if let Err(code) = prepared {
                     let error = crate::cloud::publication::PublishError::new(
@@ -358,9 +406,16 @@ impl CloudPublish {
                     request.source_branch = branch;
                 }
             }
-            let outcome = coordinator.start(&request, &mut |stage| {
-                let _ = progress_tx.send_blocking(Ok(stage));
-            });
+            let transfer_tx = progress_tx.clone();
+            let outcome = coordinator.start_with(
+                &request,
+                &mut |stage| {
+                    let _ = progress_tx.send_blocking(Ok(Running::Stage(stage)));
+                },
+                &move |transfer| {
+                    let _ = transfer_tx.send_blocking(Ok(Running::Transfer(transfer)));
+                },
+            );
             let _ = tx.send_blocking(Err(outcome));
         });
         cx.spawn(async move |this, cx| {
@@ -371,13 +426,24 @@ impl CloudPublish {
                             return true;
                         }
                         match message {
-                            Ok(stage) => {
+                            Ok(Running::Stage(stage)) => {
                                 s.running = Some(stage);
+                                if stage != Stage::Uploading {
+                                    s.transfer = None;
+                                }
                                 cx.notify();
+                                false
+                            }
+                            Ok(Running::Transfer(transfer)) => {
+                                if s.running == Some(Stage::Uploading) {
+                                    s.transfer = Some(transfer);
+                                    cx.notify();
+                                }
                                 false
                             }
                             Err(outcome) => {
                                 s.running = None;
+                                s.transfer = None;
                                 s.absorb(outcome);
                                 cx.notify();
                                 true
@@ -644,6 +710,35 @@ mod header_tests {
     /// and turns back into the spinner the moment a retry runs; an
     /// unfinished discard is a discard, never a send to retry; a stop with
     /// no retry asks for attention; a finished one is announced as done.
+    /// `says only the share before Git has measured bytes, and drops the
+    /// rate once done`: decimal units in the locale's short names.
+    #[test]
+    fn the_transfer_reads_what_git_has_measured() {
+        use crate::cloud::publication::transfer::Transfer;
+        crate::localization::set_current("en");
+        let read = |percent, sent_bytes, bytes_per_second| {
+            super::format_transfer(&Transfer {
+                percent,
+                sent_bytes,
+                bytes_per_second,
+            })
+        };
+        assert_eq!(read(2, None, None), "2%");
+        assert_eq!(read(100, Some(48_000_000), Some(1_000_000)), "100% · 48 MB");
+        assert_eq!(
+            read(10, Some(640_000), Some(512_000)),
+            "10% · 640 kB · 512 kB/s"
+        );
+        assert_eq!(
+            read(80, Some(1_250_000_000), Some(999)),
+            "80% · 1.3 GB · 999 byte/s"
+        );
+        assert_eq!(
+            read(45, Some(12_340_000), Some(1_060_000)),
+            "45% · 12.3 MB · 1.1 MB/s"
+        );
+    }
+
     #[test]
     fn the_header_states_the_publication_where_it_stands() {
         let mut publish = CloudPublish::default();

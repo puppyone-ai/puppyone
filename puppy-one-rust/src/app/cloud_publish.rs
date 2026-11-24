@@ -467,11 +467,17 @@ impl WindowCloud {
             .child(text.to_owned())
     }
     /// `CloudPublishProgressIndicator`: the bar and the five steps; the
-    /// current one names what it does, or "Stopped here".
+    /// current one names what it does, or "Stopped here". While files move,
+    /// the Upload row carries the transfer's reading and its own meter.
     fn progress(&self, stage: Stage, paused: bool, cx: &App) -> Div {
         let t = cx.palette();
         let m = theme::ty();
         let active = step_of(stage);
+        let sending = self
+            .publish
+            .read(cx)
+            .transfer
+            .filter(|_| stage == Stage::Uploading && !paused);
         let completed = stage == Stage::Completed;
         let fraction = if completed {
             1.
@@ -541,7 +547,7 @@ impl WindowCloud {
                                         .to_owned(),
                                 ),
                         )
-                        .when(current, |d| {
+                        .when(current && sending.is_none(), |d| {
                             d.child(
                                 div()
                                     .text_size(px(m.ui.caption))
@@ -552,7 +558,12 @@ impl WindowCloud {
                                         stage_key(stage)
                                     })),
                             )
-                        }),
+                        })
+                        .children(
+                            sending
+                                .filter(|_| current)
+                                .map(|transfer| transfer_reading(&transfer, stage, cx)),
+                        ),
                 )
         });
         v_flex()
@@ -812,9 +823,21 @@ impl WindowCloud {
                 "cloud.initialize.header.attention",
             ),
         };
+        // The state's words are its name: what it is, then where it stands.
+        let publish = self.publish.read(cx);
+        let detail = match (status, publish.running, publish.transfer) {
+            (HeaderStatus::Running, Some(Stage::Uploading), Some(transfer)) => {
+                crate::features::cloud::format_transfer(&transfer)
+            }
+            (HeaderStatus::Running, stage, _) => {
+                tr(stage_key(stage.unwrap_or(Stage::Validating))).to_owned()
+            }
+            _ => tr(&format!("{label}Detail")).to_owned(),
+        };
+        let description = format!("{}. {detail}", tr(label));
         Some(
             crate::ui::components::IconButton::new("publish-header-status", icon)
-                .label(tr(label))
+                .label(description)
                 .on_click(self.listener(move |s, _, w, cx| {
                     if status == HeaderStatus::Completed {
                         s.publish.update(cx, |p, cx| {
@@ -886,6 +909,53 @@ impl WindowCloud {
         }
         self.publish_dialog(dialog, cx)
     }
+}
+
+/// The Upload row's reading and meter (`CloudPublishTransferReading`,
+/// `CloudPublishTransferMeter`): share, bytes and rate, never a total or a
+/// time left. Not a live region: the numbers change several times a second,
+/// and the meter carries the same reading on request.
+fn transfer_reading(
+    transfer: &crate::cloud::publication::transfer::Transfer,
+    stage: Stage,
+    cx: &App,
+) -> Div {
+    let t = cx.palette();
+    let reading = crate::features::cloud::format_transfer(transfer);
+    let selector = format!("publish-transfer-reading:{reading}");
+    let fraction = f32::from(transfer.percent) / 100.;
+    v_flex()
+        .gap(px(4.))
+        .child(
+            div()
+                .debug_selector(move || selector)
+                .text_size(px(theme::ty().ui.caption))
+                .text_color(t.subtle)
+                .child(reading.clone()),
+        )
+        .child(
+            div()
+                .id("publish-transfer")
+                .debug_selector(|| "publish-transfer".into())
+                .role(Role::ProgressIndicator)
+                .aria_label(tr(stage_key(stage)))
+                .aria_value(reading)
+                .aria_numeric_value(f64::from(transfer.percent))
+                .aria_min_numeric_value(0.)
+                .aria_max_numeric_value(100.)
+                .test_support()
+                .w(px(160.))
+                .h(px(4.))
+                .rounded_full()
+                .bg(t.border)
+                .child(
+                    div()
+                        .h_full()
+                        .w(relative(fraction))
+                        .rounded_full()
+                        .bg(t.brand_blue),
+                ),
+        )
 }
 
 #[cfg(test)]

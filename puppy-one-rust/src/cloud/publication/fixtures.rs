@@ -130,7 +130,13 @@ impl GitOps for Fake {
             Ok(created)
         })
     }
-    fn push(&self, _: &Path, record: &Record, _: &str) -> Result<(), PublishError> {
+    fn push(
+        &self,
+        _: &Path,
+        record: &Record,
+        _: &str,
+        _: &(dyn Fn(super::transfer::Transfer) + Sync),
+    ) -> Result<(), PublishError> {
         self.with(|s| {
             if s.drift_during_push {
                 s.dirty = true;
