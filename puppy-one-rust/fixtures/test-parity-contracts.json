@@ -52854,6 +52854,32 @@
           "test": "cloud::auth::tests::late_read_is_discarded_and_late_write_reports_unknown"
         }
       ]
+    },
+    {
+      "id": "cloud-history-lane-graph",
+      "acceptance": "The Cloud History sidebar draws the computed lane graph beside its rows: lane segments, a node per commit (filled for HEAD), ref markers and inline ref labels on the commit they name, and ref-only rows. Commit rows are buttons in a list named Commit history whose name is the commit message, and selecting one opens its detail in the local History hierarchy; ref-only rows are plain list items that cannot be activated.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/history/cloudProjectHistory.test.tsx",
+          "sha256": "defefe7e73dff02258a830804c4e0a5f52ea2a2e682ac886082705faedd0ec82",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Cloud project history > selects graph commits and presents them with the canonical local History hierarchy"
+            },
+            {
+              "index": 8,
+              "name": "Cloud project history > uses native button-list semantics and keeps ref-only rows non-interactive"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "test": "features::source_control::cloud_history::tests::the_page_draws_as_a_lane_graph_with_buttons_for_commits_only"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -60332,28 +60358,6 @@
             {
               "index": 1,
               "name": "local Git status cancellation bridge > does not invoke IPC for an already-cancelled request"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-history-graph-not-drawn",
-      "kind": "gap",
-      "reason": "TS draws the Cloud History sidebar as a lane graph (an SVG beside the rows, inline ref labels, ref-only rows that are not buttons) next to the commit detail in the local History hierarchy. The native sidebar computes the same lane model (workspace::cloud::graph) but draws Cloud commits through the local History's day timeline, so no lanes, ref markers or ref-only rows are shown.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/history.md",
-      "typescript": [
-        {
-          "path": "tests/component/cloud/history/cloudProjectHistory.test.tsx",
-          "sha256": "defefe7e73dff02258a830804c4e0a5f52ea2a2e682ac886082705faedd0ec82",
-          "cases": [
-            {
-              "index": 3,
-              "name": "Cloud project history > selects graph commits and presents them with the canonical local History hierarchy"
-            },
-            {
-              "index": 8,
-              "name": "Cloud project history > uses native button-list semantics and keeps ref-only rows non-interactive"
             }
           ]
         }
