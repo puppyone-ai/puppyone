@@ -864,3 +864,66 @@ fn a_partial_batch_is_announced_and_keeps_its_failed_reference(cx: &mut TestAppC
         crate::agent::contract::dto::ReferenceStatus::Error
     );
 }
+
+/// A staged file's resolving mention becomes its result's mention in
+/// place: one `@name`, keyed to the reference that replaced the pending one.
+#[gpui::test]
+fn a_staged_files_mention_follows_its_reference_once_staging_ends(cx: &mut TestAppContext) {
+    use gpui::{ExternalPaths, FileDropEvent};
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let finder = tempfile::tempdir().unwrap();
+    let file = finder.path().join("notes.txt");
+    std::fs::write(&file, b"notes").unwrap();
+    let (panel, asked, cx) = seeded(cx, true, None, "");
+    let stagings = || {
+        asked
+            .borrow()
+            .iter()
+            .filter(|op| **op == AgentOperation::StageReferences)
+            .count()
+    };
+    let chat = cx.debug_bounds("agent-chat-panel").unwrap();
+    cx.simulate_event(FileDropEvent::Entered {
+        position: chat.center(),
+        paths: ExternalPaths(vec![file].into()),
+    });
+    cx.simulate_event(FileDropEvent::Submit {
+        position: chat.center(),
+    });
+    draw(cx);
+    let (references, document) = panel.update(cx, |p, cx| {
+        (
+            p.controller.get_snapshot().references,
+            p.composer.read(cx).document(cx),
+        )
+    });
+    assert_eq!(references.len(), 1);
+    assert!(references[0].id.starts_with("error-"), "{references:?}");
+    assert_eq!(document.0.matches("@notes.txt").count(), 1, "{document:?}");
+    assert_eq!(
+        document
+            .1
+            .iter()
+            .map(|m| m.reference_id.clone())
+            .collect::<Vec<_>>(),
+        [references[0].id.clone()]
+    );
+    assert!(cx.debug_bounds("agent-mention:@notes.txt:error").is_some());
+    // Its Retry stages the same file again, in its place.
+    assert_eq!(stagings(), 1);
+    let retry = cx.update(|w, _| {
+        use gpui_kit::test::TestQueryExt as _;
+        w.find_all_by_role(gpui::Role::Button)
+            .into_iter()
+            .find(|b| b.label().is_some_and(|l| l.starts_with("Retry reference")))
+            .map(|b| b.bounds())
+            .unwrap()
+    });
+    cx.simulate_click(retry.center(), Modifiers::default());
+    draw(cx);
+    assert_eq!(stagings(), 2);
+    let document = panel.update(cx, |p, cx| p.composer.read(cx).document(cx));
+    assert_eq!(document.0.matches("@notes.txt").count(), 1, "{document:?}");
+}

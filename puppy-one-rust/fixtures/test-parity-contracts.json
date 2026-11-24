@@ -52375,6 +52375,39 @@
           "test": "features::desktop_agent::ui::panel::tests::a_partial_batch_is_announced_and_keeps_its_failed_reference"
         }
       ]
+    },
+    {
+      "id": "agent-inline-reference-states",
+      "acceptance": "Every non-image reference of the draft is its own inline @name mention in its reference's state: a resolving file shows as its own resolving mention (no generic placeholder chip), a ready one as a plain mention, and a failed one in the error colour with its error as the mention's accessible description (identity, localized error, then the raw error when it says more), never shown as text, plus a Retry and a Remove button named for the reference. Retry asks for the reference again without releasing it and its mention leaves the editor, so the replacement is mentioned once in its place; Remove deletes the mention and releases the reference. A failed image stays one card on the shelf, not a mention.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 11,
+              "name": "Desktop Agent reference ingestion > shows resolving files inline while retaining failed images as visual attachments"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::composer::tests::resolving_files_are_their_own_mentions_and_failed_images_stay_cards"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::composer::tests::failed_mentions_retry_in_place_or_remove"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::a_staged_files_mention_follows_its_reference_once_staging_ends"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62825,28 +62858,6 @@
       ]
     },
     {
-      "id": "inline-reference-states",
-      "kind": "gap",
-      "reason": "Inline mention chips have no resolving or failed state and no Retry: a resolving file shows one generic Resolving chip instead of its own @name, a failed non-image reference cannot be retried from the composer, and the draft manager's retry has no UI.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/composer.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
-          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
-          "cases": [
-            {
-              "index": 10,
-              "name": "Desktop Agent reference ingestion > opens the file picker directly and keeps failed non-image references inline"
-            },
-            {
-              "index": 11,
-              "name": "Desktop Agent reference ingestion > shows resolving files inline while retaining failed images as visual attachments"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "workspace-image-drop-preview",
       "kind": "gap",
       "reason": "A workspace image dropped on the chat is added without a visual preview (the panel passes no previews to add_workspace_paths), so its shelf card shows a placeholder icon instead of the authorized thumbnail.",
@@ -66923,6 +66934,24 @@
             {
               "index": 16,
               "name": "Markdown embedded runtime > restores the original syntax layer when an edited draft is cancelled"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "attachment-button-one-step-picker",
+      "kind": "gap",
+      "reason": "The composer's paperclip opens a two-item menu (Add from computer / Add from workspace) instead of opening the file picker directly (falling back to the workspace picker only when the runtime takes no attachments). Failed inline references, their Retry and Remove, match the case's other half (contract agent-inline-reference-states). Dropping the button's workspace entry is a product decision, held for the user.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/composer.md",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 10,
+              "name": "Desktop Agent reference ingestion > opens the file picker directly and keeps failed non-image references inline"
             }
           ]
         }
