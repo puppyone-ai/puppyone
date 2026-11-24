@@ -23,6 +23,11 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
+# Apple's Developer ID intermediates (apple.com/certificateauthority), which
+# a fresh build machine may not have: codesign needs them to build the chain
+# from a Developer ID Application certificate to Apple's root.
+CERTIFICATES = Path(__file__).resolve().parent / 'certs'
+
 NOTARIZATION_MODES = [
     ('App Store Connect API key', ['APPLE_API_KEY', 'APPLE_API_KEY_ID', 'APPLE_API_ISSUER']),
     ('Apple ID', ['APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID']),
@@ -64,8 +69,23 @@ def plan(channel, env):
             'release': signing is not None and notarization is not None, 'errors': errors}
 
 
+def _describe(command):
+    """The tool and what it acted on, never the other arguments: some are passwords."""
+    tool = Path(command[0]).name
+    return f'{tool} {command[1]}' if tool in ('security', 'xcrun') else f'{tool} {Path(command[-1]).name}'
+
+
 def _run(command, **kwargs):
-    return subprocess.run(command, check=True, text=True, capture_output=True, **kwargs).stdout
+    result = subprocess.run(command, text=True, capture_output=True, **kwargs)
+    if result.returncode:
+        raise SystemExit(f'{_describe(command)} failed with exit {result.returncode}:\n'
+                         f'{(result.stderr or result.stdout).strip()}')
+    return result.stdout
+
+
+def _search_list():
+    listed = _run(['security', 'list-keychains', '-d', 'user'])
+    return [line.strip().strip('"') for line in listed.splitlines() if line.strip()]
 
 
 @contextmanager
@@ -81,10 +101,16 @@ def keychain(signing):
         p12.write_bytes(Path(link).read_bytes() if Path(link).is_file() else base64.b64decode(link))
         path = str(Path(directory) / 'release.keychain-db')
         password = secrets.token_hex(16)
+        searched = _search_list()
         _run(['security', 'create-keychain', '-p', password, path])
         try:
             _run(['security', 'set-keychain-settings', '-lut', '3600', path])
             _run(['security', 'unlock-keychain', '-p', password, path])
+            # codesign resolves the identity's certificate chain only through
+            # keychains on the search list, not the one --keychain names.
+            _run(['security', 'list-keychains', '-d', 'user', '-s', path, *searched])
+            for certificate in sorted(CERTIFICATES.glob('*.cer')):
+                _run(['security', 'import', str(certificate), '-k', path])
             _run(['security', 'import', str(p12), '-k', path, '-P', signing['password'],
                   '-T', '/usr/bin/codesign'])
             _run(['security', 'set-key-partition-list', '-S', 'apple-tool:,apple:', '-s',
@@ -96,6 +122,7 @@ def keychain(signing):
                 raise SystemExit('CSC_LINK holds no code signing identity')
             yield match.group(1), path
         finally:
+            subprocess.run(['security', 'list-keychains', '-d', 'user', '-s', *searched], capture_output=True)
             subprocess.run(['security', 'delete-keychain', path], capture_output=True)
 
 
