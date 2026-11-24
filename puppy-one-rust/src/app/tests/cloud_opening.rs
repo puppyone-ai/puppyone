@@ -1322,3 +1322,99 @@ fn open_post_and_root_files_failures_surface_diagnostics_in_recovery_dialog(
         });
     }
 }
+
+/// `opening a Cloud project from the cached list`: chosen while the
+/// session is still being restored, it waits instead of saying nobody is
+/// signed in, and opens once the session turns up; signed out once the
+/// session is known to be gone; never if the person went elsewhere first.
+#[gpui::test]
+fn opening_a_cloud_project_waits_for_the_restoring_session(cx: &mut TestAppContext) {
+    use crate::cloud::auth::Status;
+    let (view, cx) = setup(cx);
+    let (broker, browser) =
+        crate::cloud::auth::responding_account_fixture(cloud_project_responder());
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let account =
+        cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "the account", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    let signed_in = account.read_with(cx, |a, _| a.snapshot.clone().unwrap());
+    let set = |cx: &mut VisualTestContext, status: Status| {
+        account.update(cx, |a, cx| {
+            let mut snapshot = signed_in.clone();
+            snapshot.status = status;
+            if status != Status::Authenticated {
+                snapshot.account = None;
+            }
+            a.snapshot = Some(snapshot);
+            cx.notify();
+        });
+        draw(cx);
+    };
+    let errors = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            s.dialog_names(cx)
+                .into_iter()
+                .filter(|n| n.starts_with("Error("))
+                .count()
+        })
+    };
+    let opening = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| s.files(cx).cloud_opening().is_some())
+    };
+
+    // Waits for the session, then opens.
+    set(cx, Status::Restoring);
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    draw(cx);
+    assert!(!opening(cx), "nothing opens before the session is known");
+    assert_eq!(errors(cx), 0, "not reported as signed out");
+    set(cx, Status::Authenticated);
+    assert!(opening(cx), "it opens once the session turns up");
+    assert_eq!(errors(cx), 0);
+    settle_cloud(&view, cx, "the project", &|s, cx| {
+        s.hosted_project(cx).as_deref() == Some("project-a")
+    });
+
+    // Signed out only once the session is known to be gone.
+    set(cx, Status::Restoring);
+    view.update(cx, |s, cx| s.open_cloud("project-b".into(), cx));
+    draw(cx);
+    assert_eq!(errors(cx), 0);
+    set(cx, Status::SignedOut);
+    assert_eq!(errors(cx), 1, "now it is known that nobody is signed in");
+    view.read_with(cx, |s, cx| {
+        assert!(
+            s.dialog_names(cx)
+                .iter()
+                .any(|n| n.contains(crate::localization::t(
+                    "cloud.message.project-sign-in-required"
+                )))
+        )
+    });
+    assert!(view.read_with(cx, |s, cx| {
+        s.session.project.read(cx).awaiting_session.is_none()
+    }));
+
+    // A project the person has since left is not opened.
+    set(cx, Status::Restoring);
+    view.update(cx, |s, cx| s.open_cloud("project-c".into(), cx));
+    let elsewhere = tempfile::tempdir().unwrap();
+    view.update_in(cx, |s, window, cx| {
+        s.open_project(elsewhere.path().to_path_buf(), window, cx)
+    });
+    set(cx, Status::Authenticated);
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert!(s.session.project.read(cx).awaiting_session.is_none());
+        assert_ne!(
+            s.session.project.read(cx).record.cloud.as_deref(),
+            Some("project-c")
+        );
+    });
+}

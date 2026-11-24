@@ -117,6 +117,19 @@ pub(super) struct ProjectLifecycle {
     reopened_at: Option<std::time::Instant>,
     /// It lost its lease again too soon: the notice's Retry is the person's.
     reopen_declined: bool,
+    /// A Cloud project chosen while the session was still being restored: it
+    /// opens once the session is known, unless the person went elsewhere.
+    pub awaiting_session: Option<String>,
+}
+
+/// `cloudSessionRestoring`: Cloud is on and its session is not known yet.
+fn session_restoring(cx: &App) -> bool {
+    use crate::cloud::auth::Status;
+    crate::features::cloud::account::available(cx)
+        && matches!(
+            crate::features::cloud::account::status(cx),
+            None | Some(Status::Restoring)
+        )
 }
 
 /// A hosted Project that loses its lease again within this long of a quiet
@@ -156,6 +169,7 @@ impl ProjectLifecycle {
             device_restore: false,
             reopened_at: None,
             reopen_declined: false,
+            awaiting_session: None,
         }
     }
     fn files<'a>(&self, cx: &'a App) -> &'a crate::editor::workbench::runtime::Runtime {
@@ -371,6 +385,7 @@ impl ProjectLifecycle {
     /// Switch to a remembered project (`onSelectProject`): the one shown
     /// leaves the Homepage; another starts opening.
     pub fn open_project(&mut self, path: PathBuf, cx: &mut Context<Self>) -> bool {
+        self.awaiting_session = None;
         let files = self.files(cx);
         if files
             .workspace
@@ -401,6 +416,16 @@ impl ProjectLifecycle {
     pub fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) -> Result<(), String> {
         // `ProjectNavigation.select`: the same target while it is pending
         // joins that opening; another one replaces it.
+        // Waits for a session still being restored instead of saying that
+        // nobody is signed in.
+        if crate::features::cloud::account::broker_and_binding(cx).is_none()
+            && session_restoring(cx)
+        {
+            self.awaiting_session = Some(project);
+            cx.notify();
+            return Ok(());
+        }
+        self.awaiting_session = None;
         let account = super::cloud_authority::account_key(cx);
         if self.files(cx).cloud_opening().is_some()
             && self.record.cloud.as_deref() == Some(project.as_str())
@@ -421,6 +446,15 @@ impl ProjectLifecycle {
         cx.notify();
         Ok(())
     }
+    /// The session became known: a Cloud project chosen while it was being
+    /// restored opens now, or says that nobody is signed in.
+    pub fn session_settled(&mut self, cx: &mut Context<Self>) -> Option<Result<(), String>> {
+        if session_restoring(cx) {
+            return None;
+        }
+        let project = self.awaiting_session.take()?;
+        Some(self.open_cloud(project, cx))
+    }
     /// Another of the owner's computers' folder, in this window
     /// (`selectHostFolder`); `Err` with what to say when it cannot be
     /// reached from this account.
@@ -430,6 +464,7 @@ impl ProjectLifecycle {
         name: String,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
+        self.awaiting_session = None;
         let Some((_, binding)) = crate::features::cloud::account::broker_and_binding(cx) else {
             return Err(crate::localization::t("cloud.message.project-sign-in-required").into());
         };
@@ -461,6 +496,7 @@ impl ProjectLifecycle {
         if self.picking || files.busy() || files.folder_busy {
             return false;
         }
+        self.awaiting_session = None;
         self.picking = true;
         let prompt = cx.prompt_for_paths(PathPromptOptions {
             files: false,

@@ -549,6 +549,27 @@ impl Shell {
         }
         cx.notify();
     }
+    /// The Cloud account changed: its catalog, authority, other computers'
+    /// folders and a Cloud project waiting for the session follow it.
+    pub(in crate::app) fn account_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.refresh_cloud_catalog(false, cx);
+        self.guard_cloud_authority(window, cx);
+        self.restore_device(window, cx);
+        self.settle_cloud_open(cx);
+        self.session.docs.read(cx).wake().notify();
+        cx.notify();
+    }
+    /// A Cloud project chosen while the session was restoring, once the
+    /// session is known: it opens, or says that nobody is signed in.
+    pub(in crate::app) fn settle_cloud_open(&mut self, cx: &mut Context<Self>) {
+        let settled = self
+            .session
+            .project
+            .update(cx, |p, cx| p.session_settled(cx));
+        if let Some(Err(error)) = settled {
+            self.show_error(error, cx);
+        }
+    }
     /// `useHostFolderRestore`, when its account and access side are known.
     pub(in crate::app) fn restore_device(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self
