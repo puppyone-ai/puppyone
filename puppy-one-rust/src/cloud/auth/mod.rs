@@ -2,6 +2,7 @@
 mod callback;
 mod http;
 pub mod model;
+pub mod reservation;
 mod result_page;
 mod service;
 mod store;
