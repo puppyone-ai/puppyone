@@ -1094,6 +1094,56 @@ fn format_shortcuts_follow_the_product_contract(cx: &mut TestAppContext) {
     view.update(cx, |v, _| assert_eq!(v.text(), "word"));
 }
 
+/// `markdownFormatShortcuts.electron.test.mjs` #3: holding a format
+/// shortcut applies it once; its auto-repeats do nothing, and a fresh press
+/// after the key was released applies it again. Option, Control on macOS
+/// (Command elsewhere), both platform modifiers and a released key are no
+/// format shortcut.
+#[gpui::test]
+fn held_format_shortcuts_apply_once_and_other_inputs_are_ignored(cx: &mut TestAppContext) {
+    use crate::platform::key_repeat::test_support::simulate as repeating;
+    for (chord, formatted) in [
+        ("secondary-b", "**word**"),
+        ("secondary-i", "*word*"),
+        ("secondary-u", "<u>word</u>"),
+        ("secondary-d", "~~word~~"),
+        ("secondary-shift-x", "~~word~~"),
+    ] {
+        let (view, cx) = setup(cx, "word");
+        view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
+        cx.simulate_keystrokes(chord);
+        view.update(cx, |v, _| assert_eq!(v.text(), formatted, "{chord}"));
+        repeating(true);
+        for _ in 0..3 {
+            cx.simulate_keystrokes(chord);
+            view.update(cx, |v, _| {
+                assert_eq!(v.text(), formatted, "{chord}: an auto-repeat")
+            });
+        }
+        repeating(false);
+        cx.simulate_keystrokes(chord);
+        view.update(cx, |v, _| {
+            assert_eq!(v.text(), "word", "{chord}: a fresh press toggles back")
+        });
+    }
+    let (view, cx) = setup(cx, "word");
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::range(0, 4), cx));
+    let mut ignored = vec!["secondary-alt-i"];
+    ignored.extend(if crate::platform::os::Os::current().is_macos() {
+        ["ctrl-i", "secondary-ctrl-i"]
+    } else {
+        ["super-i", "secondary-super-i"]
+    });
+    for chord in ignored {
+        cx.simulate_keystrokes(chord);
+        view.update(cx, |v, _| assert_eq!(v.text(), "word", "{chord}"));
+    }
+    cx.simulate_event(gpui::KeyUpEvent {
+        keystroke: gpui::Keystroke::parse("secondary-i").unwrap(),
+    });
+    view.update(cx, |v, _| assert_eq!(v.text(), "word", "a released key"));
+}
+
 #[gpui::test]
 fn missing_and_ambiguous_link_targets_are_underlined(cx: &mut TestAppContext) {
     use crate::editor::navigation::{Document, ReferenceContext, ReferenceIndex};
