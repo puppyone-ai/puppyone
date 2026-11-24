@@ -5,7 +5,9 @@
 //! One initial request plus at most two jittered retries (0.75–1.5 s, then
 //! 1.5–3 s) for transport failures, timeouts and 408/500/502/503/504.
 //! Afterwards a returning window or a regained network allows one coalesced
-//! probe, at least five seconds after the previous attempt started. There is
+//! probe, at least five seconds after the previous attempt started. A
+//! hidden window neither retries nor probes: a retry that comes due while
+//! it is hidden waits for the window to be visible again. There is
 //! no background polling and no stale authorization fallback; denials,
 //! missing projects, changed sessions and cancellations are not retried.
 // Consumed by the Cloud navigation surface (Homepage catalog, Header switch,
@@ -89,10 +91,17 @@ impl Controller {
         }
         Next::Idle
     }
+    /// A scheduled retry or probe comes due: it runs only while the window
+    /// is visible. Skipped while hidden, the window probes once it returns.
+    pub fn due(&mut self, visible: bool) -> bool {
+        self.retry_pending = false;
+        visible
+    }
     /// Focus, visibility or online: one throttled probe after the budget is
-    /// spent, only while the last failure was recoverable.
-    pub fn probe(&mut self, now: Instant) -> Next {
-        if !self.recoverable || self.in_flight || self.retry_pending {
+    /// spent, only while the last failure was recoverable and the window
+    /// is visible.
+    pub fn probe(&mut self, now: Instant, visible: bool) -> Next {
+        if !self.recoverable || self.in_flight || self.retry_pending || !visible {
             return Next::Idle;
         }
         let earliest = self.last_start.map_or(now, |t| t + Self::PROBE_SPACING);
@@ -156,10 +165,10 @@ mod tests {
         assert_eq!(c.finish(Err(&AuthError::Unavailable), 0.5), Next::Idle);
         // Focus right away: waits for the five-second spacing; probes coalesce.
         assert_eq!(
-            c.probe(at + Duration::from_secs(1)),
+            c.probe(at + Duration::from_secs(1), true),
             Next::RetryAfter(Duration::from_secs(4))
         );
-        assert_eq!(c.probe(at + Duration::from_secs(1)), Next::Idle);
+        assert_eq!(c.probe(at + Duration::from_secs(1), true), Next::Idle);
     }
 
     #[test]
@@ -167,8 +176,25 @@ mod tests {
         let mut c = Controller::new();
         c.start(Instant::now());
         assert_eq!(c.finish(Err(&AuthError::Http(403)), 0.1), Next::Idle);
-        assert_eq!(c.probe(Instant::now()), Next::Idle);
+        assert_eq!(c.probe(Instant::now(), true), Next::Idle);
         c.start(Instant::now());
         assert_eq!(c.finish(Ok(()), 0.1), Next::Idle);
+    }
+
+    /// `defers hidden-window retries until visible`: the controller's part.
+    #[test]
+    fn a_hidden_window_skips_its_retry_and_probes_once_it_shows() {
+        let start = Instant::now();
+        let mut c = Controller::new();
+        assert!(c.start(start));
+        assert!(matches!(
+            c.finish(Err(&AuthError::Unavailable), 0.0),
+            Next::RetryAfter(_)
+        ));
+        assert!(!c.due(false), "the retry does not run while hidden");
+        let later = start + Duration::from_secs(60);
+        assert_eq!(c.probe(later, false), Next::Idle, "nor does a probe");
+        assert_eq!(c.probe(later, true), Next::RetryAfter(Duration::ZERO));
+        assert!(c.due(true));
     }
 }
