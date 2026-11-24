@@ -9,12 +9,7 @@ fn office_admission_grants_a_private_snapshot_without_sibling_file_access() {
     std::fs::write(dir.path().join("private.txt"), b"not granted").unwrap();
     let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
     let resource = ws.resource(Path::new("report.docx")).unwrap();
-    let served = OfficeInput {
-        name: "report.docx".into(),
-        extension: "docx".into(),
-        resource: Some(resource),
-    }
-    .serve(&AtomicBool::new(false));
+    let served = input(resource, "report.docx").serve(&AtomicBool::new(false));
     assert!(served.file_error.is_none());
     assert_ne!(
         served.root.as_deref(),
@@ -34,6 +29,8 @@ fn input(resource: PreviewResource, name: &str) -> OfficeInput {
         name: name.into(),
         extension: extension_of(name),
         resource: Some(resource),
+        window: 1,
+        conversions: Conversions::default(),
     }
 }
 fn view(resource: PreviewResource) -> OfficeView {
@@ -41,6 +38,8 @@ fn view(resource: PreviewResource) -> OfficeView {
         name: "report.docx".into(),
         extension: "docx".into(),
         dark: false,
+        window: 1,
+        conversions: Conversions::default(),
         resource: Some(resource),
         frame: None,
         boot: serde_json::Value::Null,
@@ -282,4 +281,55 @@ fn office_revocation_shows_native_retry_and_a_fresh_provider_can_recover(cx: &mu
             b"snapshot"
         );
     });
+}
+
+/// `workspace file IPC authorization` #19 through the preview: a .rtf shown
+/// in a window already running two conversions says so instead of
+/// converting; another window converts, and so does this one once a place
+/// is free.
+#[test]
+fn a_window_running_two_conversions_refuses_a_third_preview() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("notes.rtf"),
+        r"{\rtf1\ansi{\fonttbl\f0 Helvetica;}\f0 Notes}",
+    )
+    .unwrap();
+    let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
+    let resource = ws.resource(Path::new("notes.rtf")).unwrap();
+    let conversions = Conversions::default();
+    let serve = |window| {
+        let mut input = input(resource.clone(), "notes.rtf");
+        input.window = window;
+        input.conversions = conversions.clone();
+        input.serve(&AtomicBool::new(false))
+    };
+    // What a conversion that was let run gives here.
+    let converts = |served: &Served| {
+        if cfg!(target_os = "macos") {
+            served.converted_url.is_some() && served.conversion_error.is_none()
+        } else {
+            served
+                .conversion_error
+                .as_deref()
+                .is_some_and(|e| e.contains("unavailable"))
+        }
+    };
+    let mut held = vec![conversions.hold(7).unwrap(), conversions.hold(7).unwrap()];
+    let refused = serve(7);
+    assert_eq!(
+        refused.conversion_error.as_deref(),
+        Some("Only 2 Office conversions may run in one window at a time.")
+    );
+    assert!(refused.converted_url.is_none() && refused.root.is_none());
+    assert_eq!(conversions.running(7), 2);
+    assert!(converts(&serve(8)), "another window has places of its own");
+    held.pop();
+    assert!(converts(&serve(7)));
+    assert_eq!(
+        conversions.running(7),
+        1,
+        "the finished preview freed its place"
+    );
+    assert_eq!(conversions.running(8), 0);
 }

@@ -8,8 +8,9 @@
 //!
 //! This side serves the file (`puppyone-local:`, with the size probe the
 //! product's loader sends first), converts .doc / .rtf to DOCX with `textutil`
-//! (`convertOfficeDocumentToDocx`) and owns what leaves the page: opening the
-//! file in its default application, opening links, and Retry.
+//! (`convertOfficeDocumentToDocx`), at most two at once in a window, and owns
+//! what leaves the page: opening the file in its default application, opening
+//! links, and Retry.
 use super::{
     html_visual::script_json,
     web::{WebFallbackAction, WebFrame, parse_find_result},
@@ -22,7 +23,10 @@ use crate::{
         },
         workbench::find::FindEvent,
     },
-    platform::webview::{Content, Entry, Ipc, ResourceSource, Source, local_url_for, url_for},
+    platform::{
+        office::Conversions,
+        webview::{Content, Entry, Ipc, ResourceSource, Source, local_url_for, url_for},
+    },
     workspace::{PreviewData, PreviewResource},
 };
 use gpui::{prelude::*, *};
@@ -63,7 +67,12 @@ enum Inbound {
     Retry,
 }
 
-pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
+/// The app's running conversions, by window.
+#[derive(Default)]
+struct OfficeConversions(Conversions);
+impl Global for OfficeConversions {}
+
+pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
     let resource = match request.input {
         SurfaceInput::Resource(resource) => Some(resource.clone()),
         _ => None,
@@ -73,11 +82,15 @@ pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn V
         .resolved_extension
         .map(str::to_lowercase)
         .unwrap_or_else(|| extension_of(&name));
+    let window = window.window_handle().window_id().as_u64();
+    let conversions = cx.default_global::<OfficeConversions>().0.clone();
     let view = cx.new(|cx| {
         let mut view = OfficeView {
             name,
             extension,
             dark,
+            window,
+            conversions,
             resource,
             frame: None,
             boot: serde_json::Value::Null,
@@ -144,6 +157,9 @@ struct OfficeView {
     name: String,
     extension: String,
     dark: bool,
+    /// The window it shows in, whose conversions it counts against.
+    window: u64,
+    conversions: Conversions,
     resource: Option<PreviewResource>,
     frame: Option<Entity<WebFrame>>,
     /// What the current page was given: its boot fields and folder.
@@ -166,6 +182,8 @@ struct OfficeInput {
     name: String,
     extension: String,
     resource: Option<PreviewResource>,
+    window: u64,
+    conversions: Conversions,
 }
 
 /// What the page is given: the folder it may read and its boot fields.
@@ -234,20 +252,21 @@ impl OfficeInput {
             };
         }
         // `convertOfficeDocumentToDocx`: the page reads only the result.
-        let converted =
-            crate::platform::office::convert_to_docx_cancellable(&folder.join(&file), cancel)
-                .and_then(|converted| {
-                    let dir = tempfile::Builder::new()
-                        .prefix("puppyone-office-")
-                        .tempdir()
-                        .map_err(|e| e.to_string())?;
-                    crate::platform::webview::write_private(
-                        &dir.path().join(CONVERTED),
-                        &converted.bytes,
-                    )
+        let converted = self
+            .conversions
+            .convert(self.window, &folder.join(&file), cancel)
+            .and_then(|converted| {
+                let dir = tempfile::Builder::new()
+                    .prefix("puppyone-office-")
+                    .tempdir()
                     .map_err(|e| e.to_string())?;
-                    Ok((dir, converted.warnings))
-                });
+                crate::platform::webview::write_private(
+                    &dir.path().join(CONVERTED),
+                    &converted.bytes,
+                )
+                .map_err(|e| e.to_string())?;
+                Ok((dir, converted.warnings))
+            });
         if cancel.load(Ordering::Acquire)
             || self.resource.as_ref().is_none_or(|r| r.data().is_err())
         {
@@ -298,6 +317,8 @@ impl OfficeView {
             name: self.name.clone(),
             extension: self.extension.clone(),
             resource: self.resource.clone(),
+            window: self.window,
+            conversions: self.conversions.clone(),
         };
         self.start_load(cx, move |cancel| async move { input.serve(&cancel) });
     }
@@ -560,6 +581,8 @@ mod lifetime_tests {
             name: "document.rtf".into(),
             extension: "rtf".into(),
             dark: false,
+            window: 1,
+            conversions: Conversions::default(),
             resource: None,
             frame: None,
             boot: serde_json::Value::Null,
