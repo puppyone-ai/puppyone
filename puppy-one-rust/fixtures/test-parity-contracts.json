@@ -51962,6 +51962,42 @@
           "test": "platform::window_capture::tests::unavailable_windows_give_no_bitmap"
         }
       ]
+    },
+    {
+      "id": "editor-split-keyboard-resize",
+      "acceptance": "An editor split's handle is a separator across the split's axis (upright between side-by-side panes) labelled 'Resize editor panes', announcing its ratio in percent within 15..85, and a tab stop that shows the focus ring while focused. While focused, the arrows on the split's own axis (Left/Right side by side, Up/Down stacked) step the ratio by 0.025 at once, kept within 0.15..0.85, and the arrows across it do nothing; a double press on the handle equalizes the split. Each is a single commit with no preview and nothing held back from the workspace's metadata.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitResizeInteraction.test.tsx",
+          "sha256": "87523424462d2efd9bf544dc1e52af1244f28936cb10ab7c3a7f17063a26a88e",
+          "cases": [
+            {
+              "index": 3,
+              "name": "EditorSplitResizeHandle > keeps keyboard and equalize operations as immediate single commits"
+            },
+            {
+              "index": 20,
+              "name": "horizontal editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
+            },
+            {
+              "index": 37,
+              "name": "vertical editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_side_by_side_split_steps_with_left_and_right_and_equalizes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_stacked_split_steps_with_up_and_down_and_equalizes"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -61530,32 +61566,6 @@
             {
               "index": 1,
               "name": "useDesktopEditorWorkbench > migrates path-only Workbench and Pane records into one Root URI"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "editor-split-keyboard-resize",
-      "kind": "gap",
-      "reason": "An editor split's handle takes no keyboard focus: there is no arrow-key adjustment on the split's own axis and no equalize command, so the ratio changes only by dragging.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/pane-tree.md",
-      "typescript": [
-        {
-          "path": "tests/component/workbench/layout/editorSplitResizeInteraction.test.tsx",
-          "sha256": "87523424462d2efd9bf544dc1e52af1244f28936cb10ab7c3a7f17063a26a88e",
-          "cases": [
-            {
-              "index": 3,
-              "name": "EditorSplitResizeHandle > keeps keyboard and equalize operations as immediate single commits"
-            },
-            {
-              "index": 20,
-              "name": "horizontal editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
-            },
-            {
-              "index": 37,
-              "name": "vertical editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
             }
           ]
         }

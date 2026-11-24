@@ -80,6 +80,15 @@ impl Node {
             Self::Split { first, second, .. } => [first.panes(), second.panes()].concat(),
         }
     }
+    /// Every split's id, outermost first.
+    pub fn splits(&self) -> Vec<&str> {
+        match self {
+            Self::Pane { .. } => Vec::new(),
+            Self::Split {
+                id, first, second, ..
+            } => [vec![id.as_str()], first.splits(), second.splits()].concat(),
+        }
+    }
     fn find(&self, id: &str) -> Option<&Self> {
         if self.id() == id {
             return Some(self);
@@ -313,6 +322,13 @@ impl Layout {
             self.root = root;
         }
         self.active = source.into();
+    }
+    /// The ratio `split` gives its first side.
+    pub fn ratio(&self, split: &str) -> Option<f64> {
+        match self.root.find(split)? {
+            Node::Split { ratio, .. } => Some(*ratio),
+            Node::Pane { .. } => None,
+        }
     }
     pub fn resize(&mut self, split: &str, ratio: f64) {
         if let Some(mut node @ Node::Split { .. }) = self.root.find(split).cloned() {
