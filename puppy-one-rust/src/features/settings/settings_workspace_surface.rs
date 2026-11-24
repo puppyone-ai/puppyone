@@ -495,7 +495,7 @@ impl SettingsWorkspaceSurface {
                     }
                 }
             }),
-            cloud_computer_available: crate::features::flags::cloud_screen_enabled(
+            cloud_computer_available: crate::features::flags::cloud_computer_settings_enabled(
                 &self.preferences,
                 cx,
             ) && self.cloud_project.is_some()

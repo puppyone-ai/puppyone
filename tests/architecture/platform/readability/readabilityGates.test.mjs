@@ -6,7 +6,6 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { load } from "js-yaml";
 import {
   compareBaseline,
   dependencyBaselineFile as baselineFile,
@@ -255,43 +254,4 @@ it("Git ratchet rejects growth, same-total transfers, stale deleted files and in
   expect(ratchet(cwd).status).toBe(0);
   json(cwd, baselineFile, [{ type: "dependency", from: "src/new.ts", to: "src/target.ts", rule: { name: "no-unresolved", severity: "error" } }]);
   expect(ratchet(cwd).status).toBe(1);
-});
-
-it("CI selects the PR base/pre-push SHA and fails closed when it is missing or invalid", () => {
-  const workflow = load(readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8"));
-  const step = workflow.jobs["source-checks"].steps.find((item) => item.name === "Fetch readability comparison commit");
-  expect(step.env.BASE_SHA).toBe("${{ github.event.pull_request.base.sha || github.event.before }}");
-  for (const BASE_SHA of ["", "0".repeat(40), "HEAD", "invalid\nREADABILITY_BASE=HEAD"]) {
-    const result = spawnSync("bash", ["-e", "-c", step.run], { cwd: temporary, encoding: "utf8", env: { ...process.env, BASE_SHA } });
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("A valid PR base or pre-push commit is required.");
-  }
-  const gates = workflow.jobs["source-checks"].steps.find((item) => item.name === "Readability and dependency gates");
-  for (const command of ["npm run lint", "npm run check:dependencies", "npm run check:readability-baselines", "npm run test:readability-gates"]) expect(gates.run).toContain(command);
-});
-
-it("CI fetches the supplied comparison commit and catches growth earlier in a multi-commit push", () => {
-  const cwd = gitFixture();
-  const remote = fixture();
-  git(remote, ["init", "--bare", "-q"]);
-  git(cwd, ["remote", "add", "origin", remote]);
-  git(cwd, ["push", "-q", "origin", "HEAD:main"]);
-  const base = git(cwd, ["rev-parse", "HEAD"]);
-  json(cwd, eslintSuppressionsFile, { "src/old.ts": { "no-nested-ternary": { count: 2 } } });
-  git(cwd, ["add", eslintSuppressionsFile]);
-  git(cwd, ["commit", "-qm", "Increase debt in first commit"]);
-  write(cwd, "src/harmless.ts", "export const harmless = 1;");
-  git(cwd, ["add", "src/harmless.ts"]);
-  git(cwd, ["commit", "-qm", "Second commit with no baseline change"]);
-  const workflow = load(readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8"));
-  const step = workflow.jobs["source-checks"].steps.find((item) => item.name === "Fetch readability comparison commit");
-  const envFile = path.join(cwd, "github-env");
-  const fetched = spawnSync("bash", ["-e", "-c", step.run], {
-    cwd, encoding: "utf8", env: { ...process.env, BASE_SHA: base, GITHUB_ENV: envFile },
-  });
-  expect(fetched.status, fetched.stderr).toBe(0);
-  expect(readFileSync(envFile, "utf8")).toBe(`READABILITY_BASE=${base}\n`);
-  const result = run(cwd, "scripts/readability-baselines.mjs", [], { env: { ...process.env, READABILITY_BASE: base } });
-  expect(result.status).toBe(1);
-  expect(result.stderr).toContain("1 -> 2");
 });

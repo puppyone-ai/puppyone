@@ -29,3 +29,7 @@ pub(super) fn reduce_motion() -> bool {
 }
 
 pub(super) fn match_product_font_smoothing() {}
+
+pub(super) fn toggle_maximize(_window: &impl HasWindowHandle) -> bool {
+    false
+}

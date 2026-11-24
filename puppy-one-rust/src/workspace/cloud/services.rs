@@ -570,7 +570,7 @@ mod tests {
         let client = Client::new(transport.clone());
         let desktop = SandboxSettings {
             desktop: Some(true),
-            screen_stream: None,
+            ..Default::default()
         };
         let sandbox = client.update_project_sandbox("p", &desktop).unwrap();
         assert!(sandbox.screen_present());

@@ -229,6 +229,14 @@ pub mod metric {
     /// `--desktop-titlebar-content-start` and the layout's end padding.
     pub const TITLEBAR_CONTENT_START: f32 = 6.;
     pub const TITLEBAR_CONTENT_END: f32 = 6.;
+    /// Leading start inset on Windows/Linux (aligned with `--desktop-sidebar-row-left-gap`).
+    pub const TITLEBAR_TRAILING_CONTROLS_LEADING_START: f32 = 12.;
+    /// Standard Windows 11 / WinUI 3 caption button width (`46 × 40`, total `138px` for 3 buttons).
+    pub const TITLEBAR_CAPTION_BUTTON_WIDTH: f32 = 46.;
+    /// Caption glyph box size (`15px` renders GPUI Kit's 24×24 glyph at exact 10×10px / 1px stroke).
+    pub const TITLEBAR_CAPTION_ICON_SIZE: f32 = 15.;
+    /// Gap between app titlebar actions and trailing window caption controls.
+    pub const TITLEBAR_CAPTION_ACTIONS_GAP: f32 = 8.;
     /// `--desktop-titlebar-drag-min-width`: the empty space that moves the
     /// window never closes up.
     pub const TITLEBAR_DRAG_MIN_WIDTH: f32 = 32.;
@@ -425,6 +433,30 @@ pub fn shade(c: Rgba, weight: f32) -> Rgba {
 /// `.cm-md-video-player { background: #000 }`.
 pub fn video_black() -> Rgba {
     rgb(0x000000)
+}
+/// Windows 11 / Electron `titlebar.css` trailing caption hover fill (`8%` of foreground ink).
+pub fn window_control_hover(ink: Rgba) -> Rgba {
+    fade(ink, 0.08)
+}
+/// Windows 11 / Electron `titlebar.css` trailing caption pressed fill (`13%` of foreground ink).
+pub fn window_control_active(ink: Rgba) -> Rgba {
+    fade(ink, 0.13)
+}
+/// Windows 11 WinUI 3 close caption button hover background (`#C42B1C`).
+pub fn window_control_close_hover() -> Rgba {
+    rgb(0xc42b1c)
+}
+/// Windows 11 WinUI 3 close caption button pressed background (`#B22A1B`).
+pub fn window_control_close_active() -> Rgba {
+    rgb(0xb22a1b)
+}
+/// White glyph ink over the Windows 11 red close button.
+pub fn window_control_close_fg() -> Rgba {
+    rgb(0xffffff)
+}
+/// Muted caption glyph ink while the host window is inactive (unfocused).
+pub fn window_control_inactive_fg(ink: Rgba) -> Rgba {
+    fade(ink, 0.45)
 }
 /// `#fff` text on a solid status fill (`.desktop-settings-save-action`).
 pub fn on_solid() -> Rgba {

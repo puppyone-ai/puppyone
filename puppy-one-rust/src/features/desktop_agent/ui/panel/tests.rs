@@ -748,6 +748,186 @@ fn finder_drops_insert_folders_as_paths_and_stage_files(cx: &mut TestAppContext)
     assert!(!asked.borrow().contains(&AgentOperation::StartTurn));
 }
 
+/// Production projection integration test: `ModelConnectionService` ->
+/// `ModelConnectionsStore` -> `ManagedCompute::from_store` ->
+/// `AgentChatTabPanel::watch_model_connections` (without legacy test hooks),
+/// verifying trial claim projection, zero duplicate catalog calls, and
+/// automatic runtime rediscovery when ready models first arrive.
+#[gpui::test]
+fn production_store_projects_wallet_and_rediscovers_on_first_ready_snapshot(
+    cx: &mut TestAppContext,
+) {
+    use crate::agent::model_connections::{
+        ModelConnectionService,
+        managed::{Answer, Failed, ManagedGateway, ManagedSession},
+        wallet::Reason,
+    };
+    use crate::cloud::auth::model::{Binding, Environment};
+    use serde_json::{Value, json};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
+
+    struct ScriptedGateway {
+        calls: Mutex<Vec<String>>,
+        trial_claimed: Mutex<bool>,
+    }
+    impl ManagedGateway for ScriptedGateway {
+        fn public(&self, path: &str) -> Answer {
+            self.calls.lock().unwrap().push(format!("PUBLIC {path}"));
+            Box::pin(async move {
+                Ok(json!({
+                    "sandbox": true,
+                    "trial_credit_micro_usd": 1_000_000,
+                    "packs": [{"id": "pack-5", "price_cents": 500}],
+                    "models": [{"id": "deepseek/deepseek-v4.1-flash", "name": "DeepSeek", "context_window": 1_000_000}]
+                }))
+            })
+        }
+        fn request(
+            &self,
+            _binding: Option<Binding>,
+            method: reqwest::Method,
+            path: &str,
+            _body: Option<Value>,
+            _idempotency_key: Option<String>,
+        ) -> Answer {
+            self.calls.lock().unwrap().push(format!("{method} {path}"));
+            let claimed = *self.trial_claimed.lock().unwrap();
+            let reply = match path {
+                "/ai/balance" => {
+                    let amt = if claimed { 1_000_000 } else { 0 };
+                    Ok(json!({
+                        "balance_micro_usd": amt,
+                        "reserved_micro_usd": 0,
+                        "available_micro_usd": amt,
+                        "trial_granted_micro_usd": amt
+                    }))
+                }
+                "/ai/trial" => {
+                    *self.trial_claimed.lock().unwrap() = true;
+                    Ok(json!({
+                        "balance_micro_usd": 1_000_000,
+                        "reserved_micro_usd": 0,
+                        "available_micro_usd": 1_000_000,
+                        "trial_granted_micro_usd": 1_000_000
+                    }))
+                }
+                _ => Err(Failed),
+            };
+            Box::pin(async move { reply })
+        }
+    }
+
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+
+    let dir = tempfile::tempdir().unwrap();
+    let gw = Arc::new(ScriptedGateway {
+        calls: Mutex::new(vec![]),
+        trial_claimed: Mutex::new(false),
+    });
+    let service = ModelConnectionService::with_gateway(
+        dir.path().to_path_buf(),
+        None,
+        Some(gw.clone()),
+        Duration::from_secs(5),
+    );
+    let _store = cx.update(|cx| {
+        crate::features::model_connections::install_model_connections_service(service.clone(), cx)
+    });
+    let wallet = cx.update(crate::features::model_connections::global_compute);
+
+    let slot = Rc::new(RefCell::new(None));
+    let kept = slot.clone();
+    let (panel, cx) = cx.add_window_view(|window, cx| {
+        let (mut panel, asked) =
+            AgentChatTabPanel::managed_fixture(Rc::new(Cell::new(false)), window, cx);
+        panel.set_presentation(true, true, window, cx);
+        panel.set_payments(true, cx);
+        panel.watch_wallet(cx);
+        panel.watch_model_connections(cx);
+        *kept.borrow_mut() = Some(asked);
+        panel
+    });
+    let asked = slot.borrow().clone().unwrap();
+    cx.run_until_parked();
+    draw(cx);
+    assert_eq!(wallet.read_with(cx, |w, _| w.reason()), Reason::SignInRequired);
+
+    let discoveries = || {
+        asked
+            .borrow()
+            .iter()
+            .filter(|op| **op == AgentOperation::DiscoverRuntimes)
+            .count()
+    };
+    let before = discoveries();
+
+    // Sign in and enable Payments on the single `po-agent` authority.
+    let binding = Binding {
+        user: "prod-store-user".into(),
+        instance: uuid::Uuid::new_v4(),
+        epoch: 1,
+        environment: Environment::new(
+            "https://qubits-api.puppyone.ai/api/v1",
+            "https://qubits-try.puppyone.ai",
+        )
+        .unwrap(),
+    };
+    service.set_payments(true);
+    service.adopt_session(Some(ManagedSession::of(binding)));
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        cx.run_until_parked();
+        draw(cx);
+        let ready = wallet.read_with(cx, |w, _| w.reason() == Reason::Ready);
+        let panel_has_managed = panel.read_with(cx, |p, _| {
+            p.compute
+                .as_ref()
+                .is_some_and(|c| c.sources.values().any(|k| *k == "managed"))
+        });
+        if ready && panel_has_managed && discoveries() > before {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "timed out waiting for production store -> wallet -> panel convergence: ready={ready}, panel_has_managed={panel_has_managed}, discoveries={} (before={before})",
+            discoveries()
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    assert_eq!(
+        wallet.read_with(cx, |w, _| w.balance.unwrap().available_micro_usd),
+        1_000_000
+    );
+    let trial_calls = gw
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|c| *c == "POST /ai/trial")
+        .count();
+    assert_eq!(trial_calls, 1, "trial must be claimed exactly once across UI & host");
+    let catalog_calls = gw
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|c| *c == "PUBLIC /ai/catalog")
+        .count();
+    assert!(
+        catalog_calls <= 2,
+        "catalog must stay cached and never storm: {catalog_calls}"
+    );
+}
+
 /// The panel's `role="status"` announcements (`desktop-agent-announcer`).
 fn announced(cx: &mut VisualTestContext) -> Vec<String> {
     use gpui_kit::test::TestQueryExt as _;

@@ -169,6 +169,14 @@ jobs:
             --packs-dir artifacts/viewer-packs \
             --require-non-empty
 
+      - name: Retain verification logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: stable-verification-logs
+          path: puppy-one-rust/artifacts/gpui-verification/
+          retention-days: 14
+
       - name: Sign, notarize, and verify release package
         env:
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}

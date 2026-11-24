@@ -10,29 +10,19 @@ const QUIT_DRAIN: Duration = Duration::from_secs(10);
 
 struct AgentHostGlobal(AgentHostHandle);
 
-/// PuppyOne compute bills the app's signed-in Cloud account while Payments
-/// is on (the broker the account owner last installed).
-pub struct CloudCompute;
-impl crate::agent::model_connections::ComputeAccount for CloudCompute {
-    fn current(
-        &self,
-    ) -> Option<(
-        std::sync::Arc<crate::cloud::auth::Broker>,
-        crate::cloud::auth::model::Binding,
-    )> {
-        crate::cloud::auth::current()
-    }
-}
 impl Global for AgentHostGlobal {}
 
-/// The running Agent host, started on first use.
+/// The running Agent host, started on first use and wired to the single
+/// process-wide [`crate::agent::model_connections::ModelConnectionService`].
 pub fn agent_host(cx: &mut App) -> Result<AgentHostHandle, String> {
     if let Some(AgentHostGlobal(handle)) = cx.try_global::<AgentHostGlobal>() {
         return Ok(handle.clone());
     }
+    let model_connections = crate::features::model_connections::service(cx);
     let handle = AgentHostHandle::start_production(AgentHostOptions {
         user_data_path: crate::platform::data_dir(),
-        compute_account: Some(std::sync::Arc::new(CloudCompute)),
+        compute_account: None,
+        model_connections: Some(model_connections),
         app_version: env!("CARGO_PKG_VERSION").into(),
         app_path: None,
         executable_path: std::env::current_exe()

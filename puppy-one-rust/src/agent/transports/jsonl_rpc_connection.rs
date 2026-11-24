@@ -1,7 +1,7 @@
 //! `transports/jsonl-rpc-connection.mjs`: a JSON-RPC 2.0 connection over a
 //! native Agent's stdio, one JSON object per line.
 use super::jsonl_stream::{Framed, JsonlFramer};
-use super::managed_agent_process::{create_managed_agent_process, terminate_managed_agent_process};
+use super::managed_agent_process::{ManagedProcessParts, create_managed_agent_process};
 use super::native_request_ledger::{LateResponse, NativeRequestLedger, Taken};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
@@ -106,6 +106,11 @@ pub struct ConnectionOptions {
     pub max_stderr_bytes: Option<usize>,
     pub max_pending: Option<usize>,
     pub force_kill_timeout_ms: Option<u64>,
+    /// Optional bounded count of leading non-JSON stdout lines ignored before
+    /// the first valid JSON-RPC message (defaults to `0`, i.e. strict framing
+    /// from line 1). Intended only for runtimes whose CLI wrapper emits a
+    /// startup banner before switching stdout to NDJSON.
+    pub max_leading_non_json_lines: Option<usize>,
     /// `spawn`: the default launches a managed process group.
     pub spawner: Option<Spawner>,
     /// A private bootstrap envelope delivered on the child's fd 3, which
@@ -113,47 +118,60 @@ pub struct ConnectionOptions {
     pub bootstrap: Option<Vec<u8>>,
 }
 
-/// The default spawner: an isolated process group with piped stdio.
+/// The default spawner: an isolated process group (Unix) or Job Object
+/// (Windows) with piped stdio.
 pub fn spawn_managed_process(options: &ConnectionOptions) -> AgentResult<ProcessIo> {
-    let mut process = create_managed_agent_process(
+    let ManagedProcessParts {
+        mut child, subtree, ..
+    } = create_managed_agent_process(
         &options.executable_path,
         &options.args,
         Path::new(&options.cwd),
         options.env.as_deref(),
         options.bootstrap.as_deref(),
-    )?;
-    let (pid, grouped) = (process.pid, process.grouped);
-    let stdin = process
-        .child
+    )?
+    .into_parts();
+    let stdin = child
         .stdin
         .take()
         .ok_or_else(|| AgentError::new("The native process has no stdin."))?;
-    let stdout = process
-        .child
+    let stdout = child
         .stdout
         .take()
         .ok_or_else(|| AgentError::new("The native process has no stdout."))?;
-    let stderr = process
-        .child
+    let stderr = child
         .stderr
         .take()
         .ok_or_else(|| AgentError::new("The native process has no stderr."))?;
-    let mut child = process.child;
+    // Keep the OS subtree guard alive until `child.wait()` completes or
+    // `ProcessIo` is dropped: dropping it early closes the Win32 Job Object and
+    // terminates the process immediately. Both `exit` and `kill` share it so
+    // `kill` terminates the entire subtree and `exit` releases it upon reaping.
+    let guard = Rc::new(RefCell::new(Some(subtree)));
+    let exit_guard = guard.clone();
+    let kill_guard = guard;
     Ok(ProcessIo {
         stdin: Box::new(stdin),
         stdout: Box::new(stdout),
         stderr: Box::new(stderr),
         exit: Box::pin(async move {
-            match child.wait().await {
+            let outcome = match child.wait().await {
                 Ok(status) => (
                     status.code(),
                     crate::platform::process::exit_signal_name(&status),
                     None,
                 ),
                 Err(error) => (None, None, Some(AgentError::from(error))),
-            }
+            };
+            *exit_guard.borrow_mut() = None;
+            outcome
         }),
-        kill: Rc::new(move |force| terminate_managed_agent_process(pid, grouped, force)),
+        kill: Rc::new(move |force| {
+            kill_guard
+                .borrow()
+                .as_ref()
+                .is_some_and(|subtree| subtree.terminate(force))
+        }),
     })
 }
 
@@ -172,6 +190,9 @@ struct Inner {
     max_stderr_bytes: usize,
     max_pending: usize,
     force_kill_timeout_ms: u64,
+    max_leading_non_json_lines: usize,
+    leading_non_json_lines: Cell<usize>,
+    seen_protocol_message: Cell<bool>,
     next_request_id: Rc<Cell<u64>>,
     requests: NativeRequestLedger,
     stderr: RefCell<String>,
@@ -325,6 +346,9 @@ impl JsonlRpcConnection {
             force_kill_timeout_ms: options
                 .force_kill_timeout_ms
                 .unwrap_or(DEFAULT_FORCE_KILL_TIMEOUT_MS),
+            max_leading_non_json_lines: options.max_leading_non_json_lines.unwrap_or(0),
+            leading_non_json_lines: Cell::new(0),
+            seen_protocol_message: Cell::new(false),
             next_request_id: next_request_id.clone(),
             requests: NativeRequestLedger::new(
                 512,
@@ -540,13 +564,31 @@ impl JsonlRpcConnection {
         Ok(())
     }
 
+    /// Counts and skips one startup banner line: only before the first
+    /// protocol message, and only up to `max_leading_non_json_lines`.
+    fn skip_leading_non_json_line(&self, line: &str) -> bool {
+        let skipped = self.0.leading_non_json_lines.get();
+        if self.0.seen_protocol_message.get()
+            || line.trim_start().starts_with('{')
+            || skipped >= self.0.max_leading_non_json_lines
+        {
+            return false;
+        }
+        self.0.leading_non_json_lines.set(skipped + 1);
+        true
+    }
+
     fn receive_line(&self, line: &str) {
         let Ok(message) = serde_json::from_str::<Value>(line) else {
-            self.protocol_failure("The JSONL-RPC process emitted malformed protocol data.");
+            if !self.skip_leading_non_json_line(line) {
+                self.protocol_failure("The JSONL-RPC process emitted malformed protocol data.");
+            }
             return;
         };
         if !message.is_object() {
-            self.protocol_failure("The JSONL-RPC process emitted an invalid message.");
+            if !self.skip_leading_non_json_line(line) {
+                self.protocol_failure("The JSONL-RPC process emitted an invalid message.");
+            }
             return;
         }
         if !js::nullish(message.get("jsonrpc")) && message["jsonrpc"] != "2.0" {
@@ -560,10 +602,13 @@ impl JsonlRpcConnection {
         }
         let has_method = message["method"].as_str().is_some_and(|m| !m.is_empty());
         if has_method && has_id {
+            self.0.seen_protocol_message.set(true);
             self.emit(ConnectionEvent::Request(message));
         } else if has_method {
+            self.0.seen_protocol_message.set(true);
             self.emit(ConnectionEvent::Notification(message));
         } else if has_id {
+            self.0.seen_protocol_message.set(true);
             self.receive_response(&message);
         } else {
             self.protocol_failure("The JSONL-RPC process emitted an unclassifiable message.");

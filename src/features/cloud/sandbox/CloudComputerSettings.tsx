@@ -10,11 +10,22 @@ import { readCloudSandbox } from "./cloudSandboxFeatures";
  * the next computer is created; "Show screen" applies immediately. The backend
  * resolves both; this panel only shows and sends them.
  */
-export function CloudComputerSettings({ projectId, session, apiBaseUrl, onSessionChange }: {
+export function CloudComputerSettings({
+  projectId,
+  session,
+  apiBaseUrl,
+  onSessionChange,
+  showDesktopControls = true,
+  showIsolatedAgentsControl = false,
+  canManageProjectSettings = true,
+}: {
   projectId: string;
   session: DesktopCloudSession;
   apiBaseUrl: string | null;
   onSessionChange?: MutableSessionHandler;
+  showDesktopControls?: boolean;
+  showIsolatedAgentsControl?: boolean;
+  canManageProjectSettings?: boolean;
 }) {
   const { t } = useLocalization();
   const endpoint = `/projects/${encodeURIComponent(projectId)}/workbench`;
@@ -32,6 +43,7 @@ export function CloudComputerSettings({ projectId, session, apiBaseUrl, onSessio
 
   const desktop = sandbox?.settings.desktop ?? sandbox?.next_profile === "desktop";
   const stream = sandbox?.settings.screen_stream ?? true;
+  const isolatedAgents = sandbox?.settings.isolated_agent_sandboxes ?? false;
   const pending = Boolean(sandbox && sandbox.profile && sandbox.next_profile && sandbox.profile !== sandbox.next_profile);
   const save = async (key: keyof CloudSandboxSettings, value: boolean) => {
     setSaving(key);
@@ -48,11 +60,19 @@ export function CloudComputerSettings({ projectId, session, apiBaseUrl, onSessio
     }
   };
 
-  const rows: { key: keyof CloudSandboxSettings; on: boolean; title: string; help: string }[] = [
-    { key: "desktop", on: desktop, title: t("cloud.settings.computer.desktop"),
-      help: t(pending ? "cloud.settings.computer.desktopPending" : "cloud.settings.computer.desktopHelp") },
-    { key: "screen_stream", on: stream, title: t("cloud.settings.computer.stream"),
-      help: t("cloud.settings.computer.streamHelp") },
+  const rows: { key: keyof CloudSandboxSettings; on: boolean; title: string; help: string; disabled?: boolean }[] = [
+    ...(showDesktopControls ? [
+      { key: "desktop" as const, on: desktop, title: t("cloud.settings.computer.desktop"),
+        help: t(pending ? "cloud.settings.computer.desktopPending" : "cloud.settings.computer.desktopHelp") },
+      { key: "screen_stream" as const, on: stream, title: t("cloud.settings.computer.stream"),
+        help: t("cloud.settings.computer.streamHelp") },
+    ] : []),
+    ...(showIsolatedAgentsControl ? [
+      { key: "isolated_agent_sandboxes" as const, on: isolatedAgents,
+        title: t("cloud.settings.computer.isolatedAgents"),
+        help: t("cloud.settings.computer.isolatedAgentsHelp"),
+        disabled: !canManageProjectSettings },
+    ] : []),
   ];
   return <section className="desktop-cloud-settings-panel" role="tabpanel">
     <header className="desktop-cloud-settings-panel-header">
@@ -64,7 +84,7 @@ export function CloudComputerSettings({ projectId, session, apiBaseUrl, onSessio
     {failed && <div className="desktop-cloud-settings-feedback error" role="alert">{t("cloud.settings.computer.failed")}</div>}
     <div className="desktop-cloud-settings-choice-grid">
       {rows.map(row => <button key={row.key} type="button" className={row.on ? "selected" : undefined}
-        aria-pressed={row.on} disabled={!sandbox || saving !== null}
+        aria-pressed={row.on} disabled={!sandbox || saving !== null || Boolean(row.disabled)}
         onClick={() => void save(row.key, !row.on)}>
         <span className="desktop-cloud-settings-choice-check">{row.on ? <Check size={13} /> : null}</span>
         <strong>{row.title}</strong>

@@ -5,11 +5,11 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  inspectContinuousIntegrationWorkflow,
   inspectInternalReleaseWorkflow,
   inspectLegacyArchiveWorkflow,
   inspectReleasePublisherWorkflow,
   inspectStableReleaseWorkflow,
+  inspectRustAcceptanceWorkflow,
   inspectUpdateFeedMonitorWorkflow,
 } from "./release-support/internal-release-workflow-policy.mjs";
 import { inspectMacReleaseReadiness } from "./release-support/macos-release-policy.mjs";
@@ -109,11 +109,11 @@ if (
   errors.push("stable CI must prepare without deployment secrets before entering the signing step");
 }
 
-const ciWorkflow = readFileSync(
-  path.join(repoRoot, ".github", "workflows", "ci.yml"),
+const rustAcceptanceWorkflow = readFileSync(
+  path.join(repoRoot, ".github", "workflows", "rust-tests.yml"),
   "utf8",
 );
-errors.push(...inspectContinuousIntegrationWorkflow(ciWorkflow));
+errors.push(...inspectRustAcceptanceWorkflow(rustAcceptanceWorkflow));
 const internalWorkflow = readFileSync(
   path.join(repoRoot, ".github", "workflows", "desktop-internal-build.yml"),
   "utf8",

@@ -422,25 +422,6 @@ describe("appearance profile architecture", () => {
     }
   });
 
-  it("gates the representative visual matrix in CI", () => {
-    const packageMetadata = JSON.parse(source("package.json"));
-    const workflow = source(".github/workflows/ci.yml");
-    const harness = source("src/features/appearance/AppearanceVisualSmokeHarness.tsx");
-    const smoke = source("tests/integration/appearance/themes/appearance-visual-matrix.smoke.mjs");
-
-    expect(packageMetadata.scripts["smoke:appearance-visual"].split(" && ")).toContain(
-      "electron tests/integration/appearance/themes/appearance-visual-matrix.smoke.mjs",
-    );
-    const checks = JSON.parse(source("scripts/release-checks/checks.json")).checks;
-    expect(checks.find((check: { id: string }) => check.id === "appearance")).toMatchObject({
-      group: "app", command: ["npm", "run", "smoke:appearance-visual"], dependsOn: ["build"],
-    });
-    expect(workflow).toContain("npm run check:release -- --group app");
-    expect(harness).toContain('data-appearance-visual-ready="true"');
-    expect(smoke).toContain('const styles = ["default", "windows-xp"]');
-    for (const family of VIEWER_SURFACE_FAMILIES) expect(harness).toContain(`"${family}"`);
-  });
-
   it("restarts the dev renderer when a Style Pack import graph changes", () => {
     const devOrchestrator = source("scripts/dev-electron.mjs");
 

@@ -189,6 +189,7 @@ pub struct AcpAdapterOptions {
     pub question_methods: Vec<String>,
     pub completion_inspector_factory: Option<CompletionInspectorFactory>,
     pub event_source: Option<String>,
+    pub max_leading_non_json_lines: Option<usize>,
     pub on_dispose: Option<Rc<dyn Fn()>>,
 }
 
@@ -221,6 +222,7 @@ impl AcpAdapterOptions {
             question_methods: Vec::new(),
             completion_inspector_factory: None,
             event_source: None,
+            max_leading_non_json_lines: None,
             on_dispose: None,
         }
     }
@@ -263,6 +265,7 @@ pub struct Inner {
     pub(super) question_methods: HashSet<String>,
     completion_inspector_factory: Option<CompletionInspectorFactory>,
     event_source: String,
+    max_leading_non_json_lines: Option<usize>,
     on_dispose: Option<Rc<dyn Fn()>>,
     connection: RefCell<Option<Rc<dyn RpcConnection>>>,
     closing_connections: RefCell<Vec<Rc<dyn RpcConnection>>>,
@@ -844,6 +847,7 @@ impl AcpRuntimeAdapter {
                         }
                     )
                 }),
+                max_leading_non_json_lines: options.max_leading_non_json_lines,
                 on_dispose: options.on_dispose.clone(),
                 connection: RefCell::default(),
                 closing_connections: RefCell::default(),
@@ -1381,6 +1385,7 @@ impl AcpRuntimeAdapter {
             args: (inner.process_args)(mode, &inner.workspace_root, inner.managed),
             cwd: PathBuf::from(&inner.workspace_root),
             env: Some(environment),
+            max_leading_non_json_lines: inner.max_leading_non_json_lines,
             ..Default::default()
         })?;
         *inner.connection.borrow_mut() = Some(connection.clone());

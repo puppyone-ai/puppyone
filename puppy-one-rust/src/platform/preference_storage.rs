@@ -26,10 +26,7 @@ fn spawn(directory: Option<PathBuf>) -> (mpsc::Sender<Write>, async_channel::Rec
         let explicit = directory.is_some();
         let isolated =
             directory.or_else(|| std::env::var_os("PUPPYONE_RUST_DATA_DIR").map(PathBuf::from));
-        let base = isolated.clone().unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join("Library/Application Support/PuppyOne GPUI")
-        });
+        let base = isolated.clone().unwrap_or_else(super::data_dir);
         let path = base.join("preferences.json");
         let loaded = match super::ui_state_store::read(&path) {
             // An isolated data directory (tests, captures) imports only from

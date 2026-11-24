@@ -477,6 +477,7 @@ fn experimental_settings(v: &Value) -> (Experimental, bool) {
         always_show_onboarding_coachmarks: on("enableAlwaysShowOnboardingCoachmarks"),
         cloud_workspace: on("enableCloudWorkspace"),
         cloud_computer_screen: on("enableCloudComputerScreen"),
+        isolated_agent_sandboxes: on("enableIsolatedAgentSandboxes"),
         computer_mode: on("enableComputerMode"),
         editor_tabs_in_header: on("enableEditorTabsInHeader"),
         host_devices: on("enableHostDevices"),
