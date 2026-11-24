@@ -83,6 +83,33 @@ const CLIENT_DIAGNOSTICS: &[&str] = &[
     "CLOUD_SECURE_STORAGE_FAILED",
 ];
 
+/// Allowlisted Cloud Agent refusal codes (`POST /agents/runs` and run
+/// commands). Only exact reviewed codes survive; server prose never does.
+pub const AGENT_REASONS: &[&str] = &[
+    "agent_session_busy",
+    "agent_model_unconfigured",
+    "project_agent_not_ready",
+    "agent_unavailable",
+    "agent_request_conflict",
+    "agent_context_changed",
+    "agent_workbench_required",
+    "agent_workbench_session_mismatch",
+    "agent_approval_unavailable",
+    "agent_approval_conflict",
+    "agent_session_mismatch",
+    "agent_configuration_changed",
+    "agent_scope_not_supported",
+    "agent_repository_path_invalid",
+    "interactive_workspace_required",
+    "cloud_workbench_unavailable",
+    "managed_agent_inference_disabled",
+];
+
+/// The allowlisted Cloud Agent refusal code, if any.
+pub fn agent_code(code: &str) -> Option<&'static str> {
+    AGENT_REASONS.iter().copied().find(|r| *r == code)
+}
+
 /// The allowlisted spelling of `code`, if any.
 pub fn allowlisted(code: &str) -> Option<&'static str> {
     REASONS.iter().copied().find(|r| *r == code)

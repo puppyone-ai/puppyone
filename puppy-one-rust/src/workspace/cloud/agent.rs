@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -142,11 +142,14 @@ pub struct Event {
     pub data: Value,
 }
 
-/// A failed call: the HTTP status when the server answered, or whether a
-/// mutation's outcome is unknown (its receipt must be queried).
+/// A failed call: the HTTP status and allowlisted server code when the server
+/// answered, its request id for diagnostics, or whether a mutation's outcome
+/// is unknown (its receipt must be queried).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Error {
     pub status: Option<u16>,
+    pub code: Option<&'static str>,
+    pub request_id: Option<String>,
     pub unknown: bool,
     pub message: String,
 }
@@ -154,6 +157,8 @@ impl Error {
     fn invalid(message: &str) -> Self {
         Self {
             status: None,
+            code: None,
+            request_id: None,
             unknown: false,
             message: message.into(),
         }
@@ -166,16 +171,48 @@ impl Error {
     pub fn terminal(&self) -> bool {
         matches!(self.status, Some(401 | 403 | 404))
     }
-    fn from_auth(error: auth::Error) -> Self {
-        let status = match error {
-            auth::Error::Http(s) | auth::Error::Service(s, _) | auth::Error::Response(s, _, _) => {
-                Some(s)
-            }
-            auth::Error::InvalidCredentials => Some(401),
-            _ => None,
+    /// The server rejected the pinned workbench handle because it slept, moved
+    /// to another generation, or is not the interactive default workbench.
+    pub fn is_workbench_stale(&self) -> bool {
+        matches!(
+            (self.status, self.code),
+            (
+                Some(404 | 409),
+                Some(
+                    "workbench_not_found"
+                        | "workbench_not_running"
+                        | "workbench_generation_changed"
+                        | "interactive_workspace_required"
+                )
+            )
+        )
+    }
+    fn service_code(code: auth::ServiceCode) -> &'static str {
+        match code {
+            auth::ServiceCode::FileConflict => "file_conflict",
+            auth::ServiceCode::FileNotFound => "file_not_found",
+            auth::ServiceCode::GenerationChanged => "workbench_generation_changed",
+            auth::ServiceCode::NotRunning => "workbench_not_running",
+            auth::ServiceCode::WorkbenchNotFound => "workbench_not_found",
+            auth::ServiceCode::OperationRejected => "file_operation_rejected",
+        }
+    }
+    pub(crate) fn from_auth(error: auth::Error) -> Self {
+        let (status, code, request_id) = match error {
+            auth::Error::Http(s) => (Some(s), None, None),
+            auth::Error::Service(s, code) => (Some(s), Some(Self::service_code(code)), None),
+            auth::Error::Response(s, code, diagnostic) => (
+                Some(s),
+                code,
+                diagnostic.request_id.map(|id| id.as_str().to_owned()),
+            ),
+            auth::Error::InvalidCredentials => (Some(401), None, None),
+            _ => (None, None, None),
         };
         Self {
             status,
+            code,
+            request_id,
             unknown: error == auth::Error::OutcomeUnknown,
             message: error.to_string(),
         }
@@ -193,6 +230,11 @@ pub trait Transport: Send + Sync {
     fn request(&self, request: ApiRequest) -> Result<Value>;
     /// One bounded batch of a run's events after `after`.
     fn events(&self, run: &str, after: u64, cancel: &Cancellation) -> Result<Vec<Event>>;
+    /// Resolves the live default workbench id for `project` when a submission's
+    /// pinned workbench handle is stale (aligned with `cloudWorkspaceClient.ensure`).
+    fn ensure_workbench(&self, _project: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
 }
 
 /// `readCloudAgentEventBatch` limits.
@@ -352,6 +394,44 @@ impl Transport for BrokerTransport {
             Err(error) => Err(Error::from_auth(error)),
         }
     }
+    fn ensure_workbench(&self, project: &str) -> Result<Option<String>> {
+        let path = format!("/projects/{}/workbench", segment(project)?);
+        let extract = |value: &Value| -> Option<(String, bool)> {
+            let row = value.get("workspace").unwrap_or(value);
+            if row.get("project_id").and_then(Value::as_str) != Some(project) {
+                return None;
+            }
+            let id = row
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|id| !id.is_empty())?;
+            let running = row.get("state").and_then(Value::as_str) == Some("running")
+                && row
+                    .pointer("/operation/pending")
+                    .and_then(Value::as_bool)
+                    != Some(true);
+            Some((id.to_owned(), running))
+        };
+        let status = self.request(ApiRequest {
+            method: Method::GET,
+            path: path.clone(),
+            query: vec![],
+            body: None,
+            idempotency_key: None,
+        })?;
+        if let Some((id, true)) = extract(&status) {
+            return Ok(Some(id));
+        }
+        // Prompt submission is an explicit user action (`cloudWorkspaceClient.ensure`).
+        let woken = self.request(ApiRequest {
+            method: Method::POST,
+            path,
+            query: vec![],
+            body: None,
+            idempotency_key: None,
+        })?;
+        Ok(extract(&woken).map(|(id, _)| id))
+    }
 }
 
 /// An identifier safe to place in a path segment.
@@ -386,15 +466,18 @@ fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T> {
 pub struct Client {
     transport: Arc<dyn Transport>,
     pub project: String,
-    pub workbench: String,
+    workbench: Arc<Mutex<String>>,
 }
 impl Client {
     pub fn new(transport: Arc<dyn Transport>, project: String, workbench: String) -> Self {
         Self {
             transport,
             project,
-            workbench,
+            workbench: Arc::new(Mutex::new(workbench)),
         }
+    }
+    pub fn workbench(&self) -> String {
+        self.workbench.lock().unwrap().clone()
     }
     fn call(
         &self,
@@ -417,14 +500,14 @@ impl Client {
         }
         Ok(run)
     }
-    pub fn submit(&self, input: &Submission) -> Result<Run> {
+    fn submit_for(&self, input: &Submission, workbench: &str) -> Result<Run> {
         let mut body = serde_json::to_value(input).unwrap_or_default();
-        body["workbench_id"] = json!(self.workbench);
+        body["workbench_id"] = json!(workbench);
         body["project_id"] = json!(self.project);
         let run: Run =
             decode(self.call(Method::POST, "/agents/runs".into(), vec![], Some(body))?)?;
         let run = self.owned(run)?;
-        if run.workbench_id.as_deref() != Some(self.workbench.as_str()) {
+        if run.workbench_id.as_deref() != Some(workbench) {
             return Err(Error::invalid(
                 "Cloud Agent returned a different workspace.",
             ));
@@ -440,6 +523,20 @@ impl Client {
             ));
         }
         Ok(run)
+    }
+    pub fn submit(&self, input: &Submission) -> Result<Run> {
+        let current = self.workbench();
+        match self.submit_for(input, &current) {
+            Ok(run) => Ok(run),
+            Err(error) if error.is_workbench_stale() => {
+                let Some(refreshed) = self.transport.ensure_workbench(&self.project)? else {
+                    return Err(error);
+                };
+                *self.workbench.lock().unwrap() = refreshed.clone();
+                self.submit_for(input, &refreshed)
+            }
+            Err(error) => Err(error),
+        }
     }
     pub fn receipt(&self, request: &str) -> Result<Run> {
         let path = format!(
@@ -666,5 +763,83 @@ mod tests {
         let sessions = client.sessions("agent-1").unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].id, "s1");
+    }
+
+    #[test]
+    fn from_auth_preserves_allowlisted_code_and_request_id() {
+        let diag = auth::model::Diagnostic::read(&json!({}), Some("req-abc-123"));
+        let err = Error::from_auth(auth::Error::Response(
+            409,
+            Some("agent_model_unconfigured"),
+            diag,
+        ));
+        assert_eq!(err.status, Some(409));
+        assert_eq!(err.code, Some("agent_model_unconfigured"));
+        assert_eq!(err.request_id.as_deref(), Some("req-abc-123"));
+
+        let stale = Error::from_auth(auth::Error::Service(
+            409,
+            auth::ServiceCode::NotRunning,
+        ));
+        assert_eq!(stale.status, Some(409));
+        assert_eq!(stale.code, Some("workbench_not_running"));
+        assert!(stale.is_workbench_stale());
+    }
+
+    #[test]
+    fn submit_refreshes_stale_workbench_once_and_updates_client_handle() {
+        struct StaleThenReady {
+            attempts: std::sync::atomic::AtomicUsize,
+            ensures: std::sync::atomic::AtomicUsize,
+            seen_workbenches: Mutex<Vec<String>>,
+        }
+        impl Transport for StaleThenReady {
+            fn request(&self, request: ApiRequest) -> Result<Value> {
+                let wb = request
+                    .body
+                    .as_ref()
+                    .and_then(|b| b["workbench_id"].as_str())
+                    .unwrap_or_default()
+                    .to_owned();
+                self.seen_workbenches.lock().unwrap().push(wb.clone());
+                if self.attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                    return Err(Error::from_auth(auth::Error::Service(
+                        404,
+                        auth::ServiceCode::WorkbenchNotFound,
+                    )));
+                }
+                let mut reply = run("project-a");
+                reply["data"]["workbench_id"] = json!(wb);
+                Ok(reply)
+            }
+            fn events(&self, _: &str, _: u64, _: &Cancellation) -> Result<Vec<Event>> {
+                Ok(vec![])
+            }
+            fn ensure_workbench(&self, project: &str) -> Result<Option<String>> {
+                assert_eq!(project, "project-a");
+                self.ensures.fetch_add(1, Ordering::SeqCst);
+                Ok(Some("wb-2".into()))
+            }
+        }
+        let transport = Arc::new(StaleThenReady {
+            attempts: Default::default(),
+            ensures: Default::default(),
+            seen_workbenches: Mutex::default(),
+        });
+        let client = Client::new(transport.clone(), "project-a".into(), "wb-1".into());
+        let input = Submission {
+            request_id: "req-1".into(),
+            prompt: "hi".into(),
+            session_id: None,
+            agent_id: None,
+        };
+        let submitted = client.submit(&input).unwrap();
+        assert_eq!(submitted.workbench_id.as_deref(), Some("wb-2"));
+        assert_eq!(client.workbench(), "wb-2");
+        assert_eq!(transport.ensures.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            *transport.seen_workbenches.lock().unwrap(),
+            vec!["wb-1".to_owned(), "wb-2".to_owned()]
+        );
     }
 }

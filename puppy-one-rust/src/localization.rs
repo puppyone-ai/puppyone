@@ -46,7 +46,11 @@ fn native() -> &'static Value {
     DATA.get_or_init(|| {
         let mut data: Value = serde_json::from_str(include_str!("../assets/native-locales.json"))
             .expect("native catalogs");
-        for raw in [DOCUMENT_RECONCILE_MESSAGES, CROSS_PLATFORM_MESSAGES] {
+        for raw in [
+            DOCUMENT_RECONCILE_MESSAGES,
+            CROSS_PLATFORM_MESSAGES,
+            CLOUD_AGENT_MESSAGES,
+        ] {
             let extra: Value = serde_json::from_str(raw).expect("native extension catalogs");
             for (locale, messages) in extra.as_object().unwrap() {
                 if let Some(target) = data["catalogs"][locale].as_object_mut() {
@@ -57,6 +61,81 @@ fn native() -> &'static Value {
         data
     })
 }
+
+const CLOUD_AGENT_MESSAGES: &str = r#"{
+  "en": {
+    "native.cloudAgent.modelUnconfigured": "No model is configured for this Cloud Agent yet.",
+    "native.cloudAgent.projectNotReady": "This Cloud project is still getting ready for Cloud Agent. Try again shortly.",
+    "native.cloudAgent.unavailable": "This Cloud Agent is paused or currently unavailable.",
+    "native.cloudAgent.requestConflict": "This message conflicted with an earlier request. Send it again.",
+    "native.cloudAgent.workspaceChanged": "This Cloud workspace changed or is not running. Reopen the project and try again.",
+    "native.cloudAgent.serviceUnavailable": "Cloud Agent is currently unavailable on this service.",
+    "native.cloudAgent.conflict": "Cloud Agent could not accept this request right now."
+  },
+  "zh-Hans": {
+    "native.cloudAgent.modelUnconfigured": "该云端 Agent 尚未配置可用模型。",
+    "native.cloudAgent.projectNotReady": "该云端项目正在初始化，请稍后再试。",
+    "native.cloudAgent.unavailable": "该云端 Agent 已暂停或暂不可用。",
+    "native.cloudAgent.requestConflict": "该消息与先前的请求冲突，请重新发送。",
+    "native.cloudAgent.workspaceChanged": "云端工作区已变更或未运行，请重新打开项目后再试。",
+    "native.cloudAgent.serviceUnavailable": "当前服务暂未启用或不可用云端 Agent。",
+    "native.cloudAgent.conflict": "云端 Agent 暂时无法接受该请求，请查看诊断信息。"
+  },
+  "ja": {
+    "native.cloudAgent.modelUnconfigured": "この Cloud Agent にはまだモデルが設定されていません。",
+    "native.cloudAgent.projectNotReady": "このクラウドプロジェクトは準備中です。しばらくしてから再試行してください。",
+    "native.cloudAgent.unavailable": "この Cloud Agent は一時停止中か利用できません。",
+    "native.cloudAgent.requestConflict": "このメッセージは以前のリクエストと競合しました。もう一度送信してください。",
+    "native.cloudAgent.workspaceChanged": "クラウドワークスペースが変更されたか実行中ではありません。プロジェクトを開き直して再試行してください。",
+    "native.cloudAgent.serviceUnavailable": "このサービスでは現在 Cloud Agent を利用できません。",
+    "native.cloudAgent.conflict": "Cloud Agent は現在このリクエストを受け付けられませんでした。"
+  },
+  "ko": {
+    "native.cloudAgent.modelUnconfigured": "이 Cloud Agent에 아직 모델이 설정되지 않았습니다.",
+    "native.cloudAgent.projectNotReady": "이 클라우드 프로젝트는 아직 준비 중입니다. 잠시 후 다시 시도하세요.",
+    "native.cloudAgent.unavailable": "이 Cloud Agent는 일시 중지되었거나 현재 사용할 수 없습니다.",
+    "native.cloudAgent.requestConflict": "이 메시지가 이전 요청과 충돌했습니다. 다시 보내세요.",
+    "native.cloudAgent.workspaceChanged": "클라우드 워크스페이스가 변경되었거나 실행 중이 아닙니다. 프로젝트를 다시 연 후 시도하세요.",
+    "native.cloudAgent.serviceUnavailable": "이 서비스에서는 현재 Cloud Agent를 사용할 수 없습니다.",
+    "native.cloudAgent.conflict": "Cloud Agent가 현재 이 요청을 수락할 수 없습니다."
+  },
+  "es": {
+    "native.cloudAgent.modelUnconfigured": "Aún no hay ningún modelo configurado para este agente en la nube.",
+    "native.cloudAgent.projectNotReady": "Este proyecto en la nube todavía se está preparando. Inténtalo de nuevo en un momento.",
+    "native.cloudAgent.unavailable": "Este agente en la nube está pausado o no está disponible.",
+    "native.cloudAgent.requestConflict": "Este mensaje entró en conflicto con una solicitud anterior. Envíalo de nuevo.",
+    "native.cloudAgent.workspaceChanged": "Este espacio de trabajo en la nube cambió o no está en ejecución. Vuelve a abrir el proyecto e inténtalo de nuevo.",
+    "native.cloudAgent.serviceUnavailable": "El agente en la nube no está disponible en este servicio.",
+    "native.cloudAgent.conflict": "El agente en la nube no pudo aceptar esta solicitud ahora mismo."
+  },
+  "pt-BR": {
+    "native.cloudAgent.modelUnconfigured": "Nenhum modelo foi configurado para este agente na nuvem ainda.",
+    "native.cloudAgent.projectNotReady": "Este projeto na nuvem ainda está sendo preparado. Tente novamente em instantes.",
+    "native.cloudAgent.unavailable": "Este agente na nuvem está pausado ou indisponível no momento.",
+    "native.cloudAgent.requestConflict": "Esta mensagem entrou em conflito com uma solicitação anterior. Envie novamente.",
+    "native.cloudAgent.workspaceChanged": "Este espaço de trabalho na nuvem mudou ou não está em execução. Reabra o projeto e tente novamente.",
+    "native.cloudAgent.serviceUnavailable": "O agente na nuvem está indisponível neste serviço no momento.",
+    "native.cloudAgent.conflict": "O agente na nuvem não pôde aceitar esta solicitação agora."
+  },
+  "fr": {
+    "native.cloudAgent.modelUnconfigured": "Aucun modèle n’est encore configuré pour cet agent cloud.",
+    "native.cloudAgent.projectNotReady": "Ce projet cloud est encore en cours de préparation. Réessayez dans un instant.",
+    "native.cloudAgent.unavailable": "Cet agent cloud est en pause ou momentanément indisponible.",
+    "native.cloudAgent.requestConflict": "Ce message est en conflit avec une requête précédente. Renvoyez-le.",
+    "native.cloudAgent.workspaceChanged": "Cet espace de travail cloud a changé ou ne fonctionne pas. Rouvrez le projet et réessayez.",
+    "native.cloudAgent.serviceUnavailable": "L’agent cloud est actuellement indisponible sur ce service.",
+    "native.cloudAgent.conflict": "L’agent cloud n’a pas pu accepter cette requête pour le moment."
+  },
+  "de": {
+    "native.cloudAgent.modelUnconfigured": "Für diesen Cloud-Agent ist noch kein Modell konfiguriert.",
+    "native.cloudAgent.projectNotReady": "Dieses Cloud-Projekt wird noch vorbereitet. Bitte versuchen Sie es gleich erneut.",
+    "native.cloudAgent.unavailable": "Dieser Cloud-Agent ist pausiert oder derzeit nicht verfügbar.",
+    "native.cloudAgent.requestConflict": "Diese Nachricht steht im Konflikt mit einer früheren Anfrage. Bitte erneut senden.",
+    "native.cloudAgent.workspaceChanged": "Dieser Cloud-Arbeitsbereich hat sich geändert oder läuft nicht. Öffnen Sie das Projekt erneut und versuchen Sie es noch einmal.",
+    "native.cloudAgent.serviceUnavailable": "Der Cloud-Agent ist auf diesem Dienst derzeit nicht verfügbar.",
+    "native.cloudAgent.conflict": "Der Cloud-Agent konnte diese Anfrage gerade nicht annehmen."
+  }
+}"#;
 
 const CROSS_PLATFORM_MESSAGES: &str = r#"{
   "en": {

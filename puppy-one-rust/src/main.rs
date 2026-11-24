@@ -220,6 +220,7 @@ fn main() {
             capture::run_in_background();
         }
         features::cloud::account::install(!background, cx);
+        features::model_connections::install(features::cloud::account::broker(cx), cx);
         if !background {
             platform::app_icon::set_development_dock_icon(
                 app::windows::application_name(),

@@ -69,12 +69,43 @@ pub struct ModelConnections {
     /// Agent tool round trips that passed, by route; one in flight.
     verified: std::collections::BTreeMap<String, bool>,
     verify_rx: Option<(String, std::sync::mpsc::Receiver<Result<(), String>>)>,
+    /// Unified `po-agent` authority projection (`None` in standalone `with_loader` tests).
+    store: Option<Entity<super::store::ModelConnectionsStore>>,
+    catalogs: std::collections::HashMap<String, client::ConnectionCatalog>,
     wake: Wake,
 }
 impl EventEmitter<Saved> for ModelConnections {}
 impl ModelConnections {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        Self::with_loader(window, cx, client::load)
+        let store = super::store::global(cx);
+        let initial = store.read(cx).snapshot();
+        cx.observe(&store, |s: &mut Self, store, cx| {
+            let snap = store.read(cx).snapshot();
+            s.sync_from_store(&snap, cx);
+        })
+        .detach();
+        let mut view = Self::with_loader(window, cx, |_| std::sync::mpsc::sync_channel(1).1);
+        view.store = Some(store);
+        view.items = initial.connections.clone();
+        view.catalogs = initial.catalogs.clone();
+        view.loaded = true;
+        view.busy = false;
+        view
+    }
+    fn sync_from_store(
+        &mut self,
+        snap: &client::ModelConnectionSnapshot,
+        cx: &mut Context<Self>,
+    ) {
+        self.items = snap.connections.clone();
+        self.catalogs = snap.catalogs.clone();
+        self.loaded = true;
+        if let PageState::Detail(id) = &self.page
+            && !self.items.iter().any(|c| &c.id == id)
+        {
+            self.page = PageState::List;
+        }
+        cx.notify();
     }
     fn with_loader(
         window: &mut Window,
@@ -122,6 +153,8 @@ impl ModelConnections {
             catalog_rx: None,
             verified: Default::default(),
             verify_rx: None,
+            store: None,
+            catalogs: Default::default(),
             wake,
         }
     }
@@ -144,7 +177,16 @@ impl ModelConnections {
             .and_then(|(route, rx)| rx.try_recv().ok().map(|r| (route.clone(), r)))
         {
             self.verify_rx = None;
-            self.verified.insert(route, result.is_ok());
+            match result {
+                Ok(()) => {
+                    self.error = None;
+                    self.verified.insert(route, true);
+                }
+                Err(code) => {
+                    self.error = Some(code);
+                    self.verified.insert(route, false);
+                }
+            }
             cx.notify();
         }
         let Ok(result) = self.rx.try_recv() else {
@@ -161,7 +203,7 @@ impl ModelConnections {
                 match self.page.clone() {
                     PageState::Edit(id) => {
                         self.page = PageState::Detail(id.clone());
-                        self.read_catalog(id);
+                        self.read_catalog(id, cx);
                     }
                     PageState::Add(..) => self.page = PageState::List,
                     _ => {}
@@ -192,7 +234,7 @@ impl ModelConnections {
             PageState::Add(source, candidate) => {
                 self.load_form(None, *source, candidate.clone(), cx)
             }
-            PageState::Detail(id) => self.read_catalog(id.clone()),
+            PageState::Detail(id) => self.read_catalog(id.clone(), cx),
             _ => {}
         }
         self.page = page;
@@ -291,8 +333,10 @@ impl ModelConnections {
         })
     }
     fn reload(&mut self, cx: &mut Context<Self>) {
-        if !self.busy {
-            self.rx = client::load(self.wake.clone());
+        if !self.busy
+            && let Some(store) = &self.store
+        {
+            self.rx = client::load_with_service(store.read(cx).service(), self.wake.clone());
             self.busy = true;
             cx.notify();
         }
@@ -329,8 +373,12 @@ impl ModelConnections {
             };
             connection.manual_context_window = Some(context);
         }
+        let Some(store) = &self.store else {
+            return;
+        };
         self.error = None;
-        self.rx = client::save(connection, key, self.wake.clone());
+        self.rx =
+            client::save_with_service(store.read(cx).service(), connection, key, self.wake.clone());
         self.busy = true;
         cx.notify();
     }
@@ -566,14 +614,21 @@ impl ModelConnections {
         }
     }
     /// Read the service's model catalog for `id`.
-    fn read_catalog(&mut self, id: String) {
-        if let Some(connection) = self.items.iter().find(|c| c.id == id).cloned() {
-            self.catalog = None;
-            self.catalog_rx = Some(client::catalog(connection, self.wake.clone()));
+    fn read_catalog(&mut self, id: String, cx: &App) {
+        if let Some(store) = &self.store {
+            self.catalog_rx = Some(client::catalog_with_service(
+                store.read(cx).service(),
+                id,
+                self.wake.clone(),
+            ));
         }
     }
-    /// The models of the connection's catalog, once read.
+    /// The models of the connection's catalog, once read (including `Stale`
+    /// results retained after a transient refresh failure).
     fn listed_models(&self, item: &ModelConnection) -> Vec<client::CatalogModel> {
+        if let Some(cat) = self.catalogs.get(&item.id) {
+            return cat.models.clone();
+        }
         match &self.catalog {
             Some((id, Ok(models))) if *id == item.id => models.clone(),
             _ => vec![],
@@ -581,6 +636,15 @@ impl ModelConnections {
     }
     /// `catalog?.status ?? "unread"` of connection `id`.
     fn catalog_key(&self, id: &str) -> &'static str {
+        if let Some(cat) = self.catalogs.get(id) {
+            return match cat.status {
+                client::CatalogStatus::Idle => "unread",
+                client::CatalogStatus::Refreshing => "refreshing",
+                client::CatalogStatus::Ready => "ready",
+                client::CatalogStatus::Stale => "stale",
+                client::CatalogStatus::Failed => "failed",
+            };
+        }
         match &self.catalog {
             Some((shown, _)) if shown == id && self.catalog_rx.is_some() => "refreshing",
             Some((shown, Ok(_))) if shown == id => "ready",
@@ -590,6 +654,39 @@ impl ModelConnections {
     }
     /// `catalog.status` of the shown connection, when not ready.
     fn catalog_status(&self, item: &ModelConnection) -> Option<String> {
+        if let Some(cat) = self.catalogs.get(&item.id) {
+            return match cat.status {
+                client::CatalogStatus::Refreshing => {
+                    Some(tr("settings.modelConnections.status.refreshing").to_string())
+                }
+                client::CatalogStatus::Ready => None,
+                client::CatalogStatus::Stale => Some(match &cat.error_code {
+                    Some(code) => format!(
+                        "{} · {}",
+                        tr("settings.modelConnections.status.stale"),
+                        tf(
+                            "settings.modelConnections.error",
+                            &[("code", code.clone().into())]
+                        )
+                    ),
+                    None => tr("settings.modelConnections.status.stale").to_string(),
+                }),
+                client::CatalogStatus::Failed => Some(match &cat.error_code {
+                    Some(code) => format!(
+                        "{} · {}",
+                        tr("settings.modelConnections.status.failed"),
+                        tf(
+                            "settings.modelConnections.error",
+                            &[("code", code.clone().into())]
+                        )
+                    ),
+                    None => tr("settings.modelConnections.status.failed").to_string(),
+                }),
+                client::CatalogStatus::Idle => {
+                    Some(tr("settings.modelConnections.status.unread").to_string())
+                }
+            };
+        }
         if self.catalog_rx.is_some() {
             return Some(tr("settings.modelConnections.status.refreshing").to_string());
         }
@@ -617,7 +714,8 @@ impl ModelConnections {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let route = format!("{}/{}", item.id, model.id);
-        let label = tr(if self.verified.get(&route) == Some(&true) {
+        let verified = item.is_verified(&model.id) || self.verified.get(&route) == Some(&true);
+        let label = tr(if verified {
             "settings.modelConnections.verified"
         } else if model.tools == Some(true) {
             "settings.modelConnections.advertised"
@@ -630,8 +728,9 @@ impl ModelConnections {
             None => None,
         };
         let verifying = self.verify_rx.as_ref().is_some_and(|(r, _)| *r == route);
-        let mut connection = item.clone();
-        connection.model = model.id.clone();
+        let item_id = item.id.clone();
+        let model_id = model.id.clone();
+        let route_for_click = route.clone();
         h_flex()
             .w_full()
             .min_w_0()
@@ -676,10 +775,17 @@ impl ModelConnections {
                             || (item.driver == Driver::Unsloth && !item.server_tools_disabled),
                     )
                     .on_click(cx.listener(move |s, _, _, cx| {
-                        if s.verify_rx.is_none() {
+                        if s.verify_rx.is_none()
+                            && let Some(store) = &s.store
+                        {
                             s.verify_rx = Some((
-                                connection.route(),
-                                client::verify(connection.clone(), s.wake.clone()),
+                                route_for_click.clone(),
+                                client::verify_with_service(
+                                    store.read(cx).service(),
+                                    item_id.clone(),
+                                    model_id.clone(),
+                                    s.wake.clone(),
+                                ),
                             ));
                             cx.notify();
                         }
@@ -709,8 +815,8 @@ impl ModelConnections {
             .disabled(self.busy)
             .on_click(cx.listener(|s, _, _, cx| {
                 s.reload(cx);
-                if let PageState::Detail(id) = &s.page {
-                    s.read_catalog(id.clone());
+                if let PageState::Detail(id) = s.page.clone() {
+                    s.read_catalog(id, cx);
                 }
             }));
         let listed = self.listed_models(&item);
@@ -755,15 +861,18 @@ impl ModelConnections {
                                 .disabled(self.busy)
                                 .on_click(cx.listener(|s, _, _, cx| {
                                     if !s.busy {
-                                        if let PageState::Detail(id) = &s.page {
+                                        if let PageState::Detail(id) = s.page.clone()
+                                            && let Some(store) = &s.store
+                                        {
                                             let generation = s
                                                 .items
                                                 .iter()
-                                                .find(|c| &c.id == id)
+                                                .find(|c| c.id == id)
                                                 .map(|c| c.generation.clone())
                                                 .unwrap_or_default();
-                                            s.rx = client::remove(
-                                                id.clone(),
+                                            s.rx = client::remove_with_service(
+                                                store.read(cx).service(),
+                                                id,
                                                 generation,
                                                 s.wake.clone(),
                                             );

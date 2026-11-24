@@ -27,6 +27,8 @@ fn a_hosted_chat_with_an_unconfirmed_submission_cannot_close(cx: &mut TestAppCon
             self.paths.lock().unwrap().push(request.path.clone());
             let failure = |status, unknown| Error {
                 status,
+                code: None,
+                request_id: None,
                 unknown,
                 message: "scripted".into(),
             };
