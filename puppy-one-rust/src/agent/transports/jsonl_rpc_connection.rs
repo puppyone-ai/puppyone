@@ -163,8 +163,7 @@ pub fn spawn_managed_process(options: &ConnectionOptions) -> AgentResult<Process
                 ),
                 Err(error) => (None, None, Some(AgentError::from(error))),
             };
-            let released = exit_guard.borrow_mut().take();
-            drop(released);
+            *exit_guard.borrow_mut() = None;
             outcome
         }),
         kill: Rc::new(move |force| {
