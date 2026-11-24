@@ -490,8 +490,14 @@ impl WindowCloud {
         let _ = self.dialogs.update(cx, |d, cx| {
             d.open_for(key, owner, Self::render_dialog, Self::dismiss_dialog, cx)
         });
+        if key == DialogKey::CloudPublish {
+            self.publish.update(cx, |p, cx| p.set_watching(true, cx));
+        }
     }
     pub(super) fn close_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) -> bool {
+        if key == DialogKey::CloudPublish {
+            self.publish.update(cx, |p, cx| p.set_watching(false, cx));
+        }
         self.dialogs
             .update(cx, |d, cx| d.close(key, cx))
             .unwrap_or(false)

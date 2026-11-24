@@ -74,6 +74,16 @@ fn transfer_bytes(bytes: u64, per_second: bool) -> String {
     format!("{number}{space}{}{suffix}", names[unit])
 }
 
+/// How a run of this session ended, until the person has seen it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ending {
+    Published,
+    Failed,
+}
+/// `CLOUD_PUBLISH_COMPLETED_VISIBLE_MS`: long enough to notice after looking
+/// back at the window, short enough not to linger.
+pub const COMPLETED_VISIBLE: std::time::Duration = std::time::Duration::from_millis(8000);
+
 /// Builds the coordinator for an account (tests replace it).
 pub type Factory = Arc<
     dyn Fn(Arc<crate::cloud::auth::Broker>, crate::cloud::auth::model::Binding) -> Coordinator
@@ -133,6 +143,13 @@ pub struct CloudPublish {
     pub confirming_discard: bool,
     /// A run finished with this Project during this session.
     pub published: Option<String>,
+    /// The publication dialog shows the run or its ending (`surfaceOpen`).
+    pub watching: bool,
+    /// How the last run ended, until seen (`outcome !== seen`): seeing it in
+    /// the dialog, clicking the Header or, for a success, a short delay
+    /// retires it.
+    pub ending: Option<Ending>,
+    ending_count: u64,
     epoch: u64,
 }
 impl Default for CloudPublish {
@@ -150,6 +167,9 @@ impl Default for CloudPublish {
             reading: false,
             confirming_discard: false,
             published: None,
+            watching: false,
+            ending: None,
+            ending_count: 0,
             epoch: 0,
         }
     }
@@ -179,6 +199,7 @@ impl CloudPublish {
         self.confirming_discard = false;
         // A result belongs to the checkout and account it was for.
         self.published = None;
+        self.ending = None;
         if let Some(root) = self.root.clone() {
             self.read_state(cx);
             self.read_head(root, cx);
@@ -445,7 +466,11 @@ impl CloudPublish {
                             Err(outcome) => {
                                 s.running = None;
                                 s.transfer = None;
+                                let published = outcome.ok && outcome.record.is_none();
                                 s.absorb(outcome);
+                                if s.ended(published) {
+                                    s.retire_success_later(cx);
+                                }
                                 cx.notify();
                                 true
                             }
@@ -503,7 +528,67 @@ impl CloudPublish {
             _ => Action::RetryPush,
         }
     }
-    /// What the Header states about this checkout's publication.
+    /// A run of this session ended: the Header states it unless the dialog
+    /// already shows it. `true` when it is a success to retire after
+    /// [`COMPLETED_VISIBLE`].
+    pub fn ended(&mut self, published: bool) -> bool {
+        self.ending_count += 1;
+        self.ending = (!self.watching).then_some(if published {
+            Ending::Published
+        } else {
+            Ending::Failed
+        });
+        self.ending == Some(Ending::Published)
+    }
+    fn retire_success_later(&self, cx: &mut Context<Self>) {
+        let count = self.ending_count;
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(COMPLETED_VISIBLE).await;
+            let _ = this.update(cx, |s, cx| {
+                if s.ending_count == count && s.ending == Some(Ending::Published) {
+                    s.ending = None;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
+    /// The dialog that shows the run opened or closed; showing an ending
+    /// there is seeing it.
+    pub fn set_watching(&mut self, watching: bool, cx: &mut Context<Self>) {
+        if watching {
+            self.ending = None;
+        }
+        if self.watching != watching {
+            self.watching = watching;
+            cx.notify();
+        }
+    }
+    /// The person looked at the Header's ending (`acknowledge`).
+    pub fn acknowledge(&mut self) {
+        self.ending = None;
+    }
+    /// `useCloudPublishHeaderStatus`: what the Header shows. A running send
+    /// always, wherever the person looks; otherwise nothing while the dialog
+    /// shows the run; a fresh ending until it is seen; then the unfinished
+    /// publication it left, for as long as it stays unfinished.
+    pub fn header_mark(&self) -> Option<HeaderStatus> {
+        if self.running.is_some() {
+            return Some(HeaderStatus::Running);
+        }
+        if self.watching {
+            return None;
+        }
+        match self.ending {
+            Some(Ending::Published) => Some(HeaderStatus::Completed),
+            Some(Ending::Failed) => Some(HeaderStatus::Attention),
+            None => self
+                .header_status()
+                .filter(|s| *s != HeaderStatus::Completed),
+        }
+    }
+    /// Where this checkout's publication stands: running, its saved
+    /// unfinished state, or published this session.
     pub fn header_status(&self) -> Option<HeaderStatus> {
         use crate::workspace::cloud::publish::{Action as A, Cleanup};
         if self.running.is_some() {
@@ -706,11 +791,6 @@ mod header_tests {
     use crate::workspace::cloud::publish::{Action as A, Cleanup, Push};
     use core::prelude::v1::test;
 
-    /// `CloudPublishHeaderStatus`: a run in flight spins; a saved unfinished
-    /// publication (after a restart too) is a warning that Retry continues,
-    /// and turns back into the spinner the moment a retry runs; an
-    /// unfinished discard is a discard, never a send to retry; a stop with
-    /// no retry asks for attention; a finished one is announced as done.
     /// `says only the share before Git has measured bytes, and drops the
     /// rate once done`: decimal units in the locale's short names.
     #[test]
@@ -740,6 +820,77 @@ mod header_tests {
         );
     }
 
+    /// `keeps spinning while the dialog shows the run, but leaves its ending
+    /// to the dialog`: a running send is stated wherever the person looks;
+    /// its ending, shown in the open dialog, is not stated again once the
+    /// dialog closes.
+    #[test]
+    fn a_watched_run_spins_but_its_ending_is_left_to_the_dialog() {
+        let mut publish = CloudPublish {
+            watching: true,
+            running: Some(Stage::Uploading),
+            ..Default::default()
+        };
+        assert_eq!(publish.header_mark(), Some(HeaderStatus::Running));
+        publish.running = None;
+        publish.outcome = Some(saved(
+            state(Push::Failed, Cleanup::None, &[A::RetryPush]),
+            None,
+        ));
+        assert!(!publish.ended(false));
+        assert_eq!(publish.header_mark(), None, "the dialog states it");
+        publish.watching = false;
+        assert_eq!(
+            publish.header_mark(),
+            Some(HeaderStatus::Paused),
+            "only what it left behind"
+        );
+    }
+
+    /// `states a fresh failure first, then the paused task it leaves
+    /// behind`: an unwatched failure asks for attention until looked at,
+    /// then the unfinished publication it left is stated.
+    #[test]
+    fn a_fresh_failure_comes_first_then_the_paused_task() {
+        let mut publish = CloudPublish {
+            outcome: Some(saved(
+                state(Push::Failed, Cleanup::None, &[A::RetryPush]),
+                None,
+            )),
+            ..Default::default()
+        };
+        assert!(!publish.ended(false));
+        assert_eq!(publish.header_mark(), Some(HeaderStatus::Attention));
+        publish.acknowledge();
+        assert_eq!(publish.header_mark(), Some(HeaderStatus::Paused));
+    }
+
+    /// `announces an unwatched success briefly`: done is stated for
+    /// [`COMPLETED_VISIBLE`], then nothing.
+    #[gpui::test]
+    fn an_unwatched_success_is_announced_briefly(cx: &mut gpui::TestAppContext) {
+        let publish = cx.new(|_| CloudPublish::default());
+        publish.update(cx, |p, cx| {
+            assert!(p.ended(true));
+            p.retire_success_later(cx);
+        });
+        let mark = |cx: &mut gpui::TestAppContext| publish.read_with(cx, |p, _| p.header_mark());
+        assert_eq!(mark(cx), Some(HeaderStatus::Completed));
+        cx.executor()
+            .advance_clock(COMPLETED_VISIBLE - std::time::Duration::from_millis(1));
+        cx.run_until_parked();
+        assert_eq!(mark(cx), Some(HeaderStatus::Completed));
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(1));
+        cx.run_until_parked();
+        assert_eq!(mark(cx), None);
+    }
+
+    /// `CloudPublishHeaderStatus`: a run in flight spins; a saved unfinished
+    /// publication (after a restart too) is a warning that Retry continues,
+    /// and turns back into the spinner the moment a retry runs; an
+    /// unfinished discard is a discard, never a send to retry; a stop with
+    /// no retry asks for attention; a finished one is announced as done.
     #[test]
     fn the_header_states_the_publication_where_it_stands() {
         let mut publish = CloudPublish::default();

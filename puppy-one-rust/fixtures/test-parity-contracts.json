@@ -52706,6 +52706,52 @@
           "test": "cloud::publication::tests::coordinator_tests::another_process_holding_the_lease_makes_a_publication_fail_fast"
         }
       ]
+    },
+    {
+      "id": "cloud-publish-header-watch-awareness",
+      "acceptance": "The Header knows whether the publication dialog shows the run (opening the dialog watches it, closing it stops): a running send is stated wherever the person looks; while the dialog is open the Header states no ending, and an ending shown there is seen, so closing the dialog does not state it again. An unwatched failure is stated first as needing attention until the person clicks the Header, then the unfinished publication it left is stated (Paused / Discard paused). An unwatched success is announced as done for 8 s (or until clicked or the dialog is opened), then nothing.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
+          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
+          "cases": [
+            {
+              "index": 2,
+              "name": "Cloud publish Header status > keeps spinning while the dialog shows the run, but leaves its ending to the dialog"
+            },
+            {
+              "index": 7,
+              "name": "Cloud publish Header status > states a fresh failure first, then the paused task it leaves behind"
+            },
+            {
+              "index": 8,
+              "name": "Cloud publish Header status > announces an unwatched success briefly"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::header_tests::a_watched_run_spins_but_its_ending_is_left_to_the_dialog"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::header_tests::a_fresh_failure_comes_first_then_the_paused_task"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::publish::header_tests::an_unwatched_success_is_announced_briefly"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::cloud_opening::an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -60322,32 +60368,6 @@
             {
               "index": 4,
               "name": "Cloud Agent view identity > isolates drafts and visibility on generation change"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-publish-header-watch-awareness",
-      "kind": "gap",
-      "reason": "TS's Header knows whether the dialog is watching the run: it leaves a watched run's ending to the dialog, shows a fresh unwatched failure before the paused task it leaves, and announces an unwatched success only briefly. The native Header states the publication the same way whether or not the dialog shows it, and a finished publication stays announced until the person clicks it or the checkout or account changes.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/first-publication/state-projection-and-ui.md",
-      "typescript": [
-        {
-          "path": "tests/component/cloud/publish/cloudPublishHeaderStatus.test.tsx",
-          "sha256": "8eb0131281cb47872d6035409c0f6ecda981f4dc223b4d0998a2702f725a24a4",
-          "cases": [
-            {
-              "index": 2,
-              "name": "Cloud publish Header status > keeps spinning while the dialog shows the run, but leaves its ending to the dialog"
-            },
-            {
-              "index": 7,
-              "name": "Cloud publish Header status > states a fresh failure first, then the paused task it leaves behind"
-            },
-            {
-              "index": 8,
-              "name": "Cloud publish Header status > announces an unwatched success briefly"
             }
           ]
         }

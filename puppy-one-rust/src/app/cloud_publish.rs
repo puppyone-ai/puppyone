@@ -789,7 +789,7 @@ impl WindowCloud {
     /// `CloudPublishHeaderStatus`: beside the location, while a publication
     /// runs, after it finished, or when it stopped; it reopens the same view.
     pub(super) fn publish_header_mark(&self, cx: &App) -> Option<AnyElement> {
-        let status = self.publish.read(cx).header_status()?;
+        let status = self.publish.read(cx).header_mark()?;
         let t = cx.palette();
         let (icon, label) = match status {
             HeaderStatus::Running => (
@@ -839,12 +839,10 @@ impl WindowCloud {
             crate::ui::components::IconButton::new("publish-header-status", icon)
                 .label(description)
                 .on_click(self.listener(move |s, _, w, cx| {
-                    if status == HeaderStatus::Completed {
-                        s.publish.update(cx, |p, cx| {
-                            p.published = None;
-                            cx.notify();
-                        });
-                    }
+                    s.publish.update(cx, |p, cx| {
+                        p.acknowledge();
+                        cx.notify();
+                    });
                     // The same publication, shown again.
                     s.put_in_cloud(w, cx);
                 }))
