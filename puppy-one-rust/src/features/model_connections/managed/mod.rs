@@ -18,9 +18,11 @@ mod tests;
 mod wallet;
 
 pub use wallet::{
-    Balance, Catalog, Usage, checkout_url, money, parse_balance, parse_catalog, parse_usage,
+    Balance, Catalog, ErrorCode, Reason, Usage, checkout_url, money, parse_balance, parse_catalog,
+    parse_usage,
 };
 
+use crate::agent::model_connections::ManagedComputeSnapshot;
 use crate::cloud::auth::{Broker, model::ApiRequest};
 use futures_util::future::{Either, select};
 use gpui::*;
@@ -41,42 +43,6 @@ pub const DEADLINE: Duration = Duration::from_secs(30);
 const CATALOG_TTL: Duration = Duration::from_secs(60);
 /// Without `force`, the wallet is read at most this often.
 const REFRESH_INTERVAL: Duration = Duration::from_secs(15);
-
-/// `managed.reason`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Reason {
-    SignInRequired,
-    Loading,
-    GatewayUnavailable,
-    Ready,
-    InsufficientCredit,
-}
-impl Reason {
-    pub fn key(self) -> &'static str {
-        match self {
-            Self::SignInRequired => "sign-in-required",
-            Self::Loading => "loading",
-            Self::GatewayUnavailable => "gateway-unavailable",
-            Self::Ready => "ready",
-            Self::InsufficientCredit => "insufficient-credit",
-        }
-    }
-}
-
-/// `managed.errorCode`: why the last refresh failed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ErrorCode {
-    GatewayUnavailable,
-    Timeout,
-}
-impl ErrorCode {
-    pub fn key(self) -> &'static str {
-        match self {
-            Self::GatewayUnavailable => "GATEWAY_UNAVAILABLE",
-            Self::Timeout => "TIMEOUT",
-        }
-    }
-}
 
 /// A request the wallet did not answer usably.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -212,25 +178,22 @@ pub struct ManagedCompute {
     pub checkout_failed: bool,
     /// The last browser sign-in could not start (`AUTHENTICATION_FAILED`).
     pub sign_in_failed: bool,
+    /// Production authority backing this view projection; `None` in standalone
+    /// scripted-hook unit tests.
+    backing: Option<Entity<super::store::ModelConnectionsStore>>,
     _account: Option<Subscription>,
 }
 
 struct Service(Entity<ManagedCompute>);
 impl Global for Service {}
-/// The app's compute wallet, following the account.
+/// The app's compute wallet, projected directly from [`super::store::ModelConnectionsStore`]
+/// so Settings, Chat and `AgentHost` share one wallet state and never duplicate requests.
 pub fn global(cx: &mut App) -> Entity<ManagedCompute> {
     if let Some(service) = cx.try_global::<Service>() {
         return service.0.clone();
     }
-    let entity = cx.new(|cx| {
-        let mut compute = ManagedCompute::new(Hooks::app());
-        compute._account = crate::features::cloud::account::account(cx).map(|account| {
-            cx.observe(&account, |c: &mut ManagedCompute, _, cx| {
-                c.refresh(false, cx)
-            })
-        });
-        compute
-    });
+    let store = super::store::global(cx);
+    let entity = cx.new(|cx| ManagedCompute::from_store(store, cx));
     cx.set_global(Service(entity.clone()));
     entity
 }
@@ -244,6 +207,38 @@ pub(crate) fn install(hooks: Hooks, cx: &mut App) -> Entity<ManagedCompute> {
 }
 
 impl ManagedCompute {
+    fn from_store(store: Entity<super::store::ModelConnectionsStore>, cx: &mut Context<Self>) -> Self {
+        let mut compute = Self::new(Hooks::app());
+        compute.sync_from_snapshot(&store.read(cx).snapshot().managed);
+        compute._account = Some(cx.observe(&store, |c: &mut ManagedCompute, store, cx| {
+            c.sync_from_snapshot(&store.read(cx).snapshot().managed);
+            cx.notify();
+        }));
+        compute.backing = Some(store);
+        compute
+    }
+
+    fn sync_from_snapshot(&mut self, snap: &ManagedComputeSnapshot) {
+        let next_session = if snap.signed_in {
+            Some(Session {
+                key: snap.session_key.clone().unwrap_or_default(),
+                user: String::new(),
+            })
+        } else {
+            None
+        };
+        if next_session != self.session {
+            self.session = next_session;
+            self.sign_in_failed = false;
+        }
+        self.catalog = snap.catalog.clone();
+        self.balance = snap.balance;
+        self.error = snap.error_code;
+        self.pending = snap.pending;
+        self.last_usage = snap.last_usage.clone();
+        self.checkout_failed = snap.checkout_failed;
+    }
+
     pub fn new(hooks: Hooks) -> Self {
         Self {
             hooks,
@@ -261,6 +256,7 @@ impl ManagedCompute {
             receipt_pending: false,
             checkout_failed: false,
             sign_in_failed: false,
+            backing: None,
             _account: None,
         }
     }
@@ -320,6 +316,10 @@ impl ManagedCompute {
 
     /// Read the directory and the wallet; at most every 15 s unless forced.
     pub fn refresh(&mut self, force: bool, cx: &mut Context<Self>) {
+        if let Some(store) = &self.backing {
+            store.read(cx).refresh_managed(force);
+            return;
+        }
         let (session, gateway) = (self.hooks.connect)(cx);
         if self.adopt(session) {
             cx.notify();
@@ -509,6 +509,12 @@ impl ManagedCompute {
     /// Top up with `pack`: the checkout opens in the system browser; the
     /// balance changes only when the service says so.
     pub fn checkout(&mut self, pack: String, cx: &mut Context<Self>) {
+        if let Some(store) = &self.backing {
+            store.read(cx).service().checkout(pack, |url| {
+                let _ = crate::platform::desktop::open_url(&url);
+            });
+            return;
+        }
         let (Some(_), Some(gateway)) = (self.hooks.connect)(cx) else {
             return;
         };

@@ -435,7 +435,7 @@ impl Homepage {
                 if desktop {
                     let choice = SandboxSettings {
                         desktop: Some(true),
-                        screen_stream: None,
+                        ..Default::default()
                     };
                     client
                         .update_project_sandbox(&project.id, &choice)

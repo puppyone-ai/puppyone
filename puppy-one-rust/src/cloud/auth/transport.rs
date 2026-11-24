@@ -42,7 +42,10 @@ impl Cancellation {
         }
         Ok(())
     }
-    pub(super) fn cancelled(
+    pub fn is_cancelled(&self) -> bool {
+        self.check().is_err()
+    }
+    pub fn cancelled(
         &self,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
@@ -212,8 +215,9 @@ fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
     .find_map(|pointer| value.pointer(pointer).and_then(serde_json::Value::as_str));
     let reason = raw_code.and_then(crate::workspace::cloud::failure::allowlisted);
     if status >= 500 || matches!(status, 408 | 429) || reason.is_some() {
-        let reason =
-            reason.or_else(|| raw_code.and_then(crate::workspace::cloud::failure::workbench_code));
+        let reason = reason
+            .or_else(|| raw_code.and_then(crate::workspace::cloud::failure::workbench_code))
+            .or_else(|| raw_code.and_then(crate::workspace::cloud::failure::agent_code));
         return Error::Response(status, reason, Default::default());
     }
     let code = value
@@ -233,10 +237,36 @@ fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
             {
                 return Error::Response(status, Some(reason), Default::default());
             }
+            if let Some(reason) = raw_code
+                .and_then(crate::workspace::cloud::failure::agent_code)
+                .or_else(|| (status == 409).then(|| legacy_agent_conflict(value)).flatten())
+            {
+                return Error::Response(status, Some(reason), Default::default());
+            }
             return Error::Http(status);
         }
     };
     Error::Service(status, code)
+}
+
+/// Fixed legacy 409 strings from `POST /agents/runs` before structured
+/// `{"code": "agent_*"}` responses rolled out everywhere. Only fixed
+/// allowlisted reason codes survive; free-form server prose never does.
+fn legacy_agent_conflict(value: &serde_json::Value) -> Option<&'static str> {
+    ["/detail", "/message", "/detail/message", "/error/message"]
+        .iter()
+        .filter_map(|pointer| value.pointer(pointer).and_then(serde_json::Value::as_str))
+        .find_map(|message| match message.trim().to_ascii_lowercase().as_str() {
+            "configure an agent model before submitting" => Some("agent_model_unconfigured"),
+            "agent is paused or unavailable" => Some("agent_unavailable"),
+            "request identity was reused with different input" => Some("agent_request_conflict"),
+            "native agent git requires an unrestricted project-root view" => {
+                Some("agent_scope_not_supported")
+            }
+            "agent has an invalid repository path" => Some("agent_repository_path_invalid"),
+            "agent configuration changed during execution" => Some("agent_configuration_changed"),
+            _ => None,
+        })
 }
 
 /// The managed inference service's reviewed refusal codes
@@ -346,5 +376,56 @@ mod refusal_tests {
         assert_eq!(response_error(404, &other), Error::Http(404));
         let wrong_status = serde_json::json!({"message": "Billing is not enabled"});
         assert_ne!(response_error(500, &wrong_status), disabled);
+    }
+
+    #[test]
+    fn cloud_agent_refusals_keep_only_allowlisted_codes() {
+        for (status, body, expected) in [
+            (
+                409,
+                serde_json::json!({"detail": {"code": "agent_session_busy"}}),
+                "agent_session_busy",
+            ),
+            (
+                409,
+                serde_json::json!({"detail": {"code": "project_agent_not_ready"}}),
+                "project_agent_not_ready",
+            ),
+            (
+                409,
+                serde_json::json!({"detail": {"code": "interactive_workspace_required"}}),
+                "interactive_workspace_required",
+            ),
+            (
+                409,
+                serde_json::json!({"detail": "Configure an Agent model before submitting"}),
+                "agent_model_unconfigured",
+            ),
+            (
+                409,
+                serde_json::json!({"detail": "Agent is paused or unavailable"}),
+                "agent_unavailable",
+            ),
+            (
+                409,
+                serde_json::json!({"detail": "Request identity was reused with different input"}),
+                "agent_request_conflict",
+            ),
+        ] {
+            assert_eq!(
+                response_error(status, &body),
+                Error::Response(status, Some(expected), Default::default())
+            );
+        }
+        assert_eq!(
+            response_error(
+                503,
+                &serde_json::json!({"detail": {"code": "managed_agent_inference_disabled"}})
+            ),
+            Error::Response(503, Some("managed_agent_inference_disabled"), Default::default())
+        );
+        // Arbitrary unreviewed prose never survives into Error::Response.
+        let unreviewed = serde_json::json!({"detail": "Arbitrary database text"});
+        assert_eq!(response_error(409, &unreviewed), Error::Http(409));
     }
 }

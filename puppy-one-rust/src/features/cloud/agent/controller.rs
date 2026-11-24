@@ -204,12 +204,39 @@ struct CoreState {
     error: Option<String>,
     /// The failed request's HTTP status (`error.status`).
     error_status: Option<u16>,
+    /// Allowlisted server reason code for the failed request.
+    error_code: Option<&'static str>,
+    /// Server `X-Request-Id` for the failed request, if provided.
+    error_request_id: Option<String>,
     reconnecting: bool,
     /// Selection epoch: a new chat or session drops late results.
     revision: u64,
     published: HashSet<String>,
     decisions: HashMap<String, (String, bool)>,
     changed: u64,
+}
+impl CoreState {
+    fn clear_error(&mut self) {
+        self.error = None;
+        self.error_status = None;
+        self.error_code = None;
+        self.error_request_id = None;
+    }
+    fn set_error(&mut self, error: &crate::workspace::cloud::agent::Error) {
+        self.error = Some(error.message.clone());
+        self.error_status = error.status;
+        self.error_code = error.code;
+        self.error_request_id = error.request_id.clone();
+        crate::platform::diagnostics::warn(
+            "[cloud-agent] request failed",
+            serde_json::json!({
+                "status": error.status,
+                "code": error.code,
+                "request_id": error.request_id,
+                "unknown": error.unknown,
+            }),
+        );
+    }
 }
 /// One tab's controller, shared with its command and observation threads.
 struct Core {
@@ -296,7 +323,7 @@ impl Core {
             s.saved.session_id = Some(run.session_id.clone());
             s.saved.agent_id = Some(run.agent_id.clone());
             s.saved.pending = None;
-            s.error = None;
+            s.clear_error();
             Self::accept(s, run);
             confirmed = true;
         });
@@ -311,7 +338,7 @@ impl Core {
         let revision = self.revision();
         self.patch(|s| {
             s.loading = true;
-            s.error = None;
+            s.clear_error();
         });
         let result = (|| -> Result<(), crate::workspace::cloud::agent::Error> {
             let pending = self.state.lock().unwrap().saved.pending.clone();
@@ -350,8 +377,7 @@ impl Core {
         self.patch(|s| {
             if s.revision == revision {
                 if let Err(e) = result {
-                    s.error_status = e.status;
-                    s.error = Some(e.message);
+                    s.set_error(&e);
                 }
                 s.loading = false;
             }
@@ -383,8 +409,8 @@ impl Core {
             if let Some(p) = &pending
                 && p.prompt != prompt
             {
+                s.clear_error();
                 s.error = Some("Confirm the previous message before sending another.".into());
-                s.error_status = None;
                 s.changed += 1;
                 drop(s);
                 self.wake.notify();
@@ -398,7 +424,7 @@ impl Core {
             });
             s.saved.pending = Some(input.clone());
             s.submitting = true;
-            s.error = None;
+            s.clear_error();
             s.changed += 1;
             (input, pending, s.revision)
         };
@@ -424,8 +450,7 @@ impl Core {
                         if error.refused() {
                             s.saved.pending = None;
                         }
-                        s.error = Some(error.message.clone());
-                        s.error_status = error.status;
+                        s.set_error(&error);
                     }
                 });
                 self.save();
@@ -445,17 +470,14 @@ impl Core {
         let revision = self.revision();
         self.patch(|s| {
             s.resolving = Some(id);
-            s.error = None;
+            s.clear_error();
         });
         let result = action(&self.hub.client).and_then(|run| self.hub.client.snapshot(&run.id));
         self.patch(|s| {
             if s.revision == revision {
                 match result {
                     Ok(run) => Self::accept(s, run),
-                    Err(e) => {
-                        s.error_status = e.status;
-                        s.error = Some(e.message);
-                    }
+                    Err(e) => s.set_error(&e),
                 }
                 s.resolving = None;
             }
@@ -541,6 +563,8 @@ impl Core {
                             Some(reset) => serde_json::from_value::<Run>(reset.data.clone())
                                 .map_err(|_| crate::workspace::cloud::agent::Error {
                                     status: None,
+                                    code: None,
+                                    request_id: None,
                                     unknown: false,
                                     message: "Cloud Agent returned an invalid reset.".into(),
                                 })?,
@@ -549,6 +573,8 @@ impl Core {
                     if next.id != run.id || next.project_id != self.hub.client.project {
                         return Err(crate::workspace::cloud::agent::Error {
                             status: None,
+                            code: None,
+                            request_id: None,
                             unknown: false,
                             message: "Cloud Agent event target changed.".into(),
                         });
@@ -574,8 +600,7 @@ impl Core {
                     }
                     if error.terminal() {
                         self.patch(|s| {
-                            s.error = Some(error.message.clone());
-                            s.error_status = error.status;
+                            s.set_error(&error);
                             s.reconnecting = false;
                         });
                         break;
@@ -603,6 +628,8 @@ pub struct CloudAgentState {
     pub resolving: Option<String>,
     pub error: Option<String>,
     pub error_status: Option<u16>,
+    pub error_code: Option<&'static str>,
+    pub error_request_id: Option<String>,
     pub reconnecting: bool,
 }
 
@@ -698,6 +725,8 @@ impl CloudAgentController {
             resolving: s.resolving.clone(),
             error: s.error.clone(),
             error_status: s.error_status,
+            error_code: s.error_code,
+            error_request_id: s.error_request_id.clone(),
             reconnecting: s.reconnecting,
         }
     }

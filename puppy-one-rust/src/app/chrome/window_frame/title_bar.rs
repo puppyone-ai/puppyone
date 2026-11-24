@@ -2,10 +2,15 @@
 //!
 //! - macOS (`WindowControlsSide::Leading`): preserves the exact traffic-light
 //!   leading inset and unchanged layout.
-//! - Windows / Linux (`WindowControlsSide::Trailing`): places the in-window
-//!   menu bar on the leading edge, tags the drag strip with
-//!   `WindowControlArea::Drag` + right-click `show_window_menu`, and mounts
-//!   trailing caption buttons (hidden automatically under Linux SSD).
+//! - Windows (`WindowControlsSide::Trailing`, `native_nonclient_window_controls`):
+//!   places the compact application menu on the leading edge, lets GPUI's
+//!   `WindowControlArea::Drag` (`HTCAPTION`) flow natively to `DefWindowProcW`
+//!   for smooth dragging, Aero Snap, double-click maximize/restore toggling,
+//!   and right-click Win32 system menus, and mounts flush 46×40px trailing
+//!   caption buttons (hidden automatically in fullscreen).
+//! - Linux CSD (`WindowControlsSide::Trailing`, `!native_nonclient_window_controls`):
+//!   handles drag/double-click/right-click window menu explicitly and hides
+//!   trailing caption buttons automatically under server-side decorations.
 use super::{app_menu, window_controls};
 use crate::{
     platform::conventions::{Conventions, WindowControlsSide},
@@ -29,7 +34,7 @@ pub fn render_frame(
         WindowControlsSide::Leading => {
             metric::TITLEBAR_NATIVE_CONTROLS_INSET + metric::TITLEBAR_CONTENT_START
         }
-        WindowControlsSide::Trailing => metric::TITLEBAR_CONTENT_START,
+        WindowControlsSide::Trailing => metric::TITLEBAR_TRAILING_CONTROLS_LEADING_START,
     };
     let in_window_menu = app_menu::render(cx);
     let trailing_controls = window_controls::render(window, cx);
@@ -45,15 +50,21 @@ pub fn render_frame(
         })
         .h_full()
         .min_w(px(metric::TITLEBAR_DRAG_MIN_WIDTH))
-        .on_mouse_down(MouseButton::Left, |e, window, _| {
-            if e.click_count == 2 {
-                window.zoom_window();
-            } else {
-                window.start_window_move();
-            }
-        })
-        .on_mouse_down(MouseButton::Right, |e, window, _| {
-            window.show_window_menu(e.position);
+        // On Windows, leaving `WindowControlArea::Drag` (`HTCAPTION`) free of
+        // mouse-down handlers lets `DefWindowProcW` handle native window drag,
+        // Aero Snap, double-click maximize/restore toggle, and right-click
+        // system window menus.
+        .when(!conventions.native_nonclient_window_controls, |d| {
+            d.on_mouse_down(MouseButton::Left, |e, window, _| {
+                if e.click_count == 2 {
+                    window.zoom_window();
+                } else {
+                    window.start_window_move();
+                }
+            })
+            .on_mouse_down(MouseButton::Right, |e, window, _| {
+                window.show_window_menu(e.position);
+            })
         });
 
     div()
@@ -81,7 +92,7 @@ pub fn render_frame(
                 .h_full()
                 .gap(px(2.))
                 .pr(px(if has_trailing_controls {
-                    metric::TITLEBAR_CONTENT_END / 2.
+                    metric::TITLEBAR_CAPTION_ACTIONS_GAP
                 } else {
                     metric::TITLEBAR_CONTENT_END
                 }))

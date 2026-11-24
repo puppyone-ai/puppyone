@@ -154,6 +154,35 @@ pub fn chat_context(cwd: &std::path::Path, messages: &[Value]) -> Vec<Value> {
                         .collect();
                     entry["tool_calls"] = Value::Array(calls);
                 }
+                // Replay reasoning context alongside assistant messages (and
+                // multi-turn tool calls) per managed_ai `Message` schema.
+                if let Some(details) = message
+                    .get("reasoning_details")
+                    .and_then(Value::as_array)
+                    .filter(|d| !d.is_empty())
+                {
+                    entry["reasoning_details"] = Value::Array(details.clone());
+                } else {
+                    let reasoning = message
+                        .get("reasoning_content")
+                        .and_then(Value::as_str)
+                        .filter(|r| !r.is_empty())
+                        .map(str::to_owned)
+                        .or_else(|| {
+                            let joined = message["content"]
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                                .filter(|part| part["type"] == "thinking")
+                                .filter_map(|part| part["thinking"].as_str())
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            (!joined.is_empty()).then_some(joined)
+                        });
+                    if let Some(reasoning) = reasoning {
+                        entry["reasoning_content"] = Value::from(reasoning);
+                    }
+                }
                 context.push(entry);
             }
             Some("toolResult") => {
@@ -303,6 +332,16 @@ async fn infer(
             message["usage"] = usage(&Completion::default());
         }
         Some(Ok(completion)) => {
+            if !completion.reasoning.is_empty() {
+                message["reasoning_content"] = Value::from(completion.reasoning.clone());
+            }
+            if let Some(details) = completion
+                .reasoning_details
+                .as_ref()
+                .filter(|d| !d.is_empty())
+            {
+                message["reasoning_details"] = Value::Array(details.clone());
+            }
             for call in &completion.calls {
                 let arguments = call["function"]["arguments"]
                     .as_str()

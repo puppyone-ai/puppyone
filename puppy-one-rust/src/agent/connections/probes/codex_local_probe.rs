@@ -260,6 +260,7 @@ pub async fn inspect_codex_protocol(request: InspectRequest) -> AgentResult<Valu
         max_stderr_bytes: Some(16 * 1024),
         max_pending: Some(4),
         force_kill_timeout_ms: Some(250),
+        max_leading_non_json_lines: None,
         spawner: None,
         bootstrap: None,
     })?;

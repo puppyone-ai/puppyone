@@ -119,6 +119,23 @@ pub struct ModelConnection {
     /// through the signed-in account, never a stored credential.
     #[serde(default, skip_serializing)]
     pub managed: bool,
+    /// Security generation: rotates only when endpoint, driver, auth,
+    /// server_tools_disabled, manual overrides or credentials change, so
+    /// renaming a connection or changing its default model does not revoke
+    /// active session leases.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub security_generation: Option<String>,
+    /// Verified model IDs mapped to the `security_generation` at which the
+    /// synthetic tool round-trip succeeded.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub verifications: std::collections::BTreeMap<String, String>,
+    /// Reported vision capability from the probed catalog; never stored.
+    #[serde(skip)]
+    pub images: Option<bool>,
+    /// Set in memory when upgraded from pre-driver JSON so legacy routes stay
+    /// usable until the user edits the connection.
+    #[serde(skip)]
+    pub legacy_migrated: bool,
 }
 /// `isLoopbackHost`.
 pub fn is_loopback_host(host: &str) -> bool {
@@ -196,6 +213,24 @@ impl ModelConnection {
     pub fn route(&self) -> String {
         format!("{}/{}", self.id, self.model)
     }
+    /// The security generation governing active session leases and durable
+    /// model verifications (falls back to `generation` for legacy entries).
+    pub fn security_gen(&self) -> &str {
+        self.security_generation
+            .as_deref()
+            .filter(|g| !g.is_empty())
+            .unwrap_or(&self.generation)
+    }
+    /// Whether `model_id` passed tool round-trip verification at this
+    /// connection's current security generation.
+    pub fn is_verified(&self, model_id: &str) -> bool {
+        let current = self.security_gen();
+        !current.is_empty()
+            && self
+                .verifications
+                .get(model_id)
+                .is_some_and(|generation| generation == current)
+    }
     /// The models the Agent may use through this connection, one member
     /// each: the default and manual model IDs (`connectionModels`). An
     /// Unsloth server keeping its own tools (`SERVER_TOOLS_MUST_BE_DISABLED`)
@@ -259,106 +294,87 @@ impl ModelConnection {
             .map_err(|_| crate::localization::t("native.modelConnections.credentialInvalid").into())
     }
 }
-/// The managed connection (`withManagedConnection`): one PuppyOne entry per
-/// catalog model while Payments is on, the account is signed in and the
-/// wallet has credit. The directory is reused for a minute.
-pub fn managed(account: &dyn super::ComputeAccount) -> Vec<ModelConnection> {
-    use std::sync::Mutex;
-    use std::time::{Duration, Instant};
-    /// Account key, read time, catalog models and whether credit remains.
-    type Directory = (String, Instant, Vec<(String, String)>, bool);
-    static CACHE: Mutex<Option<Directory>> = Mutex::new(None);
-    let Some((broker, binding)) = account.current() else {
-        return vec![];
-    };
-    let key = format!(
-        "{}\n{}\n{}",
-        binding.user,
-        binding.epoch,
-        binding.environment.api()
+/// Stable per-account, per-environment UUID for the read-only PuppyOne
+/// managed compute connection (`mc_…` in the product).
+pub fn managed_connection_id(binding: &crate::cloud::auth::model::Binding) -> String {
+    use sha2::Digest as _;
+    let digest = sha2::Sha256::digest(
+        format!(
+            "puppyone-managed:{}:{}",
+            binding.environment.api(),
+            binding.user
+        )
+        .as_bytes(),
     );
-    let fresh = CACHE
-        .lock()
-        .ok()
-        .and_then(|c| c.clone())
-        .filter(|(k, at, _, _)| *k == key && at.elapsed() < Duration::from_secs(60));
-    let (models, available) = match fresh {
-        Some((_, _, models, available)) => (models, available),
-        None => {
-            let get = |path: &str| {
-                broker
-                    .request(
-                        &binding,
-                        &crate::cloud::auth::model::ApiRequest {
-                            idempotency_key: None,
-                            method: reqwest::Method::GET,
-                            path: path.into(),
-                            query: vec![],
-                            body: None,
-                        },
-                    )
-                    .ok()
-                    .map(|v| {
-                        if v.get("code").is_some() && v.get("data").is_some() {
-                            v["data"].clone()
-                        } else {
-                            v
-                        }
-                    })
-            };
-            let models: Vec<(String, String)> = get("/ai/catalog")
-                .and_then(|c| c["models"].as_array().cloned())
-                .unwrap_or_default()
-                .iter()
-                .filter_map(|m| {
-                    Some((
-                        m["id"].as_str()?.to_owned(),
-                        m["name"].as_str().unwrap_or_default().to_owned(),
-                    ))
-                })
-                .collect();
-            let available = get("/ai/balance")
-                .and_then(|b| b["available_micro_usd"].as_i64())
-                .is_some_and(|a| a > 0);
-            if let Ok(mut cache) = CACHE.lock() {
-                *cache = Some((key.clone(), Instant::now(), models.clone(), available));
-            }
-            (models, available)
-        }
-    };
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    uuid::Builder::from_random_bytes(bytes)
+        .into_uuid()
+        .to_string()
+}
+
+/// Projects the authoritative managed catalog & availability into read-only
+/// [`ModelConnection`] entries, preserving each catalog model's real
+/// `context_window` instead of falling back to a hardcoded constant.
+pub fn managed_connections_for(
+    binding: &crate::cloud::auth::model::Binding,
+    catalog: &super::wallet::Catalog,
+    available: bool,
+) -> Vec<ModelConnection> {
     if !available {
         return vec![];
     }
-    // A stable identity per account and service (`mc_…` in the product).
-    let id = {
-        use sha2::Digest as _;
-        let digest = sha2::Sha256::digest(
-            format!(
-                "puppyone-managed:{}:{}",
-                binding.environment.api(),
-                binding.user
-            )
-            .as_bytes(),
-        );
-        let mut bytes = [0u8; 16];
-        bytes.copy_from_slice(&digest[..16]);
-        uuid::Builder::from_random_bytes(bytes)
-            .into_uuid()
-            .to_string()
-    };
-    models
-        .into_iter()
-        .map(|(model, _)| ModelConnection {
+    let id = managed_connection_id(binding);
+    let generation = format!("managed-{}", binding.epoch);
+    catalog
+        .models
+        .iter()
+        .map(|entry| ModelConnection {
             id: id.clone(),
             name: "PuppyOne".into(),
             endpoint: format!("{}/ai", binding.environment.api()),
-            model,
-            generation: format!("managed-{}", binding.epoch),
+            model: entry.id.clone(),
+            generation: generation.clone(),
+            security_generation: Some(generation.clone()),
+            manual_context_window: entry.context_window.or(Some(LEGACY_CONTEXT_WINDOW)),
             server_tools_disabled: true,
             managed: true,
+            images: Some(false),
             ..Default::default()
         })
         .collect()
+}
+
+/// Live fallback read of managed connections when no [`super::service::ModelConnectionService`]
+/// is mounted (never poisons a process-wide cache with failed responses).
+pub fn managed(account: &dyn super::ComputeAccount) -> Vec<ModelConnection> {
+    let Some((broker, binding)) = account.current() else {
+        return vec![];
+    };
+    let catalog = broker
+        .public("/ai/catalog")
+        .ok()
+        .map(super::wallet::data)
+        .and_then(|v| super::wallet::parse_catalog(&v));
+    let Some(catalog) = catalog else {
+        return vec![];
+    };
+    let balance = broker
+        .request(
+            &binding,
+            &crate::cloud::auth::model::ApiRequest {
+                idempotency_key: None,
+                method: reqwest::Method::GET,
+                path: "/ai/balance".into(),
+                query: vec![],
+                body: None,
+            },
+        )
+        .ok()
+        .map(super::wallet::data)
+        .and_then(|v| super::wallet::parse_balance(&v));
+    let available = balance.is_some_and(|b| b.available_micro_usd > 0);
+    managed_connections_for(&binding, &catalog, available)
 }
 pub fn data_dir() -> PathBuf {
     std::env::var_os("PUPPYONE_RUST_DATA_DIR")
@@ -456,7 +472,10 @@ fn migrate(mut value: serde_json::Value) -> serde_json::Value {
     value
 }
 pub fn load() -> Result<Vec<ModelConnection>, String> {
-    let path = data_dir().join("model-connections.json");
+    load_at(&data_dir())
+}
+pub fn load_at(dir: &Path) -> Result<Vec<ModelConnection>, String> {
+    let path = dir.join("model-connections.json");
     if !path.exists() {
         return Ok(vec![]);
     }
@@ -466,7 +485,14 @@ pub fn load() -> Result<Vec<ModelConnection>, String> {
     }
     let connections = stored
         .into_iter()
-        .map(|entry| serde_json::from_value::<ModelConnection>(migrate(entry)))
+        .map(|entry| {
+            let legacy = entry
+                .as_object()
+                .is_some_and(|o| !o.contains_key("driver"));
+            let mut conn = serde_json::from_value::<ModelConnection>(migrate(entry))?;
+            conn.legacy_migrated = legacy;
+            Ok::<_, serde_json::Error>(conn)
+        })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
     let mut identities = std::collections::HashSet::new();
@@ -550,16 +576,35 @@ fn delete_credential(id: &str) {
         .delete(crate::platform::credentials::Namespace::ModelConnection, id);
 }
 pub fn save(connection: ModelConnection, secret: Option<String>) -> Result<(), String> {
+    save_at(&data_dir(), connection, secret).map(|_| ())
+}
+/// Saves `connection` under `dir`, returning `(saved_connection, security_changed)`.
+/// Renaming or changing `default_model_id` rotates only `generation`, keeping
+/// `security_generation`, active leases and durable model verifications intact.
+pub fn save_at(
+    dir: &Path,
+    connection: ModelConnection,
+    secret: Option<String>,
+) -> Result<(ModelConnection, bool), String> {
     let _guard = WRITES
         .lock()
         .map_err(|_| crate::localization::t("native.modelConnections.lockFailed"))?;
-    let mut connections = load()?;
+    let mut connections = load_at(dir)?;
     let previous = connections.iter().find(|c| c.id == connection.id).cloned();
     check_generation(previous.as_ref(), &connection.generation)?;
     if previous.is_none() && connections.len() >= 32 {
         return Err(crate::localization::t("native.modelConnections.limitReached").into());
     }
     let (mut connection, secret) = parse_save(connection, secret, previous.as_ref())?;
+    let security_changed = previous.as_ref().is_none_or(|p| {
+        p.endpoint != connection.endpoint
+            || p.driver != connection.driver
+            || p.auth != connection.auth
+            || p.server_tools_disabled != connection.server_tools_disabled
+            || p.manual_model_id != connection.manual_model_id
+            || p.manual_context_window != connection.manual_context_window
+            || secret.is_some()
+    });
     let mut staged_credential: Option<String> = None;
     if let Some(secret) = secret {
         let credential_id = uuid::Uuid::new_v4().to_string();
@@ -579,25 +624,39 @@ pub fn save(connection: ModelConnection, secret: Option<String>) -> Result<(), S
         connection.credential_id = Some(credential_id.clone());
         staged_credential = Some(credential_id);
     }
-    connection.generation = uuid::Uuid::new_v4().to_string();
+    let next_generation = uuid::Uuid::new_v4().to_string();
+    connection.generation = next_generation.clone();
+    if security_changed {
+        connection.security_generation = Some(next_generation);
+        connection.verifications.clear();
+    } else if let Some(prev) = previous.as_ref() {
+        connection.security_generation = Some(prev.security_gen().to_owned());
+        connection.verifications = prev.verifications.clone();
+    }
+    let saved = connection.clone();
     connections.retain(|c| c.id != connection.id);
     connections.push(connection);
-    let result = write_json(&data_dir().join("model-connections.json"), &connections);
+    let result = write_json(&dir.join("model-connections.json"), &connections);
     if result.is_err() {
         if let Some(id) = staged_credential {
             delete_credential(&id);
         }
-    } else if let Some(id) = retired_credential(previous.as_ref(), &connections) {
+        return Err(result.unwrap_err());
+    }
+    if let Some(id) = retired_credential(previous.as_ref(), &connections) {
         // Retire only after publishing the new configuration, never before it.
         delete_credential(id);
     }
-    result
+    Ok((saved, security_changed))
 }
 pub fn remove(id: &str, generation: &str) -> Result<(), String> {
+    remove_at(&data_dir(), id, generation)
+}
+pub fn remove_at(dir: &Path, id: &str, generation: &str) -> Result<(), String> {
     let _guard = WRITES
         .lock()
         .map_err(|_| crate::localization::t("native.modelConnections.lockFailed"))?;
-    let mut connections = load()?;
+    let mut connections = load_at(dir)?;
     let index = connections
         .iter()
         .position(|c| c.id == id)
@@ -606,11 +665,36 @@ pub fn remove(id: &str, generation: &str) -> Result<(), String> {
         return Err(crate::localization::t("native.modelConnections.changedBeforeRemove").into());
     }
     let connection = connections.remove(index);
-    write_json(&data_dir().join("model-connections.json"), &connections)?;
+    write_json(&dir.join("model-connections.json"), &connections)?;
     if let Some(id) = retired_credential(Some(&connection), &connections) {
         delete_credential(id);
     }
     Ok(())
+}
+/// Persists a verified tool round-trip for `(id, model_id)` if the connection
+/// is still at `expected_security_generation`.
+pub fn record_verification_at(
+    dir: &Path,
+    id: &str,
+    model_id: &str,
+    expected_security_generation: &str,
+) -> Result<ModelConnection, String> {
+    let _guard = WRITES
+        .lock()
+        .map_err(|_| crate::localization::t("native.modelConnections.lockFailed"))?;
+    let mut connections = load_at(dir)?;
+    let Some(entry) = connections.iter_mut().find(|c| c.id == id) else {
+        return Err("CONNECTION_NOT_FOUND".into());
+    };
+    if entry.security_gen() != expected_security_generation {
+        return Err("CONFIGURATION_CONFLICT".into());
+    }
+    entry
+        .verifications
+        .insert(model_id.to_owned(), expected_security_generation.to_owned());
+    let updated = entry.clone();
+    write_json(&dir.join("model-connections.json"), &connections)?;
+    Ok(updated)
 }
 #[cfg(test)]
 mod tests {

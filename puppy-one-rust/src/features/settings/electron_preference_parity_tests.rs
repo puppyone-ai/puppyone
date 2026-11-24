@@ -216,6 +216,7 @@ fn supported_experiments_remain_off_until_opted_in_and_retired_keys_cannot_resto
     }
     for key in [
         "enableCloudWorkspace",
+        "enableIsolatedAgentSandboxes",
         "enableAlwaysShowOnboardingCoachmarks",
         "enableProjectSwitcherRail",
         "enableMarkdownBlockDrag",
@@ -232,6 +233,7 @@ fn supported_experiments_remain_off_until_opted_in_and_retired_keys_cannot_resto
             let mut expected = Experimental::default();
             match key {
                 "enableCloudWorkspace" => expected.cloud_workspace = enabled,
+                "enableIsolatedAgentSandboxes" => expected.isolated_agent_sandboxes = enabled,
                 "enableAlwaysShowOnboardingCoachmarks" => {
                     expected.always_show_onboarding_coachmarks = enabled
                 }

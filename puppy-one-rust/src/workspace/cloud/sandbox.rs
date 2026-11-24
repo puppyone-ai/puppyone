@@ -35,6 +35,7 @@ pub enum ScreenConnectError {
 pub struct SandboxSettings {
     pub desktop: Option<bool>,
     pub screen_stream: Option<bool>,
+    pub isolated_agent_sandboxes: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -133,6 +134,10 @@ impl CloudSandbox {
         self.settings.screen_stream.unwrap_or(true)
     }
 
+    pub fn isolated_agent_sandboxes_enabled(&self) -> bool {
+        self.settings.isolated_agent_sandboxes.unwrap_or(false)
+    }
+
     pub fn desktop_pending(&self) -> bool {
         match (self.profile.as_deref(), self.next_profile.as_deref()) {
             (Some(profile), Some(next)) if !profile.is_empty() && !next.is_empty() => {
@@ -154,6 +159,7 @@ pub fn read_sandbox(value: &Value) -> CloudSandbox {
         .map(|s| SandboxSettings {
             desktop: s.get("desktop").and_then(Value::as_bool),
             screen_stream: s.get("screen_stream").and_then(Value::as_bool),
+            isolated_agent_sandboxes: s.get("isolated_agent_sandboxes").and_then(Value::as_bool),
         })
         .unwrap_or_default();
     let features = obj
@@ -248,6 +254,9 @@ pub fn settings_body(patch: &SandboxSettings) -> Option<Value> {
     }
     if let Some(stream) = patch.screen_stream {
         body.insert("screen_stream".into(), Value::Bool(stream));
+    }
+    if let Some(isolated) = patch.isolated_agent_sandboxes {
+        body.insert("isolated_agent_sandboxes".into(), Value::Bool(isolated));
     }
     (!body.is_empty()).then_some(Value::Object(body))
 }
@@ -545,7 +554,7 @@ mod tests {
         assert_eq!(
             settings_body(&SandboxSettings {
                 desktop: Some(true),
-                screen_stream: None,
+                ..Default::default()
             }),
             Some(json!({ "desktop": true }))
         );
@@ -553,9 +562,24 @@ mod tests {
             settings_body(&SandboxSettings {
                 desktop: Some(false),
                 screen_stream: Some(true),
+                ..Default::default()
             }),
             Some(json!({ "desktop": false, "screen_stream": true }))
         );
+        assert_eq!(
+            settings_body(&SandboxSettings {
+                isolated_agent_sandboxes: Some(true),
+                ..Default::default()
+            }),
+            Some(json!({ "isolated_agent_sandboxes": true }))
+        );
+        let parsed = read_sandbox(&json!({
+            "profile": "base",
+            "next_profile": "base",
+            "settings": { "isolated_agent_sandboxes": true },
+            "features": []
+        }));
+        assert!(parsed.isolated_agent_sandboxes_enabled());
     }
 
     #[test]
@@ -621,7 +645,7 @@ mod tests {
             .update(
                 SandboxSettings {
                     desktop: Some(true),
-                    screen_stream: None,
+                    ..Default::default()
                 },
                 &cancel,
             )

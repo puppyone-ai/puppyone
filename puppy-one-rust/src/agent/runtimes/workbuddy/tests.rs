@@ -420,3 +420,131 @@ fn probes_a_windows_desktop_bundle_through_its_electron_host_and_cli_entrypoint(
         assert_eq!(probed.get(), 1);
     });
 }
+
+#[test]
+fn detects_lite_wb_only_desktop_bundles_and_launches_via_serve_stdio_acp() {
+    run_local(async {
+        let directory = tempfile::tempdir().unwrap();
+        let cli_bin = directory.path().join("cli").join("bin");
+        let cli_dist = directory.path().join("cli").join("dist");
+        std::fs::create_dir_all(&cli_bin).unwrap();
+        std::fs::create_dir_all(&cli_dist).unwrap();
+        let cli = cli_bin.join("codebuddy");
+        std::fs::write(&cli, "#!/usr/bin/env node\n").unwrap();
+        std::fs::write(cli_dist.join("codebuddy-lite-wb.mjs"), "export {};\n").unwrap();
+        let host = directory.path().join("WorkBuddy.exe");
+        std::fs::write(&host, "").unwrap();
+        let cli_str = cli.to_string_lossy().into_owned();
+        let host_str = host.to_string_lossy().into_owned();
+        let options = WorkBuddyDiscoveryOptions {
+            discover: Some(Rc::new({
+                let cli_str = cli_str.clone();
+                let host_str = host_str.clone();
+                move |_| {
+                    let cli_str = cli_str.clone();
+                    let host_str = host_str.clone();
+                    Box::pin(async move {
+                        Ok(ready(
+                            &host_str,
+                            json!([cli_str]),
+                            json!({
+                                "ELECTRON_RUN_AS_NODE": "1",
+                                "CODEBUDDY_GATEWAY_AUTH": "none",
+                            }),
+                        ))
+                    })
+                }
+            })),
+            probe: Some(Rc::new(move |run| {
+                assert_eq!(run.env["CODEBUDDY_FORCE_LITE_WB_BUNDLE"], "1");
+                assert_eq!(run.env["CODEBUDDY_DISABLE_COMPILE_CACHE"], "1");
+                Box::pin(async {
+                    Ok(ProbeResult {
+                        code: Some(0),
+                        stdout: "  --acp  Start in ACP mode\n".into(),
+                        ..Default::default()
+                    })
+                })
+            })),
+            ..Default::default()
+        };
+        let readiness = discover_work_buddy_executable(WORKBUDDY_CHINA_CHANNEL, options, None)
+            .await
+            .unwrap();
+        assert_eq!(readiness["status"], "ready");
+        assert_eq!(readiness["acpLaunchMode"], "serve-stdio");
+        assert_eq!(
+            readiness["environment"]["CODEBUDDY_FORCE_LITE_WB_BUNDLE"],
+            "1"
+        );
+        let (_connection, launch, _result) = bootstrap(
+            WORKBUDDY_CHINA_CHANNEL,
+            &WORKBUDDY_CHINA_RUNTIME_DESCRIPTOR,
+            readiness,
+            true,
+        )
+        .await;
+        assert_eq!(
+            launch.args,
+            [
+                cli_str.as_str(),
+                "--serve",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "0",
+                "--auth",
+                "password",
+                "--acp"
+            ]
+        );
+        assert_eq!(launch.max_leading_non_json_lines, Some(32));
+        let env = env_of(&launch);
+        assert_eq!(
+            env.get("CODEBUDDY_FORCE_LITE_WB_BUNDLE")
+                .map(String::as_str),
+            Some("1")
+        );
+        // The CLI lets this variable outrank `--auth`; an inherited `none`
+        // must not reach the loopback HTTP server.
+        assert_eq!(
+            env.get("CODEBUDDY_GATEWAY_AUTH").map(String::as_str),
+            Some("password")
+        );
+    });
+}
+
+#[test]
+#[ignore = "launches the developer's local WorkBuddy installation"]
+fn live_workbuddy_china_discovery_and_acp_inspection() {
+    run_local(async {
+        let readiness = discover_work_buddy_executable(
+            WORKBUDDY_CHINA_CHANNEL,
+            WorkBuddyDiscoveryOptions::default(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(readiness["status"], "ready", "{readiness}");
+        let mut options = AcpAdapterOptions::new(
+            readiness,
+            &std::env::temp_dir().to_string_lossy(),
+            WORKBUDDY_CHINA_RUNTIME_DESCRIPTOR.clone(),
+        );
+        options.app_version = "test".into();
+        let adapter = work_buddy_acp_adapter(WORKBUDDY_CHINA_CHANNEL, options).unwrap();
+        let inspection = adapter.inspect().await.unwrap();
+        crate::agent::runtime::agent_runtime_port::assert_agent_runtime_inspection(
+            &adapter,
+            &inspection,
+            "workbuddy-china",
+        )
+        .unwrap();
+        eprintln!(
+            "workbuddy-china account={:?} models={}",
+            inspection["account"]["status"],
+            inspection["models"].as_array().map_or(0, Vec::len)
+        );
+        adapter.dispose().await.unwrap();
+    });
+}

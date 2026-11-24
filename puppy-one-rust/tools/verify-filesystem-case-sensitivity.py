@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 from test_runner import ROOT, run_gate
 
@@ -30,6 +31,17 @@ def main():
                      'stdout': result.stdout, 'stderr': result.stderr})
         (out / 'volume.json').write_text(json.dumps(logs, indent=2) + '\n')
         result.check_returncode()
+
+    def detach():
+        # Spotlight or a test process that just exited can hold the volume for
+        # a moment (hdiutil exits 16, resource busy): retry, then force it.
+        for attempt in range(5):
+            try:
+                command(['/usr/bin/hdiutil', 'detach', str(mount)])
+                return
+            except subprocess.CalledProcessError:
+                time.sleep(2 * (attempt + 1))
+        command(['/usr/bin/hdiutil', 'detach', '-force', str(mount)])
 
     try:
         if sys.platform == 'darwin':
@@ -62,7 +74,7 @@ def main():
             # Also handle a successful attach whose command timed out while
             # returning output, before the mounted flag could be set.
             if mounted or os.path.ismount(mount):
-                command(['/usr/bin/hdiutil', 'detach', str(mount)])
+                detach()
             shutil.rmtree(temporary)
         except BaseException:
             receipt.unlink(missing_ok=True)

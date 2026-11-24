@@ -58,7 +58,7 @@ pub(super) enum Step {
 
 enum Kind {
     Action { action: Handler, stays_open: bool },
-    Submenu(Entity<SubmenuState>),
+    Submenu,
 }
 
 struct Row {
@@ -73,12 +73,16 @@ struct Row {
 #[derive(Clone)]
 pub(super) struct Parent {
     pub(super) trigger: FocusHandle,
-    pub(super) state: Entity<SubmenuState>,
+    /// The opening menu's submenus.
+    pub(super) coordinator: Entity<SubmenuCoordinator>,
+    pub(super) row: ElementId,
 }
 
 pub(super) struct Keyboard {
     pub(super) scope: FocusHandle,
     rows: Vec<Row>,
+    /// This menu's own submenus.
+    coordinator: Option<Entity<SubmenuCoordinator>>,
     dismiss: Option<Handler>,
     escape: Option<Handler>,
     parent: Option<Parent>,
@@ -89,7 +93,7 @@ impl Keyboard {
     pub(super) fn new(
         id: &ElementId,
         entries: &[MenuEntry],
-        submenus: &HashMap<ElementId, Entity<SubmenuState>>,
+        coordinator: Option<Entity<SubmenuCoordinator>>,
         dismiss: Option<Handler>,
         escape: Option<Handler>,
         parent: Option<Parent>,
@@ -104,10 +108,7 @@ impl Keyboard {
             }
             let row_id = item.id.clone().unwrap_or(fallback);
             let kind = match (&item.submenu, &item.on_click) {
-                (Some(_), _) => match submenus.get(&row_id) {
-                    Some(state) => Kind::Submenu(state.clone()),
-                    None => return,
-                },
+                (Some(_), _) => Kind::Submenu,
                 (None, Some(action)) => Kind::Action {
                     action: action.clone(),
                     stays_open: item.stay_open,
@@ -152,9 +153,11 @@ impl Keyboard {
         let previous_rows = previous.read(cx);
         let needs_focus = match &parent {
             // A submenu takes focus only when the keyboard moves into it.
-            Some(parent) => parent
-                .state
-                .update(cx, |s, _| std::mem::take(&mut s.entered)),
+            Some(parent) => parent.coordinator.update(cx, |s, _| {
+                let entered = s.entered && s.active.as_ref() == Some(&parent.row);
+                s.entered = false;
+                entered
+            }),
             None => {
                 previous_rows.is_empty()
                     || (previous_rows.iter().any(|focus| focus.is_focused(window))
@@ -173,6 +176,7 @@ impl Keyboard {
         });
         Self {
             rows,
+            coordinator,
             dismiss,
             escape,
             parent,
@@ -187,50 +191,55 @@ impl Keyboard {
             .map(|row| row.focus.clone())
     }
 
-    /// Moves focus to row `index`: a submenu row opens its submenu (without
-    /// entering it) and every other submenu closes.
-    fn focus_row(&self, index: usize, window: &mut Window, cx: &mut App) {
-        for (i, row) in self.rows.iter().enumerate() {
-            if let Kind::Submenu(state) = &row.kind {
-                let open = i == index;
-                state.update(cx, |s, cx| {
-                    if s.open != open {
-                        s.open = open;
-                        s.entered = false;
-                        cx.notify();
-                    }
-                });
-            }
+    /// Opens `row`'s submenu (`entered`: and moves the keyboard into it),
+    /// or with `None` closes the open one.
+    fn show(&self, row: Option<&ElementId>, entered: bool, cx: &mut App) {
+        if let Some(coordinator) = &self.coordinator {
+            coordinator.update(cx, |s, cx| {
+                if s.active.as_ref() != row || s.entered != entered {
+                    s.epoch += 1;
+                    s.active = row.cloned();
+                    s.entered = entered;
+                    cx.notify();
+                }
+            });
         }
-        self.rows[index].focus.focus(window, cx);
+    }
+
+    /// Moves focus to row `index`: a submenu row opens its submenu (without
+    /// entering it); any other row closes the open one.
+    fn focus_row(&self, index: usize, window: &mut Window, cx: &mut App) {
+        let row = &self.rows[index];
+        let submenu = matches!(row.kind, Kind::Submenu).then_some(&row.id);
+        self.show(submenu, false, cx);
+        row.focus.focus(window, cx);
     }
 
     /// Escape: an open submenu closes and its row keeps focus; in a submenu,
     /// the submenu itself closes. `false` when the menu has none of these.
     pub(super) fn close_submenu(&self, window: &mut Window, cx: &mut App) -> bool {
         if let Some(parent) = &self.parent {
-            parent.state.update(cx, |s, cx| {
-                s.open = false;
+            parent.coordinator.update(cx, |s, cx| {
+                s.epoch += 1;
+                s.active = None;
                 s.entered = false;
                 cx.notify();
             });
             parent.trigger.focus(window, cx);
             return true;
         }
-        for row in &self.rows {
-            if let Kind::Submenu(state) = &row.kind
-                && state.read(cx).open
-            {
-                state.update(cx, |s, cx| {
-                    s.open = false;
-                    s.entered = false;
-                    cx.notify();
-                });
-                row.focus.focus(window, cx);
-                return true;
-            }
+        let open = self
+            .coordinator
+            .as_ref()
+            .and_then(|coordinator| coordinator.read(cx).active.clone());
+        let Some(open) = open else {
+            return false;
+        };
+        self.show(None, false, cx);
+        if let Some(row) = self.rows.iter().find(|row| row.id == open) {
+            row.focus.focus(window, cx);
         }
-        false
+        true
     }
 
     /// The Escape action: a submenu first, then the menu's own Escape;
@@ -281,11 +290,7 @@ impl Keyboard {
             return cx.propagate();
         };
         match &row.kind {
-            Kind::Submenu(state) => state.update(cx, |s, cx| {
-                s.open = true;
-                s.entered = true;
-                cx.notify();
-            }),
+            Kind::Submenu => self.show(Some(&row.id), true, cx),
             Kind::Action { .. } if submenu_only => cx.propagate(),
             Kind::Action { action, stays_open } => {
                 action(window, cx);

@@ -60,7 +60,7 @@ impl WindowPreferences {
     pub fn changed(&mut self, window: &mut Window, cx: &mut App) -> (bool, Option<StoredPanes>) {
         let p = self.store.read(cx).state.clone();
         // The built-in Agent offers PuppyOne compute only while Payments is on.
-        crate::cloud::auth::set_payments(p.experimental.payments);
+        crate::features::model_connections::set_payments(p.experimental.payments, cx);
         crate::editor::markdown::set_block_drag_enabled(p.experimental.markdown_block_drag);
         let appearance = self.appearance.changed(AppearanceInputs::of(&p)).is_some();
         if appearance {
@@ -134,6 +134,9 @@ impl WindowPreferences {
     /// repaint every window, as the appearance is shared.)
     pub fn apply_initial(&mut self, window: &mut Window, cx: &mut App) {
         if self.store.read(cx).loaded {
+            let p = self.store.read(cx).state.clone();
+            crate::features::model_connections::set_payments(p.experimental.payments, cx);
+            crate::editor::markdown::set_block_drag_enabled(p.experimental.markdown_block_drag);
             self.apply(window, cx);
         } else {
             self.apply_default(window, cx);

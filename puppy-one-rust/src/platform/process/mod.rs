@@ -23,27 +23,61 @@ use std::{
 /// (Unix children receive the bootstrap read end on fd 3).
 pub const WINDOWS_BOOTSTRAP_HANDLE_ENV: &str = "PUPPYONE_BOOTSTRAP_HANDLE";
 
-/// OS-owned subtree containment handle (Win32 Job Object on Windows; no-op on
-/// Unix where `process_group(0)` already isolates the subtree).
+/// OS-owned subtree containment handle (Win32 Job Object on Windows;
+/// isolated process-group handle on Unix where `process_group(0)` already
+/// isolates the subtree).
+#[must_use = "dropping SubtreeGuard terminates the managed process subtree on Windows"]
 pub struct SubtreeGuard {
+    pid: Option<u32>,
     #[cfg(windows)]
-    _job: Option<windows::JobHandle>,
+    job: Option<windows::JobHandle>,
 }
 
 impl SubtreeGuard {
     /// Attaches a spawned child process to an OS subtree guard (Job Object on
-    /// Windows) so closing or terminating the guard reaps all descendants.
+    /// Windows; isolated process group on Unix) so terminating or dropping the
+    /// guard reaps all descendants.
     pub fn attach_pid(pid: Option<u32>) -> Self {
         #[cfg(windows)]
         {
             Self {
-                _job: pid.and_then(windows::attach_job),
+                pid,
+                job: pid.and_then(windows::attach_job),
             }
         }
         #[cfg(not(windows))]
         {
-            let _ = pid;
-            Self {}
+            Self { pid }
+        }
+    }
+
+    /// Terminates the guarded process and its isolated descendants.
+    ///
+    /// On Windows, terminates the owning Job Object (falling back to the direct
+    /// PID if job assignment did not succeed). On Unix, signals the isolated
+    /// process group (`-pid`), falling back to `pid`.
+    pub fn terminate(&self, force: bool) -> bool {
+        #[cfg(windows)]
+        {
+            if let Some(job) = self.job.as_ref()
+                && job.terminate()
+            {
+                return true;
+            }
+            self.pid
+                .filter(|pid| *pid > 0)
+                .is_some_and(|pid| windows::terminate_pid(pid, true, force))
+        }
+        #[cfg(unix)]
+        {
+            self.pid
+                .filter(|pid| *pid > 0)
+                .is_some_and(|pid| unix::terminate_pid(pid, true, force))
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = (self.pid, force);
+            false
         }
     }
 }
@@ -118,6 +152,21 @@ pub fn hide_console_window(command: &mut tokio::process::Command) {
     windows::hide_console_window(command);
     #[cfg(not(windows))]
     let _ = command;
+}
+
+/// Applies resolved process arguments to a `tokio::process::Command`.
+///
+/// When `verbatim` is true on Windows (for `.cmd`/`.bat` invocations wrapped
+/// via `cmd.exe /d /s /v:off /c`), arguments are appended with `raw_arg` so
+/// Rust's MSVC-style quoting does not escape the batch command string.
+pub fn apply_tokio_args(command: &mut tokio::process::Command, args: &[String], verbatim: bool) {
+    #[cfg(windows)]
+    windows::apply_tokio_args(command, args, verbatim);
+    #[cfg(not(windows))]
+    {
+        let _ = verbatim;
+        command.args(args);
+    }
 }
 
 /// Terminates a spawned child and its isolated descendants.
@@ -380,7 +429,7 @@ pub fn run_observed(
         .stderr(Stdio::piped());
     isolate(&mut command);
     let child = command.spawn().map_err(|e| e.to_string())?;
-    let _subtree = SubtreeGuard::attach_pid(Some(child.id()));
+    let subtree = SubtreeGuard::attach_pid(Some(child.id()));
     thread::scope(move |scope| {
         // The owner lives inside the scope: any worker-start failure terminates
         // the child before scoped threads are joined, including blocked stdin.
@@ -388,6 +437,7 @@ pub fn run_observed(
         let overflow = Arc::new(AtomicBool::new(false));
         let mut owner = ProcessOwner {
             child,
+            subtree,
             stop: stop.clone(),
             settled: false,
         };
@@ -500,6 +550,7 @@ pub fn run_observed(
 
 struct ProcessOwner {
     child: std::process::Child,
+    subtree: SubtreeGuard,
     stop: Arc<AtomicBool>,
     settled: bool,
 }
@@ -509,6 +560,14 @@ impl ProcessOwner {
             return Ok(());
         }
         self.stop.store(true, Ordering::Release);
+        #[cfg(windows)]
+        {
+            let _ = self.subtree.terminate(true);
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = &self.subtree;
+        }
         terminate(&mut self.child);
         self.settled = true;
         #[cfg(unix)]
@@ -525,5 +584,5 @@ impl Drop for ProcessOwner {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests;

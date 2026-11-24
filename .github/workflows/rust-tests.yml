@@ -1,24 +1,34 @@
 name: Rust desktop acceptance
 
+# Every pull request and every push to a release branch runs tools/verify.py,
+# the same checks the release workflows run, except the release build and the
+# editor frame budgets (Rust editor gates measure those when the editor
+# changes). `full` adds them back: a release rehearsal before dispatching a
+# release. Desktop Internal Release requires a successful push run of this
+# workflow for the exact commit it builds, so pushes are never cancelled.
 on:
   pull_request:
-    paths: ['puppy-one-rust/**', '.github/workflows/rust-tests.yml']
   push:
-    branches: [puppyone-rust, qubits, main]
-    paths: ['puppy-one-rust/**', '.github/workflows/rust-tests.yml']
+    branches: [qubits, main, 'release/**']
   workflow_dispatch:
+    inputs:
+      full:
+        description: Run every check, including the release build and editor frame budgets
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: rust-tests-${{ github.ref }}
-  cancel-in-progress: true
+  group: rust-tests-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   macos:
+    name: Rust desktop acceptance (macOS)
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: ${{ inputs.full && 240 || 150 }}
     defaults:
       run:
         working-directory: rust/puppy-one-rust
@@ -36,11 +46,14 @@ jobs:
           path: puppyone-baseline-5e87974ef
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: 22
+          # The Node.js whose ICU recorded the Rust Intl oracles (fixtures/ui/number-format-oracle.json).
+          node-version: 22.22.3
       - name: Install reviewed toolchain and TS reference dependencies
         run: |
           rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools-preview
           rustup override set 1.97.1
+          # The repository's own TS sources feed the HTML editor bundle and the release tooling.
+          npm ci --prefix ..
           npm ci --prefix ../../puppyone-qubits
           npm ci --prefix ../../puppyone-baseline-5e87974ef
           cargo fetch --locked
@@ -53,25 +66,22 @@ jobs:
         run: |
           python3 tools/fetch-pdfium.py
           python3 tools/release/package-excalidraw-pack.py
-      - name: Check source and oracle contracts
-        run: |
-          cargo fmt --all --check
-          python3 -B tools/check-ui-boundaries.py
-          python3 -B tools/audit-product-layers.py
-          python3 -B tools/audit-ui-migration.py --check
-          python3 -B -m unittest discover -s tools -p 'test_*.py'
-          node tools/reference-test-parity.mjs --check
-      - name: Collect exact cases from the pinned TS product
-        id: collect
-        run: node tools/collect-test-cases.mjs
-      - name: Verify production coverage and actual native dependencies
-        run: python3 -B tools/verify-coverage.py
-      - name: Verify reviewed TS acceptance criteria
-        if: ${{ !cancelled() && steps.collect.outcome == 'success' }}
-        run: python3 -B tools/verify-test-parity.py
-      - name: Check all production and test targets
+      - name: Run every verification check
+        env:
+          # The Cloud backend repository is not available to this runner.
+          PUPPYONE_VERIFY_SKIP: ${{ inputs.full && 'cloud-reference' || 'cloud-reference,release,editor-frames' }}
+        run: python3 tools/verify.py
+      - name: Check the release workflows' own tooling
         if: ${{ !cancelled() }}
-        run: cargo clippy --locked --offline --workspace --all-targets --features dev-capture -- -D warnings
+        working-directory: rust
+        run: |
+          node scripts/check-macos-release-config.mjs
+          npm run test:updater-p0
+          npm test -- \
+            tests/integration/terminal/startup/terminalPreviewLauncher.test.mjs \
+            tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs \
+            tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs \
+            tests/architecture/release/build-identity/macosReleasePolicy.test.mjs
       - name: Retain native verification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -79,3 +89,15 @@ jobs:
           name: rust-macos-acceptance
           path: rust/puppy-one-rust/artifacts/
           retention-days: 14
+
+  # The required status check on main.
+  build:
+    name: Build
+    needs: [macos]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require Rust desktop acceptance
+        env:
+          ACCEPTANCE_RESULT: ${{ needs.macos.result }}
+        run: test "$ACCEPTANCE_RESULT" = success

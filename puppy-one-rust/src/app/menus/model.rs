@@ -33,8 +33,10 @@ pub fn app_menus_for_os(os: Os) -> Vec<Menu> {
 ///
 /// On macOS (`uses_system_menu_bar == true`) this includes the AppKit-standard
 /// application menu (`Services`, `Hide`, `Hide Others`, `Show All`). On Windows
-/// and Linux, those macOS-only items are omitted while keeping Settings, Check
-/// for Updates, About, and Quit reachable under File / Help.
+/// and Linux, those macOS-only items are omitted, `Settings` and `Quit` are
+/// promoted to the top level of the compact title-bar menu (`app_menu.rs`)
+/// rather than buried under `File`, and `Check for Updates`, `Feedback`, and
+/// `About` live under `Help`.
 pub fn app_menus_for_conventions(conventions: Conventions) -> Vec<Menu> {
     let app = crate::app::windows::application_name();
 
@@ -98,11 +100,8 @@ pub fn app_menus_for_conventions(conventions: Conventions) -> Vec<Menu> {
             items: vec![
                 MenuItem::action(tr("native.dock.newWindow"), NewWindow),
                 MenuItem::separator(),
-                MenuItem::action(tr("native.menu.settings"), OpenSettings),
                 MenuItem::action(tr("native.execution.title"), ManageExecutions),
-                MenuItem::separator(),
                 MenuItem::action("Close Window", CloseWindow),
-                MenuItem::action(format!("Quit {app}"), Quit),
             ],
         },
         ui::input::edit_menu(),
@@ -139,7 +138,7 @@ mod tests {
     use core::prelude::v1::test;
 
     #[test]
-    fn windows_and_linux_menus_omit_macos_services_and_expose_settings_and_quit() {
+    fn windows_and_linux_menus_omit_macos_services_and_keep_settings_out_of_file() {
         let mac = app_menus_for_os(Os::Macos);
         let win = app_menus_for_os(Os::Windows);
         let linux = app_menus_for_os(Os::Linux);
@@ -148,6 +147,7 @@ mod tests {
         assert_eq!(win.len(), 6);
         assert_eq!(linux.len(), 6);
 
+        let settings_label = tr("native.menu.settings");
         for menus in [&win, &linux] {
             for menu in menus {
                 assert!(
@@ -157,6 +157,14 @@ mod tests {
                     "non-macOS menus must not include macOS SystemMenu items"
                 );
             }
+            let file_menu = &menus[0];
+            assert!(
+                file_menu.items.iter().all(|item| !matches!(
+                    item,
+                    MenuItem::Action { name, .. } if name.as_ref() == settings_label
+                )),
+                "Settings belongs at the top level of the compact app menu, not under File"
+            );
             assert!(!menus.last().unwrap().items.is_empty());
         }
     }

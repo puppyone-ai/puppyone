@@ -298,13 +298,10 @@ impl Shell {
             cx.observe_in(&catalog, window, |s, _, w, cx| s.apply_appearance(w, cx))
                 .detach();
         }
-        // The Explorer's frame follows the window; full screen drops the
-        // title.
-        cx.observe_window_bounds(window, |s, window, cx| {
-            s.push_explorer_host(window, cx);
-            s.sync_window_title(window, cx);
-        })
-        .detach();
+        // The Explorer's frame follows the window; full screen / maximize state
+        // refreshes the title bar and trailing caption controls.
+        cx.observe_window_bounds(window, Self::window_bounds_changed)
+            .detach();
         cx.observe_window_activation(window, Self::window_activated)
             .detach();
         cx.observe_window_visibility(window, Self::window_visibility_changed)
