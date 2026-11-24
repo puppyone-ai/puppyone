@@ -52854,6 +52854,100 @@
           "test": "cloud::auth::tests::late_read_is_discarded_and_late_write_reports_unknown"
         }
       ]
+    },
+    {
+      "id": "cloud-history-lane-graph",
+      "acceptance": "The Cloud History sidebar draws the computed lane graph beside its rows: lane segments, a node per commit (filled for HEAD), ref markers and inline ref labels on the commit they name, and ref-only rows. Commit rows are buttons in a list named Commit history whose name is the commit message, and selecting one opens its detail in the local History hierarchy; ref-only rows are plain list items that cannot be activated.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/history/cloudProjectHistory.test.tsx",
+          "sha256": "defefe7e73dff02258a830804c4e0a5f52ea2a2e682ac886082705faedd0ec82",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Cloud project history > selects graph commits and presents them with the canonical local History hierarchy"
+            },
+            {
+              "index": 8,
+              "name": "Cloud project history > uses native button-list semantics and keeps ref-only rows non-interactive"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::source_control::cloud_history::tests::the_page_draws_as_a_lane_graph_with_buttons_for_commits_only"
+        }
+      ]
+    },
+    {
+      "id": "cloud-initialization-step-log",
+      "acceptance": "Each step of a first publication writes one puppyone.cloud_initialization line to the app's own log (info level): started, Project created, push started, accepted, failed or uncertain, an empty Project retained after a failed push, reconciled, local finalization failed, and the cleanup steps. A line carries only the step name, when it happened and the allowlisted fields (operation, attempt and Project identifiers, the commit cut to 12 characters, error code, outcome, duration and attempt count), never a secret, a remote URL or a local path. A definite push failure that keeps its empty Project records empty_project_retained with PUSH_FAILED and outcome retained, and Push latest then records a new attempt from the branch tip.",
+      "typescript": [
+        {
+          "path": "tests/integration/telemetry/transport/electron.cloud-initialization-telemetry.test.mjs",
+          "sha256": "c342eba732d58df23d713c0fa71f57c2271c3219dc46faac40de99bfc21fb660",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Cloud initialization telemetry > emits only the structured allowlist and truncates commit identifiers"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/cloud/publish/electron.cloud-publish-push.test.mjs",
+          "sha256": "33b7f1e3b6d7c802bede81ea599626410e733b1293e837a978839a26a550b5d5",
+          "cases": [
+            {
+              "index": 7,
+              "name": "Cloud publish coordinator: pushing > creates a new immutable attempt from the selected branch tip on Push latest"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::telemetry::tests::only_the_allowlist_is_written_and_the_commit_is_cut"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::telemetry::tests::a_failure_is_named_by_its_code"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::publication::tests::coordinator_tests::push_latest_starts_a_new_attempt_from_the_branch_tip"
+        }
+      ]
+    },
+    {
+      "id": "cloud-context-retries-wait-for-a-visible-window",
+      "acceptance": "While the window is hidden, a repository-context retry that comes due does not run and a focus probe waits too; when the window is visible again it probes once (no sooner than five seconds after the previous attempt started). Once the context is gone (another checkout, account or none), its pending retry and later probes never read again.",
+      "typescript": [
+        {
+          "path": "tests/component/cloud/repositories/repositoryContextRecovery.test.ts",
+          "sha256": "53ac09316487134e15ab329613ed3e1d3a27744b701d09352c236755cb58a8cb",
+          "cases": [
+            {
+              "index": 14,
+              "name": "repository authorization read recovery > defers hidden-window retries until visible and removes listeners on disposal"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::cloud::repository::tests::a_hidden_window_defers_its_retries_until_it_is_visible"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::cloud::recovery::tests::a_hidden_window_skips_its_retry_and_probes_once_it_shows"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -54970,34 +55064,6 @@
             {
               "index": 12,
               "name": "desktop build identity > writes one build-info file and validates the release tag"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-initialization-telemetry",
-      "kind": "gap",
-      "reason": "TS writes an allowlisted puppyone.cloud_initialization log record per publication step (identifiers, error code, attempt count, commit truncated to 12 characters; never secrets, remote URLs or local paths). Rust publication redacts secrets from its errors but emits no such structured record, including the empty_project_retained event when a failed first push keeps its empty Project (the Push latest recovery itself is covered by cloud-first-publication-coordinator).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform-services/telemetry.md",
-      "typescript": [
-        {
-          "path": "tests/integration/telemetry/transport/electron.cloud-initialization-telemetry.test.mjs",
-          "sha256": "c342eba732d58df23d713c0fa71f57c2271c3219dc46faac40de99bfc21fb660",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Cloud initialization telemetry > emits only the structured allowlist and truncates commit identifiers"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/cloud/publish/electron.cloud-publish-push.test.mjs",
-          "sha256": "33b7f1e3b6d7c802bede81ea599626410e733b1293e837a978839a26a550b5d5",
-          "cases": [
-            {
-              "index": 7,
-              "name": "Cloud publish coordinator: pushing > creates a new immutable attempt from the selected branch tip on Push latest"
             }
           ]
         }
@@ -60338,28 +60404,6 @@
       ]
     },
     {
-      "id": "cloud-history-graph-not-drawn",
-      "kind": "gap",
-      "reason": "TS draws the Cloud History sidebar as a lane graph (an SVG beside the rows, inline ref labels, ref-only rows that are not buttons) next to the commit detail in the local History hierarchy. The native sidebar computes the same lane model (workspace::cloud::graph) but draws Cloud commits through the local History's day timeline, so no lanes, ref markers or ref-only rows are shown.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/history.md",
-      "typescript": [
-        {
-          "path": "tests/component/cloud/history/cloudProjectHistory.test.tsx",
-          "sha256": "defefe7e73dff02258a830804c4e0a5f52ea2a2e682ac886082705faedd0ec82",
-          "cases": [
-            {
-              "index": 3,
-              "name": "Cloud project history > selects graph commits and presents them with the canonical local History hierarchy"
-            },
-            {
-              "index": 8,
-              "name": "Cloud project history > uses native button-list semantics and keeps ref-only rows non-interactive"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "react-hook-render-mechanics",
       "kind": "out-of-scope",
       "reason": "These check React rendering mechanics: that a hook does not reload when a parent passes a new callback identity, memoized values keep their identity, or an effect does not re-run on an unrelated prop. GPUI views own their state and are not re-rendered from props, so there is no hook dependency to keep stable; the behaviour the hook serves is covered by the feature's own rows.",
@@ -60556,24 +60600,6 @@
             {
               "index": 5,
               "name": "Cloud publish task > gives error precedence over the completed view"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-context-retries-while-hidden",
-      "kind": "gap",
-      "reason": "TS defers a repository-context retry while the window is hidden until it is visible again, and removes its focus, visibility and online listeners when the context is disposed. The native retries (at most two, jittered) run on their timers whether or not the window is visible; a returning window still asks for the one throttled probe.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/projects/context-recovery.md",
-      "typescript": [
-        {
-          "path": "tests/component/cloud/repositories/repositoryContextRecovery.test.ts",
-          "sha256": "53ac09316487134e15ab329613ed3e1d3a27744b701d09352c236755cb58a8cb",
-          "cases": [
-            {
-              "index": 14,
-              "name": "repository authorization read recovery > defers hidden-window retries until visible and removes listeners on disposal"
             }
           ]
         }

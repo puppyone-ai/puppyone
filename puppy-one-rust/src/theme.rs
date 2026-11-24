@@ -103,6 +103,13 @@ pub fn agent_creature_eyes() -> Rgba {
 pub fn history_tag() -> Rgba {
     rgb(0xffd21f)
 }
+/// `CLOUD_GRAPH_COLORS`: the Cloud History lanes, by index.
+pub fn cloud_graph(index: usize) -> Rgba {
+    const COLORS: [u32; 8] = [
+        0x4d9fff, 0xff7a1a, 0xb45cff, 0xff4fa3, 0xffd21f, 0x4fd6c2, 0x6bd46b, 0xff5c5c,
+    ];
+    rgb(COLORS[index % COLORS.len()])
+}
 /// `.cloud-screen-sidebar-thumb.is-live` (`src/styles/cloud-computer-screen.css`):
 /// warm twilight desktop gradient inside the miniature sidebar screen preview.
 pub fn screen_thumb_wallpaper() -> (Rgba, Rgba) {
