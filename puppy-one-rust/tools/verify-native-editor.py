@@ -47,6 +47,9 @@ suites = {
     'editor::workbench::tests::': [
         'a_failed_read_stays_in_its_pane_and_reads_again_there',
     ],
+    'editor::workbench::pane_preview::tests::': [
+        'previews_keep_the_panes_shape_and_captures_stay_in_the_window',
+    ],
     'editor::viewers::html_interact::link_tests::': [
         'links_resolve_against_the_pages_own_base',
         'malformed_or_frame_local_links_are_refused',

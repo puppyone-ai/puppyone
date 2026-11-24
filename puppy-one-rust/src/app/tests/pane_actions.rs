@@ -640,3 +640,65 @@ fn three_panes_keep_their_own_editors_across_focus_and_moves(cx: &mut TestAppCon
         assert_eq!(s.files(cx).visible_slots().len(), 3);
     });
 }
+
+/// `paneMovePreview.test.ts` #0–#1 (gap `pane-move-snapshot-preview`): a
+/// moved pane shows at once a shell of its shape centred under the pointer
+/// (never its live content), asks for a bitmap of its content bounds, shows
+/// that bitmap when it comes, follows the pointer and is gone after the drop.
+#[gpui::test]
+fn a_moved_pane_shows_its_shape_then_its_snapshot_under_the_pointer(cx: &mut TestAppContext) {
+    use crate::editor::workbench::pane_preview::{capture_hook as preview, preview_size};
+    let temp = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md"] {
+        std::fs::write(temp.path().join(name), name).unwrap();
+    }
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::RgbaImage::from_pixel(4, 4, image::Rgba([200, 40, 40, 255]))
+        .write_to(&mut png, image::ImageFormat::Png)
+        .unwrap();
+    preview::answer_with(Some(png.into_inner()));
+    let (view, cx) = setup(cx);
+    cx.update(|w, _| w.activate_window());
+    let before = two_panes(&view, cx, temp.path(), Direction::Horizontal);
+    draw(cx);
+    let pane = pane_bounds(&view, cx, &before[0].0);
+    let from = handle_of(cx, "a.md");
+    cx.simulate_mouse_down(from, MouseButton::Left, Modifiers::default());
+    let at = point(from.x + px(30.), from.y + px(40.));
+    cx.simulate_mouse_move(at, Some(MouseButton::Left), Modifiers::default());
+    // The first frame: the shell, before any bitmap.
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert!(dragging(cx));
+    let requests = preview::requests();
+    assert_eq!(requests.len(), 1, "one bitmap per drag");
+    let request = requests[0];
+    assert_eq!(
+        (request.size.width, request.size.height),
+        (f32::from(pane.size.width), f32::from(pane.size.height)),
+        "the pane's content bounds"
+    );
+    let shell = cx.debug_bounds("pane-move-preview").expect("the shell");
+    let expected = preview_size(request.size.width, request.size.height);
+    assert_eq!(
+        (f32::from(shell.size.width), f32::from(shell.size.height)),
+        (expected.width, expected.height)
+    );
+    assert!((f32::from(shell.center().x) - f32::from(at.x)).abs() < 1.);
+    assert!((f32::from(shell.origin.y) - f32::from(at.y) - 10.).abs() < 1.);
+    assert!(cx.debug_bounds("pane-move-preview-image").is_none());
+    // The bitmap arrives; the preview follows the pointer.
+    preview::release();
+    cx.run_until_parked();
+    draw(cx);
+    assert!(cx.debug_bounds("pane-move-preview-image").is_some());
+    let next = point(at.x + px(60.), at.y + px(20.));
+    cx.simulate_mouse_move(next, Some(MouseButton::Left), Modifiers::default());
+    draw(cx);
+    let moved = cx.debug_bounds("pane-move-preview").unwrap();
+    assert!((f32::from(moved.center().x) - f32::from(next.x)).abs() < 1.);
+    cx.simulate_mouse_up(next, MouseButton::Left, Modifiers::default());
+    draw(cx);
+    assert!(!dragging(cx));
+    assert!(cx.debug_bounds("pane-move-preview").is_none());
+    assert_eq!(preview::requests().len(), 1);
+}

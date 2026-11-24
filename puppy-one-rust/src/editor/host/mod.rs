@@ -1603,7 +1603,10 @@ impl Render for DocumentEditor {
                 self.chrome.revealed(),
                 name,
                 handle_label.into(),
-                self.pane_drag.clone(),
+                self.pane_drag.clone().map(|mut drag| {
+                    drag.pane = Some(bounds);
+                    drag
+                }),
                 move |window, cx| {
                     let _ = toggle.update(cx, |this, cx| this.toggle_pane_menu(window, cx));
                 },

@@ -202,11 +202,9 @@ type OnKey = Rc<dyn Fn(&KeyDownEvent, &mut Window, &mut App)>;
 pub struct PaneDrag {
     pub owner: EntityId,
     pub slot: u64,
-}
-impl Render for PaneDrag {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().px_2().child(t("editor.panes.dragToMove"))
-    }
+    /// The pane's bounds in the window, which its preview takes the shape
+    /// and a bitmap of.
+    pub pane: Option<Bounds<Pixels>>,
 }
 /// The handle (`.desktop-editor-pane-handle-shell` / `-handle`).
 pub fn handle(
@@ -260,7 +258,9 @@ pub fn handle(
                         .cursor(CursorStyle::OpenHand)
                         .tooltip(tooltip(label))
                         .when_some(drag, |d, drag| {
-                            d.on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
+                            d.on_drag(drag, |drag, offset, window, cx| {
+                                super::pane_preview::PanePreview::start(drag, offset, window, cx)
+                            })
                         })
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .on_click(move |_, window, cx| on_toggle(window, cx))

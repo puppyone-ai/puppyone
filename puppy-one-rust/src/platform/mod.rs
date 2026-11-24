@@ -63,6 +63,7 @@ pub mod viewer_packs;
 pub mod watchdog;
 pub mod webview;
 pub mod window;
+pub mod window_capture;
 
 /// The native product's data directory, separate from the Electron product's
 /// (`PUPPYONE_RUST_DATA_DIR` isolates tests and captures).
