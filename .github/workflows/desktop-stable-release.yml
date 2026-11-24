@@ -199,8 +199,10 @@ jobs:
             --out release \
             --flat-out \
             --build-info-out generated/desktop-build-info.json \
+            --expected-tag "${GITHUB_REF_NAME}" \
             --release
-          python3 puppy-one-rust/tools/release/verify-macos-release.py release --channel stable
+          python3 puppy-one-rust/tools/release/verify-macos-release.py release --channel stable \
+            --release-tag "${GITHUB_REF_NAME}"
           node scripts/verify-packaged-desktop-build.mjs
 
       - name: Write stable release preface

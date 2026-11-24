@@ -10,6 +10,7 @@ import bundle
 import feed
 import icon
 import identity
+import packaged
 import sign
 import targets
 from targets import linux as linux_target
@@ -211,6 +212,24 @@ class IconTest(unittest.TestCase):
             subprocess.run(['/usr/bin/iconutil', '-c', 'icns', str(iconset), '-o', str(wrong)], check=True)
             with self.assertRaisesRegex(ValueError, r'icon_16x16@2x\.png is (missing|not 32 px)'):
                 icon.verify(wrong, stable)
+
+    def test_a_bundle_icon_passes_only_with_its_own_channels_artwork(self):
+        import plistlib
+        with tempfile.TemporaryDirectory() as out:
+            app = Path(out) / 'PuppyOne.app'
+            resources = app / 'Contents/Resources'
+            resources.mkdir(parents=True)
+            (app / 'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIconFile': 'icon.icns'}))
+            icon.build_for('stable', app)
+            (resources / 'puppy-app-image.png').write_bytes(icon.source_for('stable').read_bytes())
+            icon.verify_app(app, 'stable')
+            (resources / 'puppy-app-image.png').write_bytes(icon.source_for('dev').read_bytes())
+            with self.assertRaisesRegex(ValueError, 'selected channel'):
+                icon.verify_app(app, 'stable')
+            (app / 'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIconFile': 'icon.icns',
+                                                                       'CFBundleIconName': 'AppIcon'}))
+            with self.assertRaisesRegex(ValueError, 'CFBundleIconFile'):
+                icon.verify_app(app, 'stable')
 
     def test_every_channel_icon_builds_a_complete_icns(self):
         for channel in identity.CHANNELS:
@@ -443,6 +462,135 @@ class PdfiumPinTableTest(unittest.TestCase):
             self.assertEqual(len(digest), 64, target_id)
             self.assertTrue(all(c in '0123456789abcdef' for c in digest), target_id)
             self.assertTrue(str(rel_lib), target_id)
+
+
+
+class PackagedBuildTest(unittest.TestCase):
+    """`packagedDesktopBuildVerifier.test.mjs`: the packaged app, what its
+    executable reports, its feed, its icon and the artifacts name one build."""
+
+    def release(self, out, channel='internal', feed_url=None, reports=None):
+        import json
+        import plistlib
+        import stat
+        build = identity.release_identity('1.4.0', channel, COMMIT, '72', built_at='2026-07-26T10:00:00.000Z')
+        policy = identity.policy(channel)
+        app = Path(out) / f'{policy["name"]}.app'
+        resources = app / 'Contents/Resources'
+        executable = app / 'Contents/MacOS/puppy-one-rust'
+        resources.mkdir(parents=True)
+        executable.parent.mkdir(parents=True)
+        (resources / 'build-info.json').write_bytes(identity.build_info(build))
+        reported = {key: build[key] for key in packaged.SHARED}
+        reported['updateFeedUrl'] = feed_url or identity.platform_feed(channel, 'mac')
+        reported.update(reports or {})
+        # The executable reports what it was stamped with, as the real one does.
+        executable.write_text(f"#!/bin/sh\ncat <<'JSON'\n{json.dumps(reported)}\nJSON\n")
+        executable.chmod(executable.stat().st_mode | stat.S_IEXEC)
+        with (app / 'Contents/Info.plist').open('wb') as f:
+            plistlib.dump(identity.info_plist(build, [], {}), f)
+        stem = f'puppyone-{build["version"]}-arm64'
+        (Path(out) / f'{stem}.dmg').write_bytes(b'dmg')
+        archive = Path(out) / f'{stem}.zip'
+        archive.write_bytes(b'zip')
+        feed.write(out, channel, build['version'], [archive], released=build['builtAt'])
+        return app, build
+
+    def test_the_app_its_executable_its_feed_and_the_artifacts_name_one_build(self):
+        with tempfile.TemporaryDirectory() as out:
+            app, build = self.release(out)
+            checked = []
+            verified = packaged.verify_macos(out, 'internal', tag='v1.4.0-internal.72',
+                                             verify_icon=lambda a, c: checked.append((a, c)))
+            self.assertEqual(verified['application'], app)
+            self.assertEqual([p.name for p in verified['distributables']],
+                             ['puppyone-1.4.0-internal.72-arm64.dmg', 'puppyone-1.4.0-internal.72-arm64.zip'])
+            self.assertEqual(checked, [(app, 'internal')])
+            # A DMG named after another version is not this build's.
+            (Path(out) / 'puppyone-1.4.0-internal.71-arm64.dmg').write_bytes(b'old')
+            with self.assertRaisesRegex(ValueError, 'not named after'):
+                packaged.verify_macos(out, 'internal', verify_icon=lambda a, c: None)
+
+    def test_an_internal_app_carrying_the_stable_feed_is_refused(self):
+        with tempfile.TemporaryDirectory() as out:
+            self.release(out, feed_url=identity.platform_feed('stable', 'mac'))
+            with self.assertRaisesRegex(ValueError, 'canonical update feed'):
+                packaged.verify_macos(out, 'internal', verify_icon=lambda a, c: None)
+        # Nor one whose Info.plist names the Stable app.
+        with tempfile.TemporaryDirectory() as out:
+            import plistlib
+            app, _ = self.release(out)
+            info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
+            info['CFBundleIdentifier'] = identity.policy('stable')['id']
+            (app / 'Contents/Info.plist').write_bytes(plistlib.dumps(info))
+            with self.assertRaisesRegex(ValueError, 'CFBundleIdentifier'):
+                packaged.verify_macos(out, 'internal', verify_icon=lambda a, c: None)
+        # Nor one whose executable was built as another version.
+        with tempfile.TemporaryDirectory() as out:
+            self.release(out, reports={'version': '1.4.0-internal.71'})
+            with self.assertRaisesRegex(ValueError, 'reports version'):
+                packaged.verify_macos(out, 'internal', verify_icon=lambda a, c: None)
+
+    def test_a_failing_icon_check_fails_the_release(self):
+        def invalid(app, channel):
+            raise ValueError('Invalid native icon')
+        with tempfile.TemporaryDirectory() as out:
+            self.release(out)
+            with self.assertRaisesRegex(ValueError, 'Invalid native icon'):
+                packaged.verify_macos(out, 'internal', verify_icon=invalid)
+
+
+class IconInputTest(unittest.TestCase):
+    """`macosAppIcon.test.mjs`: the icon tool's inputs and the bundle's icon
+    files, checked before any native tool runs."""
+
+    def test_another_channels_artwork_or_an_unapproved_output_is_refused(self):
+        stable = icon.source_for('stable')
+        bundle_icon = Path('/tmp/PuppyOne Rust Dev.app/Contents/Resources/icon.icns')
+        with self.assertRaisesRegex(ValueError, 'canonical PNG'):
+            icon.build_inputs('dev', stable, bundle_icon)
+        with self.assertRaisesRegex(ValueError, "app bundle"):
+            icon.build_inputs('stable', stable, Path('/tmp/anywhere/icon.icns'))
+        self.assertEqual(icon.build_inputs('stable', stable, bundle_icon.parent / 'icon.icns')[0], stable)
+        with self.assertRaisesRegex(ValueError, 'Unsupported'):
+            icon.source_for('unknown')
+
+    def bundle(self, out):
+        import plistlib
+        resources = Path(out) / 'PuppyOne.app/Contents/Resources'
+        resources.mkdir(parents=True)
+        (resources / 'icon.icns').write_bytes(b'icns')
+        (resources / 'puppy-app-image.png').write_bytes(icon.source_for('stable').read_bytes())
+        (resources.parent / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleIconFile': 'icon.icns'}))
+        return resources
+
+    def test_a_missing_icon_icns_is_refused(self):
+        with tempfile.TemporaryDirectory() as out:
+            resources = self.bundle(out)
+            (resources / 'icon.icns').unlink()
+            with self.assertRaisesRegex(FileNotFoundError, 'icon.icns'):
+                icon.verify_app(resources.parents[1], 'stable')
+
+    def test_a_missing_app_image_is_refused(self):
+        with tempfile.TemporaryDirectory() as out:
+            resources = self.bundle(out)
+            (resources / 'puppy-app-image.png').unlink()
+            with self.assertRaisesRegex(FileNotFoundError, 'puppy-app-image.png'):
+                icon.verify_app(resources.parents[1], 'stable')
+
+
+class BuildInfoTest(unittest.TestCase):
+    """`desktopBuildIdentity.test.mjs`: `writes one build-info file and
+    validates the release tag`."""
+
+    def test_one_build_info_and_the_release_tag_must_match_exactly(self):
+        import json
+        release = identity.release_identity('1.4.0', 'internal', COMMIT, '42',
+                                            built_at='2026-07-26T10:00:00.000Z')
+        self.assertEqual(json.loads(identity.build_info(release)), release)
+        identity.check_release_tag(release, 'v1.4.0-internal.42')
+        with self.assertRaisesRegex(ValueError, 'must exactly match'):
+            identity.check_release_tag(release, 'v1.4.0-internal.41')
 
 
 if __name__ == '__main__':
