@@ -619,9 +619,18 @@ pub(super) struct LabState {
 
 impl AgentChatTabPanel {
     fn fixture(client: FixtureClient, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self::fixture_at("/visual-reference-only", client, window, cx)
+    }
+
+    fn fixture_at(
+        root: &str,
+        client: FixtureClient,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let client: Rc<dyn AgentClientPort> = Rc::new(JsonPort(client));
         let controller = AgentSessionController::new(
-            "/visual-reference-only",
+            root,
             Rc::new(move || Some(client.clone())),
             WindowUiRuntime::create(cx),
         );
@@ -664,10 +673,24 @@ impl AgentChatTabPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> (Self, Rc<std::cell::RefCell<Vec<AgentOperation>>>) {
+        Self::seeded_fixture_at("/visual-reference-only", ready, offline, prompt, window, cx)
+    }
+
+    /// Tests: [`Self::seeded_fixture`] for a chat of the workspace at `root`.
+    #[cfg(test)]
+    pub(crate) fn seeded_fixture_at(
+        root: &str,
+        ready: bool,
+        offline: Option<&'static str>,
+        prompt: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> (Self, Rc<std::cell::RefCell<Vec<AgentOperation>>>) {
         let events = lab_conversation("chat-empty");
         let models = models();
         let asked = Rc::<std::cell::RefCell<Vec<AgentOperation>>>::default();
-        let panel = Self::fixture(
+        let panel = Self::fixture_at(
+            root,
             FixtureClient {
                 snapshot: None,
                 fresh: snapshot(&events[..1], &models, None),

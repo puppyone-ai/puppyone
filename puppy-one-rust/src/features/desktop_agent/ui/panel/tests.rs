@@ -747,3 +747,120 @@ fn finder_drops_insert_folders_as_paths_and_stage_files(cx: &mut TestAppContext)
     assert_eq!(stagings(), 1, "a file is staged");
     assert!(!asked.borrow().contains(&AgentOperation::StartTurn));
 }
+
+/// The panel's `role="status"` announcements (`desktop-agent-announcer`).
+fn announced(cx: &mut VisualTestContext) -> Vec<String> {
+    use gpui_kit::test::TestQueryExt as _;
+    cx.update(|w, _| {
+        w.find_all_by_role(gpui::Role::Status)
+            .iter()
+            .filter_map(|s| s.label().map(str::to_owned))
+            .collect()
+    })
+}
+
+fn resource_drag(
+    workspace: Option<std::sync::Arc<crate::workspace::Workspace>>,
+) -> crate::ui::resource_drag::ResourceDrag {
+    crate::ui::resource_drag::ResourceDrag {
+        single_file: true,
+        paths: vec![std::path::PathBuf::from("secret.md")],
+        label: "secret.md".into(),
+        workspace,
+        native: std::rc::Rc::new(std::cell::Cell::new(false)),
+    }
+}
+
+/// `marks cross-workspace drags invalid and never grants their paths`:
+/// entries dragged from another workspace, or from one without local
+/// files, are refused and said so; this chat's own are resolved.
+#[gpui::test]
+fn cross_workspace_drags_are_refused_and_announced(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let ours = tempfile::tempdir().unwrap();
+    let theirs = tempfile::tempdir().unwrap();
+    for root in [&ours, &theirs] {
+        std::fs::write(root.path().join("secret.md"), "s").unwrap();
+    }
+    let root = ours.path().to_string_lossy().into_owned();
+    let slot = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let kept = slot.clone();
+    let (panel, cx) = cx.add_window_view(|window, cx| {
+        let (panel, asked) =
+            AgentChatTabPanel::seeded_fixture_at(&root, true, None, "", window, cx);
+        *kept.borrow_mut() = Some(asked);
+        panel
+    });
+    let asked = slot.borrow().clone().unwrap();
+    draw(cx);
+    let resolved = || {
+        asked
+            .borrow()
+            .iter()
+            .filter(|op| {
+                matches!(
+                    op,
+                    AgentOperation::ResolveWorkspaceReferences | AgentOperation::StageReferences
+                )
+            })
+            .count()
+    };
+    let drop = |cx: &mut VisualTestContext, drag| {
+        panel.update(cx, |p, cx| p.drop_resources(&drag, cx));
+        draw(cx);
+    };
+    let other = crate::workspace::Workspace::open(theirs.path()).unwrap();
+    drop(cx, resource_drag(Some(other)));
+    assert_eq!(resolved(), 0, "another workspace's paths are never granted");
+    assert_eq!(
+        announced(cx),
+        ["That item belongs to another workspace and was not added."]
+    );
+    let hosted = crate::workspace::Workspace::from_provider(std::sync::Arc::new(
+        crate::workspace::testing::Memory::new("memory://cloud/project/"),
+    ))
+    .unwrap();
+    drop(cx, resource_drag(Some(hosted)));
+    assert_eq!(resolved(), 0);
+    assert_eq!(
+        announced(cx),
+        ["That workspace item is no longer available."]
+    );
+    let own = crate::workspace::Workspace::open(ours.path()).unwrap();
+    drop(cx, resource_drag(Some(own)));
+    assert_eq!(resolved(), 1, "this chat's own entries are resolved");
+}
+
+/// `announces partial batches while retaining the rejected item as an
+/// actionable error`: a dropped file the runtime refuses stays a failed
+/// reference, and the status counts it.
+#[gpui::test]
+fn a_partial_batch_is_announced_and_keeps_its_failed_reference(cx: &mut TestAppContext) {
+    use gpui::{ExternalPaths, FileDropEvent};
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let finder = tempfile::tempdir().unwrap();
+    let file = finder.path().join("paper.pdf");
+    std::fs::write(&file, b"pdf").unwrap();
+    let (panel, _asked, cx) = seeded(cx, true, None, "");
+    assert!(announced(cx).is_empty());
+    let chat = cx.debug_bounds("agent-chat-panel").unwrap();
+    cx.simulate_event(FileDropEvent::Entered {
+        position: chat.center(),
+        paths: ExternalPaths(vec![file].into()),
+    });
+    cx.simulate_event(FileDropEvent::Submit {
+        position: chat.center(),
+    });
+    draw(cx);
+    assert_eq!(announced(cx), ["Added 0; 1 could not be added."]);
+    let references = panel.read_with(cx, |p, _| p.controller.get_snapshot().references);
+    assert_eq!(references.len(), 1);
+    assert_eq!(
+        references[0].status,
+        crate::agent::contract::dto::ReferenceStatus::Error
+    );
+}

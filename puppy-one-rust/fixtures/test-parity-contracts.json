@@ -52343,6 +52343,38 @@
           "test": "features::desktop_agent::ui::agent_markdown::tests::autolink_literals_end_where_the_address_does"
         }
       ]
+    },
+    {
+      "id": "agent-reference-drop-feedback",
+      "acceptance": "Workspace entries dropped on an Agent chat are granted only when they come from the chat's own workspace (its local root): entries dragged from another workspace are refused without asking the runtime to resolve or stage them, and a status (role=status, read but not shown) says the item belongs to another workspace and was not added; entries of a workspace without local files are refused as no longer available. Once a dropped, pasted or picked batch settles, the status says how many references it added and, when some of its own items failed, how many could not be added (Added 0; 1 could not be added.), while a refused file stays in the draft as a failed reference.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
+          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Desktop Agent reference ingestion > marks cross-workspace drags invalid and never grants their paths"
+            },
+            {
+              "index": 16,
+              "name": "Desktop Agent reference ingestion > announces partial batches while retaining the rejected item as an actionable error"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::cross_workspace_drags_are_refused_and_announced"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::a_partial_batch_is_announced_and_keeps_its_failed_reference"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62787,28 +62819,6 @@
             {
               "index": 0,
               "name": "Desktop Agent renderer surfaces > registers semantic part extensions by kind and restores the previous renderer on dispose"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "reference-drop-feedback",
-      "kind": "gap",
-      "reason": "The chat gives no drop-time feedback: a workspace drag from another workspace is not marked invalid (it is accepted and left to the host, which refuses paths outside the chat's root), and no status announces how many references a drop added or which items of a batch were rejected.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/drafts-and-references.md",
-      "typescript": [
-        {
-          "path": "tests/component/agent/references/desktop-agent.reference-ingestion.test.tsx",
-          "sha256": "b20562d745ffbc4d912587175e635772003bd0736c2db0fee5242da6296632e8",
-          "cases": [
-            {
-              "index": 4,
-              "name": "Desktop Agent reference ingestion > marks cross-workspace drags invalid and never grants their paths"
-            },
-            {
-              "index": 16,
-              "name": "Desktop Agent reference ingestion > announces partial batches while retaining the rejected item as an actionable error"
             }
           ]
         }
