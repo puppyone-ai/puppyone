@@ -42,6 +42,7 @@ use std::{
 };
 
 mod chrome;
+mod read_failure;
 #[cfg(test)]
 mod tests;
 
@@ -215,6 +216,12 @@ pub struct DocumentEditor {
     external_history: Option<ExternalHistoryStep>,
     suppress_surface_change: bool,
     html_events: Vec<HtmlToolEvent>,
+    /// Why this pane's file could not be read, while it shows that.
+    read_failure: Option<crate::editor::workbench::runtime::ReadFailure>,
+    /// Why its default app could not open it.
+    opening_failure: Option<SharedString>,
+    /// The pane's file is being read.
+    loading: bool,
     #[cfg(test)]
     custom_factory: Option<SurfaceFactory>,
 }
@@ -256,6 +263,9 @@ impl DocumentEditor {
             dark: true,
             scale: crate::theme::scale(),
             blocked: false,
+            read_failure: None,
+            opening_failure: None,
+            loading: false,
             chrome: crate::editor::workbench::pane::PaneChrome::new(cx.focus_handle()),
             find: None,
             find_subscription: None,
@@ -1229,6 +1239,23 @@ impl DocumentEditor {
             .unwrap_or((0., false))
     }
 
+    /// What the pane shows while it has no document: its file still being
+    /// read, or why it could not be.
+    pub fn set_reading(
+        &mut self,
+        loading: bool,
+        failure: Option<crate::editor::workbench::runtime::ReadFailure>,
+        cx: &mut Context<Self>,
+    ) {
+        if failure.is_none() {
+            self.opening_failure = None;
+        }
+        if (loading, &failure) != (self.loading, &self.read_failure) {
+            self.loading = loading;
+            self.read_failure = failure;
+            cx.notify();
+        }
+    }
     pub fn gate(&mut self, blocked: bool, dark: bool, window: &mut Window, cx: &mut Context<Self>) {
         self.blocked = blocked;
         self.dark = dark;
@@ -1612,12 +1639,23 @@ impl Render for DocumentEditor {
             .map_or((None, None), |(h, m)| (Some(h), m));
         let banner = self.readonly_banner(cx);
         let surface_el = self.isolated_surface_element(cx);
+        let reading = self.session.is_none().then(|| match &self.read_failure {
+            Some(failure) => read_failure::card(
+                failure,
+                self.opening_failure.clone(),
+                cx.entity().downgrade(),
+                cx,
+            ),
+            None if self.loading => read_failure::loading(),
+            None => div().into_any_element(),
+        });
         let body = div()
             .relative()
             .flex_1()
             .min_h_0()
             .w_full()
             .children(surface_el)
+            .children(reading)
             .children(self.find_bar(cx))
             .children(handle)
             .children(menu);

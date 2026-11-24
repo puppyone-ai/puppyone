@@ -519,9 +519,15 @@ impl EditorArea {
                     .read(cx)
                     .slot(slot)
                     .is_none_or(|f| f.busy() || f.allow_quit);
+            let docs = self.docs.read(cx);
+            let loading = docs
+                .slot(slot)
+                .is_some_and(|f| f.busy() && f.opened().is_none());
+            let failure = docs.read_failure(slot);
             editor.update(cx, |s, cx| {
                 s.set_reference_context(references, cx);
                 s.read_only = read_only;
+                s.set_reading(loading, failure, cx);
                 s.gate(blocked, gate.dark, window, cx);
             });
         }

@@ -21,6 +21,14 @@ pub use drops::StateMut;
 #[cfg(test)]
 mod tests;
 pub type SlotId = u64;
+/// A workbench pane whose file could not be read ([`Runtime::read_failure`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReadFailure {
+    pub path: PathBuf,
+    pub error: String,
+    /// The file on this computer, which its default app can open.
+    pub local: Option<PathBuf>,
+}
 /// A hosted Project root in the Cloud (not a local folder, nor another
 /// computer's): its lease can end and be renewed by reopening it.
 fn in_cloud(ws: &crate::workspace::Workspace) -> bool {
@@ -29,8 +37,13 @@ fn in_cloud(ws: &crate::workspace::Workspace) -> bool {
 }
 struct Slot {
     key: String,
+    /// The file the slot opens.
+    path: PathBuf,
     files: Documents,
     admitted: bool,
+    /// Its first read failed: the pane says why (and offers to retry or to
+    /// open the file elsewhere) instead of a window dialog.
+    failed: bool,
     opening: u64,
     closing: bool,
     reported_error: Option<String>,
@@ -222,6 +235,40 @@ impl Runtime {
         self.hosts
             .values()
             .find_map(|h| h.slots.get(&id).map(|s| &s.files))
+    }
+    /// Why the file of a workbench pane could not be read, while it shows
+    /// that instead of a document: its path, the error and the file on this
+    /// computer, if it is one.
+    pub fn read_failure(&self, id: SlotId) -> Option<ReadFailure> {
+        let slot = self.hosts.values().find_map(|h| h.slots.get(&id))?;
+        if !slot.failed || slot.files.busy() {
+            return None;
+        }
+        let ws = slot.files.workspace.as_ref();
+        Some(ReadFailure {
+            path: slot.path.clone(),
+            error: slot.files.error.clone()?,
+            local: ws
+                .filter(|w| w.local_root().is_some())
+                .and_then(|w| w.absolute(&slot.path).ok()),
+        })
+    }
+    /// Read a failed pane's file again, in the same pane.
+    pub fn retry_read(&mut self, id: SlotId, wake: &Wake) {
+        let Some(slot) = self
+            .hosts
+            .values_mut()
+            .find_map(|h| h.slots.get_mut(&id))
+            .filter(|s| s.failed)
+        else {
+            return;
+        };
+        slot.failed = false;
+        slot.reported_error = None;
+        slot.files.copy.error = None;
+        slot.files.begin(Intent::OpenFile(slot.path.clone()), wake);
+        self.generation += 1;
+        wake.notify();
     }
     /// The Save failed chip of one pane's document.
     pub fn retry_slot_save(&mut self, id: SlotId, wake: &Wake) {
@@ -554,8 +601,10 @@ impl Runtime {
                     _ => return,
                 };
                 self.navigation += 1;
-                if self.slot_for_key(&key).is_some() {
+                if let Some(id) = self.slot_for_key(&key) {
                     self.activate(&key);
+                    // Opening a file whose read failed reads it again.
+                    self.retry_read(id, wake);
                     wake.notify();
                     return;
                 }
@@ -577,13 +626,15 @@ impl Runtime {
                 if let Some(hibernated) = hibernated {
                     files.inherit_document_models(hibernated.models);
                 }
-                files.begin(Intent::OpenFile(path), wake);
+                files.begin(Intent::OpenFile(path.clone()), wake);
                 host.slots.insert(
                     self.serial,
                     Slot {
                         key,
+                        path,
                         files,
                         admitted: false,
+                        failed: false,
                         opening: self.navigation,
                         closing: false,
                         reported_error: None,
@@ -756,6 +807,9 @@ impl Runtime {
         }
     }
     pub fn client_for(&mut self, slot: SlotId, message: ClientMessage, wake: &Wake) {
+        if let ClientMessage::RetryRead = message {
+            return self.retry_read(slot, wake);
+        }
         // Hidden slots may acknowledge snapshots and save, but cannot navigate;
         // a file window's lone file has no neighbours to open.
         if let ClientMessage::OpenPaths { paths } = message {
@@ -946,7 +1000,49 @@ impl Runtime {
                     slot.reported_error = slot.files.error.clone();
                     self.reopen_file.get_or_insert(path);
                 }
-                if let Some(error) = &slot.files.error {
+                // A file a workbench pane could not read: the pane says
+                // why, instead of a window dialog (`FilePreview` error).
+                // Not a regular file (a folder, a link) never becomes a pane,
+                // and a Cloud read refused by an ended lease opens again.
+                let read_failed = slot.files.error.is_some()
+                    && slot.files.read_error.is_some_and(|kind| {
+                        !matches!(
+                            kind,
+                            crate::workspace::ErrorKind::InvalidInput
+                                | crate::workspace::ErrorKind::StaleLease
+                        )
+                    })
+                    && slot.files.opened().is_none()
+                    && !slot.files.busy()
+                    && !self.file_window
+                    && !slot.restoring
+                    && slot.rehydrating.is_none()
+                    && slot.drop_target.is_none()
+                    && (!slot.admitted || slot.failed);
+                if read_failed {
+                    if !slot.admitted {
+                        let input = Input {
+                            id: slot.key.clone(),
+                            label: slot
+                                .path
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .into_owned(),
+                        };
+                        if slot.opening == self.navigation && self.active.as_ref() == Some(key) {
+                            host.state.open(input);
+                        } else if !host.state.catalog.editors.iter().any(|e| e.id == input.id) {
+                            host.state.catalog.editors.push(input);
+                        }
+                        slot.admitted = true;
+                    }
+                    if !slot.failed {
+                        slot.failed = true;
+                        self.generation += 1;
+                    }
+                    slot.reported_error = slot.files.error.clone();
+                } else if let Some(error) = &slot.files.error {
                     if !slot.restoring && slot.reported_error.as_ref() != Some(error) {
                         self.error = Some(error.clone());
                         slot.reported_error = Some(error.clone());
@@ -1355,8 +1451,10 @@ impl Runtime {
                 self.serial,
                 Slot {
                     key: vis_key,
+                    path: entry.path.clone(),
                     files,
                     admitted: false,
+                    failed: false,
                     opening: self.navigation,
                     closing: false,
                     reported_error: None,

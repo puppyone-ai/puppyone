@@ -72,14 +72,16 @@ impl Runtime {
                             self.draft_journal.clone(),
                         );
                         files.task_scope = self.scratch.task_scope.clone();
-                        files.begin(Intent::OpenFile(path), wake);
+                        files.begin(Intent::OpenFile(path.clone()), wake);
                         host.slots.insert(
                             self.serial,
                             Slot {
                                 drop_target: None,
                                 key,
+                                path,
                                 files,
                                 admitted: false,
+                                failed: false,
                                 opening: 0,
                                 closing: false,
                                 reported_error: None,
