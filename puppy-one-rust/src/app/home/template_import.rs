@@ -7,6 +7,7 @@ use super::{create_project::Destination, *};
 use crate::{
     platform::templates::{
         self,
+        initialization::Request,
         store::{Detail, SIGNED_OUT, Store},
     },
     ui::components::{Dialog, Icon},
@@ -54,6 +55,7 @@ impl Homepage {
                 name,
                 location: self.project_locations.default_location(),
                 choosing: false,
+                operation: None,
             },
             detail: None,
             resolving: true,
@@ -168,6 +170,7 @@ impl Homepage {
     pub(in crate::app) fn submit_template(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let needs_sign_in = self.template_needs_sign_in(cx);
         let account = crate::features::cloud::account::broker_and_binding(cx);
+        let initializer = self.project_locations.initializer();
         let Some(import) = self.template_import() else {
             return;
         };
@@ -187,6 +190,7 @@ impl Homepage {
                 return;
             }
         };
+        let operation = import.destination.operation(&parent, &name);
         import.submitting = true;
         import.error = None;
         let new_window = import.new_window;
@@ -217,17 +221,25 @@ impl Homepage {
                 authorize,
                 crate::clock::now_ms(),
             )?;
-            // `numberIfTaken`: a copy never fails for a name in use.
-            let name = templates::free_name(&parent, &name)?;
-            let path = templates::materialize_while(&parent, &name, &plan, || {
-                match granted.borrow_mut().take() {
+            // `numberIfTaken`: a copy never fails for a name in use, and a
+            // retry is the same copy under the name its first attempt chose.
+            let source = format!("store:{}@{}", detail.id, detail.release_id);
+            let request = Request {
+                parent: &parent,
+                name: &name,
+                operation_id: &operation,
+                plan: &plan,
+                template: Some(&source),
+                number_if_taken: true,
+            };
+            let receipt =
+                initializer.create_while(request, || match granted.borrow_mut().take() {
                     Some((broker, binding)) => broker
                         .check_binding(&binding)
                         .map_err(|_| SIGNED_OUT.to_owned()),
                     None => Ok(()),
-                }
-            })?;
-            Ok::<_, String>((path, plan.initial_open))
+                })?;
+            Ok::<_, String>((receipt.path, receipt.initial_open_path))
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = task.await;
