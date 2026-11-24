@@ -189,20 +189,20 @@ fn linked_checkout(
     cx: &mut TestAppContext,
     responder: crate::cloud::auth::Responder,
 ) -> (Entity<Shell>, &mut VisualTestContext, Linked) {
+    linked_checkout_at(cx, responder, "http://127.0.0.1:18080/git/project-a.git")
+}
+/// [`linked_checkout`] whose `origin` is `remote`.
+fn linked_checkout_at<'a>(
+    cx: &'a mut TestAppContext,
+    responder: crate::cloud::auth::Responder,
+    remote: &str,
+) -> (Entity<Shell>, &'a mut VisualTestContext, Linked) {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().canonicalize().unwrap();
     std::fs::write(root.join("local.md"), "# Local\n").unwrap();
     std::fs::create_dir(root.join("docs")).unwrap();
     std::fs::write(root.join("docs/guide.md"), "# Guide\n").unwrap();
-    for args in [
-        &["init", "-q"][..],
-        &[
-            "remote",
-            "add",
-            "origin",
-            "http://127.0.0.1:18080/git/project-a.git",
-        ],
-    ] {
+    for args in [&["init", "-q"][..], &["remote", "add", "origin", remote]] {
         assert!(
             std::process::Command::new("git")
                 .args(args)

@@ -1418,3 +1418,70 @@ fn opening_a_cloud_project_waits_for_the_restoring_session(cx: &mut TestAppConte
         );
     });
 }
+
+/// `resolves an exact Scope while preserving its owning Project` and
+/// `never broadens a scoped checkout into its whole Cloud project`: a Scope
+/// checkout is resolved as its exact Scope (its place in the Project kept),
+/// is said to be linked to its Project, and offers no way to open the whole
+/// Project.
+#[gpui::test]
+fn a_scope_checkout_is_linked_to_its_project_but_never_opens_it(cx: &mut TestAppContext) {
+    use super::project_place::{LinkedEntry, Notice, linked_entry, notice_act};
+    use std::sync::{Arc, Mutex};
+    let asked = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+    let base = cloud_project_responder();
+    let responder: crate::cloud::auth::Responder = Arc::new({
+        let asked = asked.clone();
+        move |request| {
+            if request.path.ends_with("/repository-context") {
+                let target = request
+                    .body
+                    .as_ref()
+                    .map(|b| b["target"].clone())
+                    .unwrap_or_default();
+                asked.lock().unwrap().push(target.clone());
+                return Ok(serde_json::json!({"code": 0, "data": {
+                    "target": target,
+                    "project": {"id": "project-a", "name": "Notes", "capabilities": ["content.read"]},
+                    "scope_path": "docs"}}));
+            }
+            base(request)
+        }
+    });
+    let (view, cx, _linked) = linked_checkout_at(
+        cx,
+        responder,
+        "http://127.0.0.1:18080/git/project-a/scopes/scope-docs.git",
+    );
+    settle_cloud(&view, cx, "the association", &|s, cx| {
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
+    });
+    assert_eq!(
+        *asked.lock().unwrap(),
+        [serde_json::json!({"kind": "scope", "project_id": "project-a", "scope_id": "scope-docs"})]
+    );
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.cloud.read(cx).repository.read(cx).context,
+            crate::workspace::cloud::repository::Context::Resolved {
+                project: "project-a".into(),
+                name: "Notes".into(),
+                scope: Some("docs".into()),
+            }
+        );
+        let notice = s.cloud.read(cx).local_folder_notice(cx).expect("a notice");
+        assert_eq!(
+            notice,
+            Notice::Linked {
+                project: "project-a".into(),
+                name: Some("Notes".into()),
+                openable: false,
+            }
+        );
+        assert_eq!(notice_act(&notice, true), None, "it only explains");
+        assert!(s.hosted_project(cx).is_none());
+        assert!(s.files(cx).cloud_opening().is_none());
+    });
+    assert_eq!(linked_entry(false, false), LinkedEntry::Explain);
+    assert_eq!(linked_entry(false, true), LinkedEntry::Publish);
+}
