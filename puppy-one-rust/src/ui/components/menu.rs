@@ -849,8 +849,11 @@ fn row(
     let Some(submenu) = submenu else {
         return row
             .when_some(coordinator, |d, coord| {
-                d.on_hover(move |hovered, _, cx| {
-                    if *hovered && coord.read(cx).active.is_some() {
+                // Pointer movement, not `on_hover`: hover also fires for a row
+                // laid out under a resting pointer, which would close a
+                // submenu opened by `open_submenu(true)` before it is shown.
+                d.on_mouse_move(move |_, _, cx| {
+                    if coord.read(cx).active.is_some() {
                         coord.update(cx, |s, cx| {
                             s.epoch += 1;
                             s.active = None;
