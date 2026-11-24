@@ -39,6 +39,10 @@ pub(super) fn reduce_motion() -> bool {
     }
 }
 
+pub(super) fn toggle_maximize(_window: &impl HasWindowHandle) -> bool {
+    false
+}
+
 pub(super) fn match_product_font_smoothing() {
     use std::ffi::c_void;
     #[link(name = "CoreFoundation", kind = "framework")]

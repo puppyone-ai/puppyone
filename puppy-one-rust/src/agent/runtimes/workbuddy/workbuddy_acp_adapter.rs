@@ -2,6 +2,10 @@
 //! profile policy around the shared ACP runtime core.
 use super::workbuddy_channels::WorkBuddyChannel;
 use super::workbuddy_config_directory::work_buddy_config_directory;
+use super::workbuddy_discovery::{
+    WORKBUDDY_GATEWAY_AUTH_ENV, WORKBUDDY_LITE_WB_ENV, WORKBUDDY_LITE_WB_LAUNCH_MODE,
+    is_lite_wb_only_bundle, work_buddy_cli_entrypoint,
+};
 use super::workbuddy_environment::WORKBUDDY_HOST_ENVIRONMENT;
 use super::workbuddy_history_source::work_buddy_history_source;
 use crate::agent::agent_error::AgentResult;
@@ -34,8 +38,25 @@ pub fn work_buddy_acp_adapter(
         Box::pin(async move { work_buddy_is_already_authenticated(&client).await })
     }));
     let args_prefix = readiness_args_prefix(&options.readiness);
+    let serve_stdio = options
+        .readiness
+        .get("acpLaunchMode")
+        .and_then(Value::as_str)
+        == Some(WORKBUDDY_LITE_WB_LAUNCH_MODE)
+        || work_buddy_cli_entrypoint(&options.readiness).is_some_and(is_lite_wb_only_bundle);
     options.process_args = Some(Rc::new(move |_, _, _| {
         let mut args = args_prefix.clone();
+        if serve_stdio {
+            args.extend([
+                "--serve".into(),
+                "--host".into(),
+                "127.0.0.1".into(),
+                "--port".into(),
+                "0".into(),
+                "--auth".into(),
+                "password".into(),
+            ]);
+        }
         args.push("--acp".into());
         args
     }));
@@ -63,8 +84,17 @@ pub fn work_buddy_acp_adapter(
                 "CODEBUDDY_INTERNET_ENVIRONMENT".into(),
                 Value::from(channel.route),
             );
+            if serve_stdio {
+                overlay.insert(WORKBUDDY_LITE_WB_ENV.into(), Value::from("1"));
+                overlay.insert(WORKBUDDY_GATEWAY_AUTH_ENV.into(), Value::from("password"));
+            }
             Value::Object(overlay)
         }));
+    if serve_stdio {
+        // `codebuddy-lite-wb.mjs` prints its loopback HTTP server banner on
+        // stdout before switching stdio to ACP NDJSON.
+        options.max_leading_non_json_lines = Some(32);
+    }
     options.event_source = Some(format!("{}-acp", channel.id));
     options.embedded_text = true;
     AcpRuntimeAdapter::new(options)

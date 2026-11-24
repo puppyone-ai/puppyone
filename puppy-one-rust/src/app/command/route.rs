@@ -82,7 +82,9 @@ impl Shell {
                 return;
             }
             Command::Zoom => {
-                window.zoom_window();
+                if !crate::platform::window::toggle_maximize(window) {
+                    window.zoom_window();
+                }
                 return;
             }
             // `role: "about"`: the system's About panel.

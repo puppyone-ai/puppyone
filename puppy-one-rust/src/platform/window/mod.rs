@@ -25,6 +25,15 @@ mod imp {
         false
     }
     pub(super) fn match_product_font_smoothing() {}
+    pub(super) fn toggle_maximize(_: &impl HasWindowHandle) -> bool {
+        false
+    }
+}
+
+/// Toggles between maximized and normal states using the native OS API when
+/// GPUI's `zoom_window()` does not restore (Windows). Returns `true` if handled.
+pub fn toggle_maximize(window: &impl HasWindowHandle) -> bool {
+    imp::toggle_maximize(window)
 }
 
 /// Sets the smallest content size the user can resize `window` to (logical pixels).

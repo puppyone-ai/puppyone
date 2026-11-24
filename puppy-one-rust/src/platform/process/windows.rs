@@ -37,6 +37,14 @@ pub(super) struct JobHandle(HANDLE);
 unsafe impl Send for JobHandle {}
 unsafe impl Sync for JobHandle {}
 
+impl JobHandle {
+    pub(super) fn terminate(&self) -> bool {
+        // SAFETY: `self.0` is an owned job object handle; terminating it reaps
+        // the direct child and all descendants assigned to the job.
+        unsafe { TerminateJobObject(self.0, 1).is_ok() }
+    }
+}
+
 impl Drop for JobHandle {
     fn drop(&mut self) {
         // SAFETY: `self.0` is an owned job object handle; closing it triggers
@@ -131,6 +139,20 @@ pub(super) fn isolate_tokio(command: &mut tokio::process::Command) {
 
 pub(super) fn hide_console_window(command: &mut tokio::process::Command) {
     command.creation_flags(CREATE_NO_WINDOW.0);
+}
+
+pub(super) fn apply_tokio_args(
+    command: &mut tokio::process::Command,
+    args: &[String],
+    verbatim: bool,
+) {
+    if verbatim {
+        for arg in args {
+            command.raw_arg(arg);
+        }
+    } else {
+        command.args(args);
+    }
 }
 
 pub(super) fn terminate_child(child: &mut Child) {

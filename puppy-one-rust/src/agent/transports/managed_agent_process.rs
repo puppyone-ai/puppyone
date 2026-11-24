@@ -2,18 +2,65 @@
 //! isolated process group (Unix) or Win32 Job Object (Windows) so termination
 //! reaches its descendants.
 use crate::{
-    agent::agent_error::{AgentError, AgentResult},
+    agent::{
+        agent_error::{AgentError, AgentResult},
+        discovery::{
+            command_environment::EnvMap, windows::process_invocation::resolve_process_invocation,
+        },
+    },
     platform::process::{self, BootstrapPipe, SubtreeGuard},
 };
 use std::path::Path;
 use tokio::process::{Child, Command};
 
-/// A launched native Agent process.
-pub struct ManagedAgentProcess {
+/// Owned parts of a [`ManagedAgentProcess`].
+///
+/// Decomposing through [`ManagedAgentProcess::into_parts`] ensures the caller
+/// takes explicit ownership of `subtree` alongside `child` instead of letting
+/// `SubtreeGuard` drop early (which terminates the Win32 Job Object on Windows).
+pub struct ManagedProcessParts {
     pub child: Child,
     pub pid: Option<u32>,
     pub grouped: bool,
-    _subtree: SubtreeGuard,
+    pub subtree: SubtreeGuard,
+}
+
+/// A launched native Agent process and its OS subtree containment guard.
+#[must_use = "dropping ManagedAgentProcess terminates the managed process subtree on Windows"]
+pub struct ManagedAgentProcess {
+    child: Child,
+    pid: Option<u32>,
+    grouped: bool,
+    subtree: SubtreeGuard,
+}
+
+impl ManagedAgentProcess {
+    pub fn pid(&self) -> Option<u32> {
+        self.pid
+    }
+
+    pub fn grouped(&self) -> bool {
+        self.grouped
+    }
+
+    pub fn child_mut(&mut self) -> &mut Child {
+        &mut self.child
+    }
+
+    /// Terminates this managed process and its isolated descendants.
+    pub fn terminate(&self, force: bool) -> bool {
+        self.subtree.terminate(force)
+    }
+
+    /// Decomposes the managed process into its child handle and subtree guard.
+    pub fn into_parts(self) -> ManagedProcessParts {
+        ManagedProcessParts {
+            child: self.child,
+            pid: self.pid,
+            grouped: self.grouped,
+            subtree: self.subtree,
+        }
+    }
 }
 
 /// `createManagedAgentProcess({ spawn, executablePath, args, options })`.
@@ -26,9 +73,33 @@ pub fn create_managed_agent_process(
     environment: Option<&[(String, String)]>,
     bootstrap: Option<&[u8]>,
 ) -> AgentResult<ManagedAgentProcess> {
-    let mut command = Command::new(executable_path);
+    let mut command = match executable_path.to_str() {
+        Some(executable) => {
+            let invocation_env: EnvMap = match environment {
+                Some(entries) => entries.iter().cloned().collect(),
+                None => std::env::vars().collect(),
+            };
+            let invocation = resolve_process_invocation(
+                executable,
+                args,
+                process::node_platform(),
+                &invocation_env,
+            )?;
+            let mut command = Command::new(&invocation.file);
+            process::apply_tokio_args(
+                &mut command,
+                &invocation.args,
+                invocation.verbatim_arguments,
+            );
+            command
+        }
+        None => {
+            let mut command = Command::new(executable_path);
+            command.args(args);
+            command
+        }
+    };
     command
-        .args(args)
         .current_dir(cwd)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -53,7 +124,7 @@ pub fn create_managed_agent_process(
         child,
         pid,
         grouped: true,
-        _subtree: subtree,
+        subtree,
     })
 }
 

@@ -126,7 +126,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "Minimize",
     "native.window.maximize": "Maximize",
     "native.window.restore": "Restore",
-    "native.window.close": "Close"
+    "native.window.close": "Close",
+    "native.window.menu": "Menu"
   },
   "zh-Hans": {
     "native.desktop.showInExplorer": "在资源管理器中显示",
@@ -140,7 +141,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "最小化",
     "native.window.maximize": "最大化",
     "native.window.restore": "还原",
-    "native.window.close": "关闭"
+    "native.window.close": "关闭",
+    "native.window.menu": "菜单"
   },
   "ja": {
     "native.desktop.showInExplorer": "エクスプローラーで表示",
@@ -154,7 +156,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "最小化",
     "native.window.maximize": "最大化",
     "native.window.restore": "元に戻す",
-    "native.window.close": "閉じる"
+    "native.window.close": "閉じる",
+    "native.window.menu": "メニュー"
   },
   "ko": {
     "native.desktop.showInExplorer": "탐색기에서 표시",
@@ -168,7 +171,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "최소화",
     "native.window.maximize": "최대화",
     "native.window.restore": "복원",
-    "native.window.close": "닫기"
+    "native.window.close": "닫기",
+    "native.window.menu": "메뉴"
   },
   "es": {
     "native.desktop.showInExplorer": "Mostrar en el Explorador",
@@ -182,7 +186,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "Minimizar",
     "native.window.maximize": "Maximizar",
     "native.window.restore": "Restaurar",
-    "native.window.close": "Cerrar"
+    "native.window.close": "Cerrar",
+    "native.window.menu": "Menú"
   },
   "pt-BR": {
     "native.desktop.showInExplorer": "Mostrar no Explorador",
@@ -196,7 +201,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "Minimizar",
     "native.window.maximize": "Maximizar",
     "native.window.restore": "Restaurar",
-    "native.window.close": "Fechar"
+    "native.window.close": "Fechar",
+    "native.window.menu": "Menu"
   },
   "fr": {
     "native.desktop.showInExplorer": "Afficher dans l’Explorateur",
@@ -210,7 +216,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "Réduire",
     "native.window.maximize": "Agrandir",
     "native.window.restore": "Restaurer",
-    "native.window.close": "Fermer"
+    "native.window.close": "Fermer",
+    "native.window.menu": "Menu"
   },
   "de": {
     "native.desktop.showInExplorer": "Im Explorer anzeigen",
@@ -224,7 +231,8 @@ const CROSS_PLATFORM_MESSAGES: &str = r#"{
     "native.window.minimize": "Minimieren",
     "native.window.maximize": "Maximieren",
     "native.window.restore": "Wiederherstellen",
-    "native.window.close": "Schließen"
+    "native.window.close": "Schließen",
+    "native.window.menu": "Menü"
   }
 }"#;
 

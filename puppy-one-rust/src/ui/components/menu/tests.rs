@@ -243,3 +243,122 @@ fn clicking_submenu_item_runs_action_before_parent_menu_dismisses(cx: &mut TestA
         }
     }
 }
+
+struct SiblingSubmenusHarness;
+impl Render for SiblingSubmenusHarness {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().child(
+            PopoverMenu::new("sibling-submenus")
+                .open(true)
+                .trigger(Button::new("open-siblings").label("Open"))
+                .menu(|menu, _, _| {
+                    menu.w(px(180.))
+                        .item(MenuItem::new("First Group").id("group-a").submenu(|_, _| {
+                            Menu::new("sub-a").item(MenuItem::new("Alpha Action").id("alpha"))
+                        }))
+                        .item(MenuItem::new("Second Group").id("group-b").submenu(|_, _| {
+                            Menu::new("sub-b").item(MenuItem::new("Beta Action").id("beta"))
+                        }))
+                        .item(MenuItem::new("Direct Settings").id("direct-settings"))
+                }),
+        )
+    }
+}
+
+#[gpui::test]
+fn hovering_sibling_row_switches_or_closes_submenu_immediately(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    let (_, cx) = cx.add_window_view(|_, _| SiblingSubmenusHarness);
+    draw(cx);
+
+    let row_a = cx.debug_bounds("menu-item:First Group").unwrap();
+    let row_b = cx.debug_bounds("menu-item:Second Group").unwrap();
+    let direct = cx.debug_bounds("menu-item:Direct Settings").unwrap();
+
+    cx.simulate_mouse_move(row_a.center(), None, Modifiers::none());
+    draw(cx);
+    assert!(cx.debug_bounds("menu-item:Alpha Action").is_some());
+    assert!(cx.debug_bounds("menu-item:Beta Action").is_none());
+
+    // Moving to a sibling submenu switches on the next frame with zero overlap.
+    cx.simulate_mouse_move(row_b.center(), None, Modifiers::none());
+    draw(cx);
+    assert!(
+        cx.debug_bounds("menu-item:Alpha Action").is_none(),
+        "previous sibling submenu must close immediately"
+    );
+    assert!(
+        cx.debug_bounds("menu-item:Beta Action").is_some(),
+        "newly hovered sibling submenu must open immediately"
+    );
+
+    // Moving to a non-submenu row closes any open submenu immediately.
+    cx.simulate_mouse_move(direct.center(), None, Modifiers::none());
+    draw(cx);
+    assert!(
+        cx.debug_bounds("menu-item:Beta Action").is_none(),
+        "open submenu must close immediately when hovering a plain sibling item"
+    );
+}
+
+struct RequestedSubmenuHarness {
+    open: bool,
+}
+impl Render for RequestedSubmenuHarness {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().child(
+            PopoverMenu::new("requested-submenu")
+                .open(self.open)
+                .trigger(Button::new("open-requested").label("Open"))
+                .menu(|menu, _, _| {
+                    menu.w(px(180.))
+                        .item(MenuItem::new("Resting Row").id("resting-row"))
+                        .item(MenuItem::new("Other Row").id("other-row"))
+                        .item(
+                            MenuItem::new("Requested Group")
+                                .id("requested-group")
+                                .open_submenu(true)
+                                .submenu(|_, _| {
+                                    Menu::new("requested-sub")
+                                        .item(MenuItem::new("Requested Action").id("requested"))
+                                }),
+                        )
+                }),
+        )
+    }
+}
+
+#[gpui::test]
+fn requested_submenu_stays_open_until_the_pointer_moves_onto_a_plain_row(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    let (view, cx) = cx.add_window_view(|_, _| RequestedSubmenuHarness { open: true });
+    draw(cx);
+    let resting = cx.debug_bounds("menu-item:Resting Row").unwrap();
+    let other = cx.debug_bounds("menu-item:Other Row").unwrap();
+
+    // Leave the pointer where a plain row will appear, then reopen the menu.
+    view.update(cx, |v, cx| {
+        v.open = false;
+        cx.notify();
+    });
+    draw(cx);
+    cx.simulate_mouse_move(resting.center(), None, Modifiers::none());
+    view.update(cx, |v, cx| {
+        v.open = true;
+        cx.notify();
+    });
+    draw(cx);
+    draw(cx);
+    assert!(
+        cx.debug_bounds("menu-item:Requested Action").is_some(),
+        "a row laid out under a resting pointer must not close a requested submenu"
+    );
+
+    // The pointer closes it as usual once it really moves onto a plain row.
+    cx.simulate_mouse_move(other.center(), None, Modifiers::none());
+    draw(cx);
+    assert!(
+        cx.debug_bounds("menu-item:Requested Action").is_none(),
+        "moving onto a plain row must close the requested submenu"
+    );
+}

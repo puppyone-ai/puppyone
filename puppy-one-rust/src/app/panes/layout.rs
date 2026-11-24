@@ -133,7 +133,7 @@ impl Layout {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{theme::set_scale, typography::Scale};
+    use crate::{platform::conventions::Conventions, theme::set_scale, typography::Scale};
     use core::prelude::v1::test;
     #[test]
     fn panes_tile_without_overlapping() {
@@ -254,11 +254,9 @@ mod tests {
             (Scale::Large, 50.),
         ] {
             set_scale(preset);
-            let height = if cfg!(target_os = "macos") {
-                0.
-            } else {
-                height
-            };
+            // An OS whose app menu holds Settings and Feedback reserves none.
+            let visible = Conventions::current().sidebar_footer_visible;
+            let height = if visible { height } else { 0. };
             assert_eq!(footer(), height);
             let l = Layout::new(1280., 800., 320., 0., 0.);
             assert_eq!(l.footer.h, height);

@@ -173,8 +173,15 @@ impl Homepage {
 impl Homepage {
     /// `RestoringWorkspaceScreen`: while the launch reopens the last Project
     /// the window shows a quiet loading mark, never the Homepage.
-    pub(in crate::app) fn restoring_view(&self, cx: &mut Context<Self>) -> Div {
+    pub(in crate::app) fn restoring_view(
+        &self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Div {
         let t = cx.palette();
+        let conventions = crate::platform::conventions::Conventions::current();
+        let trailing_controls =
+            crate::app::chrome::window_frame::window_controls::render(window, cx);
         div()
             .relative()
             .size_full()
@@ -182,19 +189,30 @@ impl Homepage {
             // `DesktopWindowDragRegion.onboarding-titlebar`.
             .child(
                 div()
-                    .id("restoring-titlebar")
                     .absolute()
                     .top_0()
                     .left_0()
                     .right_0()
                     .h(px(metric::CHROME_HEIGHT))
-                    .on_mouse_down(MouseButton::Left, |e, window, _| {
-                        if e.click_count == 2 {
-                            window.zoom_window();
-                        } else {
-                            window.start_window_move();
-                        }
-                    }),
+                    .flex()
+                    .items_center()
+                    .child(
+                        div()
+                            .id("restoring-titlebar")
+                            .window_control_area(WindowControlArea::Drag)
+                            .flex_1()
+                            .h_full()
+                            .when(!conventions.native_nonclient_window_controls, |d| {
+                                d.on_mouse_down(MouseButton::Left, |e, window, _| {
+                                    if e.click_count == 2 {
+                                        window.zoom_window();
+                                    } else {
+                                        window.start_window_move();
+                                    }
+                                })
+                            }),
+                    )
+                    .children(trailing_controls),
             )
             .child(
                 div()
