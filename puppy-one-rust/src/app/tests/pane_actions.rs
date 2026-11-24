@@ -338,6 +338,143 @@ fn a_stacked_split_drag_previews_commits_once_and_cancels(cx: &mut TestAppContex
     drag_an_editor_split(cx, Direction::Vertical);
 }
 
+/// `EditorSplitResizeHandle` #3 and `horizontal / vertical editor splitter
+/// lifecycle` (`routes keyboard adjustment on its own axis and equalizes
+/// the split`): the split's handle is a separator across its axis that
+/// takes keyboard focus; the arrows on its own axis step the ratio by
+/// 0.025 at once, the others leave it, and a double press equalizes it,
+/// each a single commit with no preview.
+fn step_an_editor_split(cx: &mut TestAppContext, direction: Direction) {
+    use crate::app::editor_workbench::{split_step, splitter_orientation};
+    use gpui_kit::test::TestQueryExt as _;
+    let temp = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md"] {
+        std::fs::write(temp.path().join(name), name).unwrap();
+    }
+    let (view, cx) = setup(cx);
+    cx.update(|w, _| w.activate_window());
+    two_panes(&view, cx, temp.path(), direction);
+    draw(cx);
+    let split = "editor-split-1";
+    let ratio = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            s.files(cx).state().unwrap().layout.ratio(split).unwrap()
+        })
+    };
+    let set = |cx: &mut VisualTestContext, to: f64| {
+        view.update(cx, |s, cx| {
+            s.session
+                .docs
+                .update(cx, |d, _| d.state_mut().unwrap().layout.resize(split, to))
+        });
+        draw(cx);
+    };
+    let separator = |cx: &mut VisualTestContext| {
+        draw(cx);
+        let found = cx.update(|w, _| w.find_all_by_role(Role::Splitter));
+        assert_eq!(found.len(), 1, "{direction:?}");
+        found.into_iter().next().unwrap()
+    };
+    // No preview and nothing held back from the workspace's metadata.
+    let committed = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            s.editor.read(cx).resize.is_none() && !s.files(cx).metadata_suspended
+        })
+    };
+    let (decrement, increment, across) = match direction {
+        Direction::Horizontal => ("left", "right", "down"),
+        Direction::Vertical => ("up", "down", "right"),
+    };
+    let handle = separator(cx);
+    assert_eq!(
+        handle.label(),
+        Some(crate::localization::t("editor.panes.resize"))
+    );
+    assert_eq!(
+        (
+            handle.numeric_value(),
+            handle.min_numeric_value(),
+            handle.max_numeric_value()
+        ),
+        (Some(50.), Some(15.), Some(85.)),
+        "{direction:?}"
+    );
+    assert_eq!(handle.focused(), Some(false));
+    assert_eq!(
+        splitter_orientation(direction),
+        match direction {
+            Direction::Horizontal => Orientation::Vertical,
+            Direction::Vertical => Orientation::Horizontal,
+        }
+    );
+    assert_eq!(split_step(direction, across), None);
+    cx.update(|w, cx| {
+        let focus = view.read(cx).editor.read(cx).split_focus[split].clone();
+        w.focus(&focus, cx);
+    });
+    assert_eq!(separator(cx).focused(), Some(true), "{direction:?}");
+    // The lifecycle case: its own axis steps both ways, the other is
+    // ignored.
+    cx.simulate_keystrokes(increment);
+    assert_eq!(ratio(cx), 0.525, "{direction:?}");
+    assert!(committed(cx));
+    assert_eq!(separator(cx).numeric_value(), Some(53.));
+    cx.simulate_keystrokes(decrement);
+    cx.simulate_keystrokes(decrement);
+    assert_eq!(ratio(cx), 0.475, "{direction:?}");
+    cx.simulate_keystrokes(across);
+    assert_eq!(ratio(cx), 0.475, "{direction:?}: the cross axis");
+    assert!(committed(cx));
+    let double_press = |cx: &mut VisualTestContext| {
+        draw(cx);
+        let at = separator(cx).bounds().center();
+        cx.simulate_click(at, Modifiers::default());
+        cx.simulate_event(MouseDownEvent {
+            position: at,
+            modifiers: Modifiers::default(),
+            button: MouseButton::Left,
+            click_count: 2,
+            first_mouse: false,
+        });
+        cx.simulate_event(MouseUpEvent {
+            position: at,
+            modifiers: Modifiers::default(),
+            button: MouseButton::Left,
+            click_count: 2,
+        });
+    };
+    double_press(cx);
+    assert_eq!(ratio(cx), 0.5, "{direction:?}: equalized");
+    assert!(committed(cx));
+    // `EditorSplitResizeHandle` #3: from 0.6, a step then an equalize.
+    set(cx, 0.6);
+    cx.update(|w, cx| {
+        let focus = view.read(cx).editor.read(cx).split_focus[split].clone();
+        w.focus(&focus, cx);
+    });
+    cx.simulate_keystrokes(increment);
+    assert_eq!(ratio(cx), 0.625, "{direction:?}");
+    double_press(cx);
+    assert_eq!(ratio(cx), 0.5, "{direction:?}");
+    assert!(committed(cx));
+    // The steps stay within 0.15..0.85.
+    set(cx, 0.85);
+    cx.update(|w, cx| {
+        let focus = view.read(cx).editor.read(cx).split_focus[split].clone();
+        w.focus(&focus, cx);
+    });
+    cx.simulate_keystrokes(increment);
+    assert_eq!(ratio(cx), 0.85, "{direction:?}");
+}
+#[gpui::test]
+fn a_side_by_side_split_steps_with_left_and_right_and_equalizes(cx: &mut TestAppContext) {
+    step_an_editor_split(cx, Direction::Horizontal);
+}
+#[gpui::test]
+fn a_stacked_split_steps_with_up_and_down_and_equalizes(cx: &mut TestAppContext) {
+    step_an_editor_split(cx, Direction::Vertical);
+}
+
 fn pane_bounds(view: &Entity<Shell>, cx: &mut VisualTestContext, pane: &str) -> Bounds<Pixels> {
     view.read_with(cx, |s, cx| s.editor.read(cx).pane_bounds.borrow()[pane])
 }
