@@ -114,6 +114,15 @@ pub(super) fn register_markdown_keymap(cx: &mut App) {
         KeyBinding::new("secondary-shift-9", ToggleTaskList, c),
         KeyBinding::new("secondary-shift-.", ToggleQuote, c),
     ]);
+    // A focused MDX tab switches tabs with these keys
+    // (`markdownMdxComponent.test.ts`).
+    let tab = Some(features::mdx::TAB_KEY_CONTEXT);
+    cx.bind_keys([
+        KeyBinding::new("right", features::mdx::NextTab, tab),
+        KeyBinding::new("left", features::mdx::PreviousTab, tab),
+        KeyBinding::new("home", features::mdx::FirstTab, tab),
+        KeyBinding::new("end", features::mdx::LastTab, tab),
+    ]);
     for (feature_index, feat) in MDX_FEATURES.iter().enumerate() {
         for (binding_index, kb) in feat.keybindings().iter().enumerate() {
             cx.bind_keys([KeyBinding::new(

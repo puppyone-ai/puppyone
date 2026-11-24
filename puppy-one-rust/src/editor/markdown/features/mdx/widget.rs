@@ -5,6 +5,10 @@
 //! (`padding: 18px 2px 8px`, at least 54px), its Markdown rendered through
 //! [`shared::preview::InlinePreview`] with zero cross-feature imports
 //! (`MA-07`, `MA-12`, `R5`, `R13`).
+//!
+//! The labels are a tab list (`mdxTabsWidget.ts`): each tab takes keyboard
+//! focus, only the shown one is a tab stop, and while one has focus the
+//! arrows, Home and End show and focus another without touching the source.
 use super::{Action, ID, TabsBlock};
 use crate::{
     editor::{
@@ -15,7 +19,7 @@ use crate::{
         registry::DocumentAssets,
         view::{
             command::Command,
-            widget::{BlockWidget, WidgetCx},
+            widget::{BlockWidget, CommandSender, WidgetCx},
         },
     },
     theme::{self, Theme},
@@ -40,6 +44,40 @@ const PANEL_X: f32 = 2.;
 const PANEL_BOTTOM: f32 = 8.;
 /// `.cm-md-mdx-source-toggle` while shown.
 const TOGGLE_OPACITY: f32 = 0.72;
+/// `.cm-md-mdx-tab:focus-visible { outline: 2px; outline-offset: 2px }`,
+/// in the accent at 55%.
+const FOCUS_RING: f32 = 2.;
+const FOCUS_OFFSET: f32 = 2.;
+const FOCUS_ALPHA: f32 = 0.55;
+
+actions!(markdown_mdx_tabs, [NextTab, PreviousTab, FirstTab, LastTab]);
+
+/// A focused tab's key context: ArrowRight / ArrowLeft (wrapping), Home and
+/// End show another tab.
+pub const TAB_KEY_CONTEXT: &str = "MarkdownMdxTab";
+
+/// Each tab's keyboard focus, kept by the block across frames.
+#[derive(Default)]
+struct TabFocus(Vec<FocusHandle>);
+
+/// Show tab `tab` of the block at `at` and move the keyboard there.
+fn show(
+    send: &CommandSender,
+    handles: &[FocusHandle],
+    at: usize,
+    tab: usize,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    send(
+        Command::new(ID, Action::Select { at, tab }).preserving_focus(),
+        window,
+        cx,
+    );
+    if let Some(handle) = handles.get(tab) {
+        window.focus(handle, cx);
+    }
+}
 
 pub struct TabsWidget {
     block: TabsBlock,
@@ -89,8 +127,23 @@ impl BlockWidget for TabsWidget {
             .max(PANEL_MIN);
         let height = TOOLBAR + panel_height;
 
+        let count = self.block.tabs.len();
+        let mut handles = cx.with_widget_state(|f: &mut TabFocus| std::mem::take(&mut f.0));
+        handles.truncate(count);
+        while handles.len() < count {
+            handles.push(cx.render.app.focus_handle());
+        }
+        cx.with_widget_state(|f: &mut TabFocus| f.0.clone_from(&handles));
+        let handles: Rc<[FocusHandle]> = handles.into();
+        let focused_tab = handles.iter().position(|h| h.is_focused(cx.render.window));
+        let focus_visible = cx.render.window.last_input_was_keyboard();
+
         let text = &self.theme.body.text;
         let mut labels = div()
+            .id(ElementId::NamedInteger("md-mdx-tablist".into(), at as u64))
+            .test_support()
+            .role(Role::TabList)
+            .aria_label("Tabs")
             .flex()
             .items_end()
             .gap(px(TAB_GAP))
@@ -98,13 +151,33 @@ impl BlockWidget for TabsWidget {
             .overflow_hidden();
         for (index, item) in self.block.tabs.iter().enumerate() {
             let shown = index == self.active;
-            let send = send.clone();
+            let ring = focused_tab == Some(index) && focus_visible;
             let name = item.label.clone();
+            let to = |next: usize| {
+                let (send, handles) = (send.clone(), handles.clone());
+                move |window: &mut Window, cx: &mut App| show(&send, &handles, at, next, window, cx)
+            };
+            let next = to((index + 1) % count);
+            let previous = to((index + count - 1) % count);
+            let first = to(0);
+            let last = to(count - 1);
+            let click = to(index);
             let mut label = div()
                 .id(ElementId::NamedInteger(
                     "md-mdx-tab".into(),
                     ((at as u64) << 8) | index as u64,
                 ))
+                .test_support()
+                .role(Role::Tab)
+                .aria_label(SharedString::from(item.label.clone()))
+                .aria_selected(shown)
+                // Only the shown tab is a tab stop (roving `tabIndex`).
+                .track_focus(&handles[index].clone().tab_stop(shown))
+                .key_context(TAB_KEY_CONTEXT)
+                .on_action(move |_: &NextTab, window, cx| next(window, cx))
+                .on_action(move |_: &PreviousTab, window, cx| previous(window, cx))
+                .on_action(move |_: &FirstTab, window, cx| first(window, cx))
+                .on_action(move |_: &LastTab, window, cx| last(window, cx))
                 .debug_selector(move || {
                     format!(
                         "md-mdx-tab:{name}:{}",
@@ -117,20 +190,31 @@ impl BlockWidget for TabsWidget {
                 .pb(px(TAB_BOTTOM))
                 .whitespace_nowrap()
                 .cursor(theme::clickable_cursor())
-                .text_color(if shown { t.text } else { t.muted })
+                .text_color(if shown || ring { t.text } else { t.muted })
                 .hover(|s| s.text_color(t.text))
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                // A pressed tab shows and takes focus, as a button does.
                 .on_click(move |_, window, cx| {
                     cx.stop_propagation();
-                    send(
-                        Command::new(ID, Action::Select { at, tab: index }),
-                        window,
-                        cx,
-                    );
+                    click(window, cx);
                 })
                 .child(SharedString::from(item.label.clone()));
             text.apply(label.style());
-            label = label.text_color(if shown { t.text } else { t.muted });
+            label = label.text_color(if shown || ring { t.text } else { t.muted });
+            if ring {
+                let inset = -(FOCUS_RING + FOCUS_OFFSET);
+                label = label.child(
+                    div()
+                        .absolute()
+                        .left(px(inset))
+                        .right(px(inset))
+                        .top(px(inset))
+                        .bottom(px(inset))
+                        .rounded(px(FOCUS_RING + FOCUS_OFFSET))
+                        .border(px(FOCUS_RING))
+                        .border_color(theme::alpha(t.accent, FOCUS_ALPHA)),
+                );
+            }
             if shown {
                 label = label.child(
                     div()
@@ -147,7 +231,7 @@ impl BlockWidget for TabsWidget {
         }
         let range = self.block.range.clone();
         let toggle_send = send.clone();
-        let focused = state.focus_within() || state.selected;
+        let focused = state.focus_within() || state.selected || focused_tab.is_some();
         let toggle = div()
             .id(ElementId::NamedInteger("md-mdx-source".into(), at as u64))
             .debug_selector(|| "md-mdx-source".into())
@@ -226,7 +310,7 @@ impl BlockWidget for TabsWidget {
         let size = (width, panel_height);
         let frame = if state.selected {
             ring::ring(size, b.radius, b.ring_width, b.selected_ring)
-        } else if state.focus_within() {
+        } else if state.focus_within() || focused_tab.is_some() {
             ring::ring(size, b.radius, b.ring_width, b.hover_ring)
         } else {
             let hover = b.hover_ring;
