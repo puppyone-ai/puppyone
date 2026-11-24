@@ -1,20 +1,24 @@
-//! Callouts (product `features/callout`, `TA-40`): model parsing lives in
-//! [`model`], fold and title-reveal state in [`state`] (`CalloutFoldState`
-//! stored inside `FeatureStateStore` mapped via `Anchor` across edits/undo).
+//! Callouts (product `features/callout`, `TA-40`): header recognition lives in
+//! [`syntax`], model parsing in [`model`], plan compilation in [`plan`], icon
+//! assets in [`icons`], and fold/title-reveal state in [`state`].
+pub mod icons;
 pub mod model;
+pub mod plan;
 pub mod state;
+pub mod syntax;
 
-pub use model::{Callout, callout_at, collect_callouts, parse_callout};
+pub use model::{Callout, FoldedBody, callout_at, collect_callouts, parse_callout};
 pub use state::{CalloutFoldState, CalloutFolds};
 
 use crate::editor::{
     markdown::core::{
         decorations::{BlockDecoration, LineDecoration},
         features::{CompileCx, MarkdownFeature, WidgetFactoryCx},
-        plans::{BlockEmbed, Plan, Presentation},
+        plans::{BlockEmbed, Plan},
         state::PreviewState,
     },
     text::state::{EditorState, Transaction},
+    tokens::callout_color as color,
     view::{
         command::Command,
         style::{Paint, Rect, Trailing},
@@ -28,25 +32,11 @@ pub struct CalloutFeature;
 pub static FEATURE: CalloutFeature = CalloutFeature;
 pub const ID: &str = "callout";
 
-const ICON: f32 = 18.;
-const ICON_GAP: f32 = 8.;
-const TITLE_PADDING: f32 = 8.;
-const HEADER_DEPTH: f32 = 0.25;
-const FOLD_GAP: f32 = 6.;
-
 /// Fold (or open) the callout whose marker starts at `at`.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct Fold {
     pub at: usize,
     pub folded: bool,
-}
-
-use crate::editor::tokens::callout_color as color;
-
-/// The body of a folded callout, out of the flow.
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct FoldedBody {
-    pub range: Range<usize>,
 }
 
 struct FoldedWidget;
@@ -70,22 +60,7 @@ impl MarkdownFeature for CalloutFeature {
     }
 
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        let fold_state = cx.state::<CalloutFoldState>(ID);
-        for callout in model::collect_callouts(cx.doc, cx.syntax) {
-            if state::is_folded(&callout, fold_state) && callout.last_line > callout.first_line {
-                let range = cx.doc.line_range(callout.first_line + 1).start
-                    ..cx.doc.line_range(callout.last_line).end;
-                out.push(Plan {
-                    element: None,
-                    source: range.clone(),
-                    presentation: Presentation::BlockAtom(BlockEmbed::new(
-                        ID,
-                        FoldedBody { range },
-                    )),
-                    delete_units: Vec::new(),
-                });
-            }
-        }
+        plan::compile_blocks(cx, out);
     }
 
     fn block_widget(&self, embed: &BlockEmbed, _: &WidgetFactoryCx) -> Option<Rc<dyn BlockWidget>> {
@@ -136,7 +111,7 @@ impl MarkdownFeature for CalloutFeature {
         if title {
             style.text.color = tint;
             style.text.weight = 600.;
-            style.padding.top += TITLE_PADDING;
+            style.padding.top += icons::TITLE_PADDING;
             style.background_radii[0] = radius;
             style.background_radii[1] = radius;
         }
@@ -150,20 +125,25 @@ impl MarkdownFeature for CalloutFeature {
                     style.border.left + style.padding.left,
                     style.border.top
                         + style.padding.top
-                        + (style.text.line_height_px() - ICON) / 2.,
-                    ICON,
-                    ICON,
+                        + (style.text.line_height_px() - icons::ICON) / 2.,
+                    icons::ICON,
+                    icons::ICON,
                 ),
-                path: SharedString::from(format!("icons/callout-{}.svg", callout.appearance)),
+                path: SharedString::from(icons::icon_path(callout.appearance)),
                 color: tint,
             };
-            style.padding.left += ICON + ICON_GAP;
+            style.padding.left += icons::ICON + icons::ICON_GAP;
             style.overlays.push(icon);
             if callout.fold.is_some() {
                 style.trailing = Some(Trailing {
-                    gap: FOLD_GAP + if callout.has_title { 0. } else { ICON_GAP },
-                    size: ICON,
-                    icon: SharedString::from("icons/callout-chevron.svg"),
+                    gap: icons::FOLD_GAP
+                        + if callout.has_title {
+                            0.
+                        } else {
+                            icons::ICON_GAP
+                        },
+                    size: icons::ICON,
+                    icon: SharedString::from(icons::CHEVRON_ICON),
                     color: tint,
                     rotation: if folded { 0. } else { 90. },
                     command: Command::new(
@@ -179,7 +159,7 @@ impl MarkdownFeature for CalloutFeature {
             if callout.has_title {
                 cx.hidden.push(callout.marker.clone());
             } else {
-                style.padding.bottom += HEADER_DEPTH * style.text.size;
+                style.padding.bottom += icons::HEADER_DEPTH * style.text.size;
                 cx.replaced.push((
                     callout.marker.clone(),
                     SharedString::from(callout.default_title.clone()),

@@ -1,15 +1,90 @@
-//! Per-view, `BlockId`-scoped presentation sessions (`platform/sessions/`,
-//! TS `platform/sessions/*`).
+//! Per-view presentation sessions (`platform/sessions/`, TS
+//! `platform/sessions/*`).
 //!
-//! All state here lives in the owning view's [`WidgetStateStore`] (evicted
-//! automatically when blocks leave the document or the view closes), never in
-//! process-global `thread_local!` maps.
+//! Block-scoped state lives in the owning view's [`WidgetStateStore`]
+//! (evicted automatically when blocks leave the document or the view
+//! closes). Table viewport and column layout sessions live in the view's
+//! [`Sessions`] and follow its transactions through [`continuity`]. None of
+//! it is process-global.
+//!
+//! [`WidgetStateStore`]: crate::editor::view::widget::WidgetStateStore
 pub mod column_layout;
+pub mod continuity;
 pub mod disclosure;
 pub mod inline_viewport;
 pub mod measure;
 
+use crate::editor::{
+    markdown::core::state::{FeatureStateStore, FeatureStateValue},
+    text::{buffer::Buffer, change::ChangeSet, state::Applied},
+};
 use std::collections::HashMap;
+
+/// One view's table sessions: where wide tables are scrolled and how their
+/// columns are laid out.
+#[derive(Clone)]
+pub struct Sessions {
+    pub viewports: inline_viewport::Shared,
+    pub layouts: column_layout::Shared,
+    /// The last revision mapped: a transaction reaches the view's extension
+    /// more than once.
+    mapped: std::rc::Rc<std::cell::Cell<u64>>,
+}
+
+impl Default for Sessions {
+    fn default() -> Self {
+        Self {
+            viewports: inline_viewport::Store::shared(),
+            layouts: column_layout::Store::shared(),
+            mapped: std::rc::Rc::default(),
+        }
+    }
+}
+
+/// The feature-state slot the view's [`Sessions`] live in, so widgets reach
+/// them through their factory context.
+pub const SLOT: &str = "platform.sessions";
+
+/// Give a view's feature state its own [`Sessions`].
+pub fn install(state: &mut FeatureStateStore) {
+    state.get_or_default_mut::<Sessions>(SLOT);
+}
+
+impl std::fmt::Debug for Sessions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Sessions")
+    }
+}
+
+/// Sessions are presentation state outside the decoration keys: every
+/// store compares equal and hashes to nothing, and transactions reach them
+/// through [`Sessions::map`] with their effects.
+impl PartialEq for Sessions {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl std::hash::Hash for Sessions {
+    fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}
+}
+
+impl FeatureStateValue for Sessions {
+    fn map_changes(&mut self, _: &ChangeSet, _: &Buffer, _: u64) {}
+}
+
+impl Sessions {
+    /// Follow one applied transaction, once, into `revision`.
+    pub fn map(&self, applied: &Applied, revision: u64) {
+        if applied.changes.is_empty() || self.mapped.replace(revision) == revision {
+            return;
+        }
+        continuity::with_mapping(applied, |mapping| {
+            self.viewports.borrow_mut().map(mapping);
+            self.layouts.borrow_mut().map(mapping);
+        });
+    }
+}
 
 /// Bounded LRU map used by per-block presentation sessions (`TODO-31`).
 pub struct BoundedMap<K, V> {

@@ -102,19 +102,48 @@ impl From<Instant> for Annotation {
 /// `StateEffect`): state fields, extensions and view plugins inspect effects
 /// without adding closed enum variants to the kernel.
 #[derive(Clone)]
-pub struct StateEffect(Arc<dyn Any + Send + Sync>);
+pub struct StateEffect {
+    value: Arc<dyn Any + Send + Sync>,
+    /// What undoing the carrying transaction applies (CodeMirror
+    /// `invertedEffects`); history replays the effect itself on redo.
+    inverse: Option<Arc<dyn Any + Send + Sync>>,
+}
 
 impl StateEffect {
     pub fn new<T: Send + Sync + 'static>(effect: T) -> Self {
-        Self(Arc::new(effect))
+        Self {
+            value: Arc::new(effect),
+            inverse: None,
+        }
+    }
+
+    /// An effect history keeps with its edit: `inverse` travels with the
+    /// undo, `effect` again with the redo.
+    pub fn invertible<T: Send + Sync + 'static, U: Send + Sync + 'static>(
+        effect: T,
+        inverse: U,
+    ) -> Self {
+        Self {
+            value: Arc::new(effect),
+            inverse: Some(Arc::new(inverse)),
+        }
+    }
+
+    /// The effect undoing this one's transaction carries, itself invertible
+    /// back to this one.
+    pub fn inverted(&self) -> Option<Self> {
+        Some(Self {
+            value: self.inverse.clone()?,
+            inverse: Some(self.value.clone()),
+        })
     }
 
     pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
-        self.0.downcast_ref::<T>()
+        self.value.downcast_ref::<T>()
     }
 
     pub fn is<T: 'static>(&self) -> bool {
-        self.0.is::<T>()
+        self.value.is::<T>()
     }
 }
 

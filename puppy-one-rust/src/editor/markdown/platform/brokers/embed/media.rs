@@ -173,6 +173,18 @@ pub struct MediaRequest<'a> {
     pub dark: bool,
 }
 
+#[cfg(test)]
+thread_local! {
+    static REQUESTED: RefCell<Vec<(PathBuf, MediaKind)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// The players asked for on this thread, as (workspace path, kind), since
+/// the last call.
+#[cfg(test)]
+pub fn take_requested() -> Vec<(PathBuf, MediaKind)> {
+    REQUESTED.with(|r| std::mem::take(&mut *r.borrow_mut()))
+}
+
 thread_local! {
     static MEDIA_PLAYERS: RefCell<HashMap<MediaKey, Rc<MediaPlayer>>> = RefCell::new(HashMap::new());
     static MEDIA_POOL: RefCell<WindowHostPool<MediaKey>> =
@@ -194,6 +206,8 @@ pub fn get_media_player(
         assets,
         dark,
     } = request;
+    #[cfg(test)]
+    REQUESTED.with(|r| r.borrow_mut().push((key.3.clone(), kind)));
     let window_id = window.window_handle().window_id().as_u64();
     if let Some(existing) = MEDIA_PLAYERS.with(|p| p.borrow().get(&key).cloned()) {
         existing.used.set(Instant::now());
@@ -413,5 +427,24 @@ mod tests {
         };
         assert_eq!(clip.read(Path::new("a.mp4")), Some(b"media/a.mp4".to_vec()));
         assert_eq!(clip.read(Path::new("b.mp4")), None);
+    }
+
+    #[test]
+    fn the_page_plays_the_served_file_and_reports_back() {
+        let html = media_page(
+            MediaKind::Video,
+            "puppyone-preview://local/a%20b.mp4",
+            Some("A \"clip\""),
+            "BLACK",
+        );
+        assert!(html.contains(
+            r#"<video controls preload="metadata" playsinline src="puppyone-preview://local/a%20b.mp4""#
+        ));
+        assert!(html.contains(r#"aria-label="A &quot;clip&quot;""#));
+        assert!(html.contains("background:BLACK"));
+        assert!(html.contains("video.videoWidth"));
+        let audio = media_page(MediaKind::Audio, "x.mp3", None, "BG");
+        assert!(audio.contains(r#"<audio controls preload="metadata""#));
+        assert!(audio.contains(r#"post("size:"+"300:54")"#));
     }
 }

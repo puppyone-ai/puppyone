@@ -1,13 +1,16 @@
 //! HTML flow acceptance at the production plan, sanitized surface, native
 //! widget and input boundaries. DOM structure, not HTML whitespace, is the
 //! contract shared with the pinned TS markdownBlockSyntax suite.
-use super::{setup, setup_with_focus};
+use super::{blocks, setup, setup_with_focus};
 use crate::{
     editor::{
         markdown::{
             MarkdownExtension, SetAssets,
-            features::html::HtmlBlock,
-            features::html::dom::{self, Element, Node},
+            features::html::{
+                HtmlBlock,
+                sanitize::{Element, Node},
+                structure::{self, Parsed},
+            },
         },
         registry::DocumentAssets,
         text::{selection::Selection, state::EditorState},
@@ -37,7 +40,7 @@ fn html_block(source: &str) -> HtmlBlock {
 }
 
 fn parsed(html: &str) -> Vec<Node> {
-    let dom::Parsed::Complete(nodes) = dom::parse(html) else {
+    let Parsed::Complete(nodes) = structure::parse(html) else {
         panic!("surface must accept the generated HTML: {html:?}");
     };
     nodes
@@ -238,7 +241,7 @@ fn native_html_block_conversion_preserves_the_ts_semantic_structure() {
         ("| a |\n| - |\n| b |", "table", "a\nb"),
         ("<div>x</div>", "div", "x"),
     ] {
-        let nodes = dom::markdown_nodes(source);
+        let nodes = structure::markdown_nodes(source);
         let elements = descendants(&nodes, tag);
         assert_eq!(elements.len(), 1, "{source:?}: {nodes:?}");
         // HTML block-boundary whitespace differs between parsers. Content
@@ -296,7 +299,7 @@ fn native_html_inline_conversion_preserves_roles_links_images_and_escaping() {
         // These are the actual DOM nodes consumed by the native HTML/MDX
         // surface. Compare inline children so paragraph wrappers and entity
         // spelling do not disguise lost text, marks, links or image nesting.
-        let actual = dom::markdown_nodes(source);
+        let actual = structure::markdown_nodes(source);
         let expected = parsed(&format!("<p>{expected}</p>"));
         let paragraphs = descendants(&actual, "p");
         assert_eq!(paragraphs.len(), 1, "{source:?}");
@@ -306,7 +309,7 @@ fn native_html_inline_conversion_preserves_roles_links_images_and_escaping() {
             "{source:?}"
         );
     }
-    let html = dom::markdown_html("[x](a\"b)");
+    let html = structure::markdown_html("[x](a\"b)");
     assert!(
         !html.contains("a\"b"),
         "attribute quote must be escaped: {html:?}"
@@ -786,4 +789,20 @@ fn details_disclosure_is_isolated_between_two_documents_with_same_block_offset(
     });
     draw(visual);
     assert!(!disclosure::is_toggled(&mut store_a.borrow_mut(), id_a, 0));
+}
+
+#[gpui::test]
+fn an_html_block_renders_until_its_source_is_shown(cx: &mut TestAppContext) {
+    use crate::editor::markdown::features::html::{ID, ShowSource};
+    use crate::editor::view::command::Command;
+    let text = "<div align=\"center\">\n<b>hi</b>\n</div>\n\nafter";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    assert_eq!(blocks(&view, cx), vec![0..3, 3..4, 4..5]);
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(&Command::new(ID, ShowSource(0..35)), w, cx)
+    });
+    assert_eq!(blocks(&view, cx), vec![0..1, 1..2, 2..3, 3..4, 4..5]);
 }

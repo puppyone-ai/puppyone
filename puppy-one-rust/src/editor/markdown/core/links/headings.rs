@@ -8,8 +8,10 @@ use crate::editor::{
 use regex::Regex;
 use std::{collections::HashMap, sync::LazyLock};
 
+/// In-page fragment targets: explicit inline HTML ids (exact, first wins)
+/// before heading slugs (`markdownFragmentTargets.ts`).
 #[derive(Clone, Debug, Default)]
-pub struct Headings(HashMap<String, usize>);
+pub struct Headings(HashMap<String, usize>, HashMap<String, usize>);
 
 impl Headings {
     /// Derive heading fragment targets from parsed `Syntax` `Kind::Heading`
@@ -27,7 +29,15 @@ impl Headings {
         static WHITESPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
 
         let mut positions = HashMap::new();
+        let mut ids: HashMap<String, usize> = HashMap::new();
         let mut counts: HashMap<String, usize> = HashMap::new();
+        for el in &syntax.elements {
+            if el.kind == Kind::InlineHtml
+                && let Some(id) = el.html.as_ref().and_then(|h| h.id.clone())
+            {
+                ids.entry(id).or_insert(el.range.start);
+            }
+        }
 
         for el in &syntax.elements {
             if el.kind != Kind::Heading {
@@ -67,11 +77,17 @@ impl Headings {
                 }
             }
         }
-        Self(positions)
+        Self(positions, ids)
     }
 
+    /// The position `key` (`#fragment`) names: an explicit id with exactly
+    /// that decoded name, else a heading. A malformed escape names nothing.
     pub fn get(&self, key: &str) -> Option<usize> {
-        self.0.get(&fragment(key)).copied()
+        let exact = super::fragments::decode_exact(key)?;
+        self.1
+            .get(&exact)
+            .or_else(|| self.0.get(&fragment(key)))
+            .copied()
     }
 
     #[cfg(test)]

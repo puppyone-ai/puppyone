@@ -21,7 +21,13 @@
         "findTypeMeanMs": 5.0
       }
     },
-    {"surface": "stress", "sections": "list_10k", "maxMs": {"typeMeanMs": 8.0, "arrowMeanMs": 4.0}},
+    {"surface": "stress", "sections": "list_100", "maxMs": {"typeMeanMs": 5.5, "arrowMeanMs": 5.1}},
+    {
+      "surface": "stress",
+      "sections": "list_10k",
+      "comment": "Recalibrated 2026-11-23 on Apple M2 Pro (max of 3 runs x1.5: type 4.01ms, arrow 3.52ms) once an edit inside one long list stopped rescanning the whole list. A caret move repaints a screen of dense list text: 3.0-3.5ms at 100 items and at 10,000, held to x2 by the stress scaling checks.",
+      "maxMs": {"typeMeanMs": 6.1, "arrowMeanMs": 5.3}
+    },
     {"surface": "stress", "sections": "single_line_100k", "maxMs": {"typeMeanMs": 12.0, "arrowMeanMs": 6.0}},
     {"surface": "stress", "sections": "wide_table_200x2000", "maxMs": {"typeMeanMs": 12.0, "arrowMeanMs": 6.0}},
     {"surface": "stress", "sections": "images_500", "maxMs": {"typeMeanMs": 8.0, "arrowMeanMs": 4.0}},
@@ -67,6 +73,8 @@
     {"surface": "edit", "metric": "arrowMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},
     {"surface": "edit", "metric": "imeMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},
     {"surface": "edit", "metric": "findTypeMeanMs", "small": 160, "large": 1600, "maxRatio": 2.0},
+    {"comment": "An edit or a caret move inside one 10,000-item list costs what it costs in a 100-item list (task book A1).", "surface": "stress", "metric": "typeMeanMs", "small": "list_100", "large": "list_10k", "maxRatio": 2.0},
+    {"surface": "stress", "metric": "arrowMeanMs", "small": "list_100", "large": "list_10k", "maxRatio": 2.0},
     {"surface": "csv", "metric": "firstMs", "small": 500, "large": 10000, "maxRatio": 2.0},
     {"surface": "csv", "metric": "scrollMeanMs", "small": 500, "large": 10000, "maxRatio": 2.0},
     {"surface": "csv", "metric": "cellTypeMeanMs", "small": 500, "large": 10000, "maxRatio": 2.0},

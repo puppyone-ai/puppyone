@@ -14,7 +14,7 @@ use super::{
     change::ChangeSet,
     rope::Rope,
     selection::Selection,
-    state::{Annotation, Applied, EditorState, Transaction, UserEvent},
+    state::{Annotation, Applied, EditorState, StateEffect, Transaction, UserEvent},
 };
 use std::{
     ops::Range,
@@ -58,6 +58,9 @@ struct Step {
     inverse: ChangeSet,
     selection_before: Selection,
     selection_after: Selection,
+    /// The step's invertible effects, in order: replayed on redo, their
+    /// inverses (in reverse order) on undo.
+    effects: Vec<StateEffect>,
     group: Option<GroupKind>,
     at: Instant,
     /// Later input never joins this step (a committed composition).
@@ -200,6 +203,16 @@ pub fn minimal_diff_utf16(before: &str, after: &Buffer) -> Option<(Range<usize>,
     minimal_diff_buffers_utf16(&before_buf, after)
 }
 
+/// The effects of `applied` that history keeps with its step.
+fn invertible(applied: &Applied) -> Vec<StateEffect> {
+    applied
+        .effects
+        .iter()
+        .filter(|e| e.inverted().is_some())
+        .cloned()
+        .collect()
+}
+
 fn replacement(before: &Buffer, after: &Buffer) -> Option<ChangeSet> {
     minimal_diff_buffers(before, after)
 }
@@ -224,6 +237,7 @@ impl History {
                 inverse: applied.inverse.clone(),
                 selection_before: applied.before_selection,
                 selection_after: after.selection,
+                effects: invertible(applied),
                 group: None,
                 at,
                 sealed: true,
@@ -252,6 +266,7 @@ impl History {
             step.changes = step.changes.compose(&applied.changes);
             step.inverse = applied.inverse.compose(&step.inverse);
             step.selection_after = after.selection;
+            step.effects.extend(invertible(applied));
             step.at = at;
             self.trim();
         } else {
@@ -260,6 +275,7 @@ impl History {
                 inverse: applied.inverse.clone(),
                 selection_before: applied.before_selection,
                 selection_after: after.selection,
+                effects: invertible(applied),
                 group: kind,
                 at,
                 sealed: false,
@@ -348,6 +364,7 @@ impl History {
             inverse,
             selection_before: composing.selection,
             selection_after: state.selection,
+            effects: Vec::new(),
             group: Some(GroupKind::Input),
             at: now,
             sealed: true,
@@ -390,12 +407,27 @@ impl History {
         } else {
             self.undo.pop()?
         };
-        let (changes, selection, event) = if redo {
-            (step.changes.clone(), step.selection_after, UserEvent::Redo)
+        let (changes, selection, event, effects) = if redo {
+            (
+                step.changes.clone(),
+                step.selection_after,
+                UserEvent::Redo,
+                step.effects.clone(),
+            )
         } else {
-            (step.inverse.clone(), step.selection_before, UserEvent::Undo)
+            (
+                step.inverse.clone(),
+                step.selection_before,
+                UserEvent::Undo,
+                step.effects
+                    .iter()
+                    .rev()
+                    .filter_map(StateEffect::inverted)
+                    .collect(),
+            )
         };
-        let tr = Transaction::edit(changes, Some(selection), event);
+        let mut tr = Transaction::edit(changes, Some(selection), event);
+        tr.effects.extend(effects);
         Some((StepTicket { step, redo }, tr))
     }
 
@@ -439,6 +471,40 @@ mod tests {
         );
         let applied = state.apply(tr).unwrap();
         history.record(&applied, state, now);
+    }
+
+    /// `invertedEffects`: an invertible effect travels with its edit's undo
+    /// as its inverse and with the redo as itself; plain effects stay with
+    /// the original transaction only.
+    #[test]
+    fn invertible_effects_travel_with_undo_and_redo() {
+        let mut state = EditorState::new("ab");
+        let mut history = History::default();
+        let mut tr = Transaction::edit(ChangeSet::replace(1..1, "X"), None, UserEvent::Command);
+        tr.effects
+            .push(StateEffect::invertible("forward", "inverse"));
+        tr.effects.push(StateEffect::new("plain"));
+        let applied = state.apply(tr).unwrap();
+        history.record(&applied, &state, Instant::now());
+        let names = |tr: &Transaction| {
+            tr.effects
+                .iter()
+                .filter_map(|e| e.downcast_ref::<&str>().copied())
+                .collect::<Vec<_>>()
+        };
+        let (ticket, undo) = history.begin_step(false).unwrap();
+        assert_eq!(names(&undo), ["inverse"]);
+        assert!(state.apply(undo).is_some());
+        history.finish_step(ticket, true);
+        assert_eq!(state.doc.as_str(), "ab");
+        let (ticket, redo) = history.begin_step(true).unwrap();
+        assert_eq!(names(&redo), ["forward"]);
+        assert!(state.apply(redo).is_some());
+        history.finish_step(ticket, true);
+        assert_eq!(state.doc.as_str(), "aXb");
+        // The replayed effect is invertible again: undo after redo inverts it.
+        let (_, undo) = history.begin_step(false).unwrap();
+        assert_eq!(names(&undo), ["inverse"]);
     }
 
     #[test]

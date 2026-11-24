@@ -12,7 +12,15 @@ use crate::editor::{
 use gpui::{prelude::*, *};
 use std::path::Path;
 
-impl Surface<'_, '_, '_> {
+impl<'s> Surface<'s, '_, '_> {
+    /// Where this surface's media references resolve.
+    fn media_base(&self) -> media::Base<'s> {
+        media::Base {
+            document: self.document,
+            root: self.assets.map_or("", |a| a.workspace.as_str()),
+        }
+    }
+
     fn render_media_player(
         &mut self,
         kind: MediaKind,
@@ -99,7 +107,7 @@ impl Surface<'_, '_, '_> {
         self.media += 1;
         let path = match src
             .as_deref()
-            .and_then(|s| media::markdown(self.document, s))
+            .and_then(|s| media::markdown(self.media_base(), s))
         {
             Some(MediaSource::Workspace(path)) => Some(path),
             _ => None,
@@ -138,17 +146,25 @@ impl Surface<'_, '_, '_> {
                     Node::Element(i) if i.tag == "img" => Some(i),
                     _ => None,
                 });
-                let source = e.children.iter().find_map(|c| match c {
+                // `<source media="(prefers-color-scheme: …)">` follows the
+                // editor's colour mode; without a match, the `<img>`.
+                let sources = e.children.iter().filter_map(|c| match c {
                     Node::Element(s) if s.tag == "source" => {
-                        s.attribute("srcset").map(str::to_owned)
+                        Some((s.attribute("media"), s.attribute("srcset")))
                     }
                     _ => None,
                 });
-                (
-                    img.and_then(|i| i.attribute("src").map(str::to_owned))
-                        .or_else(|| source.as_deref().and_then(best_candidate)),
-                    img.unwrap_or(e),
-                )
+                let candidates = super::super::run::picture_candidates(
+                    sources,
+                    img.and_then(|i| i.attribute("src")),
+                    self.theme.dark,
+                );
+                let chosen = candidates
+                    .iter()
+                    .find(|c| media::resolve_markdown_media(self.media_base(), c).is_ok())
+                    .or(candidates.first())
+                    .cloned();
+                (chosen, img.unwrap_or(e))
             }
             _ => (
                 e.attribute("src")
@@ -157,12 +173,23 @@ impl Surface<'_, '_, '_> {
                 e,
             ),
         };
-        let number = |name: &str| attrs.attribute(name).and_then(dimension);
+        // Pixels, or a percentage of the column.
+        let number = |name: &str| {
+            let value = attrs.attribute(name)?.trim();
+            match value.strip_suffix('%') {
+                Some(p) => p
+                    .parse::<f32>()
+                    .ok()
+                    .filter(|p| p.is_finite() && *p > 0.)
+                    .map(|p| available * p.min(100.) / 100.),
+                None => dimension(value),
+            }
+        };
         let resolved = if e.tag == "svg" {
             Ok(MediaSource::Data(serialize(e).into_bytes()))
         } else {
             match src.as_deref() {
-                Some(s) => media::resolve_markdown_media(self.document, s),
+                Some(s) => media::resolve_markdown_media(self.media_base(), s),
                 None => Err(MediaSourceError::Empty),
             }
         };

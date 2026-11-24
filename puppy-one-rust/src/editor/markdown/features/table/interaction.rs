@@ -5,20 +5,19 @@
 //! tracks set by the resize rail (`tableColumnLayoutController.ts`: view
 //! state, outside the source and its history). Every edit it requests is a
 //! table `Structure` command through the editor.
-use super::{
-    commands, layout,
-    model::COLUMN_LIMIT,
-    operation::{can_insert_column, can_insert_row},
-};
+use super::{commands, focus, layout, menu as table_menu, model::COLUMN_LIMIT};
 use crate::editor::{
+    markdown::platform::sessions::column_layout,
     table::{
         interaction::{Gestures, Hover, Resizing, StructureDrag, Tracks},
-        menu::{self, Extras, MenuEvent, Scope, TableMenu, Target},
+        menu::{MenuEvent, Scope, TableMenu},
         operation::{Alignment, Axis, Operation},
     },
     view::widget::{CommandSender, Focuser},
 };
 use gpui::{prelude::*, *};
+
+pub use table_menu::OpenMenu;
 
 /// The rendered table's tracks, in block-local coordinates.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -75,14 +74,12 @@ impl Geometry {
     }
 }
 
-pub struct OpenMenu {
-    pub menu: Entity<TableMenu>,
-    pub position: Point<Pixels>,
-    pub row: usize,
-    pub column: usize,
-    /// The row / column a grip menu describes (outlined while open).
-    pub source: Option<(Axis, usize)>,
-    _subscription: Subscription,
+/// The mounted column layout session the widget's tracks live in.
+#[derive(Clone)]
+pub struct LayoutLink {
+    pub store: column_layout::Shared,
+    pub id: u64,
+    pub mount: u64,
 }
 
 /// What the widget tells its state each frame.
@@ -95,6 +92,7 @@ pub struct Frame {
     pub dark: bool,
     pub sender: CommandSender,
     pub focus_editor: Focuser,
+    pub layout: Option<LayoutLink>,
 }
 
 #[derive(Default)]
@@ -105,10 +103,12 @@ pub struct TableUi {
     /// Window position of the block origin (last paint).
     pub origin: Option<Point<Pixels>>,
     pub frame: Option<Frame>,
-    /// Explicit column tracks (resized or auto-fitted); automatic until set.
-    pub widths: Option<Vec<f32>>,
     /// The resized column's track while the rail is held.
     pub live: Option<f32>,
+    /// The caret position whose column was last brought into view.
+    pub revealed: Option<usize>,
+    /// The scrollbar rail of a table wider than the reading column.
+    pub rail: Option<super::scroll::Rail>,
     pub(super) _subscriptions: Vec<Subscription>,
 }
 
@@ -116,37 +116,14 @@ impl TableUi {
     /// Cancel any active drag or resize gesture (e.g., on window blur)
     /// without opening a menu or modifying the document.
     pub fn cancel_active_gesture(&mut self, cx: &mut Context<Self>) {
-        let mut changed = false;
-        if self.gestures.drag.take().is_some() {
-            changed = true;
-        }
-        if self.gestures.resizing.take().is_some() {
-            self.live = None;
-            changed = true;
-        }
-        if changed {
-            cx.notify();
-        }
+        focus::cancel_active_gesture(self, cx);
     }
 
     /// Handle window-level Escape: cancel an active drag/resize or clear a
     /// structural selection wherever focus is (leaving an open menu to handle
     /// its own Escape and focus restoration).
     pub fn handle_escape(&mut self, cx: &mut Context<Self>) -> bool {
-        if self.gestures.resizing.take().is_some() {
-            self.live = None;
-            cx.notify();
-            return true;
-        }
-        if self.gestures.drag.take().is_some() {
-            cx.notify();
-            return true;
-        }
-        if self.gestures.structural.take().is_some() {
-            cx.notify();
-            return true;
-        }
-        false
+        focus::handle_escape(self, cx)
     }
     fn local(&self, position: Point<Pixels>) -> Option<(f32, f32)> {
         let o = self.origin?;
@@ -248,10 +225,11 @@ impl TableUi {
             .collect();
         if let Some(track) = next.get_mut(column) {
             *track = layout::clamp(width);
-            if let Some(frame) = &self.frame {
-                record_bounded_widths(frame.table, next.clone());
+            if let Some(link) = self.frame.as_ref().and_then(|f| f.layout.as_ref()) {
+                link.store
+                    .borrow_mut()
+                    .set_widths(link.id, link.mount, &next);
             }
-            self.widths = Some(next);
         }
     }
 
@@ -354,42 +332,7 @@ impl TableUi {
         cx: &mut Context<Self>,
     ) {
         let Some(frame) = &self.frame else { return };
-        let g = &frame.geometry;
-        let target = Target {
-            scope,
-            row,
-            column,
-            rows: g.rows.len(),
-            columns: g.columns.len(),
-            first_movable: 1,
-        };
-        let extras = Extras {
-            alignment: Some(frame.alignments.get(column).copied().unwrap_or_default()),
-            delete_table: true,
-            ..Default::default()
-        };
-        let mut sections = menu::sections(target, extras);
-        let row_insert_ok = can_insert_row(g.rows.len(), g.columns.len());
-        let col_insert_ok = can_insert_column(g.rows.len(), g.columns.len());
-        for section in &mut sections {
-            for item in section {
-                match Operation::from_menu_id(item.id) {
-                    Some(
-                        Operation::InsertRowAbove
-                        | Operation::InsertRowBelow
-                        | Operation::DuplicateRow,
-                    ) if !row_insert_ok => {
-                        item.disabled = true;
-                    }
-                    Some(Operation::InsertColumnLeft | Operation::InsertColumnRight)
-                        if !col_insert_ok =>
-                    {
-                        item.disabled = true;
-                    }
-                    _ => {}
-                }
-            }
-        }
+        let sections = table_menu::build_sections(frame, scope, row, column);
         let dark = frame.dark;
         let menu = cx.new(|cx| TableMenu::new(sections, dark, cx));
         let subscription = cx.subscribe_in(
@@ -421,7 +364,7 @@ impl TableUi {
             MenuEvent::Dismiss { restore_focus } => {
                 self.menu = None;
                 if restore_focus {
-                    (frame.focus_editor)(window, cx);
+                    focus::restore_editor_focus(self, window, cx);
                 }
                 cx.notify();
             }
@@ -432,7 +375,8 @@ impl TableUi {
                 };
                 let (row, column) = (open.row, open.column);
                 // Moves leave the moved row / column selected.
-                self.gestures.structural = moved(operation, row, column, &frame.geometry);
+                self.gestures.structural =
+                    table_menu::moved(operation, row, column, &frame.geometry);
                 (frame.sender)(
                     commands::structure(frame.table, operation, row, column),
                     window,
@@ -448,50 +392,4 @@ impl TableUi {
         self.gestures
             .outline(self.menu.as_ref().and_then(|m| m.source))
     }
-}
-
-/// Where a menu move puts its row / column.
-fn moved(operation: Operation, row: usize, column: usize, g: &Geometry) -> Option<(Axis, usize)> {
-    let (rows, columns) = (g.rows.len(), g.columns.len());
-    match operation {
-        Operation::MoveRowUp if row > 1 => Some((Axis::Row, row - 1)),
-        Operation::MoveRowDown if row >= 1 && row + 1 < rows => Some((Axis::Row, row + 1)),
-        Operation::MoveColumnLeft if column > 0 => Some((Axis::Column, column - 1)),
-        Operation::MoveColumnRight if column + 1 < columns => Some((Axis::Column, column + 1)),
-        _ => None,
-    }
-}
-
-const MAX_BOUNDED_TABLE_STATES: usize = 64;
-
-thread_local! {
-    static BOUNDED_WIDTHS: std::cell::RefCell<std::collections::VecDeque<(usize, Vec<f32>)>> =
-        const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
-}
-
-pub fn bounded_widths(table_start: usize, expected_cols: usize) -> Option<Vec<f32>> {
-    BOUNDED_WIDTHS.with(|store| {
-        let mut q = store.borrow_mut();
-        let pos = q
-            .iter()
-            .position(|(k, w)| *k == table_start && w.len() == expected_cols)?;
-        let entry = q.remove(pos)?;
-        let widths = entry.1.clone();
-        q.push_back(entry);
-        Some(widths)
-    })
-}
-
-pub fn record_bounded_widths(table_start: usize, mut widths: Vec<f32>) {
-    widths.truncate(COLUMN_LIMIT);
-    BOUNDED_WIDTHS.with(|store| {
-        let mut q = store.borrow_mut();
-        if let Some(pos) = q.iter().position(|(k, _)| *k == table_start) {
-            q.remove(pos);
-        }
-        while q.len() >= MAX_BOUNDED_TABLE_STATES {
-            q.pop_front();
-        }
-        q.push_back((table_start, widths));
-    });
 }

@@ -3,8 +3,11 @@ use super::setup_with_focus;
 use crate::editor::{
     markdown::{
         MarkdownExtension,
-        features::html::HtmlBlock,
-        features::html::dom::{self, Node, Parsed},
+        features::html::{
+            HtmlBlock,
+            sanitize::{self, Node},
+            structure::{self, Parsed},
+        },
     },
     text::state::EditorState,
     view::decoration::Block,
@@ -32,7 +35,7 @@ fn html_structure_preserves_authored_classification_instead_of_browser_repair() 
         ("<?target value?>", "unsupported"),
         ("<![CDATA[<div>]]>", "unsupported"),
     ] {
-        let parsed = dom::parse(source);
+        let parsed = structure::parse(source);
         let actual = match parsed {
             Parsed::Complete(_) => "complete",
             Parsed::Incomplete(_) => "incomplete",
@@ -59,7 +62,7 @@ fn forbidden_html_roots_remain_literal_source_in_editable_and_read_only_surfaces
         .into_iter()
         .map(str::to_owned)
         .chain(
-            dom::BLOCKED_TAGS
+            sanitize::BLOCKED_TAGS
                 .iter()
                 .map(|tag| format!("<{tag}></{tag}>")),
         ) {
@@ -106,7 +109,7 @@ fn blocked_html_display_keeps_safe_text_and_inherited_color_painted(cx: &mut Tes
             .filter_map(|p| p.embed()?.model::<HtmlBlock>())
             .collect();
         assert_eq!(html.len(), 1);
-        let Parsed::Complete(nodes) = dom::parse(&html[0].html) else {
+        let Parsed::Complete(nodes) = structure::parse(&html[0].html) else {
             panic!("safe element kept")
         };
         let Node::Element(div) = &nodes[0] else {

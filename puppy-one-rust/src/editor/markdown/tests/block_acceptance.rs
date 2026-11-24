@@ -1,12 +1,16 @@
 //! Native acceptance for the callout, footnote and front-matter cases in the
 //! pinned TS markdownBlockSyntax suite. Presentation comes from a drawn frame;
 //! interactive checks dispatch actual pointer events to the rendered controls.
-use super::{setup, setup_with_focus};
+use super::{blocks, setup, setup_with_focus};
 use crate::editor::{
     markdown::{MarkdownExtension, features::front_matter::FrontMatter},
     text::{selection::Selection, state::EditorState},
     tokens,
-    view::{EditorView, decoration::Block, style::Paint},
+    view::{
+        EditorView, bind_keys,
+        decoration::Block,
+        style::{self, Paint},
+    },
 };
 use crate::typography::Scale;
 use gpui::{Entity, Focusable, Modifiers, TestAppContext, VisualTestContext};
@@ -291,4 +295,200 @@ fn front_matter_table_and_source_button_preserve_metadata_and_reject_invalid_blo
         );
         assert_unchanged(&view, visual, source);
     }
+}
+
+#[gpui::test]
+fn a_callout_folds_in_the_pane_without_an_edit(cx: &mut TestAppContext) {
+    use crate::editor::markdown::features::callout::{Fold, ID};
+    use crate::editor::view::command::Command;
+    let text = "intro\n\n> [!tip]+ Later\n> one\n> two\n\nafter";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    // Open as authored: every line its own box.
+    let open = vec![0..1, 1..2, 2..3, 3..4, 4..5, 5..6, 6..7];
+    assert_eq!(blocks(&view, cx), open);
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(
+                ID,
+                Fold {
+                    at: 9,
+                    folded: true,
+                },
+            ),
+            w,
+            cx,
+        )
+    });
+    // The body leaves the flow; the document and the caret stay.
+    let folded = vec![0..1, 1..2, 2..3, 3..5, 5..6, 6..7];
+    assert_eq!(blocks(&view, cx), folded);
+    view.update(cx, |v, _| {
+        assert_eq!(v.text(), text);
+        assert_eq!(v.state().selection, Selection::cursor(text.len()));
+    });
+    // An edit above keeps the fold with its callout.
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(5), cx));
+    cx.simulate_input("s");
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(v.text().len()), cx)
+    });
+    assert_eq!(blocks(&view, cx), folded);
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(
+            &Command::new(
+                ID,
+                Fold {
+                    at: 10,
+                    folded: false,
+                },
+            ),
+            w,
+            cx,
+        )
+    });
+    assert_eq!(blocks(&view, cx), open);
+}
+
+#[gpui::test]
+fn front_matter_source_shows_until_the_caret_leaves(cx: &mut TestAppContext) {
+    use crate::editor::markdown::features::front_matter::{ID, ShowSource};
+    use crate::editor::view::command::Command;
+    let text = "---\ntitle: Plan\n---\n# Body";
+    let (view, cx) = setup(cx, text);
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(text.len()), cx)
+    });
+    assert_eq!(blocks(&view, cx), vec![0..3, 3..4]);
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(&Command::new(ID, ShowSource(0..19)), w, cx)
+    });
+    // Source lines, the caret on the first key.
+    assert_eq!(blocks(&view, cx), vec![0..1, 1..2, 2..3, 3..4]);
+    view.update(cx, |v, _| {
+        assert_eq!(v.state().selection, Selection::cursor(4))
+    });
+    // Editing inside keeps the source; leaving it shows the table again.
+    cx.simulate_input("a");
+    assert_eq!(blocks(&view, cx), vec![0..1, 1..2, 2..3, 3..4]);
+    view.update_in(cx, |v, _, cx| {
+        v.set_selection(Selection::cursor(v.text().len()), cx)
+    });
+    assert_eq!(blocks(&view, cx), vec![0..3, 3..4]);
+}
+
+#[test]
+fn a_footnote_marker_jumps_to_its_counterpart() {
+    use crate::editor::{
+        text::state::EditorState,
+        view::extension::{EditorExtension, LinkAction},
+    };
+    let mut ext = MarkdownExtension::new(false, Scale::Medium);
+    let state = EditorState::new("a[^n] b\n\n[^n]: note\n");
+    let to_note = ext.link_at(&state, 2, false).unwrap();
+    assert_eq!(
+        (to_note.label, to_note.action),
+        (1..5, LinkAction::Position(9))
+    );
+    let back = ext.link_at(&state, 10, false).unwrap();
+    assert_eq!((back.label, back.action), (9..14, LinkAction::Position(1)));
+}
+
+#[gpui::test]
+fn callout_fold_and_mdx_tabs_map_accurately_across_edits_undo_and_redo(cx: &mut TestAppContext) {
+    use crate::editor::markdown::features::{callout, mdx};
+    use crate::editor::view::command::Command;
+
+    cx.update(|cx| {
+        if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+            gpui_kit::init(cx);
+        }
+        cx.text_system().add_fonts(style::font_bytes()).unwrap();
+        bind_keys(cx);
+    });
+
+    let text = concat!(
+        "top\n\n",
+        "> [!tip]+ Folded Callout\n> hidden line\n\n",
+        "<Tabs>\n<Tab label=\"First\">\none\n</Tab>\n<Tab label=\"Second\">\ntwo\n</Tab>\n</Tabs>\n",
+    );
+    let callout_at = text.find("[!tip]+").unwrap();
+    let tabs_at = text.find("<Tabs>").unwrap();
+
+    let (view, cx) = cx.add_window_view(move |_, cx| {
+        EditorView::new(
+            text,
+            Box::new(MarkdownExtension::new(true, Scale::Medium).mdx()),
+            cx,
+        )
+    });
+    view.update_in(cx, |v, w, cx| {
+        v.focus(w, cx);
+        v.set_selection(Selection::cursor(text.len()), cx);
+        v.run_command(
+            &Command::new(
+                callout::ID,
+                callout::Fold {
+                    at: callout_at,
+                    folded: true,
+                },
+            ),
+            w,
+            cx,
+        );
+        v.run_command(
+            &Command::new(
+                mdx::ID,
+                mdx::Action::Select {
+                    at: tabs_at,
+                    tab: 1,
+                },
+            ),
+            w,
+            cx,
+        );
+    });
+    let _ = blocks(&view, cx);
+
+    // Insert 2 new lines at the very top of the document!
+    view.update_in(cx, |v, _, cx| v.set_selection(Selection::cursor(0), cx));
+    cx.simulate_input("inserted\nlines\n");
+    let _ = blocks(&view, cx);
+
+    let check_mapped_state =
+        |view: &Entity<EditorView>, cx: &mut VisualTestContext, shift: usize| {
+            view.read_with(cx, |v, _| {
+                let md = v.extension::<MarkdownExtension>().unwrap();
+                let tabs_state = md.preview.state::<mdx::TabsState>(mdx::ID).unwrap();
+                assert_eq!(
+                    tabs_state.get(tabs_at + shift),
+                    1,
+                    "active <Tabs> selection must map by +{shift} bytes"
+                );
+                let folds_state = md
+                    .preview
+                    .state::<callout::CalloutFoldState>(callout::ID)
+                    .unwrap();
+                assert_eq!(
+                    folds_state.get(callout_at + shift),
+                    Some(true),
+                    "callout fold must map by +{shift} bytes"
+                );
+            });
+        };
+
+    let shift = "inserted\nlines\n".len();
+    check_mapped_state(&view, cx, shift);
+
+    // TA-06: Undo goes through `EditorView::dispatch` and maps feature state back to original offsets!
+    cx.simulate_keystrokes("secondary-z");
+    let _ = blocks(&view, cx);
+    check_mapped_state(&view, cx, 0);
+
+    // TA-06: Redo goes through `EditorView::dispatch` and maps feature state forward again!
+    cx.simulate_keystrokes("secondary-shift-z");
+    let _ = blocks(&view, cx);
+    check_mapped_state(&view, cx, shift);
 }

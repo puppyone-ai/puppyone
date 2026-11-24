@@ -4,7 +4,7 @@
 //! surface; the code text (`white-space: pre`, panel padding, code line
 //! height, `min-height: 44px`) is a Kit code leaf over the fence's code
 //! lines, so the source stays the one document.
-use super::{CodeBlock, highlight, style::CodeBlockStyle};
+use super::{CodeBlock, highlight, layout, style::CodeBlockStyle};
 use crate::editor::{
     markdown::{shared::widgets::ring, style::BlockStyle},
     view::{
@@ -13,9 +13,6 @@ use crate::editor::{
     },
 };
 use gpui::{prelude::*, *};
-
-/// `.cm-md-code-textarea { min-height: 44px }`.
-const MIN_HEIGHT: f32 = 44.;
 
 pub struct CodeBlockWidget {
     block: CodeBlock,
@@ -31,18 +28,6 @@ impl CodeBlockWidget {
             style: style.clone(),
             chrome: chrome.clone(),
             text: style.text(),
-        }
-    }
-
-    /// `tab-size: var(--cm-md-code-tab-size, 2)` (Python uses 4).
-    fn tab_size(&self) -> usize {
-        if matches!(
-            self.block.language.to_ascii_lowercase().as_str(),
-            "py" | "python"
-        ) {
-            4
-        } else {
-            2
         }
     }
 }
@@ -73,15 +58,15 @@ impl BlockWidget for CodeBlockWidget {
         let (code, code_height) = cx.render.code(
             self.block.code.clone(),
             &self.text,
-            self.tab_size(),
+            layout::tab_size(&self.block.language),
             panel_top,
             p.left,
             p.top,
             code_inner,
             |text| highlight::highlight(text, &language, syntax),
         );
-        let panel_height = (p.top + code_height + p.bottom).max(MIN_HEIGHT);
-        let height = s.gap_before + panel_height + s.gap_after;
+        let (panel_height, height) =
+            layout::heights(p.top, p.bottom, code_height, s.gap_before, s.gap_after);
         let scroller = div()
             .id(cx.id("code-scroll"))
             .debug_selector(|| "md-code-scroll".into())

@@ -80,6 +80,43 @@ impl Surface<'_, '_, '_> {
             "br" => return out.push(Piece::Break),
             "img" | "picture" | "svg" => {
                 let atom = self.image(e, &inherit, available);
+                // A linked image follows its link (under the URL policy)
+                // and keeps the pointer from reaching the editor.
+                let atom = match &inherit.link {
+                    Some(href) => {
+                        let (view, href) = (self.view.clone(), href.clone());
+                        div()
+                            .id(self.id("md-html-link-image"))
+                            .cursor(crate::theme::clickable_cursor())
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .on_click(move |_, _, cx| {
+                                let _ = view.update(cx, |v, cx| v.follow_href(&href, cx));
+                            })
+                            .child(atom)
+                            .into_any_element()
+                    }
+                    None => atom,
+                };
+                // `align`: a placement hint, not text alignment. Left and
+                // right put the image at that side of its line; top, middle
+                // and bottom align it with the line's other content.
+                let img = if e.tag == "picture" {
+                    e.children.iter().find_map(|c| match c {
+                        Node::Element(i) if i.tag == "img" => Some(i),
+                        _ => None,
+                    })
+                } else {
+                    Some(e)
+                };
+                let atom = match img.and_then(|i| i.attribute("align")) {
+                    Some("right") => div().ml_auto().child(atom).into_any_element(),
+                    Some("left") => div().mr_auto().child(atom).into_any_element(),
+                    Some("center") => div().mx_auto().child(atom).into_any_element(),
+                    Some("top") => div().self_start().child(atom).into_any_element(),
+                    Some("middle") => div().self_center().child(atom).into_any_element(),
+                    Some("bottom") => div().self_end().child(atom).into_any_element(),
+                    _ => atom,
+                };
                 return out.push(Piece::Atom(atom));
             }
             "b" | "strong" => {

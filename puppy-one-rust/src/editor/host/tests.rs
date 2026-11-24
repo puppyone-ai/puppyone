@@ -1713,3 +1713,79 @@ fn rg23_panicking_viewer_surface_degrades_only_its_pane_and_preserves_unsaved_wo
         assert_eq!(p.text(cx).as_deref(), Some("unsaved precious draft\n"));
     });
 }
+
+/// `viewerHost.integration.test.ts` #1 (gap `viewer-host-read-failure-card`):
+/// a pane still reading its file draws nothing and announces the loading
+/// as a status; a pane whose file could not be read says it cannot open it
+/// in the editor, why, offers the default app for a file on this computer,
+/// and reads it again when asked.
+#[gpui::test]
+fn a_pane_announces_loading_and_shows_a_read_failure(cx: &mut TestAppContext) {
+    use crate::{editor::workbench::runtime::ReadFailure, localization::t};
+    use gpui_kit::test::TestQueryExt;
+    cx.update(|cx| {
+        if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+            gpui_kit::init(cx);
+        }
+        cx.text_system().add_fonts(style::font_bytes()).unwrap();
+    });
+    let (view, cx) = cx.add_window_view(|_, cx| DocumentEditor::new(cx));
+    let messages = Rc::new(RefCell::new(Vec::new()));
+    let sink = messages.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&view, move |_, m: &ClientMessage, _| {
+            sink.borrow_mut().push(m.clone())
+        })
+        .detach()
+    });
+    let draw = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        cx.update(|w, cx| w.draw(cx).clear(cx));
+    };
+    view.update(cx, |v, cx| v.set_reading(true, None, cx));
+    draw(cx);
+    cx.update(|w, _| {
+        let status: Vec<_> = w
+            .find_all_by_role(gpui::Role::Status)
+            .into_iter()
+            .filter_map(|e| e.label().map(str::to_owned))
+            .collect();
+        assert_eq!(status, [t("editor.loadingFile")]);
+    });
+    assert!(cx.debug_bounds("editor-read-failure").is_none());
+
+    let dir = tempfile::tempdir().unwrap();
+    let local = dir.path().join("notes.txt");
+    std::fs::write(&local, "x").unwrap();
+    let opened = crate::platform::desktop::record_opens();
+    view.update(cx, |v, cx| {
+        v.set_reading(
+            false,
+            Some(ReadFailure {
+                path: "notes.txt".into(),
+                error: "Read failed".into(),
+                local: Some(local.clone()),
+            }),
+            cx,
+        )
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("editor-read-failure").is_some());
+    cx.update(|w, _| assert!(w.find_all_by_role(gpui::Role::Status).is_empty()));
+    let card = view.read_with(cx, |v, _| v.read_failure.clone().unwrap());
+    assert_eq!(card.error, "Read failed");
+    assert_eq!(t("editor.unavailable.title"), "Cannot open in editor");
+    let open = cx.debug_bounds("editor-read-failure-open").unwrap();
+    cx.simulate_click(open.center(), gpui::Modifiers::none());
+    draw(cx);
+    assert_eq!(*opened.borrow(), std::slice::from_ref(&local));
+    let retry = cx.debug_bounds("editor-read-failure-retry").unwrap();
+    cx.simulate_click(retry.center(), gpui::Modifiers::none());
+    draw(cx);
+    assert!(
+        messages
+            .borrow()
+            .iter()
+            .any(|m| matches!(m, ClientMessage::RetryRead))
+    );
+}

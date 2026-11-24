@@ -7,6 +7,7 @@ mod commands;
 pub(crate) mod controls;
 #[cfg(not(test))]
 mod controls;
+mod focus;
 #[cfg(test)]
 pub(crate) mod interaction;
 #[cfg(not(test))]
@@ -15,11 +16,15 @@ mod interaction;
 pub(crate) mod layout;
 #[cfg(not(test))]
 mod layout;
+mod menu;
 pub mod model;
 mod operation;
+pub mod plan;
+pub mod scroll;
 pub mod style;
 #[cfg(test)]
 mod tests;
+pub mod viewport;
 #[cfg(test)]
 pub(crate) mod widget;
 #[cfg(not(test))]
@@ -30,8 +35,9 @@ use crate::editor::{
         core::{
             decorations::BlockDecoration,
             features::{CommandCx, CompileCx, MarkdownFeature, WidgetFactoryCx},
-            plans::{BlockEmbed, Plan, Presentation},
+            plans::{BlockEmbed, Plan},
         },
+        platform::sessions::{self, Sessions},
         style::cascade::LineContext,
     },
     text::state::Transaction,
@@ -54,16 +60,7 @@ impl MarkdownFeature for TableFeature {
 
     /// `tableFeature` collectBlock: the model narrows the parser's table.
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
-        for range in &cx.syntax.tables {
-            if let Some(table) = model::table_block(cx.doc, range) {
-                out.push(Plan {
-                    element: None,
-                    source: table.range.clone(),
-                    presentation: Presentation::BlockAtom(BlockEmbed::new(ID, table)),
-                    delete_units: Vec::new(),
-                });
-            }
-        }
+        plan::compile_blocks(cx, out);
     }
 
     fn block_widget(
@@ -71,12 +68,21 @@ impl MarkdownFeature for TableFeature {
         embed: &BlockEmbed,
         cx: &WidgetFactoryCx,
     ) -> Option<Rc<dyn BlockWidget>> {
-        Some(Rc::new(TableWidget::new(
-            embed.model::<Table>()?,
-            &cx.theme.table,
-            cx.theme.body.text.weight,
-            cx.theme.dark,
-        )))
+        let namespace = cx
+            .assets
+            .map(|a| format!("{}:{}", a.workspace_identity(), a.document.display()));
+        Some(Rc::new(
+            TableWidget::new(
+                embed.model::<Table>()?,
+                &cx.theme.table,
+                cx.theme.body.text.weight,
+                cx.theme.dark,
+            )
+            .with_sessions(
+                cx.feature_state::<Sessions>(sessions::SLOT).cloned(),
+                namespace,
+            ),
+        ))
     }
 
     /// Structure operations from the widget's rails, grips and menu.

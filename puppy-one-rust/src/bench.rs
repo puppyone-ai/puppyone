@@ -46,7 +46,7 @@ pub fn markdown(sections: usize) -> String {
 #[allow(dead_code)]
 pub fn stress_markdown(shape: &str) -> String {
     match shape {
-        "list_10k" => (0..10_000)
+        "list_10k" | "list_100" => (0..if shape == "list_10k" { 10_000 } else { 100 })
             .map(|i| format!("- List item {i} with inline `code_{i}` and **emphasis**"))
             .collect::<Vec<_>>()
             .join("\n"),

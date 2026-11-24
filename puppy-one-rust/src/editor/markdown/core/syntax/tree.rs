@@ -381,6 +381,15 @@ impl<'a> Walker<'a> {
             Tag::HtmlBlock => {
                 if self.stack.len() == 1 {
                     self.syntax.html_blocks.push(trim(self.doc, range.clone()));
+                } else {
+                    let line_start = self.doc[..range.start].rfind('\n').map_or(0, |i| i + 1);
+                    if !self.doc[line_start..range.start].trim().is_empty() {
+                        let block = trim(self.doc, range.clone());
+                        self.syntax
+                            .inline_tags
+                            .extend(super::html_tag_spans(&self.doc[block.clone()], block.start));
+                        self.syntax.marker_html.push(block);
+                    }
                 }
                 self.push(Frame::Other, HlNode::new(range, Hl::NONE, false));
             }
