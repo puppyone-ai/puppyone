@@ -239,7 +239,11 @@ fn grant_error(status: u16, value: &serde_json::Value, grants: bool) -> Error {
             }
             if let Some(reason) = raw_code
                 .and_then(crate::workspace::cloud::failure::agent_code)
-                .or_else(|| (status == 409).then(|| legacy_agent_conflict(value)).flatten())
+                .or_else(|| {
+                    (status == 409)
+                        .then(|| legacy_agent_conflict(value))
+                        .flatten()
+                })
             {
                 return Error::Response(status, Some(reason), Default::default());
             }
@@ -256,17 +260,23 @@ fn legacy_agent_conflict(value: &serde_json::Value) -> Option<&'static str> {
     ["/detail", "/message", "/detail/message", "/error/message"]
         .iter()
         .filter_map(|pointer| value.pointer(pointer).and_then(serde_json::Value::as_str))
-        .find_map(|message| match message.trim().to_ascii_lowercase().as_str() {
-            "configure an agent model before submitting" => Some("agent_model_unconfigured"),
-            "agent is paused or unavailable" => Some("agent_unavailable"),
-            "request identity was reused with different input" => Some("agent_request_conflict"),
-            "native agent git requires an unrestricted project-root view" => {
-                Some("agent_scope_not_supported")
-            }
-            "agent has an invalid repository path" => Some("agent_repository_path_invalid"),
-            "agent configuration changed during execution" => Some("agent_configuration_changed"),
-            _ => None,
-        })
+        .find_map(
+            |message| match message.trim().to_ascii_lowercase().as_str() {
+                "configure an agent model before submitting" => Some("agent_model_unconfigured"),
+                "agent is paused or unavailable" => Some("agent_unavailable"),
+                "request identity was reused with different input" => {
+                    Some("agent_request_conflict")
+                }
+                "native agent git requires an unrestricted project-root view" => {
+                    Some("agent_scope_not_supported")
+                }
+                "agent has an invalid repository path" => Some("agent_repository_path_invalid"),
+                "agent configuration changed during execution" => {
+                    Some("agent_configuration_changed")
+                }
+                _ => None,
+            },
+        )
 }
 
 /// The managed inference service's reviewed refusal codes
@@ -422,7 +432,11 @@ mod refusal_tests {
                 503,
                 &serde_json::json!({"detail": {"code": "managed_agent_inference_disabled"}})
             ),
-            Error::Response(503, Some("managed_agent_inference_disabled"), Default::default())
+            Error::Response(
+                503,
+                Some("managed_agent_inference_disabled"),
+                Default::default()
+            )
         );
         // Arbitrary unreviewed prose never survives into Error::Response.
         let unreviewed = serde_json::json!({"detail": "Arbitrary database text"});

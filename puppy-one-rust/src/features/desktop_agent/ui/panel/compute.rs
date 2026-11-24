@@ -185,12 +185,10 @@ impl AgentChatTabPanel {
         }
         let revision = Some(snapshot.revision.clone());
         let changed = self.compute_revision.is_some() && self.compute_revision != revision;
-        let missing_models = self.compute_revision.is_none()
-            && !snapshot.sources.is_empty()
-            && {
-                let state = self.state();
-                state.initialized && self.runtime_view(&state).runtime_models.is_empty()
-            };
+        let missing_models = self.compute_revision.is_none() && !snapshot.sources.is_empty() && {
+            let state = self.state();
+            state.initialized && self.runtime_view(&state).runtime_models.is_empty()
+        };
         if changed || missing_models {
             drop(self.controller.refresh_model_connections());
         }

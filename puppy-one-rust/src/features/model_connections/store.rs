@@ -3,9 +3,7 @@
 //! Owns zero domain logic, zero HTTP requests, and zero lease state: it simply
 //! watches the `po-agent` authority's `watch::Receiver<Arc<ModelConnectionSnapshot>>`
 //! and notifies observing GPUI views whenever the snapshot revision advances.
-use crate::agent::model_connections::{
-    ModelConnectionService, ModelConnectionSnapshot,
-};
+use crate::agent::model_connections::{ModelConnectionService, ModelConnectionSnapshot};
 use crate::cloud::auth::Broker;
 use gpui::*;
 use std::sync::Arc;

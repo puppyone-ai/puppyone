@@ -857,7 +857,10 @@ fn production_store_projects_wallet_and_rediscovers_on_first_ready_snapshot(
     let asked = slot.borrow().clone().unwrap();
     cx.run_until_parked();
     draw(cx);
-    assert_eq!(wallet.read_with(cx, |w, _| w.reason()), Reason::SignInRequired);
+    assert_eq!(
+        wallet.read_with(cx, |w, _| w.reason()),
+        Reason::SignInRequired
+    );
 
     let discoveries = || {
         asked
@@ -914,7 +917,10 @@ fn production_store_projects_wallet_and_rediscovers_on_first_ready_snapshot(
         .iter()
         .filter(|c| *c == "POST /ai/trial")
         .count();
-    assert_eq!(trial_calls, 1, "trial must be claimed exactly once across UI & host");
+    assert_eq!(
+        trial_calls, 1,
+        "trial must be claimed exactly once across UI & host"
+    );
     let catalog_calls = gw
         .calls
         .lock()
