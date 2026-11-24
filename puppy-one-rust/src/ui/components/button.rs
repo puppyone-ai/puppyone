@@ -1,6 +1,7 @@
 //! Buttons: labelled commands and square icon commands, on GPUI Kit's
-//! headless button (focus, keyboard activation, accessibility).
-use super::{Icon, tooltip};
+//! headless button (focus, keyboard activation, accessibility). A hint
+//! opens on hover, and when the keyboard focuses the button ([`hint`]).
+use super::{Icon, hint, surface::child_id, tooltip};
 use crate::{
     theme::{self, Theme, metric},
     ui::appearance::ActiveAppearance,
@@ -396,6 +397,8 @@ pub struct Button {
     open: bool,
     disabled: bool,
     tooltip: Option<SharedString>,
+    /// A focus handle its owner keeps.
+    focus: Option<FocusHandle>,
     on_click: Option<ClickHandler>,
 }
 impl Button {
@@ -416,6 +419,7 @@ impl Button {
             open: false,
             disabled: false,
             tooltip: None,
+            focus: None,
             on_click: None,
         }
     }
@@ -459,7 +463,7 @@ impl Button {
         self
     }
     pub fn track_focus(mut self, handle: &FocusHandle) -> Self {
-        self.base = self.base.track_focus(handle);
+        self.focus = Some(handle.clone());
         self
     }
 }
@@ -503,7 +507,13 @@ impl InteractiveElement for Button {
 }
 impl StatefulInteractiveElement for Button {}
 impl RenderOnce for Button {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let focus = focus_handle(&self.id, self.focus.as_ref(), window, cx);
+        let hint = self
+            .tooltip
+            .clone()
+            .filter(|_| !self.disabled && hint::open(&focus, window, cx))
+            .map(|text| hint::below(&self.id, text, window, cx));
         let t = cx.palette();
         let variant = self.variant;
         let disabled = self.disabled;
@@ -552,6 +562,7 @@ impl RenderOnce for Button {
             icon.into_any_element()
         });
         self.base
+            .track_focus(&focus)
             .group(group)
             .disabled(disabled)
             .selected(self.selected)
@@ -681,6 +692,7 @@ impl RenderOnce for Button {
                 b.child(div().min_w_0().truncate().child(label))
             })
             .children(self.trailing)
+            .children(hint)
             .refine_style(&self.style)
     }
 }
@@ -704,6 +716,8 @@ pub struct IconButton {
     disabled: bool,
     danger: bool,
     color: Option<Hsla>,
+    /// A focus handle its owner keeps.
+    focus: Option<FocusHandle>,
     on_click: Option<ClickHandler>,
 }
 impl IconButton {
@@ -723,6 +737,7 @@ impl IconButton {
             disabled: false,
             danger: false,
             color: None,
+            focus: None,
             on_click: None,
         }
     }
@@ -743,7 +758,7 @@ impl IconButton {
     /// A focus handle its owner keeps (to return focus to it, or to show
     /// what holds it).
     pub fn track_focus(mut self, handle: &FocusHandle) -> Self {
-        self.base = self.base.track_focus(handle);
+        self.focus = Some(handle.clone());
         self
     }
     pub fn danger(mut self) -> Self {
@@ -803,7 +818,14 @@ impl InteractiveElement for IconButton {
 }
 impl StatefulInteractiveElement for IconButton {}
 impl RenderOnce for IconButton {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let focus = focus_handle(&self.id, self.focus.as_ref(), window, cx);
+        let hint = self
+            .tooltip
+            .clone()
+            .or(self.label.clone())
+            .filter(|_| self.show_tooltip && !self.disabled && hint::open(&focus, window, cx))
+            .map(|text| hint::below(&self.id, text, window, cx));
         let t = cx.palette();
         let disabled = self.disabled;
         let (fg, hover_bg, hover_fg) = if self.danger {
@@ -832,6 +854,7 @@ impl RenderOnce for IconButton {
             self.icon.group_hover_color(group.clone(), hover_fg)
         };
         self.base
+            .track_focus(&focus)
             .group(group)
             .disabled(disabled)
             .selected(self.selected)
@@ -858,8 +881,23 @@ impl RenderOnce for IconButton {
                 b.on_click(move |event, window, cx| handler(event, window, cx))
             })
             .child(icon)
+            .children(hint)
             .refine_style(&self.style)
     }
+}
+/// The button's focus: the one its owner keeps, else its own.
+fn focus_handle(
+    id: &ElementId,
+    kept: Option<&FocusHandle>,
+    window: &mut Window,
+    cx: &mut App,
+) -> FocusHandle {
+    kept.cloned().unwrap_or_else(|| {
+        window
+            .use_keyed_state(child_id(id, "focus"), cx, |_, cx| cx.focus_handle())
+            .read(cx)
+            .clone()
+    })
 }
 /// The hover group a control names so its icon follows its hover colour.
 pub(super) fn hover_group(id: &ElementId) -> SharedString {

@@ -53305,6 +53305,36 @@
           "test": "ui::loading::tests::a_page_mark_without_words_is_called_loading"
         }
       ]
+    },
+    {
+      "id": "hint-opens-on-keyboard-focus",
+      "acceptance": "A button's hint (a labelled button's tooltip, an icon button's tooltip or label) also opens when the keyboard moves focus onto it, below the button, as its accessible tooltip named by the hint; it stays while the button keeps that focus. A pointer press that focuses the button opens none. Escape dismisses the hint while focus stays; focus moving on and back opens it again.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tooltips/desktopTooltipLayer.test.tsx",
+          "sha256": "a93d435d3fed2d881e4f1ac7c53a0bcfcfc3beae6a2c7a721d70ab420c87108d",
+          "cases": [
+            {
+              "index": 3,
+              "name": "DesktopTooltipLayer > opens on keyboard focus and dismisses on Escape"
+            },
+            {
+              "index": 4,
+              "name": "DesktopTooltipLayer > does not reopen immediately when a pointer press focuses the trigger"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "ui::components::hint::tests::keyboard_focus_opens_the_hint_and_escape_dismisses_it"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::hint::tests::a_pointer_press_that_focuses_the_control_opens_no_hint"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -62523,36 +62553,6 @@
       ]
     },
     {
-      "id": "tooltip-keyboard-shortcut-and-overflow",
-      "kind": "gap",
-      "reason": "Native hints are hover-only: keyboard focus opens none (so there is no Escape dismissal or press-focus rule), a hint shows its label without a shortcut line, and clipped values (such as a long project path) get no overflow-only hint.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/chrome/title-bar.md",
-      "typescript": [
-        {
-          "path": "tests/component/workbench/tooltips/desktopTooltipLayer.test.tsx",
-          "sha256": "a93d435d3fed2d881e4f1ac7c53a0bcfcfc3beae6a2c7a721d70ab420c87108d",
-          "cases": [
-            {
-              "index": 2,
-              "name": "DesktopTooltipLayer > waits for hover and shows the label and optional shortcut"
-            },
-            {
-              "index": 3,
-              "name": "DesktopTooltipLayer > opens on keyboard focus and dismisses on Escape"
-            },
-            {
-              "index": 4,
-              "name": "DesktopTooltipLayer > does not reopen immediately when a pointer press focuses the trigger"
-            },
-            {
-              "index": 10,
-              "name": "DesktopTooltipLayer > only shows overflow hints when their visible value is clipped"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "dom-tooltip-layer-mechanics",
       "kind": "out-of-scope",
       "reason": "TS draws every hint in one document-level layer, so it must strip native title bubbles (including SVG titles) while keeping accessible names, link hints with aria-describedby, remove a hint whose trigger unmounted, honour explicit content only, and suppress hints in editor scopes and menus that draw their own cards. A native control owns its own hint, which goes with it; there are no title bubbles to strip, and editor and menu controls that show their own cards carry no hint.",
@@ -67239,6 +67239,28 @@
             {
               "index": 5,
               "name": "project template selection > retains the exact operation when creation committed but opening failed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hint-shortcut-and-overflow-options",
+      "kind": "out-of-scope",
+      "reason": "The hint's shortcut line and overflow-only hints are options of the TS Tooltip primitive that no product surface passes in the pinned reference: `shortcut` and `overflowOnly` have no caller (the node actions' shortcuts are menu-item shortcuts, not hints). These two cases test those options. Rust ports the behaviour every hint uses: hover hints wait and leave as GPUI tooltips, and keyboard focus opens the hint (hint-opens-on-keyboard-focus).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tooltips/desktopTooltipLayer.test.tsx",
+          "sha256": "a93d435d3fed2d881e4f1ac7c53a0bcfcfc3beae6a2c7a721d70ab420c87108d",
+          "cases": [
+            {
+              "index": 2,
+              "name": "DesktopTooltipLayer > waits for hover and shows the label and optional shortcut"
+            },
+            {
+              "index": 10,
+              "name": "DesktopTooltipLayer > only shows overflow hints when their visible value is clipped"
             }
           ]
         }
