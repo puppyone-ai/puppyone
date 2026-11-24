@@ -6,6 +6,7 @@ pub mod catalog;
 pub mod find;
 pub mod layout;
 pub mod pane;
+pub mod pane_preview;
 pub mod resource_operations;
 pub mod retention;
 pub mod runtime;

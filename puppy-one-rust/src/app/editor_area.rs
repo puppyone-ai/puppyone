@@ -456,7 +456,11 @@ impl EditorArea {
             let mut editor = DocumentEditor::new(cx);
             editor.workbench = true;
             editor.file_mode = file_mode;
-            editor.pane_drag = Some(crate::editor::workbench::pane::PaneDrag { owner, slot });
+            editor.pane_drag = Some(crate::editor::workbench::pane::PaneDrag {
+                owner,
+                slot,
+                pane: None,
+            });
             editor
         });
         cx.subscribe_in(

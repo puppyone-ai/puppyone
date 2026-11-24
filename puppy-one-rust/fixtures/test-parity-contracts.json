@@ -51913,6 +51913,55 @@
           "test": "editor::workbench::tests::a_failed_read_stays_in_its_pane_and_reads_again_there"
         }
       ]
+    },
+    {
+      "id": "pane-move-snapshot-preview",
+      "acceptance": "Moving a pane by its handle shows at once a themed shell of the pane's shape (at most 240 × 156 and 0.36 of its size, three placeholder rules, never a copy of the pane's live content) centred under the pointer and 10px below it, asks the platform once for a bitmap of the pane's content bounds clipped to the window and scaled to the preview, shows that bitmap when it arrives, follows the pointer, and is gone after the drop. A capture request is clipped to the window's content (nothing left, no content or a window that is gone gives no bitmap); the bitmap is the window server's composited pixels on macOS and absent elsewhere, where the shell stays.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tabs/paneMovePreview.test.ts",
+          "sha256": "4c51620363149adf30d878bc0d007bd482b3640a698520050b5aca035f61efa4",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pane move preview > builds an immediate themed shell that follows the pointer without cloning pane DOM"
+            },
+            {
+              "index": 1,
+              "name": "pane move preview > requests a compositor snapshot for the pane content bounds"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/platform/ipc/electron.pane-preview-ipc.test.mjs",
+          "sha256": "561d7ded68055374a5c77d58630fac9205265fa2a61d8ee8a1d4dc170abbcde7",
+          "cases": [
+            {
+              "index": 0,
+              "name": "pane preview IPC > captures a bounded sender rectangle and returns a small bitmap"
+            },
+            {
+              "index": 1,
+              "name": "pane preview IPC > rejects invalid or unavailable capture surfaces"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_moved_pane_shows_its_shape_then_its_snapshot_under_the_pointer"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::workbench::pane_preview::tests::previews_keep_the_panes_shape_and_captures_stay_in_the_window"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::window_capture::tests::unavailable_windows_give_no_bitmap"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -61543,42 +61592,6 @@
             {
               "index": 9,
               "name": "DesktopEditorSplitView: pane chrome, dropping and moving > activates a non-focusable pane after pointer selection completes"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "pane-move-snapshot-preview",
-      "kind": "gap",
-      "reason": "While a pane is moved, TS shows a themed shell with a compositor snapshot of the pane following the pointer. The native drag shows a small text chip instead (the handle's tooltip text); there is no snapshot of the pane.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/drops.md",
-      "typescript": [
-        {
-          "path": "tests/component/workbench/tabs/paneMovePreview.test.ts",
-          "sha256": "4c51620363149adf30d878bc0d007bd482b3640a698520050b5aca035f61efa4",
-          "cases": [
-            {
-              "index": 0,
-              "name": "pane move preview > builds an immediate themed shell that follows the pointer without cloning pane DOM"
-            },
-            {
-              "index": 1,
-              "name": "pane move preview > requests a compositor snapshot for the pane content bounds"
-            }
-          ]
-        },
-        {
-          "path": "tests/unit/platform/ipc/electron.pane-preview-ipc.test.mjs",
-          "sha256": "561d7ded68055374a5c77d58630fac9205265fa2a61d8ee8a1d4dc170abbcde7",
-          "cases": [
-            {
-              "index": 0,
-              "name": "pane preview IPC > captures a bounded sender rectangle and returns a small bitmap"
-            },
-            {
-              "index": 1,
-              "name": "pane preview IPC > rejects invalid or unavailable capture surfaces"
             }
           ]
         }
