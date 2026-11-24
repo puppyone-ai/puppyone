@@ -6,7 +6,9 @@
 //! plaintext file, watch and execution frames are refused.
 //!
 //! Transport loss retries with backoff (1 s doubling to 15 s); a socket
-//! silent for 30 s is dead. A definite revocation (close 4004 or a
+//! silent for 30 s is dead. System sleep drops the socket at once and
+//! nothing retries until the system wakes, which reconnects at once.
+//! A definite revocation (close 4004 or a
 //! `device_revoked` refusal) stops for good; close 4005 means the Cloud no
 //! longer serves this protocol, so it stops until the App is updated.
 use super::{
@@ -138,12 +140,23 @@ pub struct Status {
     pub last_access: Option<String>,
 }
 
+/// System sleep: whether the system sleeps, and how many wakes so far.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Power {
+    asleep: bool,
+    wakes: u64,
+}
+
 /// How one connection ended.
 enum Ended {
     Stopped,
+    /// System sleep dropped it.
+    Asleep,
     Revoked,
     Outdated,
-    Lost { was_online: bool },
+    Lost {
+        was_online: bool,
+    },
 }
 
 struct Shared {
@@ -159,6 +172,7 @@ struct Shared {
     timing: Timing,
     run: Mutex<Option<(u64, tokio::sync::watch::Sender<bool>)>>,
     next: std::sync::atomic::AtomicU64,
+    power: tokio::sync::watch::Sender<Power>,
 }
 impl Shared {
     fn update(&self, change: impl FnOnce(&mut Status)) {
@@ -204,6 +218,7 @@ impl Connector {
             timing: TIMING,
             run: Mutex::new(None),
             next: Default::default(),
+            power: tokio::sync::watch::channel(Power::default()).0,
         }))
     }
     /// Tests: a faster beat, silence and first retry.
@@ -239,13 +254,14 @@ impl Connector {
         });
         runtime().spawn(async move {
             let mut delay = shared.timing.retry;
+            let mut power = shared.power.subscribe();
             loop {
-                let ended = session(&shared, &owner, &ssh, stopped.clone()).await;
+                let ended = session(&shared, &owner, &ssh, stopped.clone(), power.clone()).await;
                 let current = shared.run.lock().unwrap().as_ref().map(|(i, _)| *i) == Some(id);
                 if !current {
                     return;
                 }
-                match ended {
+                let was_online = match ended {
                     Ended::Stopped => return,
                     Ended::Revoked => {
                         *shared.run.lock().unwrap() = None;
@@ -261,27 +277,55 @@ impl Connector {
                         });
                         return;
                     }
-                    Ended::Lost { was_online } => {
-                        if was_online {
-                            delay = shared.timing.retry;
-                        }
-                        shared.update(|s| {
-                            s.state = State::Offline;
-                            s.tunnels = 0;
-                        });
-                        let mut stopped = stopped.clone();
-                        tokio::select! {
-                            _ = tokio::time::sleep(delay) => {}
-                            _ = stopped.changed() => {}
-                        }
-                        if *stopped.borrow() {
-                            return;
-                        }
-                        delay = (delay * 2).min(MAX_RETRY);
-                        shared.update(|s| s.state = State::Connecting);
-                    }
+                    Ended::Lost { was_online } => was_online,
+                    Ended::Asleep => false,
+                };
+                if was_online {
+                    delay = shared.timing.retry;
                 }
+                shared.update(|s| {
+                    s.state = State::Offline;
+                    s.tunnels = 0;
+                });
+                let mut stopped = stopped.clone();
+                let woke = tokio::select! {
+                    woke = rest(&mut power, delay) => woke,
+                    _ = stopped.changed() => false,
+                };
+                if *stopped.borrow() {
+                    return;
+                }
+                // A wake starts the backoff over.
+                delay = if woke {
+                    shared.timing.retry
+                } else {
+                    (delay * 2).min(MAX_RETRY)
+                };
+                shared.update(|s| s.state = State::Connecting);
             }
+        });
+    }
+    /// System sleep (`suspend`): drop the socket now rather than leave the
+    /// Cloud to find it idle; nothing retries until [`Connector::wake`].
+    pub fn suspend(&self) {
+        if !self.is_active() {
+            return;
+        }
+        self.0.power.send_modify(|p| p.asleep = true);
+        self.0.update(|s| {
+            s.state = State::Offline;
+            s.tunnels = 0;
+        });
+    }
+    /// Wake or a changed network (`wake`): reconnect at once instead of
+    /// waiting out the backoff. A live connection is left alone.
+    pub fn wake(&self) {
+        if !self.is_active() {
+            return;
+        }
+        self.0.power.send_modify(|p| {
+            p.asleep = false;
+            p.wakes += 1;
         });
     }
     /// Ends the connection and every tunnel it carried.
@@ -293,14 +337,69 @@ impl Connector {
     }
 }
 
-/// One connection: challenge, socket, `ready`, then tunnels until it ends.
+/// Waits out `delay` before the next attempt: while the system sleeps
+/// there is no attempt at all, and a wake ends the wait at once (`true`).
+async fn rest(power: &mut tokio::sync::watch::Receiver<Power>, delay: Duration) -> bool {
+    let wakes = power.borrow_and_update().wakes;
+    let deadline = tokio::time::Instant::now() + delay;
+    loop {
+        let now = *power.borrow_and_update();
+        if now.wakes != wakes && !now.asleep {
+            return true;
+        }
+        if now.asleep {
+            if power.changed().await.is_err() {
+                return false;
+            }
+            continue;
+        }
+        tokio::select! {
+            _ = tokio::time::sleep_until(deadline) => return false,
+            changed = power.changed() => {
+                if changed.is_err() {
+                    tokio::time::sleep_until(deadline).await;
+                    return false;
+                }
+            }
+        }
+    }
+}
+
+/// Resolves once the system sleeps.
+async fn asleep(power: &mut tokio::sync::watch::Receiver<Power>) {
+    loop {
+        if power.borrow_and_update().asleep {
+            return;
+        }
+        if power.changed().await.is_err() {
+            return std::future::pending().await;
+        }
+    }
+}
+
+/// One connection: challenge, socket, `ready`, then tunnels until it ends
+/// or the system sleeps.
 async fn session(
     shared: &Arc<Shared>,
     owner: &Owner,
     ssh: &HostSsh,
     mut stopped: tokio::sync::watch::Receiver<bool>,
+    mut power: tokio::sync::watch::Receiver<Power>,
 ) -> Ended {
-    let lost = Ended::Lost { was_online: false };
+    let socket = tokio::select! {
+        opened = open(shared, owner) => match opened {
+            Ok(socket) => socket,
+            Err(ended) => return ended,
+        },
+        _ = asleep(&mut power) => return Ended::Asleep,
+    };
+    shared.update(|s| s.state = State::Online);
+    serve(shared, owner, ssh, socket, &mut stopped, &mut power).await
+}
+
+/// The challenge, the socket and `ready` for this epoch.
+async fn open(shared: &Arc<Shared>, owner: &Owner) -> Result<Box<dyn Socket>, Ended> {
+    let lost = || Ended::Lost { was_online: false };
     let (account, device) = (owner.account_id.as_str(), owner.device_id.as_str());
     // A device-signed challenge request; once more with the Cloud's clock.
     let mut challenge = None;
@@ -314,7 +413,7 @@ async fn session(
             .identity
             .sign(owner, &challenge_payload(account, device, timestamp))
         else {
-            return lost;
+            return Err(lost());
         };
         let body = json!({"owner": account, "timestamp": timestamp, "signature": signature});
         match shared.gateway.challenge(device, body).await {
@@ -324,7 +423,7 @@ async fn session(
             }
             Err(refused) => {
                 if refused.status == 403 && refused.code.as_deref() == Some("device_revoked") {
-                    return Ended::Revoked;
+                    return Err(Ended::Revoked);
                 }
                 if refused.status == 401
                     && refused.code.as_deref() == Some("device_clock_skew")
@@ -338,12 +437,12 @@ async fn session(
                     *shared.clock_offset.lock().unwrap() = server - now;
                     continue;
                 }
-                return lost;
+                return Err(lost());
             }
         }
     }
     let Some(challenge) = challenge else {
-        return lost;
+        return Err(lost());
     };
     let ids = [&challenge["challenge_id"], &challenge["epoch"]];
     let (Some(challenge_id), Some(epoch), Some(nonce)) = (
@@ -351,24 +450,24 @@ async fn session(
         ids[1].as_str().filter(|v| uuid::Uuid::parse_str(v).is_ok()),
         challenge["nonce"].as_str(),
     ) else {
-        return lost;
+        return Err(lost());
     };
     let payload =
         format!("puppyone-device-v1\n{account}\n{device}\n{challenge_id}\n{epoch}\n{nonce}");
     let Ok(signature) = shared.identity.sign(owner, &payload) else {
-        return lost;
+        return Err(lost());
     };
     let Some(url) = device_socket_url(
         shared.gateway.deployment(),
         device,
         challenge["connect_url"].as_str(),
     ) else {
-        return lost;
+        return Err(lost());
     };
     let Ok(Ok(mut socket)) =
         tokio::time::timeout(Duration::from_secs(15), shared.gateway.connect(url)).await
     else {
-        return lost;
+        return Err(lost());
     };
     let mut hello = json!({"owner": account, "challenge_id": challenge_id, "epoch": epoch,
         "nonce": nonce, "signature": signature});
@@ -380,7 +479,7 @@ async fn session(
         .await
         .is_err()
     {
-        return lost;
+        return Err(lost());
     }
     // `ready` for this epoch first; anything else ends the attempt.
     let ready = tokio::time::timeout(Duration::from_secs(15), async {
@@ -400,10 +499,9 @@ async fn session(
     })
     .await;
     if ready != Ok(true) {
-        return lost;
+        return Err(lost());
     }
-    shared.update(|s| s.state = State::Online);
-    serve(shared, owner, ssh, socket, &mut stopped).await
+    Ok(socket)
 }
 
 struct Tunnel {
@@ -416,6 +514,7 @@ async fn serve(
     ssh: &HostSsh,
     socket: Box<dyn Socket>,
     stopped: &mut tokio::sync::watch::Receiver<bool>,
+    power: &mut tokio::sync::watch::Receiver<Power>,
 ) -> Ended {
     let online = Ended::Lost { was_online: true };
     let (mut sink, mut source) = socket.split();
@@ -428,6 +527,7 @@ async fn serve(
     let ended = loop {
         tokio::select! {
             _ = stopped.changed() => break Ended::Stopped,
+            _ = asleep(power) => break Ended::Asleep,
             _ = beat.tick() => {
                 if heard.elapsed() > shared.timing.silent {
                     break online;
@@ -957,6 +1057,9 @@ mod tests {
         }
     }
     fn rig(silent: Duration) -> Rig {
+        rig_retrying(silent, Duration::from_millis(50))
+    }
+    fn rig_retrying(silent: Duration, retry: Duration) -> Rig {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().canonicalize().unwrap().join("notes");
         std::fs::create_dir(&root).unwrap();
@@ -1011,7 +1114,7 @@ mod tests {
         .timed(Timing {
             heartbeat: Duration::from_millis(50),
             silent,
-            retry: Duration::from_millis(50),
+            retry,
         });
         Rig {
             connector,
@@ -1231,6 +1334,63 @@ mod tests {
         let _third = rig.accept();
         assert_eq!(rig.challenges(), 3);
         assert!(rig.revoked.lock().unwrap().is_empty());
+        rig.connector.stop();
+    }
+
+    /// `follows system sleep: drops the socket on suspend and reconnects at
+    /// once on wake`. Retries come every 50 ms, yet none while asleep; the
+    /// next test shows a wake does not wait out the backoff.
+    #[test]
+    fn system_sleep_drops_the_socket_and_a_wake_reconnects_at_once() {
+        let rig = rig(Duration::from_secs(30));
+        rig.connect();
+        let mut first = rig.accept();
+        rig.connector.suspend();
+        assert_eq!(rig.connector.status().state, State::Offline);
+        assert!(rig.connector.is_active());
+        // The Cloud sees the socket close at once, long before its silence
+        // would end it.
+        let closed = runtime().block_on(async {
+            let closing = async {
+                loop {
+                    match first.next().await {
+                        Some(Ok(Message::Close(_))) | None | Some(Err(_)) => return,
+                        Some(Ok(_)) => {}
+                    }
+                }
+            };
+            tokio::time::timeout(Duration::from_secs(5), closing)
+                .await
+                .is_ok()
+        });
+        assert!(closed, "suspend closes the socket");
+        // Asleep: no attempt, whatever the backoff.
+        std::thread::sleep(Duration::from_millis(300));
+        assert_eq!(rig.challenges(), 1);
+        assert_eq!(rig.connector.status().state, State::Offline);
+        rig.connector.wake();
+        let _second = rig.accept();
+        assert_eq!(rig.challenges(), 2);
+        assert_eq!(rig.connector.status().state, State::Online);
+        rig.connector.stop();
+    }
+
+    /// `wake` on a network change: a connection waiting out its backoff
+    /// tries again at once; a live one is left alone.
+    #[test]
+    fn a_wake_cuts_the_backoff_short_and_leaves_a_live_connection_alone() {
+        let rig = rig_retrying(Duration::from_secs(30), Duration::from_secs(60));
+        rig.connect();
+        let first = rig.accept();
+        rig.connector.wake();
+        std::thread::sleep(Duration::from_millis(200));
+        assert_eq!(rig.challenges(), 1, "a live connection is left alone");
+        assert_eq!(rig.connector.status().state, State::Online);
+        drop(first);
+        rig.until("offline", |s| s.state == State::Offline);
+        rig.connector.wake();
+        let _second = rig.accept();
+        assert_eq!(rig.challenges(), 2);
         rig.connector.stop();
     }
 

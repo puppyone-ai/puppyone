@@ -52948,6 +52948,36 @@
           "test": "workspace::cloud::recovery::tests::a_hidden_window_skips_its_retry_and_probes_once_it_shows"
         }
       ]
+    },
+    {
+      "id": "host-connector-follows-system-sleep",
+      "acceptance": "The host's device connection follows system sleep: on suspend it closes its socket at once and reports offline while staying active, and nothing retries while the system sleeps, whatever the backoff; on wake (or an unlocked screen) it reconnects at once with a fresh challenge, and a wake while waiting out a backoff cuts it short. A wake leaves a live connection alone. The host process hears sleep and wake from the system (macOS IOKit system power and screen unlock, logind PrepareForSleep, the Windows suspend/resume callback).",
+      "typescript": [
+        {
+          "path": "tests/unit/hosts/connection/hostConnector.test.mjs",
+          "sha256": "1c8ed267760fe840c848349b21410086e42a02a4a839c6499ac765de011dafe8",
+          "cases": [
+            {
+              "index": 8,
+              "name": "host connector > follows system sleep: drops the socket on suspend and reconnects at once on wake"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::connector::tests::system_sleep_drops_the_socket_and_a_wake_reconnects_at_once"
+        },
+        {
+          "package": "po-workspace",
+          "test": "workspace::hosts::connector::tests::a_wake_cuts_the_backoff_short_and_leaves_a_live_connection_alone"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::power::tests::this_mac_tells_its_sleep_and_wake"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -60788,24 +60818,6 @@
             {
               "index": 4,
               "name": "inline Homepage Cloud projects > leaves the account to the Header's place menu, signed in or out"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "host-connector-system-sleep",
-      "kind": "gap",
-      "reason": "TS's connector follows system sleep: it drops the socket on suspend and reconnects at once on wake. The native connector is not wired to the system's power notifications; after a sleep the dead socket is found by the 30 s silence (or a failed heartbeat write) and the connection comes back through the ordinary retry.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/cloud/other-computers/connector.md",
-      "typescript": [
-        {
-          "path": "tests/unit/hosts/connection/hostConnector.test.mjs",
-          "sha256": "1c8ed267760fe840c848349b21410086e42a02a4a839c6499ac765de011dafe8",
-          "cases": [
-            {
-              "index": 8,
-              "name": "host connector > follows system sleep: drops the socket on suspend and reconnects at once on wake"
             }
           ]
         }
