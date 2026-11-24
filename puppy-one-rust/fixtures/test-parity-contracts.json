@@ -51695,6 +51695,188 @@
           "test": "editor::markdown::tests::table_viewport_acceptance::sessions_survive_a_structural_replacement_its_undo_and_redo"
         }
       ]
+    },
+    {
+      "id": "html-preview-link-routing",
+      "acceptance": "A link the person clicks in an Interact page is resolved against the page's own <base> (relative, root, scheme-relative, percent-decoded and mailto forms; fragment-only, empty, malformed, control-character, encoded-separator and broken-escape inputs refused) and never followed by the page: web addresses go to the host's external route, workspace documents to the workbench. Unsafe protocols, files, data URLs and credentials never reach the system and say the link is unavailable; a missing file, a failed opening and a workspace that cannot answer are reported; a page allowed its folder stays offline. Only the shown page's own channel reaches the routes (a replaced page's channel is closed, the page may load no frames, and its script reports only trusted clicks), and a late answer for a replaced page is dropped. The fixed UI scripts lead the author's own policy, which stays as written and keeps governing authored scripts, and the projection keeps the author's base.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/html/htmlLinkNavigation.test.tsx",
+          "sha256": "0f7281d87dc563b0d36deaf1eea3b0b59edccc5ed886a4b747911f497445b240",
+          "cases": [
+            {
+              "index": 0,
+              "name": "HTML link destinations > resolves notes.md with author base null"
+            },
+            {
+              "index": 1,
+              "name": "HTML link destinations > resolves notes%20%E4%B8%AD.md with author base null"
+            },
+            {
+              "index": 2,
+              "name": "HTML link destinations > resolves ../other.html#section with author base null"
+            },
+            {
+              "index": 3,
+              "name": "HTML link destinations > resolves other.html with author base ../pages/"
+            },
+            {
+              "index": 4,
+              "name": "HTML link destinations > resolves other.html with author base ../pages/index.html"
+            },
+            {
+              "index": 5,
+              "name": "HTML link destinations > resolves /notes.md with author base pages/"
+            },
+            {
+              "index": 6,
+              "name": "HTML link destinations > resolves other.html?q=1#section with author base https://example.test/docs/"
+            },
+            {
+              "index": 7,
+              "name": "HTML link destinations > resolves //example.test/docs with author base null"
+            },
+            {
+              "index": 8,
+              "name": "HTML link destinations > resolves //example.test/docs with author base http://example.test/"
+            },
+            {
+              "index": 9,
+              "name": "HTML link destinations > resolves guide.html with author base //example.test/docs/"
+            },
+            {
+              "index": 10,
+              "name": "HTML link destinations > resolves mailto:person@example.test with author base null"
+            },
+            {
+              "index": 11,
+              "name": "HTML link destinations > rejects malformed or frame-local input #section"
+            },
+            {
+              "index": 12,
+              "name": "HTML link destinations > rejects malformed or frame-local input "
+            },
+            {
+              "index": 13,
+              "name": "HTML link destinations > rejects malformed or frame-local input //"
+            },
+            {
+              "index": 14,
+              "name": "HTML link destinations > rejects malformed or frame-local input a\n.md"
+            },
+            {
+              "index": 15,
+              "name": "HTML link destinations > rejects malformed or frame-local input %2fetc/passwd"
+            },
+            {
+              "index": 16,
+              "name": "HTML link destinations > rejects malformed or frame-local input a%5cb.md"
+            },
+            {
+              "index": 17,
+              "name": "HTML link destinations > rejects malformed or frame-local input %00.md"
+            },
+            {
+              "index": 18,
+              "name": "HTML link destinations > rejects malformed or frame-local input %broken"
+            },
+            {
+              "index": 19,
+              "name": "HTML link destinations > authorizes only fixed UI scripts without enabling authored inline scripts"
+            },
+            {
+              "index": 20,
+              "name": "HTML link destinations > preserves author CSP and base semantics in a disposable projection"
+            },
+            {
+              "index": 21,
+              "name": "HTML navigation capability > uses the host's existing external and workspace routes"
+            },
+            {
+              "index": 22,
+              "name": "HTML navigation capability > rejects another frame, stale sessions and messages without user activation"
+            },
+            {
+              "index": 23,
+              "name": "HTML navigation capability > never hands javascript:alert(1) to the OS"
+            },
+            {
+              "index": 24,
+              "name": "HTML navigation capability > never hands file:///etc/passwd to the OS"
+            },
+            {
+              "index": 25,
+              "name": "HTML navigation capability > never hands data:text/html,x to the OS"
+            },
+            {
+              "index": 26,
+              "name": "HTML navigation capability > never hands https://user:password@example.test/ to the OS"
+            },
+            {
+              "index": 27,
+              "name": "HTML navigation capability > reports missing files and external-opening failures"
+            },
+            {
+              "index": 28,
+              "name": "HTML navigation capability > keeps folder-authorized pages offline"
+            },
+            {
+              "index": 29,
+              "name": "HTML navigation capability > reports a host resolution error without navigating the frame"
+            },
+            {
+              "index": 30,
+              "name": "HTML navigation capability > does not show a late opening error in a replacement document"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::links_resolve_against_the_pages_own_base"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::malformed_or_frame_local_links_are_refused"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::fixed_ui_scripts_lead_the_authors_policy_without_enabling_its_scripts"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::the_projection_keeps_the_authors_policy_and_base"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::links_use_the_hosts_external_and_workspace_routes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::only_the_current_pages_channel_reaches_the_routes"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::unsafe_addresses_never_reach_the_system"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::missing_files_and_failed_openings_are_reported"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::a_folder_page_keeps_its_links_offline"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::a_workspace_that_cannot_answer_reports_a_failure"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::html_interact::link_tests::a_late_failure_does_not_reach_a_replacement_page"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -64335,144 +64517,6 @@
             {
               "index": 55,
               "name": "Markdown HTML cross-surface conformance > never lets a surface upgrade an unsupported HTML result"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "html-preview-link-routing",
-      "kind": "gap",
-      "reason": "A native HTML preview keeps link clicks inside its own page. The product instead resolves each activated link against the page's base (relative, root, scheme-relative, percent-decoded and mailto forms; frame-local, malformed and traversal inputs refused), hands safe external links to the system browser and workspace links to the editor through the host's routes, never gives unsafe protocols, files, data URLs or credentials to the OS, reports missing files, opening failures and offline folder pages, ignores other frames, stale sessions and messages without user activation, and authorizes only its own fixed UI script through the author's CSP. None of that routing exists natively.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/html/interact.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/html/htmlLinkNavigation.test.tsx",
-          "sha256": "0f7281d87dc563b0d36deaf1eea3b0b59edccc5ed886a4b747911f497445b240",
-          "cases": [
-            {
-              "index": 0,
-              "name": "HTML link destinations > resolves notes.md with author base null"
-            },
-            {
-              "index": 1,
-              "name": "HTML link destinations > resolves notes%20%E4%B8%AD.md with author base null"
-            },
-            {
-              "index": 2,
-              "name": "HTML link destinations > resolves ../other.html#section with author base null"
-            },
-            {
-              "index": 3,
-              "name": "HTML link destinations > resolves other.html with author base ../pages/"
-            },
-            {
-              "index": 4,
-              "name": "HTML link destinations > resolves other.html with author base ../pages/index.html"
-            },
-            {
-              "index": 5,
-              "name": "HTML link destinations > resolves /notes.md with author base pages/"
-            },
-            {
-              "index": 6,
-              "name": "HTML link destinations > resolves other.html?q=1#section with author base https://example.test/docs/"
-            },
-            {
-              "index": 7,
-              "name": "HTML link destinations > resolves //example.test/docs with author base null"
-            },
-            {
-              "index": 8,
-              "name": "HTML link destinations > resolves //example.test/docs with author base http://example.test/"
-            },
-            {
-              "index": 9,
-              "name": "HTML link destinations > resolves guide.html with author base //example.test/docs/"
-            },
-            {
-              "index": 10,
-              "name": "HTML link destinations > resolves mailto:person@example.test with author base null"
-            },
-            {
-              "index": 11,
-              "name": "HTML link destinations > rejects malformed or frame-local input #section"
-            },
-            {
-              "index": 12,
-              "name": "HTML link destinations > rejects malformed or frame-local input "
-            },
-            {
-              "index": 13,
-              "name": "HTML link destinations > rejects malformed or frame-local input //"
-            },
-            {
-              "index": 14,
-              "name": "HTML link destinations > rejects malformed or frame-local input a\n.md"
-            },
-            {
-              "index": 15,
-              "name": "HTML link destinations > rejects malformed or frame-local input %2fetc/passwd"
-            },
-            {
-              "index": 16,
-              "name": "HTML link destinations > rejects malformed or frame-local input a%5cb.md"
-            },
-            {
-              "index": 17,
-              "name": "HTML link destinations > rejects malformed or frame-local input %00.md"
-            },
-            {
-              "index": 18,
-              "name": "HTML link destinations > rejects malformed or frame-local input %broken"
-            },
-            {
-              "index": 19,
-              "name": "HTML link destinations > authorizes only fixed UI scripts without enabling authored inline scripts"
-            },
-            {
-              "index": 20,
-              "name": "HTML link destinations > preserves author CSP and base semantics in a disposable projection"
-            },
-            {
-              "index": 21,
-              "name": "HTML navigation capability > uses the host's existing external and workspace routes"
-            },
-            {
-              "index": 22,
-              "name": "HTML navigation capability > rejects another frame, stale sessions and messages without user activation"
-            },
-            {
-              "index": 23,
-              "name": "HTML navigation capability > never hands javascript:alert(1) to the OS"
-            },
-            {
-              "index": 24,
-              "name": "HTML navigation capability > never hands file:///etc/passwd to the OS"
-            },
-            {
-              "index": 25,
-              "name": "HTML navigation capability > never hands data:text/html,x to the OS"
-            },
-            {
-              "index": 26,
-              "name": "HTML navigation capability > never hands https://user:password@example.test/ to the OS"
-            },
-            {
-              "index": 27,
-              "name": "HTML navigation capability > reports missing files and external-opening failures"
-            },
-            {
-              "index": 28,
-              "name": "HTML navigation capability > keeps folder-authorized pages offline"
-            },
-            {
-              "index": 29,
-              "name": "HTML navigation capability > reports a host resolution error without navigating the frame"
-            },
-            {
-              "index": 30,
-              "name": "HTML navigation capability > does not show a late opening error in a replacement document"
             }
           ]
         }
