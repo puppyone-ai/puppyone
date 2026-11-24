@@ -51485,6 +51485,216 @@
           "test": "editor::markdown::tests::hosted_asset_acceptance::a_local_document_never_loads_an_absolute_hosted_url"
         }
       ]
+    },
+    {
+      "id": "markdown-table-horizontal-scroll",
+      "acceptance": "A Markdown table wider than the reading column scrolls horizontally inside a scrollport that reaches the editor's edges: at offset zero the table starts at the reading column, and the range ends with the table's end at the column's end. Horizontal wheel and trackpad deltas, and Shift with a vertical wheel, scroll the table and never reach the document; a vertical wheel over the table scrolls the document. A reading-rail scrollbar (the product scrollbar, 12px, the reading column's width) shows only while the table overflows, and it and the table follow each other proportionally. The offset is kept as a per-view semantic anchor (column and offset inside it, never raw pixels), which survives a structural rewrite, its undo and redo (an invertible continuity effect kept by history), an unrelated edit before the table and a cell edit, follows inserted, deleted and moved columns, and is not inherited by an unrelated replacement table. Detached sessions expire after 120 s and at most 64 are kept. Moving the caret into a column outside the scrollport brings that column into view without moving the editor. Offsets normalise every RTL scroll model to zero at the inline start.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/rendering/markdownInlineViewportSession.test.ts",
+          "sha256": "77df0a9acb0ffeb7673c822dd8763ff38af8bc971424606047f89bbc15ded95a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown embedded inline viewport sessions > keeps one semantic anchor across an explicitly continuous Widget replacement"
+            },
+            {
+              "index": 1,
+              "name": "Markdown embedded inline viewport sessions > maps non-overlapping edits but rejects overlapping replacement without continuity"
+            },
+            {
+              "index": 2,
+              "name": "Markdown embedded inline viewport sessions > expires detached sessions and bounds their least-recently-used set"
+            },
+            {
+              "index": 3,
+              "name": "Markdown inline viewport anchor math > maps insert, delete, and move operations without using raw pixels as identity"
+            },
+            {
+              "index": 4,
+              "name": "Markdown inline viewport anchor math > normalizes every RTL browser scroll model to zero-at-inline-start"
+            },
+            {
+              "index": 5,
+              "name": "Markdown inline viewport anchor math > maps the table offset proportionally onto a differently sized scrollbar range"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/viewport.test.ts",
+          "sha256": "bf59902d51de48d598afa6c07359b72cd1fb3c82b6e8443a3f2a52e9ccdc73b5",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table EditorView interactions > keeps the inline viewport session across a structural Widget replacement"
+            },
+            {
+              "index": 1,
+              "name": "Markdown table EditorView interactions > syncs a reading-rail scrollbar with the wider table viewport"
+            },
+            {
+              "index": 2,
+              "name": "Markdown table EditorView interactions > maps viewport lineage through an unrelated edit before the table"
+            },
+            {
+              "index": 3,
+              "name": "Markdown table EditorView interactions > keeps viewport lineage when a cell commit replaces the table Widget"
+            },
+            {
+              "index": 4,
+              "name": "Markdown table EditorView interactions > does not leak viewport state into an unrelated replacement table"
+            },
+            {
+              "index": 5,
+              "name": "Markdown table EditorView interactions > reveals the focused column without scrolling the outer editor horizontally"
+            }
+          ]
+        },
+        {
+          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
+          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
+          "cases": [
+            {
+              "index": 25,
+              "name": "Markdown table affordance layout > splits the editor-edge scrollport from the reading-rail table track"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::inline_viewport::tests::keeps_one_semantic_anchor_across_an_explicitly_continuous_replacement"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::inline_viewport::tests::maps_unrelated_edits_but_ends_on_a_touching_replacement_without_continuity"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::inline_viewport::tests::detached_sessions_expire_and_keep_a_bounded_least_recently_used_set"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::inline_viewport::tests::anchors_follow_inserted_deleted_and_moved_items_not_pixels"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::continuity::tests::a_cell_edit_is_inside_and_a_replacement_from_the_start_is_not"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::viewport::tests::every_rtl_scroll_model_normalizes_to_zero_at_the_inline_start"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::viewport::tests::the_table_offset_maps_proportionally_onto_a_differently_sized_scrollbar"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::features::table::viewport::tests::anchors_restore_the_offset_and_reveal_scrolls_as_little_as_possible"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::text::history::tests::invertible_effects_travel_with_undo_and_redo"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::a_wide_table_scrolls_in_an_editor_edge_scrollport_with_a_reading_rail_scrollbar"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::the_reading_rail_scrollbar_and_the_table_follow_each_other"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::sessions_survive_a_structural_replacement_its_undo_and_redo"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::an_edit_before_the_table_and_a_cell_edit_keep_the_viewport"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::an_unrelated_replacement_table_starts_its_own_viewport"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::the_caret_column_comes_into_view"
+        }
+      ]
+    },
+    {
+      "id": "markdown-table-column-width-sessions",
+      "acceptance": "A table's column tracks live in a per-view column layout session that follows the table through transactions: content edits and source movement keep them; a column move carries each track with its column; an inserted column starts at the 48px floor and a deleted one drops its track; automatic tracks reflow only when the reading width changes (or after a column was added or removed), never while a cell is edited; explicit tracks (resized or auto-fitted) stay fixed, persist per document, table content and position with the 300 newest layouts kept, restore only for the same content and column count when the document opens again, and a reset forgets them and returns to automatic layout.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/tables/markdownTableColumnLayoutSession.test.ts",
+          "sha256": "c9538123e9849812742d861001a4c7eabb5a208c124fd9f7af1e177683d1fb8e",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown table column layout session > keeps widths stable through content edits and source movement"
+            },
+            {
+              "index": 1,
+              "name": "Markdown table column layout session > moves widths with their semantic columns and initializes only inserted tracks"
+            },
+            {
+              "index": 2,
+              "name": "Markdown table column layout session > keeps automatic tracks reflowable and explicit tracks fixed"
+            },
+            {
+              "index": 3,
+              "name": "Markdown table column layout session > re-lays automatic tracks out when a column is added or removed, not when one moves"
+            },
+            {
+              "index": 4,
+              "name": "Markdown table column layout persistence > restores only the matching document revision and column count"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/editor/formats/markdown/tables/column-widths.test.ts",
+          "sha256": "dd86e859fbbd45c9f0527aef5109782315a3e3a5b53ab4b7b504904b30179de0",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown table EditorView interactions > keeps a user-resized track stable across content commits and reopening"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::column_layout::tests::widths_stay_through_content_edits_source_movement_and_reopening"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::column_layout::tests::widths_move_with_their_columns_and_only_inserted_tracks_start_fresh"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::column_layout::tests::automatic_tracks_reflow_and_explicit_tracks_stay_fixed"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::column_layout::tests::automatic_tracks_relay_out_when_a_column_is_added_or_removed_not_moved"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::platform::sessions::column_layout::tests::persisted_widths_restore_only_for_the_same_content_and_column_count"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::a_resized_track_stays_through_cell_commits_and_reopening"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::table_viewport_acceptance::sessions_survive_a_structural_replacement_its_undo_and_redo"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -63327,84 +63537,6 @@
       ]
     },
     {
-      "id": "markdown-table-horizontal-scroll",
-      "kind": "gap",
-      "reason": "A Markdown table wider than the reading column (columns at their readable minimum that still do not fit, or explicit tracks wider than the column) has no scrollport of its own natively: the editor clips it at the pane edge. Its horizontal scroll offset, the anchor kept across a widget replacement, RTL scroll normalisation and the proportional scrollbar mapping therefore do not exist.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/table.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/rendering/markdownInlineViewportSession.test.ts",
-          "sha256": "77df0a9acb0ffeb7673c822dd8763ff38af8bc971424606047f89bbc15ded95a",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown embedded inline viewport sessions > keeps one semantic anchor across an explicitly continuous Widget replacement"
-            },
-            {
-              "index": 1,
-              "name": "Markdown embedded inline viewport sessions > maps non-overlapping edits but rejects overlapping replacement without continuity"
-            },
-            {
-              "index": 2,
-              "name": "Markdown embedded inline viewport sessions > expires detached sessions and bounds their least-recently-used set"
-            },
-            {
-              "index": 3,
-              "name": "Markdown inline viewport anchor math > maps insert, delete, and move operations without using raw pixels as identity"
-            },
-            {
-              "index": 4,
-              "name": "Markdown inline viewport anchor math > normalizes every RTL browser scroll model to zero-at-inline-start"
-            },
-            {
-              "index": 5,
-              "name": "Markdown inline viewport anchor math > maps the table offset proportionally onto a differently sized scrollbar range"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/tables/viewport.test.ts",
-          "sha256": "bf59902d51de48d598afa6c07359b72cd1fb3c82b6e8443a3f2a52e9ccdc73b5",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown table EditorView interactions > keeps the inline viewport session across a structural Widget replacement"
-            },
-            {
-              "index": 1,
-              "name": "Markdown table EditorView interactions > syncs a reading-rail scrollbar with the wider table viewport"
-            },
-            {
-              "index": 2,
-              "name": "Markdown table EditorView interactions > maps viewport lineage through an unrelated edit before the table"
-            },
-            {
-              "index": 3,
-              "name": "Markdown table EditorView interactions > keeps viewport lineage when a cell commit replaces the table Widget"
-            },
-            {
-              "index": 4,
-              "name": "Markdown table EditorView interactions > does not leak viewport state into an unrelated replacement table"
-            },
-            {
-              "index": 5,
-              "name": "Markdown table EditorView interactions > reveals the focused column without scrolling the outer editor horizontally"
-            }
-          ]
-        },
-        {
-          "path": "tests/architecture/editor/formats/markdown/rendering/markdownEditorLayout.test.ts",
-          "sha256": "72930452a47821debcf47e30a42bcb26021f4453e50f5a28ffffbd5a16c9a361",
-          "cases": [
-            {
-              "index": 25,
-              "name": "Markdown table affordance layout > splits the editor-edge scrollport from the reading-rail table track"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "markdown-table-fit-to-viewport",
       "kind": "out-of-scope",
       "reason": "fitMarkdownTableColumnWidths backs the Markdown table controller's fitToViewport, which no product surface calls; the native table offers no such command either.",
@@ -63417,50 +63549,6 @@
             {
               "index": 8,
               "name": "Markdown table column layout > fits explicit tracks onto the reading column proportionally"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-table-column-width-sessions",
-      "kind": "gap",
-      "reason": "Natively a table's resized widths live with its widget, plus a 64-table in-memory store keyed by the table's start offset: they survive edits that keep the column count, but a column move keeps widths by position instead of moving them with their columns, an inserted or deleted column returns every track to automatic layout, there is no reset to automatic, and widths are not persisted per document revision and column count across reopening.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/table.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/tables/markdownTableColumnLayoutSession.test.ts",
-          "sha256": "c9538123e9849812742d861001a4c7eabb5a208c124fd9f7af1e177683d1fb8e",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown table column layout session > keeps widths stable through content edits and source movement"
-            },
-            {
-              "index": 1,
-              "name": "Markdown table column layout session > moves widths with their semantic columns and initializes only inserted tracks"
-            },
-            {
-              "index": 2,
-              "name": "Markdown table column layout session > keeps automatic tracks reflowable and explicit tracks fixed"
-            },
-            {
-              "index": 3,
-              "name": "Markdown table column layout session > re-lays automatic tracks out when a column is added or removed, not when one moves"
-            },
-            {
-              "index": 4,
-              "name": "Markdown table column layout persistence > restores only the matching document revision and column count"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/editor/formats/markdown/tables/column-widths.test.ts",
-          "sha256": "dd86e859fbbd45c9f0527aef5109782315a3e3a5b53ab4b7b504904b30179de0",
-          "cases": [
-            {
-              "index": 3,
-              "name": "Markdown table EditorView interactions > keeps a user-resized track stable across content commits and reopening"
             }
           ]
         }

@@ -45,6 +45,7 @@ mod svg_isolation_acceptance;
 mod table_inline_acceptance;
 mod table_interaction_acceptance;
 mod table_media_acceptance;
+mod table_viewport_acceptance;
 mod viewport_stability;
 
 mod pipeline_acceptance;

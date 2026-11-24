@@ -7,20 +7,32 @@
 //! Interactive rails, grips, resize rail, and menu overlay live in
 //! [`super::controls`] (`TODO-31`).
 use super::{
-    interaction::{Geometry, TableUi, bounded_widths},
+    interaction::{Geometry, LayoutLink, TableUi},
     layout,
     model::{Alignment, Table},
+    scroll::{self, Link, Rail},
     style::TableStyle,
+    viewport::{self, RAIL_HEIGHT},
 };
 use crate::editor::{
-    markdown::shared::widgets::ring,
+    markdown::{
+        platform::sessions::{Sessions, column_layout},
+        shared::widgets::ring,
+    },
     view::{
         style::TextStyle,
         widget::{BlockWidget, WidgetCx},
     },
 };
 use gpui::{prelude::*, *};
-use std::rc::Rc;
+use std::{
+    cell::Cell,
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
+
+/// The sessions' feature id (`featureId: "markdown-table"`).
+pub(super) const SESSION_FEATURE: &str = "markdown-table";
 
 #[cfg(test)]
 thread_local! {
@@ -54,12 +66,53 @@ fn column_spans(widths: &[f32]) -> Vec<(f32, f32)> {
         .collect()
 }
 
+/// `createMarkdownTableViewportKey`: the table's content, not its position.
+pub(super) fn identity(table: &Table) -> u64 {
+    let mut h = std::hash::DefaultHasher::new();
+    table.alignments.hash(&mut h);
+    for row in &table.rows {
+        row.header.hash(&mut h);
+        for cell in &row.cells {
+            cell.text.hash(&mut h);
+        }
+    }
+    h.finish()
+}
+
+/// The sessions this widget instance mounted: (session, mount) of its
+/// inline viewport and of its column layout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Mounted {
+    viewport: (u64, u64),
+    layout: (u64, u64),
+}
+
 pub struct TableWidget {
     pub(super) table: Table,
     pub(super) style: TableStyle,
     header: TextStyle,
     body: TextStyle,
     pub(super) dark: bool,
+    sessions: Option<Sessions>,
+    /// Where explicit column tracks persist (the document).
+    namespace: Option<String>,
+    identity: u64,
+    mounted: Cell<Option<Mounted>>,
+}
+
+impl Drop for TableWidget {
+    /// The widget went away: its sessions detach, unless a replacement
+    /// already mounted them.
+    fn drop(&mut self) {
+        if let (Some(sessions), Some(m)) = (&self.sessions, self.mounted.get()) {
+            if let Ok(mut store) = sessions.viewports.try_borrow_mut() {
+                store.detach(m.viewport.0, m.viewport.1);
+            }
+            if let Ok(mut store) = sessions.layouts.try_borrow_mut() {
+                store.detach(m.layout.0, m.layout.1);
+            }
+        }
+    }
 }
 
 impl TableWidget {
@@ -71,7 +124,74 @@ impl TableWidget {
             header: style.cell_text(true, body_weight),
             body: style.cell_text(false, body_weight),
             dark,
+            sessions: None,
+            namespace: None,
+            identity: identity(table),
+            mounted: Cell::new(None),
         }
+    }
+
+    /// The view's sessions, and the document explicit tracks persist under.
+    pub fn with_sessions(mut self, sessions: Option<Sessions>, namespace: Option<String>) -> Self {
+        self.sessions = sessions;
+        self.namespace = namespace;
+        self
+    }
+
+    /// Mount this instance's sessions once (`acquire`).
+    fn mount(&self, automatic: &[f32], width: f32) -> Option<(Sessions, Mounted)> {
+        let sessions = self.sessions.clone()?;
+        if let Some(m) = self.mounted.get() {
+            return Some((sessions, m));
+        }
+        let range = self.table.range.clone();
+        let v =
+            sessions
+                .viewports
+                .borrow_mut()
+                .acquire(SESSION_FEATURE, range.clone(), self.identity);
+        let l = sessions.layouts.borrow_mut().acquire(
+            SESSION_FEATURE,
+            automatic,
+            Some(width),
+            range,
+            self.namespace.as_deref(),
+            self.identity,
+        );
+        let m = Mounted {
+            viewport: (v.id, v.mount),
+            layout: (l.id, l.mount),
+        };
+        self.mounted.set(Some(m));
+        Some((sessions, m))
+    }
+
+    /// The column tracks: the session's, with automatic ones laid out again
+    /// only when the reading width changed (`reflowAutomaticWidths`).
+    fn tracks(&self, sessions: &Sessions, m: Mounted, automatic: Vec<f32>, width: f32) -> Vec<f32> {
+        let mut store = sessions.layouts.borrow_mut();
+        let Some(session) = store.get(m.layout.0) else {
+            return automatic;
+        };
+        let stale = session
+            .auto_layout_width
+            .is_none_or(|w| (w - width).abs() >= 1.);
+        if !session.explicit && (stale || session.widths.len() != automatic.len()) {
+            store.set_auto_widths(m.layout.0, m.layout.1, &automatic, width);
+            return automatic;
+        }
+        let mut widths = session.widths;
+        widths.resize(automatic.len(), column_layout::MIN_WIDTH);
+        widths
+    }
+
+    /// The column the caret is in, when it is in a cell.
+    fn caret_column(&self, caret: usize) -> Option<usize> {
+        self.table.rows.iter().find_map(|row| {
+            row.cells
+                .iter()
+                .position(|c| c.range.start <= caret && caret <= c.range.end)
+        })
     }
 
     fn render_grid(
@@ -168,12 +288,10 @@ fn text_align(a: Alignment) -> TextAlign {
 
 impl BlockWidget for TableWidget {
     fn render(&self, cx: &mut WidgetCx) -> (AnyElement, f32) {
-        let (top, width) = (cx.top, cx.width);
+        let (top, width, gutter) = (cx.top, cx.width, cx.left);
         let m = &self.style.clone();
         let inset = m.cell_padding.left + m.cell_padding.right + 1.;
         let automatic = layout::column_widths(&self.table, width, m.size, inset);
-        let table_start = cx.source.start;
-        let expected_cols = automatic.len();
         let owner_view = cx.render.view.clone();
         let ui =
             cx.render
@@ -201,26 +319,58 @@ impl BlockWidget for TableWidget {
                         });
                     });
                     TableUi {
-                        widths: bounded_widths(table_start, expected_cols),
                         _subscriptions: vec![notify_owner, activation, escape],
                         ..TableUi::default()
                     }
                 });
         #[cfg(test)]
         LAST_TABLE_UI.with(|slot| *slot.borrow_mut() = Some(ui.downgrade()));
+        let mounted = self.mount(&automatic, width);
+        let mut widths = match &mounted {
+            Some((sessions, m)) => self.tracks(sessions, *m, automatic, width),
+            None => automatic,
+        };
         let state = ui.read(cx.render.app);
-        let mut widths = state
-            .widths
-            .clone()
-            .filter(|w| w.len() == expected_cols)
-            .or_else(|| bounded_widths(table_start, expected_cols))
-            .unwrap_or(automatic);
         if let (Some(resizing), Some(live)) = (state.gestures.resizing, state.live)
             && let Some(track) = widths.get_mut(resizing.column)
         {
             *track = live;
         }
         let table_width = 2. + widths.iter().sum::<f32>();
+        // The scrollport reaches the editor's edges; the table starts at the
+        // reading column and scrolls by its logical offset.
+        let view_geometry = Rc::new(viewport::Geometry::new(
+            widths.clone(),
+            table_width,
+            width,
+            gutter,
+        ));
+        let link = mounted.as_ref().map(|(sessions, m)| Link {
+            store: sessions.viewports.clone(),
+            id: m.viewport.0,
+            mount: m.viewport.1,
+            geometry: view_geometry.clone(),
+            view: cx.render.view.clone(),
+        });
+        // `revealColumn`: the caret's column comes into view as it moves.
+        let caret = cx.state.selection.1;
+        let caret_column = (cx.state.focus_within() && !cx.state.selected)
+            .then(|| self.caret_column(caret))
+            .flatten();
+        if let Some(link) = &link {
+            let revealed = state.revealed;
+            if let Some(column) = caret_column
+                && revealed != Some(caret)
+            {
+                link.scroll_to(viewport::reveal(link.offset(), column, &view_geometry));
+            }
+            let next = caret_column.map(|_| caret);
+            if next != revealed {
+                ui.update(cx.render.app, |u, _| u.revealed = next);
+            }
+        }
+        let offset = link.as_ref().map_or(0., Link::offset);
+        let x = -offset;
         let table_top = top + m.handle_gutter;
         let (cells, row_spans, table_height) =
             self.render_grid(&widths, table_width, table_top, cx);
@@ -245,8 +395,9 @@ impl BlockWidget for TableWidget {
             .border_1()
             .border_color(selected.unwrap_or(m.border));
         let table = div()
+            .debug_selector(|| "md-table-surface".into())
             .absolute()
-            .left_0()
+            .left(px(x))
             .top(px(m.handle_gutter))
             .w(px(table_width))
             .h(px(table_height))
@@ -258,31 +409,55 @@ impl BlockWidget for TableWidget {
         let table = match selected {
             Some(color) => div()
                 .absolute()
-                .left_0()
+                .left(px(x))
                 .top(px(m.handle_gutter))
                 .w(px(table_width))
                 .h(px(table_height))
-                .child(table.top_0())
+                .child(table.left_0().top_0())
                 .child(ring::ring((table_width, table_height), m.radius, 1., color)),
             None => table,
         };
         let geometry = Geometry {
             table: Bounds {
-                origin: point(0., m.handle_gutter),
+                origin: point(x, m.handle_gutter),
                 size: size(table_width, table_height),
             },
             rows: row_spans
                 .iter()
                 .map(|(t, h)| (m.handle_gutter + t, *h))
                 .collect(),
-            columns: column_spans(&widths),
+            columns: column_spans(&widths)
+                .into_iter()
+                .map(|(left, w)| (left + x, w))
+                .collect(),
         };
-        let height = m.handle_gutter + table_height + m.action_gutter + m.wrap_bottom;
-        let block = cx
+        let scrollport = m.handle_gutter + table_height + m.action_gutter;
+        let overflows = view_geometry.overflows();
+        let height = scrollport + if overflows { RAIL_HEIGHT } else { 0. } + m.wrap_bottom;
+        let mut block = cx
             .render
-            .block_box(top, cx.left, width.max(table_width), height)
+            .block_box(top, cx.left, width, height)
             .group(GROUP)
             .child(table);
+        let rail = link
+            .as_ref()
+            .filter(|_| overflows)
+            .map(|link| Rail::new(link.clone()));
+        if let (Some(link), Some(rail)) = (&link, &rail) {
+            let area = Bounds {
+                origin: point(-gutter, 0.),
+                size: size(view_geometry.viewport, scrollport),
+            };
+            block = block
+                .child(scroll::wheel(link.clone(), area))
+                .child(scroll::rail(
+                    cx.id("md-table-scrollbar"),
+                    rail,
+                    width,
+                    scrollport,
+                ));
+        }
+        ui.update(cx.render.app, |u, _| u.rail = rail);
         let element = if cx.state.read_only {
             block.into_any_element()
         } else {
@@ -290,7 +465,20 @@ impl BlockWidget for TableWidget {
             let natural = Rc::new(move |column| {
                 layout::natural_width(&table_model, column, width, font, inset)
             });
-            self.controls(block, geometry, ui, Rc::new(widths), natural, cx)
+            let layout_link = mounted.map(|(sessions, m)| LayoutLink {
+                store: sessions.layouts,
+                id: m.layout.0,
+                mount: m.layout.1,
+            });
+            self.controls(
+                block,
+                geometry,
+                ui,
+                Rc::new(widths),
+                natural,
+                layout_link,
+                cx,
+            )
         };
         (element.into_any_element(), height)
     }

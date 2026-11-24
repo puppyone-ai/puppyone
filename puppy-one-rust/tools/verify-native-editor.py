@@ -120,6 +120,39 @@ suites = {
         'a_system_proxy_never_opens_local_or_plain_http_urls',
         'remote_redirects_follow_the_same_routing_rule',
     ],
+    'editor::markdown::platform::sessions::inline_viewport::tests::': [
+        'keeps_one_semantic_anchor_across_an_explicitly_continuous_replacement',
+        'maps_unrelated_edits_but_ends_on_a_touching_replacement_without_continuity',
+        'detached_sessions_expire_and_keep_a_bounded_least_recently_used_set',
+        'anchors_follow_inserted_deleted_and_moved_items_not_pixels',
+    ],
+    'editor::markdown::platform::sessions::continuity::tests::': [
+        'a_cell_edit_is_inside_and_a_replacement_from_the_start_is_not',
+    ],
+    'editor::markdown::features::table::viewport::tests::': [
+        'every_rtl_scroll_model_normalizes_to_zero_at_the_inline_start',
+        'the_table_offset_maps_proportionally_onto_a_differently_sized_scrollbar',
+        'anchors_restore_the_offset_and_reveal_scrolls_as_little_as_possible',
+    ],
+    'editor::text::history::tests::': [
+        'invertible_effects_travel_with_undo_and_redo',
+    ],
+    'editor::markdown::tests::table_viewport_acceptance::': [
+        'a_wide_table_scrolls_in_an_editor_edge_scrollport_with_a_reading_rail_scrollbar',
+        'the_reading_rail_scrollbar_and_the_table_follow_each_other',
+        'sessions_survive_a_structural_replacement_its_undo_and_redo',
+        'an_edit_before_the_table_and_a_cell_edit_keep_the_viewport',
+        'an_unrelated_replacement_table_starts_its_own_viewport',
+        'the_caret_column_comes_into_view',
+        'a_resized_track_stays_through_cell_commits_and_reopening',
+    ],
+    'editor::markdown::platform::sessions::column_layout::tests::': [
+        'widths_stay_through_content_edits_source_movement_and_reopening',
+        'widths_move_with_their_columns_and_only_inserted_tracks_start_fresh',
+        'automatic_tracks_reflow_and_explicit_tracks_stay_fixed',
+        'automatic_tracks_relay_out_when_a_column_is_added_or_removed_not_moved',
+        'persisted_widths_restore_only_for_the_same_content_and_column_count',
+    ],
     'editor::markdown::tests::hosted_asset_acceptance::': [
         'a_hosted_document_loads_absolute_assets_only_inside_its_own_root',
         'a_local_document_never_loads_an_absolute_hosted_url',
