@@ -88,6 +88,14 @@ pub(crate) struct WorkbenchLauncher {
     menu: Option<LauncherMenu>,
     /// The shown project, as the workbench last reported it.
     shown: WorkbenchView,
+    /// Each launcher's Agent rows' focus, by Agent.
+    row_focus: HashMap<(Id, &'static str), FocusHandle>,
+    /// Each launcher's heading: focusable, never a Tab stop.
+    heading_focus: HashMap<Id, FocusHandle>,
+    /// Each launcher's usable rows as last drawn, detected then bundled.
+    return_targets: HashMap<Id, Vec<FocusHandle>>,
+    /// The launcher whose setup section was last used.
+    setup_group: Option<Id>,
 }
 
 impl WorkbenchLauncher {
@@ -136,6 +144,10 @@ impl WorkbenchLauncher {
             wake,
             menu: None,
             shown: WorkbenchView::default(),
+            row_focus: HashMap::new(),
+            heading_focus: HashMap::new(),
+            return_targets: HashMap::new(),
+            setup_group: None,
         }
     }
     fn woke(&mut self, cx: &mut Context<Self>) {

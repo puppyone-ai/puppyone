@@ -541,7 +541,7 @@ impl Render for OfficeView {
                     .items_center()
                     .justify_center()
                     .gap(px(8.))
-                    .child(crate::ui::loading::LoadingMark::new("office-converting"))
+                    .child(crate::ui::loading::LoadingMark::new("office-converting").silent())
                     .child(crate::localization::t("editor.preview.loading"))
             })
             .children(self.frame.clone())

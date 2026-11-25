@@ -5,10 +5,15 @@
 //! team's project is an empty Cloud project in that team's space. The
 //! default path is a single Create. A new folder starts with the built-in
 //! Getting started guide in the app's language, which opens first
-//! (`project-catalog.mjs`).
+//! (`project-catalog.mjs`). A local project is made under an operation the
+//! dialog keeps for that name and place (`requestRef`), so a retry is the
+//! same creation, never a second project.
 use super::*;
 use crate::{
-    platform::templates::{self, builtin},
+    platform::templates::{
+        self, builtin,
+        initialization::{Initializer, Request},
+    },
     ui::{
         components::{Dialog, Icon, Switch},
         form_input::{InputEvent, TextInput},
@@ -27,6 +32,15 @@ pub(in crate::app) struct Destination {
     pub(in crate::app) name: Entity<TextInput>,
     pub(in crate::app) location: Option<PathBuf>,
     pub(in crate::app) choosing: bool,
+    /// `(place and name, operation)` of the local creation: a retry of
+    /// the same name in the same place repeats its operation.
+    pub(in crate::app) operation: Option<(String, String)>,
+}
+impl Destination {
+    /// The operation that makes `name` in `location`.
+    pub(in crate::app) fn operation(&mut self, location: &Path, name: &str) -> String {
+        operation(&mut self.operation, &location.to_string_lossy(), name)
+    }
 }
 pub(in crate::app) struct CreateProject {
     pub(in crate::app) destination: Destination,
@@ -128,9 +142,11 @@ fn validate_name(value: &str) -> Result<&str, String> {
     templates::require_project_name(value)
 }
 /// The destination owner. Each test window owns and removes its own temporary
-/// Documents tree; tests never consult HOME or mutate process-wide environment.
+/// Documents tree and initialization journal; tests never consult HOME or
+/// mutate process-wide environment.
 pub(super) struct ProjectLocations {
     documents: Option<PathBuf>,
+    initializer: std::sync::Arc<Initializer>,
     #[cfg(test)]
     _fixture: tempfile::TempDir,
 }
@@ -141,6 +157,9 @@ impl ProjectLocations {
             let fixture = tempfile::tempdir().expect("isolated project locations");
             Self {
                 documents: Some(fixture.path().join("Documents")),
+                initializer: std::sync::Arc::new(Initializer::new(Some(
+                    fixture.path().join("project-initialization"),
+                ))),
                 _fixture: fixture,
             }
         }
@@ -149,6 +168,7 @@ impl ProjectLocations {
             Self {
                 documents: std::env::var_os("HOME")
                     .map(|home| PathBuf::from(home).join("Documents")),
+                initializer: templates::initialization::shared(),
             }
         }
     }
@@ -158,17 +178,35 @@ impl ProjectLocations {
         std::fs::create_dir_all(&folder).ok()?;
         folder.canonicalize().ok()
     }
+    /// Where new projects are made (`project-initialization-service`).
+    pub(super) fn initializer(&self) -> std::sync::Arc<Initializer> {
+        self.initializer.clone()
+    }
 }
-/// `createProject` with Getting started: the project folder, made whole,
-/// and the document it opens on.
+/// `createProject` with Getting started under `operation`: the project
+/// folder, made whole, and the document it opens on.
 fn create_folder(
+    initializer: &Initializer,
     parent: &Path,
     name: &str,
     locale: &str,
+    operation: &str,
 ) -> Result<(PathBuf, Option<String>), String> {
     let plan = builtin::getting_started(locale, builtin::GETTING_STARTED_VERSION)?;
-    let path = templates::materialize(parent, name, &plan)?;
-    Ok((path, plan.initial_open))
+    let source = format!(
+        "builtin:{}@{}",
+        builtin::GETTING_STARTED,
+        builtin::GETTING_STARTED_VERSION
+    );
+    let receipt = initializer.create(Request {
+        parent,
+        name,
+        operation_id: operation,
+        plan: &plan,
+        template: Some(&source),
+        number_if_taken: false,
+    })?;
+    Ok((receipt.path, receipt.initial_open_path))
 }
 
 impl Homepage {
@@ -229,6 +267,7 @@ impl Homepage {
                 name,
                 location: self.project_locations.default_location(),
                 choosing: false,
+                operation: None,
             },
             error: None,
             audience,
@@ -397,6 +436,7 @@ impl Homepage {
     ) {
         let team = self.create_team(cx);
         let offered = self.cloud_computer_offered(cx);
+        let initializer = self.project_locations.initializer();
         let Some(create) = self.create.as_mut() else {
             return;
         };
@@ -480,7 +520,9 @@ impl Homepage {
         let devices = create.audience == Audience::Devices;
         let computer = create.computer;
         let created = validate_name(&value).and_then(|name| {
-            create_folder(&location, name, &crate::localization::current_code())
+            let id = create.destination.operation(&location, name);
+            let locale = crate::localization::current_code();
+            create_folder(&initializer, &location, name, &locale, &id)
                 .map(|(path, open)| (path, open, name.to_owned()))
         });
         match created {
@@ -1259,7 +1301,10 @@ mod tests {
     #[test]
     fn a_new_project_starts_with_its_guide() {
         let temp = tempfile::tempdir().unwrap();
-        let (created, open) = create_folder(temp.path(), "Notes", "zh-Hans").unwrap();
+        let initializer = Initializer::new(None);
+        let id = || uuid::Uuid::new_v4().to_string();
+        let (created, open) =
+            create_folder(&initializer, temp.path(), "Notes", "zh-Hans", &id()).unwrap();
         assert_eq!(open.as_deref(), Some("Getting Started.md"));
         let guide = std::fs::read_to_string(created.join("Getting Started.md")).unwrap();
         assert!(guide.starts_with("# "));
@@ -1278,7 +1323,7 @@ mod tests {
             ]
         );
         assert!(
-            create_folder(temp.path(), "Notes", "en")
+            create_folder(&initializer, temp.path(), "Notes", "en", &id())
                 .unwrap_err()
                 .contains("already exists")
         );

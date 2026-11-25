@@ -53096,6 +53096,509 @@
           "test": "ui::components::menu::tests::the_keyboard_starts_on_the_current_choice_which_is_marked"
         }
       ]
+    },
+    {
+      "id": "packaged-macos-build-verification",
+      "acceptance": "Before a macOS release is published, the verifier checks that the one packaged app, the identity its executable reports, its build-info.json and Info.plist name the same channel, version and build; that the executable's update feed is its channel's canonical feed (an Internal app carrying the Stable feed is refused); that the bundle's icon passes (CFBundleIconFile, icon.icns and puppy-app-image.png present and the channel's own artwork), and a failing icon check fails the release; that the DMG and update ZIP are named after the version and the feed metadata names that ZIP; and, when given, that the release tag is exactly v<version>. The icon tool builds only from the channel's canonical PNG into an app bundle's Resources. One build-info.json is written for the bundle and the release workflow alike.",
+      "typescript": [
+        {
+          "path": "tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs",
+          "sha256": "c832dc4c8b87d49c2e9e0547495bb297f0449ff6a3410b8c59862cfcdcf4786a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "packaged Desktop Build Identity verification > verifies app metadata, embedded identity, update feed, and artifact names"
+            },
+            {
+              "index": 1,
+              "name": "packaged Desktop Build Identity verification > fails when a packaged Internal app embeds a Stable update feed"
+            },
+            {
+              "index": 2,
+              "name": "packaged Desktop Build Identity verification > fails release verification when native icon verification fails"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/packaging/macosAppIcon.test.mjs",
+          "sha256": "05428210e2132d8e94e0f22a75d2db5b1775f4123cc0d57e88905ee5e6e5b2be",
+          "cases": [
+            {
+              "index": 2,
+              "name": "app icon input validation > rejects a mismatched channel or unapproved output path"
+            },
+            {
+              "index": 8,
+              "name": "native macOS icon packaging > rejects a missing icon.icns"
+            },
+            {
+              "index": 9,
+              "name": "native macOS icon packaging > rejects a missing puppy-app-image.png"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/build-identity/desktopBuildIdentity.test.mjs",
+          "sha256": "e043ab04680fd0a614d41bd986cb5bfb6f24c10570edd49d07d16630562eda61",
+          "cases": [
+            {
+              "index": 12,
+              "name": "desktop build identity > writes one build-info file and validates the release tag"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "PackagedBuildTest.test_the_app_its_executable_its_feed_and_the_artifacts_name_one_build"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "PackagedBuildTest.test_an_internal_app_carrying_the_stable_feed_is_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "PackagedBuildTest.test_a_failing_icon_check_fails_the_release"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "IconInputTest.test_another_channels_artwork_or_an_unapproved_output_is_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "IconInputTest.test_a_missing_icon_icns_is_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "IconInputTest.test_a_missing_app_image_is_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "BuildInfoTest.test_one_build_info_and_the_release_tag_must_match_exactly"
+        }
+      ]
+    },
+    {
+      "id": "project-initialization-receipts",
+      "acceptance": "A new project folder is made under an operation id. The same operation with the same request returns the same receipt, concurrently, after the guide was edited or deleted (never written again) and after a restart; another request under that id is refused. Before publication the journal records the complete staging folder with its identity (device, inode, birth time); a run whose acknowledgement was lost is recovered by identity, taking a published folder as made and publishing a staged one, and when neither is found it is refused without touching the folder that now has the name. With numbering, a retry lands on the name its first attempt chose.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/project-initialization.test.mjs",
+          "sha256": "c73fd82a529e26adc5509926c0af6ad7f9b1a73152c4d511bc35cd224728d789",
+          "cases": [
+            {
+              "index": 16,
+              "name": "project initialization receipts > coalesces retries and never rewrites an edited or deleted guide, including after restart"
+            },
+            {
+              "index": 17,
+              "name": "project initialization receipts > recovers a published directory with a lost acknowledgement by identity"
+            },
+            {
+              "index": 18,
+              "name": "project initialization receipts > recovers a staged directory with a lost acknowledgement by identity"
+            },
+            {
+              "index": 19,
+              "name": "project initialization receipts > fails safely on ambiguous recovery without modifying the replacement directory"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/projects/project-entry-service.test.mjs",
+          "sha256": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
+          "cases": [
+            {
+              "index": 3,
+              "name": "project entry service > gives a retry the name its first attempt chose"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::templates::initialization::tests::a_retry_gets_the_first_receipt_and_never_writes_the_guide_again"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::initialization::tests::a_published_folder_with_a_lost_acknowledgement_is_recovered_by_identity"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::initialization::tests::a_staged_folder_with_a_lost_acknowledgement_is_published"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::initialization::tests::an_ambiguous_recovery_is_refused_and_touches_nothing"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::initialization::tests::a_numbered_retry_lands_on_the_name_its_first_attempt_chose"
+        }
+      ]
+    },
+    {
+      "id": "loading-mark-announced-once",
+      "acceptance": "A loading mark is announced once, as a status: by the name it is given, else by the words it stands beside, else by its localized name (Loading…), inline or page alike. A mark whose host already announces the loading is silent. Call sites follow the product: the Homepage cloud line, first-run and sign-in waiting, repository import and the viewers' pending states are announced by their words; file mode, workspace restoring, the project list wait and project opening by their names; a busy notice by its message; the Office preview's own status keeps its mark silent.",
+      "typescript": [
+        {
+          "path": "tests/component/ui-primitives/controls/loadingIndicator.test.tsx",
+          "sha256": "498597fe0eda8b584dd7bb244058bd07736f526b012dca5caedf34db8da6d8ba",
+          "cases": [
+            {
+              "index": 12,
+              "name": "LoadingMark > announces loading unless the host already does"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/ui-primitives/loading/loadingNames.test.tsx",
+          "sha256": "142977057385ead5d5c701e3384fff522dacfab2af55ab77ebf0d4c28f13bfcc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "what a loading mark is called > is announced once, by what its caller says"
+            },
+            {
+              "index": 1,
+              "name": "what a loading mark is called > prefers the name it is given over its words"
+            },
+            {
+              "index": 2,
+              "name": "what a loading mark is called > falls back to the mark's localized name when an inline mark has no words"
+            },
+            {
+              "index": 3,
+              "name": "what a loading mark is called > falls back to the mark's localized name when a page mark has no words"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::a_mark_announces_loading_unless_its_host_does"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::a_mark_is_announced_once_by_the_words_beside_it"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::a_given_name_wins_over_the_words"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::an_inline_mark_without_words_is_called_loading"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::a_page_mark_without_words_is_called_loading"
+        }
+      ]
+    },
+    {
+      "id": "hint-opens-on-keyboard-focus",
+      "acceptance": "A button's hint (a labelled button's tooltip, an icon button's tooltip or label) also opens when the keyboard moves focus onto it, below the button, as its accessible tooltip named by the hint; it stays while the button keeps that focus. A pointer press that focuses the button opens none. Escape dismisses the hint while focus stays; focus moving on and back opens it again.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tooltips/desktopTooltipLayer.test.tsx",
+          "sha256": "a93d435d3fed2d881e4f1ac7c53a0bcfcfc3beae6a2c7a721d70ab420c87108d",
+          "cases": [
+            {
+              "index": 3,
+              "name": "DesktopTooltipLayer > opens on keyboard focus and dismisses on Escape"
+            },
+            {
+              "index": 4,
+              "name": "DesktopTooltipLayer > does not reopen immediately when a pointer press focuses the trigger"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "ui::components::hint::tests::keyboard_focus_opens_the_hint_and_escape_dismisses_it"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::hint::tests::a_pointer_press_that_focuses_the_control_opens_no_hint"
+        }
+      ]
+    },
+    {
+      "id": "homepage-project-list-roving-stop",
+      "acceptance": "Each project list on the Homepage is one stop for Tab: its stop project's row, and that project's actions (which show while it is reached for). The stop moves with focus — focus reaching a project's row or its actions makes it the stop — so Tab comes back to the project left; when the stop's project goes, the list's first project is the stop. A pointer resting on another project does not add a stop. When a project is unlinked or deleted from its own actions, the keyboard goes to its list's stop.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageProjectListKeyboard.test.tsx",
+          "sha256": "a97b6a0cc9bffff35c85ef3517413cac72a873106adaaa368f8869085617ed9f",
+          "cases": [
+            {
+              "index": 1,
+              "name": "the Homepage's project list > is one stop for Tab: the first project and that row's actions"
+            },
+            {
+              "index": 2,
+              "name": "the Homepage's project list > moves the stop with focus, so Tab comes back to the project left"
+            },
+            {
+              "index": 8,
+              "name": "the Homepage's project list > falls back to the first project when the stop's project goes"
+            },
+            {
+              "index": 9,
+              "name": "the Homepage's project list > gives focus to the list's stop when a project is removed from its own dialog"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::the_project_list_is_one_stop_for_tab_that_follows_focus"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::removing_a_project_from_its_actions_gives_the_keyboard_to_the_list"
+        }
+      ]
+    },
+    {
+      "id": "system-open-finds-the-window-still-opening-a-folder",
+      "acceptance": "A folder asked for from the system (command line, Finder) comes forward in the project window that shows it or is still opening or restoring it, instead of opening a second window.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/launch/electron.system-open-route.test.mjs",
+          "sha256": "81b64ae28ec569ee8ad4d240d1d433cd009fcbd3933d030f6120ff8f2cc9c915",
+          "cases": [
+            {
+              "index": 7,
+              "name": "project window for a folder > matches a window that is still restoring its folder"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::a_folder_asked_for_again_comes_forward_in_the_window_still_opening_it"
+        }
+      ]
+    },
+    {
+      "id": "homepage-drag-out-only-listed-projects",
+      "acceptance": "A Homepage project dragged past the window's edge leaves through the system drag only as the path of a local project the Homepage lists; any other path never starts a system drag.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/electron.workspace-resource-delivery.test.mjs",
+          "sha256": "20ac132550e16415208256b68c7624ec40cf971293b4563bca5515448968fe53",
+          "cases": [
+            {
+              "index": 4,
+              "name": "resource delivery ownership > exports a registered Project root through the external-only drag channel"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::only_a_listed_project_leaves_the_window_as_its_path"
+        }
+      ]
+    },
+    {
+      "id": "explorer-offers-import-only-where-files-can-come-in",
+      "acceptance": "The Explorer offers files dragged from outside (drop highlight and drop) only where the workspace can take files in (its import capability); a read-only workspace offers none and starts no import, while a local folder takes them in.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/explorerTreeSemantics.test.tsx",
+          "sha256": "a1e0c10aa13236594fe31f9b96f478c1466567e080cd45f1569ceddf017d6ca0",
+          "cases": [
+            {
+              "index": 15,
+              "name": "ExplorerTree interactive semantics > does not advertise file import for read-only drags"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::a_read_only_workspace_offers_no_import_for_dragged_files"
+        }
+      ]
+    },
+    {
+      "id": "window-folder-probes-keep-the-newest-answer",
+      "acceptance": "Each probe of whether the open project's folder can be opened takes the next number; only the newest probe's answer, for the folder the window still shows, is applied, so an older answer that arrives late never replaces a newer one.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/missingProjectFolder.test.tsx",
+          "sha256": "d02fb670e7296205eaa060cb3db7cf9d8ba511a83a2d5b4e8dd7b56288b184e5",
+          "cases": [
+            {
+              "index": 4,
+              "name": "knowing which of a window's folders cannot be opened now > never lets an older answer that arrives late replace a newer one"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::folder_availability::a_late_answer_never_replaces_a_newer_one"
+        }
+      ]
+    },
+    {
+      "id": "explorer-denied-root-clears-cached-rows",
+      "acceptance": "When the Explorer's root cannot be read, a network failure keeps the rows it showed (cached) with the reason and Retry; denied access (a Cloud 401/403, PermissionDenied) clears them, on the root retry and on a background reread alike, so nothing the person may no longer read stays on screen.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/dataWorkspaceProjectSwitching.test.tsx",
+          "sha256": "3cea5b4939197c3cae20cc040cfeb9b93415717ec27a0ba4a2ef4fa50ebb0e2b",
+          "cases": [
+            {
+              "index": 3,
+              "name": "DataWorkspace Project switching > keeps cached rows on network failure but clears them when permission is denied"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::denied_access_clears_the_cached_rows_a_network_failure_keeps"
+        }
+      ]
+    },
+    {
+      "id": "project-opening-gives-the-keyboard-back",
+      "acceptance": "While a project is on its way into a project window, the opening wait has the keyboard. An open that ends without bringing a project in gives the keyboard back to what had it when the open started (the entry that started it), unless something outside the wait has taken it since; an open that brings its project in keeps the keyboard in the project.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/projectOpeningSurface.test.tsx",
+          "sha256": "a3f370e8ba7f20372fc54d59e9d70dbbaefa2d1e59fc2eb223e104ba71f7fbb8",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Local project opening > returns focus to the entry that opened the project when the open ends without one"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::an_open_that_ends_without_a_project_gives_the_keyboard_back"
+        }
+      ]
+    },
+    {
+      "id": "model-metadata-requests-bounded-and-cancellable",
+      "acceptance": "At most two model metadata requests (catalog listings, Ollama model details) are open at once across the app; the rest wait their turn. A read that is cancelled (`until_cancelled`, and a Settings catalog read dropped for a newer one) ends at once with CANCELLED, and a request still waiting its turn never reaches the service.",
+      "typescript": [
+        {
+          "path": "tests/integration/model-connections/runtime/connectionRuntime.test.mjs",
+          "sha256": "25593e8edb9ceed72ba5d509d474b8435f61e4ca45f9446548e68c73613bd558",
+          "cases": [
+            {
+              "index": 1,
+              "name": "model network boundaries > bounds parallel metadata requests and cancels queued work"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::tests::metadata_requests_run_two_at_a_time_and_a_waiting_one_can_be_cancelled"
+        }
+      ]
+    },
+    {
+      "id": "launch-window-paints-saved-preferences",
+      "acceptance": "Saved preferences are read before the preferences store is made, so the launch window that makes it has the saved theme mode and Sub Theme from its first frame instead of the start-up default; when nothing is saved yet (a first launch, possibly importing the Electron product's preferences) they are read on the worker as before.",
+      "typescript": [
+        {
+          "path": "tests/integration/appearance/themes/interfaceStyleFirstPaint.test.ts",
+          "sha256": "31b4435655fa5d9bb7543670605f0b9e841f33882d4898e193d070963eb2412d",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Interface style registry > paints the persisted editor palette before React instead of flashing the warm fallback"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::saved_preferences_are_there_the_moment_the_store_is_made"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::a_new_window_keeps_the_persisted_appearance"
+        }
+      ]
+    },
+    {
+      "id": "launcher-keyboard-focus-and-announcements",
+      "acceptance": "Launcher Agent rows keep keyboard focus by Agent while discovery adds rows before them. When setup's activation dialog closes with the keyboard in it, the keyboard goes to the launcher's first usable detected Agent, else its bundled Agent, else its heading, which is focusable but never a Tab stop. A visually hidden status, outside the detected Agents' list, says nothing for discovery's first 200ms, then what discovery is doing, and 'Agent scan complete' once a scan finds an Agent; a failed scan or one that found nothing announces nothing, and adding a row announces nothing new.",
+      "typescript": [
+        {
+          "path": "tests/component/terminal/startup/desktop-terminal.launcher.test.tsx",
+          "sha256": "410c57adb41d864971d936154c24228ea5ee67b6bfbd10bc3d3bf2f9d1e7fbd3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=false"
+            },
+            {
+              "index": 1,
+              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=true"
+            },
+            {
+              "index": 7,
+              "name": "Unified Workbench launcher > delays compact feedback outside the Agent list, adds results immediately, and preserves keyed focus"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::closing_setup_gives_the_keyboard_back_to_the_launcher"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -53252,24 +53755,6 @@
             {
               "index": 15,
               "name": "registered database DOM viewer > waits for confirmed exit before opening a replacement session"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "launch-window-first-paint",
-      "kind": "gap",
-      "reason": "TS paints the persisted palette before React from synchronously read storage. Rust reads preferences on a worker; the launch window applies the start-up default (dark Neutral) until they load, so a light or custom-palette user can see one frame of the default if the read lands after the first frame. Windows opened after loading are covered by appearance-first-paint.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/appearance/appearance-authority.md",
-      "typescript": [
-        {
-          "path": "tests/integration/appearance/themes/interfaceStyleFirstPaint.test.ts",
-          "sha256": "31b4435655fa5d9bb7543670605f0b9e841f33882d4898e193d070963eb2412d",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Interface style registry > paints the persisted editor palette before React instead of flashing the warm fallback"
             }
           ]
         }
@@ -55164,60 +55649,6 @@
       ]
     },
     {
-      "id": "packaged-artifact-verification",
-      "kind": "gap",
-      "reason": "tools/release/verify-macos-release.py checks that the app, DMG, ZIP and feed metadata exist and the signatures, but not the packaged app's embedded identity against its feed (an Internal app with a Stable feed passes), its icon representations and metadata, or the release tag; the icon tool also accepts any output path and does not check the requested channel against its artwork input.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/release/release-verification.md",
-      "typescript": [
-        {
-          "path": "tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs",
-          "sha256": "c832dc4c8b87d49c2e9e0547495bb297f0449ff6a3410b8c59862cfcdcf4786a",
-          "cases": [
-            {
-              "index": 0,
-              "name": "packaged Desktop Build Identity verification > verifies app metadata, embedded identity, update feed, and artifact names"
-            },
-            {
-              "index": 1,
-              "name": "packaged Desktop Build Identity verification > fails when a packaged Internal app embeds a Stable update feed"
-            },
-            {
-              "index": 2,
-              "name": "packaged Desktop Build Identity verification > fails release verification when native icon verification fails"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/release/packaging/macosAppIcon.test.mjs",
-          "sha256": "05428210e2132d8e94e0f22a75d2db5b1775f4123cc0d57e88905ee5e6e5b2be",
-          "cases": [
-            {
-              "index": 2,
-              "name": "app icon input validation > rejects a mismatched channel or unapproved output path"
-            },
-            {
-              "index": 8,
-              "name": "native macOS icon packaging > rejects a missing icon.icns"
-            },
-            {
-              "index": 9,
-              "name": "native macOS icon packaging > rejects a missing puppy-app-image.png"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/release/build-identity/desktopBuildIdentity.test.mjs",
-          "sha256": "e043ab04680fd0a614d41bd986cb5bfb6f24c10570edd49d07d16630562eda61",
-          "cases": [
-            {
-              "index": 12,
-              "name": "desktop build identity > writes one build-info file and validates the release tag"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "electron-ipc-sender-authorization",
       "kind": "out-of-scope",
       "reason": "These check the Electron main process against its renderers: roots and session ids a renderer supplies, sender-owned capabilities and cancellations, recent paths a renderer asks to open, and the preload bridges that decide which commands and snapshots a renderer may use. The native app is one process with no renderer; each window's workspace, terminals, viewers and theme service hold their own authority and are called directly, so there is no sender to spoof (process model recorded as an intentional difference).",
@@ -56024,24 +56455,6 @@
       ]
     },
     {
-      "id": "homepage-project-drag-out",
-      "kind": "gap",
-      "reason": "TS exports a project root through the external-only drag channel only after checking it is a registered project. Rust's Homepage row drag-out has no test that an unregistered path is refused.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer/drag-and-drop.md",
-      "typescript": [
-        {
-          "path": "tests/integration/workspace/files/electron.workspace-resource-delivery.test.mjs",
-          "sha256": "20ac132550e16415208256b68c7624ec40cf971293b4563bca5515448968fe53",
-          "cases": [
-            {
-              "index": 4,
-              "name": "resource delivery ownership > exports a registered Project root through the external-only drag channel"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "git-auto-commit-experiment",
       "kind": "out-of-scope",
       "reason": "Git Auto Commit is an experiment that TS v0.4.4 forces off (enableGitAutoCommit) and shows only when the platform exposes it; the native frontend does not expose it (recorded in Source Control, Differences from TS). Its non-destructive durability drains (cancelled with workspace ownership, blocked when the renderer is gone, bounded by a timeout) go with it.",
@@ -56520,56 +56933,6 @@
       ]
     },
     {
-      "id": "project-initialization-receipts",
-      "kind": "gap",
-      "reason": "Rust keeps no initialization journal or receipts. Creating a project is one in-process call: no acknowledgement can be lost between processes, and a second Create or Get a copy while one runs is ignored. But a crash between staging and publication leaves a hidden .puppyone-template-* folder beside the project; the next launch neither recovers nor removes it. A crash after publication does not reopen the project. There is no operation id to coalesce a retry by, to refuse a different request under, or to recover a published or staged project by identity.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
-      "typescript": [
-        {
-          "path": "tests/integration/workspace/projects/project-initialization.test.mjs",
-          "sha256": "c73fd82a529e26adc5509926c0af6ad7f9b1a73152c4d511bc35cd224728d789",
-          "cases": [
-            {
-              "index": 16,
-              "name": "project initialization receipts > coalesces retries and never rewrites an edited or deleted guide, including after restart"
-            },
-            {
-              "index": 17,
-              "name": "project initialization receipts > recovers a published directory with a lost acknowledgement by identity"
-            },
-            {
-              "index": 18,
-              "name": "project initialization receipts > recovers a staged directory with a lost acknowledgement by identity"
-            },
-            {
-              "index": 19,
-              "name": "project initialization receipts > fails safely on ambiguous recovery without modifying the replacement directory"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/workspace/projects/project-entry-service.test.mjs",
-          "sha256": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
-          "cases": [
-            {
-              "index": 3,
-              "name": "project entry service > gives a retry the name its first attempt chose"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/workspace/homepage/emptyWorkspaceOnboarding.test.tsx",
-          "sha256": "f8b438f6dd337b917705f4cf7ac308957aeb576e16d787c7a777cbcafc02ba6e",
-          "cases": [
-            {
-              "index": 5,
-              "name": "project template selection > retains the exact operation when creation committed but opening failed"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "import-adapter-framework-unused",
       "kind": "out-of-scope",
       "reason": "TS's local import service can copy a registered folder source into a project and run remote adapters (connect, list resources, inspect, materialize through a writer). No source in the shared registration manifest uses either: Notion, Google Drive and Airtable are experimental and not operational, and app sources are listed in place, never copied. Rust implements the manifest's operational sources (GitHub and GitLab repositories, app folders) and has no adapter framework without a product source to serve.",
@@ -56846,24 +57209,6 @@
             {
               "index": 4,
               "name": "project-owned Terminal IPC and native shutdown > retains a timed-out close and retries without losing the native handle"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "model-metadata-request-bounds",
-      "kind": "gap",
-      "reason": "Rust reads the catalog of the connection Settings shows on a thread of its own. A superseded read's answer is discarded, but its request is not cancelled (it ends at its 15-second timeout), and reads are not limited to two at once.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
-      "typescript": [
-        {
-          "path": "tests/integration/model-connections/runtime/connectionRuntime.test.mjs",
-          "sha256": "25593e8edb9ceed72ba5d509d474b8435f61e4ca45f9446548e68c73613bd558",
-          "cases": [
-            {
-              "index": 1,
-              "name": "model network boundaries > bounds parallel metadata requests and cancels queued work"
             }
           ]
         }
@@ -61380,32 +61725,6 @@
       ]
     },
     {
-      "id": "launcher-keyboard-focus-and-announcements",
-      "kind": "gap",
-      "reason": "TS returns keyboard focus to the launcher (its first Agent, else its heading) when Agent setup closes, keeps a focused row focused while discovery adds rows, marks the Agent list busy and announces 'Agent scan complete' to assistive technology. Native launcher rows are not keyboard-focusable, closing setup leaves focus nowhere, and there is no live announcement; the visual feedback is covered by the launcher rows tests.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/workbench-contribution.md",
-      "typescript": [
-        {
-          "path": "tests/component/terminal/startup/desktop-terminal.launcher.test.tsx",
-          "sha256": "410c57adb41d864971d936154c24228ea5ee67b6bfbd10bc3d3bf2f9d1e7fbd3",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=false"
-            },
-            {
-              "index": 1,
-              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=true"
-            },
-            {
-              "index": 7,
-              "name": "Unified Workbench launcher > delays compact feedback outside the Agent list, adds results immediately, and preserves keyed focus"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "terminal-legacy-split-ui",
       "kind": "out-of-scope",
       "reason": "These cases exercise TS's terminal-only split UI (TerminalGroupViewport, TerminalSessionHeader, TerminalSplitResizeHandle, useTerminalTabMoveDrag and its drop-target resolver), which only the terminal split visual smoke harness renders; the product's terminal tabs live in the Auxiliary Workbench. Native terminals have only the Workbench's header, splits and drags, mapped with the workbench tests.",
@@ -62412,36 +62731,6 @@
             {
               "index": 21,
               "name": "Desktop Agent renderer surfaces > isolates one crashing tool renderer and preserves following transcript rows"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "tooltip-keyboard-shortcut-and-overflow",
-      "kind": "gap",
-      "reason": "Native hints are hover-only: keyboard focus opens none (so there is no Escape dismissal or press-focus rule), a hint shows its label without a shortcut line, and clipped values (such as a long project path) get no overflow-only hint.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/chrome/title-bar.md",
-      "typescript": [
-        {
-          "path": "tests/component/workbench/tooltips/desktopTooltipLayer.test.tsx",
-          "sha256": "a93d435d3fed2d881e4f1ac7c53a0bcfcfc3beae6a2c7a721d70ab420c87108d",
-          "cases": [
-            {
-              "index": 2,
-              "name": "DesktopTooltipLayer > waits for hover and shows the label and optional shortcut"
-            },
-            {
-              "index": 3,
-              "name": "DesktopTooltipLayer > opens on keyboard focus and dismisses on Escape"
-            },
-            {
-              "index": 4,
-              "name": "DesktopTooltipLayer > does not reopen immediately when a pointer press focuses the trigger"
-            },
-            {
-              "index": 10,
-              "name": "DesktopTooltipLayer > only shows overflow hints when their visible value is clipped"
             }
           ]
         }
@@ -65666,24 +65955,6 @@
       ]
     },
     {
-      "id": "explorer-readonly-external-drop-feedback",
-      "kind": "gap",
-      "reason": "Explorer unconditionally attaches drag_over::<ExternalPaths> highlighting without gating external-file drop advertisement on workspace create capability for read-only workspaces.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/explorer/explorerTreeSemantics.test.tsx",
-          "sha256": "a1e0c10aa13236594fe31f9b96f478c1466567e080cd45f1569ceddf017d6ca0",
-          "cases": [
-            {
-              "index": 15,
-              "name": "ExplorerTree interactive semantics > does not advertise file import for read-only drags"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "dom-window-shell-attributes",
       "kind": "out-of-scope",
       "reason": "GPUI renders every Shell window (project or file mode) directly under ActiveAppearance and native platform TitleBar metrics without DOM data-po-appearance-root, .dark, data-window-platform, or data-window-chrome-mode attributes.",
@@ -65734,42 +66005,6 @@
       ]
     },
     {
-      "id": "cloud-explorer-permission-denied-clears-cached-rows",
-      "kind": "gap",
-      "reason": "ExplorerSession::refresh_folders emits WatchFailed/Error on root refresh failure but does not yet distinguish 403/PermissionDenied to immediately clear stale cached Cloud rows on permission revocation.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/projects/dataWorkspaceProjectSwitching.test.tsx",
-          "sha256": "3cea5b4939197c3cae20cc040cfeb9b93415717ec27a0ba4a2ef4fa50ebb0e2b",
-          "cases": [
-            {
-              "index": 3,
-              "name": "DataWorkspace Project switching > keeps cached rows on network failure but clears them when permission is denied"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "window-folder-probe-generation-fence",
-      "kind": "gap",
-      "reason": "Homepage::check_window_folder checks only that the open root path still matches when an async probe resolves; it does not yet fence two overlapping probes for the same root with a monotonic generation counter.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/projects/missingProjectFolder.test.tsx",
-          "sha256": "d02fb670e7296205eaa060cb3db7cf9d8ba511a83a2d5b4e8dd7b56288b184e5",
-          "cases": [
-            {
-              "index": 4,
-              "name": "knowing which of a window's folders cannot be opened now > never lets an older answer that arrives late replace a newer one"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "host-sharing-relocation-deferred",
       "kind": "out-of-scope",
       "reason": "Other-computers sharing is behind a closed release gate in v0.4.4, and Rust folder relocation intentionally clears stale host-share state without prompting to re-share the relocated folder (see folder_status.rs).",
@@ -65792,24 +66027,6 @@
             {
               "index": 6,
               "name": "finding where a project's folder went > reports a shared project's share as withdrawn, so it can be shared again from the new place"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "project-opening-focus-restoration",
-      "kind": "gap",
-      "reason": "ProjectPreparation covers the window while a project opens and restores the prior screen on cancel/failure, but does not yet capture and return keyboard focus to the exact Homepage entry button that initiated the open.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/lifecycle.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/projects/projectOpeningSurface.test.tsx",
-          "sha256": "a3f370e8ba7f20372fc54d59e9d70dbbaefa2d1e59fc2eb223e104ba71f7fbb8",
-          "cases": [
-            {
-              "index": 6,
-              "name": "Local project opening > returns focus to the entry that opened the project when the open ends without one"
             }
           ]
         }
@@ -65858,36 +66075,6 @@
             {
               "index": 7,
               "name": "closes a ready confirmation on navigation without returning an unrelated project Home"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "homepage-roving-tab-and-delete-focus",
-      "kind": "gap",
-      "reason": "Homepage project rows track keyboard arrow/home/end stops, but roving Tab single-stop semantics and restoring focus to the list stop after removing a project via ProjectActions dialog are not yet wired (ProjectActions restores window_focus).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/homepage/homepageProjectListKeyboard.test.tsx",
-          "sha256": "a97b6a0cc9bffff35c85ef3517413cac72a873106adaaa368f8869085617ed9f",
-          "cases": [
-            {
-              "index": 1,
-              "name": "the Homepage's project list > is one stop for Tab: the first project and that row's actions"
-            },
-            {
-              "index": 2,
-              "name": "the Homepage's project list > moves the stop with focus, so Tab comes back to the project left"
-            },
-            {
-              "index": 8,
-              "name": "the Homepage's project list > falls back to the first project when the stop's project goes"
-            },
-            {
-              "index": 9,
-              "name": "the Homepage's project list > gives focus to the list's stop when a project is removed from its own dialog"
             }
           ]
         }
@@ -66602,24 +66789,6 @@
       ]
     },
     {
-      "id": "system-open-restoring-project-window",
-      "kind": "gap",
-      "reason": "open_from_cli matches an already-open project window by its resolved workspace_root(cx), so a window that is still restoring that folder before workspace_root resolves opens a second window instead of focusing the restoring window.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform/launch.md",
-      "typescript": [
-        {
-          "path": "tests/unit/platform/launch/electron.system-open-route.test.mjs",
-          "sha256": "81b64ae28ec569ee8ad4d240d1d433cd009fcbd3933d030f6120ff8f2cc9c915",
-          "cases": [
-            {
-              "index": 7,
-              "name": "project window for a folder > matches a window that is still restoring its folder"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "ts-workspace-surface-registry",
       "kind": "out-of-scope",
       "reason": "TS uses a pluggable WorkspaceSurfaceRegistry to switch between Data/Cloud/other route modules inside React. Rust Shell renders its Explorer, Editor, and RightSidebar surfaces directly without a dynamic route registry.",
@@ -67006,46 +67175,6 @@
       ]
     },
     {
-      "id": "loading-mark-accessible-announcements",
-      "kind": "gap",
-      "reason": "Native GPUI loading marks draw their rounded animation but do not yet emit AccessKit status/label announcements or deduplicate announcements with their host container.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/ui/loading.md",
-      "typescript": [
-        {
-          "path": "tests/component/ui-primitives/controls/loadingIndicator.test.tsx",
-          "sha256": "498597fe0eda8b584dd7bb244058bd07736f526b012dca5caedf34db8da6d8ba",
-          "cases": [
-            {
-              "index": 12,
-              "name": "LoadingMark > announces loading unless the host already does"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/ui-primitives/loading/loadingNames.test.tsx",
-          "sha256": "142977057385ead5d5c701e3384fff522dacfab2af55ab77ebf0d4c28f13bfcc",
-          "cases": [
-            {
-              "index": 0,
-              "name": "what a loading mark is called > is announced once, by what its caller says"
-            },
-            {
-              "index": 1,
-              "name": "what a loading mark is called > prefers the name it is given over its words"
-            },
-            {
-              "index": 2,
-              "name": "what a loading mark is called > falls back to the mark's localized name when an inline mark has no words"
-            },
-            {
-              "index": 3,
-              "name": "what a loading mark is called > falls back to the mark's localized name when a page mark has no words"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "pseudo-locales-dev-only",
       "kind": "out-of-scope",
       "reason": "Pseudo-locales (expanded ASCII/RTL test transforms) are non-shipping TS localization dev helpers; Rust ships the eight production locales directly.",
@@ -67156,6 +67285,46 @@
             {
               "index": 10,
               "name": "Desktop Agent reference ingestion > opens the file picker directly and keeps failed non-image references inline"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "create-dialog-opens-the-project-in-process",
+      "kind": "out-of-scope",
+      "reason": "The Rust Create dialog makes the project and opens it in the same window in one in-process step; opening there cannot fail, so the dialog has no 'created, opening failed' state offering 'Open created project'. A retry of the same name in the same place still repeats the same initialization operation (Destination::operation), which is what the retained request guards.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/emptyWorkspaceOnboarding.test.tsx",
+          "sha256": "f8b438f6dd337b917705f4cf7ac308957aeb576e16d787c7a777cbcafc02ba6e",
+          "cases": [
+            {
+              "index": 5,
+              "name": "project template selection > retains the exact operation when creation committed but opening failed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hint-shortcut-and-overflow-options",
+      "kind": "out-of-scope",
+      "reason": "The hint's shortcut line and overflow-only hints are options of the TS Tooltip primitive that no product surface passes in the pinned reference: `shortcut` and `overflowOnly` have no caller (the node actions' shortcuts are menu-item shortcuts, not hints). These two cases test those options. Rust ports the behaviour every hint uses: hover hints wait and leave as GPUI tooltips, and keyboard focus opens the hint (hint-opens-on-keyboard-focus).",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/tooltips/desktopTooltipLayer.test.tsx",
+          "sha256": "a93d435d3fed2d881e4f1ac7c53a0bcfcfc3beae6a2c7a721d70ab420c87108d",
+          "cases": [
+            {
+              "index": 2,
+              "name": "DesktopTooltipLayer > waits for hover and shows the label and optional shortcut"
+            },
+            {
+              "index": 10,
+              "name": "DesktopTooltipLayer > only shows overflow hints when their visible value is clipped"
             }
           ]
         }

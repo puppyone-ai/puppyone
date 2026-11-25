@@ -1486,6 +1486,11 @@ fn the_first_homepage_waits_for_the_session_and_the_whole_list(cx: &mut TestAppC
     settle_cloud(&view, cx, "the local read", &|s, cx| {
         !s.home.read(cx).reading
     });
+    // The budget is wall-clock: a slow runner's local read alone can
+    // outlast it. The hold starts over so only the session can keep it.
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, _| h.relaunch_first_paint())
+    });
     std::thread::sleep(std::time::Duration::from_millis(20));
     draw(cx);
     assert!(
@@ -1694,6 +1699,255 @@ fn project_actions_take_the_keyboard_from_their_button_and_give_it_back(cx: &mut
     draw(cx);
     assert!(!actions_open(&view, cx));
     assert!(!trigger_focused(cx, &trigger));
+}
+
+/// `count` remembered folders (`p0`, `p1`, …) on the Homepage; their ids
+/// as the list shows them.
+fn homepage_with_projects(
+    cx: &mut TestAppContext,
+    count: usize,
+) -> (
+    Entity<Shell>,
+    &mut VisualTestContext,
+    tempfile::TempDir,
+    Vec<String>,
+) {
+    let temp = tempfile::tempdir().unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        for index in 0..count {
+            let folder = temp
+                .path()
+                .canonicalize()
+                .unwrap()
+                .join(format!("p{index}"));
+            std::fs::create_dir(&folder).unwrap();
+            s.prefs.store.update(cx, |p, _| {
+                p.state.remember_project(&folder, (count - index) as u64)
+            });
+        }
+    });
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "the Homepage list", &|s, cx| {
+        !s.home.read(cx).list_held()
+    });
+    draw(cx);
+    let ids = view.read_with(cx, |s, cx| {
+        s.home
+            .read(cx)
+            .visible_projects(cx)
+            .into_iter()
+            .map(|i| i.id)
+            .collect()
+    });
+    (view, cx, temp, ids)
+}
+/// The projects Tab reaches in a whole round of the window's stops, each
+/// as `(id, "actions" | "row")`, sorted.
+fn tab_reaches(view: &Entity<Shell>, cx: &mut VisualTestContext) -> Vec<(String, &'static str)> {
+    draw(cx);
+    let handles: Vec<(String, &'static str, FocusHandle)> = view.read_with(cx, |s, cx| {
+        let home = s.home.read(cx);
+        let rows = home
+            .focus
+            .iter()
+            .map(|(id, f)| (id.clone(), "row", f.clone()));
+        let actions = home
+            .action_focus
+            .iter()
+            .map(|(id, f)| (id.clone(), "actions", f.clone()));
+        rows.chain(actions).collect()
+    });
+    // One Tab at a time, a frame between: a project the keyboard focuses
+    // shows its actions, which Tab then reaches.
+    let mut reached = Vec::new();
+    let mut seen = Vec::new();
+    for _ in 0..400 {
+        cx.simulate_keystrokes("tab");
+        draw(cx);
+        let focused = cx.update(|w, cx| w.focused(cx));
+        let Some(focused) = focused else { break };
+        if seen.contains(&focused) {
+            break;
+        }
+        seen.push(focused.clone());
+        if let Some((id, part, _)) = handles.iter().find(|(_, _, f)| *f == focused) {
+            reached.push((id.clone(), *part));
+        }
+    }
+    reached.sort();
+    reached
+}
+fn focus_project(view: &Entity<Shell>, cx: &mut VisualTestContext, id: &str) {
+    let focus = view.read_with(cx, |s, cx| s.home.read(cx).focus[id].clone());
+    cx.update(|w, cx| focus.focus(w, cx));
+    draw(cx);
+}
+
+/// `electron.workspace-resource-delivery`: `exports a registered Project
+/// root through the external-only drag channel` — a path the Homepage does
+/// not list never leaves the window; a listed project leaves as its path.
+#[gpui::test]
+fn only_a_listed_project_leaves_the_window_as_its_path(cx: &mut TestAppContext) {
+    let (view, cx, temp, _) = homepage_with_projects(cx, 1);
+    let begun = crate::platform::drag_out::record_text_drags();
+    let root = temp.path().canonicalize().unwrap();
+    let listed = root.join("p0").to_string_lossy().into_owned();
+    let unknown = root
+        .join("p0")
+        .join("unknown")
+        .to_string_lossy()
+        .into_owned();
+    for path in [&unknown, &listed] {
+        let drag = super::home::ProjectDrag::of(path);
+        view.update_in(cx, |s, w, cx| {
+            s.home.update(cx, |h, cx| h.drag_left_window(&drag, w, cx))
+        });
+    }
+    assert_eq!(*begun.borrow(), [listed]);
+}
+
+/// `projectOpeningSurface.test.tsx`: `returns focus to the entry that
+/// opened the project when the open ends without one` — while the project
+/// is on its way in the wait has the keyboard; when the open fails, the
+/// project's entry has it again.
+#[gpui::test]
+fn an_open_that_ends_without_a_project_gives_the_keyboard_back(cx: &mut TestAppContext) {
+    let (view, cx, temp, ids) = homepage_with_projects(cx, 1);
+    let entry = view.read_with(cx, |s, cx| s.home.read(cx).focus[&ids[0]].clone());
+    cx.update(|w, cx| entry.focus(w, cx));
+    draw(cx);
+    // A folder gone by the time it opens.
+    let gone = temp.path().canonicalize().unwrap().join("gone");
+    // The open starts before anything of it is pumped (a missing folder
+    // can fail at once).
+    view.update_in(cx, |s, w, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(gone.clone())));
+        s.session
+            .project
+            .update(cx, |p, cx| p.sync_opening_focus(w, cx));
+    });
+    draw(cx);
+    let wait = view.read_with(cx, |s, cx| {
+        s.session.project.read(cx).opening_wait().unwrap()
+    });
+    assert!(view.read_with(cx, |s, cx| s.opening(cx)), "on its way in");
+    assert!(
+        cx.update(|w, _| wait.is_focused(w)),
+        "the wait has the keyboard"
+    );
+    settle_cloud(&view, cx, "the open to fail", &|s, cx| !s.opening(cx));
+    view.update_in(cx, |s, w, cx| s.receive(w, cx));
+    draw(cx);
+    assert!(cx.update(|w, _| entry.is_focused(w)), "back on its entry");
+    // An open that brings its project in keeps the keyboard in the project.
+    let folder = temp.path().canonicalize().unwrap().join("p0");
+    view.update_in(cx, |s, w, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(folder.clone())));
+        s.session
+            .project
+            .update(cx, |p, cx| p.sync_opening_focus(w, cx));
+    });
+    settle_cloud(&view, cx, "the project", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(folder.as_path())
+    });
+    view.update_in(cx, |s, w, cx| s.receive(w, cx));
+    draw(cx);
+    assert!(
+        !cx.update(|w, _| entry.is_focused(w)),
+        "not back on the Homepage"
+    );
+}
+
+/// `homepageProjectListKeyboard.test.tsx`: `is one stop for Tab: the first
+/// project and that row's actions`; `moves the stop with focus, so Tab
+/// comes back to the project left`; `falls back to the first project when
+/// the stop's project goes`.
+#[gpui::test]
+fn the_project_list_is_one_stop_for_tab_that_follows_focus(cx: &mut TestAppContext) {
+    let (view, cx, temp, ids) = homepage_with_projects(cx, 4);
+    // Focus moves in the window the person is using.
+    cx.update(|w, _| w.activate_window());
+    let stop = |id: &String| vec![(id.clone(), "actions"), (id.clone(), "row")];
+    assert_eq!(tab_reaches(&view, cx), stop(&ids[0]));
+    // A project the pointer rests on shows its actions; Tab still passes it.
+    let selector: &'static str = Box::leak(format!("home-project:{}", ids[3]).into_boxed_str());
+    let hovered = cx.debug_bounds(selector).unwrap();
+    cx.simulate_mouse_move(hovered.center(), None, Modifiers::default());
+    assert_eq!(tab_reaches(&view, cx), stop(&ids[0]));
+    cx.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::default());
+    focus_project(&view, cx, &ids[2]);
+    assert_eq!(tab_reaches(&view, cx), stop(&ids[2]));
+    // Focus on a project's actions moves the stop there too.
+    let actions = view.read_with(cx, |s, cx| s.home.read(cx).action_focus[&ids[1]].clone());
+    cx.update(|w, cx| actions.focus(w, cx));
+    assert_eq!(tab_reaches(&view, cx), stop(&ids[1]));
+    // The stop's project goes: the first project is the stop again.
+    focus_project(&view, cx, &ids[3]);
+    view.update(cx, |s, cx| {
+        for index in [2, 3] {
+            let folder = temp
+                .path()
+                .canonicalize()
+                .unwrap()
+                .join(format!("p{index}"));
+            s.prefs
+                .store
+                .update(cx, |p, cx| p.change(|p| p.forget_project(&folder), cx));
+        }
+    });
+    // Its row went with its focus (the document's body has it in TS).
+    cx.update(|w, cx| w.blur(cx));
+    assert_eq!(tab_reaches(&view, cx), stop(&ids[0]));
+}
+
+/// `homepageProjectListKeyboard.test.tsx`: `gives focus to the list's stop
+/// when a project is removed from its own dialog`.
+#[gpui::test]
+fn removing_a_project_from_its_actions_gives_the_keyboard_to_the_list(cx: &mut TestAppContext) {
+    use gpui_kit::test::TestQueryExt as _;
+    let (view, cx, _temp, ids) = homepage_with_projects(cx, 3);
+    let selector: &'static str = Box::leak(format!("home-project:{}", ids[0]).into_boxed_str());
+    let project = cx.debug_bounds(selector).unwrap();
+    cx.simulate_mouse_move(project.center(), None, Modifiers::default());
+    draw(cx);
+    let label = crate::localization::tf(
+        "shell.workspaceSwitcher.projectActionsFor",
+        &[("project", "p0".into())],
+    );
+    let button = cx.update(|w, _| w.find_by_label(&label).bounds());
+    cx.simulate_click(button.center(), Modifiers::default());
+    draw(cx);
+    assert!(actions_open(&view, cx));
+    keys(cx, "end enter");
+    view.update_in(cx, |s, w, cx| {
+        let actions = s.chrome.read(cx).project_actions.clone();
+        assert!(actions.read(cx).confirm.is_some(), "Unlink asks");
+        actions.update(cx, |a, cx| a.confirm_project_change(w, cx))
+    });
+    draw(cx);
+    let (left, first) = view.read_with(cx, |s, cx| {
+        let home = s.home.read(cx);
+        let left: Vec<String> = home
+            .visible_projects(cx)
+            .into_iter()
+            .map(|i| i.id)
+            .collect();
+        let first = home.focus[&left[0]].clone();
+        (left, first)
+    });
+    assert_eq!(left, ids[1..]);
+    assert!(
+        cx.update(|w, _| first.is_focused(w)),
+        "the list's stop has the keyboard"
+    );
 }
 
 /// `projectRowActionsFocus.test.tsx`: `a Homepage menu answers the same

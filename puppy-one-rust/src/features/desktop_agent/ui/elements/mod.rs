@@ -52,11 +52,10 @@ pub fn context_divider(label: SharedString, a: &AgentTheme) -> AnyElement {
 }
 
 /// The same `LoadingMark size="xs"` as `AgentRunFeedback` in the product.
-pub fn dots(id: impl Into<SharedString>, color: Rgba) -> AnyElement {
+pub fn dots(id: impl Into<SharedString>, color: Rgba) -> crate::ui::loading::LoadingMark {
     crate::ui::loading::LoadingMark::new(ElementId::Name(id.into()))
         .size(crate::ui::loading::LoaderSize::Xs)
         .color(color)
-        .into_any_element()
 }
 
 /// `AgentRunFeedback`: meta label (and dots while busy) at the content inset.
@@ -69,8 +68,8 @@ pub fn run_feedback(label: SharedString, busy: Option<SharedString>, a: &AgentTh
         .line_height(px(theme::ty().right.meta_line_height))
         .text_color(a.text_subtle)
         .whitespace_nowrap()
-        .child(div().min_w_0().truncate().child(label))
-        .children(busy.map(|id| dots(id, a.loader)))
+        .child(div().min_w_0().truncate().child(label.clone()))
+        .children(busy.map(|id| dots(id, a.loader).beside(label)))
 }
 
 /// `.desktop-agent-prompt-mention` (and the resolving placeholder).

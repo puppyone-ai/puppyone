@@ -68,23 +68,45 @@ pub fn discover(wake: Wake) -> Receiver<Vec<Candidate>> {
     rx
 }
 
+/// A catalog read in flight. Dropping it (a newer read, the page left)
+/// cancels its requests, waiting their turn or sent.
+pub struct CatalogRead {
+    rx: Receiver<Result<Vec<CatalogModel>, String>>,
+    _cancel: tokio_util::sync::DropGuard,
+}
+impl CatalogRead {
+    pub fn try_recv(&self) -> Result<Result<Vec<CatalogModel>, String>, mpsc::TryRecvError> {
+        self.rx.try_recv()
+    }
+}
+
 /// Refresh the catalog of connection `id` through `service`.
 pub fn catalog_with_service(
     service: Arc<ModelConnectionService>,
     id: String,
     wake: Wake,
-) -> Receiver<Result<Vec<CatalogModel>, String>> {
+) -> CatalogRead {
     let (tx, rx) = mpsc::sync_channel(1);
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let cancelled = cancel.clone();
     std::thread::spawn(move || {
         let result = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(|e| e.to_string())
-            .and_then(|runtime| runtime.block_on(service.refresh_connection(&id)));
+            .and_then(|runtime| {
+                runtime.block_on(drivers::until_cancelled(
+                    service.refresh_connection(&id),
+                    &cancelled,
+                ))
+            });
         let _ = tx.send(result);
         wake.notify();
     });
-    rx
+    CatalogRead {
+        rx,
+        _cancel: cancel.drop_guard(),
+    }
 }
 
 /// `verify`: the Agent tool round trip for `(id, model_id)` persisted via `service`.

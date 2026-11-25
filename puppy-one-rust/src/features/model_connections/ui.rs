@@ -65,7 +65,7 @@ pub struct ModelConnections {
     discover_rx: Option<std::sync::mpsc::Receiver<Vec<client::Candidate>>>,
     /// The service catalog of the shown connection (`catalogs`).
     catalog: Option<(String, Result<Vec<client::CatalogModel>, String>)>,
-    catalog_rx: Option<std::sync::mpsc::Receiver<Result<Vec<client::CatalogModel>, String>>>,
+    catalog_rx: Option<client::CatalogRead>,
     /// Agent tool round trips that passed, by route; one in flight.
     verified: std::collections::BTreeMap<String, bool>,
     verify_rx: Option<(String, std::sync::mpsc::Receiver<Result<(), String>>)>,

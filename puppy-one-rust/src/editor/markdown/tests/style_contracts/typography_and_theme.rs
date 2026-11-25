@@ -30,7 +30,7 @@ use crate::{
     render_service::{self, Kind, Request},
     theme::metric::READING_CONTENT_WIDTH,
 };
-use gpui::{TestAppContext, px, size};
+use gpui::{TestAppContext, VisualTestContext, px, size};
 
 /// `markdownEditorLayout.test.ts` #0: `keeps supporting quotes quieter than body
 /// copy in every theme`. Across all 6 theme/scale combinations, blockquote text
@@ -195,10 +195,50 @@ fn t3_01_blockquote_publishes_single_inline_foreground_context() {
 /// `markdownEditorLayout.test.ts` #2: `shares its reading width with other
 /// document-like product surfaces`. Markdown's `SurfaceStyle::text_width` and
 /// `decorations::surface().max_text_width` resolve to the shared `724px`
-/// `READING_CONTENT_WIDTH` token across all themes and text scales.
-#[test]
-fn t3_02_reading_width_matches_shared_document_token() {
+/// `READING_CONTENT_WIDTH` token across all themes and text scales, and a
+/// rendered paragraph in a wide editor is exactly that wide — never wider,
+/// however long its text — while a narrow editor narrows it.
+#[gpui::test]
+fn t3_02_reading_width_matches_shared_document_token(cx: &mut TestAppContext) {
     assert_eq!(READING_CONTENT_WIDTH, 724.0);
+    let doc = format!(
+        "{}\n",
+        "A long sentence that wraps across the reading column. ".repeat(40)
+    );
+    let (view, visual) = setup(cx, &doc);
+    let width = |visual: &mut VisualTestContext| {
+        settle(&view, visual);
+        view.read_with(visual, |v, _| {
+            let layout = v.layout().unwrap();
+            let block = &layout.blocks[0];
+            let right = block.bounds.origin.x + block.bounds.size.width;
+            // Every wrapped line stays inside the column.
+            for leaf in &layout.leaves {
+                assert!(
+                    leaf.geometry.bounds().right() <= right + px(0.5),
+                    "a line leaves the reading column"
+                );
+            }
+            f32::from(block.bounds.size.width)
+        })
+    };
+    visual.simulate_resize(size(px(1600.), px(900.)));
+    for dark in ALL_THEMES {
+        for scale in ALL_SCALES {
+            view.update(visual, |v, cx| v.set_appearance(dark, scale, cx));
+            assert_eq!(
+                width(visual),
+                READING_CONTENT_WIDTH,
+                "the rendered reading column (dark={dark}, scale={scale:?})"
+            );
+        }
+    }
+    visual.simulate_resize(size(px(520.), px(900.)));
+    let narrow = width(visual);
+    assert!(
+        narrow < READING_CONTENT_WIDTH && narrow > 300.,
+        "a narrow editor narrows the column: {narrow}"
+    );
     for (dark, scale, theme) in all_variants() {
         assert_eq!(
             theme.surface.text_width, READING_CONTENT_WIDTH,

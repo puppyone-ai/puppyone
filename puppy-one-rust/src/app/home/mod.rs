@@ -61,6 +61,8 @@ mod display;
 mod first_run;
 pub(in crate::app) mod folder;
 mod folder_status;
+#[cfg(test)]
+pub(in crate::app) use folder_status::FolderStatus;
 pub(in crate::app) mod groups;
 mod hydration;
 mod import_repository;
@@ -69,6 +71,8 @@ mod intro;
 pub(in crate::app) mod previews;
 pub(in crate::app) mod project_entry;
 mod projects;
+#[cfg(test)]
+pub(in crate::app) use projects::ProjectDrag;
 mod template_import;
 mod value;
 
@@ -158,6 +162,13 @@ pub(in crate::app) struct Homepage {
     pub focus: HashMap<String, FocusHandle>,
     /// Each project's actions button: focus on it keeps its project lit.
     pub action_focus: HashMap<String, FocusHandle>,
+    /// Focus reaching a project or its actions makes it its list's stop.
+    focus_watch: Vec<Subscription>,
+    /// Each drawn project's list: its projects' ids, in order.
+    list_of: HashMap<String, std::rc::Rc<Vec<String>>>,
+    /// The project whose actions opened, and its list: when the actions
+    /// remove it, the keyboard goes to that list's stop.
+    actions_list: Option<(String, std::rc::Rc<Vec<String>>)>,
     pub action_bounds: HashMap<String, std::rc::Rc<std::cell::Cell<Bounds<Pixels>>>>,
     pub hovered: Option<String>,
     /// Asset previews and Local/Cloud Agent discovery state.
@@ -179,6 +190,8 @@ pub(in crate::app) struct Homepage {
     pub(in crate::app) app_places: Option<crate::platform::app_folders::Places>,
     pub(in crate::app) unavailable: HashMap<PathBuf, folder_status::FolderStatus>,
     pub(in crate::app) window_folder: Option<(PathBuf, folder_status::FolderStatus)>,
+    /// The newest probe of the window's folder.
+    window_folder_probe: u64,
     read_failed: Option<String>,
     pub(in crate::app) folder_question: Option<folder_status::FolderQuestion>,
     folder_error: Option<String>,
@@ -242,6 +255,12 @@ impl Homepage {
         })
         .detach();
         cx.observe(&actions, |_, _, cx| cx.notify()).detach();
+        cx.subscribe_in(&actions, window, |h, _, event, window, cx| {
+            if let crate::app::project_actions::ActionsEvent::Removed = event {
+                h.focus_list_stop(window, cx);
+            }
+        })
+        .detach();
         crate::features::cloud::account::observe(window, cx, |h, _, cx| h.refresh(cx)).detach();
         if cfg!(debug_assertions) {
             let home = cx.weak_entity();
@@ -304,6 +323,9 @@ impl Homepage {
             stop: None,
             focus: HashMap::new(),
             action_focus: HashMap::new(),
+            focus_watch: Vec::new(),
+            list_of: HashMap::new(),
+            actions_list: None,
             action_bounds: HashMap::new(),
             hovered: None,
             discovery: discovery::HomeDiscovery::default(),
@@ -324,6 +346,7 @@ impl Homepage {
             app_places: None,
             unavailable: HashMap::new(),
             window_folder: None,
+            window_folder_probe: 0,
             read_failed: None,
             folder_question: None,
             folder_error: None,
@@ -784,6 +807,10 @@ impl Homepage {
             return false;
         }
         self.hovered = Some(item.id.clone());
+        self.actions_list = self
+            .list_of
+            .get(&item.id)
+            .map(|list| (item.id.clone(), list.clone()));
         let viewport = window.viewport_size();
         self.actions.update(cx, |a, cx| {
             a.open(target, bounds, true, viewport, Some(item.id), window, cx)

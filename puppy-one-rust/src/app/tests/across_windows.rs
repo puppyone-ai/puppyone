@@ -115,3 +115,33 @@ fn a_new_window_keeps_the_persisted_appearance(cx: &mut TestAppContext) {
         );
     });
 }
+
+/// `system-open-route`: `matches a window that is still restoring its
+/// folder` — asked for again before it has opened, from the command line or
+/// from Finder, the folder comes forward in that window instead of opening
+/// a second one.
+#[gpui::test]
+fn a_folder_asked_for_again_comes_forward_in_the_window_still_opening_it(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(root.clone())))
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(s.workspace_root(cx).is_none(), "still opening");
+        assert_eq!(s.opening_folder(cx).as_deref(), Some(root.as_path()));
+    });
+    let opened = cx.update(|_, cx| {
+        windows::open_from_cli(&root.to_string_lossy(), false, cx).expect("the folder opens")
+    });
+    assert!(
+        opened.folder && opened.focused,
+        "the window opening it came forward"
+    );
+    // From Finder or a second launch (`openPathFromSystem`) too.
+    assert!(cx.update(|_, cx| windows::open_path(root.clone(), cx)));
+    assert_eq!(cx.update(|_, cx| windows::count(cx)), 1);
+}

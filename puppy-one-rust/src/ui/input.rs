@@ -21,6 +21,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("secondary-y", Redo, Some("TextInput")),
     ]);
     crate::ui::components::bind_menu_keys(cx);
+    crate::ui::components::bind_hints(cx);
 }
 /// The caller supplies display text for the stable item ids (`edit`, `undo`,
 /// `redo`, `cut`, `copy`, `paste`, `selectAll`), keeping copy out of this primitive.

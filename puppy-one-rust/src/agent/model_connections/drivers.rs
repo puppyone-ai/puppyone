@@ -104,6 +104,23 @@ fn model_id(value: &Value) -> Option<String> {
         .then(|| id.to_owned())
 }
 
+/// `createModelMetadataClient({ maxConcurrent: 2 })`: at most two metadata
+/// requests are open at once across the app; the rest wait their turn.
+static METADATA_TURNS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+
+/// `AbortSignal`: `work`, unless `cancel` comes first (`CANCELLED`); its
+/// requests, waiting their turn or sent, end with it.
+pub async fn until_cancelled<T>(
+    work: impl std::future::Future<Output = Result<T, String>>,
+    cancel: &tokio_util::sync::CancellationToken,
+) -> Result<T, String> {
+    tokio::select! {
+        biased;
+        _ = cancel.cancelled() => Err("CANCELLED".to_owned()),
+        result = work => result,
+    }
+}
+
 /// The client catalogs are read with: no redirect, bounded in time.
 pub fn metadata_client() -> Result<reqwest::Client, String> {
     crate::platform::proxy::system(reqwest::Client::builder())
@@ -120,6 +137,10 @@ async fn get_json(
     url: String,
     key: Option<&str>,
 ) -> Result<Value, String> {
+    let _turn = METADATA_TURNS
+        .acquire()
+        .await
+        .map_err(|_| "CANCELLED".to_owned())?;
     let mut request = client.get(url);
     if let Some(key) = key {
         request = request.bearer_auth(key);
@@ -189,6 +210,9 @@ pub async fn list_models(
             let running = get_json(client, format!("{native}/api/ps"), key).await.ok();
             let mut models = ollama_models(&tags, running.as_ref());
             for model in models.iter_mut().take(16) {
+                let Ok(_turn) = METADATA_TURNS.acquire().await else {
+                    break;
+                };
                 let detail = client
                     .post(format!("{native}/api/show"))
                     .json(&serde_json::json!({"model": model.id}))

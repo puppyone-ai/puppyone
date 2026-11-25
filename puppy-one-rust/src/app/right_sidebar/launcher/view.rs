@@ -40,6 +40,51 @@ impl WorkbenchLauncher {
             "terminal.launcher.detecting"
         })
     }
+    /// `availabilityMessage`, the launcher's polite status: what discovery
+    /// is doing once its feedback shows, then that it finished — unless it
+    /// failed or found no Agent, which it never announces.
+    pub(super) fn availability(&self) -> Option<&'static str> {
+        use crate::platform::local_agent_setup::{ObservationFailure, ObservationStatus};
+        if self.hosted.is_open() {
+            return None;
+        }
+        if self.scanning {
+            return self.discovery_label();
+        }
+        let failed = self.observations.iter().any(|o| {
+            o.status == ObservationStatus::Failed
+                || o.failure == Some(ObservationFailure::EnvironmentUnavailable)
+        });
+        let found = self.installations.iter().any(|i| !i.bundled());
+        (!failed && found).then_some("terminal.launcher.detectionComplete")
+    }
+    /// A launcher row's focus, kept by its Agent: a row stays focused while
+    /// discovery adds rows around it.
+    fn row_focus(&mut self, group: Id, id: &'static str, cx: &mut Context<Self>) -> FocusHandle {
+        self.row_focus
+            .entry((group, id))
+            .or_insert_with(|| cx.focus_handle())
+            .clone()
+    }
+    /// `onReturnToLauncher`: the launcher's first usable Agent — detected,
+    /// else bundled — or else its heading takes the keyboard.
+    pub(super) fn return_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let group = self
+            .setup_group
+            .filter(|group| self.heading_focus.contains_key(group))
+            .or_else(|| self.heading_focus.keys().min().copied());
+        let Some(group) = group else {
+            return;
+        };
+        let target = self
+            .return_targets
+            .get(&group)
+            .and_then(|targets| targets.first())
+            .or_else(|| self.heading_focus.get(&group));
+        if let Some(target) = target.cloned() {
+            target.focus(window, cx);
+        }
+    }
     /// The launcher's setup section, narrowed to this launcher's surface and
     /// the detected Agents.
     fn setup_section(
@@ -56,8 +101,12 @@ impl WorkbenchLauncher {
         if self.setup.is_none() {
             let preferences = self.preferences.clone()?;
             let owner = self.owner.clone();
+            let host = cx.weak_entity();
             let section = cx.new(|cx| {
                 SetupSection::new(Presentation::Launcher, surface, preferences, owner, cx)
+                    .on_return(move |window, cx| {
+                        let _ = host.update(cx, |l, cx| l.return_focus(window, cx));
+                    })
             });
             cx.observe(&section, |_, _, cx| cx.notify()).detach();
             self.setup = Some(section);
@@ -173,20 +222,34 @@ impl WorkbenchLauncher {
         let m = theme::ty();
         let visible = self.visible_installations();
         let (chats, terminals) = (context.can_chat, context.can_terminal);
-        let mut external = v_flex().gap(px(1.));
-        for (i, installation) in visible.iter().filter(|i| !i.bundled()).cloned().enumerate() {
+        // `role="list"`: the detected Agents; discovery's feedback and
+        // status sit outside it. Rows are keyed by Agent, never by place.
+        let mut external = v_flex()
+            .id(("launcher-agents", group))
+            .role(Role::List)
+            .debug_selector(|| "launcher-agents".into())
+            .gap(px(1.));
+        // `onReturnToLauncher`'s targets: usable detected rows, then bundled.
+        let mut returns = vec![];
+        for installation in visible.iter().filter(|i| !i.bundled()).cloned() {
             let terminal = installation.clone();
-            let row_group = SharedString::from(format!("launch-agent-{group}-{i}"));
             let id = installation.id;
+            let key = SharedString::from(format!("launch-agent-{group}-{id}"));
+            let available = if installation.chat { chats } else { terminals };
+            let focus = self.row_focus(group, id, cx);
+            if available {
+                returns.push(focus.clone());
+            }
             external = external.child(
                 self.launcher_row(
-                    ElementId::NamedInteger("launch-agent".into(), group * 100 + i as u64),
+                    ElementId::Name(key.clone()),
                     LauncherIdentity::brand(installation.runtime.icon_key()),
                     installation.label.clone().into(),
-                    row_group,
-                    if installation.chat { chats } else { terminals },
+                    key,
+                    available,
                     cx,
                 )
+                .track_focus(&focus)
                 .debug_selector(move || format!("launcher-agent-{id}"))
                 .on_click(cx.listener(move |s, _, w, cx| {
                     s.chat_mode = true;
@@ -208,17 +271,24 @@ impl WorkbenchLauncher {
             );
         }
         let mut bundled = v_flex().gap(px(1.));
-        for (i, installation) in visible.iter().filter(|i| i.bundled()).cloned().enumerate() {
+        for installation in visible.iter().filter(|i| i.bundled()).cloned() {
             let id = installation.id;
+            let key = SharedString::from(format!("launch-bundled-{group}-{id}"));
+            let available = if installation.chat { chats } else { terminals };
+            let focus = self.row_focus(group, id, cx);
+            if available {
+                returns.push(focus.clone());
+            }
             bundled = bundled.child(
                 self.launcher_row(
-                    ElementId::NamedInteger("launch-bundled".into(), group * 100 + i as u64),
+                    ElementId::Name(key.clone()),
                     LauncherIdentity::brand(installation.runtime.icon_key()),
                     installation.label.clone().into(),
-                    format!("launch-bundled-{group}-{i}").into(),
-                    if installation.chat { chats } else { terminals },
+                    key,
+                    available,
                     cx,
                 )
+                .track_focus(&focus)
                 .debug_selector(move || format!("launcher-agent-{id}"))
                 .on_click(cx.listener(move |s, _, w, cx| {
                     s.chat_mode = true;
@@ -308,6 +378,11 @@ impl WorkbenchLauncher {
             entries = entries.child(
                 div()
                     .debug_selector(|| "launcher-setup".into())
+                    // Setup returns the keyboard to the launcher it was used in.
+                    .capture_any_mouse_down(
+                        cx.listener(move |s, _, _, _| s.setup_group = Some(group)),
+                    )
+                    .capture_key_down(cx.listener(move |s, _, _, _| s.setup_group = Some(group)))
                     .child(setup),
             );
         }
@@ -344,6 +419,26 @@ impl WorkbenchLauncher {
                         .child(message.clone()),
                 )
         });
+        let title = tr(if cloud {
+            "cloud.home.cloud"
+        } else {
+            "terminal.launcher.localTitle"
+        });
+        let heading_focus = self
+            .heading_focus
+            .entry(group)
+            .or_insert_with(|| cx.focus_handle().tab_stop(false))
+            .clone();
+        self.return_targets.insert(group, returns);
+        // `role="status"`, visually hidden, outside the busy Agent list.
+        let availability = div()
+            .id(("launcher-availability", group))
+            .role(Role::Status)
+            .when_some(self.availability(), |d, message| d.aria_label(tr(message)))
+            .test_support()
+            .absolute()
+            .size(px(1.))
+            .overflow_hidden();
         let heading = h_flex()
             .absolute()
             .top(px(-theme::control() / 2.))
@@ -353,17 +448,19 @@ impl WorkbenchLauncher {
             .gap(px(4.))
             .bg(t.auxiliary())
             .child(
+                // `<h2 tabIndex={-1}>`: focusable, never a Tab stop.
                 div()
+                    .id(("launcher-heading", group))
+                    .test_support()
+                    .track_focus(&heading_focus)
+                    .role(Role::Heading)
+                    .aria_label(title)
                     .text_size(px(m.right.meta))
                     .line_height(px(m.right.meta_line_height))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(t.subtle)
                     .whitespace_nowrap()
-                    .child(tr(if cloud {
-                        "cloud.home.cloud"
-                    } else {
-                        "terminal.launcher.localTitle"
-                    })),
+                    .child(title),
             )
             .when(!cloud, |h| h.child(scan));
         let history = div()
@@ -407,7 +504,8 @@ impl WorkbenchLauncher {
                             .child(heading)
                             .child(history)
                             .children(error)
-                            .child(entries),
+                            .child(entries)
+                            .child(availability),
                     ),
             )
             .child(crate::ui::scrollbar::vertical(

@@ -364,7 +364,8 @@ impl WindowCloud {
                         .child(
                             LoadingMark::new("cloud-sign-in-loading")
                                 .size(LoaderSize::Xs)
-                                .tone(Tone::Neutral),
+                                .tone(Tone::Neutral)
+                                .beside(tr("cloud.home.waitingForSignIn")),
                         )
                         .child(tr("cloud.home.waitingForSignIn")),
                 )

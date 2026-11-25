@@ -152,3 +152,37 @@ fn a_window_whose_folder_moved_says_so_and_follows_it(cx: &mut TestAppContext) {
         );
     });
 }
+
+/// `missingProjectFolder.test.tsx`: `never lets an older answer that
+/// arrives late replace a newer one` — two probes of the window's folder
+/// overlap; the newer says it is there, then the older, late, says it is
+/// missing: the window keeps the newer answer.
+#[gpui::test]
+fn a_late_answer_never_replaces_a_newer_one(cx: &mut TestAppContext) {
+    use super::home::FolderStatus;
+    use crate::platform::folder_availability::State;
+    let temp = tempfile::tempdir().unwrap();
+    let notes = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&notes).unwrap();
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| s.open_project(notes.clone(), w, cx));
+    settle_cloud(&view, cx, "the project", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(notes.as_path())
+    });
+    let missing = FolderStatus {
+        state: State::Missing,
+        found: None,
+    };
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| {
+            let older = h.begin_window_folder_probe();
+            let newer = h.begin_window_folder_probe();
+            h.answer_window_folder(newer, notes.clone(), None, cx);
+            h.answer_window_folder(older, notes.clone(), Some(missing.clone()), cx);
+            assert_eq!(h.window_folder, None, "the newer answer stands");
+            // The newest probe's own answer still counts.
+            h.answer_window_folder(newer, notes.clone(), Some(missing), cx);
+            assert!(h.window_folder.is_some());
+        })
+    });
+}

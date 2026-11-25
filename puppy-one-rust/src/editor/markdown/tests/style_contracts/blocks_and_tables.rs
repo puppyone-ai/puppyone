@@ -31,7 +31,9 @@ use crate::{
     render_service::{self, Rendered},
     typography::Scale,
 };
-use gpui::{Modifiers, RenderImage, TestAppContext, px, size};
+use gpui::{
+    Bounds, Modifiers, Pixels, RenderImage, TestAppContext, VisualTestContext, point, px, size,
+};
 use image::{Frame as ImageFrame, RgbaImage};
 use std::{path::Path, sync::Arc};
 
@@ -608,9 +610,12 @@ fn t3_24_prose_dividers_use_markdown_rule_and_tables_use_shared_tokens() {
 /// `markdownEditorLayout.test.ts` #26: `uses one shared, pixel-centered
 /// structure control for Markdown and CSV`. Both Markdown tables and CSV tables
 /// share `editor::table::controls::rails`, with `7×1` and `1×7` centered plus
-/// strokes, a `13px` visible rail, and a hit area equal to `action_gutter`.
-#[test]
-fn t3_26_markdown_and_csv_share_pixel_centered_structure_rail_controls() {
+/// strokes, a `13px` visible rail, and a hit area equal to `action_gutter`. A
+/// rendered Markdown table and a rendered CSV table draw the same rails: each
+/// rail fills the gutter, its 13px bar sits centred in it, and its plus is
+/// centred on the bar.
+#[gpui::test]
+fn t3_26_markdown_and_csv_share_pixel_centered_structure_rail_controls(cx: &mut TestAppContext) {
     assert_eq!(RAIL, 13.0, "visible structure rail must be 13px");
     assert_eq!(PLUS_HORIZONTAL_STROKE, (7.0, 1.0));
     assert_eq!(PLUS_VERTICAL_STROKE, (1.0, 7.0));
@@ -636,14 +641,121 @@ fn t3_26_markdown_and_csv_share_pixel_centered_structure_rail_controls() {
             "Markdown and CSV must share the exact same structure action gutter hit width"
         );
     }
+
+    let gutter = MarkdownTheme::resolve(true, Scale::Medium)
+        .table
+        .action_gutter;
+    let markdown = {
+        let (view, visual) = setup(cx, "| A | B |\n| --- | --- |\n| 1 | 2 |\n");
+        visual.simulate_resize(size(px(1000.), px(700.)));
+        settle(&view, visual);
+        visual.update(|w, cx| w.draw(cx).clear(cx));
+        rendered_rails(visual, "md-table-0")
+    };
+    let csv = {
+        let (_view, visual) = cx.add_window_view(|_, cx| {
+            crate::editor::csv::CsvEditor::new("", "t.csv", "a,b\n1,2\n", true, Scale::Medium, cx)
+        });
+        visual.simulate_resize(size(px(1000.), px(700.)));
+        for _ in 0..3 {
+            visual.run_until_parked();
+            visual.update(|w, cx| w.draw(cx).clear(cx));
+        }
+        rendered_rails(visual, "csv")
+    };
+    for (format, rails) in [("Markdown", &markdown), ("CSV", &csv)] {
+        let [
+            (row, row_bar, row_h, row_v),
+            (column, column_bar, column_h, column_v),
+        ] = rails;
+        // The rail is the gutter's whole depth; its bar is 13px, centred.
+        assert_eq!(row.size.height, px(gutter), "{format} add-row hit depth");
+        assert_eq!(
+            column.size.width,
+            px(gutter),
+            "{format} add-column hit depth"
+        );
+        assert_eq!(row_bar.size.height, px(RAIL), "{format} add-row bar");
+        assert_eq!(column_bar.size.width, px(RAIL), "{format} add-column bar");
+        let inset = px((gutter - RAIL) / 2.);
+        assert_eq!(
+            row_bar.top() - row.top(),
+            inset,
+            "{format} add-row bar centred"
+        );
+        assert_eq!(
+            column_bar.left() - column.left(),
+            inset,
+            "{format} add-column bar centred"
+        );
+        for (bar, h, v) in [(row_bar, row_h, row_v), (column_bar, column_h, column_v)] {
+            assert_eq!(
+                (h.size.width, h.size.height),
+                (px(7.), px(1.)),
+                "{format} plus, horizontal stroke"
+            );
+            assert_eq!(
+                (v.size.width, v.size.height),
+                (px(1.), px(7.)),
+                "{format} plus, vertical stroke"
+            );
+            for stroke in [h, v] {
+                let (a, b) = (stroke.center(), bar.center());
+                assert!(
+                    (a.x - b.x).abs() <= px(0.5) && (a.y - b.y).abs() <= px(0.5),
+                    "{format} plus centred on its bar: {a:?} vs {b:?}"
+                );
+            }
+        }
+    }
+    // One control: the same rail and plus geometry in both formats.
+    let shape = |rails: &[Rail; 2]| {
+        rails.map(|(rail, bar, h, v)| {
+            (
+                rail.size.height.min(rail.size.width),
+                bar.size.height.min(bar.size.width),
+                h.size,
+                v.size,
+            )
+        })
+    };
+    assert_eq!(shape(&markdown), shape(&csv));
+}
+
+/// A drawn rail: its hit area, its bar, and its plus strokes.
+type Rail = (
+    Bounds<Pixels>,
+    Bounds<Pixels>,
+    Bounds<Pixels>,
+    Bounds<Pixels>,
+);
+
+/// The add-row and add-column rails of the table `id`: each rail's hit
+/// area, its bar, and its plus strokes, as drawn.
+fn rendered_rails(cx: &mut VisualTestContext, id: &str) -> [Rail; 2] {
+    ["add-row", "add-column"].map(|rail| {
+        let mut part = |suffix: &str| {
+            let selector: &'static str = Box::leak(format!("{id}-{rail}{suffix}").into_boxed_str());
+            cx.debug_bounds(selector)
+                .unwrap_or_else(|| panic!("{selector} is drawn"))
+        };
+        (
+            part(""),
+            part("-bar"),
+            part("-plus-horizontal"),
+            part("-plus-vertical"),
+        )
+    })
 }
 
 /// `markdownEditorLayout.test.ts` #27: `keeps compact drag grips inside larger
 /// pointer targets`. Column handles expose a `32x24` hit target around the `22x14`
 /// grip visual, and row handles expose a `24x32` hit target around the `14x22`
-/// grip visual, shared by Markdown and CSV tables.
-#[test]
-fn t3_27_table_drag_grips_keep_compact_visuals_inside_larger_hit_targets() {
+/// grip visual, shared by Markdown and CSV tables. Hovering a body cell of a
+/// rendered Markdown table and of a rendered CSV table draws both grips at
+/// exactly those sizes, each face centred in its target.
+#[gpui::test]
+fn t3_27_table_drag_grips_keep_compact_visuals_inside_larger_hit_targets(cx: &mut TestAppContext) {
     let (col_w, col_h) = grip_size(Axis::Column);
     let (row_w, row_h) = grip_size(Axis::Row);
     let (col_vis_w, col_vis_h) = grip_visual_size(Axis::Column);
@@ -664,4 +776,91 @@ fn t3_27_table_drag_grips_keep_compact_visuals_inside_larger_hit_targets() {
             col_h
         );
     }
+
+    let markdown = {
+        let (view, visual) = setup(cx, "| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n");
+        visual.simulate_resize(size(px(1000.), px(700.)));
+        settle(&view, visual);
+        visual.update(|w, cx| {
+            w.activate_window();
+            w.draw(cx).clear(cx);
+        });
+        let surface = visual.debug_bounds("md-table-surface").expect("the table");
+        let cell = point(
+            surface.left() + px(12.),
+            surface.top() + surface.size.height * 0.75,
+        );
+        // The first move hovers the table; a move over it shows the grips.
+        for at in [cell, point(cell.x + px(4.), cell.y)] {
+            visual.simulate_mouse_move(at, None, Modifiers::none());
+            settle(&view, visual);
+            visual.update(|w, cx| w.draw(cx).clear(cx));
+        }
+        rendered_grips(visual, ["md-table-0-column-grip", "md-table-0-row-grip"])
+    };
+    let csv = {
+        let (view, visual) = cx.add_window_view(|_, cx| {
+            crate::editor::csv::CsvEditor::new(
+                "",
+                "t.csv",
+                "h1,h2\na,b\nc,d\n",
+                true,
+                Scale::Medium,
+                cx,
+            )
+        });
+        visual.simulate_resize(size(px(1000.), px(700.)));
+        for _ in 0..3 {
+            visual.run_until_parked();
+            visual.update(|w, cx| w.draw(cx).clear(cx));
+        }
+        let cell = view.read_with(visual, |v, _| v.cell_point_for_tests(1, 1));
+        visual.simulate_mouse_move(cell, None, Modifiers::none());
+        for _ in 0..3 {
+            visual.run_until_parked();
+            visual.update(|w, cx| w.draw(cx).clear(cx));
+        }
+        rendered_grips(visual, ["csv-column-handle", "csv-row-handle"])
+    };
+    for (format, [(column, column_face), (row, row_face)]) in [("Markdown", markdown), ("CSV", csv)]
+    {
+        assert_eq!(
+            (column.size.width, column.size.height),
+            (px(col_w), px(col_h)),
+            "{format} column grip target"
+        );
+        assert_eq!(
+            (column_face.size.width, column_face.size.height),
+            (px(col_vis_w), px(col_vis_h)),
+            "{format} column grip face"
+        );
+        assert_eq!(
+            (row.size.width, row.size.height),
+            (px(row_w), px(row_h)),
+            "{format} row grip target"
+        );
+        assert_eq!(
+            (row_face.size.width, row_face.size.height),
+            (px(row_vis_w), px(row_vis_h)),
+            "{format} row grip face"
+        );
+        for (target, face) in [(column, column_face), (row, row_face)] {
+            assert_eq!(target.center(), face.center(), "{format} face centred");
+        }
+    }
+}
+
+/// The column and row grips `ids`: each grip's target and face, as drawn.
+fn rendered_grips(
+    cx: &mut VisualTestContext,
+    ids: [&str; 2],
+) -> [(Bounds<Pixels>, Bounds<Pixels>); 2] {
+    ids.map(|id| {
+        let mut part = |suffix: &str| {
+            let selector: &'static str = Box::leak(format!("{id}{suffix}").into_boxed_str());
+            cx.debug_bounds(selector)
+                .unwrap_or_else(|| panic!("{selector} is drawn"))
+        };
+        (part(""), part("-face"))
+    })
 }

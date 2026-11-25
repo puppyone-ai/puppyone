@@ -472,6 +472,9 @@ impl Shell {
         self.sync_dialog_status(cx);
         self.sync_session_view(cx);
         self.sync_window_title(window, cx);
+        self.session
+            .project
+            .update(cx, |p, cx| p.sync_opening_focus(window, cx));
         if self.files(cx).allow_quit {
             self.finish_close(window, cx);
         }
@@ -520,6 +523,12 @@ impl Shell {
     /// The local project this window shows.
     pub fn workspace_root(&self, cx: &App) -> Option<PathBuf> {
         self.session.project.read(cx).root(cx)
+    }
+    /// The local folder this window is still opening or restoring.
+    pub fn opening_folder(&self, cx: &App) -> Option<PathBuf> {
+        self.files(cx)
+            .preparing_root()
+            .map(std::path::Path::to_path_buf)
     }
     /// `DesktopSidebarFooterNavigation`: Settings, Help and the busy cue.
     fn footer(&self, cx: &mut Context<Self>) -> SidebarFooter {

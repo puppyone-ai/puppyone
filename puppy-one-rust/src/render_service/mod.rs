@@ -532,7 +532,7 @@ pub fn get(request: &Request, window: &mut Window, cx: &mut App) -> State {
 fn page() -> String {
     "<!doctype html><html><head><meta charset=\"utf-8\">\
      <link rel=\"stylesheet\" href=\"__assets__/render-service.css\">\
-     <style>html,body{margin:0;padding:0}#stage{position:absolute;left:0;top:0;display:inline-block;width:max-content}</style>\
+     <style>html,body{margin:0;padding:0;overflow:hidden}#stage{position:absolute;left:0;top:0;display:inline-block;width:max-content}</style>\
      </head><body><div id=\"stage\"></div>\
      <script src=\"__assets__/render-service.js\"></script></body></html>"
         .into()
@@ -860,6 +860,22 @@ mod tests {
         assert_eq!(service.cache.len(), MAX_ENTRIES);
         assert!(!service.cache.contains_key(&0));
         assert!(service.cache.contains_key(&(MAX_ENTRIES as u64 + 4)));
+    }
+
+    #[test]
+    fn the_snapshot_page_never_scrolls() {
+        // The native side sizes the hidden page to exactly the measured
+        // drawing and snapshots it. KaTeX's display markup reaches a little
+        // past that box; a page that could scroll then snapshots a shifted,
+        // magnified drawing, and display formulas lost their lower and right
+        // parts (`\frac{1}{3}`, a sum's lower limit).
+        let page = page();
+        let style = page.split("<style>").nth(1).unwrap();
+        let root = style
+            .split('}')
+            .find(|rule| rule.starts_with("html,body{"))
+            .unwrap();
+        assert!(root.contains("overflow:hidden"), "{root}");
     }
 
     #[test]
