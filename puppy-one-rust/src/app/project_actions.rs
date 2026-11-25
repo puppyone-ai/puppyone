@@ -139,6 +139,9 @@ pub(in crate::app) struct ProjectActions {
     pub(in crate::app) menu: Option<ActionsMenu>,
     pub(in crate::app) rename: Option<ProjectRename>,
     pub(in crate::app) confirm: Option<ProjectConfirm>,
+    /// What had focus when the menu opened (its trigger): Escape, Tab, a
+    /// chosen row and a closed dialog from the menu return there.
+    return_focus: Option<FocusHandle>,
 }
 impl EventEmitter<ActionsEvent> for ProjectActions {}
 
@@ -191,10 +194,13 @@ impl ProjectActions {
             menu: None,
             rename: None,
             confirm: None,
+            return_focus: None,
         }
     }
     /// Opens `target`'s actions; `trigger` is the control it hangs beside,
-    /// or the pointer of a right click; `item` is the Homepage entry.
+    /// or the pointer of a right click; `item` is the Homepage entry. The
+    /// keyboard moves into the menu and comes back to what had focus.
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::app) fn open(
         &mut self,
         target: Target,
@@ -202,8 +208,10 @@ impl ProjectActions {
         beside: bool,
         viewport: Size<Pixels>,
         item: Option<String>,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.return_focus = window.focused(cx);
         let position = if beside {
             self::beside(trigger, target.width(), viewport)
         } else {
@@ -232,6 +240,21 @@ impl ProjectActions {
     }
     pub(in crate::app) fn close(&mut self, cx: &mut Context<Self>) {
         if self.menu.take().is_some() {
+            cx.notify();
+        }
+    }
+    /// What had focus when the menu opened.
+    #[cfg(test)]
+    pub(in crate::app) fn return_focus(&self) -> Option<FocusHandle> {
+        self.return_focus.clone()
+    }
+    /// Closes the menu from the keyboard or a chosen row: focus goes back
+    /// to its trigger. A press elsewhere ([`Self::close`]) leaves focus there.
+    fn close_to_trigger(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.menu.take().is_some() {
+            if let Some(focus) = self.return_focus.take() {
+                focus.focus(window, cx);
+            }
             cx.notify();
         }
     }
@@ -365,10 +388,15 @@ impl ProjectActions {
                 }),
             );
         }
-        let dismiss = host.clone();
-        let menu = menu.on_dismiss(move |_, cx| {
-            let _ = dismiss.update(cx, |s, cx| s.close(cx));
-        });
+        let (dismiss, escape) = (host.clone(), host.clone());
+        let menu = menu
+            .keyboard_navigation()
+            .on_escape(move |w, cx| {
+                let _ = escape.update(cx, |s, cx| s.close_to_trigger(w, cx));
+            })
+            .on_dismiss(move |w, cx| {
+                let _ = dismiss.update(cx, |s, cx| s.close_to_trigger(w, cx));
+            });
         Some(
             AnchoredMenu::new("project-actions-menu", open.position, menu)
                 .on_dismiss(move |_, cx| {
@@ -519,7 +547,11 @@ impl ProjectActions {
             self.close_dialog(DialogKey::ConfirmProject, cx);
         }
         self.menu = None;
-        self.window_focus.focus(window, cx);
+        // Back to the control the menu opened from, else the window.
+        self.return_focus
+            .take()
+            .unwrap_or_else(|| self.window_focus.clone())
+            .focus(window, cx);
         cx.notify();
     }
     pub(in crate::app) fn project_rename_dialog(

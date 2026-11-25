@@ -53001,6 +53001,101 @@
           "test": "app::tests::other_computers::only_a_share_whose_folder_has_gone_is_withdrawn_once_found_elsewhere"
         }
       ]
+    },
+    {
+      "id": "menu-keyboard-focus-and-submenus",
+      "acceptance": "Keyboard menus (a project's actions, the Homepage sort and layout menus, the Explorer's create and node menus) take focus on their first row, or on the current choice, which is marked (menuitemradio, aria-checked); the arrows wrap and Home/End reach the ends, winning over the surface the menu opened from. Escape and Tab close the menu and give focus back to the button that opened it; a dialog opened from the menu returns focus there when it closes; a press elsewhere closes the menu and keeps its own focus. A project's actions button keeps its project lit while it has focus. A submenu row opens its submenu when it takes focus, ArrowRight/Enter move in, ArrowLeft returns to its row, and Escape closes an open submenu before its menu.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/projectRowActionsFocus.test.tsx",
+          "sha256": "519fc4f046401d1028b6488d55e63f5e1ea2474d9ef325bbe6f93c21cce9af06",
+          "cases": [
+            {
+              "index": 0,
+              "name": "a project's actions > returns focus to its button when Escape closes the menu"
+            },
+            {
+              "index": 1,
+              "name": "a project's actions > leaves focus to a press elsewhere"
+            },
+            {
+              "index": 2,
+              "name": "a project's actions > returns focus to its button when a dialog from the menu closes"
+            },
+            {
+              "index": 3,
+              "name": "a project's actions > walks the menu with the arrows, wrapping at both ends, and reaches its ends with Home and End"
+            },
+            {
+              "index": 4,
+              "name": "a project's actions > closes the menu on Tab and hands focus back to its button"
+            },
+            {
+              "index": 5,
+              "name": "a Homepage menu > answers the same keys"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/createEntryMenu.test.tsx",
+          "sha256": "ada7026ca1542d79d89d7934cb8242193f5239aebf877b01b20d738023307848",
+          "cases": [
+            {
+              "index": 5,
+              "name": "create entry menu > opens Custom files from focus and returns to its trigger with ArrowLeft"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/explorer/sidebarMenuHandoff.test.tsx",
+          "sha256": "53d135c6686671774d57bd7dc78c7dfff69486655d04a8a6e3e5162b656c4ea7",
+          "cases": [
+            {
+              "index": 4,
+              "name": "Sidebar menu handoff > uses Escape to close the creation submenu before dismissing its parent"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/workspace/homepage/onboardingProjectLayouts.test.tsx",
+          "sha256": "cc3408a3a0aabdd3d0f183185c62a6ac319218be85e0fef414be844c1ba06fe9",
+          "cases": [
+            {
+              "index": 13,
+              "name": "Homepage project layouts > marks the current choice and starts the keyboard on it"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::project_actions_take_the_keyboard_from_their_button_and_give_it_back"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::homepage_view_menus_start_on_the_current_choice_and_answer_the_same_keys"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::the_create_menu_walks_into_custom_files_and_escape_closes_the_submenu_first"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::menu::tests::a_submenu_opens_on_focus_is_entered_and_left_and_escape_closes_it_first"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::menu::tests::tab_closes_the_menu_and_hands_focus_back_to_its_trigger"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::components::menu::tests::the_keyboard_starts_on_the_current_choice_which_is_marked"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -65565,74 +65660,6 @@
             {
               "index": 3,
               "name": "sticky list-end motion > stays still while it remains pinned"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "menu-keyboard-focus-and-submenu-navigation",
-      "kind": "gap",
-      "reason": "ProjectActions, Homepage toolbar menus, and Explorer create/node menus do not yet wire full keyboard focus restoration to the triggering button, Tab-to-close, ArrowLeft submenu return, or submenu-first Escape dismissal (Menu::keyboard_navigation currently handles flat Arrow/Home/End/Enter/Space menus without submenus or Tab dismissal).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/ui/menus.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/explorer/createEntryMenu.test.tsx",
-          "sha256": "ada7026ca1542d79d89d7934cb8242193f5239aebf877b01b20d738023307848",
-          "cases": [
-            {
-              "index": 5,
-              "name": "create entry menu > opens Custom files from focus and returns to its trigger with ArrowLeft"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/workspace/explorer/projectRowActionsFocus.test.tsx",
-          "sha256": "519fc4f046401d1028b6488d55e63f5e1ea2474d9ef325bbe6f93c21cce9af06",
-          "cases": [
-            {
-              "index": 0,
-              "name": "a project's actions > returns focus to its button when Escape closes the menu"
-            },
-            {
-              "index": 1,
-              "name": "a project's actions > leaves focus to a press elsewhere"
-            },
-            {
-              "index": 2,
-              "name": "a project's actions > returns focus to its button when a dialog from the menu closes"
-            },
-            {
-              "index": 3,
-              "name": "a project's actions > walks the menu with the arrows, wrapping at both ends, and reaches its ends with Home and End"
-            },
-            {
-              "index": 4,
-              "name": "a project's actions > closes the menu on Tab and hands focus back to its button"
-            },
-            {
-              "index": 5,
-              "name": "a Homepage menu > answers the same keys"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/workspace/explorer/sidebarMenuHandoff.test.tsx",
-          "sha256": "53d135c6686671774d57bd7dc78c7dfff69486655d04a8a6e3e5162b656c4ea7",
-          "cases": [
-            {
-              "index": 4,
-              "name": "Sidebar menu handoff > uses Escape to close the creation submenu before dismissing its parent"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/workspace/homepage/onboardingProjectLayouts.test.tsx",
-          "sha256": "cc3408a3a0aabdd3d0f183185c62a6ac319218be85e0fef414be844c1ba06fe9",
-          "cases": [
-            {
-              "index": 13,
-              "name": "Homepage project layouts > marks the current choice and starts the keyboard on it"
             }
           ]
         }

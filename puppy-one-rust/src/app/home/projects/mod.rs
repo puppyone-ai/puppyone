@@ -262,9 +262,22 @@ impl Homepage {
     }
 
     /// `true` while a project is reached for: pointer, key focus or menu.
+    /// Whether the visible project `id` is lit (its controls show).
+    #[cfg(test)]
+    pub(in crate::app) fn lit_for_tests(&self, id: &str, window: &Window, cx: &App) -> bool {
+        self.visible_projects(cx)
+            .iter()
+            .find(|item| item.id == id)
+            .is_some_and(|item| self.project_lit(item, window, cx))
+    }
     pub(super) fn project_lit(&self, item: &Item, window: &Window, cx: &App) -> bool {
         self.hovered.as_deref() == Some(item.id.as_str())
             || self.actions.read(cx).item() == Some(item.id.as_str())
+            // `:focus-within`: its actions button has the keyboard.
+            || self
+                .action_focus
+                .get(&item.id)
+                .is_some_and(|f| f.is_focused(window))
             || (window.last_input_was_keyboard()
                 && self
                     .focus

@@ -32,7 +32,7 @@ pub use checkbox::{native_checkbox, tinted_checkbox};
 pub use dialog::Dialog;
 pub use icon::{FileIcon, Icon, ProductIcon};
 pub use layer::{cover, covering};
-pub use menu::{Menu, MenuItem, MenuVariant};
+pub use menu::{Menu, MenuItem, MenuVariant, bind_keys as bind_menu_keys};
 pub use notice::{FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone};
 pub use popover::{AnchoredMenu, PopoverMenu};
 pub use resize_handle::ResizeHandle;
