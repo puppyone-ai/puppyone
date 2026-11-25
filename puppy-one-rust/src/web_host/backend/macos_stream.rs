@@ -53,8 +53,14 @@ type RequestObserver = Rc<dyn Fn(&str)>;
 impl Drop for State {
     fn drop(&mut self) {
         self.tasks.get_mut().clear();
-        OWNERS.with(|owners| owners.borrow_mut().remove(&self.id));
+        forget(self.id);
     }
+}
+/// Forgets `id`'s owner. A host can outlive the registry: the render
+/// service keeps its hosts in thread-local storage, destroyed as the app
+/// quits, and touching destroyed storage aborts the process.
+fn forget(id: u64) {
+    let _ = OWNERS.try_with(|owners| owners.borrow_mut().remove(&id));
 }
 /// Kept by the host, separately from WebKit's retained handler. Destroying a
 /// host invalidates its workers before destroying the native WebView.
@@ -372,4 +378,37 @@ mod document_pages_probe;
 #[cfg(feature = "dev-capture")]
 pub(crate) fn run_document_pages_probe() {
     document_pages_probe::run();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The render service's hosts are dropped with its thread-local storage
+    /// when the app quits, after this registry may already be gone. Storage
+    /// registered first is destroyed last, so `LATE` drops its owner after
+    /// the registry; touching the destroyed registry would abort the process.
+    #[test]
+    fn an_owner_dropped_after_the_registry_is_gone_does_not_abort() {
+        struct Late(u64);
+        impl Drop for Late {
+            fn drop(&mut self) {
+                forget(self.0);
+            }
+        }
+        thread_local! {
+            static LATE: RefCell<Option<Late>> = const { RefCell::new(None) };
+        }
+        std::thread::spawn(|| {
+            LATE.with(|late| *late.borrow_mut() = Some(Late(7)));
+            OWNERS.with(|owners| owners.borrow_mut().insert(7, Weak::new()));
+            assert!(OWNERS.with(|owners| owners.borrow().contains_key(&7)));
+        })
+        .join()
+        .expect("the thread exits cleanly");
+        // While the registry lives, forgetting removes the owner.
+        OWNERS.with(|owners| owners.borrow_mut().insert(8, Weak::new()));
+        forget(8);
+        assert!(!OWNERS.with(|owners| owners.borrow().contains_key(&8)));
+    }
 }
