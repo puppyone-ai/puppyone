@@ -142,23 +142,26 @@ fn managed_service_claims_trial_preserves_context_window_and_never_caches_failur
         assert_eq!(eligible[0].model, "deepseek/deepseek-v4.1-flash");
         assert_eq!(eligible[0].manual_context_window, Some(1_000_000));
         assert!(
-            gw.calls.lock().unwrap().iter().any(|c| c == "POST /ai/trial"),
+            gw.calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|c| c == "POST /ai/trial"),
             "trial must be claimed automatically"
         );
 
         // Acquiring a managed lease succeeds; disabling Payments revokes it
         // immediately via its Cancellation token.
-        let route = format!(
-            "mc_{}/{}",
-            eligible[0].id.to_lowercase(),
-            eligible[0].model
-        );
+        let route = format!("mc_{}/{}", eligible[0].id.to_lowercase(), eligible[0].model);
         let acquired = service.acquire_lease(Some(&route)).unwrap();
         let lease_id = acquired["leaseId"].as_str().unwrap().to_owned();
         let cancel = service.lease_cancellation(&lease_id).unwrap();
         assert!(!cancel.is_cancelled());
         service.set_payments(false);
-        assert!(cancel.is_cancelled(), "disabling Payments must cancel active managed lease");
+        assert!(
+            cancel.is_cancelled(),
+            "disabling Payments must cancel active managed lease"
+        );
         assert!(service.validate_lease(&lease_id, Some(&route)).is_err());
     });
 }
@@ -441,7 +444,11 @@ fn sign_out_account_switch_and_connection_removal_immediately_revoke_active_leas
         assert!(!custom_cancel.is_cancelled());
         service.remove(&id, &saved.generation).unwrap();
         assert!(custom_cancel.is_cancelled());
-        assert!(service.validate_lease(&custom_lease, Some(&custom_route)).is_err());
+        assert!(
+            service
+                .validate_lease(&custom_lease, Some(&custom_route))
+                .is_err()
+        );
     });
 }
 
@@ -672,4 +679,78 @@ fn durable_verification_survives_restart_stale_catalog_retains_models_and_unslot
         assert_eq!(final_eligible.len(), 1);
         assert_eq!(final_eligible[0].model, "unsloth-qwen");
     });
+}
+
+/// `connectionRuntime.test.mjs`: `bounds parallel metadata requests and
+/// cancels queued work` — at most two metadata requests are open at once;
+/// a third waits its turn, and cancelled while waiting it never reaches the
+/// service.
+#[test]
+fn metadata_requests_run_two_at_a_time_and_a_waiting_one_can_be_cancelled() {
+    use super::drivers;
+    use std::io::{Read as _, Write as _};
+    use std::time::Duration;
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (arrived, held) = std::sync::mpsc::channel::<std::net::TcpStream>();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let _ = arrived.send(stream);
+        }
+    });
+    let conn = ModelConnection {
+        endpoint: format!("http://127.0.0.1:{port}/v1"),
+        driver: Driver::OpenaiCompatible,
+        ..Default::default()
+    };
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let client = drivers::metadata_client().unwrap();
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let read = |cancel: Option<tokio_util::sync::CancellationToken>| {
+        let (client, conn) = (client.clone(), conn.clone());
+        runtime.spawn(async move {
+            let work = drivers::list_models(&client, &conn, None);
+            match cancel {
+                Some(cancel) => drivers::until_cancelled(work, &cancel).await,
+                None => work.await,
+            }
+        })
+    };
+    let (first, second) = (read(None), read(None));
+    let mut open: Vec<_> = (0..2)
+        .map(|_| {
+            held.recv_timeout(Duration::from_secs(10))
+                .expect("two requests")
+        })
+        .collect();
+    let third = read(Some(cancel.clone()));
+    assert!(
+        held.recv_timeout(Duration::from_millis(300)).is_err(),
+        "a third waits its turn"
+    );
+    cancel.cancel();
+    let third = runtime
+        .block_on(async { tokio::time::timeout(Duration::from_secs(5), third).await })
+        .expect("a cancelled read ends at once");
+    assert_eq!(third.unwrap().unwrap_err(), "CANCELLED");
+    for stream in &mut open {
+        let mut request = [0u8; 2048];
+        let _ = stream.read(&mut request);
+        let body = r#"{"data":[]}"#;
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+    }
+    assert!(runtime.block_on(first).unwrap().is_ok());
+    assert!(runtime.block_on(second).unwrap().is_ok());
+    assert!(
+        held.recv_timeout(Duration::from_millis(300)).is_err(),
+        "the cancelled request never reached the service"
+    );
 }
