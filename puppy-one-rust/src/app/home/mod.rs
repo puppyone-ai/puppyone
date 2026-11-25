@@ -61,6 +61,8 @@ mod display;
 mod first_run;
 pub(in crate::app) mod folder;
 mod folder_status;
+#[cfg(test)]
+pub(in crate::app) use folder_status::FolderStatus;
 pub(in crate::app) mod groups;
 mod hydration;
 mod import_repository;
@@ -188,6 +190,8 @@ pub(in crate::app) struct Homepage {
     pub(in crate::app) app_places: Option<crate::platform::app_folders::Places>,
     pub(in crate::app) unavailable: HashMap<PathBuf, folder_status::FolderStatus>,
     pub(in crate::app) window_folder: Option<(PathBuf, folder_status::FolderStatus)>,
+    /// The newest probe of the window's folder.
+    window_folder_probe: u64,
     read_failed: Option<String>,
     pub(in crate::app) folder_question: Option<folder_status::FolderQuestion>,
     folder_error: Option<String>,
@@ -342,6 +346,7 @@ impl Homepage {
             app_places: None,
             unavailable: HashMap::new(),
             window_folder: None,
+            window_folder_probe: 0,
             read_failed: None,
             folder_question: None,
             folder_error: None,
