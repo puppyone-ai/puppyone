@@ -53398,6 +53398,29 @@
           "test": "app::tests::across_windows::a_folder_asked_for_again_comes_forward_in_the_window_still_opening_it"
         }
       ]
+    },
+    {
+      "id": "homepage-drag-out-only-listed-projects",
+      "acceptance": "A Homepage project dragged past the window's edge leaves through the system drag only as the path of a local project the Homepage lists; any other path never starts a system drag.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/files/electron.workspace-resource-delivery.test.mjs",
+          "sha256": "20ac132550e16415208256b68c7624ec40cf971293b4563bca5515448968fe53",
+          "cases": [
+            {
+              "index": 4,
+              "name": "resource delivery ownership > exports a registered Project root through the external-only drag channel"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::only_a_listed_project_leaves_the_window_as_its_path"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -56266,24 +56289,6 @@
             {
               "index": 0,
               "name": "Slides create action > delegates one template intent and opens the manifest returned by the main process"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "homepage-project-drag-out",
-      "kind": "gap",
-      "reason": "TS exports a project root through the external-only drag channel only after checking it is a registered project. Rust's Homepage row drag-out has no test that an unregistered path is refused.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer/drag-and-drop.md",
-      "typescript": [
-        {
-          "path": "tests/integration/workspace/files/electron.workspace-resource-delivery.test.mjs",
-          "sha256": "20ac132550e16415208256b68c7624ec40cf971293b4563bca5515448968fe53",
-          "cases": [
-            {
-              "index": 4,
-              "name": "resource delivery ownership > exports a registered Project root through the external-only drag channel"
             }
           ]
         }

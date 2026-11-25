@@ -1782,6 +1782,29 @@ fn focus_project(view: &Entity<Shell>, cx: &mut VisualTestContext, id: &str) {
     draw(cx);
 }
 
+/// `electron.workspace-resource-delivery`: `exports a registered Project
+/// root through the external-only drag channel` — a path the Homepage does
+/// not list never leaves the window; a listed project leaves as its path.
+#[gpui::test]
+fn only_a_listed_project_leaves_the_window_as_its_path(cx: &mut TestAppContext) {
+    let (view, cx, temp, _) = homepage_with_projects(cx, 1);
+    let begun = crate::platform::drag_out::record_text_drags();
+    let root = temp.path().canonicalize().unwrap();
+    let listed = root.join("p0").to_string_lossy().into_owned();
+    let unknown = root
+        .join("p0")
+        .join("unknown")
+        .to_string_lossy()
+        .into_owned();
+    for path in [&unknown, &listed] {
+        let drag = super::home::ProjectDrag::of(path);
+        view.update_in(cx, |s, w, cx| {
+            s.home.update(cx, |h, cx| h.drag_left_window(&drag, w, cx))
+        });
+    }
+    assert_eq!(*begun.borrow(), [listed]);
+}
+
 /// `homepageProjectListKeyboard.test.tsx`: `is one stop for Tab: the first
 /// project and that row's actions`; `moves the stop with focus, so Tab
 /// comes back to the project left`; `falls back to the first project when

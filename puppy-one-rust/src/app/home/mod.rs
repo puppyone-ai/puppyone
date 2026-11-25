@@ -69,6 +69,8 @@ mod intro;
 pub(in crate::app) mod previews;
 pub(in crate::app) mod project_entry;
 mod projects;
+#[cfg(test)]
+pub(in crate::app) use projects::ProjectDrag;
 mod template_import;
 mod value;
 

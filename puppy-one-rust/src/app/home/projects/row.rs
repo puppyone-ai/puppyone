@@ -82,14 +82,15 @@ impl Homepage {
 
     /// `startProjectDrag` past the window's edge: the system's own drag
     /// session takes over with the path as text, and when it ends wherever
-    /// it is dropped, so does the drag here.
-    pub(in crate::app::home) fn drag_left_window(
+    /// it is dropped, so does the drag here. Only a project this Homepage
+    /// lists leaves as its path (`resolveProjectRoot`).
+    pub(in crate::app) fn drag_left_window(
         &mut self,
         drag: &ProjectDrag,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if drag.native.get() {
+        if drag.native.get() || !self.lists_folder(&drag.path, cx) {
             return;
         }
         let (ended, end) = async_channel::bounded(1);
