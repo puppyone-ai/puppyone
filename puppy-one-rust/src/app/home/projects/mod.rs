@@ -25,6 +25,17 @@ pub(in crate::app) struct ProjectDrag {
     pub(super) native: std::rc::Rc<std::cell::Cell<bool>>,
 }
 
+impl ProjectDrag {
+    #[cfg(test)]
+    pub(in crate::app) fn of(path: &str) -> Self {
+        Self {
+            path: path.to_owned(),
+            label: path.to_owned().into(),
+            native: Default::default(),
+        }
+    }
+}
+
 impl Render for ProjectDrag {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
@@ -245,6 +256,13 @@ impl Homepage {
         view_items(items, sort, tr("onboarding.projects.untitled"))
     }
 
+    /// Whether `path` is a local project this Homepage lists.
+    pub(in crate::app::home) fn lists_folder(&self, path: &str, cx: &App) -> bool {
+        self.visible_projects(cx)
+            .iter()
+            .any(|item| item.local_path.as_deref().map(str::trim) == Some(path))
+    }
+
     /// A list's roving stop: the project last focused in it, else its first.
     pub(super) fn project_stop(&self, items: &[Item]) -> Option<String> {
         self.stop
@@ -254,11 +272,62 @@ impl Homepage {
             .or_else(|| items.first().map(|i| i.id.clone()))
     }
 
-    pub(super) fn project_focus(&mut self, id: &str, cx: &mut Context<Self>) -> FocusHandle {
-        self.focus
-            .entry(id.to_owned())
-            .or_insert_with(|| cx.focus_handle())
-            .clone()
+    /// The project's focus, and its actions button's beside it: focus
+    /// reaching either makes the project its list's stop, so Tab comes
+    /// back to it (`homepageProjectListKeyboard`).
+    pub(super) fn project_focus(
+        &mut self,
+        id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> FocusHandle {
+        if let Some(focus) = self.focus.get(id) {
+            return focus.clone();
+        }
+        let focus = cx.focus_handle();
+        let actions = cx.focus_handle();
+        for handle in [&focus, &actions] {
+            let id = id.to_owned();
+            let watch = cx.on_focus_in(handle, window, move |s, _, cx| {
+                if s.stop.as_deref() != Some(id.as_str()) {
+                    s.stop = Some(id.clone());
+                    cx.notify();
+                }
+            });
+            self.focus_watch.push(watch);
+        }
+        self.focus.insert(id.to_owned(), focus.clone());
+        self.action_focus.insert(id.to_owned(), actions);
+        focus
+    }
+
+    /// Its actions removed the project they opened for: the keyboard goes
+    /// to the stop of the list it was in, else stays with the window.
+    pub(in crate::app::home) fn focus_list_stop(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some((removed, list)) = self.actions_list.take() else {
+            return;
+        };
+        let visible: std::collections::HashSet<String> = self
+            .visible_projects(cx)
+            .into_iter()
+            .map(|i| i.id)
+            .collect();
+        if visible.contains(&removed) {
+            return;
+        }
+        let remaining: Vec<&String> = list.iter().filter(|id| visible.contains(*id)).collect();
+        let stop = self
+            .stop
+            .as_ref()
+            .filter(|stop| remaining.contains(stop))
+            .or(remaining.first().copied());
+        if let Some(focus) = stop.and_then(|stop| self.focus.get(stop)) {
+            focus.focus(window, cx);
+        }
     }
 
     /// `true` while a project is reached for: pointer, key focus or menu.

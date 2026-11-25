@@ -356,6 +356,11 @@ impl Render for Explorer {
         let pins = session.pins(cx);
         let pinned = !pins.files.is_empty();
         let folded = pinned && pins.files_collapsed;
+        let drop_files = self.takes_files(cx).then(|| {
+            cx.listener(|s, paths: &ExternalPaths, _, cx| {
+                s.drop_external(paths.paths(), Path::new(""), cx)
+            })
+        });
         let tree = div()
             .id("explorer-tree")
             .flex_1()
@@ -370,7 +375,6 @@ impl Render for Explorer {
                 }),
             )
             .drag_over::<rows::DragNodes>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.05)))
-            .drag_over::<ExternalPaths>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.05)))
             .on_drop(cx.listener(|s, drag: &rows::DragNodes, _, cx| {
                 s.session.update(cx, |session, cx| {
                     if drag.belongs_to(&session.workspace().cloned()) {
@@ -378,9 +382,10 @@ impl Render for Explorer {
                     }
                 })
             }))
-            .on_drop(cx.listener(|s, paths: &ExternalPaths, _, cx| {
-                s.drop_external(paths.paths(), Path::new(""), cx)
-            }))
+            .when_some(drop_files, |d, drop_files| {
+                d.drag_over::<ExternalPaths>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.05)))
+                    .on_drop(drop_files)
+            })
             // Entries dragged past the window's edge leave as files.
             .on_drag_move::<rows::DragNodes>(cx.listener(
                 |s, event: &DragMoveEvent<rows::DragNodes>, window, cx| {

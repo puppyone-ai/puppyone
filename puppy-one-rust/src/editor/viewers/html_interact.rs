@@ -1118,7 +1118,7 @@ impl Render for Waiting {
             .text_size(px(theme::ty().ui.meta))
             .text_color(p.subtle)
             .when_some(self.0, |d, label| {
-                d.child(crate::ui::loading::LoadingMark::new("html-waiting"))
+                d.child(crate::ui::loading::LoadingMark::new("html-waiting").beside(t(label)))
                     .child(t(label))
             })
     }

@@ -521,6 +521,12 @@ impl Shell {
     pub fn workspace_root(&self, cx: &App) -> Option<PathBuf> {
         self.session.project.read(cx).root(cx)
     }
+    /// The local folder this window is still opening or restoring.
+    pub fn opening_folder(&self, cx: &App) -> Option<PathBuf> {
+        self.files(cx)
+            .preparing_root()
+            .map(std::path::Path::to_path_buf)
+    }
     /// `DesktopSidebarFooterNavigation`: Settings, Help and the busy cue.
     fn footer(&self, cx: &mut Context<Self>) -> SidebarFooter {
         let busy = self.session.project.read(cx).picking

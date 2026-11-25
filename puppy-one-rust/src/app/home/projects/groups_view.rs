@@ -80,7 +80,8 @@ impl Homepage {
                         crate::ui::loading::LoadingMark::new("home-projects-loading")
                             .area()
                             .size(crate::ui::loading::LoaderSize::Md)
-                            .tone(crate::ui::loading::Tone::Neutral),
+                            .tone(crate::ui::loading::Tone::Neutral)
+                            .label(tr("common.status.loading")),
                     )
                 })
                 .into_any_element();
@@ -205,18 +206,18 @@ impl Homepage {
         let available = group.drop.as_ref().is_some_and(|d| d.enabled);
         let over = available && self.drop_over.as_ref() == Some(&id);
         let ids: Vec<String> = group.items.iter().map(|i| i.id.clone()).collect();
+        let list = std::rc::Rc::new(ids.clone());
         let stop = self.project_stop(&group.items);
         let mut cells = Vec::with_capacity(group.items.len());
         for (position, item) in group.items.iter().enumerate() {
             let index = self.cell_index(&item.id);
             self.action_bounds.entry(item.id.clone()).or_default();
-            let focus = self.project_focus(&item.id, cx);
-            self.action_focus
-                .entry(item.id.clone())
-                .or_insert_with(|| cx.focus_handle());
+            self.list_of.insert(item.id.clone(), list.clone());
             let lit = self.project_lit(item, window, cx);
+            // One stop for Tab: this project, and its actions, which show
+            // only while it is reached for (roving).
             let is_stop = stop.as_deref() == Some(item.id.as_str());
-            focus.clone().tab_stop(is_stop);
+            let focus = self.project_focus(&item.id, window, cx).tab_stop(is_stop);
             let keys = {
                 let host = self.weak.clone();
                 let ids = ids.clone();

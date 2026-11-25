@@ -813,3 +813,47 @@ fn the_create_menu_walks_into_custom_files_and_escape_closes_the_submenu_first(
     keys(cx, "escape");
     explorer.read_with(cx, |e, _| assert!(e.menu().is_none()));
 }
+
+/// `explorerTreeSemantics.test.tsx`: `does not advertise file import for
+/// read-only drags` — a workspace that cannot take files in offers no
+/// import for files dragged from outside and starts none; a local folder
+/// takes them in.
+#[gpui::test]
+fn a_read_only_workspace_offers_no_import_for_dragged_files(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let explorer = explorer_of(&view, cx);
+    let session = session_of(&view, cx);
+    let imports = std::rc::Rc::new(std::cell::Cell::new(0));
+    let seen = imports.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&session, move |_, event: &explorer::SessionEvent, _| {
+            if matches!(event, explorer::SessionEvent::ResourceOperation(_)) {
+                seen.set(seen.get() + 1);
+            }
+        })
+        .detach();
+    });
+    let outside = tempfile::tempdir().unwrap();
+    let file = outside.path().join("a.md");
+    std::fs::write(&file, "a").unwrap();
+    let read_only = crate::workspace::Workspace::from_provider(std::sync::Arc::new(
+        crate::workspace::testing::Memory::new("memory://read-only/project/"),
+    ))
+    .unwrap();
+    session.update(cx, |s, cx| s.load_workspace(read_only, vec![], cx));
+    explorer.update(cx, |e, cx| {
+        assert!(!e.takes_files(cx), "no import is offered");
+        e.drop_external(std::slice::from_ref(&file), Path::new(""), cx);
+    });
+    assert_eq!(imports.get(), 0, "none starts");
+    let dir = tempfile::tempdir().unwrap();
+    let local = crate::workspace::Workspace::open(dir.path()).unwrap();
+    session.update(cx, |s, cx| {
+        s.load_workspace(local.clone(), local.list(Path::new("")).unwrap(), cx)
+    });
+    explorer.update(cx, |e, cx| {
+        assert!(e.takes_files(cx));
+        e.drop_external(std::slice::from_ref(&file), Path::new(""), cx);
+    });
+    assert_eq!(imports.get(), 1, "a local folder takes them in");
+}

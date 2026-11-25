@@ -1,7 +1,8 @@
 //! `AgentProjectStartDialog`: starts a project by handing its first brief to
 //! one of the person's Local Agents. PuppyOne creates a blank folder (numbered
-//! when its name is already taken in the chosen location), opens it, and hands
-//! the prompt to a fresh chat tab on that Agent's runtime.
+//! when its name is already taken in the chosen location, once per
+//! operation), opens it, and hands the prompt to a fresh chat tab on that
+//! Agent's runtime.
 use super::{
     components::HomepageAgentBrandMark,
     create_project::{Destination, rand_suffix},
@@ -9,7 +10,7 @@ use super::{
     *,
 };
 use crate::{
-    platform::templates,
+    platform::templates::{self, initialization::Request},
     ui::{
         components::Dialog,
         form_input::{InputEvent, TextInput},
@@ -130,6 +131,7 @@ impl Homepage {
                 name,
                 location: self.project_locations.default_location(),
                 choosing: false,
+                operation: None,
             },
             last_auto_name: fallback_name.clone(),
             fallback_name,
@@ -161,6 +163,7 @@ impl Homepage {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let initializer = self.project_locations.initializer();
         let Some(start) = self.agent_start.as_mut() else {
             return;
         };
@@ -176,10 +179,18 @@ impl Homepage {
             return;
         }
         let runtime_id = start.agent.runtime_id.clone();
-        let created = templates::require_project_name(&folder)
-            .and_then(|valid| templates::free_name(&location, valid))
-            .and_then(|free| templates::materialize(&location, &free, &templates::Plan::default()));
-        match created {
+        let created = templates::require_project_name(&folder).and_then(|valid| {
+            let id = start.destination.operation(&location, valid);
+            initializer.create(Request {
+                parent: &location,
+                name: valid,
+                operation_id: &id,
+                plan: &templates::Plan::default(),
+                template: None,
+                number_if_taken: true,
+            })
+        });
+        match created.map(|receipt| receipt.path) {
             Ok(path) => {
                 self.agent_start = None;
                 self.close_dialog(DialogKey::AgentStart, cx);

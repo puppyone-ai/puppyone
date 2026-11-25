@@ -34,6 +34,7 @@ import dmg  # noqa: E402
 import feed  # noqa: E402
 import icon  # noqa: E402
 import identity  # noqa: E402
+import packaged  # noqa: E402
 import sign  # noqa: E402
 from product_source import product_root  # noqa: E402
 from source_identity import verify_source_receipt  # noqa: E402
@@ -66,6 +67,7 @@ def main():
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--release', action='store_true',
                         help='Stable only: fail unless it can be Developer ID signed and notarized')
+    parser.add_argument('--expected-tag', help='The release tag this build must exactly match (v<version>)')
     args = parser.parse_args()
 
     commit, dirty = identity.source_state(ROOT)
@@ -78,6 +80,8 @@ def main():
                                             args.build_number, built_at=args.built_at, dirty=dirty)
         cloud = identity.cloud_configuration(os.environ.get('VITE_DESKTOP_CLOUD_API_URL'),
                                              os.environ.get('VITE_DESKTOP_CLOUD_WEB_URL'))
+        if args.expected_tag is not None:
+            identity.check_release_tag(release, args.expected_tag)
     except ValueError as error:
         raise SystemExit(str(error))
     policy = identity.policy(args.channel)
@@ -123,18 +127,18 @@ def main():
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
-    build_info_bytes = (json.dumps(release, indent=2) + '\n').encode()
+    build_info_bytes = identity.build_info(release)
     if args.build_info_out:
         args.build_info_out.parent.mkdir(parents=True, exist_ok=True)
         args.build_info_out.write_bytes(build_info_bytes)
-    icon_source = ROOT / 'assets/release' / policy['icon']
+    icon_source = icon.source_for(args.channel)
     info = identity.info_plist(release, bundle.document_types(), bundle.cli_declaration())
     bundle.assemble(app, binary, info, resources={
         'desktop-cloud.json': json.dumps(cloud).encode(),
         'build-info.json': build_info_bytes,
         'puppy-app-image.png': icon_source.read_bytes(),
     })
-    icon.build(icon_source, app / 'Contents/Resources/icon.icns')
+    icon.build_for(args.channel, app)
 
     arch = {'arm64': 'arm64', 'x86_64': 'x64'}[platform.machine()]
     stem = f'puppyone-{release["version"]}-{arch}'
@@ -150,6 +154,8 @@ def main():
         if signing['release']:
             sign.notarize(image, signing['notarization'], os.environ)
     metadata = feed.write(out, args.channel, release['version'], [archive], released=release['builtAt'])
+    packaged.verify_macos(out, args.channel, tag=args.expected_tag,
+                          update_feed=stamps.get('PUPPYONE_UPDATE_FEED_URL'))
     for artifact in (app, archive, image, metadata):
         print(f'Packaged {artifact}')
 
