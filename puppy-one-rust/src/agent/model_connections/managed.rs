@@ -9,7 +9,10 @@ use super::wallet::{
     Balance, Catalog, ErrorCode, Reason, Usage, checkout_url, data, parse_balance, parse_catalog,
     parse_usage,
 };
-use crate::cloud::auth::{Broker, model::{ApiRequest, Binding}};
+use crate::cloud::auth::{
+    Broker,
+    model::{ApiRequest, Binding},
+};
 use reqwest::Method;
 use serde_json::{Value, json};
 use std::{
@@ -121,6 +124,10 @@ pub struct RefreshOutcome {
     pub claimed: bool,
 }
 
+/// What a finished refresh asks to read next: the receipt's generation,
+/// user, binding and wait.
+pub type ReceiptRead = (u64, String, Option<Binding>, Duration);
+
 /// Pure-Rust managed wallet state machine (held under a Mutex inside
 /// [`super::service::ModelConnectionService`]).
 pub struct ManagedCore {
@@ -194,7 +201,10 @@ impl ManagedCore {
             balance: self.balance,
             last_usage: self.last_usage.clone(),
             pending: self.pending,
-            trial_credit_micro_usd: self.catalog.as_ref().map_or(0, |c| c.trial_credit_micro_usd),
+            trial_credit_micro_usd: self
+                .catalog
+                .as_ref()
+                .map_or(0, |c| c.trial_credit_micro_usd),
             session_key: self.session.as_ref().map(|s| s.key.clone()),
             checkout_failed: self.checkout_failed,
         }
@@ -238,7 +248,12 @@ impl ManagedCore {
     }
 
     /// Notes a reservation emitted by `model_client` for the current session.
-    pub fn note_reservation(&mut self, session_key: &str, reservation_id: &str, model_id: &str) -> bool {
+    pub fn note_reservation(
+        &mut self,
+        session_key: &str,
+        reservation_id: &str,
+        model_id: &str,
+    ) -> bool {
         if !crate::cloud::auth::reservation::valid(reservation_id) {
             return false;
         }
@@ -295,7 +310,7 @@ impl ManagedCore {
         generation: u64,
         user: Option<String>,
         ended: Result<RefreshOutcome, ErrorCode>,
-    ) -> (bool, Option<(u64, String, Option<Binding>, Duration)>) {
+    ) -> (bool, Option<ReceiptRead>) {
         self.pending = false;
         if generation != self.generation {
             return (true, None);
@@ -333,7 +348,12 @@ impl ManagedCore {
         Some((self.generation, reservation, binding, self.deadline))
     }
 
-    pub fn finish_receipt(&mut self, generation: u64, reservation: &str, usage: Option<Usage>) -> bool {
+    pub fn finish_receipt(
+        &mut self,
+        generation: u64,
+        reservation: &str,
+        usage: Option<Usage>,
+    ) -> bool {
         self.receipt_pending = false;
         if generation == self.generation
             && self.last_reservation.as_deref() == Some(reservation)

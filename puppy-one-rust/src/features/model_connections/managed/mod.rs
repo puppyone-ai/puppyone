@@ -207,7 +207,10 @@ pub(crate) fn install(hooks: Hooks, cx: &mut App) -> Entity<ManagedCompute> {
 }
 
 impl ManagedCompute {
-    fn from_store(store: Entity<super::store::ModelConnectionsStore>, cx: &mut Context<Self>) -> Self {
+    fn from_store(
+        store: Entity<super::store::ModelConnectionsStore>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let mut compute = Self::new(Hooks::app());
         compute.sync_from_snapshot(&store.read(cx).snapshot().managed);
         compute._account = Some(cx.observe(&store, |c: &mut ManagedCompute, store, cx| {

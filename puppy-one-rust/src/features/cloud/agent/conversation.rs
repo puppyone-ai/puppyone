@@ -149,10 +149,9 @@ fn error_label_key(status: Option<u16>, code: Option<&str>) -> &'static str {
                 | "workbench_not_found",
             ),
         ) => "native.cloudAgent.workspaceChanged",
-        (
-            Some(503),
-            Some("managed_agent_inference_disabled" | "cloud_workbench_unavailable"),
-        ) => "native.cloudAgent.serviceUnavailable",
+        (Some(503), Some("managed_agent_inference_disabled" | "cloud_workbench_unavailable")) => {
+            "native.cloudAgent.serviceUnavailable"
+        }
         (Some(409), _) => "native.cloudAgent.conflict",
         _ => "cloud.agent.connectionError",
     }
