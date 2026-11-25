@@ -472,6 +472,7 @@ impl Shell {
         self.sync_dialog_status(cx);
         self.sync_session_view(cx);
         self.sync_window_title(window, cx);
+        self.session.project.update(cx, |p, cx| p.sync_opening_focus(window, cx));
         if self.files(cx).allow_quit {
             self.finish_close(window, cx);
         }
