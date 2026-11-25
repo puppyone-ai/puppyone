@@ -35,6 +35,8 @@ use crate::ui::components::IconButton;
 use crate::ui::components::{Button, ButtonVariant};
 use crate::workspace::cloud::catalog::Item;
 use gpui::{prelude::*, *};
+#[cfg(test)]
+pub(super) use project_menu::PROJECT_MIN_WIDTH;
 pub(super) use seam::Seam;
 use std::path::PathBuf;
 
@@ -188,18 +190,6 @@ impl WindowChrome {
     pub fn set_seam(&self, seam: Option<Seam>) {
         self.seam.set(seam);
     }
-    /// Without the Header, the place and the project for the Explorer's
-    /// bottom while it shows.
-    pub(in crate::app) fn sidebar_context(&self, cx: &App) -> Option<Div> {
-        let session = &self.session;
-        let project = session.workspace || session.fixture || session.opening;
-        (self.context_in_sidebar() && project && !session.home)
-            .then(|| self.project_context(self.rail, cx))
-    }
-    /// The place and the project sit at the Explorer's bottom.
-    fn context_in_sidebar(&self) -> bool {
-        self.seam.get().is_some_and(|seam| seam.context_in_sidebar)
-    }
     /// A handler for a part drawn from a read (the rail).
     fn listener<E: ?Sized>(
         &self,
@@ -251,8 +241,8 @@ impl WindowChrome {
     ///   and the Agent entry, on the theme's own Header.
     ///
     /// Without the Header (experimental) the same parts stand over the
-    /// panes: the actions above the document, the place and the project at
-    /// the Explorer's bottom while it shows.
+    /// panes: the sidebar toggle, the place and the project over the
+    /// Explorer while it shows, the actions above the document.
     fn header(&self, cx: &mut Context<Self>) -> header::TitleBar {
         use crate::localization::t as tr;
         let o = &self.owners;
@@ -302,7 +292,19 @@ impl WindowChrome {
         // With the rail on, the Header keeps the place alone.
         let project = session.workspace || session.fixture || opening;
         let mut bar = header::TitleBar::new();
-        if !o.panes.read(cx).explorer().open {
+        let explorer_open = o.panes.read(cx).explorer().open;
+        // Without the Header the toggle keeps its place either way.
+        if explorer_open && self.seam.get().is_some() {
+            bar = bar.leading(
+                IconButton::new("collapse-explorer", "panel-left")
+                    .debug_selector(|| "collapse-explorer".into())
+                    .label(tr("shell.explorer.collapseSidebar"))
+                    .w(px(theme::control()))
+                    .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+                    .on_click(cx.listener(|s, _, _, cx| s.command(Command::ToggleExplorer, cx))),
+            );
+        }
+        if !explorer_open {
             bar = bar.leading(
                 IconButton::new("expand-explorer", "panel-left")
                     .debug_selector(|| "expand-explorer".into())
@@ -312,7 +314,7 @@ impl WindowChrome {
                     .on_click(cx.listener(|s, _, _, cx| s.command(Command::ToggleExplorer, cx))),
             );
         }
-        if project && !self.context_in_sidebar() {
+        if project {
             bar = bar.leading(self.project_context(self.rail, cx));
         }
         // `app-status`: an update to download or restart into comes first.
@@ -436,7 +438,7 @@ impl Render for WindowChrome {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let bar = self.header(cx);
         let bar = match self.seam.get().filter(|_| !self.session.home) {
-            Some(seam) => bar.seamless(seam.end),
+            Some(seam) => bar.seamless(seam.sidebar, seam.end),
             None => bar,
         };
         div().size_full().child(bar)

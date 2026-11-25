@@ -33,7 +33,7 @@ pub(super) struct TitleBar {
     leading: Vec<AnyElement>,
     actions: Vec<AnyElement>,
     tabs: Option<AnyElement>,
-    seamless: Option<f32>,
+    seamless: Option<super::chrome::window_frame::title_bar::Seamless>,
 }
 impl TitleBar {
     pub fn new() -> Self {
@@ -56,10 +56,11 @@ impl TitleBar {
         self
     }
     /// Without the Header (experimental): no bar of its own, so the panes
-    /// show through, and the actions end `end` before the window's end —
-    /// above the document rather than over the right sidebar.
-    pub fn seamless(mut self, end: f32) -> Self {
-        self.seamless = Some(end);
+    /// show through; the leading entries stay over the Explorer column
+    /// ending at `sidebar` while it shows, and the actions end `end` before
+    /// the window's end — above the document, not over the right sidebar.
+    pub fn seamless(mut self, sidebar: Option<f32>, end: f32) -> Self {
+        self.seamless = Some(super::chrome::window_frame::title_bar::Seamless { sidebar, end });
         self
     }
     /// `.desktop-titlebar-action-divider` (1×18, 3px margins) between two

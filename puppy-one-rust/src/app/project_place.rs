@@ -20,10 +20,7 @@ use crate::{
     },
     workspace::cloud::repository::Context as Association,
 };
-use gpui_kit::{
-    base::{Disableable as _, h_flex},
-    component::Sizable as _,
-};
+use gpui_kit::{base::Disableable as _, component::Sizable as _};
 
 /// What a local folder's Cloud association means for the person.
 #[derive(Clone, Debug, PartialEq)]
@@ -431,21 +428,21 @@ impl WindowCloud {
                 .stroke(1.75)
                 .into_any_element(),
         };
+        // 160px name cap plus padding (12), mark (16), gap (6), and the optional
+        // linked-cloud badge (13 + 6 gap).
+        let max_width = if menu.link.is_some() { 213. } else { 194. };
         let mut button = Button::new("project-place")
+            .debug_selector(|| "project-place".into())
             .variant(ButtonVariant::Titlebar)
             .accessibility_label(accessible)
+            .leading(mark)
+            .label(name)
             .px(px(6.))
             .min_w_0()
-            .flex_shrink(4.)
+            .flex_shrink(1.)
+            .max_w(px(max_width))
             .text_size(px(ty.content))
-            .line_height(px(ty.line_height))
-            .trailing(
-                h_flex()
-                    .min_w_0()
-                    .gap(px(6.))
-                    .child(mark)
-                    .child(div().min_w_0().max_w(px(160.)).truncate().child(name)),
-            );
+            .line_height(px(ty.line_height));
         if menu.link.is_some() {
             let color = if link_has_problem(menu.link.as_ref()) {
                 t.warning

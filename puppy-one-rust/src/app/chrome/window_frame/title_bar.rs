@@ -20,14 +20,24 @@ use crate::{
 use gpui::{prelude::*, *};
 use gpui_kit::base::h_flex;
 
+/// A frame with no bar of its own (`TitleBar::seamless`): the panes show
+/// through it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Seamless {
+    /// Where the Explorer column ends while it shows: the leading entries
+    /// stay over it.
+    pub sidebar: Option<f32>,
+    /// How far before the window's end the actions stop.
+    pub end: f32,
+}
+
 /// Composes the title bar frame around `leading`, optional `tabs`, and
-/// `actions`. A `seamless` frame paints nothing of its own and ends its
-/// actions that far before the window's end (`TitleBar::seamless`).
+/// `actions`, with a bar of its own unless `seamless`.
 pub fn render_frame(
     leading: Vec<AnyElement>,
     tabs: Option<AnyElement>,
     actions: Vec<AnyElement>,
-    seamless: Option<f32>,
+    seamless: Option<Seamless>,
     window: &mut Window,
     cx: &mut App,
 ) -> Div {
@@ -75,8 +85,9 @@ pub fn render_frame(
         .min_w(px(metric::TITLEBAR_DRAG_MIN_WIDTH));
     // A seamless frame's actions stop where the document does; the caption
     // buttons keep the window's end.
+    let sidebar = seamless.and_then(|s| s.sidebar);
     let end = seamless
-        .map(|end| {
+        .map(|Seamless { end, .. }| {
             let captions = if has_trailing_controls {
                 3. * metric::TITLEBAR_CAPTION_BUTTON_WIDTH
             } else {
@@ -104,8 +115,19 @@ pub fn render_frame(
                 .min_w_0()
                 .pl(px(leading_inset))
                 .gap(px(2.))
+                // Over the Explorer: its own width, the rest of it moves
+                // the window.
+                .when_some(sidebar, |d, end| {
+                    d.w(px(end))
+                        .flex_shrink_0()
+                        .overflow_hidden()
+                        .pr(px(metric::TITLEBAR_CONTENT_END))
+                })
                 .children(in_window_menu)
-                .children(leading),
+                .children(leading)
+                .when(sidebar.is_some(), |d| {
+                    d.child(drag_area("header-drag-sidebar").flex_1().min_w_0())
+                }),
         )
         .when_some(tabs, |d, tabs| {
             d.child(div().flex_1().min_w_0().h_full().child(tabs))

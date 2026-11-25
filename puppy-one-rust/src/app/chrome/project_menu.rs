@@ -17,6 +17,9 @@ use gpui_kit::{base::h_flex, component::Sizable as _};
 
 /// `preferredWidth={240}` of the project menu.
 const PROJECT_MENU_WIDTH: f32 = 240.;
+/// The project button narrowed as far as it goes: its folder and a few
+/// letters of the name.
+pub(in crate::app) const PROJECT_MIN_WIDTH: f32 = 56.;
 /// `DesktopTitlebarMenuLayer`'s gap below the trigger.
 const MENU_GAP: f32 = 2.;
 /// `.desktop-project-list` row gap.
@@ -74,25 +77,38 @@ impl WindowChrome {
         let t = cx.palette();
         h_flex()
             .min_w_0()
-            .gap(px(2.))
             .when_some(place, |d, menu| {
-                d.child(self.header_popover(Popover::Place, cloud.place_button(&menu, cx), cx))
-                    .when(!project_hidden, |d| {
-                        // `.desktop-titlebar-context-separator`.
-                        d.child(
-                            div()
-                                .flex_none()
-                                .mx(px(-2.))
-                                .text_size(px(ty.content))
-                                .line_height(px(ty.line_height))
-                                .text_color(t.text_disabled)
-                                .child("/"),
-                        )
-                    })
+                // Narrowed, the place gives way first, down to its mark.
+                let place = cloud.place_button(&menu, cx).flex_shrink(1.).min_w_0();
+                d.child(
+                    self.header_popover(Popover::Place, place, cx)
+                        .flex_shrink(1000.)
+                        .min_w(px(theme::control())),
+                )
+                .when(!project_hidden, |d| {
+                    // `.desktop-titlebar-context-separator`.
+                    d.child(
+                        div()
+                            .flex_none()
+                            .text_size(px(ty.content))
+                            .line_height(px(ty.line_height))
+                            .text_color(t.text_disabled)
+                            .child("/"),
+                    )
+                })
             })
             .when(!project_hidden, |d| {
-                d.child(self.header_popover(Popover::Project, project, cx))
-                    .children(cloud.publish_header_mark(cx))
+                // Narrowed, the folder and the name's first letters stay.
+                d.child(
+                    self.header_popover(Popover::Project, project, cx)
+                        .flex_shrink(1.)
+                        .min_w(px(PROJECT_MIN_WIDTH)),
+                )
+                .children(
+                    cloud
+                        .publish_header_mark(cx)
+                        .map(|mark| div().ml(px(2.)).flex_none().child(mark)),
+                )
             })
     }
     /// The Homepage's Header names the product; with places or an account
@@ -133,8 +149,6 @@ impl WindowChrome {
         let anchor = match popover {
             // The account sits at the Header's end: its menu hangs inward.
             Popover::Account => Anchor::TopRight,
-            // At the Explorer's bottom (no Header) the menus open upward.
-            Popover::Place | Popover::Project if self.context_in_sidebar() => Anchor::BottomLeft,
             _ => Anchor::TopLeft,
         };
         let mut menu = PopoverMenu::new(id)

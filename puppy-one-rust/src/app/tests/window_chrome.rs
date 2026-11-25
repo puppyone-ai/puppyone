@@ -637,16 +637,17 @@ fn the_folder_header_offers_changes_and_the_agent_only_while_its_tool_is_on(
     }
 }
 
-/// Without the Header (experimental): the panes reach the window's top, the
-/// place and the project sit at the Explorer's bottom (their menus open
-/// upward), and the tools stand above the document, never over the right
-/// sidebar. With the Explorer closed the project comes back to the top.
+/// Without the Header (experimental): the panes reach the window's top; the
+/// sidebar toggle, the place and the project stand over the Explorer and
+/// keep their places when it closes; the tools stand above the document,
+/// never over the right sidebar. A narrowed Explorer shortens the place
+/// before the project.
 #[gpui::test]
-fn the_hidden_header_moves_the_project_down_and_the_tools_above_the_document(
+fn the_hidden_header_keeps_the_project_over_the_explorer_and_the_tools_above_the_document(
     cx: &mut TestAppContext,
 ) {
     let temp = tempfile::tempdir().unwrap();
-    let root = temp.path().canonicalize().unwrap().join("alpha");
+    let root = temp.path().canonicalize().unwrap().join("alpha-app");
     std::fs::create_dir(&root).unwrap();
     std::fs::write(root.join("a.md"), "# A\n").unwrap();
     let (view, cx) = setup(cx);
@@ -656,6 +657,18 @@ fn the_hidden_header_moves_the_project_down_and_the_tools_above_the_document(
     settle_cloud(&view, cx, "the project", &|s, cx| {
         s.workspace_root(cx).as_deref() == Some(root.as_path())
     });
+    // Measure the untruncated widths before narrowing inside the Explorer.
+    draw(cx);
+    let full_place = cx
+        .debug_bounds("project-place")
+        .expect("the place")
+        .size
+        .width;
+    let full_project = cx
+        .debug_bounds("header-project")
+        .expect("the project")
+        .size
+        .width;
     let store = view.read_with(cx, |s, _| s.prefs.store.clone());
     store.update(cx, |store, cx| {
         store.change(|p| p.experimental.hidden_header = true, cx)
@@ -663,17 +676,22 @@ fn the_hidden_header_moves_the_project_down_and_the_tools_above_the_document(
     draw(cx);
     let header = px(crate::theme::HEADER);
     let layout = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.frame.layout);
-    let project = cx.debug_bounds("header-project").expect("the project");
     let explorer = layout(cx).explorer;
-    assert!(
-        project.origin.y > px(explorer.bottom() - crate::theme::HEADER - 1.),
-        "at the Explorer's bottom: {project:?}"
-    );
-    assert!(project.right() <= px(explorer.right()));
+    let toggle = cx
+        .debug_bounds("collapse-explorer")
+        .expect("the sidebar toggle");
+    let project = cx.debug_bounds("header-project").expect("the project");
+    for part in [toggle, project] {
+        assert!(part.bottom() <= header, "at the top: {part:?}");
+        assert!(
+            part.right() <= px(explorer.right()),
+            "over the Explorer: {part:?}"
+        );
+    }
     let changes = cx.debug_bounds("header-changes").expect("Changes");
     assert!(changes.bottom() <= header);
-    assert!(changes.right() <= px(layout(cx).editor.right()));
-    // The project menu opens upward from the bottom.
+    assert!(changes.left() >= px(layout(cx).editor.x));
+    // Its menu hangs below it as in the Header.
     cx.simulate_click(project.center(), Modifiers::none());
     draw(cx);
     view.read_with(cx, |s, cx| {
@@ -683,28 +701,76 @@ fn the_hidden_header_moves_the_project_down_and_the_tools_above_the_document(
         )
     });
     command(&view, cx, Command::Escape);
-    // The right sidebar opens: the tools stay above the document.
-    command(&view, cx, Command::ToggleRightSidebar);
-    draw(cx);
-    let editor = layout(cx).editor;
-    assert!(editor.right() < 1280. - 1., "the right sidebar is open");
-    let changes = cx.debug_bounds("header-changes").unwrap();
+    // A narrower Explorer shortens the place before the project.
+    let set_explorer_width = |cx: &mut VisualTestContext, width: f32| {
+        view.update(cx, |s, cx| {
+            s.panes.update(cx, |p, cx| {
+                p.restore(
+                    super::panes::StoredPanes {
+                        explorer_width: width,
+                        ..p.stored()
+                    },
+                    cx,
+                )
+            })
+        });
+        draw(cx);
+    };
+    set_explorer_width(cx, 300.);
+    let place_300 = cx
+        .debug_bounds("project-place")
+        .expect("the place at 300")
+        .size
+        .width;
+    let project_300 = cx
+        .debug_bounds("header-project")
+        .expect("the project at 300")
+        .size
+        .width;
     assert!(
-        changes.right() <= px(editor.right()),
-        "{changes:?} above the document ending at {}",
-        editor.right()
+        place_300 < full_place,
+        "place gives way first at 300px: {place_300:?} vs {full_place:?}"
     );
-    // The Explorer closes: the project comes back to the top.
+    assert_eq!(
+        project_300, full_project,
+        "project stays untruncated at 300px: {project_300:?} vs {full_project:?}"
+    );
+    set_explorer_width(cx, 260.);
+    let place_260 = cx
+        .debug_bounds("project-place")
+        .expect("the place at 260")
+        .size
+        .width;
+    let project_260 = cx
+        .debug_bounds("header-project")
+        .expect("the project at 260")
+        .size
+        .width;
+    assert!(
+        place_260 <= px(crate::theme::control()),
+        "place shrinks down to its mark first: {place_260:?}"
+    );
+    assert!(
+        project_260 >= px(super::chrome::PROJECT_MIN_WIDTH),
+        "project keeps at least PROJECT_MIN_WIDTH at 260px: {project_260:?}"
+    );
+    assert!(
+        full_place - place_260 > full_project - project_260,
+        "place gives up more width than project: place {full_place:?}->{place_260:?}, project {full_project:?}->{project_260:?}"
+    );
+    // Collapsed, the expand button and the project stay in the top 40px.
     command(&view, cx, Command::ToggleExplorer);
     draw(cx);
-    let project = cx.debug_bounds("header-project").expect("the project");
-    assert!(project.bottom() <= header, "{project:?}");
-    // The Header comes back with the experiment off.
-    store.update(cx, |store, cx| {
-        store.change(|p| p.experimental.hidden_header = false, cx)
-    });
-    command(&view, cx, Command::ToggleExplorer);
-    draw(cx);
-    let project = cx.debug_bounds("header-project").unwrap();
-    assert!(project.bottom() <= header, "{project:?}");
+    let expand = cx
+        .debug_bounds("expand-explorer")
+        .expect("collapsed explorer shows expand button");
+    let collapsed_project = cx
+        .debug_bounds("header-project")
+        .expect("collapsed explorer keeps the project");
+    for part in [expand, collapsed_project] {
+        assert!(
+            part.bottom() <= header,
+            "at the top when collapsed: {part:?}"
+        );
+    }
 }

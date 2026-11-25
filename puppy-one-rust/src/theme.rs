@@ -292,6 +292,9 @@ pub mod metric {
     /// The window skeleton's lines (the Header's bottom, the pane edges, the
     /// project rail's edge): one device pixel on a 2× display.
     pub const SHELL_DIVIDER_WIDTH: f32 = 0.5;
+    /// Without the Header: how far the document scrolled up under the tools
+    /// fades into the window's top.
+    pub const DOCUMENT_TOP_FADE: f32 = 24.;
     pub const SWITCH_WIDTH: f32 = 34.;
     pub const SWITCH_HEIGHT: f32 = 20.;
     pub const SWITCH_THUMB: f32 = 14.;

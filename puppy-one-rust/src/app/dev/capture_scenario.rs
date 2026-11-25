@@ -30,7 +30,8 @@
 //! Agent), `agent-settled` (its session prepared or failed),
 //! `agent-prompt:<text>` (the chat sends it), `agent-idle` (no turn
 //! running), `agent-history` (History with discovery allowed) and
-//! `agent-history-open` (its first chat opens), `scroll-x:<by>,<x>,<y>` (a
+//! `agent-history-open` (its first chat opens), `scroll-y:<by>,<x>,<y>` (a
+//! wheel at a window point), `scroll-x:<by>,<x>,<y>` (a
 //! horizontal wheel at a window point), and in a file window `file-menu:<view|settings>` (a
 //! title bar menu), `file-edit` (a space typed at the end of the first
 //! line) and `blur` (focus leaves the document). The capture waits
@@ -70,6 +71,9 @@ enum Step {
     /// A horizontal wheel scroll of this many pixels right at a window point
     /// (`scroll-x:<by>,<x>,<y>`: a wide table's own scrolling).
     ScrollX(f32, f32, f32),
+    /// A wheel scroll of this many pixels down at a window point
+    /// (`scroll-y:<by>,<x>,<y>`: a list other than the editor).
+    ScrollY(f32, f32, f32),
     /// A left click at a window point.
     Click(f32, f32),
     /// The Sub Theme for both colour modes.
@@ -179,13 +183,17 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home" => Step::Command(crate::app::Command::Home),
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
                 "scroll" => Step::Scroll(arg.trim().parse().ok()?),
-                "scroll-x" => {
+                "scroll-x" | "scroll-y" => {
                     let n: Vec<f32> = arg
                         .split(',')
                         .map(|v| v.trim().parse().ok())
                         .collect::<Option<_>>()?;
                     let [by, x, y] = n[..] else { return None };
-                    Step::ScrollX(by, x, y)
+                    if name == "scroll-x" {
+                        Step::ScrollX(by, x, y)
+                    } else {
+                        Step::ScrollY(by, x, y)
+                    }
                 }
                 "pack" => Step::Pack(arg.trim().to_owned()),
                 "mode" => Step::Mode(arg.trim() == "dark"),
@@ -447,11 +455,16 @@ impl Shell {
                     cx,
                 );
             }
-            Step::ScrollX(by, x, y) => {
+            Step::ScrollX(by, x, y) | Step::ScrollY(by, x, y) => {
+                let delta = if matches!(step, Step::ScrollX(..)) {
+                    point(px(-*by), px(0.))
+                } else {
+                    point(px(0.), px(-*by))
+                };
                 window.dispatch_event(
                     PlatformInput::ScrollWheel(ScrollWheelEvent {
                         position: point(px(*x), px(*y)),
-                        delta: ScrollDelta::Pixels(point(px(-*by), px(0.))),
+                        delta: ScrollDelta::Pixels(delta),
                         modifiers: Modifiers::default(),
                         touch_phase: TouchPhase::Moved,
                     }),
