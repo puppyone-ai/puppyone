@@ -39,6 +39,7 @@ use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
+    rc::Rc,
     sync::{Arc, atomic::AtomicBool},
 };
 
@@ -457,7 +458,11 @@ pub struct SetupSection {
     directory_open: bool,
     action_error: bool,
     dialog: Option<Entity<ActivationDialog>>,
+    /// `onReturnToLauncher`.
+    on_return: Option<ReturnToLauncher>,
 }
+/// Where the keyboard goes when a closing dialog leaves it nowhere.
+type ReturnToLauncher = Rc<dyn Fn(&mut Window, &mut App)>;
 impl SetupSection {
     pub fn new(
         presentation: Presentation,
@@ -502,7 +507,14 @@ impl SetupSection {
             directory_open: false,
             action_error: false,
             dialog: None,
+            on_return: None,
         }
+    }
+    /// `onReturnToLauncher`: where the keyboard goes when a closing dialog
+    /// leaves it nowhere.
+    pub fn on_return(mut self, back: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_return = Some(Rc::new(back));
+        self
     }
     fn sync_presence_client(&mut self, cx: &mut Context<Self>) {
         let enabled = self
@@ -634,11 +646,18 @@ impl SetupSection {
         }));
         cx.notify();
     }
-    /// `close`.
-    fn close(&mut self, cx: &mut Context<Self>) {
+    /// `close`. No trigger takes the keyboard back as the dialog goes (a
+    /// completed activation's row is gone), so focus left in it, or
+    /// nowhere, returns to the launcher.
+    fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.selected = None;
-        self.dialog = None;
+        let dialog = self.dialog.take();
+        let stranded = window.focused(cx).is_none()
+            || dialog.is_some_and(|dialog| dialog.read(cx).focus.contains_focused(window, cx));
         cx.notify();
+        if stranded && let Some(back) = self.on_return.clone() {
+            window.defer(cx, move |window, cx| back(window, cx));
+        }
     }
     fn change_suggestions(
         &self,
@@ -1073,8 +1092,8 @@ impl ActivationDialog {
     }
     fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let section = self.section.clone();
-        window.defer(cx, move |_, cx| {
-            let _ = section.update(cx, |s, cx| s.close(cx));
+        window.defer(cx, move |window, cx| {
+            let _ = section.update(cx, |s, cx| s.close(window, cx));
         });
     }
 }

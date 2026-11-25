@@ -53563,6 +53563,42 @@
           "test": "app::tests::across_windows::a_new_window_keeps_the_persisted_appearance"
         }
       ]
+    },
+    {
+      "id": "launcher-keyboard-focus-and-announcements",
+      "acceptance": "Launcher Agent rows keep keyboard focus by Agent while discovery adds rows before them. When setup's activation dialog closes with the keyboard in it, the keyboard goes to the launcher's first usable detected Agent, else its bundled Agent, else its heading, which is focusable but never a Tab stop. A visually hidden status, outside the detected Agents' list, says nothing for discovery's first 200ms, then what discovery is doing, and 'Agent scan complete' once a scan finds an Agent; a failed scan or one that found nothing announces nothing, and adding a row announces nothing new.",
+      "typescript": [
+        {
+          "path": "tests/component/terminal/startup/desktop-terminal.launcher.test.tsx",
+          "sha256": "410c57adb41d864971d936154c24228ea5ee67b6bfbd10bc3d3bf2f9d1e7fbd3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=false"
+            },
+            {
+              "index": 1,
+              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=true"
+            },
+            {
+              "index": 7,
+              "name": "Unified Workbench launcher > delays compact feedback outside the Agent list, adds results immediately, and preserves keyed focus"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::closing_setup_gives_the_keyboard_back_to_the_launcher"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -61683,32 +61719,6 @@
             {
               "index": 14,
               "name": "Unified Workbench launcher > starts feedback only when presented and retires entry motion before hidden tabs can replay it"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "launcher-keyboard-focus-and-announcements",
-      "kind": "gap",
-      "reason": "TS returns keyboard focus to the launcher (its first Agent, else its heading) when Agent setup closes, keeps a focused row focused while discovery adds rows, marks the Agent list busy and announces 'Agent scan complete' to assistive technology. Native launcher rows are not keyboard-focusable, closing setup leaves focus nowhere, and there is no live announcement; the visual feedback is covered by the launcher rows tests.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/workbench-contribution.md",
-      "typescript": [
-        {
-          "path": "tests/component/terminal/startup/desktop-terminal.launcher.test.tsx",
-          "sha256": "410c57adb41d864971d936154c24228ea5ee67b6bfbd10bc3d3bf2f9d1e7fbd3",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=false"
-            },
-            {
-              "index": 1,
-              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=true"
-            },
-            {
-              "index": 7,
-              "name": "Unified Workbench launcher > delays compact feedback outside the Agent list, adds results immediately, and preserves keyed focus"
             }
           ]
         }
