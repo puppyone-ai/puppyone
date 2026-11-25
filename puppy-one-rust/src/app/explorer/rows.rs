@@ -17,12 +17,23 @@ impl Explorer {
     /// OS files dropped on `target`: imported, unless they are this
     /// project's own entries coming back from a drag that left the window
     /// (`resource-drag-session-service`'s internal drop), which move.
+    /// `onImportFiles`: whether files from outside can come into this
+    /// workspace (a read-only one takes none, and says so by offering none).
+    pub(in crate::app) fn takes_files(&self, cx: &App) -> bool {
+        self.session
+            .read(cx)
+            .workspace()
+            .is_some_and(|ws| ws.capabilities().import)
+    }
     pub(in crate::app) fn drop_external(
         &mut self,
         paths: &[PathBuf],
         target: &Path,
         cx: &mut Context<Self>,
     ) {
+        if !self.takes_files(cx) {
+            return;
+        }
         let root = self
             .session
             .read(cx)
@@ -391,6 +402,13 @@ impl Explorer {
             parent_of(&item.path)
         };
         let import_target = drop_target.clone();
+        // `onImportFiles`: files from outside are offered only where they
+        // can come in.
+        let drop_files = self.takes_files(cx).then(|| {
+            cx.listener(move |s, paths: &ExternalPaths, _, cx| {
+                s.drop_external(paths.paths(), &import_target, cx)
+            })
+        });
         row.on_click(
             cx.listener(move |s, e: &ClickEvent, w, cx| s.click_row(index, e.modifiers(), w, cx)),
         )
@@ -412,7 +430,6 @@ impl Explorer {
             |drag, _, _, cx| cx.new(|_| drag.clone()),
         )
         .drag_over::<DragNodes>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.18)))
-        .drag_over::<ExternalPaths>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.18)))
         .on_drop(cx.listener(move |s, drag: &DragNodes, _, cx| {
             s.session.update(cx, |session, cx| {
                 if drag.belongs_to(&session.workspace().cloned()) {
@@ -420,9 +437,10 @@ impl Explorer {
                 }
             })
         }))
-        .on_drop(cx.listener(move |s, paths: &ExternalPaths, _, cx| {
-            s.drop_external(paths.paths(), &import_target, cx)
-        }))
+        .when_some(drop_files, |d, drop_files| {
+            d.drag_over::<ExternalPaths>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.18)))
+                .on_drop(drop_files)
+        })
         .into_any_element()
     }
     /// The quiet "New" row after the last item; it opens the create menu for
