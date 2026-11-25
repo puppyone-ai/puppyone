@@ -102,9 +102,6 @@ impl Drop for SigningIn {
     }
 }
 
-/// A connection's catalog, or why it could not be read.
-type CatalogResult = Result<Vec<client::CatalogModel>, String>;
-
 pub struct ModelConnections {
     items: Vec<ModelConnection>,
     loaded: bool,
@@ -147,7 +144,7 @@ pub struct ModelConnections {
     /// The service catalog of the shown connection (`catalogs`).
     catalog: Option<(String, Result<Vec<client::CatalogModel>, String>)>,
     /// A catalog being read, and whose.
-    catalog_rx: Option<(String, Receiver<CatalogResult>)>,
+    catalog_rx: Option<(String, client::CatalogRead)>,
     /// Agent tool round trips that passed, by route; one in flight.
     /// Agent tool round trips by route: the result and when it arrived
     /// (the chip's entrance is keyed by it).

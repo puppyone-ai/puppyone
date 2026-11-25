@@ -33,9 +33,11 @@ fn rail(
         style.structure_hover_color,
     );
     let rail_group = id.clone();
-    let plus = |w: f32, h: f32| {
+    let plus = |w: f32, h: f32, part: &'static str| {
+        let selector = format!("{rail_group}-{part}");
         let rail_group = rail_group.clone();
         div()
+            .debug_selector(move || selector)
             .absolute()
             .left(px(bar.origin.x + (bar.size.width - w) / 2.))
             .top(px(bar.origin.y + (bar.size.height - h) / 2.))
@@ -44,9 +46,11 @@ fn rail(
             .rounded(px(1.))
             .group_hover(rail_group, move |s| s.bg(hover_color))
     };
+    let (selector, bar_selector) = (id.to_string(), format!("{id}-bar"));
     div()
         .id(id.clone())
         .group(id.clone())
+        .debug_selector(move || selector)
         .absolute()
         .left(px(bounds.origin.x))
         .top(px(bounds.origin.y))
@@ -59,6 +63,7 @@ fn rail(
         .on_click(move |_, window, cx| on_click(window, cx))
         .child(
             div()
+                .debug_selector(move || bar_selector)
                 .absolute()
                 .left(px(bar.origin.x))
                 .top(px(bar.origin.y))
@@ -70,8 +75,16 @@ fn rail(
                 .bg(style.structure_background)
                 .group_hover(id, move |s| s.bg(hover_bg).border_color(hover_border)),
         )
-        .child(plus(PLUS_HORIZONTAL_STROKE.0, PLUS_HORIZONTAL_STROKE.1))
-        .child(plus(PLUS_VERTICAL_STROKE.0, PLUS_VERTICAL_STROKE.1))
+        .child(plus(
+            PLUS_HORIZONTAL_STROKE.0,
+            PLUS_HORIZONTAL_STROKE.1,
+            "plus-horizontal",
+        ))
+        .child(plus(
+            PLUS_VERTICAL_STROKE.0,
+            PLUS_VERTICAL_STROKE.1,
+            "plus-vertical",
+        ))
         .into_any_element()
 }
 
@@ -232,9 +245,11 @@ pub fn grip_with_options(
     } = handlers;
     let key_menu = menu.clone();
     let focus_ring = style.focus_ring;
+    let (selector, face_selector) = (id.to_string(), format!("{id}-face"));
     let mut root = div()
         .id(id.clone())
         .group(id.clone())
+        .debug_selector(move || selector)
         .absolute()
         .left(px(bounds.origin.x))
         .top(px(bounds.origin.y))
@@ -271,6 +286,7 @@ pub fn grip_with_options(
             });
     }
     let mut pill = div()
+        .debug_selector(move || face_selector)
         .absolute()
         .left(px(left))
         .top(px(top))

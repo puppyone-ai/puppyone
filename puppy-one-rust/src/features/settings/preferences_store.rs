@@ -81,13 +81,14 @@ impl PreferencesStore {
     ) {
         let (writer, writes) = std::sync::mpsc::channel();
         let (events, received) = async_channel::unbounded();
-        (Self::with_storage((writer, received), cx), writes, events)
+        (
+            Self::with_storage((writer, received, None), cx),
+            writes,
+            events,
+        )
     }
     fn with_storage(
-        (writer, rx): (
-            std::sync::mpsc::Sender<Write>,
-            async_channel::Receiver<Event>,
-        ),
+        (writer, rx, saved): preference_storage::Started,
         cx: &mut Context<Self>,
     ) -> Self {
         cx.spawn(async move |this, cx| {
@@ -105,7 +106,7 @@ impl PreferencesStore {
             });
         })
         .detach();
-        Self {
+        let mut store = Self {
             state: Preferences::default(),
             loaded: false,
             error: None,
@@ -115,7 +116,13 @@ impl PreferencesStore {
             storage_stopped: false,
             writer: Some(writer),
             acknowledgements: Vec::new(),
+        };
+        // Saved preferences already read: the store starts with them, so
+        // the window that makes it paints them first.
+        if let Some(saved) = saved {
+            store.loaded_with(Ok(Some(saved)));
         }
+        store
     }
     pub fn memory() -> Self {
         Self {
@@ -209,18 +216,22 @@ impl PreferencesStore {
             }
         }
     }
+    /// The saved preferences, or why they could not be read.
+    fn loaded_with(&mut self, result: Result<Option<serde_json::Value>, String>) {
+        match result {
+            Ok(Some(v)) => match Preferences::from_stored(v) {
+                Ok(p) => self.state = p,
+                Err(e) => self.error = Some(e.to_string()),
+            },
+            Ok(None) => {}
+            Err(e) => self.error = Some(e),
+        }
+        self.loaded = true;
+    }
     fn receive(&mut self, event: Event, cx: &mut Context<Self>) {
         match event {
             Event::Loaded(result) => {
-                match result {
-                    Ok(Some(v)) => match Preferences::from_stored(v) {
-                        Ok(p) => self.state = p,
-                        Err(e) => self.error = Some(e.to_string()),
-                    },
-                    Ok(None) => {}
-                    Err(e) => self.error = Some(e),
-                }
-                self.loaded = true;
+                self.loaded_with(result);
                 cx.emit(PreferencesChanged);
             }
             Event::Fresh(imported) => {
@@ -441,6 +452,40 @@ mod tests {
         change(|p| p.explorer_width = 260., cx);
         change(|p| p.sidebar_collapsed = false, cx);
         owner.read_with(cx, |o, _| assert_eq!(o.heard, vec![true, false]));
+    }
+    /// `interfaceStyleFirstPaint`: `paints the persisted editor palette
+    /// before React instead of flashing the warm fallback` — saved
+    /// preferences are read before the store is made, so the launch window
+    /// that makes it already has the saved theme mode and Sub Theme, before
+    /// any work runs.
+    #[gpui::test]
+    fn saved_preferences_are_there_the_moment_the_store_is_made(cx: &mut TestAppContext) {
+        use super::super::ThemeMode;
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let saved = Preferences {
+            theme_mode: ThemeMode::Light,
+            sub_theme_ids: super::super::SubThemeIds {
+                light: "default.graphite".into(),
+                dark: crate::theme::DEFAULT_PACK.into(),
+            },
+            ..Default::default()
+        };
+        std::fs::write(
+            dir.path().join("preferences.json"),
+            serde_json::to_string(&saved).unwrap(),
+        )
+        .unwrap();
+        let store = cx.new(|cx| PreferencesStore::isolated(dir.path().to_path_buf(), cx));
+        store.read_with(cx, |s, _| {
+            assert!(s.loaded, "loaded when made");
+            assert_eq!(s.state.theme_mode, ThemeMode::Light);
+            assert_eq!(s.state.sub_theme_ids.light, "default.graphite");
+        });
+        // Nothing saved yet: the worker reads (and may import) as before.
+        let fresh = tempfile::tempdir().unwrap();
+        let store = cx.new(|cx| PreferencesStore::isolated(fresh.path().to_path_buf(), cx));
+        assert!(!store.read_with(cx, |s, _| s.loaded));
     }
     /// `locale preference persistence`: an unreadable preferences file
     /// loads the defaults (the language follows the system) and says so.

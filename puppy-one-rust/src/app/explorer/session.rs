@@ -411,8 +411,9 @@ impl ExplorerSession {
                             .tree
                             .refresh_folders(vec![(folder.clone(), nodes)], vec![]),
                         // A background reread: never a dialog, the tree
-                        // keeps what it showed.
+                        // keeps what it showed, unless access was denied.
                         Err(error) if folder.as_os_str().is_empty() => {
+                            s.forget_rows_when_denied(&error);
                             cx.emit(SessionEvent::WatchFailed(error))
                         }
                         Err(error) => s
@@ -442,12 +443,21 @@ impl ExplorerSession {
             // The root reread of `retry_root`.
             Ok(nodes) if path.as_os_str().is_empty() => self.tree.refresh_children(path, nodes),
             Err(error) if path.as_os_str().is_empty() => {
+                self.forget_rows_when_denied(&error);
                 self.operation_error = Some(error.to_string().into())
             }
             Ok(nodes) => self.tree.attach_children(path, nodes),
             Err(error) => self.tree.fail_children(path, error.to_string()),
         }
         cx.notify();
+    }
+    /// A root read failed: a network failure keeps the rows shown (cached),
+    /// but denied access clears them, so nothing the person may no longer
+    /// read stays on screen (`DataWorkspace`).
+    fn forget_rows_when_denied(&mut self, error: &crate::workspace::Error) {
+        if error.kind == crate::workspace::contracts::ErrorKind::PermissionDenied {
+            self.tree.refresh_children(Path::new(""), Vec::new());
+        }
     }
     /// The create form made `path` in `parent`; `listing` is the parent's
     /// fresh listing (`None` when it could not be read). The new entry is

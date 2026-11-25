@@ -761,3 +761,77 @@ fn chosen_models_are_offered_without_tool_evidence_unless_they_refuse_tools() {
         .collect();
     assert_eq!(offered, ["qwen-9b", "gemma-4b"]);
 }
+
+/// `connectionRuntime.test.mjs`: `bounds parallel metadata requests and
+/// cancels queued work` — at most two metadata requests are open at once;
+/// a third waits its turn, and cancelled while waiting it never reaches the
+/// service.
+#[test]
+fn metadata_requests_run_two_at_a_time_and_a_waiting_one_can_be_cancelled() {
+    use super::drivers;
+    use std::io::{Read as _, Write as _};
+    use std::time::Duration;
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (arrived, held) = std::sync::mpsc::channel::<std::net::TcpStream>();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let _ = arrived.send(stream);
+        }
+    });
+    let conn = ModelConnection {
+        endpoint: format!("http://127.0.0.1:{port}/v1"),
+        driver: Driver::OpenaiCompatible,
+        ..Default::default()
+    };
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let client = drivers::metadata_client().unwrap();
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let read = |cancel: Option<tokio_util::sync::CancellationToken>| {
+        let (client, conn) = (client.clone(), conn.clone());
+        runtime.spawn(async move {
+            let work = drivers::list_models(&client, &conn, None);
+            match cancel {
+                Some(cancel) => drivers::until_cancelled(work, &cancel).await,
+                None => work.await,
+            }
+        })
+    };
+    let (first, second) = (read(None), read(None));
+    let mut open: Vec<_> = (0..2)
+        .map(|_| {
+            held.recv_timeout(Duration::from_secs(10))
+                .expect("two requests")
+        })
+        .collect();
+    let third = read(Some(cancel.clone()));
+    assert!(
+        held.recv_timeout(Duration::from_millis(300)).is_err(),
+        "a third waits its turn"
+    );
+    cancel.cancel();
+    let third = runtime
+        .block_on(async { tokio::time::timeout(Duration::from_secs(5), third).await })
+        .expect("a cancelled read ends at once");
+    assert_eq!(third.unwrap().unwrap_err(), "CANCELLED");
+    for stream in &mut open {
+        let mut request = [0u8; 2048];
+        let _ = stream.read(&mut request);
+        let body = r#"{"data":[]}"#;
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+    }
+    assert!(runtime.block_on(first).unwrap().is_ok());
+    assert!(runtime.block_on(second).unwrap().is_ok());
+    assert!(
+        held.recv_timeout(Duration::from_millis(300)).is_err(),
+        "the cancelled request never reached the service"
+    );
+}

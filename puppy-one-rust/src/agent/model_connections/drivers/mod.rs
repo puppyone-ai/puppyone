@@ -53,6 +53,24 @@ fn model_id(value: &serde_json::Value) -> Option<String> {
     (!id.trim().is_empty() && id.len() <= 300 && !id.chars().any(char::is_control))
         .then(|| id.to_owned())
 }
+/// `createModelMetadataClient({ maxConcurrent: 2 })`: at most two metadata
+/// requests (catalog listings, Ollama model details) are open at once across
+/// the app; the rest wait their turn.
+pub(crate) static METADATA_TURNS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+
+/// `AbortSignal`: `work`, unless `cancel` comes first (`CANCELLED`); its
+/// requests, waiting their turn or sent, end with it.
+pub async fn until_cancelled<T>(
+    work: impl std::future::Future<Output = Result<T, String>>,
+    cancel: &tokio_util::sync::CancellationToken,
+) -> Result<T, String> {
+    tokio::select! {
+        biased;
+        _ = cancel.cancelled() => Err("CANCELLED".to_owned()),
+        result = work => result,
+    }
+}
+
 /// How a catalog request authenticates.
 #[derive(Clone, Copy)]
 enum KeyHeader {
@@ -75,6 +93,10 @@ async fn get_json_as(
     key: Option<&str>,
     header: KeyHeader,
 ) -> Result<serde_json::Value, String> {
+    let _turn = METADATA_TURNS
+        .acquire()
+        .await
+        .map_err(|_| "CANCELLED".to_owned())?;
     let mut request = client.get(url);
     match (key, header) {
         (Some(key), KeyHeader::Bearer) => request = request.bearer_auth(key),

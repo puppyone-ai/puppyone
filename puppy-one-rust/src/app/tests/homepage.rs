@@ -1486,6 +1486,11 @@ fn the_first_homepage_waits_for_the_session_and_the_whole_list(cx: &mut TestAppC
     settle_cloud(&view, cx, "the local read", &|s, cx| {
         !s.home.read(cx).reading
     });
+    // The budget is wall-clock: a slow runner's local read alone can
+    // outlast it. The hold starts over so only the session can keep it.
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, _| h.relaunch_first_paint())
+    });
     std::thread::sleep(std::time::Duration::from_millis(20));
     draw(cx);
     assert!(
@@ -1803,6 +1808,62 @@ fn only_a_listed_project_leaves_the_window_as_its_path(cx: &mut TestAppContext) 
         });
     }
     assert_eq!(*begun.borrow(), [listed]);
+}
+
+/// `projectOpeningSurface.test.tsx`: `returns focus to the entry that
+/// opened the project when the open ends without one` — while the project
+/// is on its way in the wait has the keyboard; when the open fails, the
+/// project's entry has it again.
+#[gpui::test]
+fn an_open_that_ends_without_a_project_gives_the_keyboard_back(cx: &mut TestAppContext) {
+    let (view, cx, temp, ids) = homepage_with_projects(cx, 1);
+    let entry = view.read_with(cx, |s, cx| s.home.read(cx).focus[&ids[0]].clone());
+    cx.update(|w, cx| entry.focus(w, cx));
+    draw(cx);
+    // A folder gone by the time it opens.
+    let gone = temp.path().canonicalize().unwrap().join("gone");
+    // The open starts before anything of it is pumped (a missing folder
+    // can fail at once).
+    view.update_in(cx, |s, w, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(gone.clone())));
+        s.session
+            .project
+            .update(cx, |p, cx| p.sync_opening_focus(w, cx));
+    });
+    draw(cx);
+    let wait = view.read_with(cx, |s, cx| {
+        s.session.project.read(cx).opening_wait().unwrap()
+    });
+    assert!(view.read_with(cx, |s, cx| s.opening(cx)), "on its way in");
+    assert!(
+        cx.update(|w, _| wait.is_focused(w)),
+        "the wait has the keyboard"
+    );
+    settle_cloud(&view, cx, "the open to fail", &|s, cx| !s.opening(cx));
+    view.update_in(cx, |s, w, cx| s.receive(w, cx));
+    draw(cx);
+    assert!(cx.update(|w, _| entry.is_focused(w)), "back on its entry");
+    // An open that brings its project in keeps the keyboard in the project.
+    let folder = temp.path().canonicalize().unwrap().join("p0");
+    view.update_in(cx, |s, w, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(folder.clone())));
+        s.session
+            .project
+            .update(cx, |p, cx| p.sync_opening_focus(w, cx));
+    });
+    settle_cloud(&view, cx, "the project", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(folder.as_path())
+    });
+    view.update_in(cx, |s, w, cx| s.receive(w, cx));
+    draw(cx);
+    assert!(
+        !cx.update(|w, _| entry.is_focused(w)),
+        "not back on the Homepage"
+    );
 }
 
 /// `homepageProjectListKeyboard.test.tsx`: `is one stop for Tab: the first

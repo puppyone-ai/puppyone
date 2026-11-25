@@ -53427,6 +53427,161 @@
           "test": "app::tests::explorer_pane::a_read_only_workspace_offers_no_import_for_dragged_files"
         }
       ]
+    },
+    {
+      "id": "window-folder-probes-keep-the-newest-answer",
+      "acceptance": "Each probe of whether the open project's folder can be opened takes the next number; only the newest probe's answer, for the folder the window still shows, is applied, so an older answer that arrives late never replaces a newer one.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/missingProjectFolder.test.tsx",
+          "sha256": "d02fb670e7296205eaa060cb3db7cf9d8ba511a83a2d5b4e8dd7b56288b184e5",
+          "cases": [
+            {
+              "index": 4,
+              "name": "knowing which of a window's folders cannot be opened now > never lets an older answer that arrives late replace a newer one"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::folder_availability::a_late_answer_never_replaces_a_newer_one"
+        }
+      ]
+    },
+    {
+      "id": "explorer-denied-root-clears-cached-rows",
+      "acceptance": "When the Explorer's root cannot be read, a network failure keeps the rows it showed (cached) with the reason and Retry; denied access (a Cloud 401/403, PermissionDenied) clears them, on the root retry and on a background reread alike, so nothing the person may no longer read stays on screen.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/dataWorkspaceProjectSwitching.test.tsx",
+          "sha256": "3cea5b4939197c3cae20cc040cfeb9b93415717ec27a0ba4a2ef4fa50ebb0e2b",
+          "cases": [
+            {
+              "index": 3,
+              "name": "DataWorkspace Project switching > keeps cached rows on network failure but clears them when permission is denied"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::denied_access_clears_the_cached_rows_a_network_failure_keeps"
+        }
+      ]
+    },
+    {
+      "id": "project-opening-gives-the-keyboard-back",
+      "acceptance": "While a project is on its way into a project window, the opening wait has the keyboard. An open that ends without bringing a project in gives the keyboard back to what had it when the open started (the entry that started it), unless something outside the wait has taken it since; an open that brings its project in keeps the keyboard in the project.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/projectOpeningSurface.test.tsx",
+          "sha256": "a3f370e8ba7f20372fc54d59e9d70dbbaefa2d1e59fc2eb223e104ba71f7fbb8",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Local project opening > returns focus to the entry that opened the project when the open ends without one"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::an_open_that_ends_without_a_project_gives_the_keyboard_back"
+        }
+      ]
+    },
+    {
+      "id": "model-metadata-requests-bounded-and-cancellable",
+      "acceptance": "At most two model metadata requests (catalog listings, Ollama model details) are open at once across the app; the rest wait their turn. A read that is cancelled (`until_cancelled`, and a Settings catalog read dropped for a newer one) ends at once with CANCELLED, and a request still waiting its turn never reaches the service.",
+      "typescript": [
+        {
+          "path": "tests/integration/model-connections/runtime/connectionRuntime.test.mjs",
+          "sha256": "25593e8edb9ceed72ba5d509d474b8435f61e4ca45f9446548e68c73613bd558",
+          "cases": [
+            {
+              "index": 1,
+              "name": "model network boundaries > bounds parallel metadata requests and cancels queued work"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::tests::metadata_requests_run_two_at_a_time_and_a_waiting_one_can_be_cancelled"
+        }
+      ]
+    },
+    {
+      "id": "launch-window-paints-saved-preferences",
+      "acceptance": "Saved preferences are read before the preferences store is made, so the launch window that makes it has the saved theme mode and Sub Theme from its first frame instead of the start-up default; when nothing is saved yet (a first launch, possibly importing the Electron product's preferences) they are read on the worker as before.",
+      "typescript": [
+        {
+          "path": "tests/integration/appearance/themes/interfaceStyleFirstPaint.test.ts",
+          "sha256": "31b4435655fa5d9bb7543670605f0b9e841f33882d4898e193d070963eb2412d",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Interface style registry > paints the persisted editor palette before React instead of flashing the warm fallback"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::saved_preferences_are_there_the_moment_the_store_is_made"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::a_new_window_keeps_the_persisted_appearance"
+        }
+      ]
+    },
+    {
+      "id": "launcher-keyboard-focus-and-announcements",
+      "acceptance": "Launcher Agent rows keep keyboard focus by Agent while discovery adds rows before them. When setup's activation dialog closes with the keyboard in it, the keyboard goes to the launcher's first usable detected Agent, else its bundled Agent, else its heading, which is focusable but never a Tab stop. A visually hidden status, outside the detected Agents' list, says nothing for discovery's first 200ms, then what discovery is doing, and 'Agent scan complete' once a scan finds an Agent; a failed scan or one that found nothing announces nothing, and adding a row announces nothing new.",
+      "typescript": [
+        {
+          "path": "tests/component/terminal/startup/desktop-terminal.launcher.test.tsx",
+          "sha256": "410c57adb41d864971d936154c24228ea5ee67b6bfbd10bc3d3bf2f9d1e7fbd3",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=false"
+            },
+            {
+              "index": 1,
+              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=true"
+            },
+            {
+              "index": 7,
+              "name": "Unified Workbench launcher > delays compact feedback outside the Agent list, adds results immediately, and preserves keyed focus"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::closing_setup_gives_the_keyboard_back_to_the_launcher"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::right_sidebar::launcher::tests::discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -53583,24 +53738,6 @@
             {
               "index": 15,
               "name": "registered database DOM viewer > waits for confirmed exit before opening a replacement session"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "launch-window-first-paint",
-      "kind": "gap",
-      "reason": "TS paints the persisted palette before React from synchronously read storage. Rust reads preferences on a worker; the launch window applies the start-up default (dark Neutral) until they load, so a light or custom-palette user can see one frame of the default if the read lands after the first frame. Windows opened after loading are covered by appearance-first-paint.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/appearance/appearance-authority.md",
-      "typescript": [
-        {
-          "path": "tests/integration/appearance/themes/interfaceStyleFirstPaint.test.ts",
-          "sha256": "31b4435655fa5d9bb7543670605f0b9e841f33882d4898e193d070963eb2412d",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Interface style registry > paints the persisted editor palette before React instead of flashing the warm fallback"
             }
           ]
         }
@@ -57055,24 +57192,6 @@
             {
               "index": 4,
               "name": "project-owned Terminal IPC and native shutdown > retains a timed-out close and retries without losing the native handle"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "model-metadata-request-bounds",
-      "kind": "gap",
-      "reason": "Rust reads the catalog of the connection Settings shows on a thread of its own. A superseded read's answer is discarded, but its request is not cancelled (it ends at its 15-second timeout), and reads are not limited to two at once.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
-      "typescript": [
-        {
-          "path": "tests/integration/model-connections/runtime/connectionRuntime.test.mjs",
-          "sha256": "25593e8edb9ceed72ba5d509d474b8435f61e4ca45f9446548e68c73613bd558",
-          "cases": [
-            {
-              "index": 1,
-              "name": "model network boundaries > bounds parallel metadata requests and cancels queued work"
             }
           ]
         }
@@ -61589,32 +61708,6 @@
       ]
     },
     {
-      "id": "launcher-keyboard-focus-and-announcements",
-      "kind": "gap",
-      "reason": "TS returns keyboard focus to the launcher (its first Agent, else its heading) when Agent setup closes, keeps a focused row focused while discovery adds rows, marks the Agent list busy and announces 'Agent scan complete' to assistive technology. Native launcher rows are not keyboard-focusable, closing setup leaves focus nowhere, and there is no live announcement; the visual feedback is covered by the launcher rows tests.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/terminal/workbench-contribution.md",
-      "typescript": [
-        {
-          "path": "tests/component/terminal/startup/desktop-terminal.launcher.test.tsx",
-          "sha256": "410c57adb41d864971d936154c24228ea5ee67b6bfbd10bc3d3bf2f9d1e7fbd3",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=false"
-            },
-            {
-              "index": 1,
-              "name": "Unified Workbench launcher > returns setup focus to the launcher with installed=true"
-            },
-            {
-              "index": 7,
-              "name": "Unified Workbench launcher > delays compact feedback outside the Agent list, adds results immediately, and preserves keyed focus"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "terminal-legacy-split-ui",
       "kind": "out-of-scope",
       "reason": "These cases exercise TS's terminal-only split UI (TerminalGroupViewport, TerminalSessionHeader, TerminalSplitResizeHandle, useTerminalTabMoveDrag and its drop-target resolver), which only the terminal split visual smoke harness renders; the product's terminal tabs live in the Auxiliary Workbench. Native terminals have only the Workbench's header, splits and drags, mapped with the workbench tests.",
@@ -65895,42 +65988,6 @@
       ]
     },
     {
-      "id": "cloud-explorer-permission-denied-clears-cached-rows",
-      "kind": "gap",
-      "reason": "ExplorerSession::refresh_folders emits WatchFailed/Error on root refresh failure but does not yet distinguish 403/PermissionDenied to immediately clear stale cached Cloud rows on permission revocation.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/projects/dataWorkspaceProjectSwitching.test.tsx",
-          "sha256": "3cea5b4939197c3cae20cc040cfeb9b93415717ec27a0ba4a2ef4fa50ebb0e2b",
-          "cases": [
-            {
-              "index": 3,
-              "name": "DataWorkspace Project switching > keeps cached rows on network failure but clears them when permission is denied"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "window-folder-probe-generation-fence",
-      "kind": "gap",
-      "reason": "Homepage::check_window_folder checks only that the open root path still matches when an async probe resolves; it does not yet fence two overlapping probes for the same root with a monotonic generation counter.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/projects/missingProjectFolder.test.tsx",
-          "sha256": "d02fb670e7296205eaa060cb3db7cf9d8ba511a83a2d5b4e8dd7b56288b184e5",
-          "cases": [
-            {
-              "index": 4,
-              "name": "knowing which of a window's folders cannot be opened now > never lets an older answer that arrives late replace a newer one"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "host-sharing-relocation-deferred",
       "kind": "out-of-scope",
       "reason": "Other-computers sharing is behind a closed release gate in v0.4.4, and Rust folder relocation intentionally clears stale host-share state without prompting to re-share the relocated folder (see folder_status.rs).",
@@ -65953,24 +66010,6 @@
             {
               "index": 6,
               "name": "finding where a project's folder went > reports a shared project's share as withdrawn, so it can be shared again from the new place"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "project-opening-focus-restoration",
-      "kind": "gap",
-      "reason": "ProjectPreparation covers the window while a project opens and restores the prior screen on cancel/failure, but does not yet capture and return keyboard focus to the exact Homepage entry button that initiated the open.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/lifecycle.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/projects/projectOpeningSurface.test.tsx",
-          "sha256": "a3f370e8ba7f20372fc54d59e9d70dbbaefa2d1e59fc2eb223e104ba71f7fbb8",
-          "cases": [
-            {
-              "index": 6,
-              "name": "Local project opening > returns focus to the entry that opened the project when the open ends without one"
             }
           ]
         }

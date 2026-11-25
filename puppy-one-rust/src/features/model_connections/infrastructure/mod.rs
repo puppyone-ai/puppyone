@@ -350,19 +350,39 @@ pub fn sign_in(
     rx
 }
 
+/// A catalog read in flight. Dropping it (a newer read, the page left)
+/// cancels its requests, waiting their turn or sent.
+pub struct CatalogRead {
+    rx: Receiver<Result<Vec<CatalogModel>, String>>,
+    _cancel: tokio_util::sync::DropGuard,
+}
+impl CatalogRead {
+    pub fn try_recv(&self) -> Result<Result<Vec<CatalogModel>, String>, mpsc::TryRecvError> {
+        self.rx.try_recv()
+    }
+}
+
 /// The catalog of connection `id`, read through `service` (an OAuth token
 /// is refreshed before it is used to list); the service keeps it, with its
 /// status, in the snapshot Chat reads.
-pub fn catalog(
-    service: Service,
-    id: String,
-    wake: Wake,
-) -> Receiver<Result<Vec<CatalogModel>, String>> {
-    run(
+pub fn catalog(service: Service, id: String, wake: Wake) -> CatalogRead {
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let cancelled = cancel.clone();
+    let rx = run(
         wake,
-        async move { service.refresh_connection(&id).await },
+        async move {
+            crate::agent::model_connections::drivers::until_cancelled(
+                service.refresh_connection(&id),
+                &cancelled,
+            )
+            .await
+        },
         Err,
-    )
+    );
+    CatalogRead {
+        rx,
+        _cancel: cancel.drop_guard(),
+    }
 }
 
 /// `verify`: the Agent tool round trip for `(id, model_id)`, kept by

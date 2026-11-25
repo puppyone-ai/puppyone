@@ -494,6 +494,8 @@ pub async fn ollama_show(
             request = request.bearer_auth(key);
         }
         async move {
+            // A model's details are a metadata request: they take a turn.
+            let _turn = super::METADATA_TURNS.acquire().await.ok()?;
             let answer = async {
                 let response = request.send().await.ok()?;
                 if !response.status().is_success() {

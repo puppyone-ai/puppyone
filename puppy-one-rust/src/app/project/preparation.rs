@@ -150,6 +150,9 @@ impl ProjectLifecycle {
         // or shows its web content through.
         let layer = div()
             .id("project-preparation")
+            .when_some(self.opening_focus.wait.as_ref(), |d, wait| {
+                d.track_focus(wait)
+            })
             .debug_selector(|| "project-preparation".into())
             .absolute()
             .left_0()
