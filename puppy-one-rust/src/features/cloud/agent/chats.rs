@@ -76,6 +76,16 @@ impl HostedChats {
         self.hosted = Some(hub);
     }
 
+    /// The hosted location's Hub.
+    pub fn hub(&self) -> Option<Arc<Hub>> {
+        self.hosted.clone()
+    }
+
+    /// The hosted Project whose Agent is shown.
+    pub fn project(&self) -> Option<String> {
+        self.hosted.as_ref().map(|hub| hub.project().to_owned())
+    }
+
     /// A local project is shown.
     pub fn close(&mut self) {
         self.hosted = None;

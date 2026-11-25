@@ -432,7 +432,7 @@ impl Transport for BrokerTransport {
 }
 
 /// An identifier safe to place in a path segment.
-fn segment(id: &str) -> Result<&str> {
+pub(super) fn segment(id: &str) -> Result<&str> {
     if !id.is_empty()
         && id.len() <= 128
         && id

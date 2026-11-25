@@ -52,6 +52,16 @@ impl Shell {
         }
         // A Cloud opening that failed says why (`ProjectNavigationFailure`).
         if let Some((project, failure)) = pumped.cloud_failure {
+            // A link's conversation is not shown in a project that failed.
+            self.session.project.update(cx, |p, _| {
+                if p.record
+                    .pending_agent_session
+                    .as_ref()
+                    .is_some_and(|(pending, _)| *pending == project)
+                {
+                    p.record.pending_agent_session = None;
+                }
+            });
             self.cloud
                 .update(cx, |c, cx| c.show_recovery(project, failure, cx));
         }
@@ -125,6 +135,18 @@ impl Shell {
             self.close_modal(|m| matches!(m, Modal::Error(_)), cx);
             let root = ws.local_root().map(PathBuf::from);
             let hosted = self.hosted_project(cx);
+            // A link's conversation opens in the Project it named, once that
+            // Project is in.
+            let session = self.session.project.update(cx, |p, _| {
+                match (p.record.pending_agent_session.take(), hosted.as_deref()) {
+                    (Some((project, session)), Some(open)) if project == open => Some(session),
+                    _ => None,
+                }
+            });
+            if let Some(session) = session {
+                self.sidebar
+                    .update(cx, |s, cx| s.open_hosted_session(session, window, cx));
+            }
             self.dialogs.update(cx, |d, cx| {
                 d.set_root(root, cx);
                 d.set_cloud_project(hosted, cx);

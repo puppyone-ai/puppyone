@@ -15,6 +15,7 @@ pub mod history;
 pub mod locator;
 mod model;
 mod mutations;
+pub mod open_link;
 pub mod opening;
 pub mod pricing;
 pub mod publish;

@@ -247,6 +247,67 @@ impl WorkbenchLauncher {
         );
         self.show(root, cx);
     }
+    /// A hosted Agent conversation a link names (`?session=`): shown in a
+    /// tab of its own once the Cloud confirms it is this person's. Unknown,
+    /// foreign or unreachable ones open nothing and say nothing.
+    pub fn open_hosted_session(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(hub) = self.hosted.hub() else {
+            return;
+        };
+        let (found, resolved) = async_channel::bounded(1);
+        let (wake, hub_for_wake) = (self.wake.clone(), hub.clone());
+        hub.resolve_session(
+            id,
+            Box::new(move |session| {
+                let _ = found.send_blocking(session);
+                wake.notify();
+            }),
+        );
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok(Some(session)) = resolved.recv().await {
+                let _ = this.update_in(cx, |l, window, cx| {
+                    // The window moved on to another project meanwhile.
+                    if l.hosted
+                        .hub()
+                        .is_some_and(|now| Arc::ptr_eq(&now, &hub_for_wake))
+                    {
+                        l.place_hosted_session(session, window, cx);
+                    }
+                });
+            }
+        })
+        .detach();
+    }
+    fn place_hosted_session(
+        &mut self,
+        session: crate::workspace::cloud::agent::Session,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(workbench) = self.workbench.upgrade() else {
+            return;
+        };
+        let Some(root) = workbench.read(cx).root().cloned() else {
+            return;
+        };
+        if !workbench.read(cx).can_create(ItemKind::Chat) {
+            return;
+        }
+        let Some((group, launcher)) = workbench.update(cx, |w, cx| w.prepare_launch_slot(cx))
+        else {
+            return;
+        };
+        let Some(tab) =
+            launcher.or_else(|| workbench.update(cx, |w, cx| w.new_launcher_tab(group, cx)))
+        else {
+            return;
+        };
+        // Already open in another tab: that tab shows it.
+        if let Ok(item) = self.hosted_chat(&root, tab, Some(session), window, cx) {
+            workbench.update(cx, |w, cx| w.place(group, Some(tab), item, cx));
+        }
+        cx.notify();
+    }
     fn show(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         self.shown.root = Some(root.clone());
         if let Some(workbench) = self.workbench.upgrade() {
@@ -474,6 +535,10 @@ impl WorkbenchLauncher {
             }
         }
         cx.notify();
+    }
+    /// The hosted Project whose Agent the launcher shows.
+    pub fn hosted_project(&self) -> Option<String> {
+        self.hosted.project()
     }
     /// Whether the hosted Agent is shown.
     #[cfg(test)]

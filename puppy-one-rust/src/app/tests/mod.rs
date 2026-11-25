@@ -12,6 +12,7 @@ mod bundled_modules;
 mod chat_apps;
 mod close_lifecycle;
 mod cloud_import;
+mod cloud_link;
 mod cloud_opening;
 mod cloud_publish_dialog;
 mod cloud_screen;
