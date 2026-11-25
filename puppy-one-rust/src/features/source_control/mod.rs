@@ -883,13 +883,12 @@ fn view_action(
         .color(t.subtle)
         .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
 }
-/// `.desktop-git-view-header`: `min-height: 36px; padding: 4px 10px 2px 14px`.
+/// `.desktop-git-view-header`: matches the 40px top bar centerline.
 fn view_header(t: Theme) -> Div {
     h_flex()
         .flex_shrink_0()
-        .min_h(px(36.))
-        .pt(px(4.))
-        .pb(px(2.))
+        .h(px(theme::HEADER))
+        .items_center()
         .pl(px(14.))
         .pr(px(10.))
         .gap(px(6.))

@@ -188,7 +188,8 @@ impl Workbench {
                 .unwrap_or(metrics::Span { x: 0., width: 0. })
         };
         let m = theme::ty();
-        let mut rail = div().relative().w_full().h(px(metrics::COMPACT));
+        let control = theme::control();
+        let mut rail = div().relative().w_full().h(px(control));
         for bounds in &layout.tabs {
             let tab = bounds.id;
             let drawn = span(metrics::Part::Tab(tab));
@@ -202,7 +203,7 @@ impl Workbench {
                         .top_0()
                         .left(px(drawn.x))
                         .w(px(drawn.width))
-                        .h(px(metrics::COMPACT))
+                        .h(px(control))
                         .rounded(px(RADIUS))
                         .border_1()
                         .border_dashed()
@@ -252,11 +253,9 @@ impl Workbench {
                 .line_height(px(m.header.line_height))
                 .text_color(fg)
                 .cursor(theme::navigation_cursor())
-                .when(active, |d| d.bg(t.control))
+                .when(active, |d| d.bg(t.selected))
                 .when(!active, |d| {
-                    d.group_hover(group_name.clone(), |s| {
-                        s.bg(t.control_hover).text_color(t.text)
-                    })
+                    d.group_hover(group_name.clone(), |s| s.bg(t.hover).text_color(t.text))
                 })
                 .when(compact, |d| {
                     d.tooltip(crate::ui::components::tooltip(accessible.clone()))
@@ -312,19 +311,13 @@ impl Workbench {
                     .debug_selector(move || format!("workbench-close-{tab}"))
                     .accessibility_label(close_label.clone())
                     .absolute()
-                    .right(px(1.))
-                    .top(px((metrics::COMPACT - CLOSE) / 2.))
+                    .right(px(2.))
+                    .top(px((control - CLOSE) / 2.))
                     .size(px(CLOSE))
                     .rounded(px(RADIUS))
-                    .border_1()
-                    .border_color(theme::alpha(t.border, 0.))
                     .text_color(t.subtle)
                     .cursor(theme::clickable_cursor())
-                    .hover(move |s| {
-                        s.bg(t.control_hover)
-                            .border_color(theme::alpha(t.border, 0.72))
-                            .text_color(t.text)
-                    })
+                    .hover(move |s| s.bg(t.hover).text_color(t.text))
                     .when(!active, |b| {
                         b.invisible()
                             .group_hover(group_name.clone(), |s| s.visible())
@@ -345,7 +338,7 @@ impl Workbench {
                     .left(px(drawn.x))
                     .top_0()
                     .w(px(drawn.width))
-                    .h(px(metrics::COMPACT))
+                    .h(px(control))
                     .overflow_hidden()
                     // `[data-move-source="true"]`.
                     .when(moving, |d| d.opacity(0.56))
@@ -358,14 +351,13 @@ impl Workbench {
                 .accessibility_label(label.clone())
                 .absolute()
                 .top_0()
-                .size(px(metrics::COMPACT))
+                .w(px(metrics::COMPACT))
+                .h(px(control))
                 .rounded(px(RADIUS))
-                .border_1()
-                .border_color(theme::alpha(t.border, if open { 0.72 } else { 0. }))
-                .when(open, |b| b.bg(t.control_hover))
+                .when(open, |b| b.bg(t.selected))
                 .text_color(t.muted)
                 .cursor(theme::clickable_cursor())
-                .hover(move |s| s.bg(t.control_hover).text_color(t.text))
+                .hover(move |s| s.bg(t.hover).text_color(t.text))
                 .tooltip(crate::ui::components::tooltip(label))
                 .child(Icon::new(name).small().stroke(1.9).color(if open {
                     t.text
@@ -515,8 +507,9 @@ impl Workbench {
                 }
             }))
             .h(px(metrics::HEADER_HEIGHT))
+            .flex()
+            .items_center()
             .flex_shrink_0()
-            .pt(px(metrics::HEADER_PADDING_TOP))
             .px(px(metrics::HEADER_PADDING_INLINE))
             .bg(t.auxiliary())
             .text_color(t.muted)

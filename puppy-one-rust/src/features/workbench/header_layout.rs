@@ -10,9 +10,8 @@ pub const COMPACT: f32 = 28.;
 pub const OVERFLOW_CONTROL: f32 = 28.;
 pub const CREATE_CONTROL: f32 = 28.;
 pub const ABSOLUTE_ACTIVE_MINIMUM: f32 = 64.;
-/// `.desktop-terminal-subheader` block size and padding (`4px 6px 6px`).
-pub const HEADER_HEIGHT: f32 = 38.;
-pub const HEADER_PADDING_TOP: f32 = 4.;
+/// `.desktop-terminal-subheader` block size and padding (matches `theme::HEADER`).
+pub const HEADER_HEIGHT: f32 = 40.;
 pub const HEADER_PADDING_INLINE: f32 = 6.;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
