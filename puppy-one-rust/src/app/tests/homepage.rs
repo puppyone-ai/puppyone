@@ -1486,6 +1486,11 @@ fn the_first_homepage_waits_for_the_session_and_the_whole_list(cx: &mut TestAppC
     settle_cloud(&view, cx, "the local read", &|s, cx| {
         !s.home.read(cx).reading
     });
+    // The budget is wall-clock: a slow runner's local read alone can
+    // outlast it. The hold starts over so only the session can keep it.
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, _| h.relaunch_first_paint())
+    });
     std::thread::sleep(std::time::Duration::from_millis(20));
     draw(cx);
     assert!(
