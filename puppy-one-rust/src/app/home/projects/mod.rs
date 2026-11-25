@@ -25,6 +25,17 @@ pub(in crate::app) struct ProjectDrag {
     pub(super) native: std::rc::Rc<std::cell::Cell<bool>>,
 }
 
+impl ProjectDrag {
+    #[cfg(test)]
+    pub(in crate::app) fn of(path: &str) -> Self {
+        Self {
+            path: path.to_owned(),
+            label: path.to_owned().into(),
+            native: Default::default(),
+        }
+    }
+}
+
 impl Render for ProjectDrag {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
@@ -243,6 +254,13 @@ impl Homepage {
         }
         let sort = self.preferences.read(cx).state.homepage_project_sort;
         view_items(items, sort, tr("onboarding.projects.untitled"))
+    }
+
+    /// Whether `path` is a local project this Homepage lists.
+    pub(in crate::app::home) fn lists_folder(&self, path: &str, cx: &App) -> bool {
+        self.visible_projects(cx)
+            .iter()
+            .any(|item| item.local_path.as_deref().map(str::trim) == Some(path))
     }
 
     /// A list's roving stop: the project last focused in it, else its first.
