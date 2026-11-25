@@ -25,8 +25,10 @@ use std::{
     rc::Rc,
     time::Duration,
 };
+mod chat_apps;
 mod dialog;
 mod invite;
+pub(super) use chat_apps::ChatInputs;
 mod paste_art;
 
 /// Enough faces to recognize the room; the rest are a count.
@@ -403,7 +405,13 @@ impl WindowCloud {
     /// Nothing when the account may not manage the list and nobody is in it.
     pub(super) fn agents_control(&self, cx: &App) -> Option<AnyElement> {
         let agents = self.agents.read(cx);
-        let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
+        let chats = self.chats.read(cx);
+        let working: Vec<_> = chats.working().cloned().collect();
+        let knocking = chats.can_manage && chats.knocking().next().is_some();
+        let listed = !agents.agents.is_empty()
+            || !agents.requests.is_empty()
+            || !working.is_empty()
+            || knocking;
         // Until it is known whether this person may invite, the seat holds
         // its place: a Project on its way in for the signed-in account, or
         // one being asked about. With nothing to ask about there is none.
@@ -456,6 +464,39 @@ impl WindowCloud {
                 .child(measured(&faces, &mark.id))
                 .on_hover(hover(mark.id.clone()))
                 .on_click(press(Opener::Agent(mark.id.clone()))),
+            );
+        }
+        // A chat at work shows up top like an Agent at work (green lamp).
+        for chat in &working {
+            let host = self.weak.clone();
+            let id = chat.id.clone();
+            row = row.child(
+                mark_button(
+                    SharedString::from(format!("cloud-workspace-chat:{id}")),
+                    format!(
+                        "{} · {}",
+                        chat.display_name,
+                        tr("native.chatApps.statusWorking")
+                    ),
+                    t,
+                )
+                .relative()
+                .child(chat_apps::platform_mark(chat.platform, size, t))
+                .child(
+                    div()
+                        .absolute()
+                        .right(px(-1.))
+                        .bottom(px(-1.))
+                        .size(px(8.))
+                        .rounded_full()
+                        .bg(t.success)
+                        .border_1()
+                        .border_color(ground),
+                )
+                .on_click(move |_, window, cx| {
+                    let id = id.clone();
+                    let _ = host.update(cx, |s, cx| s.open_chat(Some(id), window, cx));
+                }),
             );
         }
         if !resting.is_empty() {
@@ -946,6 +987,24 @@ impl WindowCloud {
         }
         self.refresh(cx);
     }
+    /// The Agents dialog on one chat's settings, or on "Add to a chat".
+    pub(in crate::app) fn open_chat(
+        &mut self,
+        chat: Option<String>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.hover_agent(None, cx);
+        self.show_popover(None, cx);
+        self.chats.update(cx, |c, cx| match chat {
+            Some(id) => c.manage(Some(id), cx),
+            None => c.open_add(cx),
+        });
+        if !self.dialog_open(DialogKey::Agents, cx) {
+            self.open_dialog(DialogKey::Agents, cx);
+        }
+        self.refresh(cx);
+    }
     pub(super) fn close_agents_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.close_dialog(DialogKey::Agents, cx);
         self.focus_window(window, cx);
@@ -964,6 +1023,8 @@ impl WindowCloud {
         self.agents.update(cx, |a, cx| {
             a.sync(project.as_deref().map(|p| (p, name.as_str())), open, cx)
         });
+        self.chats
+            .update(cx, |c, cx| c.sync(project.as_deref(), open, cx));
         // A dialog open for one Project and identity ends with them: another
         // Project, account, sign-in or host never inherits it.
         let revoked = before.is_some() && self.agents.read(cx).scope_key() != before.as_deref();
@@ -976,11 +1037,13 @@ impl WindowCloud {
             .find(|a| a.active)
             .map(|a| SharedString::from(a.agent.name.clone()));
         self.screen.update(cx, |s, cx| s.set_operator(operator, cx));
+        let chats = self.chats.read(cx);
+        let chats_here = chats.available() && (chats.can_manage || !chats.chats.is_empty());
         let agents = self.agents.read(cx);
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
         let pending = agents.manageable && !agents.requests.is_empty();
-        let gone =
-            agents.project_name().is_none() || (!listed && !agents.manageable && agents.known);
+        let gone = agents.project_name().is_none()
+            || (!listed && !chats_here && !agents.manageable && agents.known);
         // An open dialog answers a request itself, where the Agent asks.
         if open && (gone || revoked) {
             self.close_dialog(DialogKey::Agents, cx);

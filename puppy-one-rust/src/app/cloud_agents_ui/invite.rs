@@ -17,14 +17,14 @@ const LINE: f32 = 19.5;
 
 /// A step's number: the one at hand, one still to come, or done.
 #[derive(Clone, Copy, PartialEq)]
-enum Mark {
+pub(super) enum Mark {
     Now,
     Later,
     Done,
 }
 
 /// A command in the invite: 30px, 8px corners, the dialog's 13px at 500.
-fn action(id: &str, label: impl Into<SharedString>, variant: ButtonVariant) -> Button {
+pub(super) fn action(id: &str, label: impl Into<SharedString>, variant: ButtonVariant) -> Button {
     let ghost = variant == ButtonVariant::Ghost;
     Button::new(SharedString::from(id.to_owned()))
         .variant(variant)
@@ -36,7 +36,7 @@ fn action(id: &str, label: impl Into<SharedString>, variant: ButtonVariant) -> B
         .text_size(px(theme::ty().ui.meta))
         .font_weight(FontWeight::MEDIUM)
 }
-fn copy_icon() -> Icon {
+pub(super) fn copy_icon() -> Icon {
     Icon::new("copy").with_size(px(14.)).stroke(2.)
 }
 
@@ -124,7 +124,7 @@ impl WindowCloud {
     }
     /// One step: its number, its title and, while it is at hand, its body.
     /// The first carries the thread down to the second.
-    fn step(
+    pub(super) fn step(
         &self,
         n: usize,
         mark: Mark,

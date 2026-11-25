@@ -9,6 +9,7 @@ pub mod account;
 mod agent;
 mod billing;
 mod catalog;
+mod chat_apps;
 mod clients;
 mod publish;
 mod repository;
@@ -24,6 +25,9 @@ pub use billing::{
     settle as settle_billing,
 };
 pub use catalog::{CloudCatalog, State as CatalogState, global as global_catalog, owner_of};
+pub use chat_apps::{
+    AddFlow, CloudChats, FlowError, NAME_MAX as CHAT_NAME_MAX, Stage as ChatStage,
+};
 pub use clients::{agents_client, billing_client, services_client};
 #[cfg(test)]
 pub use publish::install_factory;

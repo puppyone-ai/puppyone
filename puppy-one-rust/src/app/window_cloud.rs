@@ -17,13 +17,13 @@ use super::{
     project_place::Disconnect,
     session::SessionView,
 };
-use crate::features::cloud::CloudAgents;
 use crate::features::cloud::CloudCatalog;
 use crate::features::cloud::CloudPublish;
 use crate::features::cloud::CloudScreen;
 use crate::features::cloud::CloudScreenEvent;
 use crate::features::cloud::RepositoryCloud;
 use crate::features::cloud::ScreenLayout;
+use crate::features::cloud::{CloudAgents, CloudChats};
 use crate::features::settings::{Page, PreferencesStore};
 use crate::features::source_control::SourceControl;
 use crate::workspace::cloud::opening::Failure;
@@ -70,6 +70,11 @@ pub(super) struct WindowCloud {
     pub repository: Entity<RepositoryCloud>,
     /// Who is in the hosted Project (`useWorkspaceAgents`).
     pub agents: Entity<CloudAgents>,
+    /// The hosted Project's chats (Telegram, Slack, WeCom).
+    pub chats: Entity<CloudChats>,
+    pub(super) chat_inputs: super::cloud_agents_ui::ChatInputs,
+    /// The line just copied in the chat steps ("Copied").
+    pub(super) chat_copied: Option<String>,
     /// Cloud Computer Screen (`CloudComputerScreen.tsx`).
     pub screen: Entity<CloudScreen>,
     pub agents_anchor: AgentsAnchor,
@@ -143,6 +148,9 @@ impl WindowCloud {
             .detach();
         let agents = cx.new(|_| CloudAgents::new());
         cx.observe(&agents, |s, _, cx| s.refresh(cx)).detach();
+        let chats = cx.new(|_| CloudChats::new());
+        cx.observe(&chats, |s, _, cx| s.refresh(cx)).detach();
+        let chat_inputs = super::cloud_agents_ui::ChatInputs::new(window, cx);
         let screen = cx.new(|cx| CloudScreen::new(preferences.clone(), window, cx));
         cx.subscribe(&screen, |_, _, event: &CloudScreenEvent, cx| match event {
             CloudScreenEvent::WakeWorkspace => cx.emit(CloudEvent::WakeWorkspace),
@@ -178,9 +186,11 @@ impl WindowCloud {
         // A hidden window is not polled for its Agents, and catches up
         // when it returns.
         let hidden = agents.downgrade();
+        let hidden_chats = chats.downgrade();
         window
             .observe_window_visibility(move |visibility, _, cx| {
                 let _ = hidden.update(cx, |a, cx| a.set_visible(visibility.is_visible(), cx));
+                let _ = hidden_chats.update(cx, |c, cx| c.set_visible(visibility.is_visible(), cx));
             })
             .detach();
         Self {
@@ -196,6 +206,9 @@ impl WindowCloud {
             publish_reported: None,
             repository,
             agents,
+            chats,
+            chat_inputs,
+            chat_copied: None,
             screen,
             agents_anchor: Default::default(),
             agent_cards: Default::default(),

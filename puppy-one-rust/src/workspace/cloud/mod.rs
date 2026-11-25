@@ -6,6 +6,7 @@ pub mod agents;
 pub mod billing;
 pub mod cache;
 pub mod catalog;
+pub mod chat_apps;
 mod client;
 mod events;
 pub mod failure;
