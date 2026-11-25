@@ -68,6 +68,17 @@ struct Inner {
     listener: Cell<Option<u64>>,
 }
 
+/// Negotiated ACP handshake state that can be transferred when handing over an
+/// initialized standby connection to a new session adapter (ADR-024).
+#[derive(Clone, Default)]
+pub struct AcpHandshakeState {
+    pub agent_info: Option<Value>,
+    pub agent_capabilities: Option<Value>,
+    pub protocol_version: Option<i64>,
+    pub auth_methods: Vec<Value>,
+    pub method_cache: HashMap<String, String>,
+}
+
 /// `new AcpClient({ connection, clientInfo, delegate, methodOverrides })`.
 #[derive(Clone)]
 pub struct AcpClient(Rc<Inner>);
@@ -79,17 +90,35 @@ impl AcpClient {
         delegate: AcpDelegate,
         method_overrides: MethodOverrides,
     ) -> Self {
+        Self::from_initialized(
+            connection,
+            client_info,
+            delegate,
+            method_overrides,
+            AcpHandshakeState::default(),
+        )
+    }
+
+    /// Attaches an [`AcpClient`] to a connection whose `initialize` handshake
+    /// already completed (used for exclusive standby handover).
+    pub fn from_initialized(
+        connection: Rc<dyn RpcConnection>,
+        client_info: Option<Value>,
+        delegate: AcpDelegate,
+        method_overrides: MethodOverrides,
+        state: AcpHandshakeState,
+    ) -> Self {
         let client = Self(Rc::new(Inner {
             connection: connection.clone(),
             client_info: client_info
                 .unwrap_or_else(|| json!({ "name": "puppyone-desktop", "version": "0.0.0" })),
             delegate,
             method_overrides,
-            method_cache: RefCell::default(),
-            agent_info: RefCell::default(),
-            agent_capabilities: RefCell::default(),
-            protocol_version: Cell::new(None),
-            auth_methods: RefCell::default(),
+            method_cache: RefCell::new(state.method_cache),
+            agent_info: RefCell::new(state.agent_info),
+            agent_capabilities: RefCell::new(state.agent_capabilities),
+            protocol_version: Cell::new(state.protocol_version),
+            auth_methods: RefCell::new(state.auth_methods),
             disposed: Cell::new(false),
             listener: Cell::new(None),
         }));
@@ -108,6 +137,17 @@ impl AcpClient {
         }));
         client.0.listener.set(Some(id));
         client
+    }
+
+    /// Snapshots negotiated handshake metadata before detaching for standby.
+    pub fn handshake_state(&self) -> AcpHandshakeState {
+        AcpHandshakeState {
+            agent_info: self.0.agent_info.borrow().clone(),
+            agent_capabilities: self.0.agent_capabilities.borrow().clone(),
+            protocol_version: self.0.protocol_version.get(),
+            auth_methods: self.0.auth_methods.borrow().clone(),
+            method_cache: self.0.method_cache.borrow().clone(),
+        }
     }
 
     /// `client.agentInfo`.

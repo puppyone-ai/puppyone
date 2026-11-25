@@ -10,5 +10,6 @@ pub mod acp_native_values;
 pub mod acp_prompt_input;
 pub mod acp_runtime_adapter;
 pub mod acp_session_config;
+pub mod acp_standby;
 #[cfg(test)]
 mod tests;

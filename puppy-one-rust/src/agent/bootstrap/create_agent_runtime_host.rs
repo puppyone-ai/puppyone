@@ -3,6 +3,7 @@
 use crate::agent::agent_error::AgentResult;
 use crate::agent::discovery::command_environment::CachedCommandEnvironment;
 use crate::agent::protocols::acp::acp_runtime_adapter::Logger;
+use crate::agent::protocols::acp::acp_standby::AcpStandbyPool;
 use crate::agent::runtime::agent_runtime_registry::{
     AgentRuntimeHost, AgentRuntimeRegistry, RuntimeDiscovery,
 };
@@ -20,11 +21,11 @@ use crate::agent::runtimes::codex::codex_standby::CodexStandbyPool;
 use crate::agent::runtimes::cursor::cursor_discovery::{
     CursorDiscoveryOptions, create_cursor_discovery,
 };
-use crate::agent::runtimes::cursor::cursor_runtime_definition::create_cursor_runtime_definition;
+use crate::agent::runtimes::cursor::cursor_runtime_definition::create_cursor_runtime_definition_with_standby;
 use crate::agent::runtimes::hermes::hermes_discovery::{
     HermesDiscoveryOptions, create_hermes_discovery,
 };
-use crate::agent::runtimes::hermes::hermes_runtime_definition::create_hermes_runtime_definition;
+use crate::agent::runtimes::hermes::hermes_runtime_definition::create_hermes_runtime_definition_with_standby;
 use crate::agent::runtimes::opencode_native::opencode_native_discovery::{
     OpenCodeDiscoveryOptions, create_user_open_code_discovery,
 };
@@ -41,7 +42,7 @@ use crate::agent::runtimes::workbuddy::workbuddy_channels::{
 use crate::agent::runtimes::workbuddy::workbuddy_discovery::{
     WorkBuddyDiscoveryOptions, create_work_buddy_discovery,
 };
-use crate::agent::runtimes::workbuddy::workbuddy_runtime_definition::create_work_buddy_runtime_definition;
+use crate::agent::runtimes::workbuddy::workbuddy_runtime_definition::create_work_buddy_runtime_definition_with_standby;
 use std::rc::Rc;
 
 /// `DEFAULT_AGENT_RUNTIME_ID`.
@@ -165,6 +166,7 @@ pub fn create_default_agent_runtime_host(
             .join("codex-models-cache.json")
     });
     let codex_standby = CodexStandbyPool::new(codex_model_cache_path);
+    let acp_standby = AcpStandbyPool::new();
     let definitions = vec![
         create_codex_runtime_definition_with_standby(
             app_version,
@@ -180,20 +182,32 @@ pub fn create_default_agent_runtime_host(
         }),
         create_open_code_native_runtime_definition(opencode_discovery, logger.clone(), app_version),
         create_pi_runtime_definition(pi_discovery),
-        create_cursor_runtime_definition(cursor_discovery, None, None),
-        create_work_buddy_runtime_definition(
+        create_cursor_runtime_definition_with_standby(
+            cursor_discovery,
+            logger.clone(),
+            app_version,
+            Some(acp_standby.clone()),
+        ),
+        create_work_buddy_runtime_definition_with_standby(
             WORKBUDDY_CHINA_CHANNEL,
             workbuddy_cn_discovery,
             logger.clone(),
             app_version,
+            Some(acp_standby.clone()),
         ),
-        create_work_buddy_runtime_definition(
+        create_work_buddy_runtime_definition_with_standby(
             WORKBUDDY_INTERNATIONAL_CHANNEL,
             workbuddy_intl_discovery,
             logger.clone(),
             app_version,
+            Some(acp_standby.clone()),
         ),
-        create_hermes_runtime_definition(hermes_discovery, logger.clone(), app_version),
+        create_hermes_runtime_definition_with_standby(
+            hermes_discovery,
+            logger.clone(),
+            app_version,
+            Some(acp_standby.clone()),
+        ),
         create_puppyone_agent_runtime_definition(PuppyOneRuntimeDefinitionOptions {
             app_path: options.app_path.clone(),
             user_data_path: options.user_data_path.clone(),
@@ -208,6 +222,7 @@ pub fn create_default_agent_runtime_host(
     registry.set_on_refresh(Rc::new(move || {
         env_cache.invalidate();
         codex_standby.evict_all();
+        acp_standby.evict_all();
     }));
     Ok(registry)
 }

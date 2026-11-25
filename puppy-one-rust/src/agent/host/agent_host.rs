@@ -345,16 +345,6 @@ fn production_services(
         crate::agent::discovery::command_environment::CachedCommandEnvironment::new(
             None, None, None,
         );
-    {
-        let warm_env = command_environment.clone();
-        tokio::task::spawn_local(async move {
-            let env = std::env::vars().collect();
-            let home = crate::platform::paths::home_dir();
-            let platform =
-                crate::agent::discovery::bounded_process_probe::node_platform().to_string();
-            let _ = warm_env.read(env, home, platform, None).await;
-        });
-    }
     let event_cache = EphemeralAgentSessionCache::new(Some(&options.user_data_path), None, None);
     let catalog = AgentConversationCatalog::new(CatalogOptions {
         file_path: runtime_data.join("conversations.json"),
@@ -395,7 +385,7 @@ fn production_services(
         app_path: options.app_path.clone(),
         user_data_path: Some(user_data.clone()),
         executable_path: options.executable_path.clone(),
-        command_environment: Some(command_environment),
+        command_environment: Some(command_environment.clone()),
         puppyone_agent: Some(Rc::new(native_kernel::create_native_kernel_discovery(
             user_data,
             options.executable_path.clone().unwrap_or_default(),
@@ -404,6 +394,23 @@ fn production_services(
         puppyone_agent_spawner: Some(puppyone_agent_spawner),
         ..Default::default()
     })?;
+    {
+        // Pre-warm the shared login-shell environment and lightweight runtime
+        // discovery (e.g. Cursor's slow `agent status` probe) off the UI path
+        // right after host start. Single-flight deduplication in
+        // RuntimeDiscoverySupervisor prevents duplicate probes if the user
+        // opens the Agent panel before pre-warm finishes.
+        let warm_env = command_environment;
+        let warm_registry = registry.clone();
+        tokio::task::spawn_local(async move {
+            let env = std::env::vars().collect();
+            let home = crate::platform::paths::home_dir();
+            let platform =
+                crate::agent::discovery::bounded_process_probe::node_platform().to_string();
+            let _ = warm_env.read(env, home, platform, None).await;
+            let _ = warm_registry.discover(false, None).await;
+        });
+    }
     let attachment_store = AgentAttachmentStore::new(AttachmentStoreOptions {
         root_path: runtime_data.join("attachments"),
         ..Default::default()

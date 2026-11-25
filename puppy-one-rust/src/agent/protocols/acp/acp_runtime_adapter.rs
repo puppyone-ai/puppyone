@@ -1,6 +1,6 @@
 //! `protocols/acp/acp-runtime-adapter.mjs`: a provider-neutral,
 //! workspace-bound adapter for a local ACP Agent harness.
-use super::acp_client::{AcpClient, AcpDelegate};
+use super::acp_client::{AcpClient, AcpDelegate, AcpHandshakeState};
 use super::acp_event_normalizer::{AcpEventNormalizer, normalize_acp_prompt_usage};
 use super::acp_history_discovery::discover_acp_history;
 use super::acp_history_replay::AcpHistoryReplay;
@@ -21,8 +21,10 @@ use super::acp_session_config::{
     resolve_acp_efforts, resolve_acp_models, resolve_acp_modes, resolve_requested_acp_effort,
     resolve_requested_acp_mode,
 };
+use super::acp_standby::{AcpStandbyEntry, AcpStandbyPool, PrecreatedAcpSession};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
+use crate::agent::application::agent_input_policy::requires_runtime_setup;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::contract::native_session_id::native_session_id;
 use crate::agent::runtime::agent_history_read_result::agent_history_read_result;
@@ -191,6 +193,8 @@ pub struct AcpAdapterOptions {
     pub event_source: Option<String>,
     pub max_leading_non_json_lines: Option<usize>,
     pub on_dispose: Option<Rc<dyn Fn()>>,
+    /// Optional per-workspace single-slot standby handover pool (ADR-024).
+    pub standby: Option<AcpStandbyPool>,
 }
 
 impl AcpAdapterOptions {
@@ -224,6 +228,7 @@ impl AcpAdapterOptions {
             event_source: None,
             max_leading_non_json_lines: None,
             on_dispose: None,
+            standby: None,
         }
     }
 }
@@ -267,7 +272,9 @@ pub struct Inner {
     event_source: String,
     max_leading_non_json_lines: Option<usize>,
     on_dispose: Option<Rc<dyn Fn()>>,
+    standby: Option<AcpStandbyPool>,
     connection: RefCell<Option<Rc<dyn RpcConnection>>>,
+    exit_listener_id: Cell<Option<u64>>,
     closing_connections: RefCell<Vec<Rc<dyn RpcConnection>>>,
     client: RefCell<Option<AcpClient>>,
     connection_mode: RefCell<Option<String>>,
@@ -849,7 +856,9 @@ impl AcpRuntimeAdapter {
                 }),
                 max_leading_non_json_lines: options.max_leading_non_json_lines,
                 on_dispose: options.on_dispose.clone(),
+                standby: options.standby.clone(),
                 connection: RefCell::default(),
+                exit_listener_id: Cell::new(None),
                 closing_connections: RefCell::default(),
                 client: RefCell::default(),
                 connection_mode: RefCell::default(),
@@ -866,6 +875,18 @@ impl AcpRuntimeAdapter {
                 history_coverage: RefCell::default(),
             }
         })))
+    }
+
+    /// Returns `true` only when metadata inspection launches the exact same
+    /// process arguments and environment as a real session (for instance
+    /// OpenCode uses `OPENCODE_DB=":memory:"` for metadata and therefore must
+    /// never park an inspection connection for live session handover).
+    fn can_park_metadata_as_session(&self) -> bool {
+        let inner = &self.0;
+        let metadata_args = (inner.process_args)("metadata", &inner.workspace_root, inner.managed);
+        let session_args = (inner.process_args)("session", &inner.workspace_root, inner.managed);
+        metadata_args == session_args
+            && inner.environment("metadata") == inner.environment("session")
     }
 
     /// `adapter.inspect()`.
@@ -894,6 +915,54 @@ impl AcpRuntimeAdapter {
             Ok(inner.inspection())
         }
         .await;
+        let parked_connection = inner.connection.borrow().clone();
+        let parked_client = inner.client.borrow().clone();
+        let parked_session_id = inner.session();
+        if let Ok(inspection) = &result
+            && !inner.disposed.get()
+            && self.can_park_metadata_as_session()
+            && !requires_runtime_setup(&inspection["account"])
+            && let Some(standby) = inner.standby.as_ref()
+            && let Some(connection) = parked_connection
+            && !connection.closed()
+            && let Some(client) = parked_client
+            && let Some(session_id) = parked_session_id
+        {
+            let executable_path = js::str_or_empty(inner.readiness.get("executablePath"));
+            if !executable_path.is_empty() {
+                if let Some(id) = inner.exit_listener_id.take() {
+                    connection.off(id);
+                }
+                let handshake = client.handshake_state();
+                client.dispose();
+                *inner.client.borrow_mut() = None;
+                *inner.connection.borrow_mut() = None;
+                *inner.connection_mode.borrow_mut() = None;
+                let authenticated_method_id = inner.authenticated_method_id.borrow_mut().take();
+                let precreated = PrecreatedAcpSession {
+                    session_id,
+                    session_config: inner.session_config.borrow().clone(),
+                    commands: inner.commands.borrow().clone(),
+                };
+                *inner.session_id.borrow_mut() = None;
+                let entry = AcpStandbyEntry {
+                    connection: connection.clone(),
+                    handshake,
+                    authenticated_method_id,
+                    precreated_session: Some(precreated),
+                };
+                if standby.park(
+                    &inner.runtime_id(),
+                    executable_path,
+                    &inner.workspace_root,
+                    entry,
+                ) {
+                    return result;
+                }
+                connection.wait_for_exit().await?;
+                return result;
+            }
+        }
         self.disconnect(
             &format!(
                 "{} ACP metadata inspection completed.",
@@ -907,12 +976,12 @@ impl AcpRuntimeAdapter {
 
     /// `adapter.bootstrapSession({ kind, threadId, model, effort, mode })`:
     /// protocol, authentication and the requested native session on one
-    /// connection.
+    /// connection. Claims an exclusively parked standby ACP connection when
+    /// available (ADR-024).
     pub async fn bootstrap(&self, request: &Value) -> AgentResult<Value> {
         let inner = &self.0;
         let name = inner.display_name();
         inner.assert_idle()?;
-        self.connect("session").await?;
         let kind = request
             .get("kind")
             .and_then(Value::as_str)
@@ -925,73 +994,104 @@ impl AcpRuntimeAdapter {
             field("mode"),
             field("threadId"),
         );
-        let client = inner
-            .client()
-            .ok_or_else(|| AgentError::new("ACP client is closed."))?;
-        match kind {
-            "resume" => {
-                *inner.history_replay.borrow_mut() = Some(AcpHistoryReplay::new());
-                let mut response: Option<Value> = None;
-                let outcome = async {
-                    let session_id = required_id(Some(thread_id), &format!("{name} ACP session id"))?;
-                    let native = client.agent_capabilities().unwrap_or_else(|| json!({}));
-                    let parameters = json!({ "cwd": inner.workspace_root, "mcpServers": [], "sessionId": session_id });
-                    let loaded = if native.get("loadSession") == Some(&Value::Bool(true)) {
-                        client.load_session(parameters).await
-                    } else if !js::nullish(native.get("sessionCapabilities").and_then(|c| c.get("resume"))) {
-                        client.resume_session(parameters).await
-                    } else {
-                        Err(AgentError::coded(
-                            "AGENT_SESSION_RESUME_UNSUPPORTED",
-                            format!("{name} does not support session load or resume."),
-                        ))
-                    };
-                    let loaded = loaded.map_err(|error| {
-                        if is_unavailable_acp_session_error(&error) {
-                            agent_provider_session_unavailable_error(Some(&format!(
-                                "The saved {name} session is no longer available."
-                            )))
-                        } else {
-                            error
-                        }
-                    })?;
-                    response = Some(loaded.clone());
-                    let id = required_id(present(loaded.get("sessionId"), Some(thread_id)), &format!("{name} ACP session id"))?;
-                    *inner.session_id.borrow_mut() = Some(id);
-                    inner.sync_session(&loaded);
-                    tokio::time::sleep(Duration::from_millis(METADATA_SETTLE_MS)).await;
-                    Ok::<(), AgentError>(())
+        let mut adopted_precreated = false;
+        if inner.connection.borrow().is_none()
+            && let Some(standby) = inner.standby.as_ref()
+        {
+            let executable_path = js::str_or_empty(inner.readiness.get("executablePath"));
+            if !executable_path.is_empty()
+                && let Some(entry) =
+                    standby.claim(&inner.runtime_id(), executable_path, &inner.workspace_root)
+            {
+                self.attach_connection(entry.connection, "session", Some(entry.handshake));
+                *inner.authenticated_method_id.borrow_mut() = entry.authenticated_method_id;
+                if kind == "create"
+                    && let Some(pre) = entry.precreated_session
+                {
+                    *inner.session_id.borrow_mut() = Some(pre.session_id);
+                    *inner.session_config.borrow_mut() = pre.session_config;
+                    *inner.commands.borrow_mut() = pre.commands;
+                    adopted_precreated = true;
                 }
-                .await;
-                let replay = inner.history_replay.borrow_mut().take();
-                let provider = response
-                    .as_ref()
-                    .and_then(|r| native_session_id(r.get("sessionId")))
-                    .or_else(|| native_session_id(Some(thread_id)));
-                let (events, truncated) = match replay {
-                    Some(mut replay) => {
-                        let events = replay.events(provider.as_deref());
-                        (events, replay.truncated)
+            }
+        }
+        if !adopted_precreated {
+            self.connect("session").await?;
+            let client = inner
+                .client()
+                .ok_or_else(|| AgentError::new("ACP client is closed."))?;
+            match kind {
+                "resume" => {
+                    *inner.history_replay.borrow_mut() = Some(AcpHistoryReplay::new());
+                    let mut response: Option<Value> = None;
+                    let outcome = async {
+                        let session_id =
+                            required_id(Some(thread_id), &format!("{name} ACP session id"))?;
+                        let native = client.agent_capabilities().unwrap_or_else(|| json!({}));
+                        let parameters = json!({ "cwd": inner.workspace_root, "mcpServers": [], "sessionId": session_id });
+                        let loaded = if native.get("loadSession") == Some(&Value::Bool(true)) {
+                            client.load_session(parameters).await
+                        } else if !js::nullish(
+                            native.get("sessionCapabilities").and_then(|c| c.get("resume")),
+                        ) {
+                            client.resume_session(parameters).await
+                        } else {
+                            Err(AgentError::coded(
+                                "AGENT_SESSION_RESUME_UNSUPPORTED",
+                                format!("{name} does not support session load or resume."),
+                            ))
+                        };
+                        let loaded = loaded.map_err(|error| {
+                            if is_unavailable_acp_session_error(&error) {
+                                agent_provider_session_unavailable_error(Some(&format!(
+                                    "The saved {name} session is no longer available."
+                                )))
+                            } else {
+                                error
+                            }
+                        })?;
+                        response = Some(loaded.clone());
+                        let id = required_id(
+                            present(loaded.get("sessionId"), Some(thread_id)),
+                            &format!("{name} ACP session id"),
+                        )?;
+                        *inner.session_id.borrow_mut() = Some(id);
+                        inner.sync_session(&loaded);
+                        tokio::time::sleep(Duration::from_millis(METADATA_SETTLE_MS)).await;
+                        Ok::<(), AgentError>(())
                     }
-                    None => (Vec::new(), false),
-                };
-                *inner.historical_events.borrow_mut() = events;
-                *inner.history_coverage.borrow_mut() =
-                    Some(if truncated { "partial" } else { "unknown" }.into());
-                outcome?;
-            }
-            "create" => {
-                let response = client
-                    .new_session(json!({ "cwd": inner.workspace_root, "mcpServers": [] }))
-                    .await?;
-                let id = required_id(response.get("sessionId"), &format!("{name} ACP session id"))?;
-                *inner.session_id.borrow_mut() = Some(id);
-                inner.sync_session(&response);
-                tokio::time::sleep(Duration::from_millis(METADATA_SETTLE_MS)).await;
-            }
-            _ => {
-                return Err(AgentError::new("ACP session bootstrap kind is invalid.")
-                    .with_name("TypeError"));
+                    .await;
+                    let replay = inner.history_replay.borrow_mut().take();
+                    let provider = response
+                        .as_ref()
+                        .and_then(|r| native_session_id(r.get("sessionId")))
+                        .or_else(|| native_session_id(Some(thread_id)));
+                    let (events, truncated) = match replay {
+                        Some(mut replay) => {
+                            let events = replay.events(provider.as_deref());
+                            (events, replay.truncated)
+                        }
+                        None => (Vec::new(), false),
+                    };
+                    *inner.historical_events.borrow_mut() = events;
+                    *inner.history_coverage.borrow_mut() =
+                        Some(if truncated { "partial" } else { "unknown" }.into());
+                    outcome?;
+                }
+                "create" => {
+                    let response = client
+                        .new_session(json!({ "cwd": inner.workspace_root, "mcpServers": [] }))
+                        .await?;
+                    let id =
+                        required_id(response.get("sessionId"), &format!("{name} ACP session id"))?;
+                    *inner.session_id.borrow_mut() = Some(id);
+                    inner.sync_session(&response);
+                    tokio::time::sleep(Duration::from_millis(METADATA_SETTLE_MS)).await;
+                }
+                _ => {
+                    return Err(AgentError::new("ACP session bootstrap kind is invalid.")
+                        .with_name("TypeError"));
+                }
             }
         }
         let inspection = inner.inspection();
@@ -1362,39 +1462,21 @@ impl AcpRuntimeAdapter {
         });
     }
 
-    /// `#connect(mode)`.
-    async fn connect(&self, mode: &str) -> AgentResult<()> {
+    fn attach_connection(
+        &self,
+        connection: Rc<dyn RpcConnection>,
+        mode: &str,
+        restored_handshake: Option<AcpHandshakeState>,
+    ) -> AcpClient {
         let inner = &self.0;
-        let name = inner.display_name();
-        let open = inner
-            .connection
-            .borrow()
-            .as_ref()
-            .is_some_and(|c| !c.closed());
-        if open && inner.connection_mode.borrow().as_deref() == Some(mode) {
-            return Ok(());
-        }
-        if inner.connection.borrow().is_some() {
-            self.disconnect(&format!("{name} ACP connection mode changed."), true)
-                .await?;
-        }
-        let environment = inner.environment(mode);
         inner.exit_expected.set(false);
-        let connection = (inner.connection_factory)(ConnectionOptions {
-            executable_path: PathBuf::from(js::str_or_empty(inner.readiness.get("executablePath"))),
-            args: (inner.process_args)(mode, &inner.workspace_root, inner.managed),
-            cwd: PathBuf::from(&inner.workspace_root),
-            env: Some(environment),
-            max_leading_non_json_lines: inner.max_leading_non_json_lines,
-            ..Default::default()
-        })?;
         *inner.connection.borrow_mut() = Some(connection.clone());
         *inner.connection_mode.borrow_mut() = Some(mode.to_string());
         {
             let weak = Rc::downgrade(inner);
             let owned = Rc::downgrade(&connection);
             let fired = Cell::new(false);
-            connection.on(Rc::new(move |event| {
+            let id = connection.on(Rc::new(move |event| {
                 let ConnectionEvent::Exit(info) = event else {
                     return;
                 };
@@ -1409,6 +1491,7 @@ impl AcpRuntimeAdapter {
                 if !current {
                     return;
                 }
+                inner.exit_listener_id.set(None);
                 *inner.connection.borrow_mut() = None;
                 *inner.client.borrow_mut() = None;
                 *inner.connection_mode.borrow_mut() = None;
@@ -1434,6 +1517,7 @@ impl AcpRuntimeAdapter {
                     }));
                 }
             }));
+            inner.exit_listener_id.set(Some(id));
         }
         let file_system = {
             let weak = Rc::downgrade(inner);
@@ -1511,15 +1595,49 @@ impl AcpRuntimeAdapter {
                 )),
             }
         };
-        let client = AcpClient::new(
-            connection,
-            Some(
-                json!({ "name": "puppyone-desktop", "title": "PuppyOne Desktop", "version": inner.app_version }),
-            ),
-            delegate,
-            Default::default(),
+        let client_info = Some(
+            json!({ "name": "puppyone-desktop", "title": "PuppyOne Desktop", "version": inner.app_version }),
         );
+        let client = match restored_handshake {
+            Some(state) => AcpClient::from_initialized(
+                connection,
+                client_info,
+                delegate,
+                Default::default(),
+                state,
+            ),
+            None => AcpClient::new(connection, client_info, delegate, Default::default()),
+        };
         *inner.client.borrow_mut() = Some(client.clone());
+        client
+    }
+
+    /// `#connect(mode)`.
+    async fn connect(&self, mode: &str) -> AgentResult<()> {
+        let inner = &self.0;
+        let name = inner.display_name();
+        let open = inner
+            .connection
+            .borrow()
+            .as_ref()
+            .is_some_and(|c| !c.closed());
+        if open && inner.connection_mode.borrow().as_deref() == Some(mode) {
+            return Ok(());
+        }
+        if inner.connection.borrow().is_some() {
+            self.disconnect(&format!("{name} ACP connection mode changed."), true)
+                .await?;
+        }
+        let environment = inner.environment(mode);
+        let connection = (inner.connection_factory)(ConnectionOptions {
+            executable_path: PathBuf::from(js::str_or_empty(inner.readiness.get("executablePath"))),
+            args: (inner.process_args)(mode, &inner.workspace_root, inner.managed),
+            cwd: PathBuf::from(&inner.workspace_root),
+            env: Some(environment),
+            max_leading_non_json_lines: inner.max_leading_non_json_lines,
+            ..Default::default()
+        })?;
+        let client = self.attach_connection(connection, mode, None);
         client.initialize(None, None).await?;
         let selected = inner
             .authentication_method_selector
@@ -1557,6 +1675,7 @@ impl AcpRuntimeAdapter {
         inner.exit_expected.set(expected);
         let client = inner.client.borrow_mut().take();
         let connection = inner.connection.borrow_mut().take();
+        let exit_listener = inner.exit_listener_id.take();
         *inner.connection_mode.borrow_mut() = None;
         *inner.authenticated_method_id.borrow_mut() = None;
         if let Some(client) = client {
@@ -1565,6 +1684,9 @@ impl AcpRuntimeAdapter {
         let Some(connection) = connection else {
             return Ok(());
         };
+        if let Some(id) = exit_listener {
+            connection.off(id);
+        }
         inner
             .closing_connections
             .borrow_mut()

@@ -7,6 +7,7 @@ use crate::agent::application::tests_support::run_local;
 use crate::agent::installation::executable_resolver::ResolvedCandidate;
 use crate::agent::protocols::acp::acp_prompt_input::path_to_file_url;
 use crate::agent::protocols::acp::acp_runtime_adapter::{AcpAdapterOptions, AcpRuntimeAdapter};
+use crate::agent::protocols::acp::acp_standby::AcpStandbyPool;
 use crate::agent::runtime::agent_runtime_port::AgentRuntimeAdapter;
 use crate::agent::transports::jsonl_rpc_connection::{ConnectionEvent, ConnectionOptions};
 use crate::agent::transports::rpc_connection::RpcConnection;
@@ -791,6 +792,157 @@ fn resolves_the_advertised_session_permission_through_the_live_acp_adapter() {
         assert!(connection.connection.responses.borrow().contains(&json!({
             "id": 97, "result": { "outcome": { "outcome": "selected", "optionId": "allow_session" } }
         })));
+        adapter.dispose().await.unwrap();
+    });
+}
+
+#[test]
+fn standby_handover_reuses_inspected_cursor_session_exclusively_without_reauthenticating() {
+    run_local(async {
+        let pool = AcpStandbyPool::with_options(std::time::Duration::from_secs(30), 2);
+        let spawns = Rc::new(std::cell::Cell::new(0usize));
+        let connections: Rc<RefCell<Vec<Rc<FakeConnection>>>> = Rc::default();
+        let factory = {
+            let spawns = spawns.clone();
+            let connections = connections.clone();
+            Rc::new(move |_options: ConnectionOptions| {
+                let n = spawns.get() + 1;
+                spawns.set(n);
+                let cursor = CursorConnection::new(Script::default());
+                let modes = json!({
+                    "currentModeId": "agent",
+                    "availableModes": [{ "id": "agent", "name": "Agent" }, { "id": "plan", "name": "Plan" }]
+                });
+                cursor.connection.result(
+                    "session/new",
+                    json!({
+                        "sessionId": format!("cursor-session-{n}"),
+                        "modes": modes,
+                        "models": {
+                            "currentModelId": "auto",
+                            "availableModels": [{ "id": "auto", "name": "Auto" }]
+                        }
+                    }),
+                );
+                connections.borrow_mut().push(cursor.connection.clone());
+                Ok(cursor.connection as Rc<dyn RpcConnection>)
+            })
+        };
+        let make_adapter = |workspace: &str| {
+            let mut options =
+                AcpAdapterOptions::new(readiness(), workspace, CURSOR_RUNTIME_DESCRIPTOR.clone());
+            options.connection_factory = Some(factory.clone());
+            options.project_instruction_loader = Some(Rc::new(|_| Ok(None)));
+            options.standby = Some(pool.clone());
+            cursor_acp_adapter(options).unwrap()
+        };
+
+        // 1. Metadata inspection parks the authenticated, session-ready Cursor ACP connection.
+        let inspector = make_adapter("/workspace-a");
+        let inspection = inspector.inspect().await.unwrap();
+        assert_eq!(inspection["models"][0]["model"], "auto");
+        assert_eq!(spawns.get(), 1);
+        assert_eq!(pool.len(), 1);
+        assert!(!connections.borrow()[0].closed.get());
+        inspector.dispose().await.unwrap();
+        assert_eq!(pool.len(), 1);
+        assert!(!connections.borrow()[0].closed.get());
+
+        // Unexpected server request while parked gets -32601.
+        send_request(&connections.borrow()[0], 55, "cursor/unexpected", json!({}));
+        assert_eq!(connections.borrow()[0].errors.borrow().len(), 1);
+        assert_eq!(connections.borrow()[0].errors.borrow()[0]["code"], -32601);
+
+        // 2. First Cursor session claims the parked process & precreated session:
+        // 0 new spawns, 0 extra initialize/authenticate/session/new RPCs!
+        let session_1 = make_adapter("/workspace-a");
+        let booted_1 = session_1
+            .bootstrap_session(json!({ "kind": "create", "model": "auto", "mode": "agent" }))
+            .await
+            .unwrap();
+        assert_eq!(spawns.get(), 1);
+        assert!(pool.is_empty());
+        assert_eq!(
+            booted_1["providerSession"]["providerSessionId"],
+            "cursor-session-1"
+        );
+        assert_eq!(connections.borrow()[0].requests_of("initialize").len(), 1);
+        assert_eq!(connections.borrow()[0].requests_of("authenticate").len(), 1);
+        assert_eq!(connections.borrow()[0].requests_of("session/new").len(), 1);
+
+        // 3. Second concurrent Cursor session gets its own exclusive process (zero multiplexing).
+        let session_2 = make_adapter("/workspace-a");
+        let booted_2 = session_2
+            .bootstrap_session(json!({ "kind": "create", "model": "auto", "mode": "agent" }))
+            .await
+            .unwrap();
+        assert_eq!(spawns.get(), 2);
+        assert_eq!(
+            booted_2["providerSession"]["providerSessionId"],
+            "cursor-session-2"
+        );
+
+        // Disposing session_1 terminates ONLY session_1's process.
+        session_1.dispose().await.unwrap();
+        assert!(connections.borrow()[0].closed.get());
+        assert!(!connections.borrow()[1].closed.get());
+        session_2.dispose().await.unwrap();
+        assert!(connections.borrow()[1].closed.get());
+
+        // 4. Resume right after inspection reuses the authenticated connection (skipping initialize & authenticate)
+        // while still loading the requested historical session id.
+        let inspector_resume = make_adapter("/workspace-b");
+        inspector_resume.inspect().await.unwrap();
+        inspector_resume.dispose().await.unwrap();
+        assert_eq!(spawns.get(), 3);
+        assert_eq!(pool.len(), 1);
+        let resumed_session = make_adapter("/workspace-b");
+        let resumed = resumed_session
+            .bootstrap_session(json!({ "kind": "resume", "threadId": "cursor-history" }))
+            .await
+            .unwrap();
+        assert_eq!(spawns.get(), 3);
+        assert_eq!(
+            resumed["providerSession"]["providerSessionId"],
+            "cursor-history"
+        );
+        assert_eq!(connections.borrow()[2].requests_of("initialize").len(), 1);
+        assert_eq!(connections.borrow()[2].requests_of("authenticate").len(), 1);
+        assert_eq!(connections.borrow()[2].requests_of("session/load").len(), 1);
+        resumed_session.dispose().await.unwrap();
+
+        // 5. Explicit dispose_all cleans up remaining parked ACP processes.
+        let inspector_c = make_adapter("/workspace-c");
+        inspector_c.inspect().await.unwrap();
+        inspector_c.dispose().await.unwrap();
+        assert_eq!(pool.len(), 1);
+        pool.dispose_all().await.unwrap();
+        assert!(pool.is_empty());
+        assert!(connections.borrow()[3].closed.get());
+    });
+}
+
+#[test]
+fn never_parks_metadata_connection_when_metadata_and_session_environments_differ() {
+    run_local(async {
+        let pool = AcpStandbyPool::new();
+        let cursor = CursorConnection::new(Script::default());
+        let mut options =
+            AcpAdapterOptions::new(readiness(), "/workspace", CURSOR_RUNTIME_DESCRIPTOR.clone());
+        options.connection_factory = Some(cursor.connection.factory());
+        options.project_instruction_loader = Some(Rc::new(|_| Ok(None)));
+        options.environment_overlay = Some(Rc::new(|_, mode, _, _| {
+            if mode == "metadata" {
+                json!({ "OPENCODE_DB": ":memory:" })
+            } else {
+                json!({})
+            }
+        }));
+        options.standby = Some(pool.clone());
+        let adapter = cursor_acp_adapter(options).unwrap();
+        adapter.inspect().await.unwrap();
+        assert!(pool.is_empty());
+        assert!(cursor.connection.closed.get());
         adapter.dispose().await.unwrap();
     });
 }
