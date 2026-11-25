@@ -53513,6 +53513,28 @@
           "test": "app::tests::homepage::an_open_that_ends_without_a_project_gives_the_keyboard_back"
         }
       ]
+    },
+    {
+      "id": "model-metadata-requests-bounded-and-cancellable",
+      "acceptance": "At most two model metadata requests (catalog listings, Ollama model details) are open at once across the app; the rest wait their turn. A read that is cancelled (`until_cancelled`, and a Settings catalog read dropped for a newer one) ends at once with CANCELLED, and a request still waiting its turn never reaches the service.",
+      "typescript": [
+        {
+          "path": "tests/integration/model-connections/runtime/connectionRuntime.test.mjs",
+          "sha256": "25593e8edb9ceed72ba5d509d474b8435f61e4ca45f9446548e68c73613bd558",
+          "cases": [
+            {
+              "index": 1,
+              "name": "model network boundaries > bounds parallel metadata requests and cancels queued work"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-agent",
+          "test": "agent::model_connections::tests::metadata_requests_run_two_at_a_time_and_a_waiting_one_can_be_cancelled"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -57141,24 +57163,6 @@
             {
               "index": 4,
               "name": "project-owned Terminal IPC and native shutdown > retains a timed-out close and retries without losing the native handle"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "model-metadata-request-bounds",
-      "kind": "gap",
-      "reason": "Rust reads the catalog of the connection Settings shows on a thread of its own. A superseded read's answer is discarded, but its request is not cancelled (it ends at its 15-second timeout), and reads are not limited to two at once.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
-      "typescript": [
-        {
-          "path": "tests/integration/model-connections/runtime/connectionRuntime.test.mjs",
-          "sha256": "25593e8edb9ceed72ba5d509d474b8435f61e4ca45f9446548e68c73613bd558",
-          "cases": [
-            {
-              "index": 1,
-              "name": "model network boundaries > bounds parallel metadata requests and cancels queued work"
             }
           ]
         }
