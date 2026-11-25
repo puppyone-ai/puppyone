@@ -600,6 +600,7 @@ fn a_restart_reconciles_the_pending_operation_and_derives_its_actions() {
         git: fake.clone(),
         cloud: fake.clone(),
         vault: vault.clone(),
+        lease: Default::default(),
     };
     let state = restarted.state(&request(temp.path()));
     let derived = state.state.expect("a pending operation is projected");

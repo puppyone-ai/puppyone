@@ -163,6 +163,11 @@ impl AgentService {
     ) -> AgentResult<Value> {
         self.catalog.read_account(request, workspace_root).await
     }
+    /// `agentService.invalidateRuntimeReadiness()`: clears cached inspection
+    /// snapshots when model connections or compute wallet state changes.
+    pub fn invalidate_runtime_readiness(&self, runtime_id: Option<&str>) -> u64 {
+        self.catalog.invalidate_readiness(runtime_id)
+    }
     pub fn get_reference_input_capabilities(
         &self,
         sender: &Sender,

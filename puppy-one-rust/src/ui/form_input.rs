@@ -259,6 +259,28 @@ impl TextInput {
         self.value = dispatch!(&self.field, |s| s.read(cx).value());
         ok
     }
+    /// Deletes the token `id` as an edit, leaving the caret where it was
+    /// (`removeMentionFromEditor`).
+    pub fn remove_token(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let removed = dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+            let Some(range) = s
+                .tokens()
+                .iter()
+                .find(|span| span.token().id().as_ref() == id)
+                .map(|span| span.range())
+            else {
+                return false;
+            };
+            use gpui::EntityInputHandler as _;
+            let value = s.value().to_string();
+            let utf16 = |byte: usize| value[..byte].encode_utf16().count();
+            s.replace_text_in_range(Some(utf16(range.start)..utf16(range.end)), "", window, cx);
+            s.set_selected_range(range.start..range.start, cx);
+            true
+        }));
+        self.value = dispatch!(&self.field, |s| s.read(cx).value());
+        removed
+    }
     /// The editor's text now, consistent with [`Self::token_spans`]; the
     /// cached [`Self::text`] follows only once the edit's events ran.
     pub fn current_text(&self, cx: &App) -> String {

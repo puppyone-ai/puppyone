@@ -1,12 +1,16 @@
-use raw_window_handle::HasWindowHandle;
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+use std::ffi::c_void;
 use windows::{
-    Win32::UI::{
-        Input::Ime::{
-            CPS_CANCEL, ImmGetContext, ImmNotifyIME, ImmReleaseContext, NI_COMPOSITIONSTR,
-        },
-        WindowsAndMessaging::{
-            GetForegroundWindow, SPI_GETCLIENTAREAANIMATION, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
-            SystemParametersInfoW,
+    Win32::{
+        Foundation::HWND,
+        UI::{
+            Input::Ime::{
+                CPS_CANCEL, ImmGetContext, ImmNotifyIME, ImmReleaseContext, NI_COMPOSITIONSTR,
+            },
+            WindowsAndMessaging::{
+                GetForegroundWindow, IsZoomed, SPI_GETCLIENTAREAANIMATION, SW_MAXIMIZE, SW_NORMAL,
+                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, ShowWindowAsync, SystemParametersInfoW,
+            },
         },
     },
     core::BOOL,
@@ -48,6 +52,26 @@ pub(super) fn reduce_motion() -> bool {
 }
 
 pub(super) fn match_product_font_smoothing() {}
+
+pub(super) fn toggle_maximize(window: &impl HasWindowHandle) -> bool {
+    let Ok(handle) = window.window_handle() else {
+        return false;
+    };
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return false;
+    };
+    let hwnd = HWND(handle.hwnd.get() as *mut c_void);
+    // SAFETY: `hwnd` is a live top-level Win32 window owned by GPUI on the UI thread.
+    unsafe {
+        let cmd = if IsZoomed(hwnd).as_bool() {
+            SW_NORMAL
+        } else {
+            SW_MAXIMIZE
+        };
+        let _ = ShowWindowAsync(hwnd, cmd);
+    }
+    true
+}
 
 #[cfg(feature = "dev-capture")]
 pub mod probe_window {

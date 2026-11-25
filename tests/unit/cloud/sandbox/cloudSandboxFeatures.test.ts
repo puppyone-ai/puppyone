@@ -17,8 +17,8 @@ const sandbox = (changes: Record<string, unknown> = {}, screen: Record<string, u
 describe("Cloud sandbox Feature registry", () => {
   it("reads servers before Profiles and malformed rows as no Features", () => {
     expect(readCloudSandbox(undefined)).toEqual({ profile: null, next_profile: null, settings: {}, features: [] });
-    expect(readCloudSandbox({ profile: 3, settings: { desktop: "yes", screen_stream: false }, features: [{ id: 1 }, null] }))
-      .toEqual({ profile: null, next_profile: null, settings: { screen_stream: false }, features: [] });
+    expect(readCloudSandbox({ profile: 3, settings: { desktop: "yes", screen_stream: false, isolated_agent_sandboxes: true }, features: [{ id: 1 }, null] }))
+      .toEqual({ profile: null, next_profile: null, settings: { screen_stream: false, isolated_agent_sandboxes: true }, features: [] });
   });
 
   it("places an enabled Feature in its slots and ignores Features it does not know", () => {

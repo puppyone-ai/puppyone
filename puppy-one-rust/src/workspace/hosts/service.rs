@@ -599,6 +599,19 @@ impl HostService {
         }
         true
     }
+    /// System sleep (`service.suspend`): the device connection drops its
+    /// socket and waits for the wake.
+    pub fn suspend(&self) {
+        if let Ok(services) = self.services() {
+            services.connector.suspend();
+        }
+    }
+    /// Wake or an unlocked screen (`service.wake`): reconnect at once.
+    pub fn wake(&self) {
+        if let Ok(services) = self.services() {
+            services.connector.wake();
+        }
+    }
     pub fn dispose(&self) {
         // Stopping reports its status, which reads the services again.
         let services = self.services.lock().unwrap().take();

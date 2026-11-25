@@ -9,7 +9,7 @@ use crate::features::desktop_agent::domain::agent_session_controls::{
     AgentSessionControl, AgentSessionControlId, AgentSessionControlOption,
 };
 pub(crate) use crate::features::desktop_agent::infrastructure::compute::{
-    ComputeSnapshot, ManagedCompute, read_compute_snapshot, sync_offered_models,
+    ComputeSnapshot, ManagedCompute, current_compute_snapshot, sync_offered_models,
 };
 use crate::features::desktop_agent::ui::agent_theme::AgentTheme;
 use crate::localization::t;
@@ -171,20 +171,56 @@ impl AgentChatTabPanel {
         }
     }
 
-    /// Rereads the connections; a new catalog refreshes the controller's.
+    /// Rereads saved custom connections in the unified authority; any resulting
+    /// snapshot change notifies every open panel and invalidates `AgentHost`.
+    /// Each provider then offers its whole text catalog: a catalog that grew
+    /// since the last read is saved (at most once every ten minutes).
     pub fn reload_model_connections(&mut self, cx: &mut Context<Self>) {
-        let read = cx.background_spawn(async { read_compute_snapshot() });
-        cx.spawn(async move |this, cx| {
-            let snapshot = read.await;
-            this.update(cx, |s, cx| s.apply_compute(snapshot, cx)).ok();
-            // Each provider offers its whole text catalog: a catalog that
-            // grew since the last read is saved, then read again.
-            let synced = sync_offered_models().await;
-            if synced {
-                this.update(cx, |s, cx| s.reload_model_connections(cx)).ok();
+        crate::features::model_connections::reload_saved(cx);
+        self.sync_chat_models(cx);
+    }
+
+    /// Brings the connections' Chat models up to their catalogs, off the UI
+    /// thread; the authority publishes what was saved.
+    fn sync_chat_models(&mut self, cx: &mut Context<Self>) {
+        let service = crate::features::model_connections::service(cx);
+        cx.background_spawn(sync_offered_models(service)).detach();
+    }
+
+    /// Subscribes directly to the unified `ModelConnectionsStore`, projects its
+    /// initial snapshot synchronously (eliminating cold-start races), and polls
+    /// managed compute every 30 s while signed in with Payments enabled.
+    pub(super) fn watch_model_connections(&mut self, cx: &mut Context<Self>) {
+        let store = crate::features::model_connections::global_store(cx);
+        cx.observe(&store, |s, _, cx| {
+            let sign_in_failed = s.wallet.as_ref().is_some_and(|w| w.sign_in_failed);
+            if let Some(snapshot) = current_compute_snapshot(cx, sign_in_failed) {
+                s.apply_compute(snapshot, cx);
             }
         })
         .detach();
+        let sign_in_failed = self.wallet.as_ref().is_some_and(|w| w.sign_in_failed);
+        if let Some(snapshot) = current_compute_snapshot(cx, sign_in_failed) {
+            self.apply_compute(snapshot, cx);
+        }
+        self.sync_chat_models(cx);
+        if self.compute_poll.is_none() {
+            self.compute_poll = Some(cx.spawn(async move |this, cx| {
+                loop {
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_secs(30))
+                        .await;
+                    let alive = this.update(cx, |s, cx| {
+                        if s.payments && s.wallet.as_ref().is_some_and(|w| w.signed_in) {
+                            crate::features::model_connections::refresh_managed(false, cx);
+                        }
+                    });
+                    if alive.is_err() {
+                        break;
+                    }
+                }
+            }));
+        }
     }
 
     /// Follow the app's compute wallet (`snapshot.managed`), and read it.
@@ -204,14 +240,20 @@ impl AgentChatTabPanel {
         wallet.update(cx, |w, cx| w.refresh(false, cx));
     }
 
-    /// A read of the connections; a new revision rediscovers the runtime's
+    /// A read of the connections; a new revision (or first ready connections
+    /// arriving after an empty initial discovery) rediscovers the runtime's
     /// models.
     pub(super) fn apply_compute(&mut self, mut snapshot: ComputeSnapshot, cx: &mut Context<Self>) {
         if snapshot.managed.is_none() {
             snapshot.managed = self.wallet.clone();
         }
         let revision = Some(snapshot.revision.clone());
-        if self.compute_revision.is_some() && self.compute_revision != revision {
+        let changed = self.compute_revision.is_some() && self.compute_revision != revision;
+        let missing_models = self.compute_revision.is_none() && !snapshot.sources.is_empty() && {
+            let state = self.state();
+            state.initialized && self.runtime_view(&state).runtime_models.is_empty()
+        };
+        if changed || missing_models {
             self.connections_changed = true;
         }
         self.compute_revision = revision;

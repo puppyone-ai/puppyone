@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import packageMetadata from "../../../../package.json";
 import {
-  inspectContinuousIntegrationWorkflow,
   inspectAtomicStableReleasePublisherWorkflow,
   inspectInternalReleaseWorkflow,
   inspectLegacyArchiveWorkflow,
   inspectReleasePublisherWorkflow,
+  inspectRustAcceptanceWorkflow,
   inspectStableReleaseWorkflow,
   inspectUpdateFeedMonitorWorkflow,
 } from "../../../../scripts/release-support/internal-release-workflow-policy.mjs";
@@ -115,24 +115,28 @@ describe("macOS stable release policy", () => {
   });
 });
 
-describe("continuous integration workflow", () => {
-  it("runs source gates without release authority and pins actions", () => {
-    const workflow = readFileSync(
-      new URL("../../../../.github/workflows/ci.yml", import.meta.url),
-      "utf8",
-    );
-    expect(inspectContinuousIntegrationWorkflow(workflow)).toEqual([]);
-    expect(inspectContinuousIntegrationWorkflow(
+describe("Rust desktop acceptance workflow", () => {
+  const workflow = readFileSync(
+    new URL("../../../../.github/workflows/rust-tests.yml", import.meta.url),
+    "utf8",
+  );
+
+  it("verifies every release commit without release authority and pins actions", () => {
+    expect(inspectRustAcceptanceWorkflow(workflow)).toEqual([]);
+    expect(inspectRustAcceptanceWorkflow(
       workflow.replace(/actions\/checkout@[a-f0-9]{40}/, "actions/checkout@v4"),
     )).toEqual(expect.arrayContaining([
       expect.stringMatching(/pinned to full commit SHAs/),
     ]));
-    expect(inspectContinuousIntegrationWorkflow(
-      workflow.replace(", cloud-email-sign-in]", "]").replace('\n          test "$CLOUD_EMAIL_SIGN_IN_RESULT" = success', ""),
-    )).toEqual(expect.arrayContaining([
-      expect.stringMatching(/Cloud email sign-in/),
-      expect.stringMatching(/email sign-in through the paired Cloud must pass/),
-    ]));
+  });
+
+  it("rejects a path filter or a cancelled push, which would leave a release commit unverified", () => {
+    expect(inspectRustAcceptanceWorkflow(
+      workflow.replace("  pull_request:\n", "  pull_request:\n    paths: ['puppy-one-rust/**']\n"),
+    )).toEqual(expect.arrayContaining([expect.stringMatching(/path filter/)]));
+    expect(inspectRustAcceptanceWorkflow(
+      workflow.replace("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", "cancel-in-progress: true"),
+    )).toEqual(expect.arrayContaining([expect.stringMatching(/must not cancel/)]));
   });
 });
 
@@ -168,14 +172,14 @@ describe("macOS internal release workflow", () => {
     );
   });
 
-  it("rejects an Internal workflow that builds from any branch other than main or qubits", () => {
+  it("rejects an Internal workflow that builds from any branch other than main, qubits or release/*", () => {
     const workflow = readFileSync(
       new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url),
       "utf8",
-    ).replace("refs/heads/main | refs/heads/qubits) ;;", "refs/heads/*) ;;");
+    ).replace("refs/heads/main | refs/heads/qubits | refs/heads/release/*) ;;", "refs/heads/*) ;;");
 
     expect(inspectInternalReleaseWorkflow(workflow)).toContain(
-      "the Internal workflow must accept only the main and qubits release branches",
+      "the Internal workflow must accept only main, qubits and release/* branches",
     );
   });
 });

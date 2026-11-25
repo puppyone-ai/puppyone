@@ -189,8 +189,9 @@ impl Explorer {
         if let Some(menu) = menu {
             let variant = menu.variant();
             let fill = self.menu_fill(menu, cx);
-            popover =
-                popover.menu(move |surface, _, _| fill(surface.variant(variant).w(px(width))));
+            popover = popover.menu(move |surface, _, _| {
+                fill(surface.variant(variant).w(px(width)).keyboard_navigation())
+            });
         }
         popover
     }

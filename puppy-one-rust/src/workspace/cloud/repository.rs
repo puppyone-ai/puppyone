@@ -19,6 +19,9 @@ pub enum Context {
     Resolved {
         project: String,
         name: String,
+        /// A Scope checkout's place in its Project: linked, never broadened
+        /// into the whole Project.
+        scope: Option<String>,
     },
     LocatorConflict,
     WrongHost {
@@ -81,7 +84,7 @@ impl Context {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Precheck {
     Decided(Context),
-    Authorize(String),
+    Authorize(Target),
 }
 /// Steps 1–3 without a request. `urls`: every fetch and push URL.
 pub fn precheck<'a>(
@@ -118,30 +121,37 @@ pub fn precheck<'a>(
     if !signed_in {
         return Precheck::Decided(Context::WrongAccount);
     }
-    // Hosted Scope workspaces do not open natively; a Scope checkout cannot
-    // switch to a Project-wide view either.
-    if found.scope.is_some() {
-        return Precheck::Decided(Context::Unresolvable);
-    }
-    Precheck::Authorize(found.project)
+    // A Scope checkout resolves as its exact Scope, keeping its owning
+    // Project; it is never broadened into the whole Project.
+    Precheck::Authorize(match found.scope {
+        Some(scope_id) => Target::Scope {
+            project_id: found.project,
+            scope_id,
+        },
+        None => Target::ProjectRoot {
+            project_id: found.project,
+        },
+    })
 }
 
 /// Step 4 on a worker. `Err` carries the failure for recovery decisions.
 pub fn authorize(
     broker: &Broker,
     binding: &Binding,
-    project: &str,
+    target: &Target,
     cancel: &Cancellation,
 ) -> Result<Context, (Context, Option<AuthError>)> {
-    let target = Target::ProjectRoot {
-        project_id: project.to_owned(),
-    };
-    match authorize_target(broker, binding, &target, &cancel.child()) {
+    let project = target.owner().unwrap_or_default().to_owned();
+    match authorize_target(broker, binding, target, &cancel.child()) {
         Ok(context) => Ok(Context::Resolved {
             project: context.project.id,
             name: context.project.name,
+            scope: match target {
+                Target::Scope { .. } => context.scope_path,
+                Target::ProjectRoot { .. } => None,
+            },
         }),
-        Err(refusal) => Err(refused(refusal, project)),
+        Err(refusal) => Err(refused(refusal, &project)),
     }
 }
 fn refused(refusal: Refusal, project: &str) -> (Context, Option<AuthError>) {
@@ -182,10 +192,15 @@ mod tests {
             Precheck::Decided(Context::LocalOnly)
         );
         let found = precheck([PROJECT], Some(API), None, true);
-        let Precheck::Authorize(project) = found else {
+        let Precheck::Authorize(target) = found else {
             panic!("{found:?}")
         };
-        assert_eq!(project, "0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab");
+        assert_eq!(
+            target,
+            Target::ProjectRoot {
+                project_id: "0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab".into()
+            }
+        );
         assert_eq!(
             precheck([PROJECT], Some(API), None, false),
             Precheck::Decided(Context::WrongAccount)
@@ -199,6 +214,15 @@ mod tests {
             ),
             Precheck::Decided(Context::WrongHost { .. })
         ));
+        // A Scope checkout asks for its exact Scope, never its whole Project.
+        let scope = "https://api.puppyone.ai/git/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab/scopes/scope-docs.git";
+        assert_eq!(
+            precheck([scope], Some(API), None, true),
+            Precheck::Authorize(Target::Scope {
+                project_id: "0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab".into(),
+                scope_id: "scope-docs".into(),
+            })
+        );
         let other = "https://api.puppyone.ai/git/11111111-1f2a-4b5c-8d9e-0123456789ab.git";
         assert_eq!(
             precheck([PROJECT, other], Some(API), None, true),
@@ -255,7 +279,8 @@ mod tests {
         assert_eq!(
             Context::Resolved {
                 project: p.into(),
-                name: "Docs".into()
+                name: "Docs".into(),
+                scope: None,
             }
             .cloud_state(true),
             CloudState::Available

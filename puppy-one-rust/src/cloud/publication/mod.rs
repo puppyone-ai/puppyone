@@ -17,10 +17,14 @@ pub mod api;
 pub mod fixtures;
 pub mod git;
 pub mod journal;
+pub mod lease;
 mod migrate;
 pub mod preparation;
+pub mod receipt;
+pub mod telemetry;
 #[cfg(test)]
 mod tests;
+pub mod transfer;
 pub mod vault;
 
 use crate::workspace::cloud::publish;
@@ -232,6 +236,8 @@ struct Facts {
     remote_kind: Option<Remote>,
     remote_head: Option<String>,
     remote_read: bool,
+    /// Cloud's receipt rejected the current attempt for good.
+    remote_rejected: bool,
 }
 impl Facts {
     fn remote_accepted(&self, record: &Record) -> bool {
@@ -287,12 +293,16 @@ pub struct Coordinator {
     pub git: Arc<dyn GitOps>,
     pub cloud: Arc<dyn CloudOps>,
     pub vault: Arc<dyn SecretVault>,
+    /// How the cross-process repository lease decides (tests replace it).
+    pub lease: lease::Options,
 }
 
 struct Context {
     journal: Journal,
     fingerprint: String,
     _ownership: crate::platform::git::coordinator::Lease<'static>,
+    /// Other Desktop processes stay out while this one works.
+    _lease: lease::Lease,
 }
 
 impl Coordinator {
@@ -302,6 +312,7 @@ impl Coordinator {
         use sha2::Digest as _;
         let identity = self.git.identity(root)?;
         let ownership = git::repository_ownership(&identity.common_dir)?;
+        let held = lease::acquire(&identity.common_dir, &self.lease)?;
         let metadata = std::fs::metadata(&identity.common_dir).map_err(|_| {
             PublishError::new(
                 Code::RepositoryRequired,
@@ -329,6 +340,7 @@ impl Coordinator {
             journal: Journal::in_git_dir(&identity.git_dir),
             fingerprint,
             _ownership: ownership,
+            _lease: held,
         })
     }
     /// `assertTrustedJournalRemote`: a journaled remote is this Cloud's
@@ -385,6 +397,7 @@ impl Coordinator {
             remote_kind: remote,
             remote_head: None,
             remote_read: false,
+            remote_rejected: false,
         }
     }
     /// `readFacts`: local facts, plus Cloud main when the operation has
@@ -407,7 +420,18 @@ impl Coordinator {
         else {
             return Ok(facts);
         };
-        match self.git.remote_main(root, record, &secret) {
+        // `inspectCanonicalPushOutcome`: the attempt's receipt first; a
+        // rejection belongs to that attempt only, so Cloud main is still read
+        // (another attempt may have published the same commit).
+        let head = match self.git.receipt(record, &secret) {
+            Ok(Some(landed)) => Ok(Some(landed)),
+            Err(e) if e.code == Code::PushFailed => {
+                facts.remote_rejected = true;
+                self.git.remote_main(root, record, &secret)
+            }
+            Ok(None) | Err(_) => self.git.remote_main(root, record, &secret),
+        };
+        match head {
             Ok(head) => {
                 facts.remote_head = head;
                 facts.remote_read = true;
@@ -436,23 +460,48 @@ impl Coordinator {
         facts: &Facts,
     ) -> Result<Record, PublishError> {
         if facts.remote_accepted(&record) && record.push_state != "accepted" {
-            return self.persist(journal, &record, |r| {
+            let record = self.persist(journal, &record, |r| {
                 r.checkpoint = "push-accepted".into();
                 r.project_state = "published".into();
                 r.push_state = "accepted".into();
                 r.cleanup_state = "none".into();
                 r.last_error = None;
                 finish_attempt(&mut r.attempt, "accepted");
-            });
+            })?;
+            telemetry::record(
+                "push_reconciled",
+                telemetry::of(&record).outcome("accepted"),
+            );
+            return Ok(record);
         }
         if facts.remote_conflict(&record) && record.push_state != "conflict" {
-            return self.persist(journal, &record, |r| {
+            let record = self.persist(journal, &record, |r| {
                 r.checkpoint = "push-accepted".into();
                 r.project_state = "published".into();
                 r.push_state = "conflict".into();
                 r.cleanup_state = "none".into();
                 r.last_error = Some(stored(Code::RemoteRefConflict, false));
                 finish_attempt(&mut r.attempt, "conflict");
+            })?;
+            telemetry::record(
+                "push_reconciled",
+                telemetry::of(&record).outcome("conflict"),
+            );
+            return Ok(record);
+        }
+        if facts.remote_rejected
+            && record.push_state != "failed"
+            && !record
+                .attempt_history
+                .iter()
+                .any(|a| a.state == "uncertain")
+        {
+            // Only a bound rejection resolves uncertainty; an absent ref alone
+            // does not. Earlier unresolved sends keep their frozen target.
+            return self.persist(journal, &record, |r| {
+                r.push_state = "failed".into();
+                finish_attempt(&mut r.attempt, "failed");
+                r.last_error = Some(stored(Code::PushFailed, true));
             });
         }
         if matches!(record.push_state.as_str(), "uploading" | "confirming") {
@@ -511,6 +560,16 @@ impl Coordinator {
     /// same request for a repository while one runs shares its result
     /// (`singleflight`) instead of meeting the remote the first one made.
     pub fn start(&self, request: &Request, progress: &mut dyn FnMut(Stage)) -> Outcome {
+        self.start_with(request, progress, &|_| {})
+    }
+    /// [`Self::start`], also reporting how far the upload has got
+    /// (`reportCloudPublishProgress(onProgress, "uploading", transfer)`).
+    pub fn start_with(
+        &self,
+        request: &Request,
+        progress: &mut dyn FnMut(Stage),
+        on_transfer: &(dyn Fn(transfer::Transfer) + Sync),
+    ) -> Outcome {
         type Flight = Arc<(std::sync::Mutex<Option<Outcome>>, std::sync::Condvar)>;
         static FLIGHTS: std::sync::Mutex<Vec<(Request, Flight)>> =
             std::sync::Mutex::new(Vec::new());
@@ -559,11 +618,16 @@ impl Coordinator {
             }
         }
         let mut land = Land(&flight, None);
-        let outcome = self.start_once(request, progress);
+        let outcome = self.start_once(request, progress, on_transfer);
         land.1 = Some(outcome.clone());
         outcome
     }
-    fn start_once(&self, request: &Request, progress: &mut dyn FnMut(Stage)) -> Outcome {
+    fn start_once(
+        &self,
+        request: &Request,
+        progress: &mut dyn FnMut(Stage),
+        on_transfer: &(dyn Fn(transfer::Transfer) + Sync),
+    ) -> Outcome {
         progress(Stage::Validating);
         if !valid_branch(&request.source_branch) {
             return failure(
@@ -592,7 +656,7 @@ impl Coordinator {
             Err(e) => return failure(e, None, None),
         };
         let mut latest: Option<Record> = None;
-        let result = self.run(request, &context, progress, &mut latest);
+        let result = self.run(request, &context, progress, on_transfer, &mut latest);
         match result {
             Ok(outcome) => outcome,
             Err(error) => {
@@ -603,6 +667,15 @@ impl Coordinator {
                     .flatten()
                     .or(latest)
                     .map(|r| self.persist_failure(&context.journal, r, &error));
+                if let Some(failed) = &failed {
+                    let fields = telemetry::of(failed).error(error.code.as_str());
+                    telemetry::record(telemetry::failure_event(error.code), fields.clone());
+                    if failed.project_state == "empty"
+                        && !matches!(failed.push_state.as_str(), "accepted" | "conflict")
+                    {
+                        telemetry::record("empty_project_retained", fields.outcome("retained"));
+                    }
+                }
                 let state = failed.as_ref().map(|r| {
                     let facts = self.local_facts(&request.root, r);
                     self.project_state(r, &facts)
@@ -616,6 +689,7 @@ impl Coordinator {
         request: &Request,
         context: &Context,
         progress: &mut dyn FnMut(Stage),
+        on_transfer: &(dyn Fn(transfer::Transfer) + Sync),
         latest: &mut Option<Record>,
     ) -> Result<Outcome, PublishError> {
         let root = &request.root;
@@ -647,13 +721,15 @@ impl Coordinator {
                 let commit = self.git.source_commit(root, &request.source_branch)?;
                 self.git.preflight(root, &commit)?;
                 let record = initial_record(request, &context.fingerprint, &commit);
-                journal.write(
+                let record = journal.write(
                     &record,
                     Expect {
                         create_only: true,
                         ..Default::default()
                     },
-                )?
+                )?;
+                telemetry::record("cloud_init_started", telemetry::of(&record));
+                record
             }
             Some(record) => {
                 Self::check_identity(&record, request, context)?;
@@ -729,6 +805,7 @@ impl Coordinator {
                 r.project_state = "empty".into();
                 r.project_id = Some(project);
             })?;
+            telemetry::record("cloud_project_created", telemetry::of(&record));
             *latest = Some(record.clone());
         }
         if record.checkpoint == "project-created" {
@@ -774,11 +851,12 @@ impl Coordinator {
                 r.attempt.state = "uploading".into();
                 r.attempt.updated_at = now_iso();
             })?;
+            telemetry::record("push_attempt_started", telemetry::of(&record));
             *latest = Some(record.clone());
             self.trusted(&record)?;
             let secret = self.stored_secret(&record)?;
             progress(Stage::Uploading);
-            self.git.push(root, &record, &secret)?;
+            self.git.push(root, &record, &secret, on_transfer)?;
             progress(Stage::Confirming);
             record = self.persist(journal, &record, |r| {
                 r.checkpoint = "push-accepted".into();
@@ -788,6 +866,7 @@ impl Coordinator {
                 r.last_error = None;
                 finish_attempt(&mut r.attempt, "accepted");
             })?;
+            telemetry::record("push_attempt_accepted", telemetry::of(&record));
             *latest = Some(record.clone());
         }
         progress(Stage::Finalizing);
@@ -982,7 +1061,12 @@ impl Coordinator {
     /// and the secret go away. A local finalization failure is not a publish
     /// failure.
     fn finish(&self, root: &Path, context: &Context, record: Record) -> Outcome {
-        let _ = self.git.finalize(root, &record);
+        if self.git.finalize(root, &record).is_err() {
+            telemetry::record(
+                "local_finalize_failed",
+                telemetry::of(&record).error(Code::LocalFinalizeFailed.as_str()),
+            );
+        }
         let record = if record.checkpoint != "completed" {
             self.persist(&context.journal, &record, |r| {
                 r.checkpoint = "completed".into();
@@ -1068,6 +1152,7 @@ impl Coordinator {
                     r.cleanup_state = "requested".into();
                     r.last_error = None;
                 })?;
+                telemetry::record("cleanup_requested", telemetry::of(&record));
             }
             if record.project_id.is_some() && record.checkpoint != "cleanup-server-complete" {
                 if !self.cloud.abandon_empty_project(&record)? {
@@ -1106,6 +1191,10 @@ impl Coordinator {
                         r.cleanup_state = "none".into();
                         r.last_error = Some(stored(Code::CleanupNotAllowed, false));
                     })?;
+                    telemetry::record(
+                        "cleanup_refused",
+                        telemetry::of(&record).error(refused.code.as_str()),
+                    );
                     let facts = self.local_facts(&request.root, &record);
                     return Ok(failure(
                         refused,
@@ -1126,6 +1215,7 @@ impl Coordinator {
                 let _ = self.vault.clear(reference);
             }
             journal.clear(Expect::of(&record))?;
+            telemetry::record("cleanup_completed", telemetry::of(&record));
             Ok(success(None, None, None))
         })();
         attempt.unwrap_or_else(|error| {
@@ -1146,6 +1236,10 @@ impl Coordinator {
             } else {
                 latest
             };
+            telemetry::record(
+                "cleanup_failed",
+                telemetry::of(&failed).error(error.code.as_str()),
+            );
             let facts = self.local_facts(&request.root, &failed);
             failure(
                 error,

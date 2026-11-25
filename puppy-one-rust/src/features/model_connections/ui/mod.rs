@@ -155,6 +155,13 @@ pub struct ModelConnections {
     verify_rx: Option<(String, Receiver<Result<(), String>>)>,
     /// A catalog read while a change was saving, offered once it lands.
     pending_offer: Option<(String, Vec<client::CatalogModel>)>,
+    /// The `po-agent` authority every change goes through (`None` in
+    /// standalone `with_loader` tests).
+    service: Option<client::Service>,
+    /// When the page opened: a saved verification shows from then.
+    opened_at: std::time::Instant,
+    /// Every connection's catalog and its status, as the authority keeps them.
+    catalogs: std::collections::HashMap<String, client::ConnectionCatalog>,
     wake: Wake,
 }
 impl EventEmitter<Saved> for ModelConnections {}
@@ -163,9 +170,39 @@ impl EventEmitter<PageChanged> for ModelConnections {}
 
 impl ModelConnections {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let mut page = Self::with_loader(window, cx, client::load);
+        let store = super::store::global(cx);
+        let service = store.read(cx).service();
+        let loader = service.clone();
+        let mut page = Self::with_loader(window, cx, move |wake| client::load(loader, wake));
+        page.service = Some(service);
+        page.catalogs = store.read(cx).snapshot().catalogs.clone();
+        // Changes made anywhere (Chat, a sign-in, a catalog sync) show here.
+        cx.observe(&store, |s: &mut Self, store, cx| {
+            let snapshot = store.read(cx).snapshot();
+            s.sync_from_store(&snapshot, cx);
+        })
+        .detach();
         page.shown(cx);
         page
+    }
+    /// The authority's snapshot: the saved connections and their catalogs.
+    fn sync_from_store(
+        &mut self,
+        snapshot: &client::ModelConnectionSnapshot,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.busy {
+            self.items = snapshot.connections.clone();
+            self.loaded = true;
+        }
+        self.catalogs = snapshot.catalogs.clone();
+        if let PageState::Detail(id) = &self.page
+            && self.loaded
+            && !self.items.iter().any(|c| &c.id == id)
+        {
+            self.page = PageState::List;
+        }
+        cx.notify();
     }
     fn with_loader(
         window: &mut Window,
@@ -225,6 +262,9 @@ impl ModelConnections {
             verified: Default::default(),
             verify_rx: None,
             pending_offer: None,
+            service: None,
+            opened_at: std::time::Instant::now(),
+            catalogs: Default::default(),
             wake,
         }
     }
@@ -248,8 +288,10 @@ impl ModelConnections {
             self.navigate(PageState::List, cx);
         }
         self.discover(cx);
-        if self.managed_rx.is_none() {
-            self.managed_rx = Some(client::managed_status(self.wake.clone()));
+        if self.managed_rx.is_none()
+            && let Some(service) = self.service.clone()
+        {
+            self.managed_rx = Some(client::managed_status(service, self.wake.clone()));
         }
     }
 
@@ -440,16 +482,16 @@ impl ModelConnections {
         model: Option<String>,
         cx: &mut Context<Self>,
     ) {
-        if self.busy {
+        let Some(service) = self.service.clone().filter(|_| !self.busy) else {
             return;
-        }
+        };
         self.error = None;
         self.error_at = ErrorAt::Local;
         self.connecting = Some(match &model {
             Some(model) => format!("{}#{model}", candidate.endpoint),
             None => candidate.endpoint.clone(),
         });
-        self.rx = client::quick_connect(candidate, model, self.wake.clone());
+        self.rx = client::quick_connect(service, candidate, model, self.wake.clone());
         self.busy = true;
         cx.notify();
     }
@@ -498,16 +540,26 @@ impl ModelConnections {
     /// `Sign in`: run the provider's sign-in; the browser opens on the
     /// worker. Signing in again keeps the connection and its default model.
     fn sign_in(&mut self, provider: OauthProvider, cx: &mut Context<Self>) {
-        if self.busy || self.signing_in.is_some() {
+        let Some(service) = self
+            .service
+            .clone()
+            .filter(|_| !self.busy && self.signing_in.is_none())
+        else {
             return;
-        }
+        };
         self.error = None;
         self.error_at = ErrorAt::Accounts;
         let cancel = client::Cancel::default();
         let existing = self.signed_in(provider).cloned();
         self.signing_in = Some(SigningIn {
             provider,
-            rx: client::sign_in(provider, existing, cancel.clone(), self.wake.clone()),
+            rx: client::sign_in(
+                service,
+                provider,
+                existing,
+                cancel.clone(),
+                self.wake.clone(),
+            ),
             cancel,
             step: None,
         });
@@ -537,11 +589,13 @@ impl ModelConnections {
 
     /// Read the service's model catalog for `id`.
     fn read_catalog(&mut self, id: String) {
-        if let Some(connection) = self.items.iter().find(|c| c.id == id).cloned() {
+        if let Some(service) = self.service.clone()
+            && self.items.iter().any(|c| c.id == id)
+        {
             if matches!(&self.page, PageState::Detail(shown) if *shown == id) {
                 self.catalog = None;
             }
-            self.catalog_rx = Some((id, client::catalog(connection, self.wake.clone())));
+            self.catalog_rx = Some((id.clone(), client::catalog(service, id, self.wake.clone())));
         }
     }
 
@@ -557,14 +611,28 @@ impl ModelConnections {
             return;
         };
         let offered = client::offered(&item, models);
-        if offered != item.chat_models {
-            self.rx = client::set_chat_models(item.id, offered, self.wake.clone());
+        if offered != item.chat_models
+            && let Some(service) = self.service.clone()
+        {
+            self.rx = client::set_chat_models(service, item.id, offered, self.wake.clone());
             self.busy = true;
         }
     }
 
     /// `catalog?.status ?? "unread"` of connection `id`.
     fn catalog_key(&self, id: &str) -> &'static str {
+        if self.catalog_rx.as_ref().is_some_and(|(r, _)| r == id) {
+            return "refreshing";
+        }
+        if let Some(catalog) = self.catalogs.get(id) {
+            return match catalog.status {
+                client::CatalogStatus::Idle => "unread",
+                client::CatalogStatus::Refreshing => "refreshing",
+                client::CatalogStatus::Ready => "ready",
+                client::CatalogStatus::Stale => "stale",
+                client::CatalogStatus::Failed => "failed",
+            };
+        }
         match &self.catalog {
             Some((shown, _))
                 if shown == id && self.catalog_rx.as_ref().is_some_and(|(r, _)| r == id) =>

@@ -483,6 +483,8 @@ fn a_hosted_launcher_offers_its_agent_without_a_shell_or_local_discovery(cx: &mu
         fn request(&self, _: ApiRequest) -> Result<serde_json::Value, Error> {
             Err(Error {
                 status: None,
+                code: None,
+                request_id: None,
                 unknown: false,
                 message: "offline".into(),
             })

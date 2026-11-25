@@ -112,7 +112,7 @@
   "auth.explainer.cloud.body": "Claude、ChatGPT、Codex から直接使えて、スマホからもいつでも開けます。",
   "auth.explainer.share.label": "リンクを共有",
   "auth.explainer.share.title": "ひとつのリンクで、\n誰にでも、どの Agent にも",
-  "auth.explainer.share.body": "同僚にメッセージで送ったり、Grok\u00a0Bot に渡したり。開くだけで閲覧も続きの編集もできます。",
+  "auth.explainer.share.body": "同僚にメッセージで送ったり、Grok Bot に渡したり。開くだけで閲覧も続きの編集もできます。",
   "auth.explainer.submit": "サインインして Cloud を始める",
   "auth.explainer.later": "あとで",
   "activation.overview.description": "ファイルをオンラインに保ち、メンバー、エージェント、自動化からいつでも利用できます。",
@@ -1173,5 +1173,7 @@
   "settings.computer.desktopPending": "Changed. Takes effect when this project's next Cloud Computer is created.",
   "settings.computer.stream": "Show screen",
   "settings.computer.streamHelp": "Show the desktop in this app. When off, the screen is never sent to this computer.",
-  "settings.computer.failed": "Couldn't update the Cloud Computer. Try again."
+  "settings.computer.failed": "Couldn't update the Cloud Computer. Try again.",
+  "settings.computer.isolatedAgents": "分離された Agent サンドボックス",
+  "settings.computer.isolatedAgentsHelp": "外部 Agent ごとに独立したサンドボックスを起動し、プロジェクトの共有ファイルをマウントします。次の接続から適用されます。"
 }

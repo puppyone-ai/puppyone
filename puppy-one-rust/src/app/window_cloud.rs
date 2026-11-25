@@ -134,6 +134,13 @@ impl WindowCloud {
         .detach();
         let repository = cx.new(|_| RepositoryCloud::new());
         cx.observe(&repository, |s, _, cx| s.refresh(cx)).detach();
+        // A hidden window defers its association's retries until it shows.
+        let shown = repository.downgrade();
+        window
+            .observe_window_visibility(move |visibility, _, cx| {
+                let _ = shown.update(cx, |r, cx| r.set_visible(visibility.is_visible(), cx));
+            })
+            .detach();
         let agents = cx.new(|_| CloudAgents::new());
         cx.observe(&agents, |s, _, cx| s.refresh(cx)).detach();
         let screen = cx.new(|cx| CloudScreen::new(preferences.clone(), window, cx));
@@ -490,8 +497,14 @@ impl WindowCloud {
         let _ = self.dialogs.update(cx, |d, cx| {
             d.open_for(key, owner, Self::render_dialog, Self::dismiss_dialog, cx)
         });
+        if key == DialogKey::CloudPublish {
+            self.publish.update(cx, |p, cx| p.set_watching(true, cx));
+        }
     }
     pub(super) fn close_dialog(&mut self, key: DialogKey, cx: &mut Context<Self>) -> bool {
+        if key == DialogKey::CloudPublish {
+            self.publish.update(cx, |p, cx| p.set_watching(false, cx));
+        }
         self.dialogs
             .update(cx, |d, cx| d.close(key, cx))
             .unwrap_or(false)

@@ -130,7 +130,13 @@ impl GitOps for Fake {
             Ok(created)
         })
     }
-    fn push(&self, _: &Path, record: &Record, _: &str) -> Result<(), PublishError> {
+    fn push(
+        &self,
+        _: &Path,
+        record: &Record,
+        _: &str,
+        _: &(dyn Fn(super::transfer::Transfer) + Sync),
+    ) -> Result<(), PublishError> {
         self.with(|s| {
             if s.drift_during_push {
                 s.dirty = true;
@@ -153,6 +159,9 @@ impl GitOps for Fake {
                 }
             }
         })
+    }
+    fn receipt(&self, _: &Record, _: &str) -> Result<Option<String>, PublishError> {
+        Ok(None)
     }
     fn remote_main(&self, _: &Path, _: &Record, _: &str) -> Result<Option<String>, PublishError> {
         Ok(self.with(|s| s.cloud_main.clone()))
@@ -230,6 +239,7 @@ pub fn coordinator(fake: &Arc<Fake>) -> (Coordinator, Arc<Memory>) {
             git: fake.clone(),
             cloud: fake.clone(),
             vault: vault.clone(),
+            lease: Default::default(),
         },
         vault,
     )

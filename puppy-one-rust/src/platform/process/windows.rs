@@ -37,6 +37,14 @@ pub(super) struct JobHandle(HANDLE);
 unsafe impl Send for JobHandle {}
 unsafe impl Sync for JobHandle {}
 
+impl JobHandle {
+    pub(super) fn terminate(&self) -> bool {
+        // SAFETY: `self.0` is an owned job object handle; terminating it reaps
+        // the direct child and all descendants assigned to the job.
+        unsafe { TerminateJobObject(self.0, 1).is_ok() }
+    }
+}
+
 impl Drop for JobHandle {
     fn drop(&mut self) {
         // SAFETY: `self.0` is an owned job object handle; closing it triggers
@@ -133,9 +141,43 @@ pub(super) fn hide_console_window(command: &mut tokio::process::Command) {
     command.creation_flags(CREATE_NO_WINDOW.0);
 }
 
+pub(super) fn apply_tokio_args(
+    command: &mut tokio::process::Command,
+    args: &[String],
+    verbatim: bool,
+) {
+    if verbatim {
+        for arg in args {
+            command.raw_arg(arg);
+        }
+    } else {
+        command.args(args);
+    }
+}
+
 pub(super) fn terminate_child(child: &mut Child) {
     let _ = child.kill();
     let _ = child.wait();
+}
+
+pub(super) fn is_alive(pid: u32) -> bool {
+    use windows::Win32::System::Threading::{
+        GetExitCodeProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    /// `STILL_ACTIVE`.
+    const RUNNING: u32 = 259;
+    // SAFETY: opens the process for a status query and closes the handle.
+    unsafe {
+        let handle = match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+            Ok(handle) => handle,
+            // A process this user may not query still exists.
+            Err(error) => return error.code() == windows::Win32::Foundation::E_ACCESSDENIED,
+        };
+        let mut code = 0u32;
+        let running = GetExitCodeProcess(handle, &mut code).is_ok() && code == RUNNING;
+        let _ = CloseHandle(handle);
+        running
+    }
 }
 
 pub(super) fn terminate_pid(pid: u32, _grouped: bool, _force: bool) -> bool {

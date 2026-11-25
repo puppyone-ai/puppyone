@@ -6,8 +6,9 @@
 //! generation and API: remotes are read on a worker, the remotes alone
 //! decide local-only / conflict / wrong host / sign in, and only then is the
 //! exact Project authorized. Transport failures retry at most twice with
-//! jitter; a returning window may probe once more. Late results of an older
-//! key are dropped.
+//! jitter; a returning window may probe once more. A hidden window waits:
+//! a retry that comes due then runs as the window's probe when it is
+//! visible again. Late results of an older key are dropped.
 use crate::{
     cloud::auth::Cancellation,
     workspace::cloud::{
@@ -19,7 +20,6 @@ use gpui::*;
 use std::{
     path::{Path, PathBuf},
     sync::atomic::AtomicBool,
-    time::Instant,
 };
 
 pub struct RepositoryCloud {
@@ -29,6 +29,8 @@ pub struct RepositoryCloud {
     epoch: u64,
     cancel: Option<Cancellation>,
     recovery: Controller,
+    /// Whether the window is visible (`document.visibilityState`).
+    visible: bool,
 }
 
 fn jitter() -> f64 {
@@ -46,6 +48,7 @@ impl RepositoryCloud {
             epoch: 0,
             cancel: None,
             recovery: Controller::new(),
+            visible: true,
         }
     }
     /// The checkout (`None`: no local project) under the current account.
@@ -77,8 +80,17 @@ impl RepositoryCloud {
     }
     /// A returning window or regained network: one throttled probe.
     pub fn probe(&mut self, cx: &mut Context<Self>) {
-        if let Next::RetryAfter(delay) = self.recovery.probe(Instant::now()) {
+        let now = cx.background_executor().now();
+        if let Next::RetryAfter(delay) = self.recovery.probe(now, self.visible) {
             self.schedule(delay, cx);
+        }
+    }
+    /// The window was hidden or shown (`visibilitychange`); a window
+    /// that shows again probes.
+    pub fn set_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
+        self.visible = visible;
+        if visible {
+            self.probe(cx);
         }
     }
     fn schedule(&mut self, delay: std::time::Duration, cx: &mut Context<Self>) {
@@ -86,7 +98,7 @@ impl RepositoryCloud {
         cx.spawn(async move |this, cx| {
             cx.background_executor().timer(delay).await;
             let _ = this.update(cx, |s, cx| {
-                if s.epoch == epoch {
+                if s.epoch == epoch && s.recovery.due(s.visible) {
                     s.resolve(cx);
                 }
             });
@@ -111,7 +123,7 @@ impl RepositoryCloud {
         self.cancel = Some(cancel.clone());
         let epoch = self.epoch;
         self.context = Association::Resolving;
-        self.recovery.start(Instant::now());
+        self.recovery.start(cx.background_executor().now());
         cx.notify();
         let task = cx.background_executor().spawn(async move {
             let urls: Vec<String> =
@@ -130,9 +142,9 @@ impl RepositoryCloud {
                 account.is_some(),
             ) {
                 Precheck::Decided(context) => Ok(context),
-                Precheck::Authorize(project) => {
+                Precheck::Authorize(target) => {
                     let (broker, binding) = account.expect("signed in");
-                    repository::authorize(&broker, &binding, &project, &cancel)
+                    repository::authorize(&broker, &binding, &target, &cancel)
                 }
             }
         });
@@ -163,5 +175,107 @@ impl RepositoryCloud {
 impl Default for RepositoryCloud {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    use std::time::Duration;
+
+    fn settle(
+        cx: &mut gpui::TestAppContext,
+        mut done: impl FnMut(&mut gpui::TestAppContext) -> bool,
+    ) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        loop {
+            cx.run_until_parked();
+            if done(cx) {
+                return;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the association did not settle"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    /// `repositoryContextRecovery.test.ts`: `defers hidden-window retries
+    /// until visible and removes listeners on disposal`. Cloud answers 503
+    /// throughout: the retry that comes due while the window is hidden does
+    /// not run, nor does a focus probe; showing the window reads once more;
+    /// after the context is gone nothing reads again.
+    #[gpui::test]
+    fn a_hidden_window_defers_its_retries_until_it_is_visible(cx: &mut gpui::TestAppContext) {
+        cx.executor().allow_parking();
+        let asked = Arc::new(AtomicUsize::new(0));
+        let responder: crate::cloud::auth::Responder = Arc::new({
+            let asked = asked.clone();
+            move |request| {
+                if request.path.ends_with("/repository-context") {
+                    asked.fetch_add(1, Ordering::SeqCst);
+                }
+                Err(crate::cloud::auth::Error::Http(503))
+            }
+        });
+        let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+        cx.update(|cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+        settle(cx, |cx| {
+            cx.update(|cx| crate::features::cloud::account::has_account(cx))
+        });
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        for args in [
+            &["init", "-q"][..],
+            &[
+                "remote",
+                "add",
+                "origin",
+                "http://127.0.0.1:18080/git/project-a.git",
+            ],
+        ] {
+            assert!(
+                std::process::Command::new("git")
+                    .args(args)
+                    .current_dir(&root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
+        let reads = || asked.load(Ordering::SeqCst);
+        let cloud = cx.new(|_| RepositoryCloud::new());
+        cloud.update(cx, |c, cx| {
+            c.set_visible(false, cx);
+            c.sync(Some(&root), true, cx);
+        });
+        let settled = |cx: &mut gpui::TestAppContext| {
+            !matches!(
+                cloud.read_with(cx, |c, _| c.context.clone()),
+                Association::Resolving
+            )
+        };
+        settle(cx, |cx| reads() == 1 && settled(cx));
+        // The retry comes due while hidden; a focus probe waits too.
+        cx.executor().advance_clock(Duration::from_secs(60));
+        cloud.update(cx, |c, cx| c.probe(cx));
+        cx.executor().advance_clock(Duration::from_secs(60));
+        cx.run_until_parked();
+        assert_eq!(reads(), 1, "a hidden window does not read again");
+        cloud.update(cx, |c, cx| c.set_visible(true, cx));
+        cx.executor().advance_clock(Duration::ZERO);
+        settle(cx, |cx| reads() == 2 && settled(cx));
+        // The context goes away: its pending retry and probes go with it.
+        cloud.update(cx, |c, cx| c.sync(None, true, cx));
+        cloud.update(cx, |c, cx| c.probe(cx));
+        cx.executor().advance_clock(Duration::from_secs(60));
+        cx.run_until_parked();
+        assert_eq!(reads(), 2);
     }
 }

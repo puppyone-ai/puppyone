@@ -74,9 +74,27 @@ pub struct Conventions {
     /// Whether the platform window should request explicit client-side window
     /// decorations from GPUI.
     pub uses_client_window_decorations: bool,
+    /// Whether custom trailing caption buttons must gate on
+    /// `Decorations::Client` (true on Linux X11/Wayland to avoid double title
+    /// bars under server-side decorations; false on Windows, where GPUI hides
+    /// the OS title bar via `appears_transparent` while reporting
+    /// `Decorations::Server`).
+    pub caption_controls_depend_on_csd: bool,
+    /// Whether GPUI's native non-client hit-testing (`WM_NCHITTEST` /
+    /// `WindowControlArea`) owns caption button clicks, Snap Layouts,
+    /// titlebar dragging, double-click maximize/restore, and right-click
+    /// system menus (Windows). When true, views must not intercept those
+    /// regions with `on_mouse_down` + `stop_propagation()`.
+    pub native_nonclient_window_controls: bool,
+    /// Whether the in-window menu bar collapses into a single compact menu
+    /// button on the leading edge of the title bar (modern Windows / Linux).
+    pub compact_app_menu: bool,
     /// Whether closing the last window terminates the application.
     pub last_window_close_quits: bool,
-    /// Whether the sidebar reserves bottom footer space for non-macOS navigation.
+    /// Whether the sidebar reserves bottom footer space for utility launchers
+    /// (Settings / Feedback). Disabled on every desktop OS once Settings and
+    /// Help/Feedback live in the system menu bar (macOS) or the top-left
+    /// compact title-bar menu (Windows / Linux).
     pub sidebar_footer_visible: bool,
     /// Whether text editors install Emacs-style `Ctrl+A`/`Ctrl+E`/`Ctrl+D` line
     /// navigation bindings (standard on macOS, where `Ctrl` is separate from `Cmd`).
@@ -128,6 +146,9 @@ impl Conventions {
                 uses_system_menu_bar: true,
                 uses_custom_titlebar_controls: false,
                 uses_client_window_decorations: false,
+                caption_controls_depend_on_csd: false,
+                native_nonclient_window_controls: false,
+                compact_app_menu: false,
                 last_window_close_quits: false,
                 sidebar_footer_visible: false,
                 emacs_line_bindings: true,
@@ -156,8 +177,11 @@ impl Conventions {
                 uses_system_menu_bar: false,
                 uses_custom_titlebar_controls: true,
                 uses_client_window_decorations: true,
+                caption_controls_depend_on_csd: false,
+                native_nonclient_window_controls: true,
+                compact_app_menu: true,
                 last_window_close_quits: true,
-                sidebar_footer_visible: true,
+                sidebar_footer_visible: false,
                 emacs_line_bindings: false,
                 terminal_clipboard_uses_platform_modifier: false,
                 has_macos_app_visibility_shortcuts: false,
@@ -184,8 +208,11 @@ impl Conventions {
                 uses_system_menu_bar: false,
                 uses_custom_titlebar_controls: true,
                 uses_client_window_decorations: false,
+                caption_controls_depend_on_csd: true,
+                native_nonclient_window_controls: false,
+                compact_app_menu: true,
                 last_window_close_quits: true,
-                sidebar_footer_visible: true,
+                sidebar_footer_visible: false,
                 emacs_line_bindings: false,
                 terminal_clipboard_uses_platform_modifier: false,
                 has_macos_app_visibility_shortcuts: false,
@@ -227,6 +254,23 @@ mod tests {
         assert!(mac.uses_system_menu_bar);
         assert!(!win.uses_system_menu_bar);
         assert!(!linux.uses_system_menu_bar);
+
+        assert!(!mac.uses_custom_titlebar_controls);
+        assert!(win.uses_custom_titlebar_controls);
+        assert!(linux.uses_custom_titlebar_controls);
+
+        assert!(!win.caption_controls_depend_on_csd);
+        assert!(linux.caption_controls_depend_on_csd);
+        assert!(win.native_nonclient_window_controls);
+        assert!(!mac.native_nonclient_window_controls);
+        assert!(!linux.native_nonclient_window_controls);
+        assert!(!mac.compact_app_menu);
+        assert!(win.compact_app_menu);
+        assert!(linux.compact_app_menu);
+
+        assert!(!mac.sidebar_footer_visible);
+        assert!(!win.sidebar_footer_visible);
+        assert!(!linux.sidebar_footer_visible);
 
         assert!(!mac.last_window_close_quits);
         assert!(win.last_window_close_quits);

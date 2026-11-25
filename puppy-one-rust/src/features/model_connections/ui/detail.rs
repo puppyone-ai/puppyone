@@ -12,8 +12,14 @@ use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 
 impl ModelConnections {
-    /// The models of the connection's catalog, once read.
+    /// The models of the connection's catalog, once read: the authority's
+    /// (kept while a later read fails, `Stale`), else the page's own read.
     fn listed_models(&self, item: &ModelConnection) -> &[client::CatalogModel] {
+        if let Some(catalog) = self.catalogs.get(&item.id)
+            && !catalog.models.is_empty()
+        {
+            return &catalog.models;
+        }
         match &self.catalog {
             Some((id, Ok(models))) if *id == item.id => models,
             _ => &[],
@@ -27,6 +33,25 @@ impl ModelConnections {
             .is_some_and(|(id, _)| *id == item.id)
         {
             return Some(tr("settings.modelConnections.status.refreshing").to_string());
+        }
+        if let Some(catalog) = self.catalogs.get(&item.id) {
+            let with_code = |status: &str| match &catalog.error_code {
+                Some(code) => format!("{} · {}", tr(status), Self::error_text(code)),
+                None => tr(status).to_string(),
+            };
+            match catalog.status {
+                client::CatalogStatus::Ready => return None,
+                client::CatalogStatus::Refreshing => {
+                    return Some(tr("settings.modelConnections.status.refreshing").to_string());
+                }
+                client::CatalogStatus::Stale => {
+                    return Some(with_code("settings.modelConnections.status.stale"));
+                }
+                client::CatalogStatus::Failed => {
+                    return Some(with_code("settings.modelConnections.status.failed"));
+                }
+                client::CatalogStatus::Idle => {}
+            }
         }
         match &self.catalog {
             Some((id, Err(code))) if *id == item.id => Some(format!(
@@ -108,8 +133,11 @@ impl ModelConnections {
                         .label(tr("native.modelConnections.useAsDefault"))
                         .disabled(self.busy)
                         .on_click(cx.listener(move |s, _, _, cx| {
-                            if !s.busy {
+                            if !s.busy
+                                && let Some(service) = s.service.clone()
+                            {
                                 s.rx = client::use_as_default(
+                                    service,
                                     target.clone(),
                                     chosen.clone(),
                                     context,
@@ -138,23 +166,24 @@ impl ModelConnections {
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let mut connection = item.clone();
-        connection.model = model.id.clone();
-        let route = connection.route();
+        let route = format!("{}/{}", item.id, model.id);
         let verifying = self.verify_rx.as_ref().is_some_and(|(r, _)| *r == route);
         let blocked = self.busy
             || self.verify_rx.is_some()
             || model.context.is_none()
             || (item.driver == Driver::Unsloth && !item.server_tools_disabled);
-        let context = model.context;
+        let (id, model_id) = (item.id.clone(), model.id.clone());
+        let checking = route.clone();
         let start = cx.listener(move |s, _, _, cx| {
-            if s.verify_rx.is_none() {
-                // The model is checked as the Agent would serve it.
-                let mut checked = connection.clone();
-                if checked.manual_context_window.is_none() {
-                    checked.manual_context_window = context;
-                }
-                s.verify_rx = Some((checked.route(), client::verify(checked, s.wake.clone())));
+            // The model is checked as the Agent would serve it (the
+            // authority fills in the window its service reports).
+            if s.verify_rx.is_none()
+                && let Some(service) = s.service.clone()
+            {
+                s.verify_rx = Some((
+                    checking.clone(),
+                    client::verify(service, id.clone(), model_id.clone(), s.wake.clone()),
+                ));
                 cx.notify();
             }
         });
@@ -165,7 +194,14 @@ impl ModelConnections {
                 .disabled(true)
                 .into_any_element();
         }
-        let Some((result, at)) = self.verified.get(&route) else {
+        // A check that passed at the connection's current security
+        // generation is kept by the authority across restarts.
+        let saved = (Ok(()), self.opened_at);
+        let verified = match self.verified.get(&route) {
+            Some(checked) => Some(checked),
+            None => item.is_verified(&model.id).then_some(&saved),
+        };
+        let Some((result, at)) = verified else {
             return Button::new(("verify-model", index))
                 .label(tr("settings.modelConnections.verify"))
                 .disabled(blocked)
@@ -334,7 +370,9 @@ impl ModelConnections {
                                 .disabled(self.busy)
                                 .on_click(cx.listener(|s, _, _, cx| {
                                     if !s.busy {
-                                        if let PageState::Detail(id) = &s.page {
+                                        if let PageState::Detail(id) = &s.page
+                                            && let Some(service) = s.service.clone()
+                                        {
                                             let generation = s
                                                 .items
                                                 .iter()
@@ -342,6 +380,7 @@ impl ModelConnections {
                                                 .map(|c| c.generation.clone())
                                                 .unwrap_or_default();
                                             s.rx = client::remove(
+                                                service,
                                                 id.clone(),
                                                 generation,
                                                 s.wake.clone(),

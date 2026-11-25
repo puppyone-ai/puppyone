@@ -926,3 +926,57 @@ fn native_puppyone_http_approval_resume_stop_and_binding() {
     });
     drop(server);
 }
+
+#[test]
+fn chat_context_replays_reasoning_content_and_details_across_tool_turns() {
+    let cwd = Path::new("/tmp/project");
+    let messages = vec![
+        json!({ "role": "user", "content": [{"type": "text", "text": "Inspect file"}] }),
+        json!({
+            "role": "assistant",
+            "reasoning_content": "Let me read README.md first.",
+            "content": [
+                { "type": "thinking", "thinking": "Let me read README.md first." },
+                { "type": "toolCall", "id": "call_1", "name": "read", "arguments": { "path": "README.md" } }
+            ]
+        }),
+        json!({
+            "role": "toolResult",
+            "toolCallId": "call_1",
+            "content": [{ "type": "text", "text": "# Hello" }]
+        }),
+        json!({
+            "role": "assistant",
+            "reasoning_details": [
+                { "type": "reasoning.text", "id": "r1", "index": 0, "text": "Saw hello", "signature": "sig" }
+            ],
+            "content": [
+                { "type": "toolCall", "id": "call_2", "name": "ls", "arguments": {} }
+            ]
+        }),
+        json!({
+            "role": "toolResult",
+            "toolCallId": "call_2",
+            "content": [{ "type": "text", "text": "README.md" }]
+        }),
+    ];
+    let mine = |mut message: Value| {
+        if message["role"] == "assistant" {
+            message["provider"] = json!("mc_or");
+            message["model"] = json!("router/model");
+        }
+        message
+    };
+    let messages: Vec<Value> = messages.into_iter().map(mine).collect();
+    let model = json!({ "provider": "mc_or", "id": "router/model" });
+    let (ctx, _) = super::turn::request_context(cwd, &messages, &model);
+    assert_eq!(ctx[2]["role"], "assistant");
+    assert_eq!(ctx[2]["reasoning_content"], "Let me read README.md first.");
+    assert_eq!(ctx[4]["role"], "assistant");
+    assert_eq!(ctx[4]["reasoning_details"][0]["signature"], "sig");
+    // Another model's reasoning is never replayed, signed details included.
+    let other = json!({ "provider": "mc_other", "id": "other/model" });
+    let (ctx, _) = super::turn::request_context(cwd, &messages, &other);
+    assert!(ctx[2].get("reasoning_content").is_none());
+    assert!(ctx[4].get("reasoning_details").is_none());
+}

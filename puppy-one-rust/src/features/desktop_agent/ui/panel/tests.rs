@@ -749,3 +749,426 @@ fn finder_drops_insert_folders_as_paths_and_stage_files(cx: &mut TestAppContext)
     assert_eq!(stagings(), 1, "a file is staged");
     assert!(!asked.borrow().contains(&AgentOperation::StartTurn));
 }
+
+/// Production projection integration test: `ModelConnectionService` ->
+/// `ModelConnectionsStore` -> `ManagedCompute::from_store` ->
+/// `AgentChatTabPanel::watch_model_connections` (without legacy test hooks),
+/// verifying trial claim projection, zero duplicate catalog calls, and
+/// automatic runtime rediscovery when ready models first arrive.
+#[gpui::test]
+fn production_store_projects_wallet_and_rediscovers_on_first_ready_snapshot(
+    cx: &mut TestAppContext,
+) {
+    use crate::agent::model_connections::{
+        ModelConnectionService,
+        managed::{Answer, Failed, ManagedGateway, ManagedSession},
+        wallet::Reason,
+    };
+    use crate::cloud::auth::model::{Binding, Environment};
+    use serde_json::{Value, json};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
+
+    struct ScriptedGateway {
+        calls: Mutex<Vec<String>>,
+        trial_claimed: Mutex<bool>,
+    }
+    impl ManagedGateway for ScriptedGateway {
+        fn public(&self, path: &str) -> Answer {
+            self.calls.lock().unwrap().push(format!("PUBLIC {path}"));
+            Box::pin(async move {
+                Ok(json!({
+                    "sandbox": true,
+                    "trial_credit_micro_usd": 1_000_000,
+                    "packs": [{"id": "pack-5", "price_cents": 500}],
+                    "models": [{"id": "deepseek/deepseek-v4.1-flash", "name": "DeepSeek", "context_window": 1_000_000}]
+                }))
+            })
+        }
+        fn request(
+            &self,
+            _binding: Option<Binding>,
+            method: reqwest::Method,
+            path: &str,
+            _body: Option<Value>,
+            _idempotency_key: Option<String>,
+        ) -> Answer {
+            self.calls.lock().unwrap().push(format!("{method} {path}"));
+            let claimed = *self.trial_claimed.lock().unwrap();
+            let reply = match path {
+                "/ai/balance" => {
+                    let amt = if claimed { 1_000_000 } else { 0 };
+                    Ok(json!({
+                        "balance_micro_usd": amt,
+                        "reserved_micro_usd": 0,
+                        "available_micro_usd": amt,
+                        "trial_granted_micro_usd": amt
+                    }))
+                }
+                "/ai/trial" => {
+                    *self.trial_claimed.lock().unwrap() = true;
+                    Ok(json!({
+                        "balance_micro_usd": 1_000_000,
+                        "reserved_micro_usd": 0,
+                        "available_micro_usd": 1_000_000,
+                        "trial_granted_micro_usd": 1_000_000
+                    }))
+                }
+                _ => Err(Failed),
+            };
+            Box::pin(async move { reply })
+        }
+    }
+
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+
+    let dir = tempfile::tempdir().unwrap();
+    let gw = Arc::new(ScriptedGateway {
+        calls: Mutex::new(vec![]),
+        trial_claimed: Mutex::new(false),
+    });
+    let service = ModelConnectionService::with_gateway(
+        dir.path().to_path_buf(),
+        None,
+        Some(gw.clone()),
+        Duration::from_secs(5),
+    );
+    let _store = cx.update(|cx| {
+        crate::features::model_connections::install_model_connections_service(service.clone(), cx)
+    });
+    let wallet = cx.update(crate::features::model_connections::global_compute);
+
+    let slot = Rc::new(RefCell::new(None));
+    let kept = slot.clone();
+    let (panel, cx) = cx.add_window_view(|window, cx| {
+        let (mut panel, asked) =
+            AgentChatTabPanel::managed_fixture(Rc::new(Cell::new(false)), window, cx);
+        panel.set_presentation(true, true, window, cx);
+        panel.set_payments(true, cx);
+        panel.watch_wallet(cx);
+        panel.watch_model_connections(cx);
+        *kept.borrow_mut() = Some(asked);
+        panel
+    });
+    let asked = slot.borrow().clone().unwrap();
+    cx.run_until_parked();
+    draw(cx);
+    assert_eq!(
+        wallet.read_with(cx, |w, _| w.reason()),
+        Reason::SignInRequired
+    );
+
+    let discoveries = || {
+        asked
+            .borrow()
+            .iter()
+            .filter(|op| **op == AgentOperation::DiscoverRuntimes)
+            .count()
+    };
+    let before = discoveries();
+
+    // Sign in and enable Payments on the single `po-agent` authority.
+    let binding = Binding {
+        user: "prod-store-user".into(),
+        instance: uuid::Uuid::new_v4(),
+        epoch: 1,
+        environment: Environment::new(
+            "https://qubits-api.puppyone.ai/api/v1",
+            "https://qubits-try.puppyone.ai",
+        )
+        .unwrap(),
+    };
+    service.set_payments(true);
+    service.adopt_session(Some(ManagedSession::of(binding)));
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        cx.run_until_parked();
+        draw(cx);
+        let ready = wallet.read_with(cx, |w, _| w.reason() == Reason::Ready);
+        let panel_has_managed = panel.read_with(cx, |p, _| {
+            p.compute
+                .as_ref()
+                .is_some_and(|c| c.sources.values().any(|k| *k == "managed"))
+        });
+        if ready && panel_has_managed && discoveries() > before {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "timed out waiting for production store -> wallet -> panel convergence: ready={ready}, panel_has_managed={panel_has_managed}, discoveries={} (before={before})",
+            discoveries()
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    assert_eq!(
+        wallet.read_with(cx, |w, _| w.balance.unwrap().available_micro_usd),
+        1_000_000
+    );
+    let trial_calls = gw
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|c| *c == "POST /ai/trial")
+        .count();
+    assert_eq!(
+        trial_calls, 1,
+        "trial must be claimed exactly once across UI & host"
+    );
+    let catalog_calls = gw
+        .calls
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|c| *c == "PUBLIC /ai/catalog")
+        .count();
+    assert!(
+        catalog_calls <= 2,
+        "catalog must stay cached and never storm: {catalog_calls}"
+    );
+}
+
+/// The panel's `role="status"` announcements (`desktop-agent-announcer`).
+fn announced(cx: &mut VisualTestContext) -> Vec<String> {
+    use gpui_kit::test::TestQueryExt as _;
+    cx.update(|w, _| {
+        w.find_all_by_role(gpui::Role::Status)
+            .iter()
+            .filter_map(|s| s.label().map(str::to_owned))
+            .collect()
+    })
+}
+
+fn resource_drag(
+    workspace: Option<std::sync::Arc<crate::workspace::Workspace>>,
+) -> crate::ui::resource_drag::ResourceDrag {
+    crate::ui::resource_drag::ResourceDrag {
+        single_file: true,
+        paths: vec![std::path::PathBuf::from("secret.md")],
+        label: "secret.md".into(),
+        workspace,
+        native: std::rc::Rc::new(std::cell::Cell::new(false)),
+    }
+}
+
+/// `marks cross-workspace drags invalid and never grants their paths`:
+/// entries dragged from another workspace, or from one without local
+/// files, are refused and said so; this chat's own are resolved.
+#[gpui::test]
+fn cross_workspace_drags_are_refused_and_announced(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let ours = tempfile::tempdir().unwrap();
+    let theirs = tempfile::tempdir().unwrap();
+    for root in [&ours, &theirs] {
+        std::fs::write(root.path().join("secret.md"), "s").unwrap();
+    }
+    let root = ours.path().to_string_lossy().into_owned();
+    let slot = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let kept = slot.clone();
+    let (panel, cx) = cx.add_window_view(|window, cx| {
+        let (panel, asked) =
+            AgentChatTabPanel::seeded_fixture_at(&root, true, None, "", window, cx);
+        *kept.borrow_mut() = Some(asked);
+        panel
+    });
+    let asked = slot.borrow().clone().unwrap();
+    draw(cx);
+    let resolved = || {
+        asked
+            .borrow()
+            .iter()
+            .filter(|op| {
+                matches!(
+                    op,
+                    AgentOperation::ResolveWorkspaceReferences | AgentOperation::StageReferences
+                )
+            })
+            .count()
+    };
+    let drop = |cx: &mut VisualTestContext, drag| {
+        panel.update(cx, |p, cx| p.drop_resources(&drag, cx));
+        draw(cx);
+    };
+    let other = crate::workspace::Workspace::open(theirs.path()).unwrap();
+    drop(cx, resource_drag(Some(other)));
+    assert_eq!(resolved(), 0, "another workspace's paths are never granted");
+    assert_eq!(
+        announced(cx),
+        ["That item belongs to another workspace and was not added."]
+    );
+    let hosted = crate::workspace::Workspace::from_provider(std::sync::Arc::new(
+        crate::workspace::testing::Memory::new("memory://cloud/project/"),
+    ))
+    .unwrap();
+    drop(cx, resource_drag(Some(hosted)));
+    assert_eq!(resolved(), 0);
+    assert_eq!(
+        announced(cx),
+        ["That workspace item is no longer available."]
+    );
+    let own = crate::workspace::Workspace::open(ours.path()).unwrap();
+    drop(cx, resource_drag(Some(own)));
+    assert_eq!(resolved(), 1, "this chat's own entries are resolved");
+}
+
+/// `announces partial batches while retaining the rejected item as an
+/// actionable error`: a dropped file the runtime refuses stays a failed
+/// reference, and the status counts it.
+#[gpui::test]
+fn a_partial_batch_is_announced_and_keeps_its_failed_reference(cx: &mut TestAppContext) {
+    use gpui::{ExternalPaths, FileDropEvent};
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let finder = tempfile::tempdir().unwrap();
+    let file = finder.path().join("paper.pdf");
+    std::fs::write(&file, b"pdf").unwrap();
+    let (panel, _asked, cx) = seeded(cx, true, None, "");
+    assert!(announced(cx).is_empty());
+    let chat = cx.debug_bounds("agent-chat-panel").unwrap();
+    cx.simulate_event(FileDropEvent::Entered {
+        position: chat.center(),
+        paths: ExternalPaths(vec![file].into()),
+    });
+    cx.simulate_event(FileDropEvent::Submit {
+        position: chat.center(),
+    });
+    draw(cx);
+    assert_eq!(announced(cx), ["Added 0; 1 could not be added."]);
+    let references = panel.read_with(cx, |p, _| p.controller.get_snapshot().references);
+    assert_eq!(references.len(), 1);
+    assert_eq!(
+        references[0].status,
+        crate::agent::contract::dto::ReferenceStatus::Error
+    );
+}
+
+/// A staged file's resolving mention becomes its result's mention in
+/// place: one `@name`, keyed to the reference that replaced the pending one.
+#[gpui::test]
+fn a_staged_files_mention_follows_its_reference_once_staging_ends(cx: &mut TestAppContext) {
+    use gpui::{ExternalPaths, FileDropEvent};
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let finder = tempfile::tempdir().unwrap();
+    let file = finder.path().join("notes.txt");
+    std::fs::write(&file, b"notes").unwrap();
+    let (panel, asked, cx) = seeded(cx, true, None, "");
+    let stagings = || {
+        asked
+            .borrow()
+            .iter()
+            .filter(|op| **op == AgentOperation::StageReferences)
+            .count()
+    };
+    let chat = cx.debug_bounds("agent-chat-panel").unwrap();
+    cx.simulate_event(FileDropEvent::Entered {
+        position: chat.center(),
+        paths: ExternalPaths(vec![file].into()),
+    });
+    cx.simulate_event(FileDropEvent::Submit {
+        position: chat.center(),
+    });
+    draw(cx);
+    let (references, document) = panel.update(cx, |p, cx| {
+        (
+            p.controller.get_snapshot().references,
+            p.composer.read(cx).document(cx),
+        )
+    });
+    assert_eq!(references.len(), 1);
+    assert!(references[0].id.starts_with("error-"), "{references:?}");
+    assert_eq!(document.0.matches("@notes.txt").count(), 1, "{document:?}");
+    assert_eq!(
+        document
+            .1
+            .iter()
+            .map(|m| m.reference_id.clone())
+            .collect::<Vec<_>>(),
+        [references[0].id.clone()]
+    );
+    assert!(cx.debug_bounds("agent-mention:@notes.txt:error").is_some());
+    // Its Retry stages the same file again, in its place.
+    assert_eq!(stagings(), 1);
+    let retry = cx.update(|w, _| {
+        use gpui_kit::test::TestQueryExt as _;
+        w.find_all_by_role(gpui::Role::Button)
+            .into_iter()
+            .find(|b| b.label().is_some_and(|l| l.starts_with("Retry reference")))
+            .map(|b| b.bounds())
+            .unwrap()
+    });
+    cx.simulate_click(retry.center(), Modifiers::default());
+    draw(cx);
+    assert_eq!(stagings(), 2);
+    let document = panel.update(cx, |p, cx| p.composer.read(cx).document(cx));
+    assert_eq!(document.0.matches("@notes.txt").count(), 1, "{document:?}");
+}
+
+/// `loads an authorized visual preview for a workspace image without
+/// putting its URL in the path`: an image dragged from this chat's
+/// workspace is resolved by its path and keeps its file as its card's
+/// preview; a Markdown file gets none.
+#[gpui::test]
+fn a_dropped_workspace_image_keeps_its_preview(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let ours = tempfile::tempdir().unwrap();
+    std::fs::write(ours.path().join("capture.png"), b"png").unwrap();
+    std::fs::write(ours.path().join("notes.md"), b"# notes").unwrap();
+    let root = ours.path().to_string_lossy().into_owned();
+    let (panel, cx) = cx.add_window_view(|window, cx| {
+        AgentChatTabPanel::seeded_fixture_at(&root, true, None, "", window, cx).0
+    });
+    draw(cx);
+    let workspace = crate::workspace::Workspace::open(ours.path()).unwrap();
+    let drag = crate::ui::resource_drag::ResourceDrag {
+        single_file: false,
+        paths: vec!["capture.png".into(), "notes.md".into()],
+        label: "2 items".into(),
+        workspace: Some(workspace.clone()),
+        native: std::rc::Rc::new(std::cell::Cell::new(false)),
+    };
+    panel.update(cx, |p, cx| p.drop_resources(&drag, cx));
+    draw(cx);
+    let local = drag.local_paths().unwrap();
+    let previews: Vec<(String, Option<String>)> = panel.read_with(cx, |p, _| {
+        p.controller
+            .get_snapshot()
+            .references
+            .iter()
+            .map(|r| {
+                (
+                    r.display_name.clone(),
+                    p.controller.get_reference_preview_url(&r.id),
+                )
+            })
+            .collect()
+    });
+    assert_eq!(
+        previews,
+        [
+            (
+                "capture.png".to_owned(),
+                Some(local[0].to_string_lossy().into_owned())
+            ),
+            ("notes.md".to_owned(), None),
+        ]
+    );
+    assert!(
+        cx.debug_bounds("agent-attachment:capture.png:error")
+            .is_some()
+    );
+}

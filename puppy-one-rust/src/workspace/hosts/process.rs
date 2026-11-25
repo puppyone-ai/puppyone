@@ -63,6 +63,17 @@ fn run_gated(app_data: &Path, app_version: &str, available: bool) -> i32 {
         );
         let starting = host.clone();
         let _ = tokio::task::spawn_blocking(move || starting.start()).await;
+        // `powerMonitor`: sleep drops the device connection, waking
+        // reconnects at once.
+        let power = Arc::downgrade(&host);
+        crate::platform::power::watch(move |event| {
+            if let Some(host) = power.upgrade() {
+                match event {
+                    crate::platform::power::Event::Suspend => host.suspend(),
+                    crate::platform::power::Event::Wake => host.wake(),
+                }
+            }
+        });
         let (stop, mut stopped) = tokio::sync::mpsc::unbounded_channel();
         let serving = tokio::spawn(control::serve(dir.clone(), host.clone(), stop));
         tokio::select! {

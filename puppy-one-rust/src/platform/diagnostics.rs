@@ -14,9 +14,18 @@ pub fn path() -> PathBuf {
 
 /// Appends `event` with `fields` and the time it happened.
 pub fn warn(event: &str, fields: serde_json::Value) {
+    write("warn", event, fields);
+}
+
+/// [`warn`] for a step worth keeping that is not a problem.
+pub fn info(event: &str, fields: serde_json::Value) {
+    write("info", event, fields);
+}
+
+fn write(level: &str, event: &str, fields: serde_json::Value) {
     let line = serde_json::json!({
         "at": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-        "level": "warn",
+        "level": level,
         "event": event,
         "fields": fields,
     });

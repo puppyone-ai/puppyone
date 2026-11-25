@@ -156,6 +156,8 @@ pub(in crate::app) struct Homepage {
     pub menu: Option<HomeMenu>,
     pub stop: Option<String>,
     pub focus: HashMap<String, FocusHandle>,
+    /// Each project's actions button: focus on it keeps its project lit.
+    pub action_focus: HashMap<String, FocusHandle>,
     pub action_bounds: HashMap<String, std::rc::Rc<std::cell::Cell<Bounds<Pixels>>>>,
     pub hovered: Option<String>,
     /// Asset previews and Local/Cloud Agent discovery state.
@@ -301,6 +303,7 @@ impl Homepage {
             menu: None,
             stop: None,
             focus: HashMap::new(),
+            action_focus: HashMap::new(),
             action_bounds: HashMap::new(),
             hovered: None,
             discovery: discovery::HomeDiscovery::default(),
@@ -527,12 +530,12 @@ impl Homepage {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         if self.session.restoring {
-            return self.restoring_view(cx).into_any_element();
+            return self.restoring_view(window, cx).into_any_element();
         }
         match self.first_paint_released(cx) {
             None => {
                 window.request_animation_frame();
-                return self.restoring_view(cx).into_any_element();
+                return self.restoring_view(window, cx).into_any_element();
             }
             Some(account) if self.released_for.as_ref() != Some(&account) => {
                 cx.defer_in(window, |h, window, cx| {
@@ -783,7 +786,7 @@ impl Homepage {
         self.hovered = Some(item.id.clone());
         let viewport = window.viewport_size();
         self.actions.update(cx, |a, cx| {
-            a.open(target, bounds, true, viewport, Some(item.id), cx)
+            a.open(target, bounds, true, viewport, Some(item.id), window, cx)
         });
         true
     }

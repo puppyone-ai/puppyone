@@ -6,12 +6,23 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 /// The request body: the context and tools are already in this shape.
-pub fn body(model: &str, context: &[Value], tools: Value, keep_reasoning: bool) -> Value {
+/// `keep_details`: the service takes OpenRouter's `reasoning_details` back
+/// (PuppyOne compute and OpenRouter); others get them stripped.
+pub fn body(
+    model: &str,
+    context: &[Value],
+    tools: Value,
+    keep_reasoning: bool,
+    keep_details: bool,
+) -> Value {
     let messages: Vec<Value> = context
         .iter()
         .map(|message| {
             let mut message = message.clone();
             if let Some(m) = message.as_object_mut() {
+                if !keep_details {
+                    m.remove("reasoning_details");
+                }
                 if !keep_reasoning {
                     m.remove("reasoning_content");
                 } else if m.get("role").and_then(Value::as_str) == Some("assistant") {
@@ -44,6 +55,18 @@ pub fn keeps_reasoning(
     ) || host == "api.kimi.com"
         || host.ends_with("moonshot.ai")
         || host.ends_with("moonshot.cn")
+}
+
+/// Services that take OpenRouter's `reasoning_details` back with the
+/// model's own assistant turns.
+pub fn keeps_reasoning_details(
+    connection: &crate::agent::model_connections::configuration::ModelConnection,
+) -> bool {
+    let host = url::Url::parse(&connection.endpoint)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_ascii_lowercase))
+        .unwrap_or_default();
+    connection.provider.as_deref() == Some("openrouter") || host.ends_with("openrouter.ai")
 }
 
 /// The Chat Completions event stream; `[DONE]` is its receipt.
@@ -83,8 +106,8 @@ impl Events for Parser {
             return Ok(false);
         }
         let v: Value = serde_json::from_str(data).map_err(|_| "Malformed model stream event")?;
-        if v.get("error").is_some() {
-            return Err("The model endpoint reported an inference error".into());
+        if let Some(error) = v.get("error").filter(|e| !e.is_null()) {
+            return Err(stream_error_message(error));
         }
         if v["usage"].is_object() {
             self.result.usage = usage(&v["usage"]);
@@ -94,9 +117,31 @@ impl Events for Parser {
             self.result.text.push_str(t);
             delta("text", t);
         }
-        if let Some(t) = d["reasoning_content"].as_str() {
+        // `reasoning_content` (DeepSeek, Kimi) or `reasoning` (OpenRouter).
+        let mut streamed_reasoning = false;
+        if let Some(t) = d["reasoning_content"]
+            .as_str()
+            .or_else(|| d["reasoning"].as_str())
+            .filter(|t| !t.is_empty())
+        {
             self.result.reasoning.push_str(t);
             delta("reasoning", t);
+            streamed_reasoning = true;
+        }
+        if let Some(details) = d["reasoning_details"].as_array() {
+            let target = self.result.reasoning_details.get_or_insert_with(Vec::new);
+            for item in details {
+                merge_reasoning_detail(target, item);
+                if !streamed_reasoning
+                    && let Some(t) = item["text"]
+                        .as_str()
+                        .or_else(|| item["summary"].as_str())
+                        .filter(|t| !t.is_empty())
+                {
+                    self.result.reasoning.push_str(t);
+                    delta("reasoning", t);
+                }
+            }
         }
         for call in d["tool_calls"].as_array().into_iter().flatten() {
             let index = call["index"]
@@ -133,6 +178,69 @@ impl Events for Parser {
         self.result.calls = settle(std::mem::take(&mut self.calls).into_values().collect())?;
         Ok(self.result)
     }
+}
+
+/// An SSE `{"error": ...}` payload as one bounded, readable line.
+fn stream_error_message(error: &Value) -> String {
+    if let Some(code) = error["code"].as_str() {
+        let words = match code {
+            "ai_usage_pending" => {
+                "The model request was interrupted. Balance will refresh after usage is reconciled."
+            }
+            "ai_provider_unavailable" => {
+                "The model provider is temporarily unavailable. Try again shortly."
+            }
+            "ai_balance_insufficient" => "Add credit to use this model.",
+            "ai_rate_limited" => "PuppyOne compute is busy. Try again shortly.",
+            _ => "",
+        };
+        if !words.is_empty() {
+            return words.to_owned();
+        }
+    }
+    if let Some(message) = error
+        .as_str()
+        .or_else(|| error["message"].as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        return super::sanitize_message(message);
+    }
+    "The model endpoint reported an inference error".into()
+}
+
+/// Accumulates streamed OpenRouter `reasoning_details` chunks by
+/// `(type, id, index)`.
+fn merge_reasoning_detail(target: &mut Vec<Value>, item: &Value) {
+    let kind = item["type"].as_str().unwrap_or_default();
+    let id = item.get("id").and_then(Value::as_str);
+    let index = item.get("index").and_then(Value::as_u64);
+    if let Some(existing) = target.iter_mut().find(|entry| {
+        entry["type"].as_str().unwrap_or_default() == kind
+            && entry.get("id").and_then(Value::as_str) == id
+            && entry.get("index").and_then(Value::as_u64) == index
+    }) {
+        let field = match kind {
+            "reasoning.text" => Some("text"),
+            "reasoning.summary" => Some("summary"),
+            "reasoning.encrypted" => Some("data"),
+            _ => None,
+        };
+        if let Some(field) = field {
+            if let Some(more) = item[field].as_str() {
+                let mut joined = existing[field].as_str().unwrap_or("").to_owned();
+                joined.push_str(more);
+                existing[field] = Value::from(joined);
+            }
+            if kind == "reasoning.text"
+                && let Some(signature) = item["signature"].as_str()
+            {
+                existing["signature"] = Value::from(signature);
+            }
+            return;
+        }
+    }
+    target.push(item.clone());
 }
 
 #[cfg(test)]
@@ -194,7 +302,13 @@ mod tests {
     fn missing_receipts_errors_and_ambiguous_calls_fail() {
         let (result, _) = run(&EVENTS.replace("data: [DONE]\n", ""), 0);
         assert!(result.unwrap_err().contains("without a completion receipt"));
-        let (result, _) = run("data: {\"error\":{\"message\":\"secret\"}}\n", 0);
+        // The service's reason reads as one masked line, like an HTTP refusal.
+        let (result, _) = run(
+            "data: {\"error\":{\"message\":\"Rate limited for sk-abcdef1234567890\"}}\n",
+            0,
+        );
+        assert_eq!(result.unwrap_err(), "Rate limited for …");
+        let (result, _) = run("data: {\"error\":{}}\n", 0);
         assert_eq!(
             result.unwrap_err(),
             "The model endpoint reported an inference error"
@@ -230,9 +344,9 @@ mod tests {
             ..Default::default()
         };
         assert!(keeps_reasoning(&kimi) && !keeps_reasoning(&deepseek));
-        let kept = body("k", &context, serde_json::json!([]), true);
+        let kept = body("k", &context, serde_json::json!([]), true, false);
         assert_eq!(kept["messages"][0]["reasoning_content"], "Plan");
-        let dropped = body("d", &context, serde_json::json!([]), false);
+        let dropped = body("d", &context, serde_json::json!([]), false, false);
         assert!(dropped["messages"][0].get("reasoning_content").is_none());
         assert_eq!(dropped["messages"][0]["tool_calls"][0]["id"], "c1");
         // Another model's turn reaches Kimi with an empty field, never
@@ -241,8 +355,65 @@ mod tests {
             serde_json::json!({"role": "user", "content": "Hi"}),
             serde_json::json!({"role": "assistant", "content": "Hello"}),
         ];
-        let kept = body("k", &foreign, serde_json::json!([]), true);
+        let kept = body("k", &foreign, serde_json::json!([]), true, false);
         assert!(kept["messages"][0].get("reasoning_content").is_none());
         assert_eq!(kept["messages"][1]["reasoning_content"], "");
+    }
+
+    /// A `null` error is no error; a stream's error reads as words; the
+    /// reasoning dialects (`reasoning`, OpenRouter's `reasoning_details`
+    /// merged by id) all reach the transcript, and the details go back.
+    #[test]
+    fn parser_ignores_null_error_surfaces_stream_error_and_parses_reasoning_dialects() {
+        let mut stream = Stream::new(Parser::default());
+        let mut deltas = vec![];
+        let mut sink = |kind: &str, text: &str| deltas.push((kind.to_owned(), text.to_owned()));
+        let events = concat!(
+            "data: {\"error\":null,\"choices\":[{\"delta\":{\"reasoning\":\"step 1 \"}}]}\n",
+            "data: {\"choices\":[{\"delta\":{\"reasoning_details\":[{\"type\":\"reasoning.text\",\"id\":\"r1\",\"index\":0,\"text\":\"step 2\"}]}}]}\n",
+            "data: {\"choices\":[{\"delta\":{\"reasoning_details\":[{\"type\":\"reasoning.text\",\"id\":\"r1\",\"index\":0,\"text\":\" done\",\"signature\":\"sig1\"}]}}]}\n",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Answer\"}}]}\n",
+            "data: [DONE]\n"
+        );
+        assert!(stream.feed(events.as_bytes(), &mut sink).unwrap());
+        let completion = stream.finish().unwrap();
+        assert_eq!(completion.text, "Answer");
+        assert_eq!(completion.reasoning, "step 1 step 2 done");
+        let details = completion.reasoning_details.as_ref().unwrap();
+        assert_eq!(details.len(), 1);
+        assert_eq!(details[0]["text"], "step 2 done");
+        assert_eq!(details[0]["signature"], "sig1");
+        assert_eq!(
+            completion.message()["reasoning_details"][0]["signature"],
+            "sig1"
+        );
+
+        let mut failed = Stream::new(Parser::default());
+        let error = failed
+            .feed(
+                b"data: {\"error\":{\"code\":\"ai_usage_pending\",\"message\":\"interrupted\"}}\n",
+                &mut |_, _| {},
+            )
+            .unwrap_err();
+        assert!(error.contains("reconciled"), "{error}");
+    }
+
+    /// Only a service that takes them back gets `reasoning_details`.
+    #[test]
+    fn reasoning_details_go_back_only_where_they_are_taken() {
+        use crate::agent::model_connections::configuration::ModelConnection;
+        let context = vec![serde_json::json!({
+            "role": "assistant", "content": "",
+            "reasoning_details": [{"type": "reasoning.text", "text": "Plan"}]
+        })];
+        let openrouter = ModelConnection {
+            endpoint: "https://openrouter.ai/api/v1".into(),
+            ..Default::default()
+        };
+        assert!(keeps_reasoning_details(&openrouter));
+        let kept = body("o", &context, serde_json::json!([]), false, true);
+        assert_eq!(kept["messages"][0]["reasoning_details"][0]["text"], "Plan");
+        let dropped = body("d", &context, serde_json::json!([]), false, false);
+        assert!(dropped["messages"][0].get("reasoning_details").is_none());
     }
 }

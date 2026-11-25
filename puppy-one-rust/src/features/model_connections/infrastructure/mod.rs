@@ -1,17 +1,27 @@
 //! The Model Connections page's workers: every call runs off the UI thread
-//! and answers once on a capacity-1 channel, then wakes the view. Storage,
-//! Keychain and network access stay behind this module; the view only sees
-//! connections (never a credential) and results.
+//! and answers once on a capacity-1 channel, then wakes the view. Saved
+//! connections, catalogs and verifications go through the `po-agent`
+//! authority ([`ModelConnectionService`]), so Chat follows every change and
+//! a connection's sessions are revoked when what they use changes; the view
+//! only sees connections (never a credential) and results.
 mod binding;
 mod catalog;
-mod discovery;
 
+use crate::agent::model_connections::drivers::discovery;
+pub use crate::agent::model_connections::drivers::discovery::{Candidate, Installed};
 pub use crate::agent::model_connections::oauth::{Cancel, OauthProvider, Progress};
-use crate::{agent::model_connections::configuration, wake::Wake};
-pub use catalog::{CatalogModel, list_models};
+pub use crate::agent::model_connections::snapshot::{
+    CatalogStatus, ConnectionCatalog, ModelConnectionSnapshot,
+};
+use crate::agent::model_connections::{ModelConnectionService, configuration};
+use crate::wake::Wake;
+pub use catalog::CatalogModel;
 pub use configuration::{Auth, Driver, ModelConnection, SourceKind};
-pub use discovery::{Candidate, Installed};
+use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver};
+
+/// The model-connections authority the page works through.
+pub type Service = Arc<ModelConnectionService>;
 
 /// Saved connections after a change.
 pub type Connections = Result<Vec<ModelConnection>, String>;
@@ -40,25 +50,27 @@ fn run<T: Send + 'static>(
     rx
 }
 
-/// A change, then the saved connections.
+/// A connection prepared by `job`, saved through `service`; then the saved
+/// connections.
 fn change(
+    service: Service,
     wake: Wake,
-    job: impl std::future::Future<Output = Result<(), String>> + Send + 'static,
+    job: impl std::future::Future<Output = Result<binding::Prepared, String>> + Send + 'static,
 ) -> Receiver<Connections> {
     run(
         wake,
         async move {
-            job.await?;
-            configuration::load()
+            let (connection, key) = job.await?;
+            service.save(connection, key)
         },
         Err,
     )
 }
 
-pub fn load(wake: Wake) -> Receiver<Connections> {
+pub fn load(service: Service, wake: Wake) -> Receiver<Connections> {
     let (tx, rx) = mpsc::sync_channel(1);
     crate::localization::spawn(move || {
-        let _ = tx.send(configuration::load());
+        let _ = tx.send(service.reload_saved());
         wake.notify();
     });
     rx
@@ -66,15 +78,17 @@ pub fn load(wake: Wake) -> Receiver<Connections> {
 
 /// Save from the form; an unset default model is chosen from the catalog.
 pub fn save(
+    service: Service,
     connection: ModelConnection,
     secret: Option<String>,
     wake: Wake,
 ) -> Receiver<Connections> {
-    change(wake, binding::save_and_bind(connection, secret))
+    change(service, wake, binding::save_and_bind(connection, secret))
 }
 
 /// Make `model` the connection's default.
 pub fn use_as_default(
+    service: Service,
     mut connection: ModelConnection,
     model: String,
     context: Option<u64>,
@@ -84,7 +98,7 @@ pub fn use_as_default(
     if let Some(context) = context {
         connection.manual_context_window = Some(context.clamp(1024, 10_000_000));
     }
-    change(wake, async move { configuration::save(connection, None) })
+    change(service, wake, async move { Ok((connection, None)) })
 }
 
 /// The models `connection` offers in Chat besides its default: every text
@@ -106,7 +120,7 @@ pub fn offered(connection: &ModelConnection, models: &[CatalogModel]) -> Vec<Str
 /// so Chat offers each provider's whole text catalog without Settings being
 /// opened (blocking: reads the catalogs concurrently). A connection is read
 /// at most once every ten minutes; `true` when a connection was saved.
-pub fn sync_offered() -> bool {
+pub fn sync_offered(service: &ModelConnectionService) -> bool {
     use std::collections::HashMap;
     use std::sync::{LazyLock, Mutex};
     use std::time::{Duration, Instant};
@@ -115,9 +129,7 @@ pub fn sync_offered() -> bool {
     if cfg!(test) {
         return false;
     }
-    let Ok(connections) = configuration::load() else {
-        return false;
-    };
+    let connections = service.snapshot().connections.clone();
     // Claimed before reading, so panels reloading together read once.
     let due: Vec<ModelConnection> = {
         let Ok(mut read) = READ.lock() else {
@@ -145,7 +157,7 @@ pub fn sync_offered() -> bool {
     else {
         return false;
     };
-    let Ok(client) = catalog::metadata_client() else {
+    let Ok(client) = crate::agent::model_connections::drivers::metadata_client() else {
         return false;
     };
     let read = runtime.block_on(futures_util::future::join_all(due.into_iter().map(
@@ -162,7 +174,14 @@ pub fn sync_offered() -> bool {
                 // read (a locked or refused Keychain) is left as it is.
                 let models = match key {
                     None if connection.auth != Auth::None => Err("CREDENTIAL_UNAVAILABLE".into()),
-                    key => catalog::listed_models(&client, &connection, key.as_deref()).await,
+                    key => {
+                        crate::agent::model_connections::drivers::listed_models(
+                            &client,
+                            &connection,
+                            key.as_deref(),
+                        )
+                        .await
+                    }
                 };
                 (connection, models)
             }
@@ -173,23 +192,41 @@ pub fn sync_offered() -> bool {
         let Ok(models) = models else { continue };
         let models = offered(&connection, &models);
         // The generation stays: a session on this connection goes on.
-        saved |= configuration::set_chat_models(&connection.id, &models).unwrap_or(false);
+        saved |= service
+            .set_chat_models(&connection.id, &models)
+            .unwrap_or(false);
     }
     saved
 }
 
 /// The models connection `id` offers in Chat besides its default (the
 /// generation stays: [`configuration::set_chat_models`]).
-pub fn set_chat_models(id: String, models: Vec<String>, wake: Wake) -> Receiver<Connections> {
-    change(wake, async move {
-        configuration::set_chat_models(&id, &models).map(|_| ())
-    })
+pub fn set_chat_models(
+    service: Service,
+    id: String,
+    models: Vec<String>,
+    wake: Wake,
+) -> Receiver<Connections> {
+    run(
+        wake,
+        async move {
+            service.set_chat_models(&id, &models)?;
+            Ok(service.snapshot().connections.clone())
+        },
+        Err,
+    )
 }
 
-pub fn remove(id: String, generation: String, wake: Wake) -> Receiver<Connections> {
+/// Remove connection `id`; its sessions are revoked.
+pub fn remove(
+    service: Service,
+    id: String,
+    generation: String,
+    wake: Wake,
+) -> Receiver<Connections> {
     let (tx, rx) = mpsc::sync_channel(1);
     crate::localization::spawn(move || {
-        let result = configuration::remove(&id, &generation).and_then(|()| configuration::load());
+        let result = service.remove(&id, &generation);
         let _ = tx.send(result);
         wake.notify();
     });
@@ -262,11 +299,12 @@ pub fn start_service(driver: Driver, wake: Wake) -> Receiver<Discovery> {
 /// `Connect` / `Add`: bind a discovered service without the form, with
 /// `model` as its default when the user picked one.
 pub fn quick_connect(
+    service: Service,
     candidate: Candidate,
     model: Option<String>,
     wake: Wake,
 ) -> Receiver<Connections> {
-    change(wake, binding::quick_connect(candidate, model))
+    change(service, wake, binding::quick_connect(candidate, model))
 }
 
 /// A running sign-in's updates.
@@ -277,6 +315,7 @@ pub enum SignIn {
 
 /// Sign in with `provider`: progress, then the saved connections.
 pub fn sign_in(
+    service: Service,
     provider: OauthProvider,
     existing: Option<ModelConnection>,
     cancel: Cancel,
@@ -292,7 +331,7 @@ pub fn sign_in(
             .map_err(|e| e.to_string())
             .and_then(|runtime| {
                 runtime.block_on(async move {
-                    binding::sign_in(
+                    let (connection, credential) = binding::sign_in(
                         provider,
                         existing,
                         move |step| {
@@ -302,7 +341,7 @@ pub fn sign_in(
                         cancel,
                     )
                     .await?;
-                    configuration::load()
+                    service.save_credential(connection, Some(credential))
                 })
             });
         let _ = tx.send(SignIn::Done(result));
@@ -311,66 +350,51 @@ pub fn sign_in(
     rx
 }
 
-/// The catalog of `connection`, read on a worker.
+/// The catalog of connection `id`, read through `service` (an OAuth token
+/// is refreshed before it is used to list); the service keeps it, with its
+/// status, in the snapshot Chat reads.
 pub fn catalog(
-    connection: ModelConnection,
+    service: Service,
+    id: String,
     wake: Wake,
 ) -> Receiver<Result<Vec<CatalogModel>, String>> {
     run(
         wake,
-        async move {
-            let client = catalog::metadata_client()?;
-            // An OAuth token is refreshed before it is used to list.
-            let key = connection
-                .resolve_credential()
-                .await
-                .ok()
-                .flatten()
-                .map(|r| r.bearer);
-            list_models(&client, &connection, key.as_deref()).await
-        },
+        async move { service.refresh_connection(&id).await },
         Err,
     )
 }
 
-/// `verify`: the Agent tool round trip for the connection's model. The
-/// model client's stream callbacks are not `Send`, so the future is built on
-/// the worker thread itself.
-pub fn verify(connection: ModelConnection, wake: Wake) -> Receiver<Result<(), String>> {
+/// `verify`: the Agent tool round trip for `(id, model_id)`, kept by
+/// `service` at the connection's security generation. The model client's
+/// stream callbacks are not `Send`, so the future is built on the worker
+/// thread itself.
+pub fn verify(
+    service: Service,
+    id: String,
+    model_id: String,
+    wake: Wake,
+) -> Receiver<Result<(), String>> {
     let (tx, rx) = mpsc::sync_channel(1);
     crate::localization::spawn(move || {
         let result = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(|e| e.to_string())
-            .and_then(|runtime| {
-                runtime.block_on(async {
-                    tokio::time::timeout(
-                        std::time::Duration::from_secs(60),
-                        crate::agent::runtimes::puppyone_agent::verify(
-                            &connection,
-                            &crate::features::desktop_agent::CloudCompute,
-                        ),
-                    )
-                    .await
-                    .map_err(|_| "TIMEOUT".to_owned())?
-                })
-            });
+            .and_then(|runtime| runtime.block_on(service.verify_model(&id, &model_id)));
         let _ = tx.send(result);
         wake.notify();
     });
     rx
 }
 
-/// PuppyOne compute's state for the account (blocking read of the cached
-/// directory).
-pub fn managed_status(wake: Wake) -> Receiver<Option<(bool, bool)>> {
+/// PuppyOne compute's state for the account: `(signed in, credit
+/// available)`, as the authority last read it.
+pub fn managed_status(service: Service, wake: Wake) -> Receiver<Option<(bool, bool)>> {
     let (tx, rx) = mpsc::sync_channel(1);
-    crate::localization::spawn(move || {
-        let snapshot = crate::features::desktop_agent::read_managed_status();
-        let _ = tx.send(snapshot);
-        wake.notify();
-    });
+    let managed = service.snapshot().managed.clone();
+    let _ = tx.send(Some((managed.signed_in, managed.available)));
+    wake.notify();
     rx
 }
 

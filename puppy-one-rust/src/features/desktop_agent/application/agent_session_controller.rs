@@ -561,6 +561,11 @@ impl AgentSessionController {
         })
     }
 
+    /// The workspace this chat belongs to (`workspaceRoot`).
+    pub fn workspace_root(&self) -> &str {
+        &self.0.workspace_root
+    }
+
     pub fn add_workspace_paths(
         &self,
         paths: Vec<String>,
@@ -589,6 +594,11 @@ impl AgentSessionController {
 
     pub fn remove_reference(&self, id: &str) {
         self.0.reference_drafts.remove(id);
+    }
+
+    /// `retryReference(id)`.
+    pub fn retry_reference(&self, id: &str) {
+        self.0.reference_drafts.retry(id);
     }
 
     #[cfg(test)]

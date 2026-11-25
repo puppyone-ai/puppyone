@@ -27,6 +27,9 @@ pub struct Usage {
 pub struct Completion {
     pub text: String,
     pub reasoning: String,
+    /// Structured provider reasoning entries (OpenRouter `reasoning_details`),
+    /// replayed with the model's own multi-turn tool calls.
+    pub reasoning_details: Option<Vec<Value>>,
     /// OpenAI-shaped tool calls (`{id, type: "function", function}`).
     pub calls: Vec<Value>,
     pub usage: Usage,
@@ -35,7 +38,9 @@ impl Completion {
     /// The assistant message, in the kernel's OpenAI Chat shape.
     pub fn message(&self) -> Value {
         let mut v = json!({"role":"assistant","content":self.text});
-        if !self.reasoning.is_empty() {
+        if let Some(details) = self.reasoning_details.as_ref().filter(|d| !d.is_empty()) {
+            v["reasoning_details"] = Value::Array(details.clone());
+        } else if !self.reasoning.is_empty() {
             v["reasoning_content"] = json!(self.reasoning);
         }
         if !self.calls.is_empty() {
@@ -80,14 +85,49 @@ pub async fn complete(
     account: &dyn crate::agent::model_connections::ComputeAccount,
     context: &[Value],
     tool_schema: Value,
+    delta: impl FnMut(&str, &str),
+) -> Result<Completion, String> {
+    complete_with_cancel(connection, account, context, tool_schema, None, delta).await
+}
+
+/// The session's lease was revoked (its connection removed or changed, the
+/// account signed out): the request in flight stops at once.
+const LEASE_REVOKED: &str = "Model connection: LEASE_REVOKED";
+
+/// Waits for `future`, unless `cancel` fires first.
+async fn unless_revoked<T>(
+    cancel: Option<&crate::cloud::auth::Cancellation>,
+    future: impl std::future::Future<Output = T>,
+) -> Result<T, String> {
+    match cancel {
+        Some(cancel) => tokio::select! {
+            _ = cancel.cancelled() => Err(LEASE_REVOKED.into()),
+            value = future => Ok(value),
+        },
+        None => Ok(future.await),
+    }
+}
+
+/// [`complete`] under a session lease: revoking it aborts the request and
+/// its stream at once.
+pub async fn complete_with_cancel(
+    connection: &ModelConnection,
+    account: &dyn crate::agent::model_connections::ComputeAccount,
+    context: &[Value],
+    tool_schema: Value,
+    lease_cancel: Option<crate::cloud::auth::Cancellation>,
     mut delta: impl FnMut(&str, &str),
 ) -> Result<Completion, String> {
+    if lease_cancel.as_ref().is_some_and(|c| c.is_cancelled()) {
+        return Err(LEASE_REVOKED.into());
+    }
     connection.validate()?;
     let delta: &mut dyn FnMut(&str, &str) = &mut delta;
     if connection.managed {
-        let body = openai_chat::body(&connection.model, context, tool_schema, false);
-        return complete_managed(account, body, delta).await;
+        let body = openai_chat::body(&connection.model, context, tool_schema, false, true);
+        return complete_managed(account, body, lease_cancel, delta).await;
     }
+    let cancel = lease_cancel.as_ref();
     let protocol = connection.driver.protocol();
     let oauth = connection.auth == Auth::Oauth;
     let endpoint = connection.endpoint.trim_end_matches('/');
@@ -111,7 +151,7 @@ pub async fn complete(
         }
     };
     let mut credential = connection.resolve_credential().await?;
-    let mut response = send(credential.clone()).await?;
+    let mut response = unless_revoked(cancel, send(credential.clone())).await??;
     // A subscription token the provider refuses may have been rotated or
     // revoked early: refresh it once and retry (Cherry Studio's
     // `forceRefresh`), then ask the user to sign in again.
@@ -120,7 +160,7 @@ pub async fn complete(
         && let Some(fresh) = connection.resolve_fresh_credential().await?
     {
         credential = Some(fresh);
-        response = send(credential.clone()).await?;
+        response = unless_revoked(cancel, send(credential.clone())).await??;
     }
     let status = response.status().as_u16();
     if !response.status().is_success() {
@@ -136,12 +176,35 @@ pub async fn complete(
     }
     let secret = credential.as_ref().map(|c| c.bearer.as_str());
     match protocol {
-        Protocol::OpenaiChat => read(response, openai_chat::Parser::default(), secret, delta).await,
+        Protocol::OpenaiChat => {
+            read(
+                response,
+                openai_chat::Parser::default(),
+                secret,
+                cancel,
+                delta,
+            )
+            .await
+        }
         Protocol::AnthropicMessages => {
-            read(response, anthropic::Parser::default(), secret, delta).await
+            read(
+                response,
+                anthropic::Parser::default(),
+                secret,
+                cancel,
+                delta,
+            )
+            .await
         }
         Protocol::OpenaiResponses | Protocol::CodexResponses => {
-            read(response, responses::Parser::default(), secret, delta).await
+            read(
+                response,
+                responses::Parser::default(),
+                secret,
+                cancel,
+                delta,
+            )
+            .await
         }
     }
 }
@@ -231,13 +294,14 @@ async fn read<P: Events>(
     response: reqwest::Response,
     parser: P,
     secret: Option<&str>,
+    cancel: Option<&crate::cloud::auth::Cancellation>,
     delta: &mut dyn FnMut(&str, &str),
 ) -> Result<Completion, String> {
     let mut bytes = response.bytes_stream();
     let mut stream = Stream::new(parser);
     let mut redactor = Redactor::new(secret);
     let mut done = false;
-    while let Some(chunk) = bytes.next().await {
+    while let Some(chunk) = unless_revoked(cancel, bytes.next()).await? {
         let chunk =
             chunk.map_err(|_| "Model stream was interrupted; the request was not replayed")?;
         if stream.feed(&redactor.feed(&chunk), delta)? {
@@ -301,6 +365,7 @@ const MANAGED_REQUEST_LIMIT: usize = 512 * 1024;
 async fn complete_managed(
     account: &dyn crate::agent::model_connections::ComputeAccount,
     body: Value,
+    lease_cancel: Option<crate::cloud::auth::Cancellation>,
     delta: &mut dyn FnMut(&str, &str),
 ) -> Result<Completion, String> {
     let request_id = uuid::Uuid::new_v4().to_string();
@@ -313,20 +378,37 @@ async fn complete_managed(
     let (broker, binding) = account.current().ok_or_else(|| {
         crate::localization::t("settings.account.signedOutDetailCompute").to_owned()
     })?;
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Result<Vec<u8>, String>>();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Result<ManagedStreamItem, String>>();
     let cancel = crate::cloud::auth::Cancellation::default();
     let guard = cancel.clone();
+    let lease = lease_cancel.clone();
+    let reservation_binding = binding.clone();
     std::thread::spawn(move || {
+        let revoked = || lease.as_ref().is_some_and(|c| c.is_cancelled());
+        if revoked() {
+            let _ = tx.send(Err(LEASE_REVOKED.to_owned()));
+            return;
+        }
         let sink_tx = tx.clone();
         let model = body["model"].as_str().unwrap_or_default().to_owned();
         let result = broker.completion(&binding, &body, &request_id, &cancel, &mut |event| {
+            if revoked() {
+                return Err(crate::cloud::auth::Error::Cancelled);
+            }
             match event {
-                // Its receipt is read after the wallet's next refresh.
+                // Its receipt is read after the wallet refreshes.
                 crate::cloud::auth::StreamEvent::Reservation(id) => {
-                    crate::cloud::auth::reservation::note(&binding, id, &model)
+                    crate::cloud::auth::reservation::note(&binding, id, &model);
+                    let _ = sink_tx.send(Ok(ManagedStreamItem::Reservation(
+                        id.to_owned(),
+                        model.clone(),
+                    )));
                 }
                 crate::cloud::auth::StreamEvent::Data(bytes) => {
-                    if sink_tx.send(Ok(bytes.to_vec())).is_err() {
+                    if sink_tx
+                        .send(Ok(ManagedStreamItem::Data(bytes.to_vec())))
+                        .is_err()
+                    {
                         return Err(crate::cloud::auth::Error::Cancelled);
                     }
                 }
@@ -335,24 +417,60 @@ async fn complete_managed(
             Ok(())
         });
         if let Err(error) = result {
-            let _ = tx.send(Err(managed_refusal(error)));
+            let _ = tx.send(Err(if revoked() {
+                LEASE_REVOKED.to_owned()
+            } else {
+                managed_refusal(error)
+            }));
         }
     });
-    // Dropping the turn cancels the request.
-    struct Stop(crate::cloud::auth::Cancellation);
-    impl Drop for Stop {
+    // Dropping the turn cancels the request, and the wallet refreshes its
+    // balance and the call's settled receipt.
+    struct Stop<'a> {
+        cancel: crate::cloud::auth::Cancellation,
+        account: &'a dyn crate::agent::model_connections::ComputeAccount,
+    }
+    impl Drop for Stop<'_> {
         fn drop(&mut self) {
-            self.0.cancel();
+            self.cancel.cancel();
+            self.account.on_inference_finished();
         }
     }
-    let _stop = Stop(guard);
+    let _stop = Stop {
+        cancel: guard.clone(),
+        account,
+    };
     let mut stream = Stream::new(openai_chat::Parser::default());
-    while let Some(chunk) = rx.recv().await {
-        if stream.feed(&chunk?, delta)? {
+    loop {
+        let next = match unless_revoked(lease_cancel.as_ref(), rx.recv()).await {
+            Ok(next) => next,
+            Err(revoked) => {
+                guard.cancel();
+                return Err(revoked);
+            }
+        };
+        let Some(item) = next else {
             break;
+        };
+        match item? {
+            ManagedStreamItem::Reservation(id, model) => {
+                account.note_reservation(&reservation_binding, &id, &model);
+            }
+            ManagedStreamItem::Data(chunk) => {
+                if stream.feed(&chunk, delta)? {
+                    break;
+                }
+            }
         }
     }
     stream.finish()
+}
+
+/// What the managed gateway's worker hands the turn: the call's reservation
+/// (its receipt is read later), then the stream.
+enum ManagedStreamItem {
+    Reservation(String, String),
+    Data(Vec<u8>),
 }
 
 /// What a refused managed request says: the service's reviewed code as
@@ -382,6 +500,9 @@ fn managed_refusal(error: crate::cloud::auth::Error) -> String {
         "ai_rate_limited" => "PuppyOne compute is busy. Try again shortly.",
         "ai_access_denied" | "ai_authentication_required" => {
             "Sign in again to use PuppyOne compute."
+        }
+        "ai_provider_unavailable" | "ai_provider_unconfigured" => {
+            "The model provider is temporarily unavailable. Try again shortly."
         }
         _ => "PuppyOne compute could not answer the request.",
     };
@@ -416,6 +537,7 @@ fn build_request(
                 context,
                 tool_schema,
                 openai_chat::keeps_reasoning(connection),
+                openai_chat::keeps_reasoning_details(connection),
             ))
         }
         Protocol::AnthropicMessages => {
@@ -490,11 +612,15 @@ mod tests {
         }
         let asked = Asked(Default::default());
         let body = json!({"model": "test/model", "messages": [{"role": "user", "content": "x".repeat(524_289)}]});
-        let error =
-            futures_util::FutureExt::now_or_never(complete_managed(&asked, body, &mut |_, _| {}))
-                .unwrap()
-                .err()
-                .unwrap();
+        let error = futures_util::FutureExt::now_or_never(complete_managed(
+            &asked,
+            body,
+            None,
+            &mut |_, _| {},
+        ))
+        .unwrap()
+        .err()
+        .unwrap();
         let reference = error
             .strip_prefix("This conversation is too large. Start a new conversation. Reference: ")
             .unwrap();
@@ -505,8 +631,12 @@ mod tests {
         );
         // Within the limit, the account is asked.
         let small = json!({"model": "test/model", "messages": []});
-        let _ =
-            futures_util::FutureExt::now_or_never(complete_managed(&asked, small, &mut |_, _| {}));
+        let _ = futures_util::FutureExt::now_or_never(complete_managed(
+            &asked,
+            small,
+            None,
+            &mut |_, _| {},
+        ));
         assert!(asked.0.load(std::sync::atomic::Ordering::SeqCst));
     }
 
@@ -544,6 +674,79 @@ mod tests {
             managed_refusal(Error::Unavailable),
             "PuppyOne compute did not complete the request; it was not replayed"
         );
+    }
+
+    /// Revoking the session's lease stops a stream in flight at once,
+    /// not at the HTTP timeout.
+    #[test]
+    fn complete_with_cancel_aborts_active_http_stream_immediately() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let (hold_tx, hold_rx) = tokio::sync::oneshot::channel::<()>();
+            let server = tokio::spawn(async move {
+                let (mut sock, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let _ = sock.read(&mut buf).await;
+                let head = concat!(
+                    "HTTP/1.1 200 OK\r\n",
+                    "content-type: text/event-stream\r\n",
+                    "transfer-encoding: chunked\r\n",
+                    "connection: keep-alive\r\n\r\n"
+                );
+                let chunk = "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n";
+                let framed = format!("{:x}\r\n{chunk}\r\n", chunk.len());
+                let _ = sock.write_all(head.as_bytes()).await;
+                let _ = sock.write_all(framed.as_bytes()).await;
+                let _ = sock.flush().await;
+                // Keep stream open indefinitely until the test finishes.
+                let _ = hold_rx.await;
+            });
+
+            let conn = ModelConnection {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: "Loopback".into(),
+                endpoint: format!("http://127.0.0.1:{port}/v1"),
+                model: "test-model".into(),
+                ..Default::default()
+            };
+            let cancel = crate::cloud::auth::Cancellation::default();
+            let trigger = cancel.clone();
+            let mut seen = String::new();
+            let started = std::time::Instant::now();
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                complete_with_cancel(
+                    &conn,
+                    &crate::agent::model_connections::NoComputeAccount,
+                    &[json!({"role": "user", "content": "hi"})],
+                    json!([]),
+                    Some(cancel),
+                    |kind, text| {
+                        if kind == "text" {
+                            seen.push_str(text);
+                            trigger.cancel();
+                        }
+                    },
+                ),
+            )
+            .await
+            .expect("cancelled stream must abort promptly, not wait for HTTP timeout");
+            let err = match result {
+                Ok(_) => panic!("expected LEASE_REVOKED error"),
+                Err(err) => err,
+            };
+            assert_eq!(seen, "partial");
+            assert!(err.contains("LEASE_REVOKED"), "{err}");
+            assert!(started.elapsed() < std::time::Duration::from_secs(3));
+            let _ = hold_tx.send(());
+            let _ = server.await;
+        });
     }
 }
 

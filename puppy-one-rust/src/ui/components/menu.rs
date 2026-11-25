@@ -23,6 +23,7 @@ use std::{
 };
 
 mod keyboard;
+pub use keyboard::bind_keys;
 #[cfg(test)]
 mod tests;
 
@@ -143,6 +144,8 @@ pub struct MenuItem {
     hover_held: bool,
     selected: bool,
     checked: Option<bool>,
+    /// One choice of several (`menuitemradio`) and whether it is the current one.
+    radio: Option<bool>,
     disabled: bool,
     danger: bool,
     submenu: Option<SubmenuBuilder>,
@@ -175,6 +178,7 @@ impl MenuItem {
             hover_held: false,
             selected: false,
             checked: None,
+            radio: None,
             disabled: false,
             danger: false,
             submenu: None,
@@ -272,6 +276,12 @@ impl MenuItem {
         self.checked = Some(checked);
         self
     }
+    /// One choice of several (`menuitemradio`, `aria-checked`); the keyboard
+    /// starts on the current one.
+    pub fn radio(mut self, checked: bool) -> Self {
+        self.radio = Some(checked);
+        self
+    }
     /// A selected row with a check at its end.
     pub fn checked(self, checked: bool) -> Self {
         if checked {
@@ -296,8 +306,7 @@ impl MenuItem {
         self
     }
     /// Opens the submenu without a hover, as keyboard navigation does; the
-    /// pointer closes it as usual afterwards. Withdrawing the request
-    /// (`false` after `true`) closes the submenu it opened.
+    /// pointer closes it as usual afterwards.
     pub fn open_submenu(mut self, open: bool) -> Self {
         self.open_submenu = open;
         self
@@ -350,11 +359,17 @@ pub struct Menu {
     scroll: Option<ScrollHandle>,
     focus: Option<FocusHandle>,
     keyboard_navigation: bool,
+    /// What Escape does once no submenu is open; without one the surface
+    /// around the menu answers it.
+    escape: Option<Handler>,
+    /// A submenu's row in the menu that opened it.
+    parent: Option<keyboard::Parent>,
     key_down: Option<KeyDownHandler>,
     mouse_down_out: Option<MouseDownHandler>,
     absorb_mouse_down: bool,
     entries: Vec<MenuEntry>,
     on_dismiss: Option<Handler>,
+    depth: usize,
     style: StyleRefinement,
 }
 impl Menu {
@@ -369,11 +384,14 @@ impl Menu {
             scroll: None,
             focus: None,
             keyboard_navigation: false,
+            escape: None,
+            parent: None,
             key_down: None,
             mouse_down_out: None,
             absorb_mouse_down: false,
             entries: vec![],
             on_dismiss: None,
+            depth: 0,
             style: StyleRefinement::default(),
         }
     }
@@ -407,10 +425,17 @@ impl Menu {
         self.focus = Some(handle.clone());
         self
     }
-    /// Focusable flat rows, wrapping arrows, Home/End and Enter/Space activation.
-    /// The popover continues to own Escape and returning focus to its trigger.
+    /// Focusable rows, wrapping arrows, Home/End, Enter/Space activation,
+    /// submenus entered with ArrowRight and left with ArrowLeft or Escape,
+    /// and Tab leaving the menu ([`keyboard`]). The popover around it owns
+    /// Escape once no submenu is open, and returns focus to its trigger.
     pub fn keyboard_navigation(mut self) -> Self {
         self.keyboard_navigation = true;
+        self
+    }
+    /// Escape, once no submenu is open, for a menu no popover owns.
+    pub fn on_escape(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.escape = Some(Rc::new(handler));
         self
     }
     pub fn on_key_down(
@@ -468,6 +493,9 @@ impl Menu {
             self.on_dismiss = handler;
         }
     }
+    fn submenu_depth(&mut self, depth: usize) {
+        self.depth = depth;
+    }
 }
 impl Styled for Menu {
     fn style(&mut self) -> &mut StyleRefinement {
@@ -480,16 +508,30 @@ impl RenderOnce for Menu {
         let s = self.variant.style();
         let max_height = window.viewport_size().height - px(24.);
         let dismiss = self.on_dismiss.clone();
+        let depth = self.depth;
         let id = self.id.clone();
+        let has_submenus = self.entries.iter().any(|entry| match entry {
+            MenuEntry::Item(item) => item.submenu.is_some(),
+            MenuEntry::List(items, _) => items.iter().any(|item| item.submenu.is_some()),
+            _ => false,
+        });
+        let coordinator = has_submenus.then(|| {
+            window.use_keyed_state(child_id(&id, "submenus"), cx, |_, _| {
+                SubmenuCoordinator::default()
+            })
+        });
         let keyboard = self.keyboard_navigation.then(|| {
-            keyboard::Keyboard::new(
+            Rc::new(keyboard::Keyboard::new(
                 &id,
                 &self.entries,
+                coordinator.clone(),
                 dismiss.clone(),
+                self.escape.clone(),
+                self.parent.clone(),
                 self.focus.clone(),
                 window,
                 cx,
-            )
+            ))
         });
         let scroll = self
             .scroll
@@ -519,26 +561,28 @@ impl RenderOnce for Menu {
                         .children(items.into_iter().enumerate().map(|(row_index, item)| {
                             let fallback = child_id(&id, format!("{index}-{row_index}"));
                             row(
-                                &id,
                                 fallback,
                                 item,
                                 s,
                                 t,
                                 dismiss.clone(),
-                                keyboard.as_ref(),
+                                keyboard.as_deref(),
+                                coordinator.clone(),
+                                depth,
                             )
                         })),
                 ),
                 MenuEntry::Item(item) => {
                     let fallback = child_id(&id, index.to_string());
                     surface.child(row(
-                        &id,
                         fallback,
                         *item,
                         s,
                         t,
                         dismiss.clone(),
-                        keyboard.as_ref(),
+                        keyboard.as_deref(),
+                        coordinator.clone(),
+                        depth,
                     ))
                 }
             };
@@ -557,18 +601,34 @@ impl RenderOnce for Menu {
         {
             frame = frame.track_focus(focus);
         }
-        if keyboard.is_some() || self.key_down.is_some() {
-            frame = frame.on_key_down(move |e, w, cx| {
-                if keyboard
-                    .as_ref()
-                    .is_some_and(|keyboard| keyboard.key_down(e, w, cx))
-                {
-                    return;
-                }
-                if let Some(on_key) = &self.key_down {
-                    on_key(e, w, cx);
-                }
-            });
+        if let Some(keyboard) = &keyboard {
+            use keyboard::Step;
+            let k = |keyboard: &Rc<keyboard::Keyboard>| keyboard.clone();
+            let (next, previous, first, last) =
+                (k(keyboard), k(keyboard), k(keyboard), k(keyboard));
+            let (activate, open, back, escape, leave) = (
+                k(keyboard),
+                k(keyboard),
+                k(keyboard),
+                k(keyboard),
+                k(keyboard),
+            );
+            frame = frame
+                .key_context(keyboard::KEY_CONTEXT)
+                .on_action(move |_: &keyboard::SelectNext, w, cx| next.step(Step::Next, w, cx))
+                .on_action(move |_: &keyboard::SelectPrevious, w, cx| {
+                    previous.step(Step::Previous, w, cx)
+                })
+                .on_action(move |_: &keyboard::SelectFirst, w, cx| first.step(Step::First, w, cx))
+                .on_action(move |_: &keyboard::SelectLast, w, cx| last.step(Step::Last, w, cx))
+                .on_action(move |_: &keyboard::Activate, w, cx| activate.activate(false, w, cx))
+                .on_action(move |_: &keyboard::OpenSubmenu, w, cx| open.activate(true, w, cx))
+                .on_action(move |_: &keyboard::LeaveSubmenu, w, cx| back.leave_submenu(w, cx))
+                .on_action(move |_: &keyboard::CloseSubmenu, w, cx| escape.escape(w, cx))
+                .on_action(move |_: &keyboard::LeaveMenu, w, cx| leave.leave(w, cx));
+        }
+        if let Some(on_key) = self.key_down {
+            frame = frame.on_key_down(move |e, w, cx| on_key(e, w, cx));
         }
         if let Some(outside) = self.mouse_down_out {
             // A press in an open submenu is inside the menu it came from.
@@ -609,73 +669,24 @@ fn separator(t: Theme) -> Div {
         .flex_shrink_0()
         .bg(t.divider)
 }
-/// Hover state of a row's submenu: open, and a generation that cancels a
-/// scheduled close when the pointer comes back (`scheduleCloseSubmenu`).
-/// It closes only when the pointer is over neither the row nor the submenu,
-/// whatever order their enter and leave arrive in: a submenu moved over its
-/// own row (at the window edge) hides the row's hover without closing.
+/// Coordinates all sibling submenus inside one [`Menu`] surface so hovering
+/// another row switches or closes the previous submenu on the same frame
+/// without overlap, while still granting a brief grace window when crossing
+/// the 4px gap into the open submenu.
 #[derive(Default)]
-struct SubmenuState {
-    open: bool,
-    /// An `open_submenu` request is in force (and was honoured).
-    requested: bool,
+struct SubmenuCoordinator {
+    active: Option<ElementId>,
+    /// The keyboard moved into the active submenu: its first row takes focus.
+    entered: bool,
+    /// One-shot `open_submenu(true)` request already honoured.
+    requested: Option<ElementId>,
     epoch: u64,
+    /// The pointer is over the active row, and over its submenu: it closes
+    /// only when over neither, whatever order their enter and leave arrive
+    /// in (a submenu moved over its own row at the window edge hides the
+    /// row's hover without closing).
     over_row: bool,
     over_submenu: bool,
-    trigger: Bounds<Pixels>,
-    /// The menu its row is in: moving to another row of it closes this
-    /// submenu at once.
-    menu: Option<ElementId>,
-}
-
-/// The open submenus of the windows' menus, each with its window, so moving
-/// to another row of a menu closes the submenu its sibling opened (and only
-/// in that window: two windows may show menus with the same id).
-#[derive(Default)]
-struct OpenSubmenus(Vec<(WindowId, WeakEntity<SubmenuState>)>);
-impl Global for OpenSubmenus {}
-impl OpenSubmenus {
-    fn register(window: WindowId, state: &Entity<SubmenuState>, cx: &mut App) {
-        let list = &mut cx.default_global::<OpenSubmenus>().0;
-        list.retain(|(_, s)| s.upgrade().is_some());
-        let entry = (window, state.downgrade());
-        if !list.contains(&entry) {
-            list.push(entry);
-        }
-    }
-    /// The pointer reached a row of `menu` in `window`: the submenus its
-    /// other rows opened close now, not after the grace period, so two never
-    /// show.
-    fn close_siblings(
-        window: WindowId,
-        menu: &ElementId,
-        keep: Option<&Entity<SubmenuState>>,
-        cx: &mut App,
-    ) {
-        let Some(open) = cx.try_global::<OpenSubmenus>() else {
-            return;
-        };
-        let siblings: Vec<Entity<SubmenuState>> = open
-            .0
-            .iter()
-            .filter(|(id, _)| *id == window)
-            .filter_map(|(_, s)| s.upgrade())
-            .filter(|s| keep != Some(s))
-            .filter(|s| {
-                let s = s.read(cx);
-                s.open && s.menu.as_ref() == Some(menu)
-            })
-            .collect();
-        for state in siblings {
-            state.update(cx, |s, cx| {
-                s.open = false;
-                s.over_row = false;
-                s.over_submenu = false;
-                s.epoch += 1;
-                cx.notify();
-            });
-        }
-    }
 }
 
 /// Live deferred submenu bounds currently on screen. Each entry is held alive
@@ -707,38 +718,17 @@ fn register_active_submenu(window: &Window, surface: &Rc<Cell<Bounds<Pixels>>>, 
         active.0.push((window_id, weak));
     });
 }
-/// Closes the submenus this row's siblings opened when the pointer moves
-/// onto it. Only a real move counts: a hover reported because the menu was
-/// laid out under a resting pointer must not close a submenu the keyboard
-/// opened.
-fn sibling_closer(menu: ElementId, keep: Option<WeakEntity<SubmenuState>>) -> impl IntoElement {
-    canvas(
-        |_, _, _| {},
-        move |bounds, _, window, _| {
-            let (menu, keep) = (menu.clone(), keep.clone());
-            window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, cx| {
-                if phase == DispatchPhase::Bubble && bounds.contains(&e.position) {
-                    let keep = keep.as_ref().and_then(WeakEntity::upgrade);
-                    let id = window.window_handle().window_id();
-                    OpenSubmenus::close_siblings(id, &menu, keep.as_ref(), cx);
-                }
-            });
-        },
-    )
-    .absolute()
-    .top_0()
-    .left_0()
-    .size_full()
-}
 /// `.desktop-menu-item`.
+#[allow(clippy::too_many_arguments)]
 fn row(
-    menu: &ElementId,
     fallback_id: ElementId,
     item: MenuItem,
     s: MenuStyle,
     t: Theme,
     dismiss: Option<Handler>,
     keyboard: Option<&keyboard::Keyboard>,
+    coordinator: Option<Entity<SubmenuCoordinator>>,
+    depth: usize,
 ) -> AnyElement {
     let element_id = item.id.unwrap_or(fallback_id);
     let focus = keyboard.and_then(|keyboard| keyboard.focus(&element_id));
@@ -782,13 +772,15 @@ fn row(
     let stacked = item.stacked;
     let row = h_row()
         .id(element_id.clone())
-        .role(if item.checked.is_some() {
+        .role(if item.radio.is_some() {
+            Role::MenuItemRadio
+        } else if item.checked.is_some() {
             Role::MenuItemCheckBox
         } else {
             Role::MenuItem
         })
         .aria_label(item.label.clone())
-        .when_some(item.checked, |row, checked| {
+        .when_some(item.checked.or(item.radio), |row, checked| {
             row.aria_toggled(if checked {
                 accesskit::Toggled::True
             } else {
@@ -875,18 +867,30 @@ fn row(
                 .text_color(trailing_fg)
                 .child(text)
         }))
-        .children(item.trailing.map(|element| {
-            div()
-                .flex_shrink_0()
-                .flex()
-                .items_center()
-                .text_color(trailing_fg)
-                .when(has_hover_trailing, |d| {
-                    d.group_hover(group.clone(), |s| s.invisible())
+        .children(
+            item.trailing
+                .or_else(|| {
+                    submenu.is_some().then(|| {
+                        Icon::new("chevron-right")
+                            .with_size(px(12.))
+                            .color(trailing_fg)
+                            .group_hover_color(group.clone(), hover_fg)
+                            .into_any_element()
+                    })
                 })
-                .when(held, |d| d.invisible())
-                .child(element)
-        }))
+                .map(|element| {
+                    div()
+                        .flex_shrink_0()
+                        .flex()
+                        .items_center()
+                        .text_color(trailing_fg)
+                        .when(has_hover_trailing, |d| {
+                            d.group_hover(group.clone(), |s| s.invisible())
+                        })
+                        .when(held, |d| d.invisible())
+                        .child(element)
+                }),
+        )
         .children(item.hover_trailing.map(|element| {
             div()
                 .absolute()
@@ -900,10 +904,22 @@ fn row(
                 })
                 .child(element)
         }));
-    let menu = menu.clone();
     let Some(submenu) = submenu else {
         return row
-            .child(sibling_closer(menu.clone(), None))
+            .when_some(coordinator, |d, coord| {
+                // Pointer movement, not `on_hover`: hover also fires for a row
+                // laid out under a resting pointer, which would close a
+                // submenu opened by `open_submenu(true)` before it is shown.
+                d.on_mouse_move(move |_, _, cx| {
+                    if coord.read(cx).active.is_some() {
+                        coord.update(cx, |s, cx| {
+                            s.epoch += 1;
+                            s.active = None;
+                            cx.notify();
+                        });
+                    }
+                })
+            })
             .when_some(action.filter(|_| !disabled), |d, action| {
                 d.on_click(move |_, window, cx| {
                     cx.stop_propagation();
@@ -922,71 +938,111 @@ fn row(
     };
     SubmenuRow {
         id: element_id,
-        menu,
         row,
         build: submenu,
         open: open_submenu,
         dismiss,
+        coordinator,
+        depth,
+        trigger_focus: focus,
     }
     .into_any_element()
 }
-/// A row whose submenu opens on hover or click and closes 180ms after the
-/// pointer leaves both, placed 4px past the row's end and 4px above it.
+/// A row whose submenu opens immediately on hover/click, yields immediately
+/// when a sibling row is hovered, and closes 120ms after the pointer leaves
+/// both trigger and submenu into empty space.
 #[derive(IntoElement)]
 struct SubmenuRow {
     id: ElementId,
-    /// The menu this row is in.
-    menu: ElementId,
     row: Stateful<Div>,
     build: SubmenuBuilder,
     /// Open once without a hover.
     open: bool,
     dismiss: Option<Handler>,
+    coordinator: Option<Entity<SubmenuCoordinator>>,
+    depth: usize,
+    /// The row's keyboard focus when its menu has keyboard navigation: the
+    /// submenu then has it too, and returns here.
+    trigger_focus: Option<FocusHandle>,
 }
 impl RenderOnce for SubmenuRow {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let state = window.use_keyed_state(child_id(&self.id, "submenu"), cx, |_, _| {
-            SubmenuState::default()
+        let coord = self.coordinator.unwrap_or_else(|| {
+            window.use_keyed_state(child_id(&self.id, "submenu"), cx, |_, _| {
+                SubmenuCoordinator::default()
+            })
         });
-        let menu = self.menu.clone();
-        state.update(cx, |s, _| s.menu = Some(menu.clone()));
-        // A request opens the submenu once; withdrawing it closes what it
-        // opened, so the next request opens it again (keyboard in and out).
-        state.update(cx, |s, _| {
-            if self.open != s.requested {
-                s.requested = self.open;
-                s.open = self.open;
-            }
-        });
-        // `on_row` says which of the two the pointer entered or left.
-        let hover = {
-            let state = state.clone();
-            move |on_row: bool, hovered: bool, window: &mut Window, cx: &mut App| {
-                let epoch = state.update(cx, |s, cx| {
-                    if on_row {
-                        s.over_row = hovered;
-                    } else {
-                        s.over_submenu = hovered;
+        let trigger_bounds =
+            window.use_keyed_state(child_id(&self.id, "submenu-trigger-bounds"), cx, |_, _| {
+                Rc::new(Cell::new(Bounds::default()))
+            });
+        let row_id = self.id.clone();
+        if self.open {
+            coord.update(cx, |s, _| {
+                if s.requested.as_ref() != Some(&row_id) {
+                    s.requested = Some(row_id.clone());
+                    s.active = Some(row_id.clone());
+                }
+            });
+        } else {
+            // Withdrawing the request closes what it opened, so the next
+            // request opens it again (a picker's keyboard in and out).
+            coord.update(cx, |s, _| {
+                if s.requested.as_ref() == Some(&row_id) {
+                    s.requested = None;
+                    if s.active.as_ref() == Some(&row_id) {
+                        s.active = None;
+                        s.entered = false;
                     }
+                }
+            });
+        }
+        let hover = {
+            let coord = coord.clone();
+            let row_id = self.id.clone();
+            move |on_row: bool, hovered: bool, window: &mut Window, cx: &mut App| {
+                if hovered {
+                    coord.update(cx, |s, cx| {
+                        s.epoch += 1;
+                        if s.active.as_ref() != Some(&row_id) {
+                            s.active = Some(row_id.clone());
+                            s.over_row = false;
+                            s.over_submenu = false;
+                            cx.notify();
+                        }
+                        if on_row {
+                            s.over_row = true;
+                        } else {
+                            s.over_submenu = true;
+                        }
+                    });
+                    return;
+                }
+                let epoch = coord.update(cx, |s, _| {
                     s.epoch += 1;
-                    if hovered && !s.open {
-                        s.open = true;
-                        cx.notify();
+                    if s.active.as_ref() == Some(&row_id) {
+                        if on_row {
+                            s.over_row = false;
+                        } else {
+                            s.over_submenu = false;
+                        }
                     }
                     s.epoch
                 });
-                if hovered {
-                    return;
-                }
-                let state = state.clone();
+                let coord = coord.clone();
+                let row_id = row_id.clone();
                 window
                     .spawn(cx, async move |cx| {
                         cx.background_executor()
-                            .timer(Duration::from_millis(180))
+                            .timer(Duration::from_millis(120))
                             .await;
-                        state.update(cx, |s, cx| {
-                            if s.epoch == epoch && s.open && !s.over_row && !s.over_submenu {
-                                s.open = false;
+                        coord.update(cx, |s, cx| {
+                            if s.epoch == epoch
+                                && s.active.as_ref() == Some(&row_id)
+                                && !s.over_row
+                                && !s.over_submenu
+                            {
+                                s.active = None;
                                 cx.notify();
                             }
                         });
@@ -994,19 +1050,19 @@ impl RenderOnce for SubmenuRow {
                     .detach();
             }
         };
-        let open = state.read(cx).open;
-        let trigger = state.read(cx).trigger;
+        let open = coord.read(cx).active.as_ref() == Some(&self.id);
+        let stored_bounds = trigger_bounds.read(cx).clone();
+        let trigger = stored_bounds.get();
         let corner_cell = Rc::new(Cell::new(point(
             trigger.right() + px(4.),
             trigger.top() - px(4.),
         )));
         let measure = {
-            let state = state.clone();
             let corner_cell = corner_cell.clone();
             canvas(
-                move |bounds, _, cx| {
+                move |bounds, _, _| {
+                    stored_bounds.set(bounds);
                     corner_cell.set(point(bounds.right() + px(4.), bounds.top() - px(4.)));
-                    state.update(cx, |s, _| s.trigger = bounds);
                 },
                 |_, _, _, _| {},
             )
@@ -1016,26 +1072,35 @@ impl RenderOnce for SubmenuRow {
             .size_full()
         };
         let hover_row = hover.clone();
-        let click_state = state.clone();
+        let click_coord = coord.clone();
+        let click_id = self.id.clone();
         let t = cx.palette();
         let mut row = self
             .row
             // The trigger stays lit while its submenu is open (`data-open`).
             .when(open, |row| row.bg(t.hover).text_color(t.text))
             .child(measure)
-            .child(sibling_closer(menu.clone(), Some(state.downgrade())))
             .on_hover(move |hovered, window, cx| hover_row(true, *hovered, window, cx))
             .on_click(move |_, _, cx| {
                 cx.stop_propagation();
-                click_state.update(cx, |s, cx| {
-                    s.open = true;
+                click_coord.update(cx, |s, cx| {
+                    s.epoch += 1;
+                    s.active = Some(click_id.clone());
                     cx.notify();
                 });
             });
         if open {
-            OpenSubmenus::register(window.window_handle().window_id(), &state, cx);
             let mut menu = (self.build)(window, cx);
             menu.dismiss_handler(self.dismiss);
+            menu.submenu_depth(self.depth + 1);
+            if let Some(trigger) = self.trigger_focus.clone() {
+                menu.keyboard_navigation = true;
+                menu.parent = Some(keyboard::Parent {
+                    trigger,
+                    coordinator: coord.clone(),
+                    row: self.id.clone(),
+                });
+            }
             let corner = corner_cell.get();
             let surface = Rc::new(Cell::new(Bounds::default()));
             register_active_submenu(window, &surface, cx);
@@ -1045,12 +1110,13 @@ impl RenderOnce for SubmenuRow {
             // bounds: the host's hover would never see it. The listener
             // also keeps the bounds registered while the submenu is drawn.
             let follow = {
-                let state = state.clone();
-                let hover = hover.clone();
+                let coord = coord.clone();
+                let row_id = self.id.clone();
                 canvas(
                     |_, _, _| {},
                     move |bounds, _, window, _| {
-                        let state = state.clone();
+                        let coord = coord.clone();
+                        let row_id = row_id.clone();
                         let hover = hover.clone();
                         let surface = surface.clone();
                         window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, cx| {
@@ -1059,7 +1125,11 @@ impl RenderOnce for SubmenuRow {
                                 return;
                             }
                             let inside = bounds.contains(&e.position);
-                            if inside != state.read(cx).over_submenu {
+                            let over = {
+                                let s = coord.read(cx);
+                                s.active.as_ref() == Some(&row_id) && s.over_submenu
+                            };
+                            if inside != over {
                                 hover(false, inside, window, cx);
                             }
                         });
@@ -1085,10 +1155,14 @@ impl RenderOnce for SubmenuRow {
                                 .child(follow),
                         ),
                 )
-                .with_priority(gpui_kit::base::POPUP_PRIORITY + 1),
+                .with_priority(gpui_kit::base::POPUP_PRIORITY + 1 + self.depth),
             );
         }
-        row
+        let row = row.test_support();
+        match &self.trigger_focus {
+            Some(focus) => row.track_focus(focus).into_any_element(),
+            None => row.into_any_element(),
+        }
     }
 }
 /// A row that centres its children on the cross axis.

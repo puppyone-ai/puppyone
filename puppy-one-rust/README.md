@@ -390,6 +390,10 @@ Rust / GPUI Kit 0.8.0 / gpui-pre 0.3.9 / Metal (macOS)
 
 可运行 `python3 tools/verify.py` 验证主程序和现行原生编辑器契约，并生成带源文件摘要的收据；不启动 OS 窗口。文件图标投影校验的 Python 环境需要 `fonttools[woff]`；可在独立 venv 中安装并将该 venv 的 `bin` 放到 `PATH` 首位。
 
+`verify.py` 遇到失败不停止：所有检查都跑完，最后列出全部失败及各自日志（`artifacts/gpui-verification/<检查名>.log`，汇总在 `summary.json`）。只读源码的轻量检查并行运行，编译或运行 Rust 的检查依次运行，帧耗时预算最后单独运行。`--list` 列出检查，`--only a,b` 修复后只重跑指定几项（不写收据），`--serial` 一次只跑一项。
+
+发版前在本机运行 `python3 tools/preflight.py`：准备与发版流水线相同的环境（工具链、基线与 TS 参照 checkout、验证用 Python、PDFium 与 Excalidraw 包），再依次运行发版工具测试、`verify.py` 全部检查、Electron→GPUI 升级演练和 Internal 打包 dry run，最后汇总全部失败。`--check-env` 只检查环境。CI 的 Rust desktop acceptance 在每个 PR 和每次推送上运行同一个 `verify.py`（release 构建与帧耗时预算除外，手动触发时勾选 `full` 可加上）。
+
 ```bash
 cargo fmt --check
 python3 tools/check-ui-boundaries.py

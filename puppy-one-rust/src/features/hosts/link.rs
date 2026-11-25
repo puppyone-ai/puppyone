@@ -413,6 +413,76 @@ impl HostLink {
             },
         );
     }
+    /// `retireSharesAtMissingRoot`: withdraw what this computer shares from
+    /// a folder that is gone from disk, once the person found where it
+    /// went. Narrowing only, so nobody is asked; a folder still on disk (or
+    /// a relative path) is never touched. Sharing it from its new place is
+    /// the ordinary, approved Turn on. `done` hears how many were withdrawn.
+    pub fn retire_at_missing_root(
+        &mut self,
+        root: PathBuf,
+        cx: &mut Context<Self>,
+        done: impl FnOnce(&mut Self, usize, &mut Context<Self>) + 'static,
+    ) {
+        if !root.is_absolute() {
+            return done(self, 0, cx);
+        }
+        let probe = root.clone();
+        let present = cx
+            .background_executor()
+            .spawn(async move { std::fs::symlink_metadata(&probe).is_ok() });
+        cx.spawn(async move |this, cx| {
+            let present = present.await;
+            let _ = this.update(cx, |s, cx| {
+                let status = s.status.as_ref();
+                let device = status.and_then(|s| s.active.as_ref().map(|a| a.device_id.clone()));
+                let folders: Vec<String> = status
+                    .map(|s| {
+                        s.folders
+                            .iter()
+                            .filter(|f| f.root_path == root)
+                            .map(|f| f.folder_id.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                match device {
+                    Some(device) if !present && !folders.is_empty() => {
+                        s.retire(device, root, folders, 0, cx, Box::new(done))
+                    }
+                    _ => done(s, 0, cx),
+                }
+            });
+        })
+        .detach();
+    }
+    /// Removes `folders` one after another, counting what went.
+    #[allow(clippy::type_complexity)]
+    fn retire(
+        &mut self,
+        device: String,
+        root: PathBuf,
+        mut folders: Vec<String>,
+        retired: usize,
+        cx: &mut Context<Self>,
+        done: Box<dyn FnOnce(&mut Self, usize, &mut Context<Self>)>,
+    ) {
+        let Some(folder) = folders.pop() else {
+            if retired > 0 {
+                self.marks.push((root, None));
+                self.refresh(cx);
+            }
+            return done(self, retired, cx);
+        };
+        self.call(
+            "registryRemove",
+            json!({"deviceId": device, "folderId": folder}),
+            cx,
+            move |s, result, cx| {
+                let retired = retired + usize::from(result.is_ok());
+                s.retire(device, root, folders, retired, cx, done);
+            },
+        );
+    }
     /// `host:remove-folder` after the person agreed.
     pub fn stop(
         &mut self,

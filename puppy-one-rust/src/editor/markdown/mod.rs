@@ -38,7 +38,10 @@ pub use self::{
     core::{
         commands::{FormatCommand, block_move::set_enabled as set_block_drag_enabled},
         links::{find_links, find_wiki_links},
-        presentation::source_highlight::source_highlights,
+        presentation::{
+            content_language::resolve as resolve_content_language,
+            source_highlight::source_highlights,
+        },
     },
     extension::MarkdownExtension,
 };

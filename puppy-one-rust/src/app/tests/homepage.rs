@@ -120,7 +120,7 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
         path: path.clone(),
         name: "notes".into(),
     };
-    view.update(cx, |s, cx| {
+    view.update_in(cx, |s, w, cx| {
         s.prefs
             .store
             .update(cx, |p, _| p.state.remember_project(&path, 1));
@@ -133,6 +133,7 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
                 false,
                 size(px(1180.), px(760.)),
                 None,
+                w,
                 cx,
             )
         });
@@ -1537,4 +1538,194 @@ fn the_first_homepage_waits_for_the_session_and_the_whole_list(cx: &mut TestAppC
         was_held.get(),
         "a sign-in holds the list until the account's list settles"
     );
+}
+
+/// A remembered folder on the Homepage, its row hovered so its actions
+/// button shows; the button's id.
+fn homepage_with_actions(
+    cx: &mut TestAppContext,
+) -> (Entity<Shell>, &mut VisualTestContext, tempfile::TempDir) {
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.remember_project(&folder, 1));
+    });
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "the Homepage list", &|s, cx| {
+        !s.home.read(cx).list_held()
+    });
+    draw(cx);
+    (view, cx, temp)
+}
+/// The project's actions button, by its name for assistive technology.
+fn actions_button() -> String {
+    crate::localization::tf(
+        "shell.workspaceSwitcher.projectActionsFor",
+        &[("project", "notes".into())],
+    )
+}
+fn actions_open(view: &Entity<Shell>, cx: &mut VisualTestContext) -> bool {
+    view.read_with(cx, |s, cx| {
+        s.chrome.read(cx).project_actions.read(cx).menu.is_some()
+    })
+}
+fn focused_label(cx: &mut VisualTestContext, key: &'static str) -> bool {
+    use gpui_kit::test::TestQueryExt as _;
+    let label = crate::localization::t(key);
+    cx.update(|w, _| w.find_by_label(label).focused() == Some(true))
+}
+fn trigger_focused(cx: &mut VisualTestContext, trigger: &FocusHandle) -> bool {
+    cx.update(|w, _| trigger.is_focused(w))
+}
+/// Points at the project (its button shows), then presses the button; the
+/// button's focus, which the menu took.
+fn open_actions(view: &Entity<Shell>, cx: &mut VisualTestContext) -> FocusHandle {
+    use gpui_kit::test::TestQueryExt as _;
+    let id = view.read_with(cx, |s, cx| {
+        s.home.read(cx).visible_projects(cx)[0].id.clone()
+    });
+    let selector: &'static str = Box::leak(format!("home-project:{id}").into_boxed_str());
+    let project = cx.debug_bounds(selector).unwrap();
+    cx.simulate_mouse_move(project.center(), None, Modifiers::default());
+    draw(cx);
+    let button = cx.update(|w, _| w.find_by_label(&actions_button()).bounds());
+    cx.simulate_click(button.center(), Modifiers::default());
+    draw(cx);
+    assert!(actions_open(view, cx));
+    // The menu keeps the button's own focus to go back to.
+    let (button, kept) = view.read_with(cx, |s, cx| {
+        (
+            s.home.read(cx).action_focus.get(&id).cloned(),
+            s.chrome.read(cx).project_actions.read(cx).return_focus(),
+        )
+    });
+    let button = button.expect("the button has its focus");
+    assert_eq!(kept.as_ref(), Some(&button));
+    button
+}
+fn keys(cx: &mut VisualTestContext, keys: &str) {
+    cx.simulate_keystrokes(keys);
+    draw(cx);
+}
+
+/// `projectRowActionsFocus.test.tsx` (`a project's actions`): the menu
+/// takes the keyboard from its button and gives it back on Escape, on Tab
+/// and when a dialog from the menu closes; arrows wrap and Home/End reach
+/// the ends; a press elsewhere keeps its own focus.
+#[gpui::test]
+fn project_actions_take_the_keyboard_from_their_button_and_give_it_back(cx: &mut TestAppContext) {
+    let (view, cx, _temp) = homepage_with_actions(cx);
+    let (copy, rename, unlink) = (
+        "shell.workspaceSwitcher.copyPath",
+        "shell.workspaceSwitcher.renameProject",
+        "shell.workspaceSwitcher.unlinkProject",
+    );
+    // Escape: closed, and the button has the keyboard again.
+    let trigger = open_actions(&view, cx);
+    assert!(focused_label(cx, copy), "the first row takes focus");
+    keys(cx, "escape");
+    assert!(!actions_open(&view, cx));
+    assert!(trigger_focused(cx, &trigger));
+    // The pointer leaves and the window takes in its documents: the button
+    // keeps the keyboard, its project lit while it does.
+    cx.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::default());
+    view.update_in(cx, |s, w, cx| s.receive(w, cx));
+    draw(cx);
+    assert!(trigger_focused(cx, &trigger));
+    let id = view.read_with(cx, |s, cx| {
+        s.home.read(cx).visible_projects(cx)[0].id.clone()
+    });
+    view.update_in(cx, |s, w, cx| {
+        let home = s.home.read(cx);
+        assert!(home.hovered.is_none(), "the pointer left");
+        assert!(home.lit_for_tests(&id, w, cx), "its button shows");
+    });
+    // The arrows wrap at both ends; Home and End reach them.
+    let trigger = open_actions(&view, cx);
+    keys(cx, "down");
+    assert!(focused_label(cx, rename));
+    keys(cx, "up up");
+    assert!(
+        focused_label(cx, unlink),
+        "up from the first wraps to the last"
+    );
+    keys(cx, "down");
+    assert!(
+        focused_label(cx, copy),
+        "down from the last wraps to the first"
+    );
+    keys(cx, "end");
+    assert!(focused_label(cx, unlink));
+    keys(cx, "home");
+    assert!(focused_label(cx, copy));
+    // Tab: closed, focus back on the button.
+    keys(cx, "tab");
+    assert!(!actions_open(&view, cx));
+    assert!(trigger_focused(cx, &trigger));
+    // A dialog from the menu: when it closes, the button has focus again.
+    let trigger = open_actions(&view, cx);
+    keys(cx, "down enter");
+    view.read_with(cx, |s, cx| {
+        assert!(
+            s.chrome.read(cx).project_actions.read(cx).rename.is_some(),
+            "Rename asks"
+        )
+    });
+    keys(cx, "escape");
+    view.read_with(cx, |s, cx| {
+        assert!(s.chrome.read(cx).project_actions.read(cx).rename.is_none())
+    });
+    assert!(trigger_focused(cx, &trigger));
+    // A press elsewhere closes the menu and leaves focus where it landed.
+    let trigger = open_actions(&view, cx);
+    let elsewhere = cx.debug_bounds("home-view-controls").unwrap();
+    cx.simulate_mouse_down(
+        elsewhere.origin - point(px(40.), px(0.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    draw(cx);
+    assert!(!actions_open(&view, cx));
+    assert!(!trigger_focused(cx, &trigger));
+}
+
+/// `projectRowActionsFocus.test.tsx`: `a Homepage menu answers the same
+/// keys`; `onboardingProjectLayouts.test.tsx`: `marks the current choice
+/// and starts the keyboard on it`.
+#[gpui::test]
+fn homepage_view_menus_start_on_the_current_choice_and_answer_the_same_keys(
+    cx: &mut TestAppContext,
+) {
+    use crate::features::settings::HomepageSort;
+    use gpui_kit::test::{TestQueryExt as _, TestWindowExt as _};
+    let (view, cx, _temp) = homepage_with_actions(cx);
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.homepage_project_sort = HomepageSort::Name, cx)
+        })
+    });
+    draw(cx);
+    let sort = ("home-view-menu", super::home::HomeMenu::Sort as usize);
+    cx.update(|w, cx| w.click(sort, cx));
+    draw(cx);
+    cx.update(|w, _| {
+        let radios = w.find_all_by_role(Role::MenuItemRadio);
+        let checked: Vec<_> = radios.iter().map(|r| r.checked()).collect();
+        assert_eq!(checked, [Some(false), Some(true)]);
+    });
+    assert!(focused_label(cx, "onboarding.projects.sort.name"));
+    keys(cx, "home");
+    assert!(focused_label(cx, "onboarding.projects.sort.modified"));
+    keys(cx, "end");
+    assert!(focused_label(cx, "onboarding.projects.sort.name"));
+    keys(cx, "tab");
+    view.read_with(cx, |s, cx| assert!(s.home.read(cx).menu.is_none()));
+    cx.update(|w, _| assert_eq!(w.find(sort).focused(), Some(true)));
 }

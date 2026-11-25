@@ -41,6 +41,7 @@ pub mod office;
 pub mod os;
 pub mod paths;
 pub mod pdf;
+pub mod power;
 pub mod preference_storage;
 pub mod process;
 pub mod project_activity;

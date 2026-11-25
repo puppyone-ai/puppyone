@@ -160,21 +160,9 @@ impl Http {
             query: vec![],
             body,
         };
-        match self.broker.request(&self.binding, &request) {
-            // `retrySessionApiWithCurrentGeneration`: a newer session of the
-            // same account may resend what is safe to, once.
-            Err(AuthError::SessionChanged) if request.safe_session_retry() => {
-                let current = self
-                    .broker
-                    .signed_in_binding()
-                    .filter(|b| {
-                        b.user == self.binding.user && b.environment == self.binding.environment
-                    })
-                    .ok_or(AuthError::SessionChanged)?;
-                self.broker.request(&current, &request)
-            }
-            result => result,
-        }
+        // A newer session of the same account resends what is safe to, once
+        // (`Broker::request`).
+        self.broker.request(&self.binding, &request)
     }
 }
 /// The `{code, data}` envelope, or the bare value.

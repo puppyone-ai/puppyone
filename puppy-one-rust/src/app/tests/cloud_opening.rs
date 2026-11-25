@@ -671,6 +671,11 @@ fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut Test
             s.cloud.read(cx).publish.read(cx).header_status(),
             Some(crate::features::cloud::HeaderStatus::Completed)
         );
+        // Finished while its dialog was put away: the Header announces it.
+        assert_eq!(
+            s.cloud.read(cx).publish.read(cx).header_mark(),
+            Some(crate::features::cloud::HeaderStatus::Completed)
+        );
         // The folder stays open: its Cloud project is another project.
         assert_eq!(s.workspace_root(cx).as_deref(), Some(root.as_path()));
         assert!(s.hosted_project(cx).is_none());
@@ -1316,4 +1321,167 @@ fn open_post_and_root_files_failures_surface_diagnostics_in_recovery_dialog(
             s.cloud.update(cx, |c, cx| c.close_cloud_recovery(cx));
         });
     }
+}
+
+/// `opening a Cloud project from the cached list`: chosen while the
+/// session is still being restored, it waits instead of saying nobody is
+/// signed in, and opens once the session turns up; signed out once the
+/// session is known to be gone; never if the person went elsewhere first.
+#[gpui::test]
+fn opening_a_cloud_project_waits_for_the_restoring_session(cx: &mut TestAppContext) {
+    use crate::cloud::auth::Status;
+    let (view, cx) = setup(cx);
+    let (broker, browser) =
+        crate::cloud::auth::responding_account_fixture(cloud_project_responder());
+    view.update(cx, |s, cx| {
+        s.prefs
+            .store
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let account =
+        cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "the account", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    let signed_in = account.read_with(cx, |a, _| a.snapshot.clone().unwrap());
+    let set = |cx: &mut VisualTestContext, status: Status| {
+        account.update(cx, |a, cx| {
+            let mut snapshot = signed_in.clone();
+            snapshot.status = status;
+            if status != Status::Authenticated {
+                snapshot.account = None;
+            }
+            a.snapshot = Some(snapshot);
+            cx.notify();
+        });
+        draw(cx);
+    };
+    let errors = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| {
+            s.dialog_names(cx)
+                .into_iter()
+                .filter(|n| n.starts_with("Error("))
+                .count()
+        })
+    };
+    let opening = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |s, cx| s.files(cx).cloud_opening().is_some())
+    };
+
+    // Waits for the session, then opens.
+    set(cx, Status::Restoring);
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    draw(cx);
+    assert!(!opening(cx), "nothing opens before the session is known");
+    assert_eq!(errors(cx), 0, "not reported as signed out");
+    set(cx, Status::Authenticated);
+    assert!(opening(cx), "it opens once the session turns up");
+    assert_eq!(errors(cx), 0);
+    settle_cloud(&view, cx, "the project", &|s, cx| {
+        s.hosted_project(cx).as_deref() == Some("project-a")
+    });
+
+    // Signed out only once the session is known to be gone.
+    set(cx, Status::Restoring);
+    view.update(cx, |s, cx| s.open_cloud("project-b".into(), cx));
+    draw(cx);
+    assert_eq!(errors(cx), 0);
+    set(cx, Status::SignedOut);
+    assert_eq!(errors(cx), 1, "now it is known that nobody is signed in");
+    view.read_with(cx, |s, cx| {
+        assert!(
+            s.dialog_names(cx)
+                .iter()
+                .any(|n| n.contains(crate::localization::t(
+                    "cloud.message.project-sign-in-required"
+                )))
+        )
+    });
+    assert!(view.read_with(cx, |s, cx| {
+        s.session.project.read(cx).awaiting_session.is_none()
+    }));
+
+    // A project the person has since left is not opened.
+    set(cx, Status::Restoring);
+    view.update(cx, |s, cx| s.open_cloud("project-c".into(), cx));
+    let elsewhere = tempfile::tempdir().unwrap();
+    view.update_in(cx, |s, window, cx| {
+        s.open_project(elsewhere.path().to_path_buf(), window, cx)
+    });
+    set(cx, Status::Authenticated);
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert!(s.session.project.read(cx).awaiting_session.is_none());
+        assert_ne!(
+            s.session.project.read(cx).record.cloud.as_deref(),
+            Some("project-c")
+        );
+    });
+}
+
+/// `resolves an exact Scope while preserving its owning Project` and
+/// `never broadens a scoped checkout into its whole Cloud project`: a Scope
+/// checkout is resolved as its exact Scope (its place in the Project kept),
+/// is said to be linked to its Project, and offers no way to open the whole
+/// Project.
+#[gpui::test]
+fn a_scope_checkout_is_linked_to_its_project_but_never_opens_it(cx: &mut TestAppContext) {
+    use super::project_place::{LinkedEntry, Notice, linked_entry, notice_act};
+    use std::sync::{Arc, Mutex};
+    let asked = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+    let base = cloud_project_responder();
+    let responder: crate::cloud::auth::Responder = Arc::new({
+        let asked = asked.clone();
+        move |request| {
+            if request.path.ends_with("/repository-context") {
+                let target = request
+                    .body
+                    .as_ref()
+                    .map(|b| b["target"].clone())
+                    .unwrap_or_default();
+                asked.lock().unwrap().push(target.clone());
+                return Ok(serde_json::json!({"code": 0, "data": {
+                    "target": target,
+                    "project": {"id": "project-a", "name": "Notes", "capabilities": ["content.read"]},
+                    "scope_path": "docs"}}));
+            }
+            base(request)
+        }
+    });
+    let (view, cx, _linked) = linked_checkout_at(
+        cx,
+        responder,
+        "http://127.0.0.1:18080/git/project-a/scopes/scope-docs.git",
+    );
+    settle_cloud(&view, cx, "the association", &|s, cx| {
+        s.cloud.read(cx).repository.read(cx).context.project() == Some("project-a")
+    });
+    assert_eq!(
+        *asked.lock().unwrap(),
+        [serde_json::json!({"kind": "scope", "project_id": "project-a", "scope_id": "scope-docs"})]
+    );
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.cloud.read(cx).repository.read(cx).context,
+            crate::workspace::cloud::repository::Context::Resolved {
+                project: "project-a".into(),
+                name: "Notes".into(),
+                scope: Some("docs".into()),
+            }
+        );
+        let notice = s.cloud.read(cx).local_folder_notice(cx).expect("a notice");
+        assert_eq!(
+            notice,
+            Notice::Linked {
+                project: "project-a".into(),
+                name: Some("Notes".into()),
+                openable: false,
+            }
+        );
+        assert_eq!(notice_act(&notice, true), None, "it only explains");
+        assert!(s.hosted_project(cx).is_none());
+        assert!(s.files(cx).cloud_opening().is_none());
+    });
+    assert_eq!(linked_entry(false, false), LinkedEntry::Explain);
+    assert_eq!(linked_entry(false, true), LinkedEntry::Publish);
 }

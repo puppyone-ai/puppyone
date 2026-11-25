@@ -66,6 +66,8 @@ impl Transport for Fake {
 fn status(code: u16) -> Error {
     Error {
         status: Some(code),
+        code: None,
+        request_id: None,
         unknown: false,
         message: format!("HTTP {code}"),
     }
@@ -73,6 +75,8 @@ fn status(code: u16) -> Error {
 fn lost() -> Error {
     Error {
         status: None,
+        code: None,
+        request_id: None,
         unknown: true,
         message: "outcome unknown".into(),
     }
@@ -663,4 +667,46 @@ fn a_late_receipt_lands_on_the_chat_that_sent_it() {
     settle(&next, "the next project", |s| !s.loading);
     assert!(next.snapshot().runs.is_empty());
     assert!(next.snapshot().draft.is_empty());
+}
+
+#[test]
+fn structured_refusal_code_and_request_id_survive_and_clear_on_recovery() {
+    let fake = Fake::new(|_| {
+        Err(Error {
+            status: Some(409),
+            code: Some("agent_model_unconfigured"),
+            request_id: Some("req-cloud-409".into()),
+            unknown: false,
+            message: "The service rejected this request.".into(),
+        })
+    });
+    let s = setup(fake);
+    let c = controller(&s.hub, "tab-1");
+    c.set_draft("hello".into());
+    c.submit("hello".into());
+    settle(&c, "the structured refusal", |state| {
+        state.error.is_some() && !state.submitting
+    });
+    let failed = c.snapshot();
+    assert_eq!(failed.error_status, Some(409));
+    assert_eq!(failed.error_code, Some("agent_model_unconfigured"));
+    assert_eq!(failed.error_request_id.as_deref(), Some("req-cloud-409"));
+    assert!(failed.pending.is_none());
+
+    s.fake.set(|r| {
+        if r.path == "/agents/runs" {
+            let request = r.body.as_ref().unwrap()["request_id"].as_str().unwrap();
+            Ok(run("run-1", request, "succeeded", 2))
+        } else {
+            Ok(json!([]))
+        }
+    });
+    c.submit("hello".into());
+    settle(&c, "the recovery", |state| {
+        state.error.is_none() && !state.runs.is_empty() && !state.submitting
+    });
+    let recovered = c.snapshot();
+    assert_eq!(recovered.error_status, None);
+    assert_eq!(recovered.error_code, None);
+    assert_eq!(recovered.error_request_id, None);
 }

@@ -2,7 +2,9 @@
 //! `.desktop-agent-markdown` rules of `styles/transcript.css`: block margins
 //! collapse like CSS, lists hang their markers outside the 1.55em indent,
 //! tables use Chromium's auto layout inside a 12px scrollbar gutter, and code
-//! blocks carry the language toolbar. Inline content is `RichText`.
+//! blocks carry the language toolbar. Inline content is `RichText`. The
+//! message names its language (`lang`, from its script), whose script faces
+//! its text takes.
 mod code;
 mod inline;
 mod mermaid;
@@ -31,6 +33,8 @@ pub struct Context<'a> {
     pub app: &'a mut App,
     /// Width of the block being laid out (tables need it for auto layout).
     pub width: f32,
+    /// The text alignment of the table column being laid out.
+    pub align: Option<TextAlign>,
 }
 
 fn em(value: f32) -> f32 {
@@ -48,6 +52,9 @@ fn margins(block: &Block) -> (f32, f32) {
         Block::Quote(_) => (em(0.8), em(0.8)),
         Block::Code { .. } | Block::Table { .. } => (10., 10.),
         Block::Rule => (16., 16.),
+        // `[data-footnotes] { margin-top: 16px }`.
+        Block::Footnotes(_) => (16., 0.),
+        Block::FootnoteDefinition(..) => (0., 0.),
     }
 }
 const ITEM_MARGIN: f32 = 0.18;
@@ -90,6 +97,8 @@ pub fn render(
 ) -> Div {
     let a = super::agent_theme::AgentTheme::new(&t);
     let parsed = parse(text);
+    let language = language(text);
+    let selector = format!("agent-markdown-lang:{language}");
     let mut cx = Context {
         t,
         key: key.to_owned(),
@@ -97,16 +106,32 @@ pub fn render(
         window,
         app,
         width,
+        align: None,
     };
     let top = parsed.first().map_or(0., inner_top);
     let bottom = parsed.last().map_or(0., inner_bottom);
+    let content =
+        crate::ui::fonts::with_content_language(Some(&language), || flow(&parsed, &mut cx, "root"));
     div()
+        .debug_selector(move || selector)
         .w_full()
         .min_w_0()
         .pt(px(top))
         .pb(px(bottom))
         .text_color(a.text_muted)
-        .child(flow(&parsed, &mut cx, "root"))
+        .child(content)
+}
+
+/// `resolveMarkdownContentLanguage(text, locale)`: the message's language,
+/// from its own script before the interface's.
+pub fn language(text: &str) -> SharedString {
+    crate::editor::markdown::resolve_content_language(
+        text,
+        &crate::localization::current().code,
+        None,
+    )
+    .language
+    .into()
 }
 
 /// Children with collapsed gaps between them.
@@ -130,6 +155,9 @@ fn flow(children: &[Block], cx: &mut Context<'_>, path: &str) -> Div {
 fn text_style(size: f32, line_height: f32, color: Rgba) -> TextStyleRefinement {
     TextStyleRefinement {
         font_family: Some("Geist".into()),
+        font_fallbacks: Some(crate::ui::fonts::fallbacks(
+            crate::typography::fonts::Category::Sans,
+        )),
         font_size: Some(px(size).into()),
         line_height: Some(px(line_height).into()),
         color: Some(color.into()),
@@ -178,7 +206,10 @@ fn rich(
         SharedString::from(format!("{}:{path}", cx.key)),
         out.0.into(),
         out.1,
-        text_style(size, line_height, a.text_muted),
+        TextStyleRefinement {
+            text_align: cx.align,
+            ..text_style(size, line_height, a.text_muted)
+        },
     )
     .document_order(cx.order)
     .chips(out.2, chip)
@@ -291,7 +322,31 @@ fn render_block(block: &Block, cx: &mut Context<'_>, path: &str) -> AnyElement {
         // `agentMarkdownBlockRegistry`: `mermaid` fences are diagrams.
         Block::Code { language, text } if language == "mermaid" => mermaid(text, cx, path),
         Block::Code { language, text } => code_block(language, text, cx, path),
-        Block::Table { head, rows } => table(head, rows, cx, path),
+        Block::Table { head, rows, align } => table(head, rows, align, cx, path),
+        // `section[data-footnotes]`: a rule, then the footnotes in order.
+        Block::Footnotes(notes) => {
+            let list = Block::List {
+                start: Some(1),
+                items: notes
+                    .iter()
+                    .map(|blocks| Item {
+                        task: None,
+                        blocks: blocks.clone(),
+                    })
+                    .collect(),
+                depth: 1,
+            };
+            div()
+                .debug_selector(|| "agent-markdown-footnotes".into())
+                .w_full()
+                .min_w_0()
+                .pt(px(8.))
+                .border_t_1()
+                .border_color(a.border_subtle)
+                .child(render_block(&list, cx, path))
+                .into_any_element()
+        }
+        Block::FootnoteDefinition(..) => div().into_any_element(),
     }
 }
 
@@ -361,7 +416,7 @@ mod tests {
     #[test]
     fn gfm_blocks_parse_and_unsafe_content_stays_inert() {
         let blocks = parse("| Level | Action |\n| :--- | :---: |\n| 1 | Read |\n| 2 | Open |");
-        let Block::Table { head, rows } = &blocks[0] else {
+        let Block::Table { head, rows, .. } = &blocks[0] else {
             panic!("table")
         };
         assert_eq!((head.len(), rows.len()), (2, 2));
@@ -424,6 +479,205 @@ mod tests {
             }
         );
     }
+    /// `supports task lists, nested lists, strikethrough, autolinks, rules,
+    /// and footnotes`: a bare URL is a link to its normalized address, and
+    /// a referenced footnote is numbered where it is used and listed after
+    /// the answer.
+    #[test]
+    fn bare_urls_link_and_footnotes_follow_the_answer() {
+        let blocks = parse(
+            "- [x] Done\n- [ ] Next\n  - Nested\n\n~~obsolete~~\n\nhttps://example.com\n\n---\n\nNote[^1]\n\n[^1]: Detail",
+        );
+        let Block::List { items, .. } = &blocks[0] else {
+            panic!("list")
+        };
+        assert_eq!(
+            items.iter().map(|i| i.task).collect::<Vec<_>>(),
+            [Some(true), Some(false)]
+        );
+        assert!(
+            items[1]
+                .blocks
+                .iter()
+                .any(|b| matches!(b, Block::List { depth: 2, .. }))
+        );
+        let Block::Paragraph { inlines, .. } = &blocks[1] else {
+            panic!("strike")
+        };
+        assert!(matches!(&inlines[0], Inline::Strike(_)));
+        let Block::Paragraph { inlines, .. } = &blocks[2] else {
+            panic!("autolink")
+        };
+        let [Inline::Link(href, text)] = &inlines[..] else {
+            panic!("{inlines:?}")
+        };
+        assert_eq!(plain(text), "https://example.com");
+        assert_eq!(safe_href(href).as_deref(), Some("https://example.com/"));
+        assert_eq!(blocks[3], Block::Rule);
+        let Block::Paragraph { inlines, .. } = &blocks[4] else {
+            panic!("reference")
+        };
+        assert_eq!(
+            inlines,
+            &[Inline::Text("Note".into()), Inline::FootnoteRef("1".into())]
+        );
+        let Block::Footnotes(notes) = blocks.last().unwrap() else {
+            panic!("footnotes")
+        };
+        assert_eq!(notes.len(), 1);
+        assert!(format!("{:?}", notes[0]).contains("Detail"));
+        assert_eq!(blocks.len(), 6, "the definition left the flow");
+        // An unreferenced definition is not listed.
+        assert!(
+            !parse("Text\n\n[^x]: Orphan")
+                .iter()
+                .any(|b| matches!(b, Block::Footnotes(_)))
+        );
+    }
+
+    /// GFM's autolink literals, without a sentence's trailing punctuation.
+    #[test]
+    fn autolink_literals_end_where_the_address_does() {
+        let links = |text: &str| -> Vec<(String, String)> {
+            autolink(text)
+                .into_iter()
+                .filter_map(|i| match i {
+                    Inline::Link(href, text) => Some((href, plain(&text))),
+                    _ => None,
+                })
+                .collect()
+        };
+        let pair = |href: &str, text: &str| (href.to_owned(), text.to_owned());
+        assert_eq!(
+            links("Visit www.example.com."),
+            [pair("http://www.example.com", "www.example.com")]
+        );
+        assert_eq!(
+            links("(see https://a.example/x?y=1)!"),
+            [pair("https://a.example/x?y=1", "https://a.example/x?y=1")]
+        );
+        assert_eq!(
+            links("Wiki https://en.wikipedia.org/wiki/Rust_(language) ok"),
+            [pair(
+                "https://en.wikipedia.org/wiki/Rust_(language)",
+                "https://en.wikipedia.org/wiki/Rust_(language)"
+            )]
+        );
+        assert_eq!(
+            links("mail me@example.com, please"),
+            [pair("mailto:me@example.com", "me@example.com")]
+        );
+        assert!(links("https://localhost and xhttps://a.example").is_empty());
+        assert_eq!(
+            plain(&autolink("go to https://a.example.")),
+            "go to https://a.example."
+        );
+    }
+
+    /// `renders semantic GFM tables inside a bounded horizontal viewport`:
+    /// each column keeps its authored alignment.
+    #[test]
+    fn table_columns_keep_their_authored_alignment() {
+        let blocks = parse(
+            "| Level | Action | Meaning |\n| :--- | :---: | ---: |\n| 1 | Read | Distribute |\n| 2 | Open | Activate |",
+        );
+        let Block::Table { head, rows, align } = &blocks[0] else {
+            panic!("table")
+        };
+        assert_eq!((head.len(), rows.len()), (3, 2));
+        assert_eq!(align, &[Align::Left, Align::Center, Align::Right]);
+        assert_eq!(
+            align.iter().map(|a| text_align(*a)).collect::<Vec<_>>(),
+            [
+                Some(TextAlign::Left),
+                Some(TextAlign::Center),
+                Some(TextAlign::Right)
+            ]
+        );
+        assert_eq!(text_align(Align::None), None);
+        assert!(plain(&rows[1][2]).contains("Activate"));
+    }
+
+    struct Answer(&'static str);
+    impl Render for Answer {
+        fn render(
+            &mut self,
+            window: &mut Window,
+            cx: &mut gpui::Context<Self>,
+        ) -> impl IntoElement {
+            use crate::ui::appearance::ActiveAppearance as _;
+            let t = cx.palette();
+            div()
+                .w(px(240.))
+                .child(super::render(self.0, t, "answer", 0, 240., window, cx))
+        }
+    }
+
+    /// `uses the message language for locale-aware reading typography` and
+    /// the bounded table viewport: a Chinese answer names `zh-Hans` and its
+    /// text takes that script's faces; a wide table's viewport takes
+    /// keyboard focus and scrolls with the arrows.
+    #[gpui::test]
+    fn an_answer_names_its_language_and_its_table_viewport_takes_the_keyboard(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use crate::ui::fonts::test_support::take_asked;
+        cx.update(gpui_kit::init);
+        crate::localization::set_current("en");
+        assert_eq!(
+            language("用户访谈已经完成，接下来修复编辑器问题。"),
+            "zh-Hans"
+        );
+        assert_eq!(language("Release notes"), "en");
+        let (_, cx) = cx.add_window_view(|_, _| Answer("用户访谈已经完成，接下来修复编辑器问题。"));
+        take_asked();
+        cx.update(|w, cx| {
+            w.refresh();
+            w.draw(cx).clear(cx);
+        });
+        assert!(cx.debug_bounds("agent-markdown-lang:zh-Hans").is_some());
+        assert_eq!(take_asked(), [Some("zh-Hans".into())]);
+
+        let wide = "| A | B | C | D |\n| :--- | :---: | ---: | - |\n| aaaaaaaaaaaaaaaaaaaa | bbbbbbbbbbbbbbbbbbbb | cccccccccccccccccccc | dddddddddddddddddddd |";
+        let (_, cx) = cx.add_window_view(|_, _| Answer(wide));
+        let draw = |cx: &mut gpui::VisualTestContext| {
+            cx.update(|w, cx| {
+                w.refresh();
+                w.draw(cx).clear(cx);
+            })
+        };
+        draw(cx);
+        let viewport = cx.debug_bounds("agent-markdown-table-scroll").unwrap();
+        let grid = |cx: &mut gpui::VisualTestContext| {
+            cx.debug_bounds("agent-markdown-table-grid")
+                .unwrap()
+                .origin
+                .x
+        };
+        let start = grid(cx);
+        assert!(
+            cx.debug_bounds("agent-markdown-table-grid")
+                .unwrap()
+                .size
+                .width
+                > viewport.size.width,
+            "the table is wider than its viewport"
+        );
+        // Not focused yet: the arrows move nothing.
+        cx.simulate_keystrokes("right");
+        draw(cx);
+        assert_eq!(grid(cx), start);
+        // The viewport is a tab stop; focused, the arrows scroll it.
+        cx.update(|w, cx| w.focus_next(cx));
+        draw(cx);
+        cx.simulate_keystrokes("right");
+        draw(cx);
+        assert_eq!(grid(cx), start - px(40.));
+        cx.simulate_keystrokes("left left");
+        draw(cx);
+        assert_eq!(grid(cx), start, "never before the start");
+    }
+
     #[test]
     fn table_columns_share_extra_width_in_proportion() {
         assert_eq!(column_widths(&[100., 100.], 300.), vec![150., 150.]);

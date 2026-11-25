@@ -740,6 +740,12 @@ impl IconButton {
         self.show_tooltip = false;
         self
     }
+    /// A focus handle its owner keeps (to return focus to it, or to show
+    /// what holds it).
+    pub fn track_focus(mut self, handle: &FocusHandle) -> Self {
+        self.base = self.base.track_focus(handle);
+        self
+    }
     pub fn danger(mut self) -> Self {
         self.danger = true;
         self

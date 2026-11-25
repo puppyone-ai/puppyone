@@ -1,11 +1,14 @@
 //! Binding a source to the Built-in Agent in one step: a discovered local
 //! service, an API-key preset or a provider sign-in becomes a saved
 //! connection with a default model and a context budget, without the form.
-use super::catalog::{CatalogModel, list_models, project};
-use super::discovery::Candidate;
+use super::catalog::{CatalogModel, list_models};
 use super::{Auth, Driver, ModelConnection, SourceKind};
 use crate::agent::model_connections::configuration;
 use crate::agent::model_connections::credentials::Credential;
+use crate::agent::model_connections::drivers::{
+    discovery::{self, Candidate},
+    project,
+};
 use crate::agent::model_connections::oauth::{self, OauthProvider};
 use crate::agent::model_connections::providers::{self, LOCAL_CONTEXT, Provider};
 
@@ -41,7 +44,7 @@ fn budget(provider: Option<&Provider>, models: &[CatalogModel], model: &str) -> 
 }
 
 fn client() -> Result<reqwest::Client, String> {
-    super::catalog::metadata_client()
+    crate::agent::model_connections::drivers::metadata_client()
 }
 
 /// Fill `connection`'s default model and budget from its catalog (read with
@@ -89,13 +92,19 @@ pub fn local_connection(candidate: &Candidate) -> ModelConnection {
     }
 }
 
+/// A connection ready to save, with the API key to secure, if any.
+pub type Prepared = (ModelConnection, Option<String>);
+
 /// `Connect` on a discovered service: its key (read from the service's own
-/// settings when it requires one), catalog, default model, save.
-pub async fn quick_connect(candidate: Candidate, model: Option<String>) -> Result<(), String> {
+/// settings when it requires one), catalog and default model, ready to save.
+pub async fn quick_connect(
+    candidate: Candidate,
+    model: Option<String>,
+) -> Result<Prepared, String> {
     let mut connection = local_connection(&candidate);
     let driver = candidate.driver;
     let key = if candidate.needs_key {
-        let key = tokio::task::spawn_blocking(move || super::discovery::local_key(driver))
+        let key = tokio::task::spawn_blocking(move || discovery::local_key(driver))
             .await
             .map_err(|e| e.to_string())?
             .ok_or("LOCAL_KEY_REQUIRED")?;
@@ -106,15 +115,15 @@ pub async fn quick_connect(candidate: Candidate, model: Option<String>) -> Resul
     };
     connection.default_model_id = model;
     complete_binding(&mut connection, key.as_deref()).await?;
-    configuration::save(connection, key)
+    Ok((connection, key))
 }
 
-/// Save an API-key connection, choosing its default model first when the
-/// user left it unset.
+/// An API-key connection ready to save, its default model chosen first when
+/// the user left it unset.
 pub async fn save_and_bind(
     mut connection: ModelConnection,
     key: Option<String>,
-) -> Result<(), String> {
+) -> Result<Prepared, String> {
     if connection.default_model_id.is_none() {
         // The stored key serves an edit that did not replace it.
         let stored = match &key {
@@ -135,7 +144,7 @@ pub async fn save_and_bind(
                 .or(probing.manual_context_window);
         }
     }
-    configuration::save(connection, key)
+    Ok((connection, key))
 }
 
 /// The connection a sign-in with `provider` becomes (the existing one when
@@ -162,14 +171,14 @@ pub fn signed_in_connection(
     })
 }
 
-/// Sign in with `provider` and save the connection. `progress` reaches the
-/// UI; the browser opens on this side.
+/// Sign in with `provider`: the connection and its credential, ready to
+/// save. `progress` reaches the UI; the browser opens on this side.
 pub async fn sign_in(
     provider: OauthProvider,
     existing: Option<ModelConnection>,
     progress: impl Fn(oauth::Progress) + Send + Sync + 'static,
     cancel: oauth::Cancel,
-) -> Result<(), String> {
+) -> Result<(ModelConnection, Credential), String> {
     let progress = std::sync::Arc::new(progress);
     let report = progress.clone();
     let credential = oauth::login(
@@ -217,11 +226,7 @@ pub async fn sign_in(
                 .unwrap_or(LOCAL_CONTEXT),
         );
     }
-    store(connection, credential).await
-}
-
-async fn store(connection: ModelConnection, credential: Credential) -> Result<(), String> {
-    configuration::save_credential(connection, Some(credential))
+    Ok((connection, credential))
 }
 
 #[cfg(test)]

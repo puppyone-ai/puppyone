@@ -274,6 +274,29 @@ pub fn request_context(
                         .collect();
                     entry["tool_calls"] = Value::Array(calls);
                 }
+                // The model's own reasoning context, as its provider sent it
+                // (OpenRouter's `reasoning_details` carry signatures; managed_ai
+                // `Message` schema): replayed alongside assistant messages and
+                // multi-turn tool calls. Another model's is never replayed.
+                if own {
+                    if let Some(details) = message
+                        .get("reasoning_details")
+                        .and_then(Value::as_array)
+                        .filter(|d| !d.is_empty())
+                    {
+                        entry["reasoning_details"] = Value::Array(details.clone());
+                        if let Some(entry) = entry.as_object_mut() {
+                            entry.remove("reasoning_content");
+                        }
+                    } else if entry.get("reasoning_content").is_none()
+                        && let Some(reasoning) = message
+                            .get("reasoning_content")
+                            .and_then(Value::as_str)
+                            .filter(|r| !r.is_empty())
+                    {
+                        entry["reasoning_content"] = Value::from(reasoning);
+                    }
+                }
                 context.push(entry);
             }
             Some("toolResult") => {
@@ -495,6 +518,16 @@ async fn infer(
             message["usage"] = usage(&Completion::default());
         }
         Some(Ok(completion)) => {
+            if !completion.reasoning.is_empty() {
+                message["reasoning_content"] = Value::from(completion.reasoning.clone());
+            }
+            if let Some(details) = completion
+                .reasoning_details
+                .as_ref()
+                .filter(|d| !d.is_empty())
+            {
+                message["reasoning_details"] = Value::Array(details.clone());
+            }
             for call in &completion.calls {
                 let arguments = call["function"]["arguments"]
                     .as_str()

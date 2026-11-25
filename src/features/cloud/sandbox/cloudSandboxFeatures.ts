@@ -34,10 +34,11 @@ export function readCloudSandbox(value: unknown): CloudSandbox {
 
 function readSettings(value: unknown): CloudSandboxSettings {
   if (!value || typeof value !== "object") return {};
-  const { desktop, screen_stream: stream } = value as Record<string, unknown>;
+  const { desktop, screen_stream: stream, isolated_agent_sandboxes: isolated } = value as Record<string, unknown>;
   return {
     ...(typeof desktop === "boolean" ? { desktop } : {}),
     ...(typeof stream === "boolean" ? { screen_stream: stream } : {}),
+    ...(typeof isolated === "boolean" ? { isolated_agent_sandboxes: isolated } : {}),
   };
 }
 

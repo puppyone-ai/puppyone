@@ -25,6 +25,7 @@ pub(super) fn flatten(
     style: (FontWeight, bool, bool, Option<SharedString>),
 ) {
     let (weight, italic, strike, link) = style.clone();
+    // The message language's script faces (`lang`) behind the face.
     let font = |family: &str, weight: FontWeight| Font {
         family: family.to_owned().into(),
         weight,
@@ -33,6 +34,11 @@ pub(super) fn flatten(
         } else {
             FontStyle::Normal
         },
+        fallbacks: Some(crate::ui::fonts::fallbacks(if family == CODE_FAMILY {
+            crate::typography::fonts::Category::Monospace
+        } else {
+            crate::typography::fonts::Category::Sans
+        })),
         ..Font::default()
     };
     let push = |out: &mut Flattened, text: &str, f: Font, color: Rgba| {
@@ -97,6 +103,17 @@ pub(super) fn flatten(
                 out.2.push(start..out.0.len());
             }
             Inline::Image(alt) => push(out, alt, font("Geist", weight), color),
+            // `<sup>`: the footnote's number, raised.
+            Inline::FootnoteRef(number) => {
+                let raised: String = number
+                    .chars()
+                    .map(|c| match c.to_digit(10) {
+                        Some(d) => ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'][d as usize],
+                        None => c,
+                    })
+                    .collect();
+                push(out, &raised, font("Geist", weight), color)
+            }
             Inline::SoftBreak => push(
                 out,
                 if preserve { "\n" } else { " " },

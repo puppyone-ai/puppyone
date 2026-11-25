@@ -8,9 +8,8 @@
 //!   what it answers, never by its number. Only `127.0.0.1` is contacted.
 //! - Downloaded models are listed by folder name from the apps' own model
 //!   folders; model files are never opened.
-use super::Driver;
-use crate::agent::model_connections::configuration::{is_loopback_host, read_json};
-use crate::agent::model_connections::providers;
+use super::super::configuration::{Driver, is_loopback_host, read_json};
+use super::super::providers;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -391,7 +390,7 @@ fn chat_kind(kind: &str) -> Option<bool> {
 /// What an OpenAI-compatible `/models` entry reports about its kind, when it
 /// reports anything: OpenRouter's `architecture`, `capabilities`, `type`,
 /// `model_type`, `task`, or an `object` other than `model`.
-pub(super) fn reported_chat(entry: &serde_json::Value) -> Option<bool> {
+pub fn reported_chat(entry: &serde_json::Value) -> Option<bool> {
     let architecture = &entry["architecture"];
     if let Some(output) = architecture["output_modalities"].as_array() {
         let has = |m: &str| output.iter().any(|v| v == m);
@@ -433,13 +432,13 @@ pub(super) fn reported_chat(entry: &serde_json::Value) -> Option<bool> {
 
 /// An OpenAI-compatible entry the Agent can chat with: what it reports,
 /// else its name.
-pub(super) fn chat_entry(entry: &serde_json::Value, id: &str) -> bool {
+pub fn chat_entry(entry: &serde_json::Value, id: &str) -> bool {
     reported_chat(entry).unwrap_or_else(|| chat_model(id))
 }
 
 /// An LM Studio `/api/v1/models` entry: a language or vision-language model
 /// (`type` `llm` / `vlm`); embeddings and anything else are left out.
-pub(super) fn lm_studio_chat(entry: &serde_json::Value, id: &str) -> bool {
+pub fn lm_studio_chat(entry: &serde_json::Value, id: &str) -> bool {
     match entry["type"].as_str() {
         Some(kind) => matches!(kind, "llm" | "vlm"),
         None => chat_model(id),
@@ -449,7 +448,7 @@ pub(super) fn lm_studio_chat(entry: &serde_json::Value, id: &str) -> bool {
 /// An Ollama model the Agent can chat with: `/api/show` capabilities name
 /// `completion`; without them, a BERT family (embeddings) in `/api/tags` is
 /// not, else its name decides.
-pub(super) fn ollama_chat(
+pub fn ollama_chat(
     id: &str,
     tag: Option<&serde_json::Value>,
     detail: Option<&serde_json::Value>,
@@ -475,11 +474,11 @@ pub(super) fn ollama_chat(
 }
 
 /// How long one Ollama `/api/show` may take.
-pub(super) const SHOW_TIMEOUT: Duration = Duration::from_millis(1500);
+pub const SHOW_TIMEOUT: Duration = Duration::from_millis(1500);
 
 /// Ollama `/api/show` for each of `names` (at most [`MODEL_LIMIT`]),
 /// concurrently, each within [`SHOW_TIMEOUT`]; `None` where it failed.
-pub(super) async fn ollama_show(
+pub async fn ollama_show(
     client: &reqwest::Client,
     base: &str,
     names: &[String],

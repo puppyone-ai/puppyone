@@ -133,7 +133,8 @@ describe("packaged Desktop Build Identity verification", () => {
     })).rejects.toThrow(/must not claim an Authenticode publisher name/);
   });
 
-  it("verifies a native GPUI macOS bundle via its stamped executable identity", async () => {
+  // The fixture runs the bundle's executable, a POSIX shell script.
+  it.skipIf(process.platform === "win32")("verifies a native GPUI macOS bundle via its stamped executable identity", async () => {
     const fixture = await createGpuiFixture();
     await expect(verifyPackagedDesktopBuild({
       releaseDirectory: fixture.releaseDirectory,
@@ -143,7 +144,8 @@ describe("packaged Desktop Build Identity verification", () => {
     });
   });
 
-  it("rejects a native GPUI macOS bundle whose executable embeds the wrong update feed", async () => {
+  // The fixture runs the bundle's executable, a POSIX shell script.
+  it.skipIf(process.platform === "win32")("rejects a native GPUI macOS bundle whose executable embeds the wrong update feed", async () => {
     const fixture = await createGpuiFixture({
       stampedFeedUrl: "https://downloads.puppyone.ai/desktop/internal/mac/latest",
     });

@@ -145,8 +145,10 @@ impl ModelConnections {
     }
 
     pub(super) fn reload(&mut self, cx: &mut Context<Self>) {
-        if !self.busy {
-            self.rx = client::load(self.wake.clone());
+        if !self.busy
+            && let Some(service) = self.service.clone()
+        {
+            self.rx = client::load(service, self.wake.clone());
             self.busy = true;
             cx.notify();
         }
@@ -156,9 +158,9 @@ impl ModelConnections {
     /// field is cleared at once. An unset default model is chosen from the
     /// catalog before saving.
     pub(super) fn save(&mut self, cx: &mut Context<Self>) {
-        if self.busy {
+        let Some(service) = self.service.clone().filter(|_| !self.busy) else {
             return;
-        }
+        };
         let text = |input: &Entity<TextInput>| input.read(cx).text().to_owned();
         let optional = |input: &Entity<TextInput>| Some(text(input)).filter(|t| !t.is_empty());
         let key = optional(&self.key).filter(|_| self.form.auth == Auth::Bearer);
@@ -187,7 +189,7 @@ impl ModelConnections {
             connection.manual_context_window = Some(context);
         }
         self.error = None;
-        self.rx = client::save(connection, key, self.wake.clone());
+        self.rx = client::save(service, connection, key, self.wake.clone());
         self.busy = true;
         cx.notify();
     }
