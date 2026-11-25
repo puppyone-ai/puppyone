@@ -459,8 +459,10 @@ pub struct SetupSection {
     action_error: bool,
     dialog: Option<Entity<ActivationDialog>>,
     /// `onReturnToLauncher`.
-    on_return: Option<Rc<dyn Fn(&mut Window, &mut App)>>,
+    on_return: Option<ReturnToLauncher>,
 }
+/// Where the keyboard goes when a closing dialog leaves it nowhere.
+type ReturnToLauncher = Rc<dyn Fn(&mut Window, &mut App)>;
 impl SetupSection {
     pub fn new(
         presentation: Presentation,
