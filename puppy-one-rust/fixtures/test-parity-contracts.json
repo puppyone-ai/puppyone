@@ -53421,6 +53421,29 @@
           "test": "app::tests::homepage::only_a_listed_project_leaves_the_window_as_its_path"
         }
       ]
+    },
+    {
+      "id": "explorer-offers-import-only-where-files-can-come-in",
+      "acceptance": "The Explorer offers files dragged from outside (drop highlight and drop) only where the workspace can take files in (its import capability); a read-only workspace offers none and starts no import, while a local folder takes them in.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/explorer/explorerTreeSemantics.test.tsx",
+          "sha256": "a1e0c10aa13236594fe31f9b96f478c1466567e080cd45f1569ceddf017d6ca0",
+          "cases": [
+            {
+              "index": 15,
+              "name": "ExplorerTree interactive semantics > does not advertise file import for read-only drags"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::a_read_only_workspace_offers_no_import_for_dragged_files"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -65833,24 +65856,6 @@
             {
               "index": 3,
               "name": "sticky list-end motion > stays still while it remains pinned"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "explorer-readonly-external-drop-feedback",
-      "kind": "gap",
-      "reason": "Explorer unconditionally attaches drag_over::<ExternalPaths> highlighting without gating external-file drop advertisement on workspace create capability for read-only workspaces.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/explorer/explorerTreeSemantics.test.tsx",
-          "sha256": "a1e0c10aa13236594fe31f9b96f478c1466567e080cd45f1569ceddf017d6ca0",
-          "cases": [
-            {
-              "index": 15,
-              "name": "ExplorerTree interactive semantics > does not advertise file import for read-only drags"
             }
           ]
         }
