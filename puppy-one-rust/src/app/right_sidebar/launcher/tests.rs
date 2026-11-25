@@ -782,3 +782,282 @@ fn hidden_agents_have_no_row_even_when_detected(cx: &mut TestAppContext) {
     });
     assert_eq!(rows(cx), [false, true, true]);
 }
+
+/// What the window's keyboard focus is, by its accessible name.
+fn focused_label(cx: &mut VisualTestContext) -> Option<String> {
+    use gpui_kit::test::TestQueryExt as _;
+    cx.update(|window, cx| {
+        window.draw(cx).clear(cx);
+        window
+            .elements()
+            .into_iter()
+            .filter(|e| e.focused() == Some(true))
+            .min_by_key(|e| std::cmp::Reverse(e.path().len()))
+            .and_then(|e| e.label().map(str::to_owned))
+    })
+}
+fn row_label(label: &str) -> String {
+    format!(
+        "{}: {label}",
+        crate::localization::t("terminal.launcher.title")
+    )
+}
+
+/// `returns setup focus to the launcher with installed=false|true`: when
+/// setup's activation dialog closes with the keyboard in it, the keyboard
+/// goes to the launcher's first usable detected Agent, else its bundled
+/// one, else its heading — which is focusable but never a Tab stop.
+#[gpui::test]
+fn closing_setup_gives_the_keyboard_back_to_the_launcher(cx: &mut TestAppContext) {
+    use crate::agent::connections::legacy_runtime_registry::Runtime;
+    use crate::platform::local_agent_setup::companion::Presence;
+    use crate::platform::local_agent_setup::{Observation, ObservationStatus};
+    let (workbench, launcher, cx) = compose(cx);
+    cx.update(|window, _| window.activate_window());
+    let cursor_supported = crate::platform::local_agent_setup::route("cursor").is_some_and(|r| {
+        r.platforms
+            .contains(&crate::platform::local_agent_setup::platform())
+    });
+    let suggested = if cursor_supported { "cursor" } else { "codex" };
+    cx.update(|_, cx| {
+        crate::features::local_agents::activation_store(cx).update(cx, |s, cx| {
+            s.fixture_companions(vec![(suggested, Presence::Present)]);
+            cx.notify();
+        })
+    });
+    launcher.update(cx, |l, cx| {
+        let prefs = cx.new(|_| PreferencesStore::memory());
+        prefs.update(cx, |p, _| {
+            p.state.local_agents.setup_suggestions.enabled = true
+        });
+        l.set_preference_store(prefs, cx);
+        l.show_local(PathBuf::from("/project"), cx)
+    });
+    workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    let hermes = agents::LOCAL_AGENTS
+        .iter()
+        .find(|a| a.id == "hermes")
+        .unwrap();
+    let built_in = Installation {
+        runtime: Runtime::PuppyOne,
+        id: agents::BUILT_IN_AGENT_ID,
+        label: agents::BUILT_IN_AGENT_LABEL.into(),
+        executable: PathBuf::new(),
+        chat: true,
+    };
+    let heading = crate::localization::t("terminal.launcher.localTitle").to_string();
+    for (installed, bundled, expected) in [
+        (true, true, row_label(hermes.label)),
+        (false, true, row_label(agents::BUILT_IN_AGENT_LABEL)),
+        (false, false, heading.clone()),
+    ] {
+        launcher.update(cx, |l, cx| {
+            l.discovery_override = true;
+            l.scanning = false;
+            l.installations = installed
+                .then(|| Installation {
+                    runtime: hermes.runtime,
+                    id: hermes.id,
+                    label: hermes.label.into(),
+                    executable: PathBuf::from("/fixture/hermes"),
+                    chat: true,
+                })
+                .into_iter()
+                .chain(bundled.then(|| built_in.clone()))
+                .collect();
+            l.observations = agents::LOCAL_AGENTS
+                .iter()
+                .map(|a| Observation {
+                    id: a.id.into(),
+                    status: if installed && a.id == "hermes" {
+                        ObservationStatus::Found
+                    } else {
+                        ObservationStatus::NotFound
+                    },
+                    failure: None,
+                })
+                .collect();
+            cx.notify();
+        });
+        cx.update(|window, cx| {
+            window.blur(cx);
+            window.draw(cx).clear(cx);
+        });
+        let activate: &'static str =
+            Box::leak(format!("agent-setup-activate:{suggested}").into_boxed_str());
+        let open = cx.debug_bounds(activate).expect("setup offers an Agent");
+        cx.simulate_click(open.center(), Modifiers::none());
+        cx.update(|window, cx| {
+            window.draw(cx).clear(cx);
+        });
+        assert!(
+            cx.update(|window, cx| window.focused(cx).is_some())
+                && focused_label(cx).as_deref() != Some(expected.as_str()),
+            "the dialog has the keyboard"
+        );
+        let cancel = cx.debug_bounds("activation-cancel").expect("the dialog");
+        cx.simulate_click(cancel.center(), Modifiers::none());
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("activation-cancel").is_none(), "closed");
+        assert_eq!(
+            focused_label(cx).as_deref(),
+            Some(expected.as_str()),
+            "installed={installed} bundled={bundled}"
+        );
+    }
+    // The heading is focusable, never a Tab stop.
+    cx.update(|window, cx| {
+        window.blur(cx);
+        for _ in 0..12 {
+            window.focus_next(cx);
+            window.draw(cx).clear(cx);
+        }
+    });
+    let mut stops = vec![];
+    for _ in 0..12 {
+        cx.update(|window, cx| window.focus_next(cx));
+        stops.extend(focused_label(cx));
+    }
+    assert!(!stops.is_empty() && !stops.contains(&heading), "{stops:?}");
+}
+
+/// `delays compact feedback outside the Agent list, adds results
+/// immediately, and preserves keyed focus`: the launcher's status says
+/// nothing for discovery's first 200ms, then what it is doing, and that the
+/// scan is complete once it finds an Agent; the status and the feedback
+/// row sit outside the detected Agents' list; a found Agent shows at once,
+/// and the row the keyboard is on keeps it while discovery adds an Agent
+/// before it. A failed or empty scan announces nothing.
+#[gpui::test]
+fn discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done(cx: &mut TestAppContext) {
+    use crate::agent::connections::legacy_runtime_registry::Runtime;
+    use crate::platform::local_agent_setup::{Observation, ObservationFailure, ObservationStatus};
+    use gpui_kit::test::TestQueryExt as _;
+    use std::time::{Duration, Instant};
+    let (workbench, launcher, cx) = compose(cx);
+    cx.update(|window, _| window.activate_window());
+    launcher.update(cx, |l, cx| l.show_local(PathBuf::from("/project"), cx));
+    workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    let installation = |runtime, id, label: &str| Installation {
+        runtime,
+        id,
+        label: label.into(),
+        executable: PathBuf::from(format!("/fixture/{id}")),
+        chat: true,
+    };
+    let claude = installation(Runtime::Claude, "claude", "Claude Code");
+    let codex = installation(Runtime::Codex, "codex", "Codex");
+    let bundled = installation(
+        Runtime::PuppyOne,
+        agents::BUILT_IN_AGENT_ID,
+        agents::BUILT_IN_AGENT_LABEL,
+    );
+    let set = |cx: &mut VisualTestContext, f: &dyn Fn(&mut WorkbenchLauncher)| {
+        launcher.update(cx, |l, cx| {
+            l.discovery_override = true;
+            f(l);
+            cx.notify();
+        });
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+    };
+    // The launcher's status, and whether it sits in the Agent list.
+    let status = |cx: &mut VisualTestContext| {
+        cx.update(|window, _| {
+            let found = window.find_all_by_role(Role::Status);
+            assert_eq!(found.len(), 1, "one status");
+            let list = ElementId::from(("launcher-agents", 0u64));
+            assert!(!found[0].path().contains(&list), "outside the Agent list");
+            found[0]
+                .label()
+                .map(str::to_owned)
+                .filter(|l| !l.is_empty())
+        })
+    };
+    let in_list = |cx: &mut VisualTestContext, label: &str| {
+        cx.update(|window, _| {
+            let list = ElementId::from(("launcher-agents", 0u64));
+            window.find_by_label(label).path().contains(&list)
+        })
+    };
+    let say = |key: &str| Some(crate::localization::t(key).to_string());
+    set(cx, &|l| {
+        l.installations = vec![bundled.clone()];
+        l.observations = vec![];
+        l.scanning = true;
+        l.refreshing = false;
+        l.scan_started = Some(Instant::now());
+    });
+    assert_eq!(status(cx), None, "nothing for the first 200ms");
+    set(cx, &|l| {
+        l.scan_started = Some(Instant::now() - Duration::from_millis(200));
+    });
+    assert_eq!(status(cx), say("terminal.launcher.detecting"));
+    // The feedback row is outside the list too: below it.
+    let list = cx.debug_bounds("launcher-agents").unwrap();
+    let feedback = cx.debug_bounds("launcher-discovery").unwrap();
+    assert!(
+        feedback.top() >= list.bottom(),
+        "the feedback is not in the list"
+    );
+    set(cx, &|l| {
+        l.installations = vec![codex.clone(), bundled.clone()]
+    });
+    assert!(
+        in_list(cx, &row_label("Codex")),
+        "found at once, in the list"
+    );
+    assert!(!in_list(cx, &row_label(agents::BUILT_IN_AGENT_LABEL)));
+    // The keyboard moves onto Codex.
+    cx.update(|window, cx| window.blur(cx));
+    let mut reached = false;
+    for _ in 0..16 {
+        cx.update(|window, cx| window.focus_next(cx));
+        if focused_label(cx) == Some(row_label("Codex")) {
+            reached = true;
+            break;
+        }
+    }
+    assert!(reached, "Codex is a Tab stop");
+    let announced = status(cx);
+    set(cx, &|l| {
+        l.installations = vec![claude.clone(), codex.clone(), bundled.clone()]
+    });
+    assert_eq!(focused_label(cx), Some(row_label("Codex")), "keyed focus");
+    assert_eq!(status(cx), announced, "adding a row says nothing new");
+    cx.update(|window, cx| window.focus_prev(cx));
+    assert_eq!(focused_label(cx), Some(row_label("Claude Code")));
+    cx.update(|window, cx| window.focus_next(cx));
+    assert_eq!(focused_label(cx), Some(row_label("Codex")));
+    set(cx, &|l| l.scanning = false);
+    assert_eq!(focused_label(cx), Some(row_label("Codex")));
+    assert_eq!(cx.debug_bounds("launcher-discovery"), None);
+    assert_eq!(status(cx), say("terminal.launcher.detectionComplete"));
+    // A failed scan, or one that found nothing, announces nothing.
+    set(cx, &|l| {
+        l.observations = vec![Observation {
+            id: "claude".into(),
+            status: ObservationStatus::Failed,
+            failure: Some(ObservationFailure::Product),
+        }]
+    });
+    assert_eq!(status(cx), None);
+    set(cx, &|l| {
+        l.observations = vec![Observation {
+            id: "claude".into(),
+            status: ObservationStatus::Unknown,
+            failure: Some(ObservationFailure::EnvironmentUnavailable),
+        }]
+    });
+    assert_eq!(status(cx), None);
+    set(cx, &|l| {
+        l.observations = vec![];
+        l.installations = vec![bundled.clone()];
+    });
+    assert_eq!(status(cx), None);
+}
