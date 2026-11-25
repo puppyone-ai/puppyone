@@ -169,7 +169,7 @@ impl Render for HistoryBrowser {
             .id("agent-history-browser")
             .track_focus(&self.focus)
             .size_full()
-            .font_family(crate::theme::SANS)
+            .font_family(crate::theme::sans())
             .on_key_down(cx.listener(|s, e: &KeyDownEvent, window, cx| {
                 if e.keystroke.key != "escape" {
                     return;

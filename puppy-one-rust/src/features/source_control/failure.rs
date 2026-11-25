@@ -247,7 +247,7 @@ impl SourceControl {
                             .border_color(t.border_subtle)
                             .rounded(px(8.))
                             .bg(theme::alpha(t.text, 0.07))
-                            .font_family(theme::MONO)
+                            .font_family(theme::mono())
                             .text_size(px(m.ui.meta))
                             .line_height(px(17.))
                             .text_color(t.muted)

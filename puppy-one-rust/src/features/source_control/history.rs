@@ -591,7 +591,7 @@ impl SourceControl {
                             )
                             .child(
                                 div()
-                                    .font_family(theme::MONO)
+                                    .font_family(theme::mono())
                                     .child(commit.id.chars().take(8).collect::<String>()),
                             )
                             .child(if copied {

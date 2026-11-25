@@ -810,7 +810,9 @@ mod tests {
         assert_eq!(mermaid_config(&theme(true))["darkMode"], true);
         let font = config["fontFamily"].as_str().unwrap();
         assert!(
-            font.starts_with("system-ui, ") && !font.contains('\n'),
+            font.starts_with(&crate::platform::fonts::css(
+                &crate::platform::fonts::faces().sans.stack
+            )) && !font.contains('\n'),
             "{font}"
         );
         let variables = &config["themeVariables"];

@@ -1,0 +1,29 @@
+{
+ "comment": "The app's fonts, in one place. Each face names the family the native app draws with on each platform (`family`), the CSS stack the catalog, the web views and the imported themes use (`stack`), the font files to bundle from assets/fonts (`files`, empty for system fonts) and the advance of \"0\" per em at each weight (`zeroAdvance`; measured from the running fonts, these are the fallback before measuring). To switch fonts: edit this file; for bundled files also run python3 tools/generate-assets-rs.py; then re-run the importers that tools/system-fonts.mjs names (their --check fails until you do).",
+ "faces": {
+  "sans": {
+   "family": {"macos": ".SystemUIFont", "windows": ".SystemUIFont", "linux": ".SystemUIFont"},
+   "stack": ["ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI"],
+   "files": [],
+   "zeroAdvance": {"400": 0.606, "500": 0.625, "600": 0.638, "700": 0.656}
+  },
+  "serif": {
+   "family": {"macos": ".AppleSystemUIFontSerif", "windows": "Georgia", "linux": "DejaVu Serif"},
+   "stack": ["ui-serif", "New York", "Iowan Old Style", "Palatino Linotype", "Palatino", "Georgia"],
+   "files": [],
+   "zeroAdvance": {"400": 0.59, "600": 0.631}
+  },
+  "mono": {
+   "family": {"macos": ".AppleSystemUIFontMonospaced", "windows": "Consolas", "linux": "DejaVu Sans Mono"},
+   "stack": ["ui-monospace", "SFMono-Regular", "SF Mono", "Menlo", "Monaco", "Cascadia Mono", "Consolas", "DejaVu Sans Mono", "Liberation Mono"],
+   "files": [],
+   "zeroAdvance": {"400": 0.618}
+  },
+  "terminal": {
+   "family": {"macos": "Menlo", "windows": "Consolas", "linux": "DejaVu Sans Mono"},
+   "stack": ["SF Mono", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono"],
+   "files": [],
+   "zeroAdvance": {"400": 0.602}
+  }
+ }
+}

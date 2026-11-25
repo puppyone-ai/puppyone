@@ -354,7 +354,7 @@ pub fn subject_element(subject: &StepSubject, a: &AgentTheme) -> AnyElement {
                 div()
                     .min_w_0()
                     .truncate()
-                    .font_family(theme::MONO)
+                    .font_family(theme::mono())
                     .text_size(px(mono_size()))
                     .text_color(a.tool_subject)
                     .child(text.clone()),

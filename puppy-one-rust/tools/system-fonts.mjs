@@ -1,12 +1,22 @@
-// The native app sets every surface in the platform's own faces and bundles
-// none. The product bundles Geist (and the Open Sans and PT Serif of two Sub
+// The native app's fonts live in one file, assets/typography/fonts.json.
+// The product bundles Geist (and the Open Sans and PT Serif of two Sub
 // Themes); every importer that copies product CSS or resolved tokens passes
 // them through `systemFonts`, which drops those faces' @font-face rules and
-// names the system stack of the same kind in their place.
+// names the configured stack of the same kind in their place. After editing
+// fonts.json, re-run: import-theme-contract.mjs, import-html-visual.mjs,
+// import-app-preview.mjs, import-office-viewer.mjs,
+// import-structured-viewers.mjs, import-render-service.mjs and
+// `electron tools/import-editor-theme.mjs [--csv]` (each `--check` fails
+// until then). Web views do not load files fonts.json bundles; they draw the
+// next family of the stack.
+import {readFileSync} from 'node:fs';
 
-export const SYSTEM_SANS = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI"';
-export const SYSTEM_MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono"';
-export const SYSTEM_SERIF = 'ui-serif, "New York"';
+const config = JSON.parse(readFileSync(new URL('../assets/typography/fonts.json', import.meta.url), 'utf8'));
+const css = (stack) => stack.map((name) => (name.includes(' ') ? `"${name}"` : name)).join(', ');
+
+export const SYSTEM_SANS = css(config.faces.sans.stack);
+export const SYSTEM_MONO = css(config.faces.mono.stack);
+export const SYSTEM_SERIF = css(config.faces.serif.stack);
 
 const FACES = [
   ['Geist Sans', SYSTEM_SANS],

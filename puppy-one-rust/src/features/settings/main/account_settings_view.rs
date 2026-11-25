@@ -133,7 +133,7 @@ impl SettingsWorkspaceSurface {
             );
             SettingRow::new(tr(label)).control(
                 div()
-                    .font_family(theme::MONO)
+                    .font_family(theme::mono())
                     .text_size(px(theme::ty().ui.meta))
                     .text_color(t.subtle)
                     .child(service.to_string()),
@@ -232,7 +232,7 @@ impl SettingsWorkspaceSurface {
                                 .gap(px(8.))
                                 .child(
                                     div()
-                                        .font_family(theme::MONO)
+                                        .font_family(theme::mono())
                                         .font_weight(FontWeight::MEDIUM)
                                         .text_color(t.text)
                                         .child(value),

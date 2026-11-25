@@ -217,7 +217,7 @@ impl Workbench {
             .items_center()
             .justify_center()
             .bg(t.backdrop)
-            .font_family(crate::theme::SANS)
+            .font_family(crate::theme::sans())
             // `dismissOnBackdrop`.
             .on_mouse_down(
                 MouseButton::Left,

@@ -63,76 +63,59 @@ pub mod ids {
     pub const GEIST_MONO: &str = "builtin:geist-mono";
 }
 
-/// The built-in catalog, in catalog order. Every entry is the platform's own
-/// face; the app bundles none.
-pub const CATALOG: [Entry; 4] = [
-    Entry {
-        id: ids::SYSTEM_SANS,
-        label: "System",
-        description: "Use the native sans-serif font from this device.",
-        family: &[
-            "ui-sans-serif",
-            "system-ui",
-            "-apple-system",
-            "BlinkMacSystemFont",
-            "Segoe UI",
-        ],
-        category: Category::Sans,
-        source: Source::System,
-        roles: &[Role::Ui, Role::Content],
-    },
-    Entry {
-        id: ids::SYSTEM_SERIF,
-        label: "Serif",
-        description: "A quiet system serif stack for long-form reading.",
-        family: &[
-            "ui-serif",
-            "New York",
-            "Iowan Old Style",
-            "Palatino Linotype",
-            "Palatino",
-            "Georgia",
-        ],
-        category: Category::Serif,
-        source: Source::System,
-        roles: &[Role::Content],
-    },
-    Entry {
-        id: ids::SYSTEM_MONO,
-        label: "System Mono",
-        description: "Use the native monospaced font from this device.",
-        family: &[
-            "ui-monospace",
-            "SFMono-Regular",
-            "SF Mono",
-            "Menlo",
-            "Monaco",
-            "Cascadia Mono",
-            "Consolas",
-            "DejaVu Sans Mono",
-            "Liberation Mono",
-        ],
-        category: Category::Monospace,
-        source: Source::System,
-        roles: &[Role::Code],
-    },
-    Entry {
-        id: ids::TERMINAL_SYSTEM_MONO,
-        label: "Terminal Mono",
-        description: "The metric-stable native terminal stack.",
-        family: &[
-            "SF Mono",
-            "SFMono-Regular",
-            "Menlo",
-            "Monaco",
-            "Consolas",
-            "Liberation Mono",
-        ],
-        category: Category::Monospace,
-        source: Source::System,
-        roles: &[Role::Terminal],
-    },
-];
+/// The built-in catalog, in catalog order. The families are the faces of
+/// `assets/typography/fonts.json` (`platform::fonts`).
+pub fn catalog() -> &'static [Entry; 4] {
+    static CATALOG: std::sync::LazyLock<[Entry; 4]> = std::sync::LazyLock::new(|| {
+        let faces = crate::platform::fonts::faces();
+        let source = |face: &crate::platform::fonts::Face| {
+            if face.files.is_empty() {
+                Source::System
+            } else {
+                Source::Bundled
+            }
+        };
+        [
+            Entry {
+                id: ids::SYSTEM_SANS,
+                label: "System",
+                description: "Use the native sans-serif font from this device.",
+                family: &faces.sans.stack,
+                category: Category::Sans,
+                source: source(&faces.sans),
+                roles: &[Role::Ui, Role::Content],
+            },
+            Entry {
+                id: ids::SYSTEM_SERIF,
+                label: "Serif",
+                description: "A quiet system serif stack for long-form reading.",
+                family: &faces.serif.stack,
+                category: Category::Serif,
+                source: source(&faces.serif),
+                roles: &[Role::Content],
+            },
+            Entry {
+                id: ids::SYSTEM_MONO,
+                label: "System Mono",
+                description: "Use the native monospaced font from this device.",
+                family: &faces.mono.stack,
+                category: Category::Monospace,
+                source: source(&faces.mono),
+                roles: &[Role::Code],
+            },
+            Entry {
+                id: ids::TERMINAL_SYSTEM_MONO,
+                label: "Terminal Mono",
+                description: "The metric-stable native terminal stack.",
+                family: &faces.terminal.stack,
+                category: Category::Monospace,
+                source: source(&faces.terminal),
+                roles: &[Role::Terminal],
+            },
+        ]
+    });
+    &CATALOG
+}
 
 /// `PRODUCT_FONT_ID_BY_ROLE`.
 fn product_font(role: Role) -> &'static str {
@@ -247,11 +230,11 @@ pub fn resolve(selection: &Selection) -> Resolved {
 
 /// `getFontCatalogEntries`.
 pub fn entries(role: Role) -> impl Iterator<Item = &'static Entry> {
-    CATALOG.iter().filter(move |e| e.serves(role))
+    catalog().iter().filter(move |e| e.serves(role))
 }
 
 fn find(id: &str, role: Role) -> Option<&'static Entry> {
-    CATALOG.iter().find(|e| e.id == id && e.serves(role))
+    catalog().iter().find(|e| e.id == id && e.serves(role))
 }
 
 /// `resolveFontForRole`: the request, else the product font, else the first
@@ -516,7 +499,7 @@ mod tests {
         assert_eq!(r.content.id, ids::SYSTEM_SANS);
         assert_eq!(r.code.id, ids::SYSTEM_MONO);
         assert_eq!(r.code.family[0], "ui-monospace");
-        assert!(CATALOG.iter().all(|e| e.source == Source::System));
+        assert!(catalog().iter().all(|e| e.source == Source::System));
         assert_eq!(
             r.terminal.family[..3],
             ["SF Mono", "SFMono-Regular", "Menlo"]
@@ -525,6 +508,21 @@ mod tests {
         assert_eq!(r.editor_content_source, ContentSource::Theme);
         assert_eq!(entries(Role::Content).count(), 2);
         assert_eq!(entries(Role::Terminal).count(), 1);
+    }
+
+    #[test]
+    fn the_catalog_families_and_bundled_files_come_from_fonts_json() {
+        let faces = crate::platform::fonts::faces();
+        let r = resolve(&Selection::default());
+        assert_eq!(r.ui.family, &faces.sans.stack[..]);
+        assert_eq!(r.code.family, &faces.mono.stack[..]);
+        assert_eq!(r.terminal.family, &faces.terminal.stack[..]);
+        for file in faces.files() {
+            assert!(
+                crate::assets::embedded(file).is_some(),
+                "{file} is not embedded: run python3 tools/generate-assets-rs.py"
+            );
+        }
     }
 
     #[test]

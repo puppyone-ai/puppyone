@@ -465,7 +465,7 @@ impl SettingsWorkspaceSurface {
                                 .max_w(px(300.))
                                 .min_w_0()
                                 .truncate()
-                                .font_family(theme::MONO)
+                                .font_family(theme::mono())
                                 .text_size(px(theme::ty().ui.meta))
                                 .text_color(t.subtle)
                                 .child(url),

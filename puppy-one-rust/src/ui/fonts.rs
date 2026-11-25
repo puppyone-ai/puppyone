@@ -17,32 +17,78 @@ use gpui::{App, Font, FontFallbacks, FontFeatures, FontStyle, FontWeight, Shared
 use std::cell::RefCell;
 
 /// GPUI's alias for the platform interface face (`system-ui`).
-const SYSTEM_UI: &str = crate::theme::SANS;
+const SYSTEM_UI: &str = ".SystemUIFont";
 /// The CSS `sans-serif` generic at the end of every sans stack (Chromium's
 /// macOS default) for glyphs no listed face covers.
 const GENERIC_SANS: &str = "Helvetica Neue";
+
+/// The system families `ui-monospace` and `ui-serif` name where GPUI can
+/// load them (macOS's SF Mono and New York).
+const UI_MONOSPACE: Option<&str> =
+    crate::platform::conventions::Conventions::current().ui_monospace_font;
+const UI_SERIF: Option<&str> = crate::platform::conventions::Conventions::current().ui_serif_font;
 
 /// A catalog family's GPUI name: the CSS system keywords as the platform's
 /// own faces, and keywords a platform has no face for dropped.
 fn gpui_family(css: &str) -> Option<&str> {
     match css {
         "ui-sans-serif" | "system-ui" | "-apple-system" | "BlinkMacSystemFont" => Some(SYSTEM_UI),
-        "ui-monospace" => KEYWORD_FACES.then_some(crate::theme::MONO),
-        "ui-serif" => KEYWORD_FACES.then_some(crate::theme::SERIF),
+        "ui-monospace" => UI_MONOSPACE,
+        "ui-serif" => UI_SERIF,
         "ui-rounded" => None,
         other => Some(other),
     }
 }
 
-/// Whether `ui-monospace` and `ui-serif` name system faces (macOS).
-const KEYWORD_FACES: bool =
-    crate::platform::conventions::Conventions::current().system_keyword_faces;
-
 /// Families that always load: GPUI's interface alias and the system
 /// keyword faces.
 fn always_available(family: &str) -> bool {
-    family == SYSTEM_UI
-        || (KEYWORD_FACES && (family == crate::theme::MONO || family == crate::theme::SERIF))
+    family == SYSTEM_UI || Some(family) == UI_MONOSPACE || Some(family) == UI_SERIF
+}
+
+/// The advance of "0" per em of the face drawing `category` text at
+/// `weight` (CSS `ch`): measured from the running font on the first
+/// [`install`], else `fonts.json`'s fallback.
+pub fn zero_advance(category: Category, weight: f32) -> f32 {
+    let faces = crate::platform::fonts::faces();
+    let (index, face) = match category {
+        Category::Sans => (0, &faces.sans),
+        Category::Serif => (1, &faces.serif),
+        Category::Monospace => (2, &faces.mono),
+    };
+    MEASURED
+        .get()
+        .and_then(|measured| measured[index].get(&(weight.round() as u16)).copied())
+        .unwrap_or_else(|| face.zero_advance(weight))
+}
+
+/// [`zero_advance`] per face (sans, serif, mono) and weight, measured once.
+static MEASURED: std::sync::OnceLock<[std::collections::BTreeMap<u16, f32>; 3]> =
+    std::sync::OnceLock::new();
+
+/// The weights the editor's static faces draw with (`face_weight`).
+const MEASURED_WEIGHTS: [u16; 4] = [400, 500, 600, 700];
+
+/// Measure "0" in the configured faces, to the thousandth of an em; a
+/// result outside any text face's range (a test text system) is dropped.
+fn measure(cx: &App) {
+    MEASURED.get_or_init(|| {
+        let faces = crate::platform::fonts::faces();
+        let text = cx.text_system();
+        [faces.sans.family, faces.serif.family, faces.mono.family].map(|family| {
+            MEASURED_WEIGHTS
+                .iter()
+                .filter_map(|&weight| {
+                    let mut font = gpui::font(family);
+                    font.weight = FontWeight(weight as f32);
+                    let id = text.resolve_font(&font);
+                    let width = f32::from(text.advance(id, gpui::px(1000.), '0').ok()?.width);
+                    let em = width.round() / 1000.;
+                    (0.3..=1.0).contains(&em).then_some((weight, em))
+                })
+                .collect()
+        })
+    });
 }
 
 /// One resolved stack: the face that renders, and the cascade behind it.
@@ -92,7 +138,7 @@ pub fn walk(css: &[&str], category: Category, installed: &mut dyn FnMut(&str) ->
     }
     Stack {
         family: family.unwrap_or_else(|| match category {
-            Category::Monospace => SharedString::from(crate::theme::MONO),
+            Category::Monospace => SharedString::from(crate::theme::mono()),
             _ => SharedString::from(SYSTEM_UI),
         }),
         fallbacks,
@@ -250,6 +296,7 @@ fn resolve_with(
 /// Resolve the active stacks for the current locale and font selection when
 /// either changed. `Appearance::apply` and every `font` call land here.
 pub fn install(cx: &App) {
+    measure(cx);
     let locale = crate::localization::current_code();
     let selection = selection(cx);
     let current = ACTIVE.with_borrow(|a| {
@@ -409,8 +456,8 @@ mod tests {
         );
         assert_eq!(stack.family.as_ref(), "Menlo");
         // The locale stack's `ui-monospace` (SF Mono on macOS) cascades.
-        let system: &[&str] = if KEYWORD_FACES {
-            &[crate::theme::MONO]
+        let system: &[&str] = if UI_MONOSPACE.is_some() {
+            &[crate::theme::mono()]
         } else {
             &[]
         };
@@ -423,7 +470,7 @@ mod tests {
         assert_eq!(stack.fallbacks, [&["Menlo"], system].concat());
         // Nothing installed: the platform mono renders.
         let stack = walk(&css, Category::Monospace, &mut with(&[]));
-        assert_eq!(stack.family.as_ref(), crate::theme::MONO);
+        assert_eq!(stack.family.as_ref(), crate::theme::mono());
     }
 
     #[test]
@@ -439,8 +486,8 @@ mod tests {
         };
         // `ui-monospace` is SF Mono on macOS; elsewhere the first installed
         // family of the stack renders.
-        let (face, mut cascade): (&str, Vec<&str>) = if KEYWORD_FACES {
-            (crate::theme::MONO, vec!["Menlo"])
+        let (face, mut cascade): (&str, Vec<&str>) = if UI_MONOSPACE.is_some() {
+            (crate::theme::mono(), vec!["Menlo"])
         } else {
             ("Menlo", vec![])
         };
@@ -485,14 +532,17 @@ mod tests {
         let locale = || ACTIVE.with_borrow(|a| a.as_ref().map(|a| a.locale.clone()));
         cx.update(|cx| {
             crate::localization::set_current("ja");
-            assert_eq!(font(Role::Code, cx).family.as_ref(), crate::theme::MONO);
+            assert_eq!(font(Role::Code, cx).family.as_ref(), crate::theme::mono());
             assert_eq!(locale().as_deref(), Some("ja"));
             crate::localization::set_current("zh-Hans");
             assert_eq!(font(Role::Ui, cx).family.as_ref(), SYSTEM_UI);
             assert_eq!(locale().as_deref(), Some("zh-Hans"));
             // The platform mono renders when nothing the terminal stack
             // lists is installed.
-            assert_eq!(font(Role::Terminal, cx).family.as_ref(), crate::theme::MONO);
+            assert_eq!(
+                font(Role::Terminal, cx).family.as_ref(),
+                crate::theme::mono()
+            );
             let system = crate::typography::fonts::Selection {
                 content_font: crate::typography::fonts::ContentFont::Explicit {
                     font_id: crate::typography::fonts::ids::SYSTEM_SANS.into(),

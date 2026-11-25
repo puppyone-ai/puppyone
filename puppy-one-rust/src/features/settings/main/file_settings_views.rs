@@ -96,7 +96,7 @@ impl SettingsWorkspaceSurface {
                             .border_color(t.divider)
                             .rounded(px(6.))
                             .bg(t.input)
-                            .font_family(theme::MONO)
+                            .font_family(theme::mono())
                             .cursor_text()
                             .on_click({
                                 let focus = self.patterns.focus_handle(cx);

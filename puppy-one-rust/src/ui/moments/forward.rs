@@ -496,7 +496,7 @@ fn link_preview(t: &Theme, s: f32, name: &'static str) -> impl IntoElement + use
         // `<code>` in the browser's monospace face.
         .child(
             div()
-                .font_family(theme::MONO)
+                .font_family(theme::mono())
                 .text_size(u(7.5))
                 .line_height(u(10.))
                 .text_color(t.accent_text)

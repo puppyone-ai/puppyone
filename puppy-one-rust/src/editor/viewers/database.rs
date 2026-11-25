@@ -878,7 +878,7 @@ impl DatabaseView {
                         .when(!key, |d| {
                             d.bg(theme::alpha(p.control, 0.54))
                                 .text_color(p.muted)
-                                .font_family(theme::MONO)
+                                .font_family(theme::mono())
                         })
                         .when(key, |d| {
                             d.ml(px(5.))

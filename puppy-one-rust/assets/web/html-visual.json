@@ -1,10 +1,10 @@
 {
-  "sourceCommit": "0b1478185bd44b40aed502f595c429cf0be29390",
+  "sourceCommit": "78b76b490e031489d0f9141bf168a88509309783",
   "entry": "tools/html-visual-entry.tsx",
   "entryHash": "1a1050159c7992d44aac15aef7886aa6137124827ace4ff12fed7565afb908b4",
   "outputs": {
     "html-visual.js": "4c4d24d8f5c0ecad184bc5ebf2862c10424a01fa2e3777f22feff2ba341b6d80",
-    "html-visual.css": "40f17fe2ef8e45d383a5c7c7e99c251266d15d9624fb6032449867b4f801f5e0"
+    "html-visual.css": "f746b04d296a4737e7cc3e4772d41721f7fb80dd421fbbc16f971f50ddb903da"
   },
   "sourceHashes": {
     "locales/manifest.json": "89f4c41fb37190504c04f185cdfe5732f82342c4414f9daf33028cb9fe6898d8",

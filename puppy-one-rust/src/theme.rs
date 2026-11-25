@@ -303,16 +303,38 @@ pub mod metric {
 /// The product's CSS `line-height: normal` (1.3 em), which every interface
 /// layout is measured with; GPUI's own default is 1.618.
 pub const NORMAL_LINE_HEIGHT: f32 = 1.3;
-/// The platform's interface face (CSS `system-ui`): GPUI's alias for SF Pro
-/// on macOS, Segoe UI on Windows and the desktop's sans on Linux. The app
-/// bundles no text faces of its own.
-pub const SANS: &str = ".SystemUIFont";
-/// The platform's monospaced face (CSS `ui-monospace`) for machine output:
-/// SF Mono on macOS, Consolas on Windows, DejaVu Sans Mono on Linux.
-pub const MONO: &str = crate::platform::conventions::Conventions::current().mono_font;
-/// The platform's serif face (CSS `ui-serif`) for serif reading themes:
-/// New York on macOS, Georgia on Windows, DejaVu Serif on Linux.
-pub const SERIF: &str = crate::platform::conventions::Conventions::current().serif_font;
+/// The interface and body face: `sans` of `assets/typography/fonts.json`
+/// (the platform's own: SF Pro on macOS, Segoe UI on Windows).
+pub fn sans() -> &'static str {
+    crate::platform::fonts::faces().sans.family
+}
+/// The face of machine output and code: `mono` of `fonts.json` (SF Mono on
+/// macOS, Consolas on Windows).
+pub fn mono() -> &'static str {
+    crate::platform::fonts::faces().mono.family
+}
+/// The face of serif reading themes: `serif` of `fonts.json` (New York on
+/// macOS, Georgia on Windows).
+pub fn serif() -> &'static str {
+    crate::platform::fonts::faces().serif.family
+}
+/// Register the font files `assets/typography/fonts.json` bundles (none
+/// while every face is the platform's own), before any text is laid out.
+pub fn register_fonts(cx: &gpui::App) {
+    let files: Vec<_> = crate::platform::fonts::faces()
+        .files()
+        .map(|file| {
+            std::borrow::Cow::Borrowed(crate::assets::embedded(file).unwrap_or_else(|| {
+                panic!("{file} is not embedded: run python3 tools/generate-assets-rs.py")
+            }))
+        })
+        .collect();
+    if !files.is_empty() {
+        cx.text_system()
+            .add_fonts(files)
+            .expect("load the fonts fonts.json bundles");
+    }
+}
 pub const HEADER: f32 = 40.0;
 pub const FONT: f32 = 14.0;
 
@@ -333,13 +355,13 @@ pub fn sync_kit(dark: bool, window: Option<&mut gpui::Window>, cx: &mut gpui::Ap
         KitTheme::change(mode, window, cx);
     }
     if KitTheme::global(cx).background != palette.canvas.into()
-        || KitTheme::global(cx).mono_font_family.as_ref() != MONO
+        || KitTheme::global(cx).mono_font_family.as_ref() != mono()
         || KitTheme::global(cx).popover != palette.menu_bg.into()
         || KitTheme::global(cx).font_size != gpui::px(font_size(FONT))
     {
         KitTheme::update(cx, |theme| {
-            theme.font_family = SANS.into();
-            theme.mono_font_family = MONO.into();
+            theme.font_family = sans().into();
+            theme.mono_font_family = mono().into();
             theme.font_size = gpui::px(font_size(FONT));
             theme.background = palette.canvas.into();
             theme.foreground = palette.text.into();

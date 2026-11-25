@@ -24,6 +24,7 @@ pub mod environment;
 pub mod feedback;
 pub mod file_pasteboard;
 pub mod folder_availability;
+pub mod fonts;
 pub mod fs;
 pub mod git;
 pub mod git_diff;

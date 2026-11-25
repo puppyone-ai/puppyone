@@ -77,7 +77,7 @@ impl Default for Grid {
         let size = crate::theme::ty().right.terminal;
         let (cell_w, cell_h, baseline) =
             cell_metrics(size * 0.6, size.round(), (size * 0.25).round(), 2.);
-        let mut font = font(crate::theme::MONO);
+        let mut font = font(crate::theme::mono());
         font.weight = WEIGHT;
         Self {
             font,

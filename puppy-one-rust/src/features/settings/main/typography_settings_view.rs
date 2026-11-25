@@ -134,7 +134,7 @@ fn preview(t: Theme) -> SurfaceFrame {
     let strong = body.len() + 1..body.len() + 1 + bold.len();
     let strong_weight = md.number("--po-md-strong-weight");
     let body_font = |weight: f32| Font {
-        family: theme::SANS.into(),
+        family: theme::sans().into(),
         features: FontFeatures::default(),
         fallbacks: Some(crate::ui::fonts::fallbacks(
             crate::typography::fonts::Category::Sans,

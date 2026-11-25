@@ -301,7 +301,7 @@ fn block(change: &Change, p: &DiffPalette) -> Div {
                 .child(kind_label(change.block))
                 .child(
                     div()
-                        .font_family(theme::MONO)
+                        .font_family(theme::mono())
                         .text_color(t.text_disabled)
                         .child(location(change)),
                 ),

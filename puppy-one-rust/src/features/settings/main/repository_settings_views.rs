@@ -691,7 +691,7 @@ fn remote_row(
                     .unwrap_or_else(|| tr("settings.shared.notConfigured").into())
                     .into(),
             )
-            .font_family(theme::MONO)
+            .font_family(theme::mono())
             .text_color(t.text),
         )
         .when(push_differs, |d| {

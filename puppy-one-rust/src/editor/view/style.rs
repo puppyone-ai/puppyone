@@ -1,7 +1,7 @@
 //! Resolved text and box styles. Values come from a theme (never chosen
 //! here); this module turns them into GPUI text styles for the containers
-//! GPUI Kit's text leaves inherit from, in the platform's own faces (the app
-//! bundles none).
+//! GPUI Kit's text leaves inherit from, in the faces
+//! `assets/typography/fonts.json` names.
 use gpui::{
     FontFeatures, FontStyle, FontWeight, Rgba, SharedString, StyleRefinement, TextStyleRefinement,
     px,
@@ -86,11 +86,11 @@ impl TextStyle {
     /// The platform family of the text's face.
     pub fn family(&self) -> SharedString {
         if self.mono {
-            crate::theme::MONO.into()
+            crate::theme::mono().into()
         } else {
             match self.face {
-                Face::Sans => crate::theme::SANS.into(),
-                Face::Serif => crate::theme::SERIF.into(),
+                Face::Sans => crate::theme::sans().into(),
+                Face::Serif => crate::theme::serif().into(),
             }
         }
     }
@@ -101,28 +101,19 @@ impl TextStyle {
     pub fn line_height_px(&self) -> f32 {
         self.line_height.resolve(self.size)
     }
-    /// CSS `ch`: the advance of "0" in the primary face, per em, read from
-    /// the macOS faces (SF Pro, SF Mono, New York); the other platforms'
-    /// faces are within a few percent.
+    /// CSS `ch`: the advance of "0" in the text's face, measured from the
+    /// running font (`ui::fonts::zero_advance`).
     pub fn ch(&self) -> f32 {
-        let weight = self.font_weight().0;
-        let em = match (self.mono, self.face) {
-            (true, _) => 0.618,
-            (false, Face::Serif) => {
-                if weight >= 600. {
-                    0.631
-                } else {
-                    0.590
-                }
-            }
-            (false, Face::Sans) => match weight as u32 {
-                ..=400 => 0.606,
-                401..=500 => 0.625,
-                501..=600 => 0.638,
-                _ => 0.656,
-            },
-        };
-        em * self.size
+        crate::ui::fonts::zero_advance(self.category(), self.font_weight().0) * self.size
+    }
+    /// The font category of the text's face (its script fallbacks).
+    fn category(&self) -> crate::typography::fonts::Category {
+        use crate::typography::fonts::Category;
+        match (self.mono, self.face) {
+            (true, _) => Category::Monospace,
+            (false, Face::Serif) => Category::Serif,
+            (false, Face::Sans) => Category::Sans,
+        }
     }
     /// The text refinement a container applies so Kit leaves inherit it.
     pub fn refinement(&self) -> TextStyleRefinement {
@@ -136,11 +127,7 @@ impl TextStyle {
             }),
             // The locale's script faces after the face (`--po-md-content-font`,
             // `--po-font-code`).
-            font_fallbacks: Some(crate::ui::fonts::fallbacks(match (self.mono, self.face) {
-                (true, _) => crate::typography::fonts::Category::Monospace,
-                (false, Face::Serif) => crate::typography::fonts::Category::Serif,
-                (false, Face::Sans) => crate::typography::fonts::Category::Sans,
-            })),
+            font_fallbacks: Some(crate::ui::fonts::fallbacks(self.category())),
             font_size: Some(px(self.size).into()),
             line_height: Some(px(self.line_height_px()).into()),
             // The weight also steers the script fallback faces (PingFang SC).

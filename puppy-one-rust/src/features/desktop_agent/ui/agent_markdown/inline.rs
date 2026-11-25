@@ -34,11 +34,13 @@ pub(super) fn flatten(
         } else {
             FontStyle::Normal
         },
-        fallbacks: Some(crate::ui::fonts::fallbacks(if family == CODE_FAMILY {
-            crate::typography::fonts::Category::Monospace
-        } else {
-            crate::typography::fonts::Category::Sans
-        })),
+        fallbacks: Some(crate::ui::fonts::fallbacks(
+            if family == crate::theme::mono() {
+                crate::typography::fonts::Category::Monospace
+            } else {
+                crate::typography::fonts::Category::Sans
+            },
+        )),
         ..Font::default()
     };
     let push = |out: &mut Flattened, text: &str, f: Font, color: Rgba| {
@@ -90,22 +92,22 @@ pub(super) fn flatten(
                     } else {
                         text
                     };
-                push(out, &text, font(crate::theme::SANS, weight), color)
+                push(out, &text, font(crate::theme::sans(), weight), color)
             }
             Inline::Code(code) => {
                 let start = out.0.len();
                 let pad = CODE_PAD.to_string();
-                push(out, &pad, font(crate::theme::SANS, weight), palette.text);
+                push(out, &pad, font(crate::theme::sans(), weight), palette.text);
                 push(
                     out,
                     code,
-                    font(CODE_FAMILY, FontWeight::NORMAL),
+                    font(crate::theme::mono(), FontWeight::NORMAL),
                     palette.text,
                 );
-                push(out, &pad, font(crate::theme::SANS, weight), palette.text);
+                push(out, &pad, font(crate::theme::sans(), weight), palette.text);
                 out.2.push(start..out.0.len());
             }
-            Inline::Image(alt) => push(out, alt, font(crate::theme::SANS, weight), color),
+            Inline::Image(alt) => push(out, alt, font(crate::theme::sans(), weight), color),
             // `<sup>`: the footnote's number, raised.
             Inline::FootnoteRef(number) => {
                 let raised: String = number
@@ -115,15 +117,15 @@ pub(super) fn flatten(
                         None => c,
                     })
                     .collect();
-                push(out, &raised, font(crate::theme::SANS, weight), color)
+                push(out, &raised, font(crate::theme::sans(), weight), color)
             }
             Inline::SoftBreak => push(
                 out,
                 if preserve { "\n" } else { " " },
-                font(crate::theme::SANS, weight),
+                font(crate::theme::sans(), weight),
                 color,
             ),
-            Inline::HardBreak => push(out, "\n", font(crate::theme::SANS, weight), color),
+            Inline::HardBreak => push(out, "\n", font(crate::theme::sans(), weight), color),
             Inline::Strong(children) => flatten(
                 children,
                 preserve,

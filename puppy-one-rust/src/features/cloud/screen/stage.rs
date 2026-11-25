@@ -459,7 +459,7 @@ impl CloudScreen {
                                 .py(px(2.))
                                 .rounded(px(4.))
                                 .bg(theme::screen_overlay_border())
-                                .font_family(theme::MONO)
+                                .font_family(theme::mono())
                                 .text_size(px(ty.caption))
                                 .text_color(theme::screen_overlay_muted())
                                 .child(tr("cloud.sandbox.screen.release-shortcut")),

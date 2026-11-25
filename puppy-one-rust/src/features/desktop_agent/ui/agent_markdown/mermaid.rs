@@ -91,7 +91,7 @@ pub(super) fn mermaid(source: &str, cx: &mut Context<'_>, path: &str) -> AnyElem
                 .border_b_1()
                 .border_color(a.border_subtle)
                 .text_color(a.text_subtle)
-                .font_family(theme::MONO)
+                .font_family(theme::mono())
                 .text_size(px(caption))
                 .child(crate::localization::t("agent.markdown.diagram")),
         )

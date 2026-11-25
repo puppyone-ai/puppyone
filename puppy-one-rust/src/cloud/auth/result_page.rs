@@ -128,7 +128,7 @@ pub(super) fn response(
     :root {{ color-scheme: light; --po-inset: #e7e3db; --po-text: #292723; --po-text-inverse: #fffefa; --po-text-muted: #68645c; --po-text-subtle: #928c83; --po-success: #168145; --po-danger: #dc2626; }}
     * {{ box-sizing: border-box; }}
     html {{ min-height: 100%; }}
-    body {{ min-height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--po-inset); color: var(--po-text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }}
+    body {{ min-height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--po-inset); color: var(--po-text); font-family: {font}, sans-serif; -webkit-font-smoothing: antialiased; }}
     main {{ width: min(100%, 380px); padding: 24px; text-align: center; }}
     .brand {{ display: block; width: 48px; height: 48px; margin: 0 auto 16px; opacity: .95; }}
     .brand svg {{ display: block; width: 100%; height: 100%; }}
@@ -160,6 +160,10 @@ pub(super) fn response(
         next = escape(next),
         mark = data()["brandMark"].as_str().unwrap_or_default(),
         role = if success { "status" } else { "alert" },
+        font = {
+            let sans = &crate::platform::fonts::faces().sans;
+            crate::platform::fonts::css(&sans.stack)
+        },
         next_margin = if return_path.is_some() {
             "16px"
         } else {

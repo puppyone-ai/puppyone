@@ -93,6 +93,7 @@ pub fn app() -> TestAppContext {
     );
     app.update(|cx| {
         gpui_kit::init(cx);
+        crate::theme::register_fonts(cx);
     });
     app
 }

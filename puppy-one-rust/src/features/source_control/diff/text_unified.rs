@@ -99,7 +99,7 @@ pub(super) fn line(line: &DiffLine, p: &DiffPalette, density: super::Density) ->
         .min_h(px(18.))
         .bg(bg)
         .text_color(fg)
-        .font_family(theme::MONO)
+        .font_family(theme::mono())
         .text_size(px(density.code_size()))
         .line_height(px(18.))
         .child(
@@ -120,7 +120,7 @@ pub(super) fn line(line: &DiffLine, p: &DiffPalette, density: super::Density) ->
                 .w(px(18.))
                 .flex_shrink_0()
                 .text_center()
-                .font_family(theme::MONO)
+                .font_family(theme::mono())
                 .font_weight(crate::editor::view::style::face_weight(650.))
                 .text_color(prefix_color)
                 .child(prefix),

@@ -125,6 +125,8 @@ fn main() {
         let _ = open_tx.try_send(urls);
     });
     application.run(move |cx: &mut App| {
+        // The font files `assets/typography/fonts.json` bundles, if any.
+        theme::register_fonts(cx);
         // Before any input: tells swallowed function keys from delivered ones.
         cx.set_reduce_motion(platform::accessibility::reduce_motion());
         ui::ime::init(cx);
