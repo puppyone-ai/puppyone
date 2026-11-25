@@ -295,11 +295,21 @@ impl Redactor {
 /// PuppyOne compute (`openAgentStream`): the signed-in account's broker
 /// sends the request once; its stream feeds the same parser. A lost
 /// response is not replayed — it may already have been charged.
+/// The largest managed request sent (`512 KiB`, the product's proxy).
+const MANAGED_REQUEST_LIMIT: usize = 512 * 1024;
+
 async fn complete_managed(
     account: &dyn crate::agent::model_connections::ComputeAccount,
     body: Value,
     delta: &mut dyn FnMut(&str, &str),
 ) -> Result<Completion, String> {
+    let request_id = uuid::Uuid::new_v4().to_string();
+    // `ai_request_too_large`: answered here, never sent.
+    if serde_json::to_vec(&body).map_or(true, |b| b.len() > MANAGED_REQUEST_LIMIT) {
+        return Err(format!(
+            "This conversation is too large. Start a new conversation. Reference: {request_id}"
+        ));
+    }
     let (broker, binding) = account.current().ok_or_else(|| {
         crate::localization::t("settings.account.signedOutDetailCompute").to_owned()
     })?;
@@ -307,27 +317,25 @@ async fn complete_managed(
     let cancel = crate::cloud::auth::Cancellation::default();
     let guard = cancel.clone();
     std::thread::spawn(move || {
-        let request_id = uuid::Uuid::new_v4().to_string();
         let sink_tx = tx.clone();
+        let model = body["model"].as_str().unwrap_or_default().to_owned();
         let result = broker.completion(&binding, &body, &request_id, &cancel, &mut |event| {
-            if let crate::cloud::auth::StreamEvent::Data(bytes) = event
-                && sink_tx.send(Ok(bytes.to_vec())).is_err()
-            {
-                return Err(crate::cloud::auth::Error::Cancelled);
+            match event {
+                // Its receipt is read after the wallet's next refresh.
+                crate::cloud::auth::StreamEvent::Reservation(id) => {
+                    crate::cloud::auth::reservation::note(&binding, id, &model)
+                }
+                crate::cloud::auth::StreamEvent::Data(bytes) => {
+                    if sink_tx.send(Ok(bytes.to_vec())).is_err() {
+                        return Err(crate::cloud::auth::Error::Cancelled);
+                    }
+                }
+                crate::cloud::auth::StreamEvent::Connected => {}
             }
             Ok(())
         });
         if let Err(error) = result {
-            let _ = tx.send(Err(match error {
-                crate::cloud::auth::Error::Http(402)
-                | crate::cloud::auth::Error::Response(402, _, _) => {
-                    crate::localization::t("agent.compute.paymentUnavailable").to_owned()
-                }
-                crate::cloud::auth::Error::Cancelled => "Turn stopped".to_owned(),
-                _ => {
-                    "PuppyOne compute did not complete the request; it was not replayed".to_owned()
-                }
-            }));
+            let _ = tx.send(Err(managed_refusal(error)));
         }
     });
     // Dropping the turn cancels the request.
@@ -345,6 +353,42 @@ async fn complete_managed(
         }
     }
     stream.finish()
+}
+
+/// What a refused managed request says: the service's reviewed code as
+/// words, and its reference, never the service's own prose.
+fn managed_refusal(error: crate::cloud::auth::Error) -> String {
+    use crate::cloud::auth::Error;
+    let (code, reference) = match error {
+        Error::Http(402) | Error::Response(402, _, _) => {
+            return crate::localization::t("agent.compute.paymentUnavailable").to_owned();
+        }
+        Error::Cancelled => return "Turn stopped".to_owned(),
+        Error::Response(_, Some(code), diagnostic) if code.starts_with("ai_") => {
+            (code, diagnostic.request_id)
+        }
+        _ => {
+            return "PuppyOne compute did not complete the request; it was not replayed".to_owned();
+        }
+    };
+    let words = match code {
+        "ai_request_invalid" => "The Agent request is not valid.",
+        "ai_request_too_large" => "This conversation is too large. Start a new conversation.",
+        "ai_context_limit" => {
+            "This conversation is longer than the model can read. Start a new conversation."
+        }
+        "ai_model_unavailable" | "ai_route_unavailable" => "Select an available Agent model.",
+        "ai_balance_insufficient" => "Add credit to use this model.",
+        "ai_rate_limited" => "PuppyOne compute is busy. Try again shortly.",
+        "ai_access_denied" | "ai_authentication_required" => {
+            "Sign in again to use PuppyOne compute."
+        }
+        _ => "PuppyOne compute could not answer the request.",
+    };
+    match reference {
+        Some(reference) => format!("{words} Reference: {}", reference.as_str()),
+        None => words.to_owned(),
+    }
 }
 
 /// The request for `protocol`, carrying `credential` as that protocol
@@ -419,6 +463,88 @@ fn build_request(
                 ))
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// `managedConnection.test.mjs` #17 (`returns a readable local protocol
+    /// error for invalid input`, the oversized body): a managed request
+    /// over 512 KiB is answered here with its reference, before any
+    /// account or network is asked.
+    #[test]
+    fn an_oversized_managed_request_is_refused_before_it_is_sent() {
+        struct Asked(std::sync::atomic::AtomicBool);
+        impl crate::agent::model_connections::ComputeAccount for Asked {
+            fn current(
+                &self,
+            ) -> Option<(
+                std::sync::Arc<crate::cloud::auth::Broker>,
+                crate::cloud::auth::model::Binding,
+            )> {
+                self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+                None
+            }
+        }
+        let asked = Asked(Default::default());
+        let body = json!({"model": "test/model", "messages": [{"role": "user", "content": "x".repeat(524_289)}]});
+        let error =
+            futures_util::FutureExt::now_or_never(complete_managed(&asked, body, &mut |_, _| {}))
+                .unwrap()
+                .err()
+                .unwrap();
+        let reference = error
+            .strip_prefix("This conversation is too large. Start a new conversation. Reference: ")
+            .unwrap();
+        assert!(uuid::Uuid::parse_str(reference).is_ok(), "{error}");
+        assert!(
+            !asked.0.load(std::sync::atomic::Ordering::SeqCst),
+            "nothing asked"
+        );
+        // Within the limit, the account is asked.
+        let small = json!({"model": "test/model", "messages": []});
+        let _ =
+            futures_util::FutureExt::now_or_never(complete_managed(&asked, small, &mut |_, _| {}));
+        assert!(asked.0.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    /// #15 at the model client: the reviewed refusal reads as words with
+    /// its reference; prose and unknown codes never surface.
+    #[test]
+    fn a_reviewed_refusal_reads_as_words_with_its_reference() {
+        use crate::cloud::auth::{
+            Error,
+            model::{Diagnostic, RequestId},
+        };
+        let refused = |code, reference: Option<&str>| {
+            managed_refusal(Error::Response(
+                422,
+                Some(code),
+                Diagnostic {
+                    retryable: None,
+                    request_id: reference.and_then(RequestId::parse),
+                },
+            ))
+        };
+        assert_eq!(
+            refused("ai_request_invalid", Some("reference-123")),
+            "The Agent request is not valid. Reference: reference-123"
+        );
+        assert_eq!(
+            refused("ai_model_unavailable", None),
+            "Select an available Agent model."
+        );
+        assert_eq!(
+            refused("ai_usage_pending", Some("r-1")),
+            "PuppyOne compute could not answer the request. Reference: r-1"
+        );
+        assert_eq!(
+            managed_refusal(Error::Unavailable),
+            "PuppyOne compute did not complete the request; it was not replayed"
+        );
+    }
 }
 
 #[cfg(test)]

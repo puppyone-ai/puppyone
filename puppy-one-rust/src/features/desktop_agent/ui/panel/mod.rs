@@ -113,6 +113,8 @@ pub struct AgentChatTabPanel {
     /// The connections changed and this chat has not read them yet.
     connections_changed: bool,
     compute_access_prompt: bool,
+    /// The app's compute wallet, as it is now (`snapshot.managed`).
+    wallet: Option<compute::ManagedCompute>,
     /// `usePaymentsExperience()`.
     payments: bool,
     /// The user's routing preferences (`preferredRuntimeId`, `preferredRoute`).
@@ -154,6 +156,7 @@ impl AgentChatTabPanel {
             window,
             cx,
         );
+        panel.watch_wallet(cx);
         panel.reload_model_connections(cx);
         panel.on_state_change(window, cx);
         panel
@@ -220,6 +223,7 @@ impl AgentChatTabPanel {
             compute_revision: None,
             connections_changed: false,
             compute_access_prompt: false,
+            wallet: None,
             payments: false,
             routing: AgentRouting::default(),
             #[cfg(feature = "dev-capture")]

@@ -47955,7 +47955,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::cloud::managed_compute::tests::the_wallet_reads_like_the_product"
+          "test": "features::model_connections::managed::tests::the_wallet_reads_like_the_product"
         },
         {
           "package": "po-app",
@@ -49280,7 +49280,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::cloud::managed_compute::tests::the_wallet_reads_like_the_product"
+          "test": "features::model_connections::managed::tests::the_wallet_reads_like_the_product"
         },
         {
           "package": "po-app",
@@ -51943,6 +51943,341 @@
         {
           "package": "po-platform",
           "test": "platform::window_capture::tests::unavailable_windows_give_no_bitmap"
+        }
+      ]
+    },
+    {
+      "id": "editor-split-keyboard-resize",
+      "acceptance": "An editor split's handle is a separator across the split's axis (upright between side-by-side panes) labelled 'Resize editor panes', announcing its ratio in percent within 15..85, and a tab stop that shows the focus ring while focused. While focused, the arrows on the split's own axis (Left/Right side by side, Up/Down stacked) step the ratio by 0.025 at once, kept within 0.15..0.85, and the arrows across it do nothing; a double press on the handle equalizes the split. Each is a single commit with no preview and nothing held back from the workspace's metadata.",
+      "typescript": [
+        {
+          "path": "tests/component/workbench/layout/editorSplitResizeInteraction.test.tsx",
+          "sha256": "87523424462d2efd9bf544dc1e52af1244f28936cb10ab7c3a7f17063a26a88e",
+          "cases": [
+            {
+              "index": 3,
+              "name": "EditorSplitResizeHandle > keeps keyboard and equalize operations as immediate single commits"
+            },
+            {
+              "index": 20,
+              "name": "horizontal editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
+            },
+            {
+              "index": 37,
+              "name": "vertical editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_side_by_side_split_steps_with_left_and_right_and_equalizes"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::pane_actions::a_stacked_split_steps_with_up_and_down_and_equalizes"
+        }
+      ]
+    },
+    {
+      "id": "office-conversion-concurrency",
+      "acceptance": "A window runs at most two Office (.doc / .rtf to DOCX) conversions at once. A third is refused with 'Only 2 Office conversions may run in one window at a time.' before its converter runs, and the preview shows that as its conversion error; another window still converts. A conversion's place is free again once it has ended: finished, failed or cancelled (a cancelled one ends as 'Office conversion was cancelled.' after its converter exited), and a window with none left is forgotten.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
+          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
+          "cases": [
+            {
+              "index": 19,
+              "name": "workspace file IPC authorization > cleans up successful conversions and enforces the per-window concurrency limit"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::office::lifetime_tests::a_window_runs_at_most_two_conversions_and_each_frees_its_place"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::viewers::office::admission_tests::a_window_running_two_conversions_refuses_a_third_preview"
+        }
+      ]
+    },
+    {
+      "id": "markdown-format-shortcut-repeat",
+      "acceptance": "Holding one of the window's format shortcuts (Bold, Italic, Underline and Strike: secondary-b, -i, -u, -d and -shift-x) applies it once: the system's auto-repeats of the held key do nothing, and a fresh press after the key was released applies it again. The repeat is AppKit's current key event's isARepeat on macOS; other systems give the key bindings no repeat flag. Option, Control on macOS (Command elsewhere), both platform modifiers together and a released key are no format shortcut.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatShortcuts.electron.test.mjs",
+          "sha256": "e51b314e73668eeec13d0a33c5782e6d9c049597cff6fc054701b5de83f11e48",
+          "cases": [
+            {
+              "index": 3,
+              "name": "Markdown format window shortcuts > rejects repeated, modified, released, and cross-platform modifier inputs"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::held_format_shortcuts_apply_once_and_other_inputs_are_ignored"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::key_repeat::tests::a_keystroke_outside_a_key_event_is_a_press"
+        }
+      ]
+    },
+    {
+      "id": "mdx-tabs-keyboard",
+      "acceptance": "An MDX Tabs block's labels are a tab list ('Tabs') of tabs, each announcing whether it is shown. Each tab takes keyboard focus and only the shown tab is a tab stop. While a tab has focus, ArrowRight and ArrowLeft (both wrapping), Home and End show and focus another tab without changing the source, and the focused tab shows the focus ring when the keyboard put it there. A pressed tab shows and takes focus. While a widget inside the editor holds the keyboard, the editor's key bindings stand aside: editing keys and typing reach nothing.",
+      "typescript": [
+        {
+          "path": "tests/component/editor/formats/markdown/html/markdownMdxComponent.test.ts",
+          "sha256": "fa84a6ab1df972d4fe06abe3d3b270e6921c9dbfbb59449d65a6c403836636d8",
+          "cases": [
+            {
+              "index": 22,
+              "name": "declarative OpenKnowledge MDX components > supports roving tabindex and the standard tab-list keyboard contract"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::mdx_acceptance::the_tabs_take_focus_and_switch_with_arrows_home_and_end"
+        }
+      ]
+    },
+    {
+      "id": "markdown-content-language-tag",
+      "acceptance": "A Markdown document names its editing surface's language (lang) the way the product resolves it: explicit language metadata wins, normalized (zh_TW to zh-Hant, zh-CN to zh-Hans, ja-JP to ja, en-US as written); otherwise Kana means Japanese and Hangul Korean before the shared Han script, Han telling Simplified from Traditional Chinese by high-signal characters (a tie follows the interface's variant), whatever the interface language; otherwise the interface's language. The language is latched like the reading weight. Text the editor builds and lays out for the document takes that language's script fallback faces (PingFang SC / TC, Hiragino, Apple SD Gothic Neo, or the generic cascade), its code text too, while the editor's chrome keeps the interface's.",
+      "typescript": [
+        {
+          "path": "tests/unit/editor/formats/markdown/parsing/markdownContentLanguage.test.ts",
+          "sha256": "5b74632054d7832342ee6dcc986a7dec19adf72eddbd1a7ca6d6c5075f834a67",
+          "cases": [
+            {
+              "index": 0,
+              "name": "Markdown content language > detects a Chinese document independently from the interface locale"
+            },
+            {
+              "index": 2,
+              "name": "Markdown content language > keeps explicit metadata authoritative and normalizes locale variants"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::content_language::tests::a_chinese_document_names_its_script_whatever_the_interface"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::core::presentation::content_language::tests::explicit_metadata_wins_and_locales_normalize"
+        },
+        {
+          "package": "po-editor",
+          "test": "editor::markdown::tests::core_interaction_acceptance::the_documents_script_names_the_surface_language"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::fonts::tests::content_text_takes_its_languages_script_cascade"
+        }
+      ]
+    },
+    {
+      "id": "managed-compute-failure-and-trial-states",
+      "acceptance": "PuppyOne compute's wallet (features::model_connections::managed) follows the account. A refresh reads the public directory (reused for a minute) and the wallet at once, claims the one-time trial once per account from the claim's own answer (never for an account already granted), and fails at its deadline; until it ends the state is loading, also through sign-in, and only a failed request makes the gateway unavailable (GATEWAY_UNAVAILABLE, or TIMEOUT at the deadline), an empty directory included; a late answer is dropped, and a session that changed during a refresh is read again at once. After a model call it reads that call's usage receipt (its reservation streamed by the transport) without holding the wallet, keeps only the customer's settled amounts and tokens, and drops it with the account. A checkout opens only the payment provider's address. A browser sign-in that cannot start is a sign-in error. Chat follows the wallet: signing in starts the browser sign-in and a failed handoff shows 'Could not open the sign-in page. Please retry.'; a confirmed failure offers Retry, which shows 'Connecting to compute…' while it runs; before sign-in, after the first send, the server's one-time trial credit is offered. A managed request over 512 KiB is refused locally with its reference, and a refused one keeps the service's reviewed ai_* code and reference (X-Request-Id), never its prose.",
+      "typescript": [
+        {
+          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
+          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
+          "cases": [
+            {
+              "index": 6,
+              "name": "labels a failed browser handoff as a sign-in problem"
+            },
+            {
+              "index": 9,
+              "name": "offers retry after a confirmed failure and shows progress while retrying"
+            },
+            {
+              "index": 11,
+              "name": "offers the server-configured trial only after the first send attempt"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/model-connections/security/managedConnection.test.mjs",
+          "sha256": "a7b4d109c61f90b276533aa9244e75a1aa91fceaecdd01d0008ac437ba45a4e4",
+          "cases": [
+            {
+              "index": 5,
+              "name": "Main-owned managed Agent connection > maps browser handoff failures to a safe sign-in error"
+            },
+            {
+              "index": 6,
+              "name": "Main-owned managed Agent connection > reports loading through sign-in and retries, and failure only after a request fails"
+            },
+            {
+              "index": 7,
+              "name": "Main-owned managed Agent connection > leaves loading when the public request fails synchronously"
+            },
+            {
+              "index": 8,
+              "name": "Main-owned managed Agent connection > reads directory and wallet concurrently, then reuses the directory for balance refreshes"
+            },
+            {
+              "index": 9,
+              "name": "Main-owned managed Agent connection > ends a stuck request at the deadline, allows retry, and ignores its late response"
+            },
+            {
+              "index": 10,
+              "name": "Main-owned managed Agent connection > reloads the public directory after its short cache expires"
+            },
+            {
+              "index": 11,
+              "name": "Main-owned managed Agent connection > rejects an empty model directory instead of leaving a funded account connecting forever"
+            },
+            {
+              "index": 15,
+              "name": "Main-owned managed Agent connection > keeps the server's protocol error and reference through the Main proxy"
+            },
+            {
+              "index": 17,
+              "name": "Main-owned managed Agent connection > returns a readable local protocol error for invalid input (1)"
+            },
+            {
+              "index": 20,
+              "name": "Main-owned managed Agent connection > opens a server-created sandbox checkout without exposing credentials to the renderer"
+            },
+            {
+              "index": 21,
+              "name": "one-time trial activation > refreshes the new account immediately when sign-in finishes during a catalog request"
+            },
+            {
+              "index": 22,
+              "name": "one-time trial activation > claims only after sign-in and uses the claim response without reading the same balance twice"
+            },
+            {
+              "index": 23,
+              "name": "one-time trial activation > does not claim again for an account whose server wallet already has a trial grant"
+            },
+            {
+              "index": 24,
+              "name": "server-owned usage receipts > keeps a usable wallet ready while its previous usage receipt is still loading"
+            },
+            {
+              "index": 25,
+              "name": "server-owned usage receipts > reads the settled charge after streaming and clears it on signOut"
+            },
+            {
+              "index": 26,
+              "name": "server-owned usage receipts > reads the settled charge after streaming and clears it on replaceUser"
+            },
+            {
+              "index": 27,
+              "name": "server-owned usage receipts > does not turn missing usage or a mismatched receipt into a charge"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::a_browser_handoff_that_cannot_start_is_a_sign_in_error"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::loading_lasts_through_sign_in_and_retries_until_a_request_fails"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::a_directory_read_that_fails_at_once_is_unavailable_until_a_retry"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::the_directory_and_wallet_are_read_at_once_and_the_directory_reused"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::a_stuck_refresh_ends_at_its_deadline_and_its_late_answer_is_dropped"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::the_directory_is_read_again_after_a_minute"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::an_empty_directory_leaves_no_funded_account_waiting"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::a_checkout_opens_only_at_the_payment_provider"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::signing_in_during_a_directory_read_reads_the_new_account_at_once"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::the_trial_is_claimed_once_after_sign_in_from_its_own_answer"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::an_account_that_has_its_grant_is_not_claimed_again"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::a_receipt_still_loading_never_holds_the_wallet"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::the_settled_charge_is_read_after_a_call_and_cleared_with_its_account"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::model_connections::managed::tests::missing_usage_or_a_mismatched_receipt_is_no_charge"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::desktop_agent::ui::panel::tests::the_access_prompt_signs_in_retries_with_progress_and_offers_the_trial"
+        },
+        {
+          "package": "po-workspace",
+          "test": "cloud::auth::http_tests::a_refused_inference_keeps_its_code_and_reference_and_a_reply_its_reservation"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::model_client::tests::an_oversized_managed_request_is_refused_before_it_is_sent"
+        },
+        {
+          "package": "po-agent",
+          "test": "agent::runtimes::puppyone_agent::model_client::tests::a_reviewed_refusal_reads_as_words_with_its_reference"
         }
       ]
     }
@@ -54859,24 +55194,6 @@
             {
               "index": 0,
               "name": "workspace file IPC authorization > acknowledges a committed save and rename even if review bookkeeping fails"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "office-conversion-concurrency",
-      "kind": "gap",
-      "reason": "TS caps concurrent Office conversions per window and cleans up each finished session. Rust cleans each conversion's private files (covered by workspace-file-authority) but has no per-window limit on concurrent textutil conversions.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/viewers/office.md",
-      "typescript": [
-        {
-          "path": "tests/integration/workspace/access/workspace-files-ipc.security.test.mjs",
-          "sha256": "36a869c2ccdfba4d91128c46d69903592e28d963aaa4f63a4ce85e37907a2cb6",
-          "cases": [
-            {
-              "index": 19,
-              "name": "workspace file IPC authorization > cleans up successful conversions and enforces the per-window concurrency limit"
             }
           ]
         }
@@ -61519,32 +61836,6 @@
       ]
     },
     {
-      "id": "editor-split-keyboard-resize",
-      "kind": "gap",
-      "reason": "An editor split's handle takes no keyboard focus: there is no arrow-key adjustment on the split's own axis and no equalize command, so the ratio changes only by dragging.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/workbench/pane-tree.md",
-      "typescript": [
-        {
-          "path": "tests/component/workbench/layout/editorSplitResizeInteraction.test.tsx",
-          "sha256": "87523424462d2efd9bf544dc1e52af1244f28936cb10ab7c3a7f17063a26a88e",
-          "cases": [
-            {
-              "index": 3,
-              "name": "EditorSplitResizeHandle > keeps keyboard and equalize operations as immediate single commits"
-            },
-            {
-              "index": 20,
-              "name": "horizontal editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
-            },
-            {
-              "index": 37,
-              "name": "vertical editor splitter lifecycle > routes keyboard adjustment on its own axis and equalizes the split"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "pane-window-paint-edge",
       "kind": "out-of-scope",
       "reason": "TS marks the pane leaves that touch the bottom of the BrowserWindow so its rounded paint edge clips them. A native window clips its own corners, so panes carry no such mark.",
@@ -62313,108 +62604,22 @@
       ]
     },
     {
-      "id": "managed-compute-failure-and-trial-states",
+      "id": "managed-compute-loopback-proxy",
       "kind": "gap",
-      "reason": "Chat's compute snapshot (`read_compute_snapshot`) only knows signed out, no credit and ready: it has no managed-compute failure code (gateway unavailable), no Retry that refreshes with progress (the dock's Retry only rereads, and its 'temporarily unavailable' state is unreachable), no in-Chat browser sign-in handoff whose failure could be labelled (sign-in goes to the account), and no server-configured trial credit line (`agent.compute.trialGranted`, `signInUnavailable` are unused).",
+      "reason": "The product's managed connection is a Main-owned loopback HTTP proxy: the Agent worker gets only a random per-lease capability, and the proxy refuses a request without it, with a browser Origin, on another path or for an unconfigured model, and answers invalid JSON locally. The native Agent runs in the app's own process and calls the managed gateway in place (model_client::complete_managed): there is no loopback listener, capability, Origin or path to check, and the request body is built in process, never parsed from a client.",
       "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/chat/routing-and-compute.md",
       "typescript": [
-        {
-          "path": "tests/component/agent/runtimes/builtInAgentCompute.test.tsx",
-          "sha256": "aa916924f6d9ae96e294b4e87daa1b616a43af369249c463de07c682fba56893",
-          "cases": [
-            {
-              "index": 6,
-              "name": "labels a failed browser handoff as a sign-in problem"
-            },
-            {
-              "index": 9,
-              "name": "offers retry after a confirmed failure and shows progress while retrying"
-            },
-            {
-              "index": 11,
-              "name": "offers the server-configured trial only after the first send attempt"
-            }
-          ]
-        },
         {
           "path": "tests/unit/model-connections/security/managedConnection.test.mjs",
           "sha256": "a7b4d109c61f90b276533aa9244e75a1aa91fceaecdd01d0008ac437ba45a4e4",
           "cases": [
             {
-              "index": 5,
-              "name": "Main-owned managed Agent connection > maps browser handoff failures to a safe sign-in error"
-            },
-            {
-              "index": 6,
-              "name": "Main-owned managed Agent connection > reports loading through sign-in and retries, and failure only after a request fails"
-            },
-            {
-              "index": 7,
-              "name": "Main-owned managed Agent connection > leaves loading when the public request fails synchronously"
-            },
-            {
-              "index": 8,
-              "name": "Main-owned managed Agent connection > reads directory and wallet concurrently, then reuses the directory for balance refreshes"
-            },
-            {
-              "index": 9,
-              "name": "Main-owned managed Agent connection > ends a stuck request at the deadline, allows retry, and ignores its late response"
-            },
-            {
-              "index": 10,
-              "name": "Main-owned managed Agent connection > reloads the public directory after its short cache expires"
-            },
-            {
-              "index": 11,
-              "name": "Main-owned managed Agent connection > rejects an empty model directory instead of leaving a funded account connecting forever"
-            },
-            {
               "index": 12,
               "name": "Main-owned managed Agent connection > accepts only the private capability, fixed path, no browser Origin and configured model"
             },
             {
-              "index": 15,
-              "name": "Main-owned managed Agent connection > keeps the server's protocol error and reference through the Main proxy"
-            },
-            {
               "index": 16,
               "name": "Main-owned managed Agent connection > returns a readable local protocol error for invalid input (0)"
-            },
-            {
-              "index": 17,
-              "name": "Main-owned managed Agent connection > returns a readable local protocol error for invalid input (1)"
-            },
-            {
-              "index": 20,
-              "name": "Main-owned managed Agent connection > opens a server-created sandbox checkout without exposing credentials to the renderer"
-            },
-            {
-              "index": 21,
-              "name": "one-time trial activation > refreshes the new account immediately when sign-in finishes during a catalog request"
-            },
-            {
-              "index": 22,
-              "name": "one-time trial activation > claims only after sign-in and uses the claim response without reading the same balance twice"
-            },
-            {
-              "index": 23,
-              "name": "one-time trial activation > does not claim again for an account whose server wallet already has a trial grant"
-            },
-            {
-              "index": 24,
-              "name": "server-owned usage receipts > keeps a usable wallet ready while its previous usage receipt is still loading"
-            },
-            {
-              "index": 25,
-              "name": "server-owned usage receipts > reads the settled charge after streaming and clears it on signOut"
-            },
-            {
-              "index": 26,
-              "name": "server-owned usage receipts > reads the settled charge after streaming and clears it on replaceUser"
-            },
-            {
-              "index": 27,
-              "name": "server-owned usage receipts > does not turn missing usage or a mismatched receipt into a charge"
             }
           ]
         }
@@ -63575,28 +63780,6 @@
       ]
     },
     {
-      "id": "markdown-content-language-tag",
-      "kind": "gap",
-      "reason": "The native editor derives only the reading weight from a document's script. It does not name the content language (Simplified versus Traditional Chinese, Japanese, Korean) or honour a document's explicit language metadata, so CJK glyph variants follow the system font fallback rather than the document's language.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/state-and-content-language.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/parsing/markdownContentLanguage.test.ts",
-          "sha256": "5b74632054d7832342ee6dcc986a7dec19adf72eddbd1a7ca6d6c5075f834a67",
-          "cases": [
-            {
-              "index": 0,
-              "name": "Markdown content language > detects a Chinese document independently from the interface locale"
-            },
-            {
-              "index": 2,
-              "name": "Markdown content language > keeps explicit metadata authoritative and normalizes locale variants"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "dom-inline-preview-fragments",
       "kind": "out-of-scope",
       "reason": "TS renders isolated inline previews (table cells, MDX tab titles, HTML runs) by building DOM fragments and degrades a source over 32 KiB to one plain text node to bound that DOM. The native editor shapes those cells through the same text pipeline as every document line, so there is no separate fragment renderer or fragment DOM budget. Reference-change refresh behavior is covered natively in markdown-reference-refresh.",
@@ -63791,24 +63974,6 @@
             {
               "index": 5,
               "name": "Markdown link pointer gesture > suppresses only the browser click paired with a handled pointer release"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "markdown-format-shortcut-repeat",
-      "kind": "gap",
-      "reason": "GPUI dispatches a held keystroke to its action again on every key repeat, so holding ⌘B toggles bold on and off natively; the product ignores auto-repeated format shortcuts (and Option, Control-on-macOS and released inputs, which the native key bindings also ignore).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/editing-commands.md",
-      "typescript": [
-        {
-          "path": "tests/unit/editor/formats/markdown/commands/markdownFormatShortcuts.electron.test.mjs",
-          "sha256": "e51b314e73668eeec13d0a33c5782e6d9c049597cff6fc054701b5de83f11e48",
-          "cases": [
-            {
-              "index": 3,
-              "name": "Markdown format window shortcuts > rejects repeated, modified, released, and cross-platform modifier inputs"
             }
           ]
         }
@@ -64521,24 +64686,6 @@
             {
               "index": 55,
               "name": "Markdown HTML cross-surface conformance > never lets a surface upgrade an unsupported HTML result"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "mdx-tabs-keyboard",
-      "kind": "gap",
-      "reason": "TS mounts each tab as a focusable button with a roving tabindex and switches tabs with ArrowLeft/ArrowRight/Home/End while a tab has focus. The native Tabs widget's labels are pointer targets only: block widgets have no focus of their own, so the tab bar cannot be reached or switched from the keyboard.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/editor/markdown/features/mdx.md",
-      "typescript": [
-        {
-          "path": "tests/component/editor/formats/markdown/html/markdownMdxComponent.test.ts",
-          "sha256": "fa84a6ab1df972d4fe06abe3d3b270e6921c9dbfbb59449d65a6c403836636d8",
-          "cases": [
-            {
-              "index": 22,
-              "name": "declarative OpenKnowledge MDX components > supports roving tabindex and the standard tab-list keyboard contract"
             }
           ]
         }

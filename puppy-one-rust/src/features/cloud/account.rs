@@ -224,6 +224,15 @@ pub fn snapshot(cx: &App) -> Option<Snapshot> {
         .snapshot
         .clone()
 }
+/// The broker, signed in or not, for requests that need no account (the
+/// compute directory).
+pub fn broker(cx: &App) -> Option<Arc<Broker>> {
+    cx.try_global::<CloudAccountService>()?
+        .0
+        .read(cx)
+        .broker
+        .clone()
+}
 /// The broker and the signed-in binding, for Cloud requests made on the
 /// account's behalf (catalog, opening). `None` while signed out.
 pub fn broker_and_binding(cx: &App) -> Option<(Arc<Broker>, crate::cloud::auth::model::Binding)> {

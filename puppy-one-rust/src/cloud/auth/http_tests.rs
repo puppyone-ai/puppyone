@@ -607,6 +607,102 @@ fn managed_inference_posts_once_with_its_key_and_streams_the_reply() {
     assert_eq!(seen[0].1, "11111111-1111-4111-8111-111111111111");
     assert!(seen[0].2.contains("\"model\":\"m\""));
 }
+/// `managedConnection.test.mjs` #15 (`keeps the server's protocol error and
+/// reference through the Main proxy`) at the native transport: a refused
+/// managed inference keeps the service's reviewed code and its reference
+/// (the `X-Request-Id`), never its prose, and is sent once; a streamed one
+/// names its reservation before its bytes.
+#[test]
+fn a_refused_inference_keeps_its_code_and_reference_and_a_reply_its_reservation() {
+    let sent = Arc::new(AtomicUsize::new(0));
+    let count = sent.clone();
+    let server = Server::new(move |_| {
+        Arc::new(move |_, _, headers, _| {
+            count.fetch_add(1, Ordering::SeqCst);
+            let refused = headers
+                .iter()
+                .any(|(k, v)| k.eq_ignore_ascii_case("x-request-id") && v.starts_with("refuse"));
+            if refused {
+                return Response {
+                    status: 422,
+                    body: serde_json::json!({"error": {
+                        "code": "ai_request_invalid",
+                        "message": "Invalid Agent request. Reference: reference-123",
+                        "request_id": "reference-123",
+                    }})
+                    .to_string(),
+                    extra: "X-Request-Id: reference-123\r\n".into(),
+                };
+            }
+            Response {
+                status: 200,
+                body: "data: [DONE]\n\n".into(),
+                extra: "X-Puppyone-Reservation-Id: 00000000-0000-4000-8000-000000000002\r\n".into(),
+            }
+        })
+    });
+    let env = server.environment();
+    let session = Session::from_reply(
+        env.clone(),
+        AuthReply {
+            user: Some(AuthUser {
+                id: Some("u".into()),
+                email: Some("u@example.test".into()),
+            }),
+            access_token: Secret("synthetic-access".into()),
+            refresh_token: Some(Secret("synthetic-refresh".into())),
+            expires_in: Some(3600.),
+            user_id: None,
+            user_email: None,
+        },
+    )
+    .unwrap();
+    let control = Control::new();
+    let body = serde_json::json!({"model": "test/model"});
+    let error = Http::new()
+        .unwrap()
+        .completion(&session, &body, "refuse-1", &control.fence(), &mut |_| {
+            Ok(())
+        })
+        .unwrap_err();
+    let Error::Response(422, Some("ai_request_invalid"), diagnostic) = error else {
+        panic!("{error:?}");
+    };
+    assert_eq!(
+        diagnostic
+            .request_id
+            .map(|r| r.as_str().to_owned())
+            .as_deref(),
+        Some("reference-123")
+    );
+    assert!(!format!("{error:?}").contains("Invalid Agent request"));
+    assert_eq!(sent.load(Ordering::SeqCst), 1, "sent once");
+    let mut events = Vec::new();
+    Http::new()
+        .unwrap()
+        .completion(
+            &session,
+            &body,
+            "stream-1",
+            &control.fence(),
+            &mut |event| {
+                events.push(match event {
+                    super::StreamEvent::Reservation(id) => format!("reservation {id}"),
+                    super::StreamEvent::Connected => "connected".into(),
+                    super::StreamEvent::Data(_) => "data".into(),
+                });
+                Ok(())
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        events[..2],
+        [
+            "reservation 00000000-0000-4000-8000-000000000002".to_string(),
+            "connected".to_string()
+        ]
+    );
+}
 #[test]
 fn billing_keys_with_scopes_reach_the_server_and_blank_keys_never_leave() {
     let seen = Arc::new(Mutex::new(Vec::<String>::new()));

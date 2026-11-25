@@ -98,6 +98,9 @@ pub struct Surface {
     pub inline_code_padding: Option<f32>,
     /// Kit underlines links unless told not to.
     pub link_plain: bool,
+    /// The content's language (the surface's `lang`), which picks the
+    /// script fallback faces of its text; `None` follows the interface.
+    pub language: Option<SharedString>,
 }
 
 /// `text-decoration` in a dotted or dashed style: 1px segments `dash` long,

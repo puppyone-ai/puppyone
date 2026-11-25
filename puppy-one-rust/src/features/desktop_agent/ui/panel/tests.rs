@@ -337,7 +337,7 @@ fn a_discovery_failure_stays_visible_and_prepares_nothing(cx: &mut TestAppContex
 
 /// `keeps the first draft through sign-in, grants access without checkout,
 /// and sends only on the next click`: sending before PuppyOne compute is
-/// usable asks to sign in instead of preparing a session; while compute
+/// usable asks to sign in (in the browser) instead of preparing a session; while compute
 /// connects and once it is ready the draft stays unsent, and the next send
 /// runs it once.
 #[gpui::test]
@@ -356,6 +356,9 @@ fn first_use_compute_keeps_the_draft_until_the_next_send(cx: &mut TestAppContext
         panel
     });
     let asked = slot.borrow().clone().unwrap();
+    let wallet = crate::features::model_connections::compute_support::world(false);
+    let hooks = crate::features::model_connections::compute_support::hooks(&wallet);
+    cx.update(|_, cx| crate::features::model_connections::install_compute(hooks, cx));
     let compute =
         |revision: &str, signed_in: bool, ready: bool, reason: &'static str| ComputeSnapshot {
             revision: revision.into(),
@@ -368,6 +371,7 @@ fn first_use_compute_keeps_the_draft_until_the_next_send(cx: &mut TestAppContext
                 signed_in,
                 available: ready,
                 reason,
+                ..Default::default()
             }),
             ..Default::default()
         };
@@ -407,7 +411,10 @@ fn first_use_compute_keeps_the_draft_until_the_next_send(cx: &mut TestAppContext
     let sign_in = cx.debug_bounds("agent-compute-sign-in").unwrap();
     cx.simulate_click(sign_in.center(), Modifiers::default());
     draw(cx);
-    assert_eq!(opened.get(), 1, "signing in goes through the account");
+    // `managed({action: "sign-in"})`: the browser sign-in, from Chat.
+    assert_eq!(wallet.lock().unwrap().sign_ins, 1, "the browser sign-in");
+    assert_eq!(opened.get(), 0, "not the account page");
+    assert_eq!(asked_for(AgentOperation::StartTurn), 0);
 
     panel.update(cx, |p, cx| {
         p.apply_compute(compute("101", true, false, "loading"), cx)
@@ -523,6 +530,7 @@ fn the_compute_dock_names_its_route_and_hands_off_its_actions(cx: &mut TestAppCo
             signed_in,
             available: false,
             reason,
+            ..Default::default()
         }),
         ..Default::default()
     };
@@ -587,6 +595,116 @@ fn the_compute_dock_names_its_route_and_hands_off_its_actions(cx: &mut TestAppCo
     });
     draw(cx);
     assert_eq!(discoveries(), before + 1, "the same catalog does not");
+}
+
+/// `BuiltInAgentCompute` `labels a failed browser handoff as a sign-in
+/// problem`, `offers retry after a confirmed failure and shows progress
+/// while retrying` and `offers the server-configured trial only after the
+/// first send attempt`, with the app's wallet behind the prompt.
+#[gpui::test]
+fn the_access_prompt_signs_in_retries_with_progress_and_offers_the_trial(cx: &mut TestAppContext) {
+    use super::compute::ComputeSnapshot;
+    use crate::features::model_connections::compute_support::{hold, world};
+    use gpui_kit::test::TestQueryExt as _;
+    use std::{cell::Cell, rc::Rc};
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let world = world(false);
+    {
+        let mut world = world.lock().unwrap();
+        world.trial = 1_000_000;
+        world.sign_in_starts = false;
+    }
+    let hooks = crate::features::model_connections::compute_support::hooks(&world);
+    let wallet = cx.update(|cx| crate::features::model_connections::install_compute(hooks, cx));
+    let (panel, cx) = cx.add_window_view(|window, cx| {
+        AgentChatTabPanel::managed_fixture(Rc::new(Cell::new(false)), window, cx).0
+    });
+    panel.update_in(cx, |p, window, cx| {
+        p.set_presentation(true, true, window, cx);
+        p.set_payments(true, cx);
+        p.watch_wallet(cx);
+        p.apply_compute(
+            ComputeSnapshot {
+                revision: "1".into(),
+                ..Default::default()
+            },
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    draw(cx);
+    // Only the first send attempt asks for access, offering the trial.
+    assert!(cx.debug_bounds("agent-compute-sign-in").is_none());
+    focus_composer(&panel, cx);
+    cx.simulate_input("Hello");
+    cx.simulate_keystrokes("enter");
+    draw(cx);
+    assert!(
+        cx.debug_bounds("agent-compute-summary:Puppyone's token")
+            .is_none()
+    );
+    assert!(
+        cx.debug_bounds(
+            "agent-compute-detail:One-time $1.00 AI credit per account. Top up as needed. No subscription."
+        )
+        .is_some()
+    );
+    // A browser handoff that cannot start says so, as a sign-in problem.
+    let sign_in = cx.debug_bounds("agent-compute-sign-in").unwrap();
+    cx.simulate_click(sign_in.center(), Modifiers::default());
+    draw(cx);
+    let alerts = |cx: &mut VisualTestContext| {
+        cx.update(|w, _| {
+            w.find_all_by_role(gpui::Role::Alert)
+                .iter()
+                .filter_map(|a| a.label().map(str::to_owned))
+                .collect::<Vec<_>>()
+        })
+    };
+    assert_eq!(
+        alerts(cx),
+        ["Could not open the sign-in page. Please retry."]
+    );
+    assert!(world.lock().unwrap().opened.is_empty(), "nothing bought");
+
+    // Signed in, the wallet fails: the gateway is unavailable, and Retry
+    // shows its progress until the retry ends.
+    let failed = hold(&world, "/ai/balance");
+    world.lock().unwrap().session =
+        Some(crate::features::model_connections::compute_support::session("u"));
+    wallet.update(cx, |w, cx| w.refresh(false, cx));
+    cx.run_until_parked();
+    failed
+        .try_send(crate::features::model_connections::compute_support::failed())
+        .unwrap();
+    cx.run_until_parked();
+    draw(cx);
+    assert!(
+        cx.debug_bounds("agent-compute-title:Compute service is temporarily unavailable.")
+            .is_some()
+    );
+    assert!(alerts(cx).is_empty(), "no sign-in problem now");
+    let retrying = hold(&world, "/ai/balance");
+    let retry = cx.debug_bounds("agent-compute-retry").unwrap();
+    cx.simulate_click(retry.center(), Modifiers::default());
+    cx.run_until_parked();
+    draw(cx);
+    assert!(cx.debug_bounds("agent-compute-connecting").is_some());
+    let connecting = cx.update(|w, _| w.find_by_label("Connecting to compute…"));
+    assert_eq!(connecting.disabled(), Some(true));
+    assert!(
+        cx.debug_bounds("agent-compute-title:Compute service is temporarily unavailable.")
+            .is_none()
+    );
+    retrying
+        .try_send(crate::features::model_connections::compute_support::failed())
+        .unwrap();
+    cx.run_until_parked();
+    draw(cx);
+    let retry = cx.update(|w, _| w.find_by_label("Retry"));
+    assert_ne!(retry.disabled(), Some(true), "Retry is offered again");
 }
 
 /// `inserts a Finder folder path instead of staging it as a file

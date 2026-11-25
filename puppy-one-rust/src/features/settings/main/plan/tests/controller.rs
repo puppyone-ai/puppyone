@@ -160,7 +160,9 @@ impl BillingFixture {
             .unwrap()
             .requests
             .iter()
-            .filter(|r| r.path.ends_with(suffix))
+            // The compute wallet, which follows the account, reads its own
+            // directory (`/ai/catalog`).
+            .filter(|r| r.path.ends_with(suffix) && !r.path.starts_with("/ai/"))
             .cloned()
             .collect()
     }

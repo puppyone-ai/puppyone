@@ -55,6 +55,23 @@ fn fraction(rect: Rect) -> Div {
         .w(relative(rect.w))
         .h(relative(rect.h))
 }
+/// A split's handle runs across its axis: side-by-side panes have an
+/// upright handle (`aria-orientation`).
+pub(super) fn splitter_orientation(direction: Direction) -> Orientation {
+    match direction {
+        Direction::Horizontal => Orientation::Vertical,
+        Direction::Vertical => Orientation::Horizontal,
+    }
+}
+/// What `key` does to a focused split's ratio: the arrows on its own axis
+/// step it by 0.025; every other key leaves it.
+pub(super) fn split_step(direction: Direction, key: &str) -> Option<f64> {
+    match (direction, key) {
+        (Direction::Horizontal, "left") | (Direction::Vertical, "up") => Some(-0.025),
+        (Direction::Horizontal, "right") | (Direction::Vertical, "down") => Some(0.025),
+        _ => None,
+    }
+}
 /// Which edge of `bounds` the pointer at `position` drops on.
 fn drop_edge(position: Point<Pixels>, bounds: Bounds<Pixels>) -> (Direction, Placement) {
     let point = position - bounds.origin;
@@ -548,6 +565,7 @@ impl EditorArea {
         &self,
         node: &Node,
         rect: Rect,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         match node {
@@ -820,10 +838,36 @@ impl EditorArea {
                         .h(px(6.))
                         .mt(px(-3.))
                 };
-                let lane = lane.debug_selector({
-                    let split = split.clone();
-                    move || format!("editor-resize-{split}")
-                });
+                // `role="separator"`: a tab stop whose arrow keys on the
+                // split's own axis step the ratio, announced in percent.
+                let keyed = split.clone();
+                let lane = lane
+                    .debug_selector({
+                        let split = split.clone();
+                        move || format!("editor-resize-{split}")
+                    })
+                    .id(SharedString::from(format!("editor-splitter-{id}")))
+                    .test_support()
+                    .role(Role::Splitter)
+                    .aria_label(crate::localization::t("editor.panes.resize"))
+                    .aria_orientation(splitter_orientation(direction))
+                    .aria_numeric_value((original * 100.).round())
+                    .aria_min_numeric_value(15.)
+                    .aria_max_numeric_value(85.)
+                    .when_some(self.split_focus.get(id), |lane, focus| {
+                        lane.track_focus(focus).on_key_down(cx.listener(
+                            move |s, e: &KeyDownEvent, _, cx| {
+                                if let Some(by) = split_step(direction, &e.keystroke.key) {
+                                    cx.stop_propagation();
+                                    s.commit_split(&keyed, |ratio| ratio + by, cx);
+                                }
+                            },
+                        ))
+                    });
+                let focused = self
+                    .split_focus
+                    .get(id)
+                    .is_some_and(|focus| focus.is_focused(window));
                 let handle = ResizeHandle::new(
                     SharedString::from(format!("editor-resize-{id}")),
                     if horizontal {
@@ -836,8 +880,16 @@ impl EditorArea {
                 .stroke_at(3.)
                 .rest(cx.palette().divider)
                 .resizing(self.resize.as_ref().is_some_and(|r| r.split == *id))
-                .on_drag_start(cx.listener(move |s, _, _, cx| {
+                .focused(focused)
+                .focus_ring()
+                .on_drag_start(cx.listener(move |s, e: &MouseDownEvent, _, cx| {
                     s.end_resize(false, cx);
+                    // A double press equalizes the split instead.
+                    if e.click_count >= 2 {
+                        cx.stop_propagation();
+                        s.commit_split(&split, |_| 0.5, cx);
+                        return;
+                    }
                     let Some(workspace) = s.docs.read(cx).workspace_key().map(str::to_owned) else {
                         return;
                     };
@@ -871,12 +923,30 @@ impl EditorArea {
                             .size_full(),
                         ),
                     )
-                    .child(self.editor_node(first, a, cx))
-                    .child(self.editor_node(second, b, cx))
+                    .child(self.editor_node(first, a, window, cx))
+                    .child(self.editor_node(second, b, window, cx))
                     .child(lane.child(handle))
                     .into_any_element()
             }
         }
+    }
+    /// `split`'s ratio set at once to `to` of the one it has, kept within
+    /// 0.15..0.85: one commit, no preview.
+    pub(super) fn commit_split(
+        &mut self,
+        split: &str,
+        to: impl FnOnce(f64) -> f64,
+        cx: &mut Context<Self>,
+    ) {
+        self.docs.update(cx, |d, _| {
+            if let Some(mut state) = d.state_mut()
+                && let Some(ratio) = state.layout.ratio(split)
+            {
+                state.layout.resize(split, to(ratio));
+            }
+            d.wake().notify();
+        });
+        cx.notify();
     }
     pub(super) fn move_resize(&mut self, point: Point<Pixels>, cx: &mut Context<Self>) {
         let Some(resize) = &self.resize else {

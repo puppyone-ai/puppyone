@@ -114,6 +114,15 @@ pub(super) fn register_markdown_keymap(cx: &mut App) {
         KeyBinding::new("secondary-shift-9", ToggleTaskList, c),
         KeyBinding::new("secondary-shift-.", ToggleQuote, c),
     ]);
+    // A focused MDX tab switches tabs with these keys
+    // (`markdownMdxComponent.test.ts`).
+    let tab = Some(features::mdx::TAB_KEY_CONTEXT);
+    cx.bind_keys([
+        KeyBinding::new("right", features::mdx::NextTab, tab),
+        KeyBinding::new("left", features::mdx::PreviousTab, tab),
+        KeyBinding::new("home", features::mdx::FirstTab, tab),
+        KeyBinding::new("end", features::mdx::LastTab, tab),
+    ]);
     for (feature_index, feat) in MDX_FEATURES.iter().enumerate() {
         for (binding_index, kb) in feat.keybindings().iter().enumerate() {
             cx.bind_keys([KeyBinding::new(
@@ -128,13 +137,29 @@ pub(super) fn register_markdown_keymap(cx: &mut App) {
     }
 }
 
+/// `matchMarkdownFormatInput`: the window's format shortcuts, which apply
+/// once while held; their auto-repeats do nothing.
+fn applies_once_while_held(cmd: FormatCommand) -> bool {
+    matches!(
+        cmd,
+        FormatCommand::Bold
+            | FormatCommand::Italic
+            | FormatCommand::Underline
+            | FormatCommand::Strike
+    )
+}
+
 pub(super) fn bind_markdown_actions(root: Div, cx: &mut Context<EditorView>) -> Div {
     macro_rules! bind_fmt {
         ($div:expr, $($action:ty => $cmd:expr),* $(,)?) => {{
             let mut d = $div;
             $(
                 d = d.on_action(cx.listener(|view, _: &$action, window, cx| {
-                    view.run_command(&format_command($cmd), window, cx);
+                    let cmd = $cmd;
+                    if applies_once_while_held(cmd) && crate::platform::key_repeat::repeating() {
+                        return;
+                    }
+                    view.run_command(&format_command(cmd), window, cx);
                 }));
             )*
             d

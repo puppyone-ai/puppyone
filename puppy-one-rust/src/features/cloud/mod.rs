@@ -1,7 +1,6 @@
 //! Cloud as the window offers it: the signed-in account, the Projects
 //! catalog and the spaces they live in, the first publication, a hosted
-//! Project's Agents and its hosted Agent, a checkout's association and
-//! PuppyOne compute. The Cloud client
+//! Project's Agents and its hosted Agent and a checkout's association. The Cloud client
 //! underneath (sign-in broker, publication journal) is [`crate::cloud`].
 //!
 //! [`account`] is the account's public face (sign-in, status, the broker
@@ -11,7 +10,6 @@ mod agent;
 mod billing;
 mod catalog;
 mod clients;
-mod managed_compute;
 mod publish;
 mod repository;
 mod screen;
@@ -27,7 +25,6 @@ pub use billing::{
 };
 pub use catalog::{CloudCatalog, State as CatalogState, global as global_catalog, owner_of};
 pub use clients::{agents_client, billing_client, services_client};
-pub use managed_compute::{Reason as ComputeReason, global as global_compute, money};
 #[cfg(test)]
 pub use publish::install_factory;
 #[cfg(test)]

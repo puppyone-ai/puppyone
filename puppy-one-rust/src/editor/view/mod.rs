@@ -178,16 +178,24 @@ impl Render for EditorView {
                 .child(focus_target)
         };
 
+        // A widget inside holds the keyboard (an MDX tab): the editor's key
+        // bindings stand aside, as the product's editor ignores the events of
+        // its widgets, so no editing key reaches the document meanwhile.
+        let widget_focus =
+            !self.focus.is_focused(window) && self.focus.contains_focused(window, cx);
         let mut scoped = self.extensions.bind_actions(body, cx);
         for ext_ctx in self.extensions.key_contexts().into_iter().rev() {
-            scoped = div().size_full().key_context(ext_ctx).child(scoped);
+            scoped = div()
+                .size_full()
+                .when(!widget_focus, |d| d.key_context(ext_ctx))
+                .child(scoped);
         }
 
         let root = div()
             .id("puppy-editor")
             .relative()
             .size_full()
-            .key_context(KEY_CONTEXT)
+            .when(!widget_focus, |d| d.key_context(KEY_CONTEXT))
             .on_hover(cx.listener(|s, hovered: &bool, _, _| {
                 if !hovered {
                     s.pointer.link_press = None;

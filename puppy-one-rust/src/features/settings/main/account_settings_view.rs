@@ -179,10 +179,10 @@ impl SettingsWorkspaceSurface {
     }
     /// `AccountAICredits`: the available balance and the top-up packs.
     fn compute_credits(&self, top_up: bool, t: Theme, cx: &mut Context<Self>) -> AnyElement {
-        use crate::features::cloud::{ComputeReason as Reason, global_compute, money};
+        use crate::features::model_connections::{ComputeReason as Reason, global_compute, money};
         let compute = global_compute(cx);
         let state = compute.read(cx);
-        let reason = state.reason(true);
+        let reason = state.reason();
         let value = match reason {
             Reason::Loading | Reason::GatewayUnavailable => "—".to_owned(),
             _ => money(state.balance.map_or(0, |b| b.available_micro_usd)),
@@ -193,7 +193,7 @@ impl SettingsWorkspaceSurface {
             .as_ref()
             .map(|c| c.packs.clone())
             .unwrap_or_default();
-        let failed = state.failed;
+        let failed = state.failed();
         let mut actions = h_flex().gap(px(8.));
         if top_up {
             for (index, pack) in packs.into_iter().enumerate() {
