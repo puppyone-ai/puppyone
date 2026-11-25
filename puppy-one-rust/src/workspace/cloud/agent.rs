@@ -406,10 +406,7 @@ impl Transport for BrokerTransport {
                 .and_then(Value::as_str)
                 .filter(|id| !id.is_empty())?;
             let running = row.get("state").and_then(Value::as_str) == Some("running")
-                && row
-                    .pointer("/operation/pending")
-                    .and_then(Value::as_bool)
-                    != Some(true);
+                && row.pointer("/operation/pending").and_then(Value::as_bool) != Some(true);
             Some((id.to_owned(), running))
         };
         let status = self.request(ApiRequest {
@@ -777,10 +774,7 @@ mod tests {
         assert_eq!(err.code, Some("agent_model_unconfigured"));
         assert_eq!(err.request_id.as_deref(), Some("req-abc-123"));
 
-        let stale = Error::from_auth(auth::Error::Service(
-            409,
-            auth::ServiceCode::NotRunning,
-        ));
+        let stale = Error::from_auth(auth::Error::Service(409, auth::ServiceCode::NotRunning));
         assert_eq!(stale.status, Some(409));
         assert_eq!(stale.code, Some("workbench_not_running"));
         assert!(stale.is_workbench_stale());

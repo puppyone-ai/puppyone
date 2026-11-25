@@ -142,23 +142,26 @@ fn managed_service_claims_trial_preserves_context_window_and_never_caches_failur
         assert_eq!(eligible[0].model, "deepseek/deepseek-v4.1-flash");
         assert_eq!(eligible[0].manual_context_window, Some(1_000_000));
         assert!(
-            gw.calls.lock().unwrap().iter().any(|c| c == "POST /ai/trial"),
+            gw.calls
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|c| c == "POST /ai/trial"),
             "trial must be claimed automatically"
         );
 
         // Acquiring a managed lease succeeds; disabling Payments revokes it
         // immediately via its Cancellation token.
-        let route = format!(
-            "mc_{}/{}",
-            eligible[0].id.to_lowercase(),
-            eligible[0].model
-        );
+        let route = format!("mc_{}/{}", eligible[0].id.to_lowercase(), eligible[0].model);
         let acquired = service.acquire_lease(Some(&route)).unwrap();
         let lease_id = acquired["leaseId"].as_str().unwrap().to_owned();
         let cancel = service.lease_cancellation(&lease_id).unwrap();
         assert!(!cancel.is_cancelled());
         service.set_payments(false);
-        assert!(cancel.is_cancelled(), "disabling Payments must cancel active managed lease");
+        assert!(
+            cancel.is_cancelled(),
+            "disabling Payments must cancel active managed lease"
+        );
         assert!(service.validate_lease(&lease_id, Some(&route)).is_err());
     });
 }
@@ -441,7 +444,11 @@ fn sign_out_account_switch_and_connection_removal_immediately_revoke_active_leas
         assert!(!custom_cancel.is_cancelled());
         service.remove(&id, &saved.generation).unwrap();
         assert!(custom_cancel.is_cancelled());
-        assert!(service.validate_lease(&custom_lease, Some(&custom_route)).is_err());
+        assert!(
+            service
+                .validate_lease(&custom_lease, Some(&custom_route))
+                .is_err()
+        );
     });
 }
 

@@ -92,11 +92,7 @@ impl ModelConnections {
         view.busy = false;
         view
     }
-    fn sync_from_store(
-        &mut self,
-        snap: &client::ModelConnectionSnapshot,
-        cx: &mut Context<Self>,
-    ) {
+    fn sync_from_store(&mut self, snap: &client::ModelConnectionSnapshot, cx: &mut Context<Self>) {
         self.items = snap.connections.clone();
         self.catalogs = snap.catalogs.clone();
         self.loaded = true;

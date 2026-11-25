@@ -153,8 +153,10 @@ impl ModelConnectionService {
         deadline: Duration,
     ) -> Arc<Self> {
         let connections = configuration::load_at(&data_dir).unwrap_or_default();
-        let mut managed = ManagedCore::default();
-        managed.deadline = deadline;
+        let managed = ManagedCore {
+            deadline,
+            ..Default::default()
+        };
         let state = ServiceState {
             revision: 1,
             payments_enabled: false,
@@ -287,7 +289,10 @@ impl ModelConnectionService {
             if let Some((generation, reservation, binding, deadline)) = receipt_job {
                 let usage = run_receipt(gateway, binding, reservation.clone(), deadline).await;
                 let mut state = self.state.lock().unwrap();
-                if state.managed.finish_receipt(generation, &reservation, usage) {
+                if state
+                    .managed
+                    .finish_receipt(generation, &reservation, usage)
+                {
                     self.publish_locked(&mut state);
                 }
             }
@@ -324,7 +329,12 @@ impl ModelConnectionService {
 
     /// Called by `model_client` when a managed stream receives its reservation
     /// header (`StreamEvent::Reservation`).
-    pub fn note_managed_reservation(&self, binding: &Binding, reservation_id: &str, model_id: &str) {
+    pub fn note_managed_reservation(
+        &self,
+        binding: &Binding,
+        reservation_id: &str,
+        model_id: &str,
+    ) {
         let key = crate::cloud::auth::reservation::key(binding);
         crate::cloud::auth::reservation::note(binding, reservation_id, model_id);
         let mut state = self.state.lock().unwrap();
@@ -344,7 +354,11 @@ impl ModelConnectionService {
 
     /// Starts a Polar checkout for `pack_id`, invoking `open_url` only if the
     /// server returns an origin-verified Polar HTTPS URL.
-    pub fn checkout(self: &Arc<Self>, pack_id: String, open_url: impl FnOnce(String) + Send + 'static) {
+    pub fn checkout(
+        self: &Arc<Self>,
+        pack_id: String,
+        open_url: impl FnOnce(String) + Send + 'static,
+    ) {
         let Some(gateway) = self.gateway.clone() else {
             return;
         };
@@ -398,8 +412,7 @@ impl ModelConnectionService {
         connection: ModelConnection,
         secret: Option<String>,
     ) -> Result<Vec<ModelConnection>, String> {
-        let (saved, security_changed) =
-            configuration::save_at(&self.data_dir, connection, secret)?;
+        let (saved, security_changed) = configuration::save_at(&self.data_dir, connection, secret)?;
         let id = saved.id.clone();
         let all = configuration::load_at(&self.data_dir)?;
         {
@@ -521,11 +534,7 @@ impl ModelConnectionService {
 
     /// Runs the 60s tool round-trip check for `(id, model_id)` and persists
     /// durable verification evidence at the current `security_generation`.
-    pub async fn verify_model(
-        self: &Arc<Self>,
-        id: &str,
-        model_id: &str,
-    ) -> Result<(), String> {
+    pub async fn verify_model(self: &Arc<Self>, id: &str, model_id: &str) -> Result<(), String> {
         let mut conn = {
             let state = self.state.lock().unwrap();
             state
@@ -543,12 +552,8 @@ impl ModelConnectionService {
         )
         .await
         .map_err(|_| "TIMEOUT".to_owned())??;
-        let updated = configuration::record_verification_at(
-            &self.data_dir,
-            id,
-            model_id,
-            &expected_sec_gen,
-        )?;
+        let updated =
+            configuration::record_verification_at(&self.data_dir, id, model_id, &expected_sec_gen)?;
         let mut state = self.state.lock().unwrap();
         if let Some(slot) = state.connections.iter_mut().find(|c| c.id == id) {
             *slot = updated;
@@ -617,10 +622,8 @@ impl ModelConnectionService {
                 &selected.id,
             );
         model_route(&prod_id, &selected.model)?;
-        let members: Vec<&ModelConnection> = connections
-            .iter()
-            .filter(|c| c.id == selected.id)
-            .collect();
+        let members: Vec<&ModelConnection> =
+            connections.iter().filter(|c| c.id == selected.id).collect();
         let lease_id = uuid::Uuid::new_v4().to_string();
         let cancel = Cancellation::default();
         self.leases.lock().unwrap().insert(
@@ -653,7 +656,10 @@ impl ModelConnectionService {
             if lease.cancel.is_cancelled() {
                 return Err(connection_error("LEASE_REVOKED"));
             }
-            (lease.connection_id.clone(), lease.security_generation.clone())
+            (
+                lease.connection_id.clone(),
+                lease.security_generation.clone(),
+            )
         };
         let connections = self.snapshot().agent_connections();
         let current = connections.iter().find(|c| c.id == connection_id);
@@ -697,7 +703,9 @@ impl ModelConnectionService {
     #[cfg(any(test, feature = "test-support"))]
     pub fn set_catalog_for_test(&self, catalog: ConnectionCatalog) {
         let mut state = self.state.lock().unwrap();
-        state.catalogs.insert(catalog.connection_id.clone(), catalog);
+        state
+            .catalogs
+            .insert(catalog.connection_id.clone(), catalog);
         self.publish_locked(&mut state);
     }
 
@@ -747,7 +755,8 @@ impl super::ComputeAccount for ServiceComputeAccount {
         self.0.current()
     }
     fn note_reservation(&self, binding: &Binding, reservation_id: &str, model_id: &str) {
-        self.0.note_managed_reservation(binding, reservation_id, model_id);
+        self.0
+            .note_managed_reservation(binding, reservation_id, model_id);
     }
     fn on_inference_finished(&self) {
         self.0.on_managed_inference_finished();
