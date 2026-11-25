@@ -226,18 +226,14 @@ impl WindowChrome {
         self.session.workspace || self.session.fixture || self.session.opening
     }
 
-    /// Sidebar collapse or expand button, drawn from a read so both the
-    /// normal Header and headerless panes share it.
-    pub(super) fn sidebar_toggle(&self, open: bool) -> AnyElement {
+    /// Sidebar expand button shown only while the Explorer is collapsed,
+    /// drawn from a read so both the normal Header and the headerless main
+    /// pane share it.
+    pub(super) fn expand_explorer(&self) -> AnyElement {
         use crate::localization::t as tr;
-        let (id, label) = if open {
-            ("collapse-explorer", "shell.explorer.collapseSidebar")
-        } else {
-            ("expand-explorer", "shared-ui.explorer.expandSidebar")
-        };
-        IconButton::new(id, "panel-left")
-            .debug_selector(move || id.into())
-            .label(tr(label))
+        IconButton::new("expand-explorer", "panel-left")
+            .debug_selector(|| "expand-explorer".into())
+            .label(tr("shared-ui.explorer.expandSidebar"))
             .w(px(theme::control()))
             .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
             .on_click(self.listener(|s, _, _, cx| s.command(Command::ToggleExplorer, cx)))
@@ -413,10 +409,10 @@ impl WindowChrome {
         }
         let mut bar = header::TitleBar::new();
         if !o.panes.read(cx).explorer().open {
-            bar = bar.leading(self.sidebar_toggle(false));
+            bar = bar.leading(self.expand_explorer());
         }
         if self.shows_project() {
-            bar = bar.leading(self.project_context(self.rail, cx));
+            bar = bar.leading(self.project_context(self.rail, false, cx));
         }
         if let Some(tabs) = self.project_tabs(cx) {
             bar = bar.tabs(tabs);

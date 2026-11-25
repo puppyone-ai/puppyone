@@ -42,7 +42,11 @@ impl WindowChrome {
     /// then the folder. With the project rail on, the rail names the
     /// project and the Header keeps the place alone. While a project is on
     /// its way in there is no place yet.
-    pub(super) fn project_context(&self, project_hidden: bool, cx: &App) -> Div {
+    ///
+    /// In `compact` mode (headerless panes), the place stays icon-only (when
+    /// paired with a project) and the project drops its folder glyph so the
+    /// sidebar top row stays quiet and legible even when narrowed.
+    pub(super) fn project_context(&self, project_hidden: bool, compact: bool, cx: &App) -> Div {
         let label = tf(
             "shell.workspaceSwitcher.openMenu",
             &[("workspace", self.session.name.clone().into())],
@@ -54,38 +58,43 @@ impl WindowChrome {
             None => self.session.name.clone(),
         };
         let ty = theme::ty().header;
+        let t = cx.palette();
         // `.desktop-titlebar-workspace-button`.
-        let project = Button::new("project")
+        let mut project = Button::new("project")
             .debug_selector(|| "header-project".into())
             .variant(ButtonVariant::Ghost)
             .accessibility_label(label)
             .track_focus(&self.project_focus)
-            .icon(
-                Icon::product(crate::ui::components::ProductIcon::Folder)
-                    .stroke(1.65)
-                    .large(),
-            )
             .label(name)
             .flex_shrink(1.)
             .min_w_0()
             .px(px(6.))
             .text_size(px(ty.content))
             .line_height(px(ty.line_height));
+        if !compact {
+            project = project.icon(
+                Icon::product(crate::ui::components::ProductIcon::Folder)
+                    .stroke(1.65)
+                    .large(),
+            );
+        }
         let items = self.owners.home.read(cx).project_items(cx);
         let cloud = self.owners.cloud.read(cx);
         let place = cloud.place_menu(&items, cx).filter(|_| opening.is_none());
-        let t = cx.palette();
+        let compact_place = compact && !project_hidden;
         h_flex()
             .min_w_0()
             .when_some(place, |d, menu| {
-                // Narrowed, the place gives way first, down to its mark.
-                let place = cloud.place_button(&menu, cx).flex_shrink(1.).min_w_0();
-                d.child(
-                    self.header_popover(Popover::Place, place, cx)
+                let place = cloud.place_button(&menu, compact_place, cx);
+                let popover = if compact_place {
+                    self.header_popover(Popover::Place, place, cx).flex_none()
+                } else {
+                    // Narrowed, the place gives way first, down to its mark.
+                    self.header_popover(Popover::Place, place.flex_shrink(1.).min_w_0(), cx)
                         .flex_shrink(1000.)
-                        .min_w(px(theme::control())),
-                )
-                .when(!project_hidden, |d| {
+                        .min_w(px(theme::control()))
+                };
+                d.child(popover).when(!project_hidden, |d| {
                     // `.desktop-titlebar-context-separator`.
                     d.child(
                         div()
@@ -98,7 +107,7 @@ impl WindowChrome {
                 })
             })
             .when(!project_hidden, |d| {
-                // Narrowed, the folder and the name's first letters stay.
+                // Narrowed, the project keeps at least its first letters.
                 d.child(
                     self.header_popover(Popover::Project, project, cx)
                         .flex_shrink(1.)

@@ -657,16 +657,11 @@ fn the_hidden_header_keeps_the_project_over_the_explorer_and_the_tools_above_the
     settle_cloud(&view, cx, "the project", &|s, cx| {
         s.workspace_root(cx).as_deref() == Some(root.as_path())
     });
-    // Measure the untruncated widths before narrowing inside the Explorer.
+    // Measure the normal Header widths before switching to headerless mode.
     draw(cx);
     let full_place = cx
         .debug_bounds("project-place")
         .expect("the place")
-        .size
-        .width;
-    let full_project = cx
-        .debug_bounds("header-project")
-        .expect("the project")
         .size
         .width;
     let store = view.read_with(cx, |s, _| s.prefs.store.clone());
@@ -690,12 +685,22 @@ fn the_hidden_header_keeps_the_project_over_the_explorer_and_the_tools_above_the
         px(800.),
         "left sash reaches window bottom"
     );
+    // While the Explorer is open, there is no collapse button; the place is
+    // compact (mark-only) so the project name has room to breathe.
+    assert!(
+        cx.debug_bounds("collapse-explorer").is_none(),
+        "no collapse toggle while explorer is open"
+    );
+    assert!(cx.debug_bounds("expand-explorer").is_none());
     let explorer = l.explorer;
-    let toggle = cx
-        .debug_bounds("collapse-explorer")
-        .expect("the sidebar toggle");
+    let place = cx.debug_bounds("project-place").expect("the compact place");
     let project = cx.debug_bounds("header-project").expect("the project");
-    for part in [toggle, project] {
+    assert!(
+        place.size.width <= px(crate::theme::control()) && place.size.width < full_place,
+        "place is compact logo-only in headerless sidebar: {place:?} vs {full_place:?}"
+    );
+    let full_compact_project = project.size.width;
+    for part in [place, project] {
         assert!(part.bottom() <= header, "at the top: {part:?}");
         assert!(
             part.right() <= px(explorer.right()),
@@ -739,7 +744,8 @@ fn the_hidden_header_keeps_the_project_over_the_explorer_and_the_tools_above_the
         )
     });
     command(&view, cx, Command::Escape);
-    // A narrower Explorer shortens the place before the project.
+    // Even in a narrowed Explorer, the compact logo-only place leaves room
+    // for the project name to stay untruncated.
     let set_explorer_width = |cx: &mut VisualTestContext, width: f32| {
         view.update(cx, |s, cx| {
             s.panes.update(cx, |p, cx| {
@@ -754,58 +760,48 @@ fn the_hidden_header_keeps_the_project_over_the_explorer_and_the_tools_above_the
         });
         draw(cx);
     };
-    set_explorer_width(cx, 300.);
-    let place_300 = cx
-        .debug_bounds("project-place")
-        .expect("the place at 300")
-        .size
-        .width;
-    let project_300 = cx
-        .debug_bounds("header-project")
-        .expect("the project at 300")
-        .size
-        .width;
-    assert!(
-        place_300 < full_place,
-        "place gives way first at 300px: {place_300:?} vs {full_place:?}"
-    );
-    assert_eq!(
-        project_300, full_project,
-        "project stays untruncated at 300px: {project_300:?} vs {full_project:?}"
-    );
-    set_explorer_width(cx, 260.);
-    let place_260 = cx
-        .debug_bounds("project-place")
-        .expect("the place at 260")
-        .size
-        .width;
-    let project_260 = cx
-        .debug_bounds("header-project")
-        .expect("the project at 260")
-        .size
-        .width;
-    assert!(
-        place_260 <= px(crate::theme::control()),
-        "place shrinks down to its mark first: {place_260:?}"
-    );
-    assert!(
-        project_260 >= px(super::chrome::PROJECT_MIN_WIDTH),
-        "project keeps at least PROJECT_MIN_WIDTH at 260px: {project_260:?}"
-    );
-    assert!(
-        full_place - place_260 > full_project - project_260,
-        "place gives up more width than project: place {full_place:?}->{place_260:?}, project {full_project:?}->{project_260:?}"
-    );
-    // Collapsed, the expand button and the project stay in the top 40px.
+    for width in [300., 260., 220.] {
+        set_explorer_width(cx, width);
+        let place_w = cx
+            .debug_bounds("project-place")
+            .expect("place in narrow explorer")
+            .size
+            .width;
+        let project_b = cx
+            .debug_bounds("header-project")
+            .expect("project in narrow explorer");
+        assert!(
+            place_w <= px(crate::theme::control()),
+            "place stays compact at {width}px: {place_w:?}"
+        );
+        assert!(
+            project_b.size.width >= px(super::chrome::PROJECT_MIN_WIDTH),
+            "project keeps at least PROJECT_MIN_WIDTH at {width}px: {project_b:?}"
+        );
+        assert!(
+            project_b.right() <= px(width),
+            "project stays inside {width}px explorer: {project_b:?}"
+        );
+        if width >= 260. {
+            assert_eq!(
+                project_b.size.width, full_compact_project,
+                "project stays untruncated at {width}px"
+            );
+        }
+    }
+    // Collapsed, the expand button and the compact place/project sit in the top 40px.
     command(&view, cx, Command::ToggleExplorer);
     draw(cx);
     let expand = cx
         .debug_bounds("expand-explorer")
         .expect("collapsed explorer shows expand button");
+    let collapsed_place = cx
+        .debug_bounds("project-place")
+        .expect("collapsed explorer keeps the place");
     let collapsed_project = cx
         .debug_bounds("header-project")
         .expect("collapsed explorer keeps the project");
-    for part in [expand, collapsed_project] {
+    for part in [expand, collapsed_place, collapsed_project] {
         assert!(
             part.bottom() <= header,
             "at the top when collapsed: {part:?}"

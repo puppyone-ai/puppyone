@@ -411,7 +411,11 @@ impl WindowCloud {
     /// when the folder has a copy in the Cloud: blue while the link works,
     /// the warning tone when it cannot be used from here. Its name says the
     /// place, the role or path, the link, then what the menu is.
-    pub(super) fn place_button(&self, menu: &PlaceMenu, cx: &App) -> Button {
+    ///
+    /// When `compact` is true (headerless sidebar), keeps only the place's
+    /// mark (plus any Cloud-link glyph) with the full place name as a tooltip
+    /// so the project name has room to breathe.
+    pub(super) fn place_button(&self, menu: &PlaceMenu, compact: bool, cx: &App) -> Button {
         let t = cx.palette();
         let ty = theme::ty().header;
         let (name, _) = place_name(menu);
@@ -428,21 +432,31 @@ impl WindowCloud {
                 .stroke(1.75)
                 .into_any_element(),
         };
-        // 160px name cap plus padding (12), mark (16), gap (6), and the optional
-        // linked-cloud badge (13 + 6 gap).
-        let max_width = if menu.link.is_some() { 213. } else { 194. };
         let mut button = Button::new("project-place")
             .debug_selector(|| "project-place".into())
             .variant(ButtonVariant::Titlebar)
             .accessibility_label(accessible)
-            .leading(mark)
-            .label(name)
-            .px(px(6.))
-            .min_w_0()
-            .flex_shrink(1.)
-            .max_w(px(max_width))
-            .text_size(px(ty.content))
-            .line_height(px(ty.line_height));
+            .leading(mark);
+        if compact {
+            button = button.tooltip(name);
+            if menu.link.is_some() {
+                button = button.px(px(6.));
+            } else {
+                button = button.w(px(theme::control())).px(px(0.));
+            }
+        } else {
+            // 160px name cap plus padding (12), mark (16), gap (6), and the optional
+            // linked-cloud badge (13 + 6 gap).
+            let max_width = if menu.link.is_some() { 213. } else { 194. };
+            button = button
+                .label(name)
+                .px(px(6.))
+                .min_w_0()
+                .flex_shrink(1.)
+                .max_w(px(max_width))
+                .text_size(px(ty.content))
+                .line_height(px(ty.line_height));
+        }
         if menu.link.is_some() {
             let color = if link_has_problem(menu.link.as_ref()) {
                 t.warning

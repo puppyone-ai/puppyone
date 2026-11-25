@@ -32,11 +32,10 @@ use gpui_kit::base::{h_flex, v_flex};
 
 impl WindowChrome {
     /// The Explorer column's top 40px bar when the window has no Header:
-    /// native leading inset, optional in-window app menu, sidebar toggle,
-    /// place / project switchers, and remaining drag space. Sized to the
-    /// Explorer's visible `width` so narrowing drags shrink the place first.
+    /// native leading inset, optional in-window app menu, compact place /
+    /// project switchers, and remaining drag space. No collapse toggle while
+    /// open; sized to the Explorer's visible `width`.
     pub(in crate::app) fn sidebar_bar(&self, width: f32, rail: f32, cx: &App) -> AnyElement {
-        let open = self.owners.panes.read(cx).explorer().open;
         let menu = (rail == 0.).then(|| app_menu::render(cx)).flatten();
         h_flex()
             .h(px(theme::HEADER))
@@ -48,9 +47,8 @@ impl WindowChrome {
             .pr(px(metric::TITLEBAR_CONTENT_END))
             .gap(px(2.))
             .children(menu)
-            .child(self.sidebar_toggle(open))
             .when(self.shows_project(), |d| {
-                d.child(self.project_context(self.rail, cx))
+                d.child(self.project_context(self.rail, true, cx))
             })
             .child(
                 title_bar::drag_area("header-drag-sidebar")
@@ -101,9 +99,9 @@ impl WindowChrome {
                         .pl(px(title_bar::leading_inset(rail)))
                         .gap(px(2.))
                         .children(menu)
-                        .child(self.sidebar_toggle(false))
+                        .child(self.expand_explorer())
                         .when(self.shows_project(), |d| {
-                            d.child(self.project_context(self.rail, cx))
+                            d.child(self.project_context(self.rail, true, cx))
                         }),
                 )
             })
