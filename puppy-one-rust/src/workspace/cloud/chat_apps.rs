@@ -204,11 +204,14 @@ impl Change {
     }
 }
 
-/// Links only go to the app's own pages: anything else is not opened.
+/// Links only go to the app's own pages, or to a loopback development
+/// stand-in (the same rule the Cloud endpoints follow): anything else is not
+/// opened.
 pub fn trusted_link(url: &str) -> bool {
-    url::Url::parse(url).is_ok_and(|u| {
-        u.scheme() == "https"
-            && matches!(u.host_str(), Some(h) if h == "t.me" || h == "slack.com" || h.ends_with(".slack.com"))
+    url::Url::parse(url).is_ok_and(|u| match (u.scheme(), u.host_str()) {
+        ("https", Some(h)) => h == "t.me" || h == "slack.com" || h.ends_with(".slack.com"),
+        ("http", Some(h)) => h == "127.0.0.1" || h == "localhost",
+        _ => false,
     })
 }
 
@@ -382,6 +385,8 @@ mod tests {
         assert!(trusted_link("https://t.me/PuppyOneBot?startgroup=abc"));
         assert!(trusted_link("https://slack.com/oauth/v2/authorize?x=1"));
         assert!(!trusted_link("http://t.me/x"));
+        assert!(trusted_link("http://127.0.0.1:9911/oauth/v2/authorize?state=x"));
+        assert!(!trusted_link("http://10.0.0.1/oauth"));
         assert!(!trusted_link("https://evil.example/t.me"));
     }
 }
