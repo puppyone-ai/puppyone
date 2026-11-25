@@ -27,6 +27,10 @@ use crate::{
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
 
+/// Whether the headerless main pane's floating top bar displays the active
+/// document's name (kept wired for quick re-enabling).
+const SHOW_DOCUMENT_TITLE: bool = false;
+
 impl WindowChrome {
     /// The Explorer column's top 40px bar when the window has no Header:
     /// native leading inset, optional in-window app menu, compact place /
@@ -55,10 +59,11 @@ impl WindowChrome {
             .into_any_element()
     }
 
-    /// Active document's icon and name in the headerless editor top bar,
-    /// matching `FileWindow::file_title`'s quiet theme style. Hidden while
-    /// opening a project, showing the Cloud Computer screen, or showing
-    /// header editor tabs.
+    /// Active document's name in the headerless editor top bar, matching
+    /// `FileWindow::file_title`'s quiet theme style. Hidden while opening a
+    /// project, showing the Cloud Computer screen, or showing header editor
+    /// tabs.
+    #[allow(dead_code)]
     fn document_title(&self, left_pad: f32, cx: &App) -> Option<AnyElement> {
         if self.session.opening || self.owners.cloud.read(cx).screen_shown(cx) {
             return None;
@@ -140,7 +145,7 @@ impl WindowChrome {
         let has_trailing_controls = trailing_controls.is_some();
         let tabs = self.project_tabs(cx);
         let with_tabs = tabs.is_some();
-        let doc_title = (!with_tabs)
+        let doc_title = (SHOW_DOCUMENT_TITLE && !with_tabs)
             .then(|| self.document_title(if leading { 6. } else { 14. }, cx))
             .flatten();
         let (leading_doc, editor_doc) = if leading {
