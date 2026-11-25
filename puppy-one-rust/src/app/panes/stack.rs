@@ -95,14 +95,16 @@ pub(in crate::app) fn edges(
     let state = panes.read(cx);
     let editor = frames.layout.editor;
     // `.po-pane-edge-resize-handle` + `.po-pane-edge-chrome`: an 8px
-    // transparent lane whose only paint is the 1px divider — the Explorer's
-    // own last column, the right sidebar's first — plus the adjacent hover /
-    // active stroke (and ring while dragging). A focused edge is a tab stop
-    // that resizes with the arrow keys and shows its stroke.
+    // transparent lane whose only paint is the hairline divider — the
+    // Explorer's own last column, the right sidebar's first — plus the
+    // adjacent hover / active stroke (and ring while dragging). A focused
+    // edge is a tab stop that resizes with the arrow keys and shows its
+    // stroke.
+    let hairline = theme::metric::SHELL_DIVIDER_WIDTH;
     let sash = |side: Side| {
         // The frames' edges, also mid-motion: the main pane follows them.
         let x = match side {
-            Side::Start => editor.x - 1.,
+            Side::Start => editor.x - hairline,
             Side::End => editor.right(),
         };
         let focus = state.focus(side).clone();
@@ -115,7 +117,7 @@ pub(in crate::app) fn edges(
             Axis::Horizontal,
         )
         .divider(t.sidebar_divider)
-        .stroke_at(1.)
+        .stroke_at(hairline)
         .resizing(state.dragging() == Some(side))
         .focused(focus.is_focused(window))
         .focus_ring()

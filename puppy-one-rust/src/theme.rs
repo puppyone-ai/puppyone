@@ -289,6 +289,9 @@ pub mod metric {
     pub const DIALOG_RADIUS: f32 = 12.;
     /// `--po-pane-resizer-hit-size`: the hit lane of a pane edge or split.
     pub const PANE_SASH: f32 = 8.;
+    /// The window skeleton's lines (the Header's bottom, the pane edges, the
+    /// project rail's edge): one device pixel on a 2× display.
+    pub const SHELL_DIVIDER_WIDTH: f32 = 0.5;
     pub const SWITCH_WIDTH: f32 = 34.;
     pub const SWITCH_HEIGHT: f32 = 20.;
     pub const SWITCH_THUMB: f32 = 14.;

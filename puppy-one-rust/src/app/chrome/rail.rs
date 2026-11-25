@@ -17,7 +17,10 @@ impl WindowChrome {
             .w(px(r.w))
             .h(px(r.h))
             .bg(t.sidebar)
-            .border_r_1()
+            .map(|mut d| {
+                d.style().border_widths.right = Some(px(theme::metric::SHELL_DIVIDER_WIDTH).into());
+                d
+            })
             .border_color(t.sidebar_divider)
             .flex()
             .flex_col()

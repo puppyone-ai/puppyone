@@ -72,7 +72,10 @@ pub fn render_frame(
         .flex()
         .items_center()
         .bg(t.header)
-        .border_b_1()
+        .map(|mut d| {
+            d.style().border_widths.bottom = Some(px(metric::SHELL_DIVIDER_WIDTH).into());
+            d
+        })
         .border_color(t.shell_divider)
         .child(
             h_flex()
