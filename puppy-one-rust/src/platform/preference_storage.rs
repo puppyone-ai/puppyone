@@ -12,40 +12,56 @@ pub struct Write {
     pub revision: u64,
     pub value: Value,
 }
-pub fn start() -> (mpsc::Sender<Write>, async_channel::Receiver<Event>) {
+/// The writer, the worker's events, and the preferences already saved, read
+/// before the worker starts (`None`: the worker reads them).
+pub type Started = (
+    mpsc::Sender<Write>,
+    async_channel::Receiver<Event>,
+    Option<Value>,
+);
+pub fn start() -> Started {
     spawn(None)
 }
 /// Isolated preferences directory; never imports another application profile.
-pub fn start_at(directory: PathBuf) -> (mpsc::Sender<Write>, async_channel::Receiver<Event>) {
+pub fn start_at(directory: PathBuf) -> Started {
     spawn(Some(directory))
 }
-fn spawn(directory: Option<PathBuf>) -> (mpsc::Sender<Write>, async_channel::Receiver<Event>) {
+fn spawn(directory: Option<PathBuf>) -> Started {
     let (tx, rx) = mpsc::channel::<Write>();
     let (events, out) = async_channel::unbounded();
+    let explicit = directory.is_some();
+    let isolated =
+        directory.or_else(|| std::env::var_os("PUPPYONE_RUST_DATA_DIR").map(PathBuf::from));
+    let base = isolated.clone().unwrap_or_else(super::data_dir);
+    let path = base.join("preferences.json");
+    // `initial-theme.js`: saved preferences are read before the first window
+    // is built, so its first frame paints them; nothing saved yet (a first
+    // launch, perhaps importing the Electron product's) is read on the worker.
+    let saved = super::ui_state_store::read(&path).ok().flatten();
+    let early = saved.is_some();
     std::thread::spawn(move || {
-        let explicit = directory.is_some();
-        let isolated =
-            directory.or_else(|| std::env::var_os("PUPPYONE_RUST_DATA_DIR").map(PathBuf::from));
-        let base = isolated.clone().unwrap_or_else(super::data_dir);
-        let path = base.join("preferences.json");
-        let loaded = match super::ui_state_store::read(&path) {
+        let read = (!early).then(|| super::ui_state_store::read(&path));
+        let loaded = match read {
+            None => None,
             // An isolated data directory (tests, captures) imports only from
             // an explicitly named product directory.
-            Ok(None) => Event::Fresh(
+            Some(Ok(None)) => Some(Event::Fresh(
                 (!explicit
                     && (isolated.is_none()
                         || std::env::var_os("PUPPYONE_ELECTRON_DATA_DIR").is_some()))
                 .then(super::electron_import::default_dir)
                 .flatten()
                 .and_then(|dir| super::electron_import::read(&dir)),
-            ),
-            Err(error) => {
+            )),
+            Some(Err(error)) => {
                 quarantine(&path);
-                Event::Loaded(Err(error))
+                Some(Event::Loaded(Err(error)))
             }
-            other => Event::Loaded(other),
+            Some(other) => Some(Event::Loaded(other)),
         };
-        if events.send_blocking(loaded).is_err() {
+        if let Some(loaded) = loaded
+            && events.send_blocking(loaded).is_err()
+        {
             return;
         }
         while let Ok(write) = rx.recv() {
@@ -58,7 +74,7 @@ fn spawn(directory: Option<PathBuf>) -> (mpsc::Sender<Write>, async_channel::Rec
             }
         }
     });
-    (tx, out)
+    (tx, out, saved)
 }
 /// `quarantineCorruptRegistry`: preferences that cannot be read are kept
 /// beside the file, as `preferences.json.corrupt.<time>`, so the next save
