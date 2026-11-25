@@ -857,3 +857,40 @@ fn a_read_only_workspace_offers_no_import_for_dragged_files(cx: &mut TestAppCont
     });
     assert_eq!(imports.get(), 1, "a local folder takes them in");
 }
+
+/// `dataWorkspaceProjectSwitching.test.tsx`: `keeps cached rows on network
+/// failure but clears them when permission is denied` — a Cloud root that
+/// cannot be read while offline keeps the rows it showed; when Retry is
+/// answered with denied access, they go and the reason shows.
+#[gpui::test]
+fn denied_access_clears_the_cached_rows_a_network_failure_keeps(cx: &mut TestAppContext) {
+    use crate::workspace::{Error, contracts::ErrorKind};
+    let (view, cx) = setup(cx);
+    let session = session_of(&view, cx);
+    let hosted = crate::workspace::Workspace::from_provider(std::sync::Arc::new(
+        crate::workspace::testing::Memory::new("memory://denied/project/"),
+    ))
+    .unwrap();
+    let cached = crate::model::Node {
+        name: "cached.md".into(),
+        path: "cached.md".into(),
+        loaded: true,
+        ..Default::default()
+    };
+    session.update(cx, |s, cx| s.load_workspace(hosted, vec![cached], cx));
+    let shown = |cx: &mut VisualTestContext| {
+        session.read_with(cx, |s, _| {
+            s.tree().index_of(Path::new("cached.md")).is_some()
+        })
+    };
+    let root = |error: Error, cx: &mut VisualTestContext| {
+        session.update(cx, |s, cx| s.children_loaded(Path::new(""), Err(error), cx))
+    };
+    root(Error::new(ErrorKind::Io, "Offline"), cx);
+    assert!(shown(cx), "a network failure keeps the cached rows");
+    session.update(cx, |s, cx| s.retry_root(cx));
+    root(Error::new(ErrorKind::PermissionDenied, "Forbidden"), cx);
+    assert!(!shown(cx), "denied access clears them");
+    let error = session.read_with(cx, |s, _| s.operation_error().cloned());
+    assert!(error.is_some_and(|e| e.contains("Forbidden")));
+}
