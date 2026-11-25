@@ -53490,6 +53490,29 @@
           "test": "app::tests::explorer_pane::denied_access_clears_the_cached_rows_a_network_failure_keeps"
         }
       ]
+    },
+    {
+      "id": "project-opening-gives-the-keyboard-back",
+      "acceptance": "While a project is on its way into a project window, the opening wait has the keyboard. An open that ends without bringing a project in gives the keyboard back to what had it when the open started (the entry that started it), unless something outside the wait has taken it since; an open that brings its project in keeps the keyboard in the project.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/projectOpeningSurface.test.tsx",
+          "sha256": "a3f370e8ba7f20372fc54d59e9d70dbbaefa2d1e59fc2eb223e104ba71f7fbb8",
+          "cases": [
+            {
+              "index": 6,
+              "name": "Local project opening > returns focus to the entry that opened the project when the open ends without one"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::an_open_that_ends_without_a_project_gives_the_keyboard_back"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -65980,24 +66003,6 @@
             {
               "index": 6,
               "name": "finding where a project's folder went > reports a shared project's share as withdrawn, so it can be shared again from the new place"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "project-opening-focus-restoration",
-      "kind": "gap",
-      "reason": "ProjectPreparation covers the window while a project opens and restores the prior screen on cancel/failure, but does not yet capture and return keyboard focus to the exact Homepage entry button that initiated the open.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/lifecycle.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/projects/projectOpeningSurface.test.tsx",
-          "sha256": "a3f370e8ba7f20372fc54d59e9d70dbbaefa2d1e59fc2eb223e104ba71f7fbb8",
-          "cases": [
-            {
-              "index": 6,
-              "name": "Local project opening > returns focus to the entry that opened the project when the open ends without one"
             }
           ]
         }

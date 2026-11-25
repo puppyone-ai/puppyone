@@ -10,6 +10,7 @@
 //! the pump ([`Pumped`]) to the owners that show it; what the picker finds
 //! later arrives as a [`ProjectEvent`].
 mod notices;
+mod opening_focus;
 mod preparation;
 
 use super::session::DocumentSession;
@@ -120,6 +121,8 @@ pub(super) struct ProjectLifecycle {
     /// A Cloud project chosen while the session was still being restored: it
     /// opens once the session is known, unless the person went elsewhere.
     pub awaiting_session: Option<String>,
+    /// The keyboard while a project opens.
+    opening_focus: opening_focus::OpeningFocus,
 }
 
 /// `cloudSessionRestoring`: Cloud is on and its session is not known yet.
@@ -170,6 +173,7 @@ impl ProjectLifecycle {
             reopened_at: None,
             reopen_declined: false,
             awaiting_session: None,
+            opening_focus: Default::default(),
         }
     }
     fn files<'a>(&self, cx: &'a App) -> &'a crate::editor::workbench::runtime::Runtime {
