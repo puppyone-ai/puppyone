@@ -10,6 +10,7 @@ mod autosave;
 mod brand_assets;
 mod bundled_modules;
 mod close_lifecycle;
+mod cloud_import;
 mod cloud_opening;
 mod cloud_publish_dialog;
 mod cloud_screen;

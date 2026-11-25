@@ -275,3 +275,54 @@ fn the_file_clipboard_says_what_it_holds_does_and_did(cx: &mut TestAppContext) {
 }
 
 mod scoped_refresh;
+
+#[gpui::test]
+fn a_finished_import_emits_one_typed_event_with_its_counts(cx: &mut TestAppContext) {
+    use crate::editor::workbench::resource_operations::Outcome;
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a.md"), "a").unwrap();
+    let ws = Workspace::open(dir.path()).unwrap();
+    let preferences = cx.new(|_| PreferencesStore::memory());
+    let explorer = cx.new(|cx| ExplorerSession::new(false, preferences, cx));
+    let owner = explorer.update(cx, |e, cx| {
+        e.load_workspace(ws.clone(), ws.list(Path::new("")).unwrap(), cx);
+        crate::editor::workbench::catalog::resource_key(&ws.resource_id(Path::new("")).unwrap())
+    });
+    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen = events.clone();
+    cx.update(|cx| {
+        cx.subscribe(&explorer, move |_, event: &SessionEvent, _| {
+            seen.borrow_mut().push(event.clone())
+        })
+        .detach()
+    });
+    explorer.update(cx, |e, cx| {
+        e.run_op(FileOp::Import(vec!["/tmp/x".into()], PathBuf::new()), cx);
+        let outcome = Outcome {
+            import: Some((2, 1)),
+            error: Some("too large".into()),
+            ..Default::default()
+        };
+        e.finish_op(&owner, outcome, cx);
+    });
+    // A local workspace is told apart, and no other operation emits it.
+    explorer.update(cx, |e, cx| {
+        e.run_op(FileOp::Delete(vec!["a.md".into()]), cx);
+        e.finish_op(&owner, Outcome::default(), cx);
+    });
+    let imported: Vec<_> = events
+        .borrow()
+        .iter()
+        .filter(|e| matches!(e, SessionEvent::FilesImported { .. }))
+        .cloned()
+        .collect();
+    assert_eq!(
+        imported,
+        vec![SessionEvent::FilesImported {
+            imported: 2,
+            failed: 1,
+            cloud: false
+        }]
+    );
+}

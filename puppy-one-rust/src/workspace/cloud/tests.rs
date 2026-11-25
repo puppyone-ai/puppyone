@@ -821,7 +821,7 @@ fn live_files_share_the_facade_without_a_local_root_or_git_fallback() {
         matches!(preview.data().unwrap(),PreviewData::Bytes { bytes, .. } if bytes.as_ref()==[137,80,78,71,0,255])
     );
     assert!(
-        !ws.capabilities().copy && !ws.capabilities().import && !ws.capabilities().local_actions
+        !ws.capabilities().copy && ws.capabilities().import && !ws.capabilities().local_actions
     );
     assert!(ws.absolute(p("live.md")).is_err());
     assert_eq!(f.state.count("POST", "/workbench"), 0);
@@ -1792,4 +1792,80 @@ fn a_scope_path_is_a_plain_relative_path() {
     for bad in ["", "/docs", "docs/", "../x", "a/./b", "a\\b", "a\u{0}b"] {
         assert!(!super::scope_path(bad), "{bad:?}");
     }
+}
+
+#[test]
+fn dropped_files_import_through_the_create_only_write_and_keep_both_names() {
+    let f = Fixture::new();
+    let ws = f.open();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("note.md"), "from outside\n").unwrap();
+    let source = outside.path().join("note.md");
+    let first = ws.import_external(&source, p("")).unwrap();
+    assert_eq!(first, p("note.md").to_path_buf());
+    assert_eq!(
+        f.state.files.lock().unwrap()["note.md"],
+        Some(b"from outside\n".to_vec())
+    );
+    // The same name again keeps both; nothing is overwritten.
+    let second = ws.import_external(&source, p("")).unwrap();
+    assert_ne!(second, first);
+    assert_eq!(f.state.count("PUT", "/file"), 3);
+    assert!(f.state.files.lock().unwrap().contains_key("note.md"));
+    assert!(
+        f.state
+            .files
+            .lock()
+            .unwrap()
+            .contains_key(second.to_str().unwrap())
+    );
+}
+
+#[test]
+fn an_import_over_the_cloud_limit_or_unreadable_is_skipped_and_the_rest_come_in() {
+    let f = Fixture::new();
+    let ws = f.open();
+    let outside = tempfile::tempdir().unwrap();
+    let big = outside.path().join("big.bin");
+    let file = std::fs::File::create(&big).unwrap();
+    file.set_len(8 * 1024 * 1024 + 1).unwrap();
+    let ok = outside.path().join("ok.md");
+    std::fs::write(&ok, "ok").unwrap();
+    let missing = outside.path().join("missing.md");
+    let puts = f.state.count("PUT", "/file");
+    assert!(ws.import_external(&big, p("")).is_err());
+    assert!(ws.import_external(&missing, p("")).is_err());
+    assert_eq!(f.state.count("PUT", "/file"), puts);
+    ws.import_external(&ok, p("")).unwrap();
+    assert_eq!(f.state.count("PUT", "/file"), puts + 1);
+    assert!(!f.state.files.lock().unwrap().contains_key("big.bin"));
+    // Exactly the limit is accepted.
+    let edge = outside.path().join("edge.bin");
+    std::fs::write(&edge, vec![b'x'; 8 * 1024 * 1024]).unwrap();
+    ws.import_external(&edge, p("")).unwrap();
+}
+
+#[test]
+fn a_dropped_folder_copies_what_it_can_and_reports_the_failure() {
+    let f = Fixture::new();
+    let ws = f.open();
+    let outside = tempfile::tempdir().unwrap();
+    let dir = outside.path().join("docs");
+    std::fs::create_dir(&dir).unwrap();
+    std::fs::write(dir.join("a.md"), "a").unwrap();
+    let big = std::fs::File::create(dir.join("big.bin")).unwrap();
+    big.set_len(8 * 1024 * 1024 + 1).unwrap();
+    assert!(ws.import_external(&dir, p("")).is_err());
+    let files = f.state.files.lock().unwrap();
+    assert!(files.contains_key("docs"));
+    assert_eq!(files["docs/a.md"], Some(b"a".to_vec()));
+    assert!(!files.contains_key("docs/big.bin"));
+}
+
+#[test]
+fn a_readonly_cloud_grant_refuses_imports() {
+    let f = Fixture::new();
+    f.state.readonly.store(true, Ordering::SeqCst);
+    let ws = f.open();
+    assert!(!ws.capabilities().import);
 }

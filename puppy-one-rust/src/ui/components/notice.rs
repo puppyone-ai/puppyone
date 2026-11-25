@@ -90,6 +90,8 @@ pub struct FloatingNotice {
     tone: NoticeTone,
     actions: Vec<NoticeAction>,
     on_dismiss: Option<Handler>,
+    /// The pointer entered (`true`) or left (`false`) the notice.
+    on_hover: Option<Rc<dyn Fn(bool, &mut Window, &mut App)>>,
     /// `dismissLabel` (default `shared-ui.notice.dismiss`).
     dismiss_label: Option<SharedString>,
     /// `--po-floating-notice-font-size` / `-line-height` overrides.
@@ -105,6 +107,7 @@ impl FloatingNotice {
             tone: NoticeTone::Neutral,
             actions: vec![],
             on_dismiss: None,
+            on_hover: None,
             dismiss_label: None,
             text: None,
             busy: false,
@@ -135,6 +138,12 @@ impl FloatingNotice {
         self.actions.push(action);
         self
     }
+    /// Reports the pointer entering or leaving the notice, so a host can hold
+    /// its auto-dismiss while it is read.
+    pub fn on_hover(mut self, handler: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+        self.on_hover = Some(Rc::new(handler));
+        self
+    }
     /// A close control (`shared-ui.notice.dismiss`).
     pub fn on_dismiss(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_dismiss = Some(Rc::new(handler));
@@ -159,7 +168,9 @@ impl RenderOnce for FloatingNotice {
         let mini = theme::control_mini();
         let id = self.id.clone();
         let message = self.message.clone();
-        SurfaceFrame::menu(self.id)
+        let hover = self.on_hover.clone();
+        let hover_id = child_id(&self.id, "hover");
+        let frame = SurfaceFrame::menu(self.id)
             .fill(surface)
             .stroke(border)
             .flex_row()
@@ -277,7 +288,17 @@ impl RenderOnce for FloatingNotice {
                         })
                         .child(Icon::new("x").with_size(px(14.)).stroke(1.8)),
                 )
-            })
+            });
+        match hover {
+            Some(hover) => div()
+                .id(hover_id)
+                .max_w_full()
+                .min_w_0()
+                .on_hover(move |over, window, cx| hover(*over, window, cx))
+                .child(frame)
+                .into_any_element(),
+            None => frame.into_any_element(),
+        }
     }
 }
 

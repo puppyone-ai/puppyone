@@ -780,7 +780,12 @@ impl Render for Shell {
                     w,
                     self.frame.layout.explorer.w,
                     cx,
-                ));
+                ))
+                .children(
+                    self.cloud
+                        .read(cx)
+                        .import_notice_stack(w, self.frame.layout.explorer.w),
+                );
         }
         let chrome = self.chrome.read(cx);
         root = root.child(chrome.project_actions.clone());

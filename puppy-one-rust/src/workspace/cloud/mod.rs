@@ -245,6 +245,7 @@ fn prepare_verified_opening(
             rename: writable,
             remove: writable,
             move_entry: writable,
+            import: writable,
             watch: true,
             preview: true,
             ..Default::default()
@@ -309,6 +310,62 @@ impl Drop for Cloud {
         self.shared.retire();
     }
 }
+impl Cloud {
+    /// The one create-only upload: the path may not exist yet.
+    fn write_new(&self, path: &RelativePath, bytes: &[u8]) -> Result<String> {
+        let _serial = self
+            .shared
+            .mutations
+            .acquire(&[path], || self.shared.check())?;
+        self.shared.check()?;
+        self.shared.raw_write(path, bytes, None)
+    }
+    /// Copies a dropped file or folder under a keep-both name. A file over
+    /// the Cloud limit or one that fails to write fails alone; a folder
+    /// still copies what it can and then reports the first failure.
+    fn import_tree(
+        &self,
+        source: &std::path::Path,
+        folder: &RelativePath,
+        name: &str,
+    ) -> Result<RelativePath> {
+        use super::local::ImportSource;
+        let content =
+            super::local::Workspace::read_import_source(source, Limits::CLOUD.text_bytes)?;
+        let is_dir = matches!(content, ImportSource::Folder(_));
+        for index in 0..=10_000 {
+            let candidate = super::local::Workspace::keep_both_name(name, index, is_dir);
+            let path = model::child(folder, &candidate)?;
+            let made = match &content {
+                ImportSource::Folder(_) => self.shared.change("mkdir", &path, None),
+                ImportSource::File(bytes) => self.write_new(&path, bytes).map(|_| ()),
+            };
+            match made {
+                Ok(()) => {
+                    if let ImportSource::Folder(children) = &content {
+                        let mut first = None;
+                        for child in children {
+                            let Some(child_name) = child.file_name().and_then(|v| v.to_str())
+                            else {
+                                continue;
+                            };
+                            if let Err(error) = self.import_tree(child, &path, child_name) {
+                                first.get_or_insert(error);
+                            }
+                        }
+                        if let Some(error) = first {
+                            return Err(error);
+                        }
+                    }
+                    return Ok(path);
+                }
+                Err(error) if error.kind == ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        Err(crate::localization::t("native.workspace.nameExhausted").into())
+    }
+}
 impl DataPort for Cloud {
     fn descriptor(&self) -> Descriptor {
         self.shared.descriptor.clone()
@@ -351,17 +408,25 @@ impl DataPort for Cloud {
         if folder {
             self.shared.change("mkdir", &path, None)?;
         } else {
-            let _serial = self
-                .shared
-                .mutations
-                .acquire(&[&path], || self.shared.check())?;
-            self.shared.check()?;
             if text.contains(['\0', '\r']) {
                 return Err(Error::from("Invalid Cloud template text"));
             }
-            self.shared.raw_write(&path, text.as_bytes(), None)?;
+            self.write_new(&path, text.as_bytes())?;
         }
         Ok(path)
+    }
+    fn import(&self, source: &std::path::Path, folder: &RelativePath) -> Result<RelativePath> {
+        if !source.is_absolute() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Import requires an absolute source path",
+            ));
+        }
+        let name = source
+            .file_name()
+            .and_then(|v| v.to_str())
+            .ok_or_else(model::invalid)?;
+        self.import_tree(source, folder, name)
     }
     fn rename(&self, path: &RelativePath, name: &str) -> Result<RelativePath> {
         let parent = RelativePath::new(path.as_path().parent().ok_or_else(model::stale)?)?;

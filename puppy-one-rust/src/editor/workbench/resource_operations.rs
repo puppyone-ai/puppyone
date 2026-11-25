@@ -102,6 +102,8 @@ pub struct Receipt {
     mutations: Vec<Mutation>,
     errors: Vec<String>,
     select: Option<PathBuf>,
+    /// Dropped sources that came in (`Import` only; failures are `errors`).
+    imported: usize,
 }
 #[derive(Default)]
 pub struct Outcome {
@@ -110,6 +112,8 @@ pub struct Outcome {
     pub removed: Vec<PathBuf>,
     pub select: Option<PathBuf>,
     pub error: Option<String>,
+    /// An import's (imported, failed) source counts.
+    pub import: Option<(usize, usize)>,
 }
 pub struct Completed {
     pub receipt: Receipt,
@@ -199,7 +203,10 @@ pub fn execute(
                         ws.import_external(path, folder)
                     };
                     match result {
-                        Ok(path) => receipt.select = Some(path),
+                        Ok(path) => {
+                            receipt.imported += 1;
+                            receipt.select = Some(path)
+                        }
                         Err(error) => receipt.errors.push(error.to_string()),
                     }
                 }
@@ -296,6 +303,8 @@ pub fn execute(
             removed,
             select: receipt.select.clone(),
             error: (!errors.is_empty()).then(|| errors.join("\n")),
+            import: matches!(op, Operation::Import(..))
+                .then(|| (receipt.imported, receipt.errors.len())),
         },
         receipt,
         updates,

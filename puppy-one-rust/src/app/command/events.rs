@@ -828,6 +828,18 @@ impl Shell {
                     self.show_error(error, cx);
                 }
             }
+            // Only a Cloud project says so; a local import keeps its quiet
+            // behaviour.
+            SessionEvent::FilesImported {
+                imported,
+                failed,
+                cloud: true,
+            } => {
+                let (imported, failed) = (*imported, *failed);
+                self.cloud
+                    .update(cx, |c, cx| c.files_imported(imported, failed, window, cx));
+            }
+            SessionEvent::FilesImported { .. } => {}
             SessionEvent::Error(error) => self.show_error(error.clone(), cx),
             // A hosted Project's subscription ends with its lease, and the
             // pump reopens it quietly; what is wrong with any other
