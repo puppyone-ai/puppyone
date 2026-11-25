@@ -212,12 +212,10 @@ impl Surface<'_, '_, '_> {
                     }
                     let start = text.len();
                     text.push_str(&s);
-                    let mut font = RenderCx::font(&style.text);
-                    if style.mono {
-                        font.family = SharedString::from(
-                            crate::editor::view::style::inline_code_family(style.text.weight),
-                        );
-                    }
+                    let font = RenderCx::font(&crate::editor::view::style::TextStyle {
+                        mono: style.mono || style.text.mono,
+                        ..style.text.clone()
+                    });
                     runs.push(TextRun {
                         len: s.len(),
                         font,

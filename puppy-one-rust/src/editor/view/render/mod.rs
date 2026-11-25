@@ -86,7 +86,7 @@ impl RenderCx<'_> {
             family: style.family(),
             features: text.font_features.unwrap_or_default(),
             fallbacks: text.font_fallbacks,
-            weight: FontWeight(style.weight),
+            weight: style.font_weight(),
             style: if style.italic {
                 FontStyle::Italic
             } else {
@@ -98,8 +98,8 @@ impl RenderCx<'_> {
     /// Shaping runs of `leaf` as Kit's plain inline path styles it.
     fn runs(leaf: &LeafText, style: &TextStyle) -> Vec<TextRun> {
         let base = Self::font(style);
-        // Inline code shapes as Geist Mono at the full size (what the
-        // inline-code family renders at Kit's 0.875 code size).
+        // Inline code shapes in the monospaced face at the full size (Kit's
+        // inline-code scale is 1 in the editor).
         let mono = TextStyle {
             mono: true,
             ..style.clone()
@@ -113,7 +113,11 @@ impl RenderCx<'_> {
                 } else {
                     base.family.clone()
                 },
-                weight: if bold { FontWeight::BOLD } else { base.weight },
+                weight: if bold {
+                    super::style::face_weight(super::style::STRONG_WEIGHT)
+                } else {
+                    base.weight
+                },
                 style: if italic {
                     FontStyle::Italic
                 } else {
@@ -406,7 +410,6 @@ impl RenderCx<'_> {
         self.text_end = (metrics.rows, metrics.end);
         let key = self.leaf_key(leaf.content_hash(), measure_key);
         let (paragraph, text) = self.cache.borrow_mut().get(leaf, key);
-        let code = text.marks.iter().any(|(_, m)| m.code);
         self.leaves.push(LeafEntry {
             key,
             text,
@@ -418,22 +421,7 @@ impl RenderCx<'_> {
         let block = BlockNode::Paragraph(paragraph);
         let refs = [&block];
         let flow = FlowPosition::at(&refs, 0, true);
-        // Kit resolves an inline-code mark's family from the theme while the
-        // paragraph is built; use the editor's inline-code family for it.
-        let previous = code.then(|| {
-            let theme = gpui_kit::base::Theme::global_mut(self.app);
-            std::mem::replace(
-                &mut theme.tokens.typography.mono,
-                SharedString::from(super::style::inline_code_family(style.weight)),
-            )
-        });
         let element = block.render(key as usize, flow, self.kit, self.window, self.app);
-        if let Some(previous) = previous {
-            gpui_kit::base::Theme::global_mut(self.app)
-                .tokens
-                .typography
-                .mono = previous;
-        }
         let top = self.baseline_top(style, metrics, block_top, block_top + y);
         let mut container = div().absolute().left(px(x)).top(px(top));
         container = match wrap {

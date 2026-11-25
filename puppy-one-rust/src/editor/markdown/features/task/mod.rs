@@ -134,7 +134,7 @@ mod tests {
             },
             text::buffer::Buffer,
             tokens::Tokens,
-            view::{EditorView, bind_keys, decoration::Block, style as view_style},
+            view::{EditorView, bind_keys, decoration::Block},
         },
         typography::Scale,
     };
@@ -205,9 +205,6 @@ mod tests {
             if cx.try_global::<gpui_kit::component::Theme>().is_none() {
                 gpui_kit::init(cx);
             }
-            cx.text_system()
-                .add_fonts(view_style::font_bytes())
-                .unwrap();
             bind_keys(cx);
         });
         let (view, cx) = cx.add_window_view(|_, cx| {

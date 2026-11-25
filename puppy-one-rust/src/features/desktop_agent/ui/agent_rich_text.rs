@@ -1,17 +1,19 @@
 //! Rich inline text for Agent Markdown: GPUI text runs (weight, style, colour,
 //! underline, strikethrough) plus product inline-code chips painted behind
 //! their glyphs, participating in Kit's window text selection. Inline code is
-//! bracketed by `CODE_PAD` (U+E000, an empty glyph of the agent inline-code
-//! face sized to the chip's padding + border); copying strips it.
+//! bracketed by `CODE_PAD` (a three-per-em space in the interface face, about
+//! the chip's padding + border); copying strips it.
 use gpui::{prelude::*, *};
 use gpui_kit::base::{
     TextSelection, TextSelectionHandle, TextSelectionRegistration, TextSelectionRun,
 };
 use std::{cell::RefCell, ops::Range, rc::Rc};
 
-pub const CODE_PAD: char = '\u{E000}';
-/// `tools/import-agent-code-font.py`.
-pub const CODE_FAMILY: &str = "PuppyOne Agent Inline Code";
+/// U+2004: 0.333 em of the interface face, the chip's side padding
+/// (`0.34em` of the 13px code) plus its 1px border at the 14px text size.
+pub const CODE_PAD: char = '\u{2004}';
+/// Inline code is set in the platform's monospaced face.
+pub const CODE_FAMILY: &str = crate::theme::MONO;
 
 /// Chip box relative to its line's top (`code { padding: 0.12em 0.34em; border: 1px }`).
 #[derive(Clone, Copy)]

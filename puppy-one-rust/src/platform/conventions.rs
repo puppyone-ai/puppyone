@@ -100,6 +100,13 @@ pub struct Conventions {
     pub append_ui_font_fallbacks: bool,
     /// Ordered OS-native UI + CJK fallback font families.
     pub ui_font_fallbacks: &'static [&'static str],
+    /// The platform's monospaced face: SF Mono (`ui-monospace`) on macOS.
+    pub mono_font: &'static str,
+    /// The platform's serif face: New York (`ui-serif`) on macOS.
+    pub serif_font: &'static str,
+    /// Whether CSS `ui-monospace` and `ui-serif` name system faces GPUI can
+    /// load (macOS's SF Mono and New York); elsewhere they name none.
+    pub system_keyword_faces: bool,
     /// Default built-in Git credential helper when no explicit helper is configured.
     pub default_git_credential_helper: Option<&'static str>,
     /// Native mechanism for starting the local host daemon at login.
@@ -144,6 +151,9 @@ impl Conventions {
                 has_macos_app_visibility_shortcuts: true,
                 append_ui_font_fallbacks: false,
                 ui_font_fallbacks: &["PingFang SC", "Hiragino Sans GB"],
+                mono_font: ".AppleSystemUIFontMonospaced",
+                serif_font: ".AppleSystemUIFontSerif",
+                system_keyword_faces: true,
                 default_git_credential_helper: Some("osxkeychain"),
                 start_at_login_mechanism: StartAtLoginMechanism::LaunchAgent,
                 host_shell_kind: HostShellKind::PosixSh,
@@ -174,6 +184,9 @@ impl Conventions {
                 has_macos_app_visibility_shortcuts: false,
                 append_ui_font_fallbacks: true,
                 ui_font_fallbacks: &["Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei"],
+                mono_font: "Consolas",
+                serif_font: "Georgia",
+                system_keyword_faces: false,
                 default_git_credential_helper: None,
                 start_at_login_mechanism: StartAtLoginMechanism::Unsupported,
                 host_shell_kind: HostShellKind::CmdExe,
@@ -204,6 +217,9 @@ impl Conventions {
                 has_macos_app_visibility_shortcuts: false,
                 append_ui_font_fallbacks: true,
                 ui_font_fallbacks: &["Noto Sans CJK SC", "Noto Sans", "DejaVu Sans"],
+                mono_font: "DejaVu Sans Mono",
+                serif_font: "DejaVu Serif",
+                system_keyword_faces: false,
                 default_git_credential_helper: None,
                 start_at_login_mechanism: StartAtLoginMechanism::Unsupported,
                 host_shell_kind: HostShellKind::PosixSh,

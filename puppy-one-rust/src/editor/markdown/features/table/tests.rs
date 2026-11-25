@@ -5,7 +5,7 @@ use super::commands::structure;
 use crate::editor::{
     markdown::MarkdownExtension,
     table::operation::{Alignment, Operation},
-    view::{EditorView, bind_keys, style},
+    view::{EditorView, bind_keys},
 };
 use crate::typography::Scale;
 use gpui::{Entity, TestAppContext, VisualTestContext};
@@ -19,7 +19,6 @@ fn setup(cx: &mut TestAppContext) -> (Entity<EditorView>, &mut VisualTestContext
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
     let (view, cx) = cx.add_window_view(|_, cx| {

@@ -4,7 +4,6 @@
 //! A successful sign-in also offers "Return to PuppyOne Desktop", a form
 //! that POSTs to a one-time path on this listener so the app comes forward.
 //! Self-contained: the listener closes before any asset could load.
-use base64::{Engine, engine::general_purpose::STANDARD};
 use std::sync::OnceLock;
 
 /// `PAGE_COPY` keys.
@@ -35,12 +34,6 @@ fn data() -> &'static serde_json::Value {
     DATA.get_or_init(|| {
         serde_json::from_str(include_str!("../../../assets/auth/result-page.json"))
             .expect("generated result page copy")
-    })
-}
-fn font() -> &'static str {
-    static FONT: OnceLock<String> = OnceLock::new();
-    FONT.get_or_init(|| {
-        STANDARD.encode(include_bytes!("../../../assets/auth/Geist-Variable.woff2"))
     })
 }
 
@@ -132,11 +125,10 @@ pub(super) fn response(
   <meta name="color-scheme" content="light dark">
   <title>{title} · PuppyOne Desktop</title>
   <style>
-    @font-face {{ font-family: "Geist Sans"; src: url(data:font/woff2;base64,{font}) format("woff2"); font-style: normal; font-weight: 100 900; font-display: swap; }}
     :root {{ color-scheme: light; --po-inset: #e7e3db; --po-text: #292723; --po-text-inverse: #fffefa; --po-text-muted: #68645c; --po-text-subtle: #928c83; --po-success: #168145; --po-danger: #dc2626; }}
     * {{ box-sizing: border-box; }}
     html {{ min-height: 100%; }}
-    body {{ min-height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--po-inset); color: var(--po-text); font-family: "Geist Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }}
+    body {{ min-height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--po-inset); color: var(--po-text); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }}
     main {{ width: min(100%, 380px); padding: 24px; text-align: center; }}
     .brand {{ display: block; width: 48px; height: 48px; margin: 0 auto 16px; opacity: .95; }}
     .brand svg {{ display: block; width: 100%; height: 100%; }}
@@ -166,7 +158,6 @@ pub(super) fn response(
         title = escape(title),
         description = escape(description),
         next = escape(next),
-        font = font(),
         mark = data()["brandMark"].as_str().unwrap_or_default(),
         role = if success { "status" } else { "alert" },
         next_margin = if return_path.is_some() {
@@ -309,7 +300,6 @@ mod tests {
             "frame-src 'self'",
             "Return to PuppyOne Desktop",
             "You can close this browser tab.",
-            "data:font/woff2;base64,",
             r#"method="post""#,
             r#"target="puppyone-return-frame""#,
             r#"name="puppyone-return-frame""#,
@@ -317,5 +307,7 @@ mod tests {
             assert!(success.contains(part), "{part}");
         }
         assert!(!success.contains("<script") && !success.contains("<img"));
+        // The page is set in the browser's system face; it embeds none.
+        assert!(!success.contains("@font-face"));
     }
 }

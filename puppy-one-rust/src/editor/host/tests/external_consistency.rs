@@ -151,7 +151,6 @@ impl<'a> Matrix<'a> {
             if cx.try_global::<gpui_kit::component::Theme>().is_none() {
                 gpui_kit::init(cx);
             }
-            cx.text_system().add_fonts(style::font_bytes()).unwrap();
             crate::editor::view::bind_keys(cx);
             crate::editor::csv::bind_keys(cx);
             super::super::bind_keys(cx);

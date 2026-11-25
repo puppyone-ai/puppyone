@@ -344,7 +344,7 @@
      "px": 48
     },
     "--po-editor-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-editor-line": {
      "raw": "rgba(255, 255, 255, 0.065)",
@@ -450,14 +450,14 @@
      "color": "color(srgb 1 1 1 / 0.00776471)"
     },
     "--po-md-code-font": {
-     "raw": "\"Geist Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
+     "raw": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
     },
     "--po-md-content-color": {
      "raw": "color-mix(in srgb, #fafafa 80%, #a1a1aa)",
      "color": "color(srgb 0.910588 0.910588 0.917647)"
     },
     "--po-md-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-content-letter-spacing": {
      "raw": "0",
@@ -825,7 +825,7 @@
      "color": "rgb(248, 113, 113)"
     },
     "--po-md-mermaid-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-mermaid-font-size": {
      "raw": "14px",
@@ -868,7 +868,7 @@
      "color": "rgb(113, 113, 122)"
     },
     "--po-md-metadata-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
     },
     "--po-md-metadata-font-size": {
      "raw": "11px",
@@ -1019,7 +1019,7 @@
      "color": "color(srgb 0.562055 0.562055 0.585914)"
     },
     "--po-md-table-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-table-font-size": {
      "raw": "12px",
@@ -1081,7 +1081,7 @@
      "en": 450,
      "zh-Hans": 500
     },
-    "fontFamily": "\"Geist Sans\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "14px",
     "fontWeight": "500",
     "lineHeight": "24.5px",
@@ -1294,7 +1294,7 @@
      "px": 48
     },
     "--po-editor-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-editor-line": {
      "raw": "rgba(255, 255, 255, 0.065)",
@@ -1400,14 +1400,14 @@
      "color": "color(srgb 1 1 1 / 0.00776471)"
     },
     "--po-md-code-font": {
-     "raw": "\"Geist Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
+     "raw": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
     },
     "--po-md-content-color": {
      "raw": "color-mix(in srgb, #fafafa 80%, #a1a1aa)",
      "color": "color(srgb 0.910588 0.910588 0.917647)"
     },
     "--po-md-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-content-letter-spacing": {
      "raw": "0",
@@ -1775,7 +1775,7 @@
      "color": "rgb(248, 113, 113)"
     },
     "--po-md-mermaid-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-mermaid-font-size": {
      "raw": "15px",
@@ -1818,7 +1818,7 @@
      "color": "rgb(113, 113, 122)"
     },
     "--po-md-metadata-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
     },
     "--po-md-metadata-font-size": {
      "raw": "12px",
@@ -1969,7 +1969,7 @@
      "color": "color(srgb 0.562055 0.562055 0.585914)"
     },
     "--po-md-table-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-table-font-size": {
      "raw": "13px",
@@ -2031,7 +2031,7 @@
      "en": 450,
      "zh-Hans": 500
     },
-    "fontFamily": "\"Geist Sans\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "15px",
     "fontWeight": "500",
     "lineHeight": "26.25px",
@@ -2244,7 +2244,7 @@
      "px": 48
     },
     "--po-editor-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-editor-line": {
      "raw": "rgba(255, 255, 255, 0.065)",
@@ -2350,14 +2350,14 @@
      "color": "color(srgb 1 1 1 / 0.00776471)"
     },
     "--po-md-code-font": {
-     "raw": "\"Geist Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
+     "raw": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
     },
     "--po-md-content-color": {
      "raw": "color-mix(in srgb, #fafafa 80%, #a1a1aa)",
      "color": "color(srgb 0.910588 0.910588 0.917647)"
     },
     "--po-md-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-content-letter-spacing": {
      "raw": "0",
@@ -2725,7 +2725,7 @@
      "color": "rgb(248, 113, 113)"
     },
     "--po-md-mermaid-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-mermaid-font-size": {
      "raw": "16px",
@@ -2768,7 +2768,7 @@
      "color": "rgb(113, 113, 122)"
     },
     "--po-md-metadata-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
     },
     "--po-md-metadata-font-size": {
      "raw": "13px",
@@ -2919,7 +2919,7 @@
      "color": "color(srgb 0.562055 0.562055 0.585914)"
     },
     "--po-md-table-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-table-font-size": {
      "raw": "14px",
@@ -2981,7 +2981,7 @@
      "en": 450,
      "zh-Hans": 500
     },
-    "fontFamily": "\"Geist Sans\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "16px",
     "fontWeight": "500",
     "lineHeight": "28px",
@@ -3194,7 +3194,7 @@
      "px": 48
     },
     "--po-editor-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-editor-line": {
      "raw": "rgba(45, 43, 38, 0.07)",
@@ -3300,14 +3300,14 @@
      "color": "color(srgb 0.176471 0.168627 0.14902 / 0.0134118)"
     },
     "--po-md-code-font": {
-     "raw": "\"Geist Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
+     "raw": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
     },
     "--po-md-content-color": {
      "raw": "#292723",
      "color": "rgb(41, 39, 35)"
     },
     "--po-md-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-content-letter-spacing": {
      "raw": "0",
@@ -3675,7 +3675,7 @@
      "color": "rgb(220, 38, 38)"
     },
     "--po-md-mermaid-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-mermaid-font-size": {
      "raw": "14px",
@@ -3718,7 +3718,7 @@
      "color": "rgb(146, 140, 131)"
     },
     "--po-md-metadata-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
     },
     "--po-md-metadata-font-size": {
      "raw": "11px",
@@ -3869,7 +3869,7 @@
      "color": "color(srgb 0.487584 0.476274 0.453655)"
     },
     "--po-md-table-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-table-font-size": {
      "raw": "12px",
@@ -3931,7 +3931,7 @@
      "en": 450,
      "zh-Hans": 500
     },
-    "fontFamily": "\"Geist Sans\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "14px",
     "fontWeight": "500",
     "lineHeight": "24.5px",
@@ -4144,7 +4144,7 @@
      "px": 48
     },
     "--po-editor-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-editor-line": {
      "raw": "rgba(45, 43, 38, 0.07)",
@@ -4250,14 +4250,14 @@
      "color": "color(srgb 0.176471 0.168627 0.14902 / 0.0134118)"
     },
     "--po-md-code-font": {
-     "raw": "\"Geist Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
+     "raw": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
     },
     "--po-md-content-color": {
      "raw": "#292723",
      "color": "rgb(41, 39, 35)"
     },
     "--po-md-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-content-letter-spacing": {
      "raw": "0",
@@ -4625,7 +4625,7 @@
      "color": "rgb(220, 38, 38)"
     },
     "--po-md-mermaid-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-mermaid-font-size": {
      "raw": "15px",
@@ -4668,7 +4668,7 @@
      "color": "rgb(146, 140, 131)"
     },
     "--po-md-metadata-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
     },
     "--po-md-metadata-font-size": {
      "raw": "12px",
@@ -4819,7 +4819,7 @@
      "color": "color(srgb 0.487584 0.476274 0.453655)"
     },
     "--po-md-table-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-table-font-size": {
      "raw": "13px",
@@ -4881,7 +4881,7 @@
      "en": 450,
      "zh-Hans": 500
     },
-    "fontFamily": "\"Geist Sans\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "15px",
     "fontWeight": "500",
     "lineHeight": "26.25px",
@@ -5094,7 +5094,7 @@
      "px": 48
     },
     "--po-editor-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-editor-line": {
      "raw": "rgba(45, 43, 38, 0.07)",
@@ -5200,14 +5200,14 @@
      "color": "color(srgb 0.176471 0.168627 0.14902 / 0.0134118)"
     },
     "--po-md-code-font": {
-     "raw": "\"Geist Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
+     "raw": "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", \"PingFang SC\",\n      \"Microsoft YaHei\",\n      \"Noto Sans Mono CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", monospace"
     },
     "--po-md-content-color": {
      "raw": "#292723",
      "color": "rgb(41, 39, 35)"
     },
     "--po-md-content-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-content-letter-spacing": {
      "raw": "0",
@@ -5575,7 +5575,7 @@
      "color": "rgb(220, 38, 38)"
     },
     "--po-md-mermaid-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-mermaid-font-size": {
      "raw": "16px",
@@ -5618,7 +5618,7 @@
      "color": "rgb(146, 140, 131)"
     },
     "--po-md-metadata-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", sans-serif"
     },
     "--po-md-metadata-font-size": {
      "raw": "13px",
@@ -5769,7 +5769,7 @@
      "color": "color(srgb 0.487584 0.476274 0.453655)"
     },
     "--po-md-table-font": {
-     "raw": "\"Geist Sans\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
+     "raw": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\",\n      \"Hiragino Sans GB\",\n      \"Microsoft YaHei\",\n      \"Noto Sans CJK SC\", \"Apple Color Emoji\",\n      \"Segoe UI Emoji\",\n      \"Noto Color Emoji\", sans-serif"
     },
     "--po-md-table-font-size": {
      "raw": "14px",
@@ -5831,7 +5831,7 @@
      "en": 450,
      "zh-Hans": 500
     },
-    "fontFamily": "\"Geist Sans\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Noto Sans CJK SC\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "16px",
     "fontWeight": "500",
     "lineHeight": "28px",

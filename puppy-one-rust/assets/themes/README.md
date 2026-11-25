@@ -55,7 +55,7 @@ values you can change, not renderer-enforced appearance:
   --po-md-code-block-color: var(--po-md-blockquote-color);
   --po-md-code-block-font-size: var(--po-md-table-font-size);
   --po-md-table-font-size: 13px;
-  --po-md-code-font: "Geist Mono", monospace;
+  --po-md-code-font: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 ```
 

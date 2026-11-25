@@ -217,7 +217,7 @@ impl Workbench {
             .items_center()
             .justify_center()
             .bg(t.backdrop)
-            .font_family("Geist")
+            .font_family(crate::theme::SANS)
             // `dismissOnBackdrop`.
             .on_mouse_down(
                 MouseButton::Left,

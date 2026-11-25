@@ -5,7 +5,6 @@ use crate::{
     documents::{ClientMessage, HostMessage},
     editor::{
         markdown::MarkdownExtension,
-        view::style,
         workbench::{
             find::FindEvent,
             pane::{Action, ItemKind},
@@ -43,7 +42,6 @@ fn setup_with<'a>(
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         crate::editor::view::bind_keys(cx);
         crate::editor::csv::bind_keys(cx);
         super::bind_keys(cx);
@@ -1727,7 +1725,6 @@ fn a_pane_announces_loading_and_shows_a_read_failure(cx: &mut TestAppContext) {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
     });
     let (view, cx) = cx.add_window_view(|_, cx| DocumentEditor::new(cx));
     let messages = Rc::new(RefCell::new(Vec::new()));

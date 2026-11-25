@@ -6,11 +6,7 @@ use crate::editor::{
     markdown::{MarkdownExtension, features::front_matter::FrontMatter},
     text::{selection::Selection, state::EditorState},
     tokens,
-    view::{
-        EditorView, bind_keys,
-        decoration::Block,
-        style::{self, Paint},
-    },
+    view::{EditorView, bind_keys, decoration::Block, style::Paint},
 };
 use crate::typography::Scale;
 use gpui::{Entity, Focusable, Modifiers, TestAppContext, VisualTestContext};
@@ -405,7 +401,6 @@ fn callout_fold_and_mdx_tabs_map_accurately_across_edits_undo_and_redo(cx: &mut 
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
 

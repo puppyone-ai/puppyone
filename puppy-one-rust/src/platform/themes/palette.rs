@@ -92,7 +92,7 @@ pub(super) const SEMANTIC_ALIASES: [(&str, &str); 7] = [
     ("--po-overlay", "var(--po-surface-overlay)"),
     ("--po-inset", "var(--po-surface-inset)"),
     ("--po-chrome", "var(--po-surface-chrome)"),
-    ("--po-font-sans", "Geist, sans-serif"),
+    ("--po-font-sans", "system-ui, sans-serif"),
     ("--po-type-ui-micro", "11px"),
 ];
 

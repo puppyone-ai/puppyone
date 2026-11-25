@@ -90,19 +90,22 @@ pub(super) fn flatten(
                     } else {
                         text
                     };
-                push(out, &text, font("Geist", weight), color)
+                push(out, &text, font(crate::theme::SANS, weight), color)
             }
             Inline::Code(code) => {
                 let start = out.0.len();
+                let pad = CODE_PAD.to_string();
+                push(out, &pad, font(crate::theme::SANS, weight), palette.text);
                 push(
                     out,
-                    &format!("{CODE_PAD}{code}{CODE_PAD}"),
+                    code,
                     font(CODE_FAMILY, FontWeight::NORMAL),
                     palette.text,
                 );
+                push(out, &pad, font(crate::theme::SANS, weight), palette.text);
                 out.2.push(start..out.0.len());
             }
-            Inline::Image(alt) => push(out, alt, font("Geist", weight), color),
+            Inline::Image(alt) => push(out, alt, font(crate::theme::SANS, weight), color),
             // `<sup>`: the footnote's number, raised.
             Inline::FootnoteRef(number) => {
                 let raised: String = number
@@ -112,15 +115,15 @@ pub(super) fn flatten(
                         None => c,
                     })
                     .collect();
-                push(out, &raised, font("Geist", weight), color)
+                push(out, &raised, font(crate::theme::SANS, weight), color)
             }
             Inline::SoftBreak => push(
                 out,
                 if preserve { "\n" } else { " " },
-                font("Geist", weight),
+                font(crate::theme::SANS, weight),
                 color,
             ),
-            Inline::HardBreak => push(out, "\n", font("Geist", weight), color),
+            Inline::HardBreak => push(out, "\n", font(crate::theme::SANS, weight), color),
             Inline::Strong(children) => flatten(
                 children,
                 preserve,

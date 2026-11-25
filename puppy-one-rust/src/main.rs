@@ -125,23 +125,6 @@ fn main() {
         let _ = open_tx.try_send(urls);
     });
     application.run(move |cx: &mut App| {
-        cx.text_system()
-            .add_fonts(vec![
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-Regular.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-Medium.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-SemiBold.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-Bold.ttf")),
-                // Agent Markdown inline code (`tools/import-agent-code-font.py`).
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/agent-inline-code.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Regular.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Bold.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Italic.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-BoldItalic.ttf")),
-            ])
-            .expect("load native UI and content fonts");
-        cx.text_system()
-            .add_fonts(editor::view::style::font_bytes())
-            .expect("load editor faces");
         // Before any input: tells swallowed function keys from delivered ones.
         cx.set_reduce_motion(platform::accessibility::reduce_motion());
         ui::ime::init(cx);

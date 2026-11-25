@@ -10,6 +10,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
 import {bundleProduct, catalogs, openPage, source} from './product-renderer.mjs';
+import {systemFontsDeep} from './system-fonts.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // `--csv`: the CSV viewer's contract (csv-table-editor.css) instead.
@@ -109,7 +110,8 @@ createRoot(document.getElementById('root')).render(<LocalizationProvider {...loc
     } finally { win.destroy(); }
   }
   const result = {source: csv ? 'product CSV viewer contract resolved in CsvViewer (default.neutral)' : 'product Markdown theme contract resolved in MarkdownViewer (default.neutral)', sourceCommit: bundle.sourceCommit,
-    inputs: Object.fromEntries(Object.entries(bundle.sourceHashes).filter(([p]) => /styles|theme|typography/i.test(p))), variants};
+    // The bundled faces become the system ones (`system-fonts.mjs`).
+    inputs: Object.fromEntries(Object.entries(bundle.sourceHashes).filter(([p]) => /styles|theme|typography/i.test(p))), variants: systemFontsDeep(variants)};
   const text = JSON.stringify(result, null, 1) + '\n';
   if (check) {
     const current = JSON.parse(await readFile(out, 'utf8'));

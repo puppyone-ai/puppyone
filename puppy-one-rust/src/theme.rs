@@ -300,15 +300,19 @@ pub mod metric {
     pub const SWITCH_THUMB: f32 = 14.;
 }
 
-/// `--po-font-mono` (Geist Mono) for machine output; static editor faces.
-/// CSS `line-height: normal` for Geist (ascender 1005 + descender 295 per
-/// 1000 units); GPUI's own default is 1.618.
+/// The product's CSS `line-height: normal` (1.3 em), which every interface
+/// layout is measured with; GPUI's own default is 1.618.
 pub const NORMAL_LINE_HEIGHT: f32 = 1.3;
-/// The interface sans with true oblique faces (the editor's Geist build),
-/// for the product's italic interface notes.
-pub const SANS_ITALIC: &str = "PuppyOne Geist 400";
-pub const MONO: &str = "PuppyOne Geist Mono 400";
-pub const MONO_MEDIUM: &str = "PuppyOne Geist Mono 500";
+/// The platform's interface face (CSS `system-ui`): GPUI's alias for SF Pro
+/// on macOS, Segoe UI on Windows and the desktop's sans on Linux. The app
+/// bundles no text faces of its own.
+pub const SANS: &str = ".SystemUIFont";
+/// The platform's monospaced face (CSS `ui-monospace`) for machine output:
+/// SF Mono on macOS, Consolas on Windows, DejaVu Sans Mono on Linux.
+pub const MONO: &str = crate::platform::conventions::Conventions::current().mono_font;
+/// The platform's serif face (CSS `ui-serif`) for serif reading themes:
+/// New York on macOS, Georgia on Windows, DejaVu Serif on Linux.
+pub const SERIF: &str = crate::platform::conventions::Conventions::current().serif_font;
 pub const HEADER: f32 = 40.0;
 pub const FONT: f32 = 14.0;
 
@@ -329,11 +333,13 @@ pub fn sync_kit(dark: bool, window: Option<&mut gpui::Window>, cx: &mut gpui::Ap
         KitTheme::change(mode, window, cx);
     }
     if KitTheme::global(cx).background != palette.canvas.into()
+        || KitTheme::global(cx).mono_font_family.as_ref() != MONO
         || KitTheme::global(cx).popover != palette.menu_bg.into()
         || KitTheme::global(cx).font_size != gpui::px(font_size(FONT))
     {
         KitTheme::update(cx, |theme| {
-            theme.font_family = "Geist".into();
+            theme.font_family = SANS.into();
+            theme.mono_font_family = MONO.into();
             theme.font_size = gpui::px(font_size(FONT));
             theme.background = palette.canvas.into();
             theme.foreground = palette.text.into();

@@ -16,30 +16,33 @@ use crate::typography::fonts::{self, Category, Role, Selection};
 use gpui::{App, Font, FontFallbacks, FontFeatures, FontStyle, FontWeight, SharedString};
 use std::cell::RefCell;
 
-/// The bundled faces' registered family names.
-const BUNDLED_SANS: &str = "Geist";
 /// GPUI's alias for the platform interface face (`system-ui`).
-const SYSTEM_UI: &str = ".SystemUIFont";
+const SYSTEM_UI: &str = crate::theme::SANS;
 /// The CSS `sans-serif` generic at the end of every sans stack (Chromium's
 /// macOS default) for glyphs no listed face covers.
 const GENERIC_SANS: &str = "Helvetica Neue";
 
-/// A catalog family's GPUI name: bundled faces by their registered names,
-/// the CSS system keywords as the platform interface face, and keywords GPUI
-/// cannot address by name (`ui-monospace`, `ui-serif`) dropped.
+/// A catalog family's GPUI name: the CSS system keywords as the platform's
+/// own faces, and keywords a platform has no face for dropped.
 fn gpui_family(css: &str) -> Option<&str> {
     match css {
-        "Geist Sans" => Some(BUNDLED_SANS),
-        "Geist Mono" => Some(crate::theme::MONO),
         "ui-sans-serif" | "system-ui" | "-apple-system" | "BlinkMacSystemFont" => Some(SYSTEM_UI),
-        "ui-serif" | "ui-monospace" | "ui-rounded" => None,
+        "ui-monospace" => KEYWORD_FACES.then_some(crate::theme::MONO),
+        "ui-serif" => KEYWORD_FACES.then_some(crate::theme::SERIF),
+        "ui-rounded" => None,
         other => Some(other),
     }
 }
 
-/// Families that always load: registered at startup or aliased by GPUI.
+/// Whether `ui-monospace` and `ui-serif` name system faces (macOS).
+const KEYWORD_FACES: bool =
+    crate::platform::conventions::Conventions::current().system_keyword_faces;
+
+/// Families that always load: GPUI's interface alias and the system
+/// keyword faces.
 fn always_available(family: &str) -> bool {
-    family == BUNDLED_SANS || family == crate::theme::MONO || family == SYSTEM_UI
+    family == SYSTEM_UI
+        || (KEYWORD_FACES && (family == crate::theme::MONO || family == crate::theme::SERIF))
 }
 
 /// One resolved stack: the face that renders, and the cascade behind it.
@@ -286,9 +289,9 @@ pub fn font(role: Role, cx: &App) -> Font {
 }
 
 /// The locale's script cascade for text that names its own face (the
-/// editor's weight-specific Geist builds): the content language's inside
+/// editor's text styles): the content language's inside
 /// [`with_content_language`], else the interface's. Before the first
-/// install it is the default locale's unprobed bundled order.
+/// install it is the default locale's unprobed order.
 pub fn fallbacks(category: Category) -> FontFallbacks {
     #[cfg(any(test, feature = "test-support"))]
     test_support::record();
@@ -405,56 +408,69 @@ mod tests {
             &mut with(&["Menlo", "Monaco", "Apple Color Emoji"]),
         );
         assert_eq!(stack.family.as_ref(), "Menlo");
-        assert_eq!(stack.fallbacks, ["Monaco", "Apple Color Emoji"]);
+        // The locale stack's `ui-monospace` (SF Mono on macOS) cascades.
+        let system: &[&str] = if KEYWORD_FACES {
+            &[crate::theme::MONO]
+        } else {
+            &[]
+        };
+        assert_eq!(
+            stack.fallbacks,
+            [&["Monaco"], system, &["Apple Color Emoji"]].concat()
+        );
         let stack = walk(&css, Category::Monospace, &mut with(&["SF Mono", "Menlo"]));
         assert_eq!(stack.family.as_ref(), "SF Mono");
-        assert_eq!(stack.fallbacks, ["Menlo"]);
-        // Nothing installed: the bundled mono still renders.
+        assert_eq!(stack.fallbacks, [&["Menlo"], system].concat());
+        // Nothing installed: the platform mono renders.
         let stack = walk(&css, Category::Monospace, &mut with(&[]));
         assert_eq!(stack.family.as_ref(), crate::theme::MONO);
     }
 
     #[test]
-    fn code_is_bundled_geist_mono_over_the_locale_script_faces() {
+    fn code_is_the_platform_mono_over_the_locale_script_faces() {
         let entry = fonts::resolve(&Selection::default()).code;
         let installed = ["PingFang SC", "Hiragino Sans", "Apple Color Emoji", "Menlo"];
-        let zh = walk(
-            &fonts::stack(entry, "zh-Hans"),
-            Category::Monospace,
-            &mut with(&installed),
+        let walk_in = |locale: &str| {
+            walk(
+                &fonts::stack(entry, locale),
+                Category::Monospace,
+                &mut with(&installed),
+            )
+        };
+        // `ui-monospace` is SF Mono on macOS; elsewhere the first installed
+        // family of the stack renders.
+        let (face, mut cascade): (&str, Vec<&str>) = if KEYWORD_FACES {
+            (crate::theme::MONO, vec!["Menlo"])
+        } else {
+            ("Menlo", vec![])
+        };
+        let zh = walk_in("zh-Hans");
+        assert_eq!(zh.family.as_ref(), face);
+        cascade.extend(["PingFang SC", "Apple Color Emoji"]);
+        assert_eq!(zh.fallbacks, cascade);
+        assert_eq!(
+            walk_in("ja")
+                .fallbacks
+                .iter()
+                .rev()
+                .nth(1)
+                .map(String::as_str),
+            Some("Hiragino Sans")
         );
-        assert_eq!(zh.family.as_ref(), crate::theme::MONO);
-        assert_eq!(zh.fallbacks, ["PingFang SC", "Apple Color Emoji"]);
-        let ja = walk(
-            &fonts::stack(entry, "ja"),
-            Category::Monospace,
-            &mut with(&installed),
-        );
-        assert_eq!(ja.fallbacks, ["Hiragino Sans", "Apple Color Emoji"]);
-        let en = walk(
-            &fonts::stack(entry, "en"),
-            Category::Monospace,
-            &mut with(&installed),
-        );
-        assert_eq!(en.fallbacks, ["Menlo", "Apple Color Emoji"]);
     }
 
     #[test]
-    fn the_interface_is_geist_and_system_keywords_never_enter_the_cascade() {
+    fn the_interface_is_the_system_face_and_keywords_never_enter_the_cascade() {
         let entry = fonts::resolve(&Selection::default()).ui;
         let en = walk(
             &fonts::stack(entry, "en"),
             Category::Sans,
             &mut with(&["Apple Color Emoji"]),
         );
-        assert_eq!(en.family.as_ref(), "Geist");
+        assert_eq!(en.family.as_ref(), SYSTEM_UI);
         assert_eq!(en.fallbacks, ["Apple Color Emoji", GENERIC_SANS]);
-        let system = fonts::CATALOG
-            .iter()
-            .find(|e| e.id == fonts::ids::SYSTEM_SANS)
-            .unwrap();
         let stack = walk(
-            &fonts::stack(system, "ko"),
+            &fonts::stack(entry, "ko"),
             Category::Sans,
             &mut with(&["Apple SD Gothic Neo"]),
         );
@@ -472,10 +488,10 @@ mod tests {
             assert_eq!(font(Role::Code, cx).family.as_ref(), crate::theme::MONO);
             assert_eq!(locale().as_deref(), Some("ja"));
             crate::localization::set_current("zh-Hans");
-            assert_eq!(font(Role::Ui, cx).family.as_ref(), BUNDLED_SANS);
+            assert_eq!(font(Role::Ui, cx).family.as_ref(), SYSTEM_UI);
             assert_eq!(locale().as_deref(), Some("zh-Hans"));
-            // The terminal stack has no bundled face: the bundled mono
-            // renders when nothing listed is installed.
+            // The platform mono renders when nothing the terminal stack
+            // lists is installed.
             assert_eq!(font(Role::Terminal, cx).family.as_ref(), crate::theme::MONO);
             let system = crate::typography::fonts::Selection {
                 content_font: crate::typography::fonts::ContentFont::Explicit {

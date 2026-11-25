@@ -25,7 +25,6 @@ use std::{
 
 const SCRIPT: &[u8] = include_bytes!("../../../assets/web/html-visual.js");
 const STYLE: &[u8] = include_bytes!("../../../assets/web/html-visual.css");
-const GEIST: &[u8] = include_bytes!("../../../assets/web/html-visual-geist.woff2");
 /// `HTML_VISUAL_MAX_CHARS` (UTF-16 code units).
 pub const MAX_CHARS: usize = 512 * 1024;
 /// Bounded timeout for the `prepare` flush barrier so hung pages never deadlock (`VW-22`).
@@ -145,11 +144,7 @@ impl Session {
             root: params.folder.clone(),
             entry: Entry::Html(page(&params, 1)),
             max_bytes: params.budget,
-            assets: vec![
-                ("html-visual.js", SCRIPT),
-                ("html-visual.css", STYLE),
-                ("fonts/geist/Geist-Variable.woff2", GEIST),
-            ],
+            assets: vec![("html-visual.js", SCRIPT), ("html-visual.css", STYLE)],
             ipc: Some(Ipc(tx.clone())),
             policy: None,
             frames: None,

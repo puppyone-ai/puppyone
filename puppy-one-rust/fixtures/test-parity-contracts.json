@@ -22916,7 +22916,7 @@
     },
     {
       "id": "typography-font-roles",
-      "acceptance": "Typography preferences keep one font per role: the UI font is pinned to Geist Sans and legacy UI font choices are discarded; content follows the theme by default, and the legacy default font (Geist before version 3, the 'theme' id) migrates to following the theme while an explicit choice is kept; code defaults to Geist Mono and terminals to the system monospace stack; a font missing from the catalog, or one of the wrong role, resolves to that role's product font with the fallback recorded; changing the content font changes nothing else; and ids that are not catalog ids (CSS, URLs, paths) are refused before they reach the resolver.",
+      "acceptance": "Typography preferences keep one font per role: the UI font is pinned to the product default (the platform's system face in the native app, which bundles no fonts) and legacy UI font choices are discarded; content follows the theme by default, and the legacy default font (Geist before version 3, the 'theme' id, and in the native app every retired Geist id) migrates to following the theme while an explicit choice is kept; code defaults to the product's monospace (the system monospace stack natively) and terminals to the system monospace stack; a font missing from the catalog, or one of the wrong role, resolves to that role's product font with the fallback recorded; changing the content font changes nothing else; and ids that are not catalog ids (CSS, URLs, paths) are refused before they reach the resolver.",
       "typescript": [
         {
           "path": "tests/architecture/appearance/typography/typographyArchitecture.test.ts",
@@ -22948,7 +22948,7 @@
       "rust": [
         {
           "package": "po-ui",
-          "test": "typography::fonts::tests::the_product_defaults_are_geist_for_code_and_the_system_stack_for_terminals"
+          "test": "typography::fonts::tests::the_product_defaults_are_the_platform_faces"
         },
         {
           "package": "po-ui",
@@ -39433,7 +39433,7 @@
     },
     {
       "id": "markdown-reading-weight-language",
-      "acceptance": "The reading weight follows the document's script before the interface locale: kana or hangul content reads as Japanese or Korean (normal weight) even under a Chinese interface, Han content takes the Han weight, and a document with no script signal follows the interface language.",
+      "acceptance": "The content language follows the document's script before the interface locale: kana or hangul content reads as Japanese or Korean even under a Chinese interface, Han content as Chinese, and a document with no script signal follows the interface language. (The native app reads every language at one body weight; the language picks the script fallback faces.)",
       "typescript": [
         {
           "path": "tests/unit/editor/formats/markdown/parsing/markdownContentLanguage.test.ts",
@@ -39453,7 +39453,7 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::content_language::tests::reading_weight_follows_content_then_interface_and_stays_latched"
+          "test": "editor::markdown::core::presentation::content_language::tests::the_language_follows_content_then_interface_and_stays_latched"
         }
       ]
     },
@@ -47725,7 +47725,7 @@
         },
         {
           "package": "po-ui",
-          "test": "ui::fonts::tests::the_interface_is_geist_and_system_keywords_never_enter_the_cascade"
+          "test": "ui::fonts::tests::the_interface_is_the_system_face_and_keywords_never_enter_the_cascade"
         },
         {
           "package": "po-ui",

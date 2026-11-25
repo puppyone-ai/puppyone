@@ -83,9 +83,9 @@ fn preview(t: Theme) -> SurfaceFrame {
             .flex()
             .child(cell.flex_1().min_w_0())
     };
-    // The product draws Geist as a variable font at these exact weights;
-    // the editor's static instances carry each one as its own family.
-    let geist = |weight: f32| -> SharedString { format!("PuppyOne Geist {weight}").into() };
+    // The editor's faces and weights (`editor::view::style`).
+    let weight_of = crate::editor::view::style::face_weight;
+    let reading = crate::editor::view::style::READING_WEIGHT;
     let left = v_flex()
         .py(px(12.))
         .px(px(8.))
@@ -123,8 +123,7 @@ fn preview(t: Theme) -> SurfaceFrame {
             .mt(px(top))
             .text_size(px(size))
             .line_height(px(size * 1.5))
-            .font_family(geist(weight))
-            .font_weight(FontWeight(weight))
+            .font_weight(weight_of(weight))
             .text_color(md.color("--po-md-heading-color"))
             // 34.5 / 28.5px line boxes stay fractional, as in the product.
             .child(crate::ui::fractional_text(tr(text)))
@@ -135,10 +134,12 @@ fn preview(t: Theme) -> SurfaceFrame {
     let strong = body.len() + 1..body.len() + 1 + bold.len();
     let strong_weight = md.number("--po-md-strong-weight");
     let body_font = |weight: f32| Font {
-        family: geist(weight),
+        family: theme::SANS.into(),
         features: FontFeatures::default(),
-        fallbacks: None,
-        weight: FontWeight(weight),
+        fallbacks: Some(crate::ui::fonts::fallbacks(
+            crate::typography::fonts::Category::Sans,
+        )),
+        weight: weight_of(weight),
         style: FontStyle::Normal,
     };
     let run = |len: usize, weight: f32, color: Rgba| TextRun {
@@ -151,13 +152,13 @@ fn preview(t: Theme) -> SurfaceFrame {
     };
     let content = md.color("--po-md-content-color");
     let runs = vec![
-        run(strong.start, 450., content),
+        run(strong.start, reading, content),
         run(
             strong.len(),
             strong_weight,
             md.color("--po-md-strong-color"),
         ),
-        run(text.len() - strong.end, 450., content),
+        run(text.len() - strong.end, reading, content),
     ];
     let editor = v_flex()
         .p(px(18.))
@@ -180,7 +181,7 @@ fn preview(t: Theme) -> SurfaceFrame {
             "settings.typography.preview.headingThree",
         ))
         .child(
-            // `.desktop-typography-preview-body`: reading weight 450, 1.75 lines.
+            // `.desktop-typography-preview-body`: the reading weight, 1.75 lines.
             // Its `margin-block-end: 0` (0,2,0) loses to the Markdown
             // surface's `p` rule (0,2,1), so the source-line and paragraph
             // gaps stay below it inside the flow-root surface.
@@ -190,8 +191,7 @@ fn preview(t: Theme) -> SurfaceFrame {
                     + md.len("--po-md-paragraph-gap-after", m.editor.content)))
                 .text_size(px(m.editor.content))
                 .line_height(px(m.editor.content * 1.75))
-                .font_family(geist(450.))
-                .font_weight(FontWeight(450.))
+                .font_weight(weight_of(reading))
                 .text_color(content)
                 // 26.25px lines: GPUI's text element would round them to 26.
                 .child(crate::ui::fractional_text(text).with_runs(runs)),
@@ -226,8 +226,7 @@ fn preview(t: Theme) -> SurfaceFrame {
                     div()
                         .mt(px(6.))
                         .line_height(px(m.right.content + 8.))
-                        .font_family(geist(450.))
-                        .font_weight(FontWeight(450.))
+                        .font_weight(weight_of(reading))
                         .child(tr("settings.typography.preview.message")),
                 ),
         );

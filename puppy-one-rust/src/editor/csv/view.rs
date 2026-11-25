@@ -1049,7 +1049,7 @@ impl CsvEditor {
         let t = Tokens::csv(self.theme.dark, self.theme.scale);
         TextStyle {
             size: t.len("--po-text-size-content", 16.),
-            weight: t.number("--po-plain-text-reading-weight"),
+            weight: crate::editor::view::style::READING_WEIGHT,
             italic: false,
             mono: false,
             color: self.theme.text_muted,

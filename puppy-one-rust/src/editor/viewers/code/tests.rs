@@ -10,7 +10,7 @@ use crate::editor::{
     view::{
         decoration::{Block, packed},
         plugins::ConflictBannerPlugin,
-        style::{self, Paint},
+        style::Paint,
     },
     viewers::text::open_markdown,
 };
@@ -52,7 +52,6 @@ fn setup_with_language<'a>(
     cx.update(|cx| {
         gpui_kit::init(cx);
         crate::ui::ime::init(cx);
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
     });
     let resolved = registry::resolve(&EditorDocument::local(name));
     let (view, cx) = cx.add_window_view(|w, cx| {
@@ -534,7 +533,6 @@ fn markdown_source_highlighting_subtheme_tokens_and_indent_guides(cx: &mut TestA
     cx.update(|cx| {
         gpui_kit::init(cx);
         crate::ui::ime::init(cx);
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
     });
     // 1. CE-10: Markdown source panel (`language_override = Some("markdown")`)
     let resolved = registry::resolve(&EditorDocument::local("guide.md"));

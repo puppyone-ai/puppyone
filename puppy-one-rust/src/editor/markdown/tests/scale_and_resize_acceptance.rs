@@ -22,7 +22,7 @@ use crate::{
             selection::Selection,
             state::{Transaction, UserEvent},
         },
-        view::{EditorView, bind_keys, style},
+        view::{EditorView, bind_keys},
     },
     typography::Scale,
 };
@@ -353,7 +353,6 @@ fn t4_extreme_documents_edit_and_navigate_cleanly(cx: &mut TestAppContext) {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
 

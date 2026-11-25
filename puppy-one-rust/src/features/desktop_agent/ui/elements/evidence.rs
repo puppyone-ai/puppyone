@@ -138,7 +138,7 @@ fn search_results(
         list = list.child(
             div()
                 .p(px(5.))
-                .font_family("Geist")
+                .font_family(crate::theme::SANS)
                 .text_size(px(theme::ty().left.meta))
                 .text_color(a.text_subtle)
                 .child(tf(
@@ -209,7 +209,8 @@ fn evidence_node(
                     .flex()
                     .items_center()
                     .justify_center()
-                    .font_family(theme::MONO_MEDIUM)
+                    .font_family(theme::MONO)
+                    .font_weight(FontWeight::MEDIUM)
                     .text_size(px(mono_size()))
                     .text_color(marker_color)
                     .child(marker),

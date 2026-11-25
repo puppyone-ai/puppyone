@@ -59,8 +59,8 @@ impl SettingsWorkspaceSurface {
                 s.sync_patterns(cx);
             }));
         // `.desktop-settings-pattern-editor`: top-aligned, 7px block padding,
-        // the control `min(100%, 520px)` at the end; the textarea is Geist Mono
-        // 13/17 with 9px/10px padding over `--po-input`. The pattern count is
+        // the control `min(100%, 520px)` at the end; the textarea is the monospace
+        // face at 13/17 with 9px/10px padding over `--po-input`. The pattern count is
         // only the textarea's description in the product.
         let editor = h_flex()
             .w_full()

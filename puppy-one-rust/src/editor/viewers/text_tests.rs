@@ -1,9 +1,8 @@
 #![cfg(test)]
 
 use super::*;
-use crate::editor::{
-    registry::{self, EditorDocument, HostCommand, PaneItemId, SourceKind, SurfaceInput},
-    view::style,
+use crate::editor::registry::{
+    self, EditorDocument, HostCommand, PaneItemId, SourceKind, SurfaceInput,
 };
 use core::prelude::v1::test;
 
@@ -19,7 +18,6 @@ fn dialect_surface<'a>(
         gpui_kit::init(cx);
         crate::ui::ime::init(cx);
         crate::editor::view::bind_keys(cx);
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
     });
     let name = name.to_owned();
     let (host, cx) = cx.add_window_view(move |window, cx| {
@@ -221,7 +219,6 @@ fn setup<'a>(
         gpui_kit::init(cx);
         crate::ui::ime::init(cx);
         crate::editor::view::bind_keys(cx);
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
     });
     let text = text.to_owned();
     let changes = Rc::new(Cell::new(0));

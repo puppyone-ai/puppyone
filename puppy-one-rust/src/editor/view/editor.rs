@@ -892,7 +892,11 @@ impl EditorView {
                 ..Default::default()
             })
             .with_selection(surface.selection.into())
-            .with_paragraph_gap(rems(0.));
+            .with_paragraph_gap(rems(0.))
+            // The platform faces have no inline-code or strong builds: code
+            // keeps the text size, strong the product's weight.
+            .with_inline_code_scale(1.)
+            .with_bold_weight(super::style::face_weight(super::style::STRONG_WEIGHT));
         if let Some(padding) = surface.inline_code_padding {
             style = style.with_inline_code_padding(padding);
         }

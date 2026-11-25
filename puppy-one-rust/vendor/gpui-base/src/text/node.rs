@@ -2645,7 +2645,8 @@ impl PartialEq for NodeContext {
 fn mark_highlight(mark: &TextMark, node_cx: &NodeContext, cx: &App) -> InlineHighlight {
     let mut highlight = HighlightStyle::default();
     if mark.bold {
-        highlight.font_weight = Some(FontWeight::BOLD);
+        // PuppyOne patch: the bold weight comes from the style.
+        highlight.font_weight = Some(node_cx.style.bold_weight());
     }
     if mark.italic {
         highlight.font_style = Some(FontStyle::Italic);
@@ -2682,7 +2683,8 @@ fn mark_highlight(mark: &TextMark, node_cx: &NodeContext, cx: &App) -> InlineHig
     InlineHighlight {
         style: highlight,
         font_family,
-        font_size_scale: mark.code.then_some(0.875),
+        // PuppyOne patch: the inline code scale comes from the style.
+        font_size_scale: mark.code.then(|| node_cx.style.inline_code_scale()),
         code_padding: mark
             .code
             .then(|| node_cx.style.inline_code_padding())

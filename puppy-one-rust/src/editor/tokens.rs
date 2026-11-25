@@ -38,8 +38,6 @@ struct RootMetrics {
     /// Chromium's platform scrollbar, reserved on BOTH edges by the product.
     #[serde(default, rename = "scrollbarGutter")]
     scrollbar_gutter: f32,
-    #[serde(default, rename = "readingWeights")]
-    reading_weights: HashMap<String, f32>,
 }
 
 #[derive(Deserialize)]
@@ -50,7 +48,6 @@ struct File {
 pub struct Tokens {
     map: HashMap<String, Token>,
     pub scrollbar_gutter: f32,
-    reading_weights: HashMap<String, f32>,
 }
 
 fn load(json: &str) -> HashMap<String, Tokens> {
@@ -63,7 +60,6 @@ fn load(json: &str) -> HashMap<String, Tokens> {
                 Tokens {
                     map: v.tokens,
                     scrollbar_gutter: v.root.scrollbar_gutter,
-                    reading_weights: v.root.reading_weights,
                 },
             )
         })
@@ -231,7 +227,6 @@ fn themed(host: Host, base: &'static Tokens, dark: bool, scale: Scale) -> &'stat
     let tokens: &'static Tokens = Box::leak(Box::new(Tokens {
         map,
         scrollbar_gutter: base.scrollbar_gutter,
-        reading_weights: base.reading_weights.clone(),
     }));
     THEMED.with(|t| t.borrow_mut().insert(key, tokens));
     tokens
@@ -396,11 +391,6 @@ impl Tokens {
     pub fn get(dark: bool, scale: Scale) -> &'static Tokens {
         themed(Host::Markdown, &variants()[&key(dark, scale)], dark, scale)
     }
-    /// The content boundary's language, not the interface's language alone,
-    /// selects the reading weight (typography/locales.css).
-    pub fn reading_weight(&self, han: bool) -> f32 {
-        self.reading_weights[if han { "zh-Hans" } else { "en" }]
-    }
     pub fn csv(dark: bool, scale: Scale) -> &'static Tokens {
         themed(Host::Csv, &csv_variants()[&key(dark, scale)], dark, scale)
     }
@@ -476,8 +466,8 @@ mod tests {
         );
         assert_eq!(paper.len("--po-md-block-gap", 15.), 20.);
         use crate::editor::view::style::Face;
-        assert_eq!(Face::of(paper.raw("--po-md-content-font")), Face::PtSerif);
-        assert_eq!(Face::of(neutral.raw("--po-md-content-font")), Face::Geist);
+        assert_eq!(Face::of(paper.raw("--po-md-content-font")), Face::Serif);
+        assert_eq!(Face::of(neutral.raw("--po-md-content-font")), Face::Sans);
         // What the theme leaves alone stays Chromium's.
         assert_eq!(
             paper.number("--po-md-h1-weight"),

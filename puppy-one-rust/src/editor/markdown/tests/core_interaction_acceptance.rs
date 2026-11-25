@@ -34,7 +34,6 @@ use crate::{
             extension::{
                 DecorateInput, EditIntent, EditorExtension, LinkAction, config_transaction,
             },
-            style,
         },
     },
     render_service::{self, Kind as RenderKind, MAX_SOURCE_BYTES, Request, State as RenderState},
@@ -1360,7 +1359,6 @@ fn read_only_allows_view_commands_and_blocks_document_edits(cx: &mut TestAppCont
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
 

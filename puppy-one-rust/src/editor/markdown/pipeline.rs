@@ -95,8 +95,7 @@ impl PipelineCache {
         let language = self
             .reading_language
             .resolve_buffer(doc, &crate::localization::current().code);
-        theme.body.text.weight =
-            crate::editor::tokens::Tokens::get(dark, cfg.scale).reading_weight(language.han());
+        theme.body.text.weight = crate::editor::view::style::READING_WEIGHT;
         // The surface's `lang`: its script fallback faces.
         theme.surface.language = Some(language.language.clone().into());
         theme

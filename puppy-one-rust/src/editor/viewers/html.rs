@@ -1121,9 +1121,6 @@ mod tests {
             if cx.try_global::<gpui_kit::component::Theme>().is_none() {
                 gpui_kit::init(cx);
             }
-            cx.text_system()
-                .add_fonts(crate::editor::view::style::font_bytes())
-                .unwrap();
         });
         let text = "<!doctype html><html><head></head><body><h1>Draft</h1></body></html>";
         let (_, cx) = cx.add_window_view(|_, _| EmptyPage);
@@ -1194,9 +1191,6 @@ mod tests {
             if cx.try_global::<gpui_kit::component::Theme>().is_none() {
                 gpui_kit::init(cx);
             }
-            cx.text_system()
-                .add_fonts(crate::editor::view::style::font_bytes())
-                .unwrap();
         });
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().canonicalize().unwrap();
@@ -1241,9 +1235,6 @@ mod tests {
             if cx.try_global::<gpui_kit::component::Theme>().is_none() {
                 gpui_kit::init(cx);
             }
-            cx.text_system()
-                .add_fonts(crate::editor::view::style::font_bytes())
-                .unwrap();
         });
         let text = "<!doctype html><html><head></head><body><h1>Draft</h1></body></html>";
         let (_, cx) = cx.add_window_view(|_, _| EmptyPage);
@@ -1291,9 +1282,6 @@ mod tests {
             if cx.try_global::<gpui_kit::component::Theme>().is_none() {
                 gpui_kit::init(cx);
             }
-            cx.text_system()
-                .add_fonts(crate::editor::view::style::font_bytes())
-                .unwrap();
         });
         let (_, cx) = cx.add_window_view(|_, _| EmptyPage);
         let open = |id: &str,

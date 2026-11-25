@@ -570,13 +570,12 @@ fn setup_two_panes<'a>(
     gpui::Entity<crate::editor::view::EditorView>,
     &'a mut VisualTestContext,
 ) {
-    use crate::editor::view::{EditorView, bind_keys, style};
+    use crate::editor::view::{EditorView, bind_keys};
     use gpui::AppContext;
     cx.update(|cx| {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
     let left_text = left_source.to_owned();

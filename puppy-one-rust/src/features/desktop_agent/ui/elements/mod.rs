@@ -44,7 +44,7 @@ pub fn context_divider(label: SharedString, a: &AgentTheme) -> AnyElement {
             div()
                 .text_size(px(theme::ty().left.meta))
                 .line_height(px(theme::ty().right.meta_line_height))
-                .font_weight(FontWeight(450.))
+                .font_weight(FontWeight::NORMAL)
                 .child(label),
         )
         .child(rule())
@@ -88,7 +88,7 @@ pub fn mention_chip(a: &AgentTheme, label: String, resolving: bool) -> Div {
         .text_color(theme::mix(a.accent, a.text, 0.78))
         .text_size(px(14.))
         .line_height(px(18.))
-        .font_weight(FontWeight(450.))
+        .font_weight(FontWeight::NORMAL)
         .whitespace_nowrap()
         .when(resolving, |d| d.opacity(0.68))
         .child(label)

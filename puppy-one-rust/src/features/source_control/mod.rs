@@ -958,15 +958,15 @@ impl SourceControl {
             ' ' => change.index,
             other => other,
         };
-        // `getGitDisplayName`: `old -> new` for a rename (Geist draws the
-        // arrow ligature).
+        // `getGitDisplayName`: `old -> new` for a rename.
         let base = |p: &str| p.rsplit('/').next().unwrap_or(p).to_owned();
         let name = match change.original.as_deref().filter(|o| *o != change.path) {
             Some(old) => format!("{} -> {}", base(old), base(&change.path)),
             None => base(&change.path),
         };
         // `.desktop-working-tree-state` sits on the name's baseline; GPUI
-        // text has none to align to, so place it by Geist's metrics.
+        // text has none to align to, so place it by the product's line
+        // metrics (a 1.3 em line, a 1.005 em ascent).
         let baseline =
             |size: f32, line: f32| (line - size * theme::NORMAL_LINE_HEIGHT) / 2. + size * 1.005;
         let marker_top =
@@ -1784,7 +1784,7 @@ impl SourceControl {
                         .text_size(px(theme::ty().ui.meta))
                         .line_height(relative(theme::NORMAL_LINE_HEIGHT))
                         .text_color(color)
-                        .when(italic, |d| d.font_family(theme::SANS_ITALIC).italic())
+                        .when(italic, |d| d.italic())
                         .child(text),
                 )
         };

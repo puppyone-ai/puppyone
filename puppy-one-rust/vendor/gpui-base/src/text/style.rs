@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use gpui::{HighlightStyle, Hsla, Rems, StyleRefinement, rems};
+use gpui::{FontWeight, HighlightStyle, Hsla, Rems, StyleRefinement, rems};
 
 use crate::ColorTokens;
 
@@ -34,6 +34,10 @@ pub struct TextViewStyle {
     /// whether links are underlined.
     inline_code_padding: Option<f32>,
     link_underline: bool,
+    /// PuppyOne patch: inline code's size relative to the text (`None`:
+    /// 0.875) and the weight of a bold mark (`None`: bold).
+    inline_code_scale: Option<f32>,
+    bold_weight: Option<FontWeight>,
 }
 
 impl PartialEq for TextViewStyle {
@@ -56,6 +60,8 @@ impl PartialEq for TextViewStyle {
             && self.is_dark == other.is_dark
             && self.inline_code_padding == other.inline_code_padding
             && self.link_underline == other.link_underline
+            && self.inline_code_scale == other.inline_code_scale
+            && self.bold_weight == other.bold_weight
     }
 }
 
@@ -101,6 +107,8 @@ impl TextViewStyle {
             is_dark,
             inline_code_padding: None,
             link_underline: true,
+            inline_code_scale: None,
+            bold_weight: None,
         }
     }
 
@@ -190,8 +198,28 @@ impl TextViewStyle {
         self
     }
 
+    /// PuppyOne patch: inline code's size as a fraction of the text's.
+    pub fn with_inline_code_scale(mut self, scale: f32) -> Self {
+        self.inline_code_scale = Some(scale);
+        self
+    }
+
+    /// PuppyOne patch: the weight a bold mark draws with.
+    pub fn with_bold_weight(mut self, weight: FontWeight) -> Self {
+        self.bold_weight = Some(weight);
+        self
+    }
+
     pub(crate) fn inline_code_padding(&self) -> Option<f32> {
         self.inline_code_padding
+    }
+
+    pub(crate) fn inline_code_scale(&self) -> f32 {
+        self.inline_code_scale.unwrap_or(0.875)
+    }
+
+    pub(crate) fn bold_weight(&self) -> FontWeight {
+        self.bold_weight.unwrap_or(FontWeight::BOLD)
     }
 
     pub(crate) fn link_underline(&self) -> bool {

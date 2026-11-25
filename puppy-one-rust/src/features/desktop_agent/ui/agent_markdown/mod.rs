@@ -154,7 +154,7 @@ fn flow(children: &[Block], cx: &mut Context<'_>, path: &str) -> Div {
 
 fn text_style(size: f32, line_height: f32, color: Rgba) -> TextStyleRefinement {
     TextStyleRefinement {
-        font_family: Some("Geist".into()),
+        font_family: Some(crate::theme::SANS.into()),
         font_fallbacks: Some(crate::ui::fonts::fallbacks(
             crate::typography::fonts::Category::Sans,
         )),

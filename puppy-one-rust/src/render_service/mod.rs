@@ -24,7 +24,6 @@ use std::{
 
 const SCRIPT: &[u8] = include_bytes!("../../assets/web/render-service.js");
 const STYLE: &[u8] = include_bytes!("../../assets/web/render-service.css");
-const GEIST: &[u8] = include_bytes!("../../assets/web/html-visual-geist.woff2");
 /// `MERMAID_MAX_SOURCE_BYTES`.
 pub const MAX_SOURCE_BYTES: usize = 128 * 1024;
 /// `MERMAID_RENDER_TIMEOUT_MS`.
@@ -546,11 +545,7 @@ fn open_host(window: &mut Window, cx: &mut App) -> bool {
         source: None,
         entry: Entry::Html(page()),
         max_bytes: 8 * 1024 * 1024,
-        assets: vec![
-            ("render-service.js", SCRIPT),
-            ("render-service.css", STYLE),
-            ("fonts/geist/Geist-Variable.woff2", GEIST),
-        ],
+        assets: vec![("render-service.js", SCRIPT), ("render-service.css", STYLE)],
         ipc: Some(Ipc(tx)),
         policy: Some(POLICY),
         frames: None,
@@ -815,7 +810,7 @@ mod tests {
         assert_eq!(mermaid_config(&theme(true))["darkMode"], true);
         let font = config["fontFamily"].as_str().unwrap();
         assert!(
-            font.starts_with("\"Geist Sans\", ") && !font.contains('\n'),
+            font.starts_with("system-ui, ") && !font.contains('\n'),
             "{font}"
         );
         let variables = &config["themeVariables"];

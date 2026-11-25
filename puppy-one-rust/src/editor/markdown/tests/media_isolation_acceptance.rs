@@ -40,7 +40,6 @@ use crate::{
             EditorView, bind_keys,
             decoration::Block,
             extension::{SetReadOnly, config_transaction},
-            style,
             widget::WidgetState,
         },
     },
@@ -549,7 +548,6 @@ fn whole_widget_selection_covers_tabs_video_table_and_isolates_sibling_editors(
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
     let left_text = "| Name | Value |\n| --- | --- |\n| one | two |";
@@ -602,7 +600,6 @@ fn pane_state_isolation_and_workspace_projection_retain_widgets_across_unrelated
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
     let doc = "| Name | Value |\n| --- | --- |\n| row | stable |\n\nParagraph with **pane-local source** and trailing text.";

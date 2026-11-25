@@ -7,7 +7,7 @@
 #[allow(unused_imports)]
 use super::MarkdownExtension;
 use crate::{
-    editor::view::{EditorView, bind_keys, style},
+    editor::view::{EditorView, bind_keys},
     typography::Scale,
 };
 use gpui::{Entity, TestAppContext, VisualTestContext};
@@ -66,7 +66,6 @@ fn setup_with_focus<'a>(
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
     let text = text.to_owned();

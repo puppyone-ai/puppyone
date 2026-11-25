@@ -942,7 +942,6 @@ impl CloudHistory {
                 .py(px(14.))
                 .text_size(px(m.ui.meta))
                 .line_height(relative(theme::NORMAL_LINE_HEIGHT))
-                .font_family(theme::SANS_ITALIC)
                 .italic()
                 .text_color(t.subtle)
                 .child(text.to_owned())

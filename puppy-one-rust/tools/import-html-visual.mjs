@@ -9,6 +9,7 @@ import {execFileSync} from 'node:child_process';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {root} from './product-bundle.mjs';
+import {systemFonts} from './system-fonts.mjs';
 
 const check = process.argv.includes('--check');
 // The TS app lives in the repository that holds puppy-one-rust.
@@ -59,17 +60,14 @@ const inputs = [...new Set([...Object.keys(script.metafile.inputs), ...Object.ke
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const sourceHashes = Object.fromEntries(await Promise.all(inputs.map(async p => [p, hash(await readFile(path.resolve(product, p)))])));
 const js = script.outputFiles[0].text;
-// Product fonts load from the bundle (`__assets__/fonts/…`), never from the
-// document's folder; only Geist Sans ships, the rest fall back.
-const FONTS = {'geist/Geist-Variable.woff2': 'public/fonts/geist/Geist-Variable.woff2'};
-const css = styles.outputFiles[0].text.replaceAll('url(/fonts/', 'url(fonts/').replaceAll('url("/fonts/', 'url("fonts/');
-const fonts = Object.fromEntries(await Promise.all(Object.entries(FONTS).map(async ([name, file]) => [name, await readFile(source(file))])));
-for (const file of Object.values(FONTS)) sourceHashes[file] = hash(fonts[Object.keys(FONTS).find(k => FONTS[k] === file)]);
+// The surface is set in the system faces (`system-fonts.mjs`); no product
+// font ships with it.
+const css = systemFonts(styles.outputFiles[0].text);
 const receipt = {
   sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], {cwd: product, encoding: 'utf8'}).trim(),
   entry: 'tools/html-visual-entry.tsx',
   entryHash: hash(entry),
-  outputs: {'html-visual.js': hash(js), 'html-visual.css': hash(css), 'html-visual-geist.woff2': hash(fonts['geist/Geist-Variable.woff2'])},
+  outputs: {'html-visual.js': hash(js), 'html-visual.css': hash(css)},
   sourceHashes,
 };
 const target = path.join(root, 'assets/web');
@@ -79,8 +77,6 @@ if (check) {
     const committed = await readFile(path.join(target, name), 'utf8').catch(() => null);
     if (committed !== text) stale.push(name);
   }
-  const font = await readFile(path.join(target, 'html-visual-geist.woff2')).catch(() => null);
-  if (!font || !font.equals(fonts['geist/Geist-Variable.woff2'])) stale.push('html-visual-geist.woff2');
   const committed = JSON.parse(await readFile(path.join(target, 'html-visual.json'), 'utf8').catch(() => '{}'));
   if (JSON.stringify(committed.sourceHashes) !== JSON.stringify(sourceHashes)) stale.push('html-visual.json');
   if (stale.length) throw new Error(`Stale HTML visual editor assets: ${stale.join(', ')} (run node tools/import-html-visual.mjs)`);
@@ -89,7 +85,6 @@ if (check) {
   await mkdir(target, {recursive: true});
   await writeFile(path.join(target, 'html-visual.js'), js);
   await writeFile(path.join(target, 'html-visual.css'), css);
-  await writeFile(path.join(target, 'html-visual-geist.woff2'), fonts['geist/Geist-Variable.woff2']);
   await writeFile(path.join(target, 'html-visual.json'), JSON.stringify(receipt, null, 2) + '\n');
   console.log(`HTML visual editor imported: ${(js.length / 1024).toFixed(0)} KiB script, ${(css.length / 1024).toFixed(0)} KiB style, ${inputs.length} product sources`);
 }

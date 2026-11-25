@@ -7,7 +7,7 @@ use super::{
     EditorView, bind_keys,
     editor::EditorEvent,
     extension::{EditorExtension, PlainText},
-    style::{self, LineHeight, LineStyle, TextStyle},
+    style::{LineHeight, LineStyle, TextStyle},
 };
 use crate::{
     editor::{
@@ -63,7 +63,6 @@ fn open<'a>(cx: &'a mut TestAppContext, format: Format, text: &str, caret: usize
             gpui_kit::init(cx);
             crate::ui::ime::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
     let text = text.to_owned();

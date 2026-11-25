@@ -8,7 +8,7 @@
   },
   "outputs": {
     "render-service.js": "cf52184905886799b8a23596630b65f6b367b4458c18d9395a78fec1134ff16c",
-    "render-service.css": "e548b99a5348ad7e7e9b68c6a474d28864fcfe875f7823a96050387b53c7eec7"
+    "render-service.css": "8a54886d9d3cb6ab8fc6f4581d9a9f30a56870aebc8d879e0e830bd6c2adae5b"
   },
   "sourceHashes": {
     "src/shared-ui/core/dataResourcePath.ts": "78ab58a2a0f53f92ea6d5d46439fefac4be5cbd701cc6381d9b6e9798aab36b0",
