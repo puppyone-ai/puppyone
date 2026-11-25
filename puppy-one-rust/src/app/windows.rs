@@ -376,11 +376,7 @@ pub fn open_from_cli(
     };
     let failed = |_| ("OPEN_FAILED", format!("{requested} could not be opened."));
     if metadata.is_dir() {
-        let existing = live(cx).into_iter().find(|(_, shell)| {
-            let shell = shell.read(cx);
-            shell.file.is_none() && shell.workspace_root(cx).as_deref() == Some(real.as_path())
-        });
-        if let Some((handle, _)) = existing {
+        if let Some(handle) = window_for_folder(&real, cx) {
             show(handle, cx);
             return Ok(Opened {
                 folder: true,
@@ -533,10 +529,30 @@ pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) -> bool {
     shown
 }
 
-/// `openPathFromSystem`: `true` when a window now shows `path`.
+/// `findProjectWindowForFolder`: the project window that shows `folder`,
+/// or is still opening or restoring it.
+fn window_for_folder(folder: &std::path::Path, cx: &App) -> Option<AnyWindowHandle> {
+    live(cx).into_iter().find_map(|(handle, shell)| {
+        let shell = shell.read(cx);
+        (shell.file.is_none()
+            && [shell.workspace_root(cx), shell.opening_folder(cx)]
+                .iter()
+                .any(|root| root.as_deref() == Some(folder)))
+        .then_some(handle)
+    })
+}
+
+/// `openPathFromSystem`: `true` when a window now shows `path`. A folder a
+/// project window already shows, or is still opening, comes forward there.
 pub fn open_path(path: PathBuf, cx: &mut App) -> bool {
     if path.is_dir() {
-        open(Some(path), cx).is_ok()
+        let real = path.canonicalize().unwrap_or(path);
+        if let Some(handle) = window_for_folder(&real, cx) {
+            let _ = handle.update(cx, |_, window, _| window.activate_window());
+            cx.activate(true);
+            return true;
+        }
+        open(Some(real), cx).is_ok()
     } else if super::file_mode::is_file_mode_file(&path) {
         open_file(path, cx).is_ok()
     } else {
