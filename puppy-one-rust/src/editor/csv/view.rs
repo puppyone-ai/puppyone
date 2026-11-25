@@ -636,6 +636,15 @@ impl CsvEditor {
     fn row_y(&self, row: usize) -> f32 {
         self.table_origin().1 + 1. + row as f32 * self.theme.table.row_min_height
     }
+    /// Tests: a window point inside cell (`row`, `column`), as last painted.
+    #[cfg(test)]
+    pub(crate) fn cell_point_for_tests(&self, row: usize, column: usize) -> Point<Pixels> {
+        let origin = self.port.origin.expect("the table is painted");
+        point(
+            origin.x + px(self.column_x(column) + 5. - self.port.scroll.x),
+            origin.y + px(self.row_y(row) + 5. - self.port.scroll.y),
+        )
+    }
     fn table_size(&self) -> (f32, f32) {
         let w = 2.
             + self.index_width()
