@@ -358,8 +358,9 @@ impl Render for Explorer {
         let pins = session.pins(cx);
         let pinned = !pins.files.is_empty();
         let folded = pinned && pins.files_collapsed;
+        let hidden_header = self.preferences.read(cx).state.experimental.hidden_header;
         // Under pins the fold line is the tree's top edge already.
-        let top_fade = !pinned && self.preferences.read(cx).state.experimental.hidden_header;
+        let top_fade = !pinned && hidden_header;
         let tree = div()
             .id("explorer-tree")
             .flex_1()
@@ -416,19 +417,32 @@ impl Render for Explorer {
                     }),
                 )
                 .size_full()
-                // The fold line already separates the pins from the first file.
-                .pt(px(if pinned { 2. } else { 12. }))
+                // The fold line already separates the pins from the first file;
+                // without a Header the floating top bar overlays the top 40px.
+                .pt(px(if pinned {
+                    2.
+                } else if hidden_header {
+                    theme::HEADER + 12.
+                } else {
+                    12.
+                }))
                 .pb(px(6.))
                 .px(px(metric::SIDEBAR_ROW_LEFT_GAP))
                 .track_scroll(&scroll),
             )
-            .when(top_fade, |d| d.child(self.tree_top_fade(t, cx)));
+            .when(top_fade, |d| d.child(self.tree_top_fade(t)));
         div()
             .size_full()
             .flex()
             .flex_col()
             .bg(t.sidebar)
-            .when(pinned, |d| d.child(self.pins_view(&pins, cx)))
+            .when(pinned, |d| {
+                d.child(
+                    div()
+                        .when(hidden_header, |d| d.pt(px(theme::HEADER)))
+                        .child(self.pins_view(&pins, cx)),
+                )
+            })
             .children(
                 operation_error
                     .clone()
@@ -443,7 +457,11 @@ impl Render for Explorer {
                             .px(px(
                                 metric::SIDEBAR_ROW_LEFT_GAP + metric::TREE_ROW_CONTENT_LEFT
                             ))
-                            .pt(px(12.))
+                            .pt(px(if hidden_header && !pinned {
+                                theme::HEADER + 12.
+                            } else {
+                                12.
+                            }))
                             .text_size(px(theme::ty().left.meta))
                             .text_color(t.subtle)
                             .child(tr(if loading {
@@ -559,30 +577,22 @@ impl Explorer {
         .bottom_0()
         .h(px(metric::SIDEBAR_NAVIGATION_FADE_SIZE))
     }
-    /// Without the Header (experimental) nothing separates the tree from the
-    /// window's top: rows scrolled up fade into it instead of being cut.
-    fn tree_top_fade(&self, t: Theme, cx: &App) -> impl IntoElement {
-        let scroll = self.session.read(cx).scroll().clone();
+    /// Without the Header (experimental) the sidebar top bar floats
+    /// transparently over the tree; rows scrolled up glide smoothly beneath a
+    /// bottom-transparent gradient scrim into `t.sidebar`.
+    fn tree_top_fade(&self, t: Theme) -> impl IntoElement {
         let sidebar = t.sidebar;
         canvas(
             |_, _, _| {},
             move |bounds, _, window, _| {
-                let offset = scroll.0.borrow().base_handle.offset();
-                scroll_edge::paint(
-                    window,
-                    bounds,
-                    scroll_edge::Edge::Top,
-                    sidebar,
-                    metric::SIDEBAR_NAVIGATION_FADE_SIZE,
-                    scroll_edge::strength(-f32::from(offset.y)),
-                );
+                scroll_edge::paint_header_scrim(window, bounds, sidebar);
             },
         )
         .absolute()
         .left_0()
         .right_0()
         .top_0()
-        .h(px(metric::SIDEBAR_NAVIGATION_FADE_SIZE))
+        .h(px(scroll_edge::FLOATING_HEADER_SCRIM))
     }
 }
 /// `useScrollEdgeState` bottom fade: the remaining scroll over a 24px distance,

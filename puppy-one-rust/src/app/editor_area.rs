@@ -161,7 +161,11 @@ impl EditorArea {
         if let Some(presence) = crate::features::agent_presence::store(cx) {
             cx.observe(&presence, |_, _, cx| cx.notify()).detach();
         }
-        cx.observe(&preferences, |_, _, cx| cx.notify()).detach();
+        cx.observe(&preferences, |s, _, cx| {
+            s.sync_chrome_inset(cx);
+            cx.notify();
+        })
+        .detach();
         let mut hosts = BTreeMap::new();
         hosts.insert(0, front.clone());
         Self {
@@ -190,6 +194,60 @@ impl EditorArea {
     /// A file window's editors have no workspace around them.
     pub fn set_file_mode(&mut self, file_mode: bool) {
         self.file_mode = file_mode;
+    }
+    /// Floating header height over top-row documents when the project window
+    /// runs without a Header.
+    pub(super) fn chrome_inset(&self, cx: &App) -> f32 {
+        if !self.file_mode && self.preferences.read(cx).state.experimental.hidden_header {
+            crate::theme::HEADER
+        } else {
+            0.
+        }
+    }
+    /// Updates `chrome_inset` on every open host: top-row panes clear the
+    /// floating 40px header while bottom panes in a vertical split stay at 0.
+    fn sync_chrome_inset(&mut self, cx: &mut Context<Self>) {
+        use crate::editor::workbench::layout::{Direction, Node};
+        fn top_editors<'a>(node: &'a Node, out: &mut Vec<&'a str>) {
+            match node {
+                Node::Pane { editor, .. } => {
+                    if let Some(key) = editor.as_deref() {
+                        out.push(key);
+                    }
+                }
+                Node::Split {
+                    direction,
+                    first,
+                    second,
+                    ..
+                } => {
+                    top_editors(first, out);
+                    if *direction == Direction::Horizontal {
+                        top_editors(second, out);
+                    }
+                }
+            }
+        }
+        let inset = self.chrome_inset(cx);
+        let top_slots: Option<Vec<u64>> = (inset > 0.).then(|| {
+            let docs = self.docs.read(cx);
+            let Some(state) = docs.state() else {
+                return vec![0];
+            };
+            let mut keys = Vec::new();
+            top_editors(&state.layout.root, &mut keys);
+            keys.into_iter()
+                .filter_map(|k| docs.slot_for_key(k))
+                .collect()
+        });
+        let hosts: Vec<_> = self.hosts.iter().map(|(s, e)| (*s, e.clone())).collect();
+        for (slot, editor) in hosts {
+            let host_inset = match &top_slots {
+                Some(top) if top.contains(&slot) => inset,
+                _ => 0.,
+            };
+            editor.update(cx, |s, cx| s.set_chrome_inset(host_inset, cx));
+        }
     }
     /// What the window holds over the editors changed.
     pub fn set_gate(&mut self, gate: EditorGate, window: &mut Window, cx: &mut Context<Self>) {
@@ -532,6 +590,7 @@ impl EditorArea {
     /// Holds each editor behind the gate: a dialog, the Homepage, a slot
     /// out of sight, or a document still on its way.
     fn apply_gate(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.sync_chrome_inset(cx);
         let visible = self.docs.read(cx).visible_slots();
         let read_only = self.read_only(cx);
         let gate = self.gate;

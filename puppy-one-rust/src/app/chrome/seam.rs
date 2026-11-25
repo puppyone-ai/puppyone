@@ -22,10 +22,7 @@ use crate::{
     editor::host::DocumentEditor,
     geometry::Rect,
     theme::{self, metric},
-    ui::{
-        appearance::ActiveAppearance,
-        scroll_edge::{self, Edge},
-    },
+    ui::{appearance::ActiveAppearance, scroll_edge},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::{h_flex, v_flex};
@@ -170,9 +167,10 @@ impl<'a> PaneChrome<'a> {
         self.chrome.read(cx).sidebar_bar(visible, self.rail, cx)
     }
 
-    /// The main pane without a Header: its 40px top bar over `content`, with
-    /// the scrolled document fading smoothly into the canvas ground at the
-    /// boundary.
+    /// The main pane without a Header: `content` runs full-height from
+    /// `y = 0` so documents scroll seamlessly underneath a bottom-transparent
+    /// gradient scrim and floating transparent 40px top bar. (Cloud Computer
+    /// screen sits below 40px since its own toolbar occupies the top edge.)
     pub(in crate::app) fn main_pane(
         self,
         leading: bool,
@@ -181,22 +179,33 @@ impl<'a> PaneChrome<'a> {
         window: &Window,
         cx: &App,
     ) -> AnyElement {
-        let fade = front.map(|front| document_fade(front, cx));
-        v_flex()
+        let is_cloud_screen = front.is_none();
+        let scrim = front.map(|front| header_scrim(front, cx));
+        let body = if is_cloud_screen {
+            div().size_full().pt(px(theme::HEADER)).child(content)
+        } else {
+            div().size_full().child(content)
+        };
+        div()
+            .relative()
             .size_full()
             .bg(cx.palette().canvas)
-            .child(
-                self.chrome
-                    .read(cx)
-                    .main_bar(leading, !self.end_open, self.rail, window, cx),
-            )
+            .child(body)
+            .children(scrim)
             .child(
                 div()
-                    .relative()
-                    .flex_1()
-                    .min_h_0()
-                    .child(content)
-                    .children(fade),
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .h(px(theme::HEADER))
+                    .child(self.chrome.read(cx).main_bar(
+                        leading,
+                        !self.end_open,
+                        self.rail,
+                        window,
+                        cx,
+                    )),
             )
             .into_any_element()
     }
@@ -243,22 +252,20 @@ pub(in crate::app) fn editor_body(editor: Rect, headerless: bool) -> Rect {
     )
 }
 
-/// The front document scrolled up under the main pane's tools fades into the
-/// canvas ground instead of being cut off; never a pinned table header row,
-/// which is the edge already. Read at paint time so it follows every frame.
-fn document_fade(front: Entity<DocumentEditor>, cx: &App) -> impl IntoElement {
+/// Smooth top-to-bottom floating header scrim over the document: completely
+/// transparent at the bottom (`y = 64px`), easing upward into `canvas` toward
+/// the top edge so scrolled text melts softly behind the floating controls.
+/// Skipped over pinned table headers (e.g. CSV), which already own `y = 40`.
+fn header_scrim(front: Entity<DocumentEditor>, cx: &App) -> impl IntoElement {
     let canvas_ground = cx.palette().canvas;
-    let height = metric::DOCUMENT_TOP_FADE;
+    let height = scroll_edge::FLOATING_HEADER_SCRIM;
     gpui::canvas(
         |_, _, _| {},
         move |bounds, _, window, cx| {
-            let (scroll, pinned) = front.read(cx).scroll_state(cx);
-            let strength = if pinned {
-                0.
-            } else {
-                scroll_edge::strength(scroll)
-            };
-            scroll_edge::paint(window, bounds, Edge::Top, canvas_ground, height, strength);
+            let (_, pinned) = front.read(cx).scroll_state(cx);
+            if !pinned {
+                scroll_edge::paint_header_scrim(window, bounds, canvas_ground);
+            }
         },
     )
     .absolute()

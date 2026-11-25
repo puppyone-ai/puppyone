@@ -225,7 +225,11 @@ impl DocumentEditor {
                 bar
             }
         };
-        bar.update(cx, |b, cx| b.show(window, cx));
+        let top_inset = self.chrome_inset;
+        bar.update(cx, |b, cx| {
+            b.top_inset = top_inset;
+            b.show(window, cx);
+        });
         cx.notify();
     }
 

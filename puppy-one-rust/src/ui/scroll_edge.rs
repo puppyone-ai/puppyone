@@ -6,6 +6,10 @@ use gpui::*;
 /// The scroll distance over which an edge's fade comes in.
 pub const FADE_DISTANCE: f32 = 24.;
 
+/// Height of the floating header gradient scrim: covers the 40px top bar
+/// and feathers smoothly to full transparency over the 24px beneath it.
+pub const FLOATING_HEADER_SCRIM: f32 = 64.;
+
 /// Which edge of the content a fade sits on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Edge {
@@ -59,6 +63,55 @@ pub fn paint(
     };
     window.paint_quad(band(1., 0.78, from, mid));
     window.paint_quad(band(0.78, 0., mid, far));
+}
+
+/// Paints a smooth top-to-bottom floating header scrim over `bounds`:
+/// 100% transparent at the bottom edge, easing smoothly upward into `ground`
+/// toward the top edge so scrolling content glides beneath floating controls
+/// without any solid header box or hard seam.
+pub fn paint_header_scrim(window: &mut Window, bounds: Bounds<Pixels>, ground: Rgba) {
+    // 6-stop smooth S-curve (5 device-pixel-snapped linear bands).
+    const STOPS: [(f32, f32); 6] = [
+        (0.00, 1.00),
+        (0.22, 0.92),
+        (0.44, 0.76),
+        (0.65, 0.44),
+        (0.84, 0.14),
+        (1.00, 0.00),
+    ];
+    let scale = window.scale_factor();
+    let top = f32::from(bounds.top());
+    let height = f32::from(bounds.size.height);
+    if height <= 0. {
+        return;
+    }
+    let (left, width) = (bounds.origin.x, bounds.size.width);
+    let snap = |t: f32| {
+        if t <= 0. {
+            top
+        } else if t >= 1. {
+            top + height
+        } else {
+            ((top + height * t) * scale).round() / scale
+        }
+    };
+    for pair in STOPS.windows(2) {
+        let (t0, a0) = pair[0];
+        let (t1, a1) = pair[1];
+        let y0 = snap(t0);
+        let y1 = snap(t1);
+        if y1 <= y0 {
+            continue;
+        }
+        window.paint_quad(fill(
+            Bounds::new(point(left, px(y0)), size(width, px(y1 - y0))),
+            linear_gradient(
+                180.,
+                linear_color_stop(theme::alpha(ground, a0), 0.),
+                linear_color_stop(theme::alpha(ground, a1), 1.),
+            ),
+        ));
+    }
 }
 
 #[cfg(test)]

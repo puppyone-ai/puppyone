@@ -281,7 +281,7 @@ impl EditorArea {
         Some(
             div()
                 .absolute()
-                .top(px(10.))
+                .top(px(10. + self.chrome_inset(cx)))
                 .right(px(12.))
                 .child(
                     div().child(body).with_animation(
@@ -318,7 +318,7 @@ impl EditorArea {
         Some(
             div()
                 .absolute()
-                .top(px(8.))
+                .top(px(8. + self.chrome_inset(cx)))
                 .right(px(38.))
                 .child(
                     FilePresence::new(

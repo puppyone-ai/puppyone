@@ -1213,6 +1213,12 @@ impl DocumentEditor {
     pub fn set_chrome_inset(&mut self, top: f32, cx: &mut Context<Self>) {
         if self.chrome_inset != top {
             self.chrome_inset = top;
+            if let Some(bar) = &self.find {
+                bar.update(cx, |b, cx| {
+                    b.top_inset = top;
+                    cx.notify();
+                });
+            }
             let mut panicked = None;
             if let Some(surface) = &self.surface
                 && let Err(payload) =
@@ -1595,6 +1601,12 @@ impl Render for DocumentEditor {
         )
         .absolute()
         .size_full();
+        let banner = self.readonly_banner(cx);
+        let top_inset = if banner.is_some() {
+            0.
+        } else {
+            self.chrome_inset
+        };
         let label = self.session.as_ref().map(|s| s.name.clone());
         let chrome = label.as_ref().zip(self.bounds).map(|(name, bounds)| {
             let handle_label = crate::localization::tf(
@@ -1605,6 +1617,7 @@ impl Render for DocumentEditor {
             let handle = pane::handle(
                 self.dark,
                 self.chrome.revealed(),
+                top_inset,
                 name,
                 handle_label.into(),
                 self.pane_drag.clone().map(|mut drag| {
@@ -1644,8 +1657,33 @@ impl Render for DocumentEditor {
         let (handle, menu) = chrome
             .filter(|_| !self.file_mode)
             .map_or((None, None), |(h, m)| (Some(h), m));
-        let banner = self.readonly_banner(cx);
-        let surface_el = self.isolated_surface_element(cx);
+        let banner = banner.map(|b| {
+            if self.chrome_inset > 0. {
+                div()
+                    .flex_none()
+                    .w_full()
+                    .pt(px(self.chrome_inset))
+                    .child(b)
+                    .into_any_element()
+            } else {
+                b
+            }
+        });
+        let surface_handles_inset = self
+            .surface
+            .as_ref()
+            .is_some_and(|s| s.supports_chrome_inset());
+        let surface_el = self.isolated_surface_element(cx).map(|el| {
+            if top_inset > 0. && !surface_handles_inset {
+                div()
+                    .size_full()
+                    .pt(px(top_inset))
+                    .child(el)
+                    .into_any_element()
+            } else {
+                el
+            }
+        });
         let reading = self.session.is_none().then(|| match &self.read_failure {
             Some(failure) => read_failure::card(
                 failure,

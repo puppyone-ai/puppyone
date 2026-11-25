@@ -52,8 +52,16 @@ impl RenderOnce for ExplorerColumn {
             .bg(cx.palette().sidebar)
             .flex()
             .flex_col()
-            .when_some(self.header, |d, header| d.child(header))
-            .child(div().flex_1().min_h_0().child(self.explorer.cached(fill())))
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .child(self.explorer.cached(fill()))
+                    .when_some(self.header, |d, header| {
+                        d.child(div().absolute().top_0().left_0().child(header))
+                    }),
+            )
             .when_some(self.companion, |d, companion| {
                 d.child(div().flex_shrink_0().child(companion))
             })

@@ -210,6 +210,7 @@ pub struct PaneDrag {
 pub fn handle(
     dark: bool,
     revealed: bool,
+    top_inset: f32,
     name: &str,
     label: SharedString,
     drag: Option<PaneDrag>,
@@ -228,7 +229,7 @@ pub fn handle(
         .id("desktop-editor-pane-handle-shell")
         .group("desktop-editor-pane-handle-shell")
         .absolute()
-        .top(px(4.))
+        .top(px(4. + top_inset))
         .left_0()
         .right_0()
         .flex()

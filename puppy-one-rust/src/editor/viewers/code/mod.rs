@@ -528,6 +528,10 @@ impl ViewerSurface for CodeSurface {
         self.view.update(cx, |v, cx| v.set_chrome_inset(top, cx));
     }
 
+    fn supports_chrome_inset(&self) -> bool {
+        true
+    }
+
     fn scroll_state(&self, cx: &App) -> (f32, bool) {
         (self.view.read(cx).scroll_top(cx), false)
     }

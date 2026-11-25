@@ -208,8 +208,15 @@ pub trait ViewerSurface {
     ) {
     }
     /// `--po-editor-chrome-inset-block-start`: the host's chrome floats over
-    /// the top `top` points (a file window's title bar).
+    /// the top `top` points (a file window's title bar or a headerless pane).
     fn set_chrome_inset(&self, _top: f32, _cx: &mut App) {}
+    /// Whether this surface natively honors `set_chrome_inset` so its content
+    /// can scroll underneath a floating top bar. Surfaces that return `false`
+    /// (such as native WebViews or fixed-toolbar viewers) are inset by the
+    /// host instead.
+    fn supports_chrome_inset(&self) -> bool {
+        false
+    }
     /// How far the document's own scroller is from its top, and whether
     /// its top edge is a pinned header row, which never fades.
     fn scroll_state(&self, _cx: &App) -> (f32, bool) {
