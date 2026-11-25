@@ -38,6 +38,7 @@ pub fn drag_area(id: &'static str) -> Stateful<Div> {
     div()
         .id(id)
         .window_control_area(WindowControlArea::Drag)
+        .cursor(CursorStyle::Arrow)
         .h_full()
         // On Windows, leaving `WindowControlArea::Drag` (`HTCAPTION`) free of
         // mouse-down handlers lets `DefWindowProcW` handle native window drag,

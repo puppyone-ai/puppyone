@@ -55,10 +55,72 @@ impl WindowChrome {
             .into_any_element()
     }
 
+    /// Active document's icon and name in the headerless editor top bar,
+    /// matching `FileWindow::file_title`'s quiet theme style. Hidden while
+    /// opening a project, showing the Cloud Computer screen, or showing
+    /// header editor tabs.
+    fn document_title(&self, left_pad: f32, cx: &App) -> Option<AnyElement> {
+        if self.session.opening || self.owners.cloud.read(cx).screen_shown(cx) {
+            return None;
+        }
+        let (_, relative) = self.owners.docs.read(cx).opened()?;
+        let name = relative
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| relative.to_string_lossy().into_owned());
+        if name.is_empty() {
+            return None;
+        }
+        let full = relative.to_string_lossy().into_owned();
+        let t = cx.palette();
+        let ty = theme::ty().header;
+        let conventions = crate::platform::conventions::Conventions::current();
+        Some(
+            h_flex()
+                .id("header-document-title")
+                .debug_selector(|| "header-document-title".into())
+                .window_control_area(WindowControlArea::Drag)
+                .cursor(CursorStyle::Arrow)
+                .h_full()
+                .min_w_0()
+                .flex_shrink(1.)
+                .pl(px(left_pad))
+                .pr(px(6.))
+                .text_color(t.muted)
+                .text_size(px(ty.content))
+                .line_height(px(ty.line_height))
+                .when(!conventions.native_nonclient_window_controls, |d| {
+                    d.on_mouse_down(MouseButton::Left, |e, window, _| {
+                        if e.click_count == 2 {
+                            window.zoom_window();
+                        } else {
+                            window.start_window_move();
+                        }
+                    })
+                    .on_mouse_down(MouseButton::Right, |e, window, _| {
+                        window.show_window_menu(e.position);
+                    })
+                })
+                .when(full != name, |d| {
+                    d.tooltip(crate::ui::components::tooltip(full))
+                })
+                .child(
+                    div()
+                        .id("header-document-name")
+                        .debug_selector(|| "header-document-name".into())
+                        .min_w_0()
+                        .truncate()
+                        .child(name),
+                )
+                .into_any_element(),
+        )
+    }
+
     /// The main pane's top 40px bar when the window has no Header: leading
-    /// controls while the Explorer is collapsed (`leading`), optional editor
-    /// tabs, window-drag space, project actions, and trailing window caption
-    /// buttons while the right sidebar is closed (`captions`).
+    /// controls while the Explorer is collapsed (`leading`), active document
+    /// name (or optional editor tabs), window-drag space, project actions, and
+    /// trailing window caption buttons while the right sidebar is closed
+    /// (`captions`).
     pub(in crate::app) fn main_bar(
         &self,
         leading: bool,
@@ -73,10 +135,21 @@ impl WindowChrome {
         let has_trailing_controls = trailing_controls.is_some();
         let tabs = self.project_tabs(cx);
         let with_tabs = tabs.is_some();
+        let doc_title = (!with_tabs)
+            .then(|| self.document_title(if leading { 6. } else { 14. }, cx))
+            .flatten();
+        let (leading_doc, editor_doc) = if leading {
+            (doc_title, None)
+        } else {
+            (None, doc_title)
+        };
         let actions = self.project_actions(cx);
         let menu = (leading && rail == 0.)
             .then(|| app_menu::render(cx))
             .flatten();
+        let t = cx.palette();
+        let ty = theme::ty().header;
+        let shows_project = self.shows_project();
         let drag = title_bar::drag_area("header-drag")
             .when(!with_tabs, |d| d.flex_1())
             .when(with_tabs, |d| {
@@ -93,15 +166,30 @@ impl WindowChrome {
                     h_flex()
                         .h_full()
                         .min_w_0()
+                        .flex_shrink(1.)
                         .pl(px(title_bar::leading_inset(rail)))
                         .gap(px(2.))
                         .children(menu)
                         .child(self.expand_explorer())
-                        .when(self.shows_project(), |d| {
+                        .when(shows_project, |d| {
                             d.child(self.project_context(self.rail, true, cx))
+                        })
+                        .when_some(leading_doc, |d, title| {
+                            d.when(shows_project, |d| {
+                                d.child(
+                                    div()
+                                        .flex_none()
+                                        .text_size(px(ty.content))
+                                        .line_height(px(ty.line_height))
+                                        .text_color(t.text_disabled)
+                                        .child("/"),
+                                )
+                            })
+                            .child(title)
                         }),
                 )
             })
+            .when_some(editor_doc, |d, title| d.child(title))
             .when_some(tabs, |d, tabs| {
                 d.child(
                     div()
@@ -199,6 +287,8 @@ impl<'a> PaneChrome<'a> {
                     .left_0()
                     .right_0()
                     .h(px(theme::HEADER))
+                    .occlude()
+                    .cursor(CursorStyle::Arrow)
                     .child(self.chrome.read(cx).main_bar(
                         leading,
                         !self.end_open,

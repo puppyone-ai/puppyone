@@ -59,7 +59,15 @@ impl RenderOnce for ExplorerColumn {
                     .min_h_0()
                     .child(self.explorer.cached(fill()))
                     .when_some(self.header, |d, header| {
-                        d.child(div().absolute().top_0().left_0().child(header))
+                        d.child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .occlude()
+                                .cursor(CursorStyle::Arrow)
+                                .child(header),
+                        )
                     }),
             )
             .when_some(self.companion, |d, companion| {
