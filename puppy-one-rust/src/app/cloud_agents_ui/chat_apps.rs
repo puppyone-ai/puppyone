@@ -1330,7 +1330,7 @@ impl WindowCloud {
     fn chat_banner(&self, chat: &Chat, which: Banner, cx: &mut Context<Self>) -> AnyElement {
         let t = cx.palette();
         let entity = self.chats.clone();
-        let (text, button): (String, Option<(&'static str, Box<dyn Fn(&mut App)>)>) = match which {
+        let (text, button): (String, Option<(&'static str, BannerPress)>) = match which {
             Banner::Limit => (tr("native.chatApps.bannerLimit"), None),
             Banner::OwnerLeft => {
                 let id = chat.id.clone();
@@ -1416,6 +1416,9 @@ impl WindowCloud {
 fn marked(id: &'static str, element: impl IntoElement) -> Div {
     div().debug_selector(move || id.into()).child(element)
 }
+
+/// What a banner's one command does.
+type BannerPress = Box<dyn Fn(&mut App)>;
 
 /// The green lamp on a chat at work.
 fn working_dot(t: Theme) -> Div {

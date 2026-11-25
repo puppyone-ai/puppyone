@@ -183,7 +183,7 @@ impl CloudChats {
         }
         self.set_dialog_open(dialog_open, cx);
     }
-    #[cfg(any(test, feature = "dev-capture"))]
+    #[cfg(test)]
     pub fn attach_client(&mut self, project: &str, client: Client, cx: &mut Context<Self>) {
         self.attach(
             Some(Scope {

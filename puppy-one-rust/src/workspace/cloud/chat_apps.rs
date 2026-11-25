@@ -385,7 +385,9 @@ mod tests {
         assert!(trusted_link("https://t.me/PuppyOneBot?startgroup=abc"));
         assert!(trusted_link("https://slack.com/oauth/v2/authorize?x=1"));
         assert!(!trusted_link("http://t.me/x"));
-        assert!(trusted_link("http://127.0.0.1:9911/oauth/v2/authorize?state=x"));
+        assert!(trusted_link(
+            "http://127.0.0.1:9911/oauth/v2/authorize?state=x"
+        ));
         assert!(!trusted_link("http://10.0.0.1/oauth"));
         assert!(!trusted_link("https://evil.example/t.me"));
     }
