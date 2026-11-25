@@ -53467,6 +53467,29 @@
           "test": "app::tests::folder_availability::a_late_answer_never_replaces_a_newer_one"
         }
       ]
+    },
+    {
+      "id": "explorer-denied-root-clears-cached-rows",
+      "acceptance": "When the Explorer's root cannot be read, a network failure keeps the rows it showed (cached) with the reason and Retry; denied access (a Cloud 401/403, PermissionDenied) clears them, on the root retry and on a background reread alike, so nothing the person may no longer read stays on screen.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/dataWorkspaceProjectSwitching.test.tsx",
+          "sha256": "3cea5b4939197c3cae20cc040cfeb9b93415717ec27a0ba4a2ef4fa50ebb0e2b",
+          "cases": [
+            {
+              "index": 3,
+              "name": "DataWorkspace Project switching > keeps cached rows on network failure but clears them when permission is denied"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::explorer_pane::denied_access_clears_the_cached_rows_a_network_failure_keeps"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -65929,24 +65952,6 @@
             {
               "index": 1,
               "name": "workspace surface notices > offers no Retry when the source cannot reconnect"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cloud-explorer-permission-denied-clears-cached-rows",
-      "kind": "gap",
-      "reason": "ExplorerSession::refresh_folders emits WatchFailed/Error on root refresh failure but does not yet distinguish 403/PermissionDenied to immediately clear stale cached Cloud rows on permission revocation.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/explorer.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/projects/dataWorkspaceProjectSwitching.test.tsx",
-          "sha256": "3cea5b4939197c3cae20cc040cfeb9b93415717ec27a0ba4a2ef4fa50ebb0e2b",
-          "cases": [
-            {
-              "index": 3,
-              "name": "DataWorkspace Project switching > keeps cached rows on network failure but clears them when permission is denied"
             }
           ]
         }
