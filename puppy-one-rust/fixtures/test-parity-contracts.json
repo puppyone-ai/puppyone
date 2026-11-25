@@ -53335,6 +53335,46 @@
           "test": "ui::components::hint::tests::a_pointer_press_that_focuses_the_control_opens_no_hint"
         }
       ]
+    },
+    {
+      "id": "homepage-project-list-roving-stop",
+      "acceptance": "Each project list on the Homepage is one stop for Tab: its stop project's row, and that project's actions (which show while it is reached for). The stop moves with focus — focus reaching a project's row or its actions makes it the stop — so Tab comes back to the project left; when the stop's project goes, the list's first project is the stop. A pointer resting on another project does not add a stop. When a project is unlinked or deleted from its own actions, the keyboard goes to its list's stop.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/homepageProjectListKeyboard.test.tsx",
+          "sha256": "a97b6a0cc9bffff35c85ef3517413cac72a873106adaaa368f8869085617ed9f",
+          "cases": [
+            {
+              "index": 1,
+              "name": "the Homepage's project list > is one stop for Tab: the first project and that row's actions"
+            },
+            {
+              "index": 2,
+              "name": "the Homepage's project list > moves the stop with focus, so Tab comes back to the project left"
+            },
+            {
+              "index": 8,
+              "name": "the Homepage's project list > falls back to the first project when the stop's project goes"
+            },
+            {
+              "index": 9,
+              "name": "the Homepage's project list > gives focus to the list's stop when a project is removed from its own dialog"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::the_project_list_is_one_stop_for_tab_that_follows_focus"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::homepage::removing_a_project_from_its_actions_gives_the_keyboard_to_the_list"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -65963,36 +66003,6 @@
             {
               "index": 7,
               "name": "closes a ready confirmation on navigation without returning an unrelated project Home"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "homepage-roving-tab-and-delete-focus",
-      "kind": "gap",
-      "reason": "Homepage project rows track keyboard arrow/home/end stops, but roving Tab single-stop semantics and restoring focus to the list stop after removing a project via ProjectActions dialog are not yet wired (ProjectActions restores window_focus).",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/homepage/homepageProjectListKeyboard.test.tsx",
-          "sha256": "a97b6a0cc9bffff35c85ef3517413cac72a873106adaaa368f8869085617ed9f",
-          "cases": [
-            {
-              "index": 1,
-              "name": "the Homepage's project list > is one stop for Tab: the first project and that row's actions"
-            },
-            {
-              "index": 2,
-              "name": "the Homepage's project list > moves the stop with focus, so Tab comes back to the project left"
-            },
-            {
-              "index": 8,
-              "name": "the Homepage's project list > falls back to the first project when the stop's project goes"
-            },
-            {
-              "index": 9,
-              "name": "the Homepage's project list > gives focus to the list's stop when a project is removed from its own dialog"
             }
           ]
         }

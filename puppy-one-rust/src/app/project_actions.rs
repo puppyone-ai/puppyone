@@ -125,6 +125,8 @@ pub(in crate::app) enum ActionsEvent {
     Renamed { path: PathBuf, name: String },
     /// A row of "Who can open it" asks for this.
     Audience(super::audience::AudienceAction),
+    /// The project was unlinked or deleted.
+    Removed,
 }
 
 pub(in crate::app) struct ProjectActions {
@@ -701,6 +703,7 @@ impl ProjectActions {
                 self.preferences
                     .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
                 self.window_focus.focus(window, cx);
+                cx.emit(ActionsEvent::Removed);
             }
             Target::Cloud { project, .. } => {
                 let Some(client) = crate::features::cloud::services_client(cx) else {
@@ -724,6 +727,7 @@ impl ProjectActions {
                                 let catalog = s.catalog.clone();
                                 catalog.update(cx, |c, cx| c.apply_delete(&project, cx));
                                 s.window_focus.focus(w, cx);
+                                cx.emit(ActionsEvent::Removed);
                             }
                             Err(error) => {
                                 if let Some(confirm) = s.confirm.as_mut() {
