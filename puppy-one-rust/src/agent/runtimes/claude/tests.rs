@@ -1312,3 +1312,105 @@ fn enforces_claudes_native_per_image_bound_before_base64_expansion() {
         Some("REFERENCE_MATERIALIZATION_FAILED")
     );
 }
+
+#[test]
+fn bootstrap_session_reuses_initialized_persistent_query_for_first_turn() {
+    struct WarmBootstrapQuery {
+        inner: PersistentQuery,
+        init_payload: Value,
+    }
+    impl ClaudeQuery for WarmBootstrapQuery {
+        fn next(&self) -> LocalBoxFuture<'static, Option<AgentResult<Value>>> {
+            self.inner.next()
+        }
+        fn initialization_result(&self) -> LocalBoxFuture<'static, AgentResult<Value>> {
+            self.inner
+                .0
+                .initialization_calls
+                .set(self.inner.0.initialization_calls.get() + 1);
+            let payload = self.init_payload.clone();
+            Box::pin(async move { Ok(payload) })
+        }
+        fn set_model(&self, model: Option<String>) -> LocalBoxFuture<'static, AgentResult<()>> {
+            self.inner.set_model(model)
+        }
+        fn set_permission_mode(&self, mode: String) -> LocalBoxFuture<'static, AgentResult<()>> {
+            self.inner.set_permission_mode(mode)
+        }
+        fn interrupt(&self) -> LocalBoxFuture<'static, AgentResult<()>> {
+            self.inner.interrupt()
+        }
+        fn close(&self) {
+            self.inner.close()
+        }
+    }
+
+    run_local(async {
+        let controller = PersistentQuery::default();
+        let ctrl_for_factory = controller.clone();
+        let sdk = FakeSdk::new(Some(Box::new(move |prompt, options| {
+            let _ = ctrl_for_factory.connect(prompt, options);
+            Rc::new(WarmBootstrapQuery {
+                inner: ctrl_for_factory.clone(),
+                init_payload: json!({
+                    "account": api_key_account(),
+                    "models": [{ "value": "claude-sonnet", "displayName": "Sonnet", "description": "Fast", "supportedEffortLevels": ["low", "high"] }],
+                    "commands": [{ "name": "review", "description": "Review changes", "argumentHint": "" }],
+                }),
+            }) as Rc<dyn ClaudeQuery>
+        })));
+        let fixture = create_adapter(sdk.clone(), default_environment(), None);
+        assert!(fixture.adapter.implements("bootstrapSession"));
+
+        // 1. Bootstrap starts exactly 1 persistent query and returns both inspection + providerSession.
+        let booted = fixture
+            .adapter
+            .bootstrap_session(json!({ "kind": "create", "mode": "agent" }))
+            .await
+            .unwrap();
+        assert_eq!(sdk.calls.borrow().len(), 1);
+        assert_eq!(controller.0.initialization_calls.get(), 1);
+        assert_eq!(booted["inspection"]["models"][0]["model"], "claude-sonnet");
+        assert!(booted["providerSession"]["providerSessionId"].is_string());
+
+        // 2. First turn with resolved default model reuses that EXACT persistent query (still 1 sdk.query call!).
+        let turn = fixture
+            .adapter
+            .start_turn(
+                json!({ "prompt": "Hello warm Claude", "model": "claude-sonnet", "mode": "agent" }),
+            )
+            .await
+            .unwrap();
+        assert_eq!(sdk.calls.borrow().len(), 1);
+        assert!(
+            controller
+                .0
+                .set_model_calls
+                .borrow()
+                .contains(&Some("claude-sonnet".to_string()))
+        );
+        wait_for(|| controller.messages().len() == 1).await;
+        controller.finish("Warm answer");
+        wait_for(|| {
+            fixture
+                .events
+                .borrow()
+                .iter()
+                .any(|e| e["type"] == "turn.completed" && e["turnId"] == turn["turnId"])
+        })
+        .await;
+        fixture.adapter.dispose().await.unwrap();
+
+        // 3. Resume of a missing session fails fast with 0 query spawns.
+        let missing_sdk = FakeSdk::new(None);
+        let missing_fixture = create_adapter(missing_sdk.clone(), default_environment(), None);
+        let err = missing_fixture
+            .adapter
+            .bootstrap_session(json!({ "kind": "resume", "threadId": "missing-id" }))
+            .await
+            .unwrap_err();
+        assert!(is_agent_provider_session_unavailable_error(&err));
+        assert!(missing_sdk.calls.borrow().is_empty());
+        missing_fixture.adapter.dispose().await.unwrap();
+    });
+}

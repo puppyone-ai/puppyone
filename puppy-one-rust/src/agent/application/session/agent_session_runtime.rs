@@ -132,11 +132,13 @@ impl AgentSessionRuntime {
                 "Choose an Agent before starting an Agent session.",
             ));
         };
-        // A new native session must observe installations added after the
-        // catalog was cached. Existing sessions keep their running adapter.
+        // Reuse warm ready discovery instead of unconditionally clearing the
+        // readiness cache and re-probing login shells on every session start
+        // (ADR-024). Non-ready or missing-binary entries still trigger a
+        // scoped refresh inside `resolve_for_operation`.
         self.0
             .coordinator
-            .resolve_for_operation(Some(&requested), workspace_root, operation, true)
+            .resolve_for_operation(Some(&requested), workspace_root, operation, false)
             .await
     }
 

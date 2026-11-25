@@ -361,10 +361,17 @@ pub async fn run_bounded(
     run_probe: Option<ProbeRunner>,
     run: BoundedRun,
 ) -> AgentResult<ProbeResult> {
+    use crate::agent::discovery::executable_fingerprint_cache::{
+        lookup_global_static_probe, store_global_static_probe,
+    };
+    let use_cache = run_probe.is_none();
+    if use_cache && let Some(cached) = lookup_global_static_probe(&run.file, &run.args) {
+        return Ok(cached);
+    }
     let run_probe = run_probe.unwrap_or_else(default_probe_runner);
-    run_probe(
-        run.file,
-        run.args,
+    let result = run_probe(
+        run.file.clone(),
+        run.args.clone(),
         ProbeOptions {
             env: Some(run.env),
             timeout_ms: run.timeout_ms,
@@ -374,7 +381,11 @@ pub async fn run_bounded(
             ..Default::default()
         },
     )
-    .await
+    .await?;
+    if use_cache {
+        store_global_static_probe(&run.file, &run.args, &result);
+    }
+    Ok(result)
 }
 
 /// A readiness `environment` object as a process environment.

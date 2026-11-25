@@ -28,6 +28,7 @@ use super::claude_prompt_input::{
 use super::claude_spawn::{ClaudeSpawnOptions, create_claude_spawn};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
+use crate::agent::application::agent_input_policy::requires_runtime_setup;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::runtime::agent_runtime_port::{
     AdapterFuture, AgentRuntimeAdapter, agent_provider_session_unavailable_error,
@@ -546,6 +547,58 @@ impl ClaudeAgentSdkAdapter {
         }
     }
 
+    fn build_inspection(&self, initialized: &Value) -> Value {
+        let inner = &self.0;
+        let models = normalize_models(initialized.get("models"));
+        *inner.model_profiles.borrow_mut() = models
+            .iter()
+            .map(|model| (js::string_or_empty(model.get("model")), model.clone()))
+            .collect();
+        let environment = clean_environment(&inner.readiness["environment"]);
+        let account = normalize_account(initialized.get("account"), &models, &environment);
+        let runtime = Obj::from(&CLAUDE_RUNTIME_DESCRIPTOR)
+            .set(
+                "version",
+                inner
+                    .readiness
+                    .get("version")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            )
+            .set(
+                "source",
+                inner
+                    .readiness
+                    .get("source")
+                    .filter(|v| !v.is_null())
+                    .cloned()
+                    .unwrap_or_else(|| Value::from("user-installed")),
+            )
+            .set(
+                "compatibility",
+                inner
+                    .readiness
+                    .get("compatibility")
+                    .filter(|v| !v.is_null())
+                    .cloned()
+                    .unwrap_or_else(|| Value::from("native-sdk")),
+            )
+            .build();
+        json!({
+            "account": account,
+            "providers": [],
+            "models": models,
+            "modes": [
+                { "id": "agent", "displayName": "Agent", "description": "Claude Code's standard permission flow.", "isDefault": true },
+                { "id": "plan", "displayName": "Plan", "description": "Read-only planning with Claude Code's native plan mode.", "isDefault": false },
+            ],
+            "commands": normalize_commands(initialized.get("commands")),
+            "capabilities": claude_capabilities_for_runtime(inner.readiness.get("version")),
+            "runtime": runtime,
+            "warnings": [],
+        })
+    }
+
     /// `adapter.inspect()`.
     pub async fn inspect_now(&self) -> AgentResult<Value> {
         let inner = &self.0;
@@ -572,56 +625,165 @@ impl ClaudeAgentSdkAdapter {
                 "Claude Code inspection timed out.",
             )
             .await?;
-            let models = normalize_models(initialized.get("models"));
-            *inner.model_profiles.borrow_mut() = models
-                .iter()
-                .map(|model| (js::string_or_empty(model.get("model")), model.clone()))
-                .collect();
-            let environment = clean_environment(&inner.readiness["environment"]);
-            let account = normalize_account(initialized.get("account"), &models, &environment);
-            let runtime = Obj::from(&CLAUDE_RUNTIME_DESCRIPTOR)
-                .set(
-                    "version",
-                    inner.readiness.get("version").cloned().unwrap_or(Value::Null),
-                )
-                .set(
-                    "source",
-                    inner
-                        .readiness
-                        .get("source")
-                        .filter(|v| !v.is_null())
-                        .cloned()
-                        .unwrap_or_else(|| Value::from("user-installed")),
-                )
-                .set(
-                    "compatibility",
-                    inner
-                        .readiness
-                        .get("compatibility")
-                        .filter(|v| !v.is_null())
-                        .cloned()
-                        .unwrap_or_else(|| Value::from("native-sdk")),
-                )
-                .build();
-            Ok(json!({
-                "account": account,
-                "providers": [],
-                "models": models,
-                "modes": [
-                    { "id": "agent", "displayName": "Agent", "description": "Claude Code's standard permission flow.", "isDefault": true },
-                    { "id": "plan", "displayName": "Plan", "description": "Read-only planning with Claude Code's native plan mode.", "isDefault": false },
-                ],
-                "commands": normalize_commands(initialized.get("commands")),
-                "capabilities": claude_capabilities_for_runtime(inner.readiness.get("version")),
-                "runtime": runtime,
-                "warnings": [],
-            }))
+            Ok(self.build_inspection(&initialized))
         }
         .await;
         controller.cancel(AgentError::new("This operation was aborted").with_name("AbortError"));
         query.close();
         inner.spawn.wait_for_exit(Some(controller.signal())).await?;
         result
+    }
+
+    /// `adapter.bootstrapSession({ kind, threadId, model, effort, mode })`:
+    /// starts the session's persistent Claude Code query once, derives
+    /// inspection from its `initialization_result()`, and keeps that warm
+    /// query live for the first turn (ADR-024).
+    async fn bootstrap_session_inner(&self, request: Value) -> AgentResult<Value> {
+        let inner = &self.0;
+        inner.assert_idle()?;
+        let sdk = inner.load_sdk()?;
+        let kind = request
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or("create");
+        let (session_id, title, created_at, updated_at, resuming) = match kind {
+            "create" => {
+                let id = uuid::Uuid::new_v4().to_string();
+                let now = clock::now_iso();
+                (
+                    id,
+                    Value::from("New Claude Code session"),
+                    now.clone(),
+                    now,
+                    false,
+                )
+            }
+            "resume" => {
+                let thread_id = js::string_or_empty(request.get("threadId"));
+                let info = sdk
+                    .get_session_info(&thread_id, Some(&inner.workspace_root))
+                    .await?;
+                let Some((info, id)) = info.and_then(|info| {
+                    let id = text_field(&info, "sessionId")?;
+                    Some((info, id))
+                }) else {
+                    return Err(agent_provider_session_unavailable_error(Some(
+                        "The saved Claude Code session is no longer available.",
+                    )));
+                };
+                let title = ["customTitle", "summary"]
+                    .iter()
+                    .find_map(|key| info.get(*key).filter(|v| js::truthy(v)).cloned())
+                    .unwrap_or_else(|| Value::from("Claude Code session"));
+                (
+                    id,
+                    title,
+                    normalize_date(info.get("createdAt")),
+                    normalize_date(info.get("lastModified")),
+                    true,
+                )
+            }
+            _ => {
+                return Err(
+                    AgentError::new("Claude Code session bootstrap kind is invalid.")
+                        .with_name("TypeError"),
+                );
+            }
+        };
+        let reason = if resuming {
+            "Resuming a Claude Code session."
+        } else {
+            "Starting a new Claude Code session."
+        };
+        self.close_persistent_query(Some(reason)).await?;
+        *inner.session_id.borrow_mut() = Some(session_id.clone());
+        inner.resuming.set(resuming);
+        let project_instructions = (inner.project_instruction_loader)(&inner.workspace_root)?;
+        let controller = Canceller::new();
+        let requested_model = text_field(&request, "model");
+        let requested_effort = text_field(&request, "effort");
+        let mode = match request.get("mode") {
+            None => Some("agent".to_string()),
+            Some(mode) => mode.as_str().map(str::to_string),
+        };
+        let initialized = self
+            .ensure_persistent_query(
+                &*sdk,
+                &controller,
+                requested_model.clone(),
+                requested_effort.clone(),
+                mode.clone(),
+                project_instructions.clone(),
+            )
+            .await?
+            .unwrap_or_else(|| json!({}));
+        let inspection = self.build_inspection(&initialized);
+        if requires_runtime_setup(&inspection["account"])
+            || inspection["models"].as_array().is_none_or(Vec::is_empty)
+        {
+            self.close_persistent_query(Some("Claude Code setup required."))
+                .await?;
+            return Ok(json!({ "inspection": inspection, "providerSession": Value::Null }));
+        }
+        if requested_effort.is_none() {
+            // When bootstrapped with no explicit effort override, the live query
+            // runs at the CLI's default effort; align its configuration key with
+            // the resolved model's defaultVariant so the first turn reuses this
+            // warm query unless the user explicitly picks a non-default effort.
+            let default_effort = inspection["models"]
+                .as_array()
+                .and_then(|models| {
+                    requested_model
+                        .as_deref()
+                        .and_then(|wanted| models.iter().find(|entry| entry["model"] == wanted))
+                        .or_else(|| {
+                            models
+                                .iter()
+                                .find(|entry| js::truthy_opt(entry.get("isDefault")))
+                        })
+                        .or_else(|| models.first())
+                })
+                .and_then(|entry| entry.get("defaultVariant"))
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            if default_effort.is_some() {
+                *inner.query_configuration_key.borrow_mut() = Some(js::stringify(
+                    &Obj::new()
+                        .set("effort", default_effort)
+                        .set(
+                            "instructions",
+                            project_instruction_identity(project_instructions.as_ref()),
+                        )
+                        .build(),
+                ));
+            }
+        }
+        let offered_model = requested_model
+            .as_deref()
+            .filter(|model| {
+                inspection["models"]
+                    .as_array()
+                    .is_some_and(|models| models.iter().any(|entry| entry["model"] == *model))
+            })
+            .map(Value::from)
+            .unwrap_or(Value::Null);
+        let offered_effort = if offered_model.is_null() {
+            Value::Null
+        } else {
+            Self::selection(&request, "effort", Value::Null)
+        };
+        Ok(json!({
+            "inspection": inspection,
+            "providerSession": {
+                "providerSessionId": session_id,
+                "title": title,
+                "model": offered_model,
+                "effort": offered_effort,
+                "mode": Self::selection(&request, "mode", Value::from("agent")),
+                "createdAt": created_at,
+                "updatedAt": updated_at,
+            },
+        }))
     }
 
     /// `adapter.discoverSessions({ cursor, limit, signal })`.
@@ -950,6 +1112,8 @@ impl ClaudeAgentSdkAdapter {
     }
 
     /// `#ensurePersistentQuery({ … })`.
+    /// Returns `Ok(Some(initialized))` when a new persistent query was started,
+    /// or `Ok(None)` when an existing query was reused in-place.
     async fn ensure_persistent_query(
         &self,
         sdk: &dyn ClaudeSdk,
@@ -958,13 +1122,14 @@ impl ClaudeAgentSdkAdapter {
         effort: Option<String>,
         mode: Option<String>,
         project_instructions: Option<Value>,
-    ) -> AgentResult<()> {
+    ) -> AgentResult<Option<Value>> {
         let inner = &self.0;
+        // Model and permission mode are updated dynamically via `set_model` /
+        // `set_permission_mode`; only spawn-time options (`effort` and
+        // `project_instructions`) require restarting the persistent query.
         let configuration_key = js::stringify(
             &Obj::new()
-                .set("model", model.clone())
                 .set("effort", effort.clone())
-                .opt("mode", mode.clone())
                 .set(
                     "instructions",
                     project_instruction_identity(project_instructions.as_ref()),
@@ -986,7 +1151,7 @@ impl ClaudeAgentSdkAdapter {
                     .into(),
                 )
                 .await?;
-            return Ok(());
+            return Ok(None);
         }
         self.close_persistent_query(Some("Claude Code query configuration changed."))
             .await?;
@@ -1028,21 +1193,24 @@ impl ClaudeAgentSdkAdapter {
             "Claude Code startup timed out.",
         )
         .await
-        .and_then(|_| {
+        .and_then(|value| {
             if !inner.is_active_query(&query) || inner.disposed.get() {
                 Err(AgentError::new(
                     "Claude Code query closed during initialization.",
                 ))
             } else {
-                Ok(())
+                Ok(value)
             }
         });
-        if let Err(error) = initialized {
-            self.close_persistent_query(Some("Claude Code startup failed."))
-                .await?;
-            return Err(error);
-        }
-        Ok(())
+        let initialized = match initialized {
+            Ok(value) => value,
+            Err(error) => {
+                self.close_persistent_query(Some("Claude Code startup failed."))
+                    .await?;
+                return Err(error);
+            }
+        };
+        Ok(Some(initialized))
     }
 
     /// `#closePersistentQuery(reason)`.
@@ -1101,12 +1269,16 @@ impl AgentRuntimeAdapter for ClaudeAgentSdkAdapter {
     fn implements(&self, name: &str) -> bool {
         matches!(
             name,
-            "resolveApproval"
+            "bootstrapSession"
+                | "resolveApproval"
                 | "resolveQuestion"
                 | "forkSession"
                 | "referenceMentionDelivery"
                 | "getSessionHistoryPort"
         )
+    }
+    fn bootstrap_session(&self, request: Value) -> AdapterFuture<'_, Value> {
+        Box::pin(self.bootstrap_session_inner(request))
     }
     fn resolve_approval(&self, request: Value) -> AdapterFuture<'_, Value> {
         let result = claude_resolve_approval(&*self.0, &request).map(|()| Value::Null);

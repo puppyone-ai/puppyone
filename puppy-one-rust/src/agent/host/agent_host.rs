@@ -338,6 +338,23 @@ fn production_services(
     roots: WindowRoots,
 ) -> AgentResult<AgentHostServices> {
     let runtime_data = options.user_data_path.join("agent-runtime");
+    crate::agent::discovery::executable_fingerprint_cache::configure_global_fingerprint_cache(
+        runtime_data.join("executable-probe-cache.json"),
+    );
+    let command_environment =
+        crate::agent::discovery::command_environment::CachedCommandEnvironment::new(
+            None, None, None,
+        );
+    {
+        let warm_env = command_environment.clone();
+        tokio::task::spawn_local(async move {
+            let env = std::env::vars().collect();
+            let home = crate::platform::paths::home_dir();
+            let platform =
+                crate::agent::discovery::bounded_process_probe::node_platform().to_string();
+            let _ = warm_env.read(env, home, platform, None).await;
+        });
+    }
     let event_cache = EphemeralAgentSessionCache::new(Some(&options.user_data_path), None, None);
     let catalog = AgentConversationCatalog::new(CatalogOptions {
         file_path: runtime_data.join("conversations.json"),
@@ -378,6 +395,7 @@ fn production_services(
         app_path: options.app_path.clone(),
         user_data_path: Some(user_data.clone()),
         executable_path: options.executable_path.clone(),
+        command_environment: Some(command_environment),
         puppyone_agent: Some(Rc::new(native_kernel::create_native_kernel_discovery(
             user_data,
             options.executable_path.clone().unwrap_or_default(),

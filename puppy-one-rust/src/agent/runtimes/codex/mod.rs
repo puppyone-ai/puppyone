@@ -11,5 +11,6 @@ pub mod codex_interactions;
 pub mod codex_native_values;
 pub mod codex_reference_input;
 pub mod codex_runtime_definition;
+pub mod codex_standby;
 #[cfg(test)]
 mod tests;

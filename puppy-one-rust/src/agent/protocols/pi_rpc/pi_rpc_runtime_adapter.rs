@@ -9,6 +9,7 @@ use super::pi_rpc_client::{
 };
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::{bound_renderer_value, redact_secret_text, redact_secrets};
+use crate::agent::application::agent_input_policy::requires_runtime_setup;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::runtime::agent_history_read_result::agent_history_read_result;
 use crate::agent::runtime::agent_runtime_port::{
@@ -1085,6 +1086,66 @@ impl PiRpcRuntimeAdapter {
         Ok(())
     }
 
+    fn build_inspection(
+        &self,
+        state: &Value,
+        models_raw: &Value,
+        commands: &AgentResult<Value>,
+        thinking: &AgentResult<Value>,
+    ) -> Value {
+        let inner = &self.0;
+        let mut warnings: Vec<String> = Vec::new();
+        if let Err(error) = commands {
+            warnings.push(error_text(error));
+        }
+        if let Err(error) = thinking {
+            warnings.push(error_text(error));
+        }
+        let levels: Vec<Value> = thinking
+            .as_ref()
+            .ok()
+            .and_then(|value| value.get("levels"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let models = normalize_pi_models(
+            models_raw.get("models"),
+            state,
+            &levels,
+            &inner.runtime_label,
+        );
+        let providers = normalize_pi_providers(&models, &inner.provider_source);
+        let readiness = &inner.readiness;
+        json!({
+            "account": pi_account_state(&models, &providers, &inner.account_type, &inner.runtime_setup_message),
+            "providers": providers,
+            "models": models,
+            "modes": [],
+            "commands": normalize_pi_commands(
+                commands.as_ref().ok().and_then(|value| value.get("commands")),
+                &inner.provider_source,
+            ),
+            "capabilities": pi_capabilities_for_runtime(readiness.get("version"), &inner.capabilities, &inner.runtime_namespace),
+            "runtime": Obj::from(&inner.runtime_descriptor)
+                .set("version", readiness.get("version").cloned().unwrap_or(Value::Null))
+                .set("source", readiness.get("source").filter(|s| !s.is_null()).cloned().unwrap_or_else(|| Value::from("user-installed")))
+                .set("compatibility", readiness.get("compatibility").filter(|s| !s.is_null()).cloned().unwrap_or_else(|| Value::from("pi-rpc-v1")))
+                .build(),
+            "warnings": warnings.into_iter().filter(|w| !w.is_empty()).collect::<Vec<_>>(),
+        })
+    }
+
+    fn format_inspection_error(&self, client: &Rc<dyn PiClient>, error: &AgentError) -> AgentError {
+        let first = non_empty(error_text(error))
+            .unwrap_or_else(|| format!("{} RPC inspection failed.", self.0.runtime_label));
+        let message = [first, client.diagnostics()]
+            .into_iter()
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        AgentError::new(redact_secret_text(&message))
+    }
+
     /// `adapter.inspect()`.
     pub async fn inspect_now(&self) -> AgentResult<Value> {
         let inner = &self.0;
@@ -1119,51 +1180,9 @@ impl PiRpcRuntimeAdapter {
         let result = (|| {
             let state = state?;
             let models = models?;
-            let mut warnings: Vec<String> = Vec::new();
-            if let Err(error) = &commands {
-                warnings.push(error_text(error));
-            }
-            if let Err(error) = &thinking {
-                warnings.push(error_text(error));
-            }
-            let levels: Vec<Value> = thinking
-                .as_ref()
-                .ok()
-                .and_then(|value| value.get("levels"))
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default();
-            let models = normalize_pi_models(models.get("models"), &state, &levels, &inner.runtime_label);
-            let providers = normalize_pi_providers(&models, &inner.provider_source);
-            let readiness = &inner.readiness;
-            Ok(json!({
-                "account": pi_account_state(&models, &providers, &inner.account_type, &inner.runtime_setup_message),
-                "providers": providers,
-                "models": models,
-                "modes": [],
-                "commands": normalize_pi_commands(
-                    commands.as_ref().ok().and_then(|value| value.get("commands")),
-                    &inner.provider_source,
-                ),
-                "capabilities": pi_capabilities_for_runtime(readiness.get("version"), &inner.capabilities, &inner.runtime_namespace),
-                "runtime": Obj::from(&inner.runtime_descriptor)
-                    .set("version", readiness.get("version").cloned().unwrap_or(Value::Null))
-                    .set("source", readiness.get("source").filter(|s| !s.is_null()).cloned().unwrap_or_else(|| Value::from("user-installed")))
-                    .set("compatibility", readiness.get("compatibility").filter(|s| !s.is_null()).cloned().unwrap_or_else(|| Value::from("pi-rpc-v1")))
-                    .build(),
-                "warnings": warnings.into_iter().filter(|w| !w.is_empty()).collect::<Vec<_>>(),
-            }))
+            Ok(self.build_inspection(&state, &models, &commands, &thinking))
         })()
-        .map_err(|error: AgentError| {
-            let first = non_empty(error_text(&error))
-                .unwrap_or_else(|| format!("{} RPC inspection failed.", inner.runtime_label));
-            let message = [first, client.diagnostics()]
-                .into_iter()
-                .filter(|part| !part.is_empty())
-                .collect::<Vec<_>>()
-                .join(" ");
-            AgentError::new(redact_secret_text(&message))
-        });
+        .map_err(|error: AgentError| self.format_inspection_error(&client, &error));
         self.release_client(
             &client,
             &format!("{} RPC inspection complete.", inner.runtime_label),
@@ -1171,6 +1190,124 @@ impl PiRpcRuntimeAdapter {
         )
         .await?;
         result
+    }
+
+    /// `adapter.bootstrapSession({ kind, threadId, model, effort })`:
+    /// connects, inspects, and configures a live Pi RPC session on a single
+    /// child process instead of spawning a separate `--no-session` probe first
+    /// (ADR-024).
+    async fn bootstrap_session_inner(&self, request: Value) -> AgentResult<Value> {
+        let inner = &self.0;
+        inner.assert_usable()?;
+        let label = inner.runtime_label.clone();
+        let kind = request
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or("create");
+        match kind {
+            "create" => {
+                self.connect(Vec::new()).await?;
+            }
+            "resume" => {
+                let Some(thread_id) = request
+                    .get("threadId")
+                    .and_then(Value::as_str)
+                    .filter(|t| !t.is_empty())
+                else {
+                    return Err(agent_provider_session_unavailable_error(Some(&format!(
+                        "{label} session id is unavailable."
+                    ))));
+                };
+                let unavailable = || {
+                    agent_provider_session_unavailable_error(Some(&format!(
+                        "The saved {label} session is no longer available."
+                    )))
+                };
+                self.connect(vec!["--session".into(), thread_id.into()])
+                    .await
+                    .map_err(|error| {
+                        if error.is("AGENT_PROVIDER_SESSION_UNAVAILABLE")
+                            || SESSION_UNAVAILABLE.is_match(&error_text(&error))
+                        {
+                            unavailable()
+                        } else {
+                            error
+                        }
+                    })?;
+                if inner.session().as_deref() != Some(thread_id) {
+                    let mismatched = inner.client.borrow_mut().take();
+                    if let Some(client) = mismatched {
+                        *inner.session_id.borrow_mut() = None;
+                        *inner.session_state.borrow_mut() = None;
+                        let _ = self
+                            .release_client(
+                                &client,
+                                &format!("{label} RPC resumed wrong session."),
+                                true,
+                            )
+                            .await;
+                    }
+                    return Err(unavailable());
+                }
+            }
+            _ => {
+                return Err(
+                    AgentError::new("Pi session bootstrap kind is invalid.").with_name("TypeError")
+                );
+            }
+        }
+        let client = inner
+            .client()
+            .ok_or_else(|| AgentError::new(format!("{label} RPC is not connected.")))?;
+        let state = inner.session_state.borrow().clone().unwrap_or_default();
+        let rpc = |kind: &str| client.request(kind, json!({}), RequestOptions::default());
+        let (models, commands, thinking) = futures_util::join!(
+            rpc("get_available_models"),
+            rpc("get_commands"),
+            rpc("get_available_thinking_levels"),
+        );
+        let models = models.map_err(|error| self.format_inspection_error(&client, &error))?;
+        let inspection = self.build_inspection(&state, &models, &commands, &thinking);
+        if requires_runtime_setup(&inspection["account"]) {
+            return Ok(json!({ "inspection": inspection, "providerSession": Value::Null }));
+        }
+        let available_models = inspection["models"].as_array();
+        if available_models.is_none_or(Vec::is_empty) {
+            return Ok(json!({ "inspection": inspection, "providerSession": Value::Null }));
+        }
+        let requested_model = request
+            .get("model")
+            .and_then(Value::as_str)
+            .filter(|m| !m.is_empty());
+        let requested_effort = request
+            .get("effort")
+            .and_then(Value::as_str)
+            .filter(|e| !e.is_empty());
+        if let Some(model) = requested_model {
+            let entry = available_models
+                .and_then(|list| list.iter().find(|candidate| candidate["model"] == model));
+            let Some(entry) = entry else {
+                return Ok(json!({ "inspection": inspection, "providerSession": Value::Null }));
+            };
+            if let Some(effort) = requested_effort
+                && !entry["variants"]
+                    .as_array()
+                    .is_some_and(|variants| variants.iter().any(|v| v == effort))
+            {
+                return Ok(json!({ "inspection": inspection, "providerSession": Value::Null }));
+            }
+        } else if requested_effort.is_some() {
+            // Let AgentSessionRuntime resolve the default model first, then
+            // validate effort and apply_selection on this already-open client.
+            return Ok(json!({ "inspection": inspection, "providerSession": Value::Null }));
+        }
+        self.apply_selection(requested_model, requested_effort)
+            .await?;
+        let state = inner.session_state.borrow().clone().unwrap_or_default();
+        Ok(json!({
+            "inspection": inspection,
+            "providerSession": provider_session(&state, &label),
+        }))
     }
 
     async fn connect(&self, extra_args: Vec<String>) -> AgentResult<()> {
@@ -1708,13 +1845,17 @@ impl AgentRuntimeAdapter for PiRpcRuntimeAdapter {
     fn implements(&self, name: &str) -> bool {
         matches!(
             name,
-            "steerTurn"
+            "bootstrapSession"
+                | "steerTurn"
                 | "resolveApproval"
                 | "resolveQuestion"
                 | "compactSession"
                 | "referenceMentionDelivery"
                 | "getSessionHistoryPort"
         )
+    }
+    fn bootstrap_session(&self, request: Value) -> AdapterFuture<'_, Value> {
+        Box::pin(self.bootstrap_session_inner(request))
     }
     fn steer_turn(&self, request: Value) -> AdapterFuture<'_, Value> {
         Box::pin(self.steer_turn_inner(request))

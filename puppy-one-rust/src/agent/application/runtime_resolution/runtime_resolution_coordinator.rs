@@ -75,7 +75,14 @@ impl RuntimeResolutionCoordinator {
         validate_requested_runtime(runtime_id.as_deref(), false)?;
         let refresh = js::truthy_opt(request.get("refresh"));
         if refresh {
-            self.store.clear();
+            match runtime_id.as_deref() {
+                Some(id) => {
+                    self.invalidate_readiness(Some(id));
+                }
+                None => {
+                    self.store.clear();
+                }
+            }
         }
         // A bound conversation must not wait for unrelated CLI installation/auth
         // probes. Only the unbound launcher/history query needs the full catalog.
@@ -157,12 +164,35 @@ impl RuntimeResolutionCoordinator {
     ) -> AgentResult<ResolvedRuntime> {
         validate_requested_runtime(runtime_id, true)?;
         if refresh {
-            self.store.clear();
+            match runtime_id {
+                Some(id) => {
+                    self.invalidate_readiness(Some(id));
+                }
+                None => {
+                    self.store.clear();
+                }
+            }
         }
         let catalog = self.registry.discover(refresh, runtime_id).await;
-        let selected =
+        let mut selected =
             select_requested_runtime(&catalog, runtime_id, true)?.expect("a required runtime");
-        let public_readiness = public_runtime_readiness(&selected)?;
+        let mut public_readiness = public_runtime_readiness(&selected)?;
+        let target_id = selected.descriptor["id"].as_str().unwrap_or("");
+        let cached = self.store.get(target_id, workspace_root);
+        let cached_ready = cached
+            .as_ref()
+            .is_some_and(|c| c.public_readiness["status"] == "ready");
+        // ADR-024 conditional refresh: if discovery returned a non-ready
+        // cached result (e.g. `not-installed` before the user installed the
+        // CLI, or a transient probe failure without a warm ready inspection),
+        // re-probe this single runtime once without evicting sibling runtimes.
+        if !refresh && public_readiness["status"] != "ready" && !cached_ready {
+            self.invalidate_readiness(Some(target_id));
+            let refreshed = self.registry.discover(true, runtime_id).await;
+            selected = select_requested_runtime(&refreshed, runtime_id, true)?
+                .expect("a required runtime");
+            public_readiness = public_runtime_readiness(&selected)?;
+        }
         let verification = public_readiness["status"] != "ready"
             && allows_protocol_verification(&selected.readiness);
         if public_readiness["status"] != "ready" && !verification {

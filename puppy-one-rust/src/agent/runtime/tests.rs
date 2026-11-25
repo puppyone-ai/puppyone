@@ -843,6 +843,8 @@ fn every_native_adapter_implements_its_advertised_operations_and_history_contrac
             on_event: Rc::new(|_| {}),
             on_exit: Rc::new(|_| {}),
             on_session_persisted: None,
+            standby: None,
+            fast_model_list_timeout_ms: None,
         });
         let claude =
             ClaudeAgentSdkAdapter::new(ClaudeAdapterOptions::new(readiness.clone(), "/workspace"));

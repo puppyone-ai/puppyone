@@ -60,6 +60,7 @@ struct RegistryState {
     next_adapter: Cell<u64>,
     disposed: Cell<bool>,
     disposal: RefCell<Option<SharedTask<AgentResult<()>>>>,
+    on_refresh: RefCell<Option<Rc<dyn Fn()>>>,
 }
 
 /// `AgentRuntimeRegistry` (and the `AgentRuntimeHost` facade over it).
@@ -104,6 +105,7 @@ impl AgentRuntimeRegistry {
             next_adapter: Cell::new(0),
             disposed: Cell::new(false),
             disposal: RefCell::new(None),
+            on_refresh: RefCell::new(None),
         };
         let registry = Self(Rc::new(state));
         let default_id = default_runtime_id
@@ -153,12 +155,21 @@ impl AgentRuntimeRegistry {
             .collect()
     }
 
+    /// Registers a hook invoked when `discover(true, ..)` starts an explicit
+    /// refresh (used to invalidate the shared login-shell environment cache).
+    pub fn set_on_refresh(&self, hook: Rc<dyn Fn()>) {
+        *self.0.on_refresh.borrow_mut() = Some(hook);
+    }
+
     /// `registry.discover({ refresh, runtimeId })`.
     pub async fn discover(
         &self,
         refresh: bool,
         runtime_id: Option<&str>,
     ) -> Vec<RuntimeCatalogEntry> {
+        if refresh && let Some(hook) = self.0.on_refresh.borrow().clone() {
+            hook();
+        }
         let descriptors: Vec<Value> = self
             .descriptors()
             .into_iter()

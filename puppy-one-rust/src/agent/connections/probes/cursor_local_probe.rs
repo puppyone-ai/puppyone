@@ -142,10 +142,18 @@ pub async fn probe_cursor_local(
         command
     };
     let version_result: AgentResult<ProbeResult> = async {
+        use crate::agent::discovery::executable_fingerprint_cache::{
+            lookup_global_static_probe, store_global_static_probe,
+        };
+        let checked = run_command.is_none();
         let path = executable(candidate).await?;
-        run(
-            path,
-            command(&["--version"]),
+        let args = command(&["--version"]);
+        if checked && let Some(cached) = lookup_global_static_probe(&path, &args) {
+            return Ok(cached);
+        }
+        let result = run(
+            path.clone(),
+            args.clone(),
             ProbeOptions {
                 env: Some(probe_environment.clone()),
                 signal: signal.clone(),
@@ -154,7 +162,11 @@ pub async fn probe_cursor_local(
                 ..Default::default()
             },
         )
-        .await
+        .await?;
+        if checked {
+            store_global_static_probe(&path, &args, &result);
+        }
+        Ok(result)
     }
     .await;
     let version_result = match version_result {
