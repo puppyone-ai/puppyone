@@ -1232,7 +1232,8 @@ impl FileWindow {
                 LoadingMark::new("file-mode-loading")
                     .area()
                     .size(LoaderSize::Md)
-                    .tone(Tone::Neutral),
+                    .tone(Tone::Neutral)
+                    .label(crate::localization::t("editor.loadingFile")),
             ),
             Shown::Unavailable(limit) => {
                 let ty = theme::ty().ui;

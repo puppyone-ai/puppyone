@@ -327,23 +327,21 @@ pub(super) fn cloud_status(
                 .into_any_element(),
         )
     } else if restoring || catalog == State::Loading || (email.is_none() && signing_in) {
+        let words = tr(if signing_in {
+            "cloud.home.waitingForSignIn"
+        } else {
+            "cloud.home.loading"
+        });
         Some(
             h_flex()
                 .gap(px(6.))
                 .child(
                     crate::ui::loading::LoadingMark::new("homepage-cloud-loading")
                         .size(crate::ui::loading::LoaderSize::Xs)
-                        .tone(crate::ui::loading::Tone::Neutral),
+                        .tone(crate::ui::loading::Tone::Neutral)
+                        .beside(words),
                 )
-                .child(text(
-                    tr(if signing_in {
-                        "cloud.home.waitingForSignIn"
-                    } else {
-                        "cloud.home.loading"
-                    })
-                    .to_owned(),
-                    t.utility,
-                ))
+                .child(text(words.to_owned(), t.utility))
                 .into_any_element(),
         )
     } else if email.is_some() && matches!(&catalog, State::Ready(list) if list.is_empty()) && empty

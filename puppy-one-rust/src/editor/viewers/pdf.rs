@@ -1425,7 +1425,7 @@ impl Render for PdfView {
                 .bg(p.panel_raised)
                 .text_size(px(theme::ty().ui.meta))
                 .text_color(p.subtle)
-                .child(LoadingMark::new("pdf-pending"))
+                .child(LoadingMark::new("pdf-pending").beside(t("editor.preview.loading")))
                 .child(t("editor.preview.loading"))
                 .into_any_element(),
             Phase::Ready => {

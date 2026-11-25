@@ -53245,6 +53245,66 @@
           "test": "platform::templates::initialization::tests::a_numbered_retry_lands_on_the_name_its_first_attempt_chose"
         }
       ]
+    },
+    {
+      "id": "loading-mark-announced-once",
+      "acceptance": "A loading mark is announced once, as a status: by the name it is given, else by the words it stands beside, else by its localized name (Loading…), inline or page alike. A mark whose host already announces the loading is silent. Call sites follow the product: the Homepage cloud line, first-run and sign-in waiting, repository import and the viewers' pending states are announced by their words; file mode, workspace restoring, the project list wait and project opening by their names; a busy notice by its message; the Office preview's own status keeps its mark silent.",
+      "typescript": [
+        {
+          "path": "tests/component/ui-primitives/controls/loadingIndicator.test.tsx",
+          "sha256": "498597fe0eda8b584dd7bb244058bd07736f526b012dca5caedf34db8da6d8ba",
+          "cases": [
+            {
+              "index": 12,
+              "name": "LoadingMark > announces loading unless the host already does"
+            }
+          ]
+        },
+        {
+          "path": "tests/component/ui-primitives/loading/loadingNames.test.tsx",
+          "sha256": "142977057385ead5d5c701e3384fff522dacfab2af55ab77ebf0d4c28f13bfcc",
+          "cases": [
+            {
+              "index": 0,
+              "name": "what a loading mark is called > is announced once, by what its caller says"
+            },
+            {
+              "index": 1,
+              "name": "what a loading mark is called > prefers the name it is given over its words"
+            },
+            {
+              "index": 2,
+              "name": "what a loading mark is called > falls back to the mark's localized name when an inline mark has no words"
+            },
+            {
+              "index": 3,
+              "name": "what a loading mark is called > falls back to the mark's localized name when a page mark has no words"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::a_mark_announces_loading_unless_its_host_does"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::a_mark_is_announced_once_by_the_words_beside_it"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::a_given_name_wins_over_the_words"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::an_inline_mark_without_words_is_called_loading"
+        },
+        {
+          "package": "po-ui",
+          "test": "ui::loading::tests::a_page_mark_without_words_is_called_loading"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -67045,46 +67105,6 @@
             {
               "index": 1,
               "name": "Experimental settings > keeps file navigation last in Header settings and preserves its pane/Header choice"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "loading-mark-accessible-announcements",
-      "kind": "gap",
-      "reason": "Native GPUI loading marks draw their rounded animation but do not yet emit AccessKit status/label announcements or deduplicate announcements with their host container.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/ui/loading.md",
-      "typescript": [
-        {
-          "path": "tests/component/ui-primitives/controls/loadingIndicator.test.tsx",
-          "sha256": "498597fe0eda8b584dd7bb244058bd07736f526b012dca5caedf34db8da6d8ba",
-          "cases": [
-            {
-              "index": 12,
-              "name": "LoadingMark > announces loading unless the host already does"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/ui-primitives/loading/loadingNames.test.tsx",
-          "sha256": "142977057385ead5d5c701e3384fff522dacfab2af55ab77ebf0d4c28f13bfcc",
-          "cases": [
-            {
-              "index": 0,
-              "name": "what a loading mark is called > is announced once, by what its caller says"
-            },
-            {
-              "index": 1,
-              "name": "what a loading mark is called > prefers the name it is given over its words"
-            },
-            {
-              "index": 2,
-              "name": "what a loading mark is called > falls back to the mark's localized name when an inline mark has no words"
-            },
-            {
-              "index": 3,
-              "name": "what a loading mark is called > falls back to the mark's localized name when a page mark has no words"
             }
           ]
         }

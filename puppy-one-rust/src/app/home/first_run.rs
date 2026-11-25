@@ -138,7 +138,8 @@ impl Homepage {
                                 .child(
                                     crate::ui::loading::LoadingMark::new("first-run-waiting")
                                         .size(crate::ui::loading::LoaderSize::Xs)
-                                        .tone(crate::ui::loading::Tone::Neutral),
+                                        .tone(crate::ui::loading::Tone::Neutral)
+                                        .beside(tr("cloud.auth.desktopWaiting")),
                                 )
                                 .child(tr("cloud.auth.desktopWaiting")),
                         )
