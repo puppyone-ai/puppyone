@@ -152,8 +152,6 @@ impl WindowChrome {
         let menu = (leading && rail == 0.)
             .then(|| app_menu::render(cx))
             .flatten();
-        let t = cx.palette();
-        let ty = theme::ty().header;
         let shows_project = self.shows_project();
         let drag = title_bar::drag_area("header-drag")
             .when(!with_tabs, |d| d.flex_1())
@@ -181,14 +179,7 @@ impl WindowChrome {
                         })
                         .when_some(leading_doc, |d, title| {
                             d.when(shows_project, |d| {
-                                d.child(
-                                    div()
-                                        .flex_none()
-                                        .text_size(px(ty.content))
-                                        .line_height(px(ty.line_height))
-                                        .text_color(t.text_disabled)
-                                        .child("/"),
-                                )
+                                d.child(crate::app::header::action_divider(cx))
                             })
                             .child(title)
                         }),

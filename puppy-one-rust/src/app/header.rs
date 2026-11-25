@@ -76,6 +76,7 @@ impl RenderOnce for TitleBar {
 /// toolbar actions.
 pub(super) fn action_divider(cx: &App) -> AnyElement {
     div()
+        .flex_none()
         .w(px(1.))
         .h(px(18.))
         .mx(px(3.))

@@ -95,15 +95,19 @@ impl WindowChrome {
                         .min_w(px(theme::control()))
                 };
                 d.child(popover).when(!project_hidden, |d| {
-                    // `.desktop-titlebar-context-separator`.
-                    d.child(
-                        div()
-                            .flex_none()
-                            .text_size(px(ty.content))
-                            .line_height(px(ty.line_height))
-                            .text_color(t.text_disabled)
-                            .child("/"),
-                    )
+                    if compact {
+                        d.child(header::action_divider(cx))
+                    } else {
+                        // `.desktop-titlebar-context-separator`.
+                        d.child(
+                            div()
+                                .flex_none()
+                                .text_size(px(ty.content))
+                                .line_height(px(ty.line_height))
+                                .text_color(t.text_disabled)
+                                .child("/"),
+                        )
+                    }
                 })
             })
             .when(!project_hidden, |d| {
