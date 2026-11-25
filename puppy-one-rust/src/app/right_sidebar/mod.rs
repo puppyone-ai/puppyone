@@ -189,6 +189,10 @@ impl RightSidebar {
         };
         let shown = Shown::of(&preferences.read(cx).state);
         sidebar.show(&shown, cx);
+        if preferences.read(cx).loaded && surface == Surface::Agent {
+            let stored = preferences.read(cx).state.right_sidebar_surface;
+            sidebar.restore(stored, cx);
+        }
         sidebar.sync_workbench_visibility(cx);
         sidebar
     }

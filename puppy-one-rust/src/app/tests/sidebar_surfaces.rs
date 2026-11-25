@@ -177,11 +177,16 @@ fn the_right_sidebar_keeps_and_restores_its_surface(cx: &mut TestAppContext) {
     // A new window starts closed on the stored surface, once.
     view.update_in(cx, |s, w, cx| {
         let preferences = s.prefs.store.clone();
+        preferences.update(cx, |store, cx| {
+            store.change(
+                |p| p.right_sidebar_surface = RightSidebarSurface::History,
+                cx,
+            )
+        });
         let panes = cx.new(|cx| panes::PaneLayout::new(false, w, cx));
         let sidebar = cx
             .new(|cx| right_sidebar::RightSidebar::new(Surface::Agent, preferences, panes, w, cx));
         sidebar.update(cx, |b, cx| {
-            b.restore(RightSidebarSurface::History, cx);
             assert!(b.is(Surface::Git));
             assert!(b.source_control.read(cx).history_open());
             b.restore(RightSidebarSurface::Chat, cx);

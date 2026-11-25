@@ -846,11 +846,7 @@ impl Shell {
         self.preferences_changed(window, cx);
         self.refresh_cloud_catalog(false, cx);
         self.guard_cloud_authority(window, cx);
-        if self.session.project.read(cx).record.restore_last {
-            let last = windows::last_active_project(cx);
-            self.session
-                .project
-                .update(cx, |p, cx| p.restore_last(last, cx));
+        if self.restore_last_if_ready(cx) {
             self.receive(window, cx);
         }
     }

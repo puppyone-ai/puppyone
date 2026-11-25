@@ -450,17 +450,23 @@ pub fn open_from_cli(
         focused: false,
     })
 }
-/// The last active project, when it still exists.
-pub fn last_active_project(cx: &App) -> Option<PathBuf> {
-    let shared = cx.try_global::<SharedPreferences>()?;
-    shared
-        .0
+/// The last active project recorded in `store`, when it still exists.
+pub(super) fn last_active_project_in(
+    store: &Entity<PreferencesStore>,
+    cx: &App,
+) -> Option<PathBuf> {
+    store
         .read(cx)
         .state
         .recent_projects
         .first()
         .map(|p| p.path.clone())
         .filter(|p| p.is_dir())
+}
+/// The last active project, when it still exists.
+pub fn last_active_project(cx: &App) -> Option<PathBuf> {
+    let shared = cx.try_global::<SharedPreferences>()?;
+    last_active_project_in(&shared.0, cx)
 }
 
 /// `queueTemplateIntent`: the app's own template link

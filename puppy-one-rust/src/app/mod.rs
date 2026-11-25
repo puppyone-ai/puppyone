@@ -100,6 +100,18 @@ impl Shell {
         let fixture = cfg!(test)
             || std::env::var_os("PUPPYONE_FIXTURE").is_some()
             || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
+        let launch = windows::take_launch(cx);
+        let preferences = windows::shared_preferences(fixture, cx);
+        let plan = launch.plan(fixture);
+        Self::build(fixture, preferences, plan, window, cx)
+    }
+    fn build(
+        fixture: bool,
+        preferences: Entity<crate::features::settings::PreferencesStore>,
+        plan: windows::LaunchPlan,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         let weak = cx.weak_entity();
@@ -113,9 +125,6 @@ impl Shell {
             s.restore_device(window, cx)
         })
         .detach();
-        // One preference owner for every window; per-window state stays here.
-        let launch = windows::take_launch(cx);
-        let preferences = windows::shared_preferences(fixture, cx);
         let explorer_session = cx.new(|cx| ExplorerSession::new(fixture, preferences.clone(), cx));
         let key = crate::features::agent_presence::owner(window);
         let docs = cx.new(|cx| session::DocumentSession::new(fixture, key.clone(), cx));
@@ -316,7 +325,6 @@ impl Shell {
             Ok("feedback") => s.open_modal(Modal::Task(Task::Feedback), cx),
             _ => {}
         }
-        let plan = launch.plan(fixture);
         if let Some(open) = plan.open_first {
             s.session
                 .project
@@ -350,13 +358,38 @@ impl Shell {
             }
         })
         .detach();
-        s.prefs.apply_initial(window, cx);
+        if let Some(stored) = s.prefs.apply_initial(window, cx)
+            && !s.file_mode()
+        {
+            s.panes.update(cx, |p, cx| p.restore(stored, cx));
+        }
+        // Saved preferences may already be loaded synchronously before the
+        // first window subscribes to `PreferencesChanged`; hydrate the launch
+        // restore and Cloud catalog immediately instead of waiting for an
+        // event that will never fire.
+        if s.prefs.store.read(cx).loaded {
+            s.refresh_cloud_catalog(false, cx);
+            s.restore_last_if_ready(cx);
+        }
         s.constrain_window(window, cx);
         s.push_explorer_host(window, cx);
         // What the window shows from its first frame.
         s.sync_session_view(cx);
         s.sync_window_title(window, cx);
         s
+    }
+    /// Starts restoring the launch's last active project once preferences are
+    /// loaded; returns `true` when it ran.
+    pub(in crate::app) fn restore_last_if_ready(&mut self, cx: &mut Context<Self>) -> bool {
+        if !self.session.project.read(cx).record.restore_last || !self.prefs.store.read(cx).loaded {
+            return false;
+        }
+        let last = windows::last_active_project_in(&self.prefs.store, cx);
+        self.session.project.update(cx, |p, cx| {
+            p.restore_last(last, cx);
+            p.restore_device(cx);
+        });
+        true
     }
     /// The preferences changed: the appearance (the whole window renders
     /// again) and the pane layout, when they did.
