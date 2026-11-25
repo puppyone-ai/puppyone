@@ -370,10 +370,7 @@ impl Parser {
                 streamed_reasoning = true;
             }
             if let Some(details) = d["reasoning_details"].as_array() {
-                let target = self
-                    .result
-                    .reasoning_details
-                    .get_or_insert_with(Vec::new);
+                let target = self.result.reasoning_details.get_or_insert_with(Vec::new);
                 for item in details {
                     merge_reasoning_detail(target, item);
                     if !streamed_reasoning
@@ -550,14 +547,10 @@ mod tests {
         }
         let asked = Asked(Default::default());
         let body = json!({"model": "test/model", "messages": [{"role": "user", "content": "x".repeat(524_289)}]});
-        let error = futures_util::FutureExt::now_or_never(complete_managed(
-            &asked,
-            body,
-            None,
-            |_, _| {},
-        ))
-        .unwrap()
-        .err()
+        let error =
+            futures_util::FutureExt::now_or_never(complete_managed(&asked, body, None, |_, _| {}))
+                .unwrap()
+                .err()
                 .unwrap();
         let reference = error
             .strip_prefix("This conversation is too large. Start a new conversation. Reference: ")
@@ -569,12 +562,8 @@ mod tests {
         );
         // Within the limit, the account is asked.
         let small = json!({"model": "test/model", "messages": []});
-        let _ = futures_util::FutureExt::now_or_never(complete_managed(
-            &asked,
-            small,
-            None,
-            |_, _| {},
-        ));
+        let _ =
+            futures_util::FutureExt::now_or_never(complete_managed(&asked, small, None, |_, _| {}));
         assert!(asked.0.load(std::sync::atomic::Ordering::SeqCst));
     }
 
@@ -671,7 +660,10 @@ mod tests {
                 &mut |_, _| {},
             )
             .unwrap_err();
-        assert!(err.contains("interrupted") || err.contains("reconciled"), "{err}");
+        assert!(
+            err.contains("interrupted") || err.contains("reconciled"),
+            "{err}"
+        );
     }
 
     #[test]

@@ -486,9 +486,7 @@ pub fn load_at(dir: &Path) -> Result<Vec<ModelConnection>, String> {
     let connections = stored
         .into_iter()
         .map(|entry| {
-            let legacy = entry
-                .as_object()
-                .is_some_and(|o| !o.contains_key("driver"));
+            let legacy = entry.as_object().is_some_and(|o| !o.contains_key("driver"));
             let mut conn = serde_json::from_value::<ModelConnection>(migrate(entry))?;
             conn.legacy_migrated = legacy;
             Ok::<_, serde_json::Error>(conn)
@@ -636,12 +634,11 @@ pub fn save_at(
     let saved = connection.clone();
     connections.retain(|c| c.id != connection.id);
     connections.push(connection);
-    let result = write_json(&dir.join("model-connections.json"), &connections);
-    if result.is_err() {
+    if let Err(error) = write_json(&dir.join("model-connections.json"), &connections) {
         if let Some(id) = staged_credential {
             delete_credential(&id);
         }
-        return Err(result.unwrap_err());
+        return Err(error);
     }
     if let Some(id) = retired_credential(previous.as_ref(), &connections) {
         // Retire only after publishing the new configuration, never before it.

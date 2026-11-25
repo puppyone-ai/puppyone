@@ -43,9 +43,13 @@ impl RuntimeReadinessStore {
     }
 
     pub fn runtime_generation(&self, runtime_id: &str) -> u64 {
-        self.generation
-            .get()
-            .wrapping_add(self.runtime_generations.borrow().get(runtime_id).copied().unwrap_or(0))
+        self.generation.get().wrapping_add(
+            self.runtime_generations
+                .borrow()
+                .get(runtime_id)
+                .copied()
+                .unwrap_or(0),
+        )
     }
 
     pub fn get(&self, runtime_id: &str, workspace_root: &str) -> Option<ReadinessSnapshot> {

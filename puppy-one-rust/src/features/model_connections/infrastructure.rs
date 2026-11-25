@@ -1,9 +1,7 @@
 //! Thin adapter between Settings › Model Connections UI and the `po-agent`
 //! [`ModelConnectionService`] authority. All driver probing, catalog parsing,
 //! persistence, and verification logic live in `po-agent::agent::model_connections`.
-use crate::agent::model_connections::{
-    ModelConnectionService, configuration, drivers, snapshot,
-};
+use crate::agent::model_connections::{ModelConnectionService, configuration, drivers, snapshot};
 use crate::wake::Wake;
 pub use configuration::{Auth, Driver, ModelConnection, SourceKind};
 pub use drivers::{Candidate, CatalogModel};
