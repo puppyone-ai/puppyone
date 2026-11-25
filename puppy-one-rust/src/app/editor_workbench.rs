@@ -753,9 +753,19 @@ impl EditorArea {
                             s.sync(w, cx);
                         },
                     ));
-                let slot = editor
-                    .as_deref()
-                    .and_then(|key| self.docs.read(cx).slot_for_key(key));
+                let (slot, pane_loading) = {
+                    let docs = self.docs.read(cx);
+                    let slot = editor.as_deref().and_then(|key| docs.slot_for_key(key));
+                    let active_pane = docs.state().is_some_and(|s| s.layout.active == *id);
+                    let active_loading = active_pane
+                        && docs
+                            .loading_active_pane()
+                            .is_some_and(|(_, remote)| remote || slot.is_none());
+                    let key_loading = editor
+                        .as_deref()
+                        .is_some_and(|key| docs.is_hibernated_or_loading(key));
+                    (slot, active_loading || key_loading)
+                };
                 if let Some(editor) = slot.and_then(|slot| self.hosts.get(&slot)) {
                     view = view.child(editor.clone());
                     if let Some(chip) = slot.and_then(|slot| self.save_chip(slot, cx)) {
@@ -764,17 +774,51 @@ impl EditorArea {
                     if let Some(presence) = slot.and_then(|slot| self.file_presence(slot, cx)) {
                         view = view.child(presence);
                     }
-                } else {
+                } else if !pane_loading {
                     let close = id.clone();
                     view = view.child(
-                        div().absolute().top(px(4.)).right(px(4.)).child(
-                            IconButton::new(SharedString::from(format!("close-empty-{id}")), "x")
+                        div()
+                            .absolute()
+                            .top(px(4. + self.chrome_inset(cx)))
+                            .right(px(4.))
+                            .child(
+                                IconButton::new(
+                                    SharedString::from(format!("close-empty-{id}")),
+                                    "x",
+                                )
                                 .label(crate::localization::t("editor.panes.closePane"))
-                                .on_click(cx.listener(move |s, _, w, cx| {
-                                    s.docs.update(cx, |d, _| d.close_pane(&close));
-                                    s.sync(w, cx);
-                                })),
-                        ),
+                                .on_click(cx.listener(
+                                    move |s, _, w, cx| {
+                                        s.docs.update(cx, |d, _| d.close_pane(&close));
+                                        s.sync(w, cx);
+                                    },
+                                )),
+                            ),
+                    );
+                }
+                if pane_loading {
+                    let t = cx.palette();
+                    view = view.child(
+                        div()
+                            .id(SharedString::from(format!("editor-pane-loading-{id}")))
+                            .debug_selector(|| "editor-pane-loading".into())
+                            .role(Role::Status)
+                            .aria_label(crate::localization::t("editor.loadingFile"))
+                            .absolute()
+                            .inset_0()
+                            .occlude()
+                            .bg(t.canvas)
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(
+                                crate::ui::loading::LoadingMark::new(SharedString::from(format!(
+                                    "editor-pane-loading-mark-{id}"
+                                )))
+                                .area()
+                                .size(crate::ui::loading::LoaderSize::Md)
+                                .tone(crate::ui::loading::Tone::Neutral),
+                            ),
                     );
                 }
                 if cx.has_active_drag()

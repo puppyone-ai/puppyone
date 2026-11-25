@@ -228,6 +228,35 @@ impl Runtime {
             })
             .unwrap_or_else(|| vec![0])
     }
+    /// The file currently being read into the active pane, and whether the
+    /// workspace is remote (Cloud / other computer). Used to paint a centered
+    /// loading animation immediately while switching Cloud files.
+    pub fn loading_active_pane(&self) -> Option<(&std::path::Path, bool)> {
+        let host = self.active.as_ref().and_then(|key| self.hosts.get(key))?;
+        let remote = host
+            .empty
+            .workspace
+            .as_ref()
+            .is_some_and(|ws| ws.local_root().is_none());
+        let active_key = host.state.layout.active_editor();
+        host.slots
+            .values()
+            .find(|s| {
+                s.files.busy()
+                    && s.files.opened().is_none()
+                    && !s.restoring
+                    && s.drop_target.is_none()
+                    && ((!s.admitted && s.opening == self.navigation)
+                        || (s.admitted && active_key == Some(s.key.as_str()))
+                        || (s.rehydrating.is_some() && active_key == Some(s.key.as_str())))
+            })
+            .map(|s| (s.path.as_path(), remote))
+    }
+    /// Whether the active pane is waiting on a remote (Cloud / device) file
+    /// read, so native web content behind the loading overlay stays hidden.
+    pub fn loading_remote_pane(&self) -> bool {
+        self.loading_active_pane().is_some_and(|(_, remote)| remote)
+    }
     pub fn slot(&self, id: SlotId) -> Option<&Documents> {
         if id == 0 {
             return Some(&self.scratch);
@@ -643,6 +672,7 @@ impl Runtime {
                         drop_target: None,
                     },
                 );
+                self.generation += 1;
             }
             Intent::CloseFile => {
                 let id = self.active_slot();
@@ -1290,7 +1320,7 @@ impl Runtime {
             .is_some_and(|h| h.hibernated.contains_key(resource_key))
     }
 
-    fn is_hibernated_or_loading(&self, resource_key: &str) -> bool {
+    pub fn is_hibernated_or_loading(&self, resource_key: &str) -> bool {
         self.active
             .as_ref()
             .and_then(|ws| self.hosts.get(ws))

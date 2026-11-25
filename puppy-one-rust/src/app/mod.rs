@@ -662,8 +662,10 @@ impl Render for Shell {
         }
         // Native web content draws above GPUI: dialogs or the Cloud screen hide it;
         // popovers/menus/tooltips cut out via `ui::native_cover`.
-        let overlay =
-            !self.dialogs.read(cx).is_empty() || self.cloud.read(cx).screen_shown(cx) || crossing;
+        let overlay = !self.dialogs.read(cx).is_empty()
+            || self.cloud.read(cx).screen_shown(cx)
+            || crossing
+            || self.session.docs.read(cx).loading_remote_pane();
         crate::web_host::set_overlay(window, overlay);
         crate::web_host::frame_drawn(window);
         if !self.frame.captured && std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {

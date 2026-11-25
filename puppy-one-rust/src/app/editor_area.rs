@@ -652,6 +652,25 @@ impl Render for EditorArea {
             canvas = canvas.child(self.editor_node(&root, whole, window, cx));
         } else if self.docs.read(cx).opened().is_some() {
             canvas = canvas.child(div().absolute().size_full().child(self.front.clone()));
+        } else if self.docs.read(cx).loading_active_pane().is_some() {
+            canvas = canvas.child(
+                div()
+                    .id("editor-area-loading")
+                    .debug_selector(|| "editor-area-loading".into())
+                    .role(Role::Status)
+                    .aria_label(crate::localization::t("editor.loadingFile"))
+                    .absolute()
+                    .inset_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        crate::ui::loading::LoadingMark::new("editor-area-loading-mark")
+                            .area()
+                            .size(crate::ui::loading::LoaderSize::Md)
+                            .tone(crate::ui::loading::Tone::Neutral),
+                    ),
+            );
         }
         // A split resize follows the pointer wherever it goes.
         if self.resize.is_some() {

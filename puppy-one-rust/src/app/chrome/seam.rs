@@ -63,7 +63,12 @@ impl WindowChrome {
         if self.session.opening || self.owners.cloud.read(cx).screen_shown(cx) {
             return None;
         }
-        let (_, relative) = self.owners.docs.read(cx).opened()?;
+        let docs = self.owners.docs.read(cx);
+        let relative = docs
+            .loading_active_pane()
+            .filter(|(_, remote)| *remote)
+            .map(|(p, _)| p)
+            .or_else(|| docs.opened().map(|(_, p)| p))?;
         let name = relative
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
