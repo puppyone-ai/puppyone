@@ -440,10 +440,11 @@ impl WindowCloud {
             .border_color(t.border)
             .text_color(t.muted)
             .child(div().min_w_0().child(tr(line)))
-            .child(
+            .child(marked(
+                "cloud-chat-renew",
                 action("cloud-chat-renew", tr(button), ButtonVariant::FilledPrimary)
                     .on_click(move |_, _, cx| entity.update(cx, |c, cx| c.renew(cx))),
-            )
+            ))
     }
     fn telegram_step(&self, flow: &AddFlow, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
@@ -466,14 +467,15 @@ impl WindowCloud {
                         .child(tr("native.chatApps.pickTelegram")),
                 )
                 .child(
-                    h_flex().mt(px(8.)).child(
+                    h_flex().mt(px(8.)).child(marked(
+                        "cloud-chat-telegram-again",
                         action(
                             "cloud-chat-telegram-again",
                             tr("native.chatApps.openAgain"),
                             ButtonVariant::Ghost,
                         )
                         .on_click(open(true)),
-                    ),
+                    )),
                 )
                 .child(self.waiting_row("native.chatApps.waitingChat", flow, t)),
             _ => v_flex()
@@ -486,7 +488,8 @@ impl WindowCloud {
                     h_flex()
                         .mt(px(10.))
                         .gap(px(8.))
-                        .child(
+                        .child(marked(
+                            "cloud-chat-telegram-group",
                             action(
                                 "cloud-chat-telegram-group",
                                 tr("native.chatApps.toGroup"),
@@ -494,8 +497,9 @@ impl WindowCloud {
                             )
                             .disabled(flow.busy)
                             .on_click(open(true)),
-                        )
-                        .child(
+                        ))
+                        .child(marked(
+                            "cloud-chat-telegram-dm",
                             action(
                                 "cloud-chat-telegram-dm",
                                 tr("native.chatApps.toSelf"),
@@ -503,7 +507,7 @@ impl WindowCloud {
                             )
                             .disabled(flow.busy)
                             .on_click(open(false)),
-                        ),
+                        )),
                 ),
         };
         if matches!(flow.stage, ChatStage::Knocked(_)) {
@@ -531,7 +535,8 @@ impl WindowCloud {
                             .child(tr("native.chatApps.slackHint")),
                     )
                     .child(
-                        h_flex().mt(px(10.)).child(
+                        h_flex().mt(px(10.)).child(marked(
+                            "cloud-chat-slack-add",
                             action(
                                 "cloud-chat-slack-add",
                                 tr(if installing {
@@ -547,7 +552,7 @@ impl WindowCloud {
                             )
                             .disabled(flow.busy)
                             .on_click(move |_, _, cx| entity.update(cx, |c, cx| c.slack_add(cx))),
-                        ),
+                        )),
                     )
                     .when(installing, |d| {
                         d.child(self.waiting_row("native.chatApps.waitingSlack", flow, t))
@@ -636,7 +641,8 @@ impl WindowCloud {
                             .child(tr("native.chatApps.inviteHint")),
                     )
                     .child(
-                        h_flex().mt(px(10.)).child(
+                        h_flex().mt(px(10.)).child(marked(
+                            "cloud-chat-slack-start",
                             action(
                                 "cloud-chat-slack-start",
                                 tr("native.chatApps.inviteStep"),
@@ -644,7 +650,7 @@ impl WindowCloud {
                             )
                             .disabled(flow.busy)
                             .on_click(move |_, _, cx| entity.update(cx, |c, cx| c.slack_add(cx))),
-                        ),
+                        )),
                     );
                 self.step(n, Mark::Now, title, Some(body.into_any_element()), true, t)
             }
@@ -707,7 +713,8 @@ impl WindowCloud {
                 h_flex()
                     .mt(px(10.))
                     .gap(px(8.))
-                    .child(
+                    .child(marked(
+                        "cloud-chat-wecom-connect",
                         action(
                             "cloud-chat-wecom-connect",
                             tr(if connecting {
@@ -725,10 +732,11 @@ impl WindowCloud {
                             );
                             entity.update(cx, |c, cx| c.wecom_connect(id, key, cx));
                         }),
-                    )
+                    ))
                     .when_some(existing.filter(|_| !connecting), |d, bot| {
                         let entity = self.chats.clone();
-                        d.child(
+                        d.child(marked(
+                            "cloud-chat-wecom-existing",
                             action(
                                 "cloud-chat-wecom-existing",
                                 bot.display_name.clone(),
@@ -737,7 +745,7 @@ impl WindowCloud {
                             .on_click(move |_, _, cx| {
                                 entity.update(cx, |c, cx| c.wecom_use_bot(cx))
                             }),
-                        )
+                        ))
                     }),
             )
             .when(flow.stage == ChatStage::Connecting, |d| {
@@ -878,7 +886,8 @@ impl WindowCloud {
                 h_flex()
                     .gap(px(8.))
                     .justify_end()
-                    .child(
+                    .child(marked(
+                        "cloud-chat-flow-deny",
                         action(
                             "cloud-chat-flow-deny",
                             tr("cloud.share.agent.request.deny"),
@@ -886,8 +895,9 @@ impl WindowCloud {
                         )
                         .disabled(deciding)
                         .on_click(answer(false)),
-                    )
-                    .child(
+                    ))
+                    .child(marked(
+                        "cloud-chat-flow-allow",
                         action(
                             "cloud-chat-flow-allow",
                             tr("cloud.share.agent.request.allow"),
@@ -895,7 +905,7 @@ impl WindowCloud {
                         )
                         .disabled(deciding)
                         .on_click(answer(true)),
-                    ),
+                    )),
             )
             .into_any_element()
     }
@@ -954,22 +964,24 @@ impl WindowCloud {
                 h_flex()
                     .mt(px(6.))
                     .gap(px(8.))
-                    .child(
+                    .child(marked(
+                        "cloud-chat-another",
                         action(
                             "cloud-chat-another",
                             tr("native.chatApps.addAnother"),
                             ButtonVariant::Ghost,
                         )
                         .on_click(move |_, _, cx| again.update(cx, |c, cx| c.add_another(cx))),
-                    )
-                    .child(
+                    ))
+                    .child(marked(
+                        "cloud-chat-done",
                         action(
                             "cloud-chat-done",
                             tr("native.chatApps.done"),
                             ButtonVariant::FilledPrimary,
                         )
                         .on_click(move |_, _, cx| done.update(cx, |c, cx| c.close_add(cx))),
-                    ),
+                    )),
             )
             .into_any_element()
     }
@@ -998,15 +1010,9 @@ impl WindowCloud {
             .child(if renaming {
                 div()
                     .id("cloud-chat-rename")
+                    .debug_selector(|| "cloud-chat-rename".into())
                     .flex_1()
                     .min_w_0()
-                    .on_key_down(cx.listener(|s, event: &KeyDownEvent, _, cx| {
-                        if event.keystroke.key == "escape" {
-                            s.chat_inputs.renaming = None;
-                            cx.stop_propagation();
-                            cx.notify();
-                        }
-                    }))
                     .child(self.chat_inputs.rename.clone())
                     .into_any_element()
             } else {
@@ -1053,6 +1059,16 @@ impl WindowCloud {
             )
             .into_any_element()
     }
+    #[cfg(test)]
+    pub(in crate::app) fn rename_chat_for_test(
+        &mut self,
+        id: &str,
+        name: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.start_chat_rename(id.into(), name.into(), window, cx);
+    }
     fn start_chat_rename(
         &mut self,
         id: String,
@@ -1071,7 +1087,7 @@ impl WindowCloud {
             .focus(window, cx);
         cx.notify();
     }
-    pub(super) fn save_chat_name(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::app) fn save_chat_name(&mut self, cx: &mut Context<Self>) {
         let Some(id) = self.chat_inputs.renaming.take() else {
             return;
         };
@@ -1257,7 +1273,8 @@ impl WindowCloud {
                     .child(
                         h_flex()
                             .gap(px(6.))
-                            .child(
+                            .child(marked(
+                                "cloud-chat-keep",
                                 Button::new("cloud-chat-keep")
                                     .variant(ButtonVariant::Ghost)
                                     .label(tr("cloud.share.agent.keep"))
@@ -1265,8 +1282,9 @@ impl WindowCloud {
                                     .on_click(move |_, _, cx| {
                                         keep.update(cx, |c, cx| c.confirm_remove(false, cx))
                                     }),
-                            )
-                            .child(
+                            ))
+                            .child(marked(
+                                "cloud-chat-remove-yes",
                                 Button::new("cloud-chat-remove-yes")
                                     .variant(ButtonVariant::SolidDanger)
                                     .label(tr("cloud.share.agent.remove"))
@@ -1274,18 +1292,19 @@ impl WindowCloud {
                                     .on_click(move |_, _, cx| {
                                         entity.update(cx, |c, cx| c.remove(&id, cx))
                                     }),
-                            ),
+                            )),
                     )
                     .into_any_element()
             } else {
                 h_flex()
-                    .child(
+                    .child(marked(
+                        "cloud-chat-remove",
                         Button::new("cloud-chat-remove")
                             .variant(ButtonVariant::Ghost)
                             .text_color(t.danger)
                             .label(tr("native.chatApps.remove"))
                             .on_click(move |_, _, cx| entity.update(cx, |c, cx| c.remove(&id, cx))),
-                    )
+                    ))
                     .into_any_element()
             }
         };
@@ -1379,15 +1398,23 @@ impl WindowCloud {
             .text_color(t.text)
             .child(div().min_w_0().child(text))
             .children(button.map(|(label, press)| {
-                action(
+                marked(
                     "cloud-chat-banner-action",
-                    tr(label),
-                    ButtonVariant::Outline,
+                    action(
+                        "cloud-chat-banner-action",
+                        tr(label),
+                        ButtonVariant::Outline,
+                    )
+                    .on_click(move |_, _, cx| press(cx)),
                 )
-                .on_click(move |_, _, cx| press(cx))
             }))
             .into_any_element()
     }
+}
+
+/// A command tests and the end-to-end driver can find by name.
+fn marked(id: &'static str, element: impl IntoElement) -> Div {
+    div().debug_selector(move || id.into()).child(element)
 }
 
 /// The green lamp on a chat at work.
@@ -1401,4 +1428,131 @@ fn working_dot(t: Theme) -> Div {
         .bg(t.success)
         .border_2()
         .border_color(t.overlay)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    fn chat(changes: serde_json::Value) -> Chat {
+        let mut base = serde_json::json!({"id": "c1", "platform": "telegram", "chat_kind": "group",
+            "display_name": "Design team", "state": "active", "enabled": true,
+            "owner_user_id": "u1", "who_can_ask": "owner", "daily_limit_units": 60,
+            "used_today_units": 10});
+        for (key, value) in changes.as_object().unwrap() {
+            base[key] = value.clone();
+        }
+        serde_json::from_value(base).unwrap()
+    }
+
+    #[test]
+    fn a_tile_says_one_thing_about_the_chat() {
+        let now = 1_795_000_000;
+        let status = |changes| chat_status(&chat(changes), now);
+        assert_eq!(
+            status(serde_json::json!({"working": true})),
+            tr("native.chatApps.statusWorking")
+        );
+        assert_eq!(
+            status(serde_json::json!({"enabled": false})),
+            tr("native.chatApps.statusPaused")
+        );
+        assert_eq!(
+            status(serde_json::json!({"used_today_units": 60})),
+            tr("native.chatApps.statusLimit")
+        );
+        assert_eq!(
+            status(serde_json::json!({"stopped_reason": "removed_there", "working": true})),
+            tr("native.chatApps.statusRemoved")
+        );
+        assert_eq!(
+            status(serde_json::json!({})),
+            tr("native.chatApps.noRecent")
+        );
+    }
+
+    #[test]
+    fn what_it_reads_differs_in_groups_telegram_and_direct_chats() {
+        assert_eq!(
+            reads_line(&chat(serde_json::json!({}))),
+            tr("native.chatApps.readsTelegram")
+        );
+        assert_eq!(
+            reads_line(&chat(serde_json::json!({"platform": "slack"}))),
+            tr("native.chatApps.readsMention")
+        );
+        assert_eq!(
+            reads_line(&chat(serde_json::json!({"chat_kind": "dm"}))),
+            tr("native.chatApps.readsDm")
+        );
+    }
+
+    #[test]
+    fn a_wecom_knock_shows_the_code_it_carried() {
+        let wecom = chat(
+            serde_json::json!({"platform": "wecom", "display_name": "WeCom group",
+            "knock_hint": "482731", "connection_id": "x"}),
+        );
+        assert!(knock_name(&wecom).contains("482731"));
+        assert_eq!(knock_name(&chat(serde_json::json!({}))), "Design team");
+    }
+
+    #[test]
+    fn one_banner_at_most_and_the_most_pressing() {
+        assert_eq!(banner(&chat(serde_json::json!({}))), None);
+        assert_eq!(
+            banner(&chat(serde_json::json!({"used_today_units": 60}))),
+            Some(Banner::Limit)
+        );
+        assert_eq!(
+            banner(&chat(
+                serde_json::json!({"no_hours": true, "used_today_units": 60})
+            )),
+            Some(Banner::NoHours)
+        );
+        assert_eq!(
+            banner(&chat(
+                serde_json::json!({"stopped_reason": "owner_left", "no_hours": true})
+            )),
+            Some(Banner::OwnerLeft)
+        );
+        assert_eq!(
+            banner(&chat(
+                serde_json::json!({"stopped_reason": "removed_there"})
+            )),
+            Some(Banner::RemovedThere)
+        );
+    }
+
+    #[test]
+    fn settings_read_back_as_their_choices() {
+        assert_eq!(LIMITS.map(limit_label).len(), 4);
+        assert_eq!(limit_label(None), tr("native.chatApps.noLimit"));
+        assert_eq!(limit_label(Some(60)), tr("native.chatApps.limit60"));
+        assert_eq!(who_label(WhoCanAsk::Owner), tr("native.chatApps.onlyMe"));
+    }
+
+    #[test]
+    fn every_chat_string_exists_in_every_language() {
+        let catalog: serde_json::Value =
+            serde_json::from_str(include_str!("../../../assets/native-locales.json")).unwrap();
+        let source = include_str!("chat_apps.rs").to_owned()
+            + include_str!("../../features/cloud/chat_apps.rs")
+            + include_str!("../window_cloud.rs");
+        let keys: std::collections::BTreeSet<&str> = source
+            .match_indices("\"native.chatApps.")
+            .map(|(i, _)| {
+                let rest = &source[i + 1..];
+                &rest[..rest.find('"').unwrap()]
+            })
+            .filter(|key| key.len() > "native.chatApps.".len())
+            .collect();
+        assert!(keys.len() > 80);
+        for (locale, entries) in catalog["catalogs"].as_object().unwrap() {
+            for key in &keys {
+                assert!(entries.get(*key).is_some(), "{locale} lacks {key}");
+            }
+        }
+    }
 }

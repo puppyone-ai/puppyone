@@ -813,3 +813,237 @@ impl Default for CloudChats {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cloud::auth::model::ApiRequest;
+    use crate::workspace::cloud::services::Transport;
+    use core::prelude::v1::test;
+    use gpui::TestAppContext;
+    use serde_json::{Value, json};
+    use std::sync::Mutex;
+
+    /// A Cloud whose answers the test sets: the list, and each link's state.
+    #[derive(Default)]
+    struct Server {
+        connections: Mutex<Value>,
+        link: Mutex<Value>,
+        started: Mutex<Vec<Value>>,
+        patches: Mutex<Vec<Value>>,
+    }
+    impl Transport for Server {
+        fn request(&self, request: ApiRequest) -> services::Result<Value> {
+            let path = request.path.as_str();
+            let body = request.body.clone().unwrap_or(Value::Null);
+            if path.ends_with("/chat-apps") {
+                return Ok(
+                    json!({"can_manage": true, "platforms": ["telegram", "slack", "wecom"],
+                    "conversations": [], "connections": self.connections.lock().unwrap().clone()}),
+                );
+            }
+            if path.ends_with("/links") {
+                self.started.lock().unwrap().push(body.clone());
+                let mut link = self.link.lock().unwrap().clone();
+                link["state"] = "waiting".into();
+                let started = match body["platform"].as_str() {
+                    Some("slack") if body.get("connection_id").is_none() => {
+                        let mut install = link.clone();
+                        install["purpose"] = "slack_install".into();
+                        json!({"link": install,
+                               "install_url": "https://slack.com/oauth/v2/authorize?x"})
+                    }
+                    Some("slack") => json!({"link": link, "invite": "/invite @PuppyOne"}),
+                    Some("wecom") => json!({"link": link, "code": "482731"}),
+                    _ => json!({"link": link, "links": {"group": "https://t.me/b?startgroup=x",
+                                                        "dm": "https://t.me/b?start=x"}}),
+                };
+                return Ok(started);
+            }
+            if path.contains("/links/") {
+                return Ok(self.link.lock().unwrap().clone());
+            }
+            if path.ends_with("/connections") {
+                return Ok(
+                    json!({"id": "bot", "platform": "wecom", "display_name": "Bot",
+                    "status": "pending"}),
+                );
+            }
+            if request.method == reqwest::Method::PATCH {
+                self.patches.lock().unwrap().push(body);
+            }
+            Ok(Value::Null)
+        }
+    }
+    fn link(state: &str, platform: &str) -> Value {
+        json!({"id": "l1", "purpose": "knock", "platform": platform, "state": state,
+               "expires_at": "2026-11-25T12:10:00Z"})
+    }
+    fn setup(cx: &mut TestAppContext) -> (Arc<Server>, Entity<CloudChats>) {
+        let server = Arc::new(Server::default());
+        *server.connections.lock().unwrap() = json!([]);
+        *server.link.lock().unwrap() = link("waiting", "telegram");
+        let chats = cx.new(|_| CloudChats::new());
+        let client = Client::new(server.clone());
+        chats.update(cx, |c, cx| c.attach_client("p1", client, cx));
+        cx.run_until_parked();
+        (server, chats)
+    }
+    fn stage(chats: &Entity<CloudChats>, cx: &mut TestAppContext) -> Stage {
+        chats.read_with(cx, |c, _| c.flow.as_ref().unwrap().stage.clone())
+    }
+    fn poll(chats: &Entity<CloudChats>, cx: &mut TestAppContext) {
+        chats.update(cx, |c, cx| c.refresh(cx));
+        cx.run_until_parked();
+    }
+
+    #[test]
+    fn each_app_has_its_own_number_of_steps() {
+        let steps = |p, ready| AddFlow::new(p).steps(ready);
+        assert_eq!(steps(Platform::Telegram, false), 2);
+        assert_eq!(steps(Platform::Slack, false), 3);
+        assert_eq!(steps(Platform::Slack, true), 2);
+        assert_eq!(steps(Platform::Wecom, false), 3);
+    }
+
+    #[gpui::test]
+    fn a_telegram_wait_ends_on_the_knock_or_lapses(cx: &mut TestAppContext) {
+        let (server, chats) = setup(cx);
+        chats.update(cx, |c, cx| {
+            c.open_add(cx);
+            c.telegram_open(true, cx)
+        });
+        cx.run_until_parked();
+        assert_eq!(stage(&chats, cx), Stage::Waiting);
+        assert_eq!(
+            server.started.lock().unwrap()[0],
+            json!({"platform": "telegram"})
+        );
+        let mut knocked = link("knocked", "telegram");
+        knocked["conversation"] = json!({"id": "c1", "platform": "telegram", "chat_kind": "group",
+            "display_name": "Design team", "state": "asking", "enabled": true,
+            "owner_user_id": "u1", "who_can_ask": "owner"});
+        *server.link.lock().unwrap() = knocked;
+        poll(&chats, cx);
+        assert!(matches!(stage(&chats, cx), Stage::Knocked(c) if c.display_name == "Design team"));
+        // A new wait that nobody answers in ten minutes lapses.
+        chats.update(cx, |c, cx| c.add_another(cx));
+        chats.update(cx, |c, cx| c.telegram_open(false, cx));
+        cx.run_until_parked();
+        *server.link.lock().unwrap() = link("expired", "telegram");
+        poll(&chats, cx);
+        assert_eq!(stage(&chats, cx), Stage::Lapsed);
+    }
+
+    #[gpui::test]
+    fn slack_installs_once_then_waits_for_the_channel(cx: &mut TestAppContext) {
+        let (server, chats) = setup(cx);
+        chats.update(cx, |c, cx| {
+            c.open_add(cx);
+            c.choose(Platform::Slack, cx);
+            c.slack_add(cx)
+        });
+        cx.run_until_parked();
+        assert_eq!(stage(&chats, cx), Stage::Installing);
+        let mut done = link("done", "slack");
+        done["connection"] = json!({"id": "T1c", "platform": "slack", "display_name": "Acme",
+            "status": "active", "linked_me": true});
+        *server.link.lock().unwrap() = done;
+        poll(&chats, cx);
+        cx.run_until_parked();
+        assert_eq!(stage(&chats, cx), Stage::Waiting);
+        let started = server.started.lock().unwrap().clone();
+        assert_eq!(
+            started[1],
+            json!({"platform": "slack", "connection_id": "T1c"})
+        );
+        chats.read_with(cx, |c, _| {
+            assert_eq!(
+                c.flow
+                    .as_ref()
+                    .unwrap()
+                    .started
+                    .as_ref()
+                    .unwrap()
+                    .invite
+                    .as_deref(),
+                Some("/invite @PuppyOne")
+            )
+        });
+    }
+
+    #[gpui::test]
+    fn wecom_shows_the_code_once_the_bot_connects_and_says_when_refused(cx: &mut TestAppContext) {
+        let (server, chats) = setup(cx);
+        chats.update(cx, |c, cx| {
+            c.open_add(cx);
+            c.choose(Platform::Wecom, cx);
+            c.wecom_connect("bot".into(), "secret-placeholder".into(), cx)
+        });
+        cx.run_until_parked();
+        assert_eq!(stage(&chats, cx), Stage::Connecting);
+        *server.connections.lock().unwrap() =
+            json!([{"id": "bot", "platform": "wecom", "display_name": "Bot", "status": "active"}]);
+        *server.link.lock().unwrap() = link("waiting", "wecom");
+        poll(&chats, cx);
+        cx.run_until_parked();
+        assert_eq!(stage(&chats, cx), Stage::Waiting);
+        chats.read_with(cx, |c, _| {
+            assert_eq!(
+                c.flow
+                    .as_ref()
+                    .unwrap()
+                    .started
+                    .as_ref()
+                    .unwrap()
+                    .code
+                    .as_deref(),
+                Some("482731")
+            )
+        });
+        // Another try with a bot WeCom refuses goes back to the first step.
+        chats.update(cx, |c, cx| {
+            c.add_another(cx);
+            c.wecom_connect("bad".into(), "secret-placeholder".into(), cx)
+        });
+        cx.run_until_parked();
+        *server.connections.lock().unwrap() =
+            json!([{"id": "bot", "platform": "wecom", "display_name": "Bot", "status": "failed"}]);
+        poll(&chats, cx);
+        chats.read_with(cx, |c, _| {
+            let flow = c.flow.as_ref().unwrap();
+            assert_eq!(
+                (flow.stage.clone(), flow.error),
+                (Stage::Add, Some(FlowError::WeComRejected))
+            );
+        });
+    }
+
+    #[gpui::test]
+    fn a_name_over_64_characters_is_not_sent(cx: &mut TestAppContext) {
+        let (server, chats) = setup(cx);
+        chats.update(cx, |c, cx| {
+            let long = Change {
+                display_name: Some("x".repeat(65)),
+                ..Default::default()
+            };
+            c.change("c1", long, cx);
+            let blank = Change {
+                display_name: Some("  ".into()),
+                ..Default::default()
+            };
+            c.change("c1", blank, cx);
+        });
+        cx.run_until_parked();
+        assert!(server.patches.lock().unwrap().is_empty());
+    }
+
+    #[gpui::test]
+    fn another_project_or_account_starts_over(cx: &mut TestAppContext) {
+        let (_, chats) = setup(cx);
+        chats.update(cx, |c, cx| c.open_add(cx));
+        let other = Client::new(Arc::new(Server::default()));
+        chats.update(cx, |c, cx| c.attach_client("p2", other, cx));
+        chats.read_with(cx, |c, _| assert!(c.flow.is_none() && c.chats.is_empty()));
+    }
+}

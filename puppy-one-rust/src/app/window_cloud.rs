@@ -631,8 +631,6 @@ impl WindowCloud {
             hovered: false,
             expired: false,
         });
-        // chat apps: the "Add to chat" / "Open" action for `imported` files
-        // is added here by the caller; this hook only reports the drop.
         cx.spawn(async move |this, cx| {
             cx.background_executor().timer(IMPORT_NOTICE_LIFETIME).await;
             let _ = this.update(cx, |s, cx| s.import_notice_timeout(generation, cx));
@@ -663,9 +661,12 @@ impl WindowCloud {
         &self,
         width: f32,
         explorer: f32,
+        cx: &App,
     ) -> Option<crate::ui::components::NoticeStack> {
-        use crate::localization::tf;
-        use crate::ui::components::{FloatingNotice, NoticePlacement, NoticeStack, NoticeTone};
+        use crate::localization::{t, tf};
+        use crate::ui::components::{
+            FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
+        };
         let n = self.import_notice.as_ref()?;
         let mut parts = vec![];
         if n.imported > 0 {
@@ -678,6 +679,64 @@ impl WindowCloud {
             parts.push(tf(
                 "native.cloudImport.failed",
                 &[("count", n.failed.into())],
+            ));
+        }
+        // Chat apps: a manager is offered the chat that can see the files now,
+        // or to put the project in one. Others, and partial failures, get the count.
+        let chats = self.chats.read(cx);
+        let mut action = None;
+        if n.failed == 0 && chats.can_manage && chats.available() {
+            let in_chats: Vec<_> = chats
+                .active()
+                .map(|c| (c.id.clone(), c.display_name.clone()))
+                .collect();
+            let host = self.weak.clone();
+            let (line, label, target) = match in_chats.as_slice() {
+                [] => (
+                    t("native.chatApps.importAsk").to_string(),
+                    "native.chatApps.addToChat",
+                    None,
+                ),
+                [(id, name)] => (
+                    tf(
+                        "native.chatApps.importSee",
+                        &[("chat", name.clone().into())],
+                    ),
+                    "native.chatApps.open",
+                    Some(Some(id.clone())),
+                ),
+                many => (
+                    tf(
+                        "native.chatApps.importSee",
+                        &[(
+                            "chat",
+                            tf(
+                                "native.chatApps.chatsCount",
+                                &[("n", many.len().to_string().into())],
+                            )
+                            .into(),
+                        )],
+                    ),
+                    "native.chatApps.open",
+                    Some(None),
+                ),
+            };
+            parts.push(line);
+            action = Some(NoticeAction::new(
+                "cloud-import-chat",
+                t(label),
+                move |window, cx| {
+                    let target = target.clone();
+                    let _ = host.update(cx, |s, cx| {
+                        s.import_notice = None;
+                        match target {
+                            // Several chats: the roster, where they all are.
+                            Some(None) => s.open_chat_roster(window, cx),
+                            Some(chat) => s.open_chat(chat, window, cx),
+                            None => s.open_chat(None, window, cx),
+                        }
+                    });
+                },
             ));
         }
         let weak = self.weak.clone();
@@ -697,6 +756,10 @@ impl WindowCloud {
                     cx.notify();
                 });
             });
+        let notice = match action {
+            Some(action) => notice.action(action),
+            None => notice,
+        };
         Some(
             NoticeStack::new(
                 NoticePlacement::BottomEnd,

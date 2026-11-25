@@ -9,6 +9,7 @@ mod appearance_settings;
 mod autosave;
 mod brand_assets;
 mod bundled_modules;
+mod chat_apps;
 mod close_lifecycle;
 mod cloud_import;
 mod cloud_opening;

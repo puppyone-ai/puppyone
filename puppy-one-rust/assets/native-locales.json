@@ -308,7 +308,11 @@
       "native.chatApps.wecomStep": "Create a bot in WeCom",
       "native.chatApps.who": "Who can ask",
       "native.chatApps.worksAs": "Works as {name}.",
-      "native.chatApps.worksAsYou": "Works as you. Its chats are in your Agent history, and risky changes wait for your approval there."
+      "native.chatApps.worksAsYou": "Works as you. Its chats are in your Agent history, and risky changes wait for your approval there.",
+      "native.chatApps.importAsk": "Ask about them from a chat.",
+      "native.chatApps.importSee": "The agent in {chat} can see them now.",
+      "native.chatApps.chatsCount": "{n} chats",
+      "native.chatApps.open": "Open"
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -617,7 +621,11 @@
       "native.chatApps.wecomStep": "在企业微信里创建一个机器人",
       "native.chatApps.who": "谁能提问",
       "native.chatApps.worksAs": "它以 {name} 的身份工作。",
-      "native.chatApps.worksAsYou": "它以你的身份工作。对话记录在你的 Agent 历史里，有风险的改动会在那里等你批准。"
+      "native.chatApps.worksAsYou": "它以你的身份工作。对话记录在你的 Agent 历史里，有风险的改动会在那里等你批准。",
+      "native.chatApps.importAsk": "可以在聊天里问它们。",
+      "native.chatApps.importSee": "{chat} 里的 Agent 现在就能看到。",
+      "native.chatApps.chatsCount": "{n} 个聊天",
+      "native.chatApps.open": "打开"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -926,7 +934,11 @@
       "native.chatApps.wecomStep": "WeCom でボットを作成",
       "native.chatApps.who": "質問できる人",
       "native.chatApps.worksAs": "{name} として動作します。",
-      "native.chatApps.worksAsYou": "あなたとして動作します。会話はあなたのエージェント履歴に残り、リスクのある変更はそこであなたの承認を待ちます。"
+      "native.chatApps.worksAsYou": "あなたとして動作します。会話はあなたのエージェント履歴に残り、リスクのある変更はそこであなたの承認を待ちます。",
+      "native.chatApps.importAsk": "チャットからこれらについて質問できます。",
+      "native.chatApps.importSee": "{chat} のエージェントが今すぐ見られます。",
+      "native.chatApps.chatsCount": "{n} 件のチャット",
+      "native.chatApps.open": "開く"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -1235,7 +1247,11 @@
       "native.chatApps.wecomStep": "WeCom에서 봇 만들기",
       "native.chatApps.who": "질문할 수 있는 사람",
       "native.chatApps.worksAs": "{name}(으)로 작동합니다.",
-      "native.chatApps.worksAsYou": "당신으로 작동합니다. 대화는 에이전트 기록에 남고, 위험한 변경은 그곳에서 승인을 기다립니다."
+      "native.chatApps.worksAsYou": "당신으로 작동합니다. 대화는 에이전트 기록에 남고, 위험한 변경은 그곳에서 승인을 기다립니다.",
+      "native.chatApps.importAsk": "채팅에서 이 파일들에 대해 물어보세요.",
+      "native.chatApps.importSee": "{chat}의 에이전트가 이제 볼 수 있습니다.",
+      "native.chatApps.chatsCount": "채팅 {n}개",
+      "native.chatApps.open": "열기"
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -1544,7 +1560,11 @@
       "native.chatApps.wecomStep": "Crea un bot en WeCom",
       "native.chatApps.who": "Quién puede preguntar",
       "native.chatApps.worksAs": "Trabaja como {name}.",
-      "native.chatApps.worksAsYou": "Trabaja como tú. Sus chats están en tu historial de agente y los cambios arriesgados esperan tu aprobación allí."
+      "native.chatApps.worksAsYou": "Trabaja como tú. Sus chats están en tu historial de agente y los cambios arriesgados esperan tu aprobación allí.",
+      "native.chatApps.importAsk": "Pregunta por ellos desde un chat.",
+      "native.chatApps.importSee": "El agente de {chat} ya puede verlos.",
+      "native.chatApps.chatsCount": "{n} chats",
+      "native.chatApps.open": "Abrir"
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -1853,7 +1873,11 @@
       "native.chatApps.wecomStep": "Crie um bot no WeCom",
       "native.chatApps.who": "Quem pode perguntar",
       "native.chatApps.worksAs": "Trabalha como {name}.",
-      "native.chatApps.worksAsYou": "Trabalha como você. Os chats ficam no seu histórico de agente, e mudanças arriscadas esperam sua aprovação lá."
+      "native.chatApps.worksAsYou": "Trabalha como você. Os chats ficam no seu histórico de agente, e mudanças arriscadas esperam sua aprovação lá.",
+      "native.chatApps.importAsk": "Pergunte sobre eles em um chat.",
+      "native.chatApps.importSee": "O agente em {chat} já pode vê-los.",
+      "native.chatApps.chatsCount": "{n} chats",
+      "native.chatApps.open": "Abrir"
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -2162,7 +2186,11 @@
       "native.chatApps.wecomStep": "Créez un bot dans WeCom",
       "native.chatApps.who": "Qui peut poser des questions",
       "native.chatApps.worksAs": "Travaille en tant que {name}.",
-      "native.chatApps.worksAsYou": "Travaille en votre nom. Ses discussions sont dans votre historique d’agent, et les modifications risquées y attendent votre approbation."
+      "native.chatApps.worksAsYou": "Travaille en votre nom. Ses discussions sont dans votre historique d’agent, et les modifications risquées y attendent votre approbation.",
+      "native.chatApps.importAsk": "Posez des questions à leur sujet depuis une discussion.",
+      "native.chatApps.importSee": "L’agent dans {chat} peut les voir dès maintenant.",
+      "native.chatApps.chatsCount": "{n} discussions",
+      "native.chatApps.open": "Ouvrir"
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -2471,7 +2499,11 @@
       "native.chatApps.wecomStep": "Einen Bot in WeCom erstellen",
       "native.chatApps.who": "Wer fragen kann",
       "native.chatApps.worksAs": "Arbeitet als {name}.",
-      "native.chatApps.worksAsYou": "Arbeitet als du. Seine Chats sind in deinem Agent-Verlauf, und riskante Änderungen warten dort auf deine Freigabe."
+      "native.chatApps.worksAsYou": "Arbeitet als du. Seine Chats sind in deinem Agent-Verlauf, und riskante Änderungen warten dort auf deine Freigabe.",
+      "native.chatApps.importAsk": "Frag in einem Chat danach.",
+      "native.chatApps.importSee": "Der Agent in {chat} kann sie jetzt sehen.",
+      "native.chatApps.chatsCount": "{n} Chats",
+      "native.chatApps.open": "Öffnen"
     }
   }
 }

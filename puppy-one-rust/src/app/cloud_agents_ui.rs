@@ -29,6 +29,17 @@ mod chat_apps;
 mod dialog;
 mod invite;
 pub(super) use chat_apps::ChatInputs;
+#[cfg(test)]
+pub(in crate::app) fn banner_of(
+    chat: &crate::workspace::cloud::chat_apps::Chat,
+) -> Option<&'static str> {
+    chat_apps::banner(chat).map(|b| match b {
+        chat_apps::Banner::OwnerLeft => "owner_left",
+        chat_apps::Banner::RemovedThere => "removed_there",
+        chat_apps::Banner::NoHours => "no_hours",
+        chat_apps::Banner::Limit => "limit",
+    })
+}
 mod paste_art;
 
 /// Enough faces to recognize the room; the rest are a count.
@@ -1005,7 +1016,24 @@ impl WindowCloud {
         }
         self.refresh(cx);
     }
+    /// The Agents dialog on its roster, where every chat is.
+    pub(in crate::app) fn open_chat_roster(
+        &mut self,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.chats.update(cx, |c, cx| c.manage(None, cx));
+        if !self.dialog_open(DialogKey::Agents, cx) {
+            self.open_dialog(DialogKey::Agents, cx);
+        }
+        self.refresh(cx);
+    }
     pub(super) fn close_agents_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // Escape while a chat's name is being edited keeps the old name only.
+        if self.chat_inputs.renaming.take().is_some() {
+            cx.notify();
+            return;
+        }
         self.close_dialog(DialogKey::Agents, cx);
         self.focus_window(window, cx);
         self.refresh(cx);

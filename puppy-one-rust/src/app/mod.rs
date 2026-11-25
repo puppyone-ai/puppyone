@@ -772,20 +772,12 @@ impl Render for Shell {
                     .project
                     .read(cx)
                     .notices(editor_body, end, folder, project);
+            let (ew, session) = (self.frame.layout.explorer.w, &self.explorer.session);
             root = root
                 .children(proj_notices)
                 .children(self.editor.read(cx).notices(editor_body, end, cx))
-                .children(explorer::clipboard_notice::stack(
-                    &self.explorer.session,
-                    w,
-                    self.frame.layout.explorer.w,
-                    cx,
-                ))
-                .children(
-                    self.cloud
-                        .read(cx)
-                        .import_notice_stack(w, self.frame.layout.explorer.w),
-                );
+                .children(explorer::clipboard_notice::stack(session, w, ew, cx))
+                .children(self.cloud.read(cx).import_notice_stack(w, ew, cx));
         }
         let chrome = self.chrome.read(cx);
         root = root.child(chrome.project_actions.clone());
