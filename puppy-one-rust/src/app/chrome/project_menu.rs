@@ -39,7 +39,7 @@ impl WindowChrome {
     /// then the folder. With the project rail on, the rail names the
     /// project and the Header keeps the place alone. While a project is on
     /// its way in there is no place yet.
-    pub(super) fn project_context(&self, project_hidden: bool, cx: &mut Context<Self>) -> Div {
+    pub(super) fn project_context(&self, project_hidden: bool, cx: &App) -> Div {
         let label = tf(
             "shell.workspaceSwitcher.openMenu",
             &[("workspace", self.session.name.clone().into())],
@@ -130,11 +130,12 @@ impl WindowChrome {
             Popover::Account => "account-menu",
         };
         let host = self.weak.clone();
-        // The account sits at the Header's end: its menu hangs inward.
-        let anchor = if popover == Popover::Account {
-            Anchor::TopRight
-        } else {
-            Anchor::TopLeft
+        let anchor = match popover {
+            // The account sits at the Header's end: its menu hangs inward.
+            Popover::Account => Anchor::TopRight,
+            // At the Explorer's bottom (no Header) the menus open upward.
+            Popover::Place | Popover::Project if self.context_in_sidebar() => Anchor::BottomLeft,
+            _ => Anchor::TopLeft,
         };
         let mut menu = PopoverMenu::new(id)
             .anchor(anchor)

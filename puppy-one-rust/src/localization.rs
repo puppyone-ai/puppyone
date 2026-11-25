@@ -51,6 +51,7 @@ fn native() -> &'static Value {
             CROSS_PLATFORM_MESSAGES,
             CLOUD_AGENT_MESSAGES,
             ISOLATED_AGENT_SANDBOXES_MESSAGES,
+            HIDDEN_HEADER_MESSAGES,
         ] {
             let extra: Value = serde_json::from_str(raw).expect("native extension catalogs");
             for (locale, messages) in extra.as_object().unwrap() {
@@ -186,6 +187,41 @@ const ISOLATED_AGENT_SANDBOXES_MESSAGES: &str = r#"{
     "settings.experimental.isolatedAgentSandboxes.detail": "在云电脑设置中显示项目级开关，让每个外部 Agent 在独立的云端沙盒中运行，并挂载共享工作区文件。",
     "cloud.settings.computer.isolatedAgents": "外部 Agent 独立沙盒",
     "cloud.settings.computer.isolatedAgentsHelp": "为每个外部 Agent 启动独立沙盒并挂载项目共享文件。开启后对后续外部 Agent 连接生效。"
+  }
+}"#;
+
+const HIDDEN_HEADER_MESSAGES: &str = r#"{
+  "en": {
+    "settings.experimental.hiddenHeader.title": "Hide the Header",
+    "settings.experimental.hiddenHeader.detail": "Project windows drop the bar along the top. The place and project move to the bottom of the sidebar; Changes and the Agent sit above the document."
+  },
+  "zh-Hans": {
+    "settings.experimental.hiddenHeader.title": "隐藏 Header",
+    "settings.experimental.hiddenHeader.detail": "项目窗口不再显示顶部的整条 Header。位置和项目移到侧栏左下角，更改和 Agent 等按钮移到文档上方。"
+  },
+  "ja": {
+    "settings.experimental.hiddenHeader.title": "Header を隠す",
+    "settings.experimental.hiddenHeader.detail": "プロジェクトウィンドウ上部のバーをなくします。場所とプロジェクトはサイドバーの下部へ、変更や Agent などのボタンはドキュメントの上へ移ります。"
+  },
+  "ko": {
+    "settings.experimental.hiddenHeader.title": "Header 숨기기",
+    "settings.experimental.hiddenHeader.detail": "프로젝트 창 상단의 막대를 없앱니다. 위치와 프로젝트는 사이드바 아래로, 변경 사항과 Agent 등의 버튼은 문서 위로 옮겨집니다."
+  },
+  "es": {
+    "settings.experimental.hiddenHeader.title": "Ocultar el Header",
+    "settings.experimental.hiddenHeader.detail": "Las ventanas de proyecto pierden la barra superior. El lugar y el proyecto pasan al pie de la barra lateral; Cambios y el Agent quedan sobre el documento."
+  },
+  "pt-BR": {
+    "settings.experimental.hiddenHeader.title": "Ocultar o Header",
+    "settings.experimental.hiddenHeader.detail": "As janelas de projeto deixam de ter a barra superior. O local e o projeto vão para a base da barra lateral; Alterações e o Agent ficam acima do documento."
+  },
+  "fr": {
+    "settings.experimental.hiddenHeader.title": "Masquer le Header",
+    "settings.experimental.hiddenHeader.detail": "Les fenêtres de projet perdent la barre du haut. L’emplacement et le projet passent en bas de la barre latérale ; Modifications et l’Agent se placent au-dessus du document."
+  },
+  "de": {
+    "settings.experimental.hiddenHeader.title": "Header ausblenden",
+    "settings.experimental.hiddenHeader.detail": "Projektfenster verlieren die Leiste oben. Ort und Projekt wandern ans Ende der Seitenleiste; Änderungen und der Agent stehen über dem Dokument."
   }
 }"#;
 
@@ -1555,6 +1591,8 @@ mod tests {
             "settings.experimental.cloudComputerScreen.detail",
             "settings.experimental.isolatedAgentSandboxes.title",
             "settings.experimental.isolatedAgentSandboxes.detail",
+            "settings.experimental.hiddenHeader.title",
+            "settings.experimental.hiddenHeader.detail",
             "cloud.settings.computer.isolatedAgents",
             "cloud.settings.computer.isolatedAgentsHelp",
         ];

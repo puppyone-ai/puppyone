@@ -13,6 +13,7 @@ mod account;
 pub(super) mod navigation;
 mod project_menu;
 mod rail;
+pub(super) mod seam;
 pub(super) mod window_frame;
 
 use super::{
@@ -34,6 +35,7 @@ use crate::ui::components::IconButton;
 use crate::ui::components::{Button, ButtonVariant};
 use crate::workspace::cloud::catalog::Item;
 use gpui::{prelude::*, *};
+pub(super) use seam::Seam;
 use std::path::PathBuf;
 
 /// Header popovers the chrome holds: one at a time.
@@ -95,6 +97,8 @@ pub(super) struct WindowChrome {
     rail: bool,
     /// The rail's projects in the slots they were first shown in.
     rail_slots: std::cell::RefCell<Vec<std::path::PathBuf>>,
+    /// Without the Header: where the panes leave its parts this frame.
+    seam: std::cell::Cell<Option<Seam>>,
     weak: WeakEntity<Self>,
 }
 impl EventEmitter<ChromeEvent> for WindowChrome {}
@@ -141,6 +145,7 @@ impl WindowChrome {
             copied_path: None,
             rail,
             rail_slots: Default::default(),
+            seam: Default::default(),
             weak: cx.weak_entity(),
         }
     }
@@ -177,6 +182,23 @@ impl WindowChrome {
     }
     pub fn rail_shown(&self) -> bool {
         self.rail
+    }
+    /// The window draws without the Header this frame (`None`: with it).
+    /// Set while the window draws, before the chrome draws.
+    pub fn set_seam(&self, seam: Option<Seam>) {
+        self.seam.set(seam);
+    }
+    /// Without the Header, the place and the project for the Explorer's
+    /// bottom while it shows.
+    pub(in crate::app) fn sidebar_context(&self, cx: &App) -> Option<Div> {
+        let session = &self.session;
+        let project = session.workspace || session.fixture || session.opening;
+        (self.context_in_sidebar() && project && !session.home)
+            .then(|| self.project_context(self.rail, cx))
+    }
+    /// The place and the project sit at the Explorer's bottom.
+    fn context_in_sidebar(&self) -> bool {
+        self.seam.get().is_some_and(|seam| seam.context_in_sidebar)
     }
     /// A handler for a part drawn from a read (the rail).
     fn listener<E: ?Sized>(
@@ -227,6 +249,10 @@ impl WindowChrome {
     ///   Agent entry, each group set off by a rule.
     /// - A Cloud project (`CloudWorkspaceHeaderTools`): its Agents, a rule
     ///   and the Agent entry, on the theme's own Header.
+    ///
+    /// Without the Header (experimental) the same parts stand over the
+    /// panes: the actions above the document, the place and the project at
+    /// the Explorer's bottom while it shows.
     fn header(&self, cx: &mut Context<Self>) -> header::TitleBar {
         use crate::localization::t as tr;
         let o = &self.owners;
@@ -286,7 +312,7 @@ impl WindowChrome {
                     .on_click(cx.listener(|s, _, _, cx| s.command(Command::ToggleExplorer, cx))),
             );
         }
-        if project {
+        if project && !self.context_in_sidebar() {
             bar = bar.leading(self.project_context(self.rail, cx));
         }
         // `app-status`: an update to download or restart into comes first.
@@ -408,6 +434,11 @@ impl WindowChrome {
 
 impl Render for WindowChrome {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().child(self.header(cx))
+        let bar = self.header(cx);
+        let bar = match self.seam.get().filter(|_| !self.session.home) {
+            Some(seam) => bar.seamless(seam.end),
+            None => bar,
+        };
+        div().size_full().child(bar)
     }
 }

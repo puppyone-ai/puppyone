@@ -76,6 +76,7 @@ fn groups(
                     "panes",
                     "header"
                 ),
+                setting!("hiddenHeader", experimental.hidden_header),
             ],
         ),
         (
@@ -177,6 +178,7 @@ mod tests {
                 "projectSwitcherRail",
                 "alwaysShowOnboardingCoachmarks",
                 "editorTabsInHeader",
+                "hiddenHeader",
             ]
         );
         assert_eq!(keys_in("markdown", true, true), ["markdownBlockDrag"]);

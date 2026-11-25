@@ -7,6 +7,7 @@
 //! `node-menu:<path>` (the row's "⋮"), `create-menu:<path>` (the row's "+"),
 //! `new-menu` (list-end "New"), `context:<x>,<y>` (right click),
 //! `submenu` (Custom files), `project-menu`, `location-menu`, `changes`,
+//! `hidden-header` (the window without the Header, experimental),
 //! `agent`, `toggle-explorer`, `home`, `remember:<absolute path>` and
 //! `forget:<absolute path>` (a recent project), `create-project:<name>`
 //! (the create dialog with a fixed name), `git-diff:<path>` /
@@ -75,6 +76,8 @@ enum Step {
     Pack(String),
     /// The colour mode (`dark` or `light`), switched while the window runs.
     Mode(bool),
+    /// `hidden-header`: the window without the Header (experimental).
+    HiddenHeader,
     /// The pointer moved to a window point.
     Move(f32, f32),
     /// The left button pressed / released at a window point (a drag is
@@ -186,6 +189,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 }
                 "pack" => Step::Pack(arg.trim().to_owned()),
                 "mode" => Step::Mode(arg.trim() == "dark"),
+                "hidden-header" => Step::HiddenHeader,
                 "click" | "move" | "press" | "release" => {
                     let n: Vec<f32> = arg
                         .split(',')
@@ -708,6 +712,9 @@ impl Shell {
                     .store
                     .update(cx, |p, cx| p.change(|p| p.theme_mode = mode, cx))
             }
+            Step::HiddenHeader => self.prefs.store.update(cx, |p, cx| {
+                p.change(|p| p.experimental.hidden_header = true, cx)
+            }),
             Step::Pack(id) => self.prefs.store.update(cx, |p, cx| {
                 p.change(
                     |p| {

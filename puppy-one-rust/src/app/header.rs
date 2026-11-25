@@ -33,6 +33,7 @@ pub(super) struct TitleBar {
     leading: Vec<AnyElement>,
     actions: Vec<AnyElement>,
     tabs: Option<AnyElement>,
+    seamless: Option<f32>,
 }
 impl TitleBar {
     pub fn new() -> Self {
@@ -54,6 +55,13 @@ impl TitleBar {
         self.actions.push(item.into_any_element());
         self
     }
+    /// Without the Header (experimental): no bar of its own, so the panes
+    /// show through, and the actions end `end` before the window's end —
+    /// above the document rather than over the right sidebar.
+    pub fn seamless(mut self, end: f32) -> Self {
+        self.seamless = Some(end);
+        self
+    }
     /// `.desktop-titlebar-action-divider` (1×18, 3px margins) between two
     /// actions.
     pub fn divider(self, cx: &App) -> Self {
@@ -71,6 +79,7 @@ impl RenderOnce for TitleBar {
             self.leading,
             self.tabs,
             self.actions,
+            self.seamless,
             window,
             cx,
         )

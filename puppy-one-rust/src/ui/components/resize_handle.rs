@@ -6,7 +6,7 @@
 //! transparent (or [`rest`](ResizeHandle::rest)), takes
 //! `--po-pane-resizer-hover-color` under the pointer and the active colour
 //! with a 1px ring while dragged. A pane edge also paints the frame's own
-//! hairline divider at the lane's start, the stroke beside it
+//! hairline divider near the lane's start, the stroke beside it
 //! (`.po-pane-edge-chrome`).
 //!
 //! The owner positions and sizes the lane (`Styled`) and runs the drag from
@@ -26,6 +26,7 @@ pub struct ResizeHandle {
     axis: Axis,
     stroke: f32,
     divider: Option<Rgba>,
+    divider_at: f32,
     rest: Option<Rgba>,
     hover: Option<Rgba>,
     cursor: Option<CursorStyle>,
@@ -47,6 +48,7 @@ impl ResizeHandle {
             axis,
             stroke: 0.,
             divider: None,
+            divider_at: 0.,
             rest: None,
             hover: None,
             cursor: None,
@@ -62,10 +64,16 @@ impl ResizeHandle {
         self.stroke = offset;
         self
     }
-    /// The pane frame's own hairline edge, painted at the lane's start whatever
+    /// The pane frame's own hairline edge, painted at the lane's start (or
+    /// [`divider_at`](Self::divider_at)) whatever
     /// the state (`.po-pane-edge-chrome::before`).
     pub fn divider(mut self, color: Rgba) -> Self {
         self.divider = Some(color);
+        self
+    }
+    /// The divider's offset from the lane's start (default 0).
+    pub fn divider_at(mut self, offset: f32) -> Self {
+        self.divider_at = offset;
         self
     }
     /// The stroke at rest (default transparent).
@@ -172,8 +180,9 @@ impl RenderOnce for ResizeHandle {
                 )
             })
             .children(
-                self.divider
-                    .map(|color| line(0., theme::metric::SHELL_DIVIDER_WIDTH).bg(color)),
+                self.divider.map(|color| {
+                    line(self.divider_at, theme::metric::SHELL_DIVIDER_WIDTH).bg(color)
+                }),
             )
             .child(
                 line(self.stroke, 1.)

@@ -100,12 +100,13 @@ pub(in crate::app) fn edges(
     // adjacent hover / active stroke (and ring while dragging). A focused
     // edge is a tab stop that resizes with the arrow keys and shows its
     // stroke.
-    let hairline = theme::metric::SHELL_DIVIDER_WIDTH;
     let sash = |side: Side| {
         // The frames' edges, also mid-motion: the main pane follows them.
-        let x = match side {
-            Side::Start => editor.x - hairline,
-            Side::End => editor.right(),
+        // The Explorer's hairline hugs the main pane like the right
+        // sidebar's does.
+        let (x, divider) = match side {
+            Side::Start => (editor.x - 1., 1. - theme::metric::SHELL_DIVIDER_WIDTH),
+            Side::End => (editor.right(), 0.),
         };
         let focus = state.focus(side).clone();
         let (on_drag, on_key) = (panes.downgrade(), panes.downgrade());
@@ -117,7 +118,8 @@ pub(in crate::app) fn edges(
             Axis::Horizontal,
         )
         .divider(t.sidebar_divider)
-        .stroke_at(hairline)
+        .divider_at(divider)
+        .stroke_at(1.)
         .resizing(state.dragging() == Some(side))
         .focused(focus.is_focused(window))
         .focus_ring()

@@ -643,6 +643,11 @@ impl Render for Shell {
         };
         let (t, home) = (cx.palette(), self.home_visible(cx));
         let plane = (!home && panes.start.is_some()).then(|| self.frame.layout.explorer_plane());
+        let opening = !home && self.opening(cx);
+        // Without the Header (experimental) the panes run up to the top.
+        let seam = (!home && !file && self.prefs.store.read(cx).state.experimental.hidden_header)
+            .then(|| chrome::Seam::new(&self.frame.layout, w, plane.is_some() && !opening));
+        self.chrome.read(cx).set_seam(seam);
         // The Cloud Computer's screen: its card atop the Explorer, the main
         // area, or on its way between them.
         let screen = (!home && !file && !self.opening(cx)).then(|| {
@@ -694,6 +699,7 @@ impl Render for Shell {
                     .and_then(|screen| self.cloud.read(cx).screen_card(screen, cx));
                 let column = ExplorerColumn::new(self.explorer.view.clone())
                     .companion(card)
+                    .place(self.chrome.read(cx).sidebar_context(cx))
                     .footer(self.footer(cx));
                 stack = stack.start(plane, column);
             }
@@ -731,7 +737,6 @@ impl Render for Shell {
         if self.chrome.read(cx).rail_shown() && !home && !file {
             root = root.child(self.chrome.read(cx).rail(h, cx));
         }
-        let opening = !home && self.opening(cx);
         if opening {
             let explorer = self
                 .panes
@@ -749,6 +754,9 @@ impl Render for Shell {
         }
         // A file window draws its own title bar.
         if !file {
+            if seam.is_some() {
+                root = root.children(chrome::seam::ground(&self.frame.layout, w, cx));
+            }
             root = root.child(at(self.frame.layout.header).child(self.chrome.clone()));
         }
         if (!home && !opening && !file) || (file && !opening && html_chat_shown) {

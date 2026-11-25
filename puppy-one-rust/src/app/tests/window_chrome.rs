@@ -636,3 +636,75 @@ fn the_folder_header_offers_changes_and_the_agent_only_while_its_tool_is_on(
         assert_eq!(cx.debug_bounds("header-agent").is_some(), on);
     }
 }
+
+/// Without the Header (experimental): the panes reach the window's top, the
+/// place and the project sit at the Explorer's bottom (their menus open
+/// upward), and the tools stand above the document, never over the right
+/// sidebar. With the Explorer closed the project comes back to the top.
+#[gpui::test]
+fn the_hidden_header_moves_the_project_down_and_the_tools_above_the_document(
+    cx: &mut TestAppContext,
+) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap().join("alpha");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("a.md"), "# A\n").unwrap();
+    let (view, cx) = setup(cx);
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    view.update_in(cx, |s, w, cx| s.open_project(root.clone(), w, cx));
+    settle_cloud(&view, cx, "the project", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(root.as_path())
+    });
+    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
+    store.update(cx, |store, cx| {
+        store.change(|p| p.experimental.hidden_header = true, cx)
+    });
+    draw(cx);
+    let header = px(crate::theme::HEADER);
+    let layout = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.frame.layout);
+    let project = cx.debug_bounds("header-project").expect("the project");
+    let explorer = layout(cx).explorer;
+    assert!(
+        project.origin.y > px(explorer.bottom() - crate::theme::HEADER - 1.),
+        "at the Explorer's bottom: {project:?}"
+    );
+    assert!(project.right() <= px(explorer.right()));
+    let changes = cx.debug_bounds("header-changes").expect("Changes");
+    assert!(changes.bottom() <= header);
+    assert!(changes.right() <= px(layout(cx).editor.right()));
+    // The project menu opens upward from the bottom.
+    cx.simulate_click(project.center(), Modifiers::none());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.chrome.read(cx).popover,
+            Some(super::chrome::Popover::Project)
+        )
+    });
+    command(&view, cx, Command::Escape);
+    // The right sidebar opens: the tools stay above the document.
+    command(&view, cx, Command::ToggleRightSidebar);
+    draw(cx);
+    let editor = layout(cx).editor;
+    assert!(editor.right() < 1280. - 1., "the right sidebar is open");
+    let changes = cx.debug_bounds("header-changes").unwrap();
+    assert!(
+        changes.right() <= px(editor.right()),
+        "{changes:?} above the document ending at {}",
+        editor.right()
+    );
+    // The Explorer closes: the project comes back to the top.
+    command(&view, cx, Command::ToggleExplorer);
+    draw(cx);
+    let project = cx.debug_bounds("header-project").expect("the project");
+    assert!(project.bottom() <= header, "{project:?}");
+    // The Header comes back with the experiment off.
+    store.update(cx, |store, cx| {
+        store.change(|p| p.experimental.hidden_header = false, cx)
+    });
+    command(&view, cx, Command::ToggleExplorer);
+    draw(cx);
+    let project = cx.debug_bounds("header-project").unwrap();
+    assert!(project.bottom() <= header, "{project:?}");
+}

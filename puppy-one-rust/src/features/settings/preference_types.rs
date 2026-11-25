@@ -169,6 +169,10 @@ pub struct Experimental {
     pub host_devices: bool,
     pub always_show_onboarding_coachmarks: bool,
     pub editor_tabs_in_header: bool,
+    /// Native only: no Header bar in a project window. The place and the
+    /// project move to the bottom of the Explorer, the tools (Changes, the
+    /// Agent entry, …) above the document, on its background.
+    pub hidden_header: bool,
     pub markdown_block_drag: bool,
     pub other_app_imports: bool,
     pub cloud_workspace: bool,
@@ -188,6 +192,7 @@ impl Default for Experimental {
             host_devices: crate::features::flags::HOST_DEVICES_BUILD,
             always_show_onboarding_coachmarks: false,
             editor_tabs_in_header: false,
+            hidden_header: false,
             markdown_block_drag: false,
             other_app_imports: false,
             cloud_workspace: false,

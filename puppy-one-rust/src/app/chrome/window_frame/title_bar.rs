@@ -20,11 +20,14 @@ use crate::{
 use gpui::{prelude::*, *};
 use gpui_kit::base::h_flex;
 
-/// Composes the title bar frame around `leading`, optional `tabs`, and `actions`.
+/// Composes the title bar frame around `leading`, optional `tabs`, and
+/// `actions`. A `seamless` frame paints nothing of its own and ends its
+/// actions that far before the window's end (`TitleBar::seamless`).
 pub fn render_frame(
     leading: Vec<AnyElement>,
     tabs: Option<AnyElement>,
     actions: Vec<AnyElement>,
+    seamless: Option<f32>,
     window: &mut Window,
     cx: &mut App,
 ) -> Div {
@@ -41,42 +44,60 @@ pub fn render_frame(
     let has_trailing_controls = trailing_controls.is_some();
 
     let with_tabs = tabs.is_some();
-    let drag = div()
-        .id("header-drag")
-        .window_control_area(WindowControlArea::Drag)
+    // Empty space that moves the window.
+    let drag_area = |id: &'static str| {
+        div()
+            .id(id)
+            .window_control_area(WindowControlArea::Drag)
+            .h_full()
+            // On Windows, leaving `WindowControlArea::Drag` (`HTCAPTION`) free of
+            // mouse-down handlers lets `DefWindowProcW` handle native window drag,
+            // Aero Snap, double-click maximize/restore toggle, and right-click
+            // system window menus.
+            .when(!conventions.native_nonclient_window_controls, |d| {
+                d.on_mouse_down(MouseButton::Left, |e, window, _| {
+                    if e.click_count == 2 {
+                        window.zoom_window();
+                    } else {
+                        window.start_window_move();
+                    }
+                })
+                .on_mouse_down(MouseButton::Right, |e, window, _| {
+                    window.show_window_menu(e.position);
+                })
+            })
+    };
+    let drag = drag_area("header-drag")
         .when(!with_tabs, |d| d.flex_1())
         .when(with_tabs, |d| {
             d.w(px(metric::TITLEBAR_DRAG_MIN_WIDTH)).flex_shrink_0()
         })
-        .h_full()
-        .min_w(px(metric::TITLEBAR_DRAG_MIN_WIDTH))
-        // On Windows, leaving `WindowControlArea::Drag` (`HTCAPTION`) free of
-        // mouse-down handlers lets `DefWindowProcW` handle native window drag,
-        // Aero Snap, double-click maximize/restore toggle, and right-click
-        // system window menus.
-        .when(!conventions.native_nonclient_window_controls, |d| {
-            d.on_mouse_down(MouseButton::Left, |e, window, _| {
-                if e.click_count == 2 {
-                    window.zoom_window();
-                } else {
-                    window.start_window_move();
-                }
-            })
-            .on_mouse_down(MouseButton::Right, |e, window, _| {
-                window.show_window_menu(e.position);
-            })
-        });
+        .min_w(px(metric::TITLEBAR_DRAG_MIN_WIDTH));
+    // A seamless frame's actions stop where the document does; the caption
+    // buttons keep the window's end.
+    let end = seamless
+        .map(|end| {
+            let captions = if has_trailing_controls {
+                3. * metric::TITLEBAR_CAPTION_BUTTON_WIDTH
+            } else {
+                0.
+            };
+            (end - captions).max(0.)
+        })
+        .filter(|end| *end > 0.);
 
     div()
         .size_full()
         .flex()
         .items_center()
-        .bg(t.header)
-        .map(|mut d| {
-            d.style().border_widths.bottom = Some(px(metric::SHELL_DIVIDER_WIDTH).into());
-            d
+        .when(seamless.is_none(), |d| {
+            d.bg(t.header)
+                .map(|mut d| {
+                    d.style().border_widths.bottom = Some(px(metric::SHELL_DIVIDER_WIDTH).into());
+                    d
+                })
+                .border_color(t.shell_divider)
         })
-        .border_color(t.shell_divider)
         .child(
             h_flex()
                 .h_full()
@@ -94,12 +115,15 @@ pub fn render_frame(
             h_flex()
                 .h_full()
                 .gap(px(2.))
-                .pr(px(if has_trailing_controls {
+                .pr(px(if has_trailing_controls && end.is_none() {
                     metric::TITLEBAR_CAPTION_ACTIONS_GAP
                 } else {
                     metric::TITLEBAR_CONTENT_END
                 }))
                 .children(actions),
         )
+        .when_some(end, |d, end| {
+            d.child(drag_area("header-drag-end").w(px(end)).flex_shrink_0())
+        })
         .children(trailing_controls)
 }
