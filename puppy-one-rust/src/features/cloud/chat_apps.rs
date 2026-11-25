@@ -109,6 +109,7 @@ pub struct CloudChats {
     pub chats: Vec<Chat>,
     pub connections: Vec<Connection>,
     pub platforms: Vec<Platform>,
+    pub mentions: std::collections::HashMap<Platform, String>,
     pub can_manage: bool,
     pub known: bool,
     latest: u64,
@@ -134,6 +135,7 @@ impl CloudChats {
             chats: vec![],
             connections: vec![],
             platforms: vec![],
+            mentions: Default::default(),
             can_manage: false,
             known: false,
             latest: 0,
@@ -343,6 +345,7 @@ impl CloudChats {
             Ok(chats) => {
                 self.can_manage = chats.can_manage;
                 self.platforms = chats.platforms;
+                self.mentions = chats.mentions;
                 self.connections = chats.connections;
                 self.chats = chats.conversations;
                 self.known = true;
@@ -447,6 +450,13 @@ impl CloudChats {
         self.connections
             .iter()
             .find(|c| c.platform == Platform::Slack && c.status == "active" && c.linked_me)
+    }
+    /// How people call it in `platform` (Telegram: the bot's username).
+    pub fn mention(&self, platform: Platform) -> &str {
+        self.mentions
+            .get(&platform)
+            .map(String::as_str)
+            .unwrap_or("@PuppyOne")
     }
     pub fn wecom_bot(&self) -> Option<&Connection> {
         self.connections

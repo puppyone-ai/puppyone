@@ -20,8 +20,6 @@ fn tr(key: &str) -> String {
 
 /// Daily limit choices, in Agent minutes; none is no limit.
 pub(super) const LIMITS: [Option<u32>; 4] = [Some(30), Some(60), Some(180), None];
-/// The mention people use in each app.
-const MENTION: &str = "@PuppyOne";
 
 /// The text fields the chat views need; made once with the window.
 pub struct ChatInputs {
@@ -913,6 +911,7 @@ impl WindowCloud {
     fn chat_in(&self, chat: &Chat, cx: &mut Context<Self>) -> AnyElement {
         let t = cx.palette();
         let (again, done) = (self.chats.clone(), self.chats.clone());
+        let mention = self.chats.read(cx).mention(chat.platform).to_owned();
         let how = if chat.platform == Platform::Telegram && chat.group() {
             "native.chatApps.replyOrMention"
         } else {
@@ -958,7 +957,7 @@ impl WindowCloud {
                 div()
                     .text_center()
                     .text_color(t.subtle)
-                    .child(tf(how, &[("mention", MENTION.into())])),
+                    .child(tf(how, &[("mention", mention.into())])),
             )
             .child(
                 h_flex()

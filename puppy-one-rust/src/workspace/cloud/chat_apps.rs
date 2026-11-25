@@ -134,6 +134,9 @@ pub struct Chats {
     /// Apps this deployment has switched on; none means the feature is off.
     #[serde(default)]
     pub platforms: Vec<Platform>,
+    /// How people mention it in each app (Telegram: the bot's username).
+    #[serde(default)]
+    pub mentions: std::collections::HashMap<Platform, String>,
 }
 
 /// Where one wait for a chat stands.
