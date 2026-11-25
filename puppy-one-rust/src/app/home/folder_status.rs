@@ -131,23 +131,41 @@ impl Homepage {
             .find(|p| p.path == root)
             .and_then(|p| p.fs_identity.clone());
         let path = root.clone();
+        let probe = self.begin_window_folder_probe();
         let task = cx
             .background_executor()
             .spawn(async move { read_status(&path, identity.as_deref()) });
         cx.spawn(async move |this, cx| {
             let status = task.await;
-            let _ = this.update(cx, |s, cx| {
-                if s.session.root.as_ref() == Some(&root) {
-                    let next = status.map(|status| (root, status));
-                    if s.window_folder != next {
-                        s.window_folder = next;
-                        cx.emit(HomeEvent::WindowFolder);
-                        cx.notify();
-                    }
-                }
-            });
+            let _ = this.update(cx, |s, cx| s.answer_window_folder(probe, root, status, cx));
         })
         .detach();
+    }
+    /// A new probe of the window's folder: only the newest one's answer
+    /// counts.
+    pub(in crate::app) fn begin_window_folder_probe(&mut self) -> u64 {
+        self.window_folder_probe += 1;
+        self.window_folder_probe
+    }
+    /// `probe`'s answer for `root`, while it is the newest probe and the
+    /// window still shows that folder: an older answer arriving late never
+    /// replaces a newer one.
+    pub(in crate::app) fn answer_window_folder(
+        &mut self,
+        probe: u64,
+        root: PathBuf,
+        status: Option<FolderStatus>,
+        cx: &mut Context<Self>,
+    ) {
+        if probe != self.window_folder_probe || self.session.root.as_ref() != Some(&root) {
+            return;
+        }
+        let next = status.map(|status| (root, status));
+        if self.window_folder != next {
+            self.window_folder = next;
+            cx.emit(HomeEvent::WindowFolder);
+            cx.notify();
+        }
     }
     /// `unavailableFolderMessage` and `onFolderReadFailed`: a file of the
     /// open project's folder that can't be opened right now says so in

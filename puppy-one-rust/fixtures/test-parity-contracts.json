@@ -53444,6 +53444,29 @@
           "test": "app::tests::explorer_pane::a_read_only_workspace_offers_no_import_for_dragged_files"
         }
       ]
+    },
+    {
+      "id": "window-folder-probes-keep-the-newest-answer",
+      "acceptance": "Each probe of whether the open project's folder can be opened takes the next number; only the newest probe's answer, for the folder the window still shows, is applied, so an older answer that arrives late never replaces a newer one.",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/projects/missingProjectFolder.test.tsx",
+          "sha256": "d02fb670e7296205eaa060cb3db7cf9d8ba511a83a2d5b4e8dd7b56288b184e5",
+          "cases": [
+            {
+              "index": 4,
+              "name": "knowing which of a window's folders cannot be opened now > never lets an older answer that arrives late replace a newer one"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::folder_availability::a_late_answer_never_replaces_a_newer_one"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -65924,24 +65947,6 @@
             {
               "index": 3,
               "name": "DataWorkspace Project switching > keeps cached rows on network failure but clears them when permission is denied"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "window-folder-probe-generation-fence",
-      "kind": "gap",
-      "reason": "Homepage::check_window_folder checks only that the open root path still matches when an async probe resolves; it does not yet fence two overlapping probes for the same root with a monotonic generation counter.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/workspace/homepage.md",
-      "typescript": [
-        {
-          "path": "tests/component/workspace/projects/missingProjectFolder.test.tsx",
-          "sha256": "d02fb670e7296205eaa060cb3db7cf9d8ba511a83a2d5b4e8dd7b56288b184e5",
-          "cases": [
-            {
-              "index": 4,
-              "name": "knowing which of a window's folders cannot be opened now > never lets an older answer that arrives late replace a newer one"
             }
           ]
         }
