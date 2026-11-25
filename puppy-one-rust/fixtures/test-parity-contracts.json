@@ -53535,6 +53535,34 @@
           "test": "agent::model_connections::tests::metadata_requests_run_two_at_a_time_and_a_waiting_one_can_be_cancelled"
         }
       ]
+    },
+    {
+      "id": "launch-window-paints-saved-preferences",
+      "acceptance": "Saved preferences are read before the preferences store is made, so the launch window that makes it has the saved theme mode and Sub Theme from its first frame instead of the start-up default; when nothing is saved yet (a first launch, possibly importing the Electron product's preferences) they are read on the worker as before.",
+      "typescript": [
+        {
+          "path": "tests/integration/appearance/themes/interfaceStyleFirstPaint.test.ts",
+          "sha256": "31b4435655fa5d9bb7543670605f0b9e841f33882d4898e193d070963eb2412d",
+          "cases": [
+            {
+              "index": 1,
+              "name": "Interface style registry > paints the persisted editor palette before React instead of flashing the warm fallback"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "features::settings::preferences_store::tests::saved_preferences_are_there_the_moment_the_store_is_made"
+        },
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::a_new_window_keeps_the_persisted_appearance"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -53691,24 +53719,6 @@
             {
               "index": 15,
               "name": "registered database DOM viewer > waits for confirmed exit before opening a replacement session"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "launch-window-first-paint",
-      "kind": "gap",
-      "reason": "TS paints the persisted palette before React from synchronously read storage. Rust reads preferences on a worker; the launch window applies the start-up default (dark Neutral) until they load, so a light or custom-palette user can see one frame of the default if the read lands after the first frame. Windows opened after loading are covered by appearance-first-paint.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/appearance/appearance-authority.md",
-      "typescript": [
-        {
-          "path": "tests/integration/appearance/themes/interfaceStyleFirstPaint.test.ts",
-          "sha256": "31b4435655fa5d9bb7543670605f0b9e841f33882d4898e193d070963eb2412d",
-          "cases": [
-            {
-              "index": 1,
-              "name": "Interface style registry > paints the persisted editor palette before React instead of flashing the warm fallback"
             }
           ]
         }
