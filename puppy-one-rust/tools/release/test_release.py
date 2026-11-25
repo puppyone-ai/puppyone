@@ -487,6 +487,7 @@ class PdfiumPinTableTest(unittest.TestCase):
 
 
 
+@unittest.skipIf(sys.platform == 'win32', 'the bundle executable is a script, which Windows cannot run')
 class PackagedBuildTest(unittest.TestCase):
     """`packagedDesktopBuildVerifier.test.mjs`: the packaged app, what its
     executable reports, its feed, its icon and the artifacts name one build."""
