@@ -99,6 +99,20 @@ pub const fn current() -> (Os, Arch) {
     (Os::current(), Arch::current())
 }
 
+/// The plugin package platform of this build (`Any` for a target no package
+/// names).
+pub const fn plugin_platform() -> po_contracts::plugin_contract::Platform {
+    use po_contracts::plugin_contract::Platform;
+    match current() {
+        (Os::Macos, Arch::Arm64) => Platform::MacosArm64,
+        (Os::Macos, Arch::X64) => Platform::MacosX64,
+        (Os::Windows, Arch::X64) => Platform::WindowsX64,
+        (Os::Linux, Arch::X64) => Platform::LinuxX64,
+        (Os::Linux, Arch::Arm64) => Platform::LinuxArm64,
+        _ => Platform::Any,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
