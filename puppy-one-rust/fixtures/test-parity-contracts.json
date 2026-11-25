@@ -53185,6 +53185,66 @@
           "test": "BuildInfoTest.test_one_build_info_and_the_release_tag_must_match_exactly"
         }
       ]
+    },
+    {
+      "id": "project-initialization-receipts",
+      "acceptance": "A new project folder is made under an operation id. The same operation with the same request returns the same receipt, concurrently, after the guide was edited or deleted (never written again) and after a restart; another request under that id is refused. Before publication the journal records the complete staging folder with its identity (device, inode, birth time); a run whose acknowledgement was lost is recovered by identity, taking a published folder as made and publishing a staged one, and when neither is found it is refused without touching the folder that now has the name. With numbering, a retry lands on the name its first attempt chose.",
+      "typescript": [
+        {
+          "path": "tests/integration/workspace/projects/project-initialization.test.mjs",
+          "sha256": "c73fd82a529e26adc5509926c0af6ad7f9b1a73152c4d511bc35cd224728d789",
+          "cases": [
+            {
+              "index": 16,
+              "name": "project initialization receipts > coalesces retries and never rewrites an edited or deleted guide, including after restart"
+            },
+            {
+              "index": 17,
+              "name": "project initialization receipts > recovers a published directory with a lost acknowledgement by identity"
+            },
+            {
+              "index": 18,
+              "name": "project initialization receipts > recovers a staged directory with a lost acknowledgement by identity"
+            },
+            {
+              "index": 19,
+              "name": "project initialization receipts > fails safely on ambiguous recovery without modifying the replacement directory"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/workspace/projects/project-entry-service.test.mjs",
+          "sha256": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
+          "cases": [
+            {
+              "index": 3,
+              "name": "project entry service > gives a retry the name its first attempt chose"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-platform",
+          "test": "platform::templates::initialization::tests::a_retry_gets_the_first_receipt_and_never_writes_the_guide_again"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::initialization::tests::a_published_folder_with_a_lost_acknowledgement_is_recovered_by_identity"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::initialization::tests::a_staged_folder_with_a_lost_acknowledgement_is_published"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::initialization::tests::an_ambiguous_recovery_is_refused_and_touches_nothing"
+        },
+        {
+          "package": "po-platform",
+          "test": "platform::templates::initialization::tests::a_numbered_retry_lands_on_the_name_its_first_attempt_chose"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -56549,56 +56609,6 @@
             {
               "index": 31,
               "name": "fast status vs lazy history > keeps working-tree refreshes free of history while HEAD stays stable"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "project-initialization-receipts",
-      "kind": "gap",
-      "reason": "Rust keeps no initialization journal or receipts. Creating a project is one in-process call: no acknowledgement can be lost between processes, and a second Create or Get a copy while one runs is ignored. But a crash between staging and publication leaves a hidden .puppyone-template-* folder beside the project; the next launch neither recovers nor removes it. A crash after publication does not reopen the project. There is no operation id to coalesce a retry by, to refuse a different request under, or to recover a published or staged project by identity.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
-      "typescript": [
-        {
-          "path": "tests/integration/workspace/projects/project-initialization.test.mjs",
-          "sha256": "c73fd82a529e26adc5509926c0af6ad7f9b1a73152c4d511bc35cd224728d789",
-          "cases": [
-            {
-              "index": 16,
-              "name": "project initialization receipts > coalesces retries and never rewrites an edited or deleted guide, including after restart"
-            },
-            {
-              "index": 17,
-              "name": "project initialization receipts > recovers a published directory with a lost acknowledgement by identity"
-            },
-            {
-              "index": 18,
-              "name": "project initialization receipts > recovers a staged directory with a lost acknowledgement by identity"
-            },
-            {
-              "index": 19,
-              "name": "project initialization receipts > fails safely on ambiguous recovery without modifying the replacement directory"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/workspace/projects/project-entry-service.test.mjs",
-          "sha256": "062606d493a21c53ba7c07bdc625a291bb203a67f2086200a0d428926c043175",
-          "cases": [
-            {
-              "index": 3,
-              "name": "project entry service > gives a retry the name its first attempt chose"
-            }
-          ]
-        },
-        {
-          "path": "tests/component/workspace/homepage/emptyWorkspaceOnboarding.test.tsx",
-          "sha256": "f8b438f6dd337b917705f4cf7ac308957aeb576e16d787c7a777cbcafc02ba6e",
-          "cases": [
-            {
-              "index": 5,
-              "name": "project template selection > retains the exact operation when creation committed but opening failed"
             }
           ]
         }
@@ -67191,6 +67201,24 @@
             {
               "index": 10,
               "name": "Desktop Agent reference ingestion > opens the file picker directly and keeps failed non-image references inline"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "create-dialog-opens-the-project-in-process",
+      "kind": "out-of-scope",
+      "reason": "The Rust Create dialog makes the project and opens it in the same window in one in-process step; opening there cannot fail, so the dialog has no 'created, opening failed' state offering 'Open created project'. A retry of the same name in the same place still repeats the same initialization operation (Destination::operation), which is what the retained request guards.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/parity-gaps.md",
+      "typescript": [
+        {
+          "path": "tests/component/workspace/homepage/emptyWorkspaceOnboarding.test.tsx",
+          "sha256": "f8b438f6dd337b917705f4cf7ac308957aeb576e16d787c7a777cbcafc02ba6e",
+          "cases": [
+            {
+              "index": 5,
+              "name": "project template selection > retains the exact operation when creation committed but opening failed"
             }
           ]
         }

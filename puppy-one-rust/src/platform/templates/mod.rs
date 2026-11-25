@@ -5,6 +5,7 @@
 //! ([`link`]) resolves through the store ([`store`]) to a verified package
 //! ([`package`]).
 pub mod builtin;
+pub mod initialization;
 pub mod link;
 pub mod package;
 pub mod store;
@@ -209,13 +210,15 @@ pub fn materialize_while(
     plan: &Plan,
     still_allowed: impl FnOnce() -> Result<(), String>,
 ) -> Result<PathBuf, String> {
-    materialize_with(parent, name, plan, still_allowed, publish)
+    materialize_with(parent, name, plan, |_| still_allowed(), publish)
 }
+/// `materializeTemplate` with `beforePublish`: `before_publish` sees the
+/// complete staging folder last, and publication waits for it.
 fn materialize_with(
     parent: &Path,
     name: &str,
     plan: &Plan,
-    still_allowed: impl FnOnce() -> Result<(), String>,
+    before_publish: impl FnOnce(&Path) -> Result<(), String>,
     publish: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
 ) -> Result<PathBuf, String> {
     let (directories, _) = validate(plan)?;
@@ -250,7 +253,7 @@ fn materialize_with(
         Ok(())
     })()
     .map_err(&describe)
-    .and_then(|()| still_allowed())
+    .and_then(|()| before_publish(&staging))
     .and_then(|()| publish(&staging, &target).map_err(&describe));
     match written {
         Ok(()) => Ok(target),
@@ -564,7 +567,7 @@ mod tests {
             parent,
             "Notes",
             &files,
-            || Ok(()),
+            |_| Ok(()),
             |_, _| Err(std::io::Error::other("unsupported filesystem")),
         );
         assert_eq!(error, Err("unsupported filesystem".into()));
