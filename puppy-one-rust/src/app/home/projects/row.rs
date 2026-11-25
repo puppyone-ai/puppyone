@@ -398,6 +398,7 @@ impl Homepage {
                         let (target, at, viewport) =
                             (target.clone(), bounds.get(), w.viewport_size());
                         let item = Some(id.clone());
+                        s.actions_list = s.list_of.get(&id).map(|list| (id.clone(), list.clone()));
                         let audience = s.audience_of_id(&id, cx);
                         actions.update(cx, |a, cx| {
                             a.open(target, at, true, viewport, item, w, cx);
