@@ -188,7 +188,7 @@ impl Workbench {
                 .unwrap_or(metrics::Span { x: 0., width: 0. })
         };
         let m = theme::ty();
-        let control = theme::control();
+        let control = theme::control_compact();
         let mut rail = div().relative().w_full().h(px(control));
         for bounds in &layout.tabs {
             let tab = bounds.id;

@@ -76,7 +76,7 @@ impl Workbench {
         )
         .label(label)
         .w(px(header_layout::COMPACT))
-        .h(px(theme::control()))
+        .h(px(theme::control_compact()))
         .color(t.muted)
         .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS));
         let mut popover = PopoverMenu::new(ElementId::NamedInteger("overflow-menu".into(), group))
