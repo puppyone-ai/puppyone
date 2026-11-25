@@ -535,6 +535,7 @@ impl Render for CloudAgentConversation {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+    use gpui::{Modifiers, TestAppContext, VisualTestContext};
 
     #[test]
     fn error_label_only_reports_busy_for_agent_session_busy() {
@@ -589,5 +590,218 @@ mod tests {
                 "The service rejected this request.".to_owned(),
             ]
         );
+    }
+
+    // ----------------------------------------------------- approvals
+    use crate::cloud::auth::Cancellation;
+    use crate::cloud::auth::model::ApiRequest;
+    use crate::features::cloud::agent::Hub;
+    use crate::wake::Wake;
+    use crate::workspace::cloud::agent::{Client, Error, Event, Transport};
+    use serde_json::{Value, json};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    /// A Cloud whose run waits for approval of one `bash` call.
+    #[derive(Default)]
+    struct Waiting {
+        /// The approval requests received: path and body.
+        approvals: Mutex<Vec<(String, Value)>>,
+        /// Refuse approvals with HTTP 403.
+        refuse: AtomicBool,
+        decided: AtomicBool,
+    }
+    impl Waiting {
+        fn run(&self, request: &str) -> Value {
+            let decided = self.decided.load(Ordering::SeqCst);
+            json!({"id": "run-1", "project_id": "project-a", "workbench_id": "wb-1",
+                "agent_id": "agent-1", "session_id": "session-1", "request_id": request,
+                "prompt": "Clean the build folder",
+                "state": if decided { "running" } else { "waiting_approval" },
+                "sequence": if decided { 4 } else { 2 }, "snapshot": {"text": "Working"},
+                "tools": [{"call_id": "call-1", "name": "bash",
+                    "input": {"command": "rm -r build"},
+                    "state": if decided { "approved" } else { "waiting" }}],
+                "created_at": "2026-11-01T00:00:00Z", "updated_at": "2026-11-01T00:00:00Z"})
+        }
+    }
+    impl Transport for Waiting {
+        fn request(&self, request: ApiRequest) -> Result<Value, Error> {
+            if request.path.contains("/approvals/") {
+                self.approvals.lock().unwrap().push((
+                    request.path.clone(),
+                    request.body.clone().unwrap_or_default(),
+                ));
+                if self.refuse.load(Ordering::SeqCst) {
+                    return Err(Error {
+                        status: Some(403),
+                        code: None,
+                        request_id: Some("req-403".into()),
+                        unknown: false,
+                        message: "Only the person who asked can approve.".into(),
+                    });
+                }
+                self.decided.store(true, Ordering::SeqCst);
+            }
+            let id = request
+                .body
+                .as_ref()
+                .and_then(|b| b["request_id"].as_str().map(str::to_owned))
+                .unwrap_or_else(|| "req".into());
+            Ok(self.run(&id))
+        }
+        fn events(&self, _: &str, _: u64, _: &Cancellation) -> Result<Vec<Event>, Error> {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            Ok(vec![])
+        }
+    }
+
+    type Fixture<'a> = (
+        Entity<CloudAgentConversation>,
+        Arc<Waiting>,
+        tempfile::TempDir,
+        &'a mut VisualTestContext,
+    );
+    fn settle(
+        cx: &mut VisualTestContext,
+        what: &str,
+        ready: &dyn Fn(&mut VisualTestContext) -> bool,
+    ) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !ready(cx) {
+            cx.run_until_parked();
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{what} did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+    }
+    /// A hosted conversation whose submitted prompt is waiting for approval.
+    fn waiting(cx: &mut TestAppContext, refuse: bool) -> Fixture<'_> {
+        cx.executor().allow_parking();
+        cx.update(gpui_kit::init);
+        crate::localization::set_current("en");
+        let cloud = Arc::new(Waiting::default());
+        cloud.refuse.store(refuse, Ordering::SeqCst);
+        let dir = tempfile::tempdir().unwrap();
+        let hub = Hub::new(
+            Client::new(cloud.clone(), "project-a".into(), "wb-1".into()),
+            "puppyone-cloud://test/approvals".into(),
+            dir.path().to_path_buf(),
+            Box::new(|| {}),
+        );
+        let (wake, changes) = Wake::channel();
+        let controller = CloudAgentController::new(hub, "tab:0", None, wake).unwrap();
+        let (conversation, cx) = cx.add_window_view(|window, cx| {
+            CloudAgentConversation::new(controller, changes, window, cx)
+        });
+        conversation.update(cx, |c, _| c.chat().submit("Clean the build folder".into()));
+        let watched = conversation.clone();
+        settle(cx, "the approval", &move |cx| {
+            let state = watched.read_with(cx, |c, _| c.chat().snapshot());
+            !project_cloud_agent_runs(&state.runs).approvals.is_empty()
+        });
+        (conversation, cloud, dir, cx)
+    }
+    fn press(cx: &mut VisualTestContext, decision: &'static str) {
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        let at = cx
+            .debug_bounds(decision)
+            .unwrap_or_else(|| panic!("{decision} is offered"))
+            .center();
+        cx.simulate_click(at, Modifiers::default());
+    }
+
+    /// A run waiting for approval shows the waiting call in the shared
+    /// approval dock; Allow sends the person's decision for that exact run
+    /// and call, once, and the run goes on.
+    #[gpui::test]
+    fn a_waiting_run_shows_its_call_and_allow_sends_the_decision(cx: &mut TestAppContext) {
+        let (conversation, cloud, _dir, cx) = waiting(cx, false);
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        assert!(cx.debug_bounds("agent-approval-title:bash").is_some());
+        assert!(cx.debug_bounds("agent-approval:decline").is_some());
+        assert!(cx.debug_bounds("agent-approval:accept").is_some());
+        assert!(
+            cx.debug_bounds("agent-approval-status:Needs your approval")
+                .is_some()
+        );
+        assert!(
+            cloud.approvals.lock().unwrap().is_empty(),
+            "nothing before the click"
+        );
+        press(cx, "agent-approval:accept");
+        settle(cx, "the decision", &|_| {
+            !cloud.approvals.lock().unwrap().is_empty()
+        });
+        let sent = cloud.approvals.lock().unwrap().clone();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].0, "/agents/runs/run-1/approvals/call-1");
+        assert_eq!(sent[0].1["allow"], true);
+        assert!(
+            sent[0].1["decision_id"]
+                .as_str()
+                .is_some_and(|id| !id.is_empty())
+        );
+        // The run moved on: the dock is gone and nothing was asked twice.
+        settle(cx, "the dock leaving", &|cx| {
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+            cx.debug_bounds("agent-approval:accept").is_none()
+        });
+        assert_eq!(cloud.approvals.lock().unwrap().len(), 1);
+        assert_eq!(
+            conversation.read_with(cx, |c, _| c.chat().snapshot().error),
+            None
+        );
+    }
+
+    /// Deny sends `allow: false` for the same call.
+    #[gpui::test]
+    fn deny_sends_the_refusal_for_the_waiting_call(cx: &mut TestAppContext) {
+        let (_conversation, cloud, _dir, cx) = waiting(cx, false);
+        press(cx, "agent-approval:decline");
+        settle(cx, "the decision", &|_| {
+            !cloud.approvals.lock().unwrap().is_empty()
+        });
+        let sent = cloud.approvals.lock().unwrap().clone();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].0, "/agents/runs/run-1/approvals/call-1");
+        assert_eq!(sent[0].1["allow"], false);
+    }
+
+    /// A refused decision (only the submitter may decide) is reported and
+    /// the call keeps waiting: the dock stays so the person can try again.
+    #[gpui::test]
+    fn a_refused_decision_is_reported_and_the_call_keeps_waiting(cx: &mut TestAppContext) {
+        let (conversation, cloud, _dir, cx) = waiting(cx, true);
+        press(cx, "agent-approval:accept");
+        settle(cx, "the refusal", &|cx| {
+            conversation.read_with(cx, |c, _| {
+                let state = c.chat().snapshot();
+                state.error_status == Some(403) && state.resolving.is_none()
+            })
+        });
+        let state = conversation.read_with(cx, |c, _| c.chat().snapshot());
+        assert_eq!(state.error_request_id.as_deref(), Some("req-403"));
+        assert_eq!(cloud.approvals.lock().unwrap().len(), 1);
+        assert_eq!(
+            project_cloud_agent_runs(&state.runs).approvals.len(),
+            1,
+            "the call is still waiting"
+        );
+        assert_eq!(
+            error_label_key(state.error_status, state.error_code),
+            "cloud.agent.permissionDenied"
+        );
+        assert!(cx.debug_bounds("agent-approval:accept").is_some());
+        // Trying again sends the same decision again.
+        press(cx, "agent-approval:accept");
+        settle(cx, "the retry", &|_| {
+            cloud.approvals.lock().unwrap().len() == 2
+        });
+        let sent = cloud.approvals.lock().unwrap().clone();
+        assert_eq!(sent[0].1["decision_id"], sent[1].1["decision_id"]);
     }
 }
