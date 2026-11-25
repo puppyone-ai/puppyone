@@ -53375,6 +53375,29 @@
           "test": "app::tests::homepage::removing_a_project_from_its_actions_gives_the_keyboard_to_the_list"
         }
       ]
+    },
+    {
+      "id": "system-open-finds-the-window-still-opening-a-folder",
+      "acceptance": "A folder asked for from the system (command line, Finder) comes forward in the project window that shows it or is still opening or restoring it, instead of opening a second window.",
+      "typescript": [
+        {
+          "path": "tests/unit/platform/launch/electron.system-open-route.test.mjs",
+          "sha256": "81b64ae28ec569ee8ad4d240d1d433cd009fcbd3933d030f6120ff8f2cc9c915",
+          "cases": [
+            {
+              "index": 7,
+              "name": "project window for a folder > matches a window that is still restoring its folder"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "po-app",
+          "target": "puppy-one-rust",
+          "test": "app::tests::across_windows::a_folder_asked_for_again_comes_forward_in_the_window_still_opening_it"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -66711,24 +66734,6 @@
             {
               "index": 12,
               "name": "product icons > cuts the unreachable Cloud's slash with a mask that stays unique per instance"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "system-open-restoring-project-window",
-      "kind": "gap",
-      "reason": "open_from_cli matches an already-open project window by its resolved workspace_root(cx), so a window that is still restoring that folder before workspace_root resolves opens a second window instead of focusing the restoring window.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/platform/launch.md",
-      "typescript": [
-        {
-          "path": "tests/unit/platform/launch/electron.system-open-route.test.mjs",
-          "sha256": "81b64ae28ec569ee8ad4d240d1d433cd009fcbd3933d030f6120ff8f2cc9c915",
-          "cases": [
-            {
-              "index": 7,
-              "name": "project window for a folder > matches a window that is still restoring its folder"
             }
           ]
         }
