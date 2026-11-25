@@ -101,6 +101,19 @@ def release_identity(base_version, channel, commit, build_number=None, built_at=
     }
 
 
+def build_info(release):
+    """The one `build-info.json` a build carries (in the bundle, and beside it
+    for the release workflow): the same bytes everywhere."""
+    return (json.dumps(release, indent=2) + '\n').encode()
+
+
+def check_release_tag(release, tag):
+    """`expectedTag`: a published build's tag is `v<version>`, exactly."""
+    expected = f'v{release["version"]}'
+    if tag != expected:
+        raise ValueError(f'The release tag {tag!r} must exactly match {expected!r}.')
+
+
 def update_feed(value):
     """`PUPPYONE_UPDATE_FEED_URL`: an HTTPS directory holding
     `<channel>-mac.yml`, without credentials or a query."""

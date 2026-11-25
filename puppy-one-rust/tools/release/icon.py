@@ -1,11 +1,16 @@
 """`macos-app-icon.mjs`: the channel's 1024 px App Image as `icon.icns`,
 built with Apple's own iconset toolchain and decoded again to check that
 every representation is there and the 1024 px one is the artwork itself."""
+import plistlib
 import shutil
 import struct
 import subprocess
 import tempfile
 from pathlib import Path
+
+import identity
+
+ROOT = Path(__file__).resolve().parents[2]
 
 REPRESENTATIONS = [(f'icon_{size}x{size}{"@2x" if scale == 2 else ""}.png', size * scale)
                    for size in (16, 32, 128, 256, 512) for scale in (1, 2)]
@@ -15,6 +20,47 @@ def png_size(data):
     if data[:8] != b'\x89PNG\r\n\x1a\n' or data[12:16] != b'IHDR':
         raise ValueError('Not a PNG image')
     return struct.unpack('>II', data[16:24])
+
+
+def source_for(channel):
+    """The channel's App Image (`resolveDesktopAppIcon`)."""
+    return ROOT / 'assets/release' / identity.policy(channel)['icon']
+
+
+def build_inputs(channel, source, destination):
+    """`resolveMacosIconBuildInputs`: only the channel's canonical PNG, and
+    only into an app bundle's `Contents/Resources/icon.icns`."""
+    canonical = source_for(channel)
+    if Path(source).resolve() != canonical.resolve():
+        raise ValueError(f'The {channel} icon is built from its canonical PNG {canonical.name} only')
+    destination = Path(destination)
+    resources = destination.parent
+    if (destination.name != 'icon.icns' or resources.name != 'Resources'
+            or resources.parent.name != 'Contents' or resources.parent.parent.suffix != '.app'):
+        raise ValueError(f'The icon is written only into an app bundle\'s Contents/Resources: {destination}')
+    return canonical, destination
+
+
+def build_for(channel, app):
+    """The channel's `icon.icns` inside `app`."""
+    build(*build_inputs(channel, source_for(channel), Path(app) / 'Contents/Resources/icon.icns'))
+
+
+def verify_app(app, channel):
+    """`verifyMacosIconAfterPack`: the bundle names `icon.icns` as its icon,
+    and both it and `puppy-app-image.png` are this channel's App Image."""
+    contents = Path(app) / 'Contents'
+    info = plistlib.loads((contents / 'Info.plist').read_bytes())
+    if info.get('CFBundleIconFile') != 'icon.icns' or 'CFBundleIconName' in info:
+        raise ValueError('CFBundleIconFile must name icon.icns, with no CFBundleIconName')
+    resources = contents / 'Resources'
+    for name in ('icon.icns', 'puppy-app-image.png'):
+        if not (resources / name).is_file():
+            raise FileNotFoundError(f'{name} is missing from {resources}')
+    image = (resources / 'puppy-app-image.png').read_bytes()
+    if image != source_for(channel).read_bytes():
+        raise ValueError(f'puppy-app-image.png is not the selected channel\'s ({channel}) App Image')
+    verify(resources / 'icon.icns', image)
 
 
 def build(source, destination):

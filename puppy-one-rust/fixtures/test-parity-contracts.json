@@ -53096,6 +53096,95 @@
           "test": "ui::components::menu::tests::the_keyboard_starts_on_the_current_choice_which_is_marked"
         }
       ]
+    },
+    {
+      "id": "packaged-macos-build-verification",
+      "acceptance": "Before a macOS release is published, the verifier checks that the one packaged app, the identity its executable reports, its build-info.json and Info.plist name the same channel, version and build; that the executable's update feed is its channel's canonical feed (an Internal app carrying the Stable feed is refused); that the bundle's icon passes (CFBundleIconFile, icon.icns and puppy-app-image.png present and the channel's own artwork), and a failing icon check fails the release; that the DMG and update ZIP are named after the version and the feed metadata names that ZIP; and, when given, that the release tag is exactly v<version>. The icon tool builds only from the channel's canonical PNG into an app bundle's Resources. One build-info.json is written for the bundle and the release workflow alike.",
+      "typescript": [
+        {
+          "path": "tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs",
+          "sha256": "c832dc4c8b87d49c2e9e0547495bb297f0449ff6a3410b8c59862cfcdcf4786a",
+          "cases": [
+            {
+              "index": 0,
+              "name": "packaged Desktop Build Identity verification > verifies app metadata, embedded identity, update feed, and artifact names"
+            },
+            {
+              "index": 1,
+              "name": "packaged Desktop Build Identity verification > fails when a packaged Internal app embeds a Stable update feed"
+            },
+            {
+              "index": 2,
+              "name": "packaged Desktop Build Identity verification > fails release verification when native icon verification fails"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/packaging/macosAppIcon.test.mjs",
+          "sha256": "05428210e2132d8e94e0f22a75d2db5b1775f4123cc0d57e88905ee5e6e5b2be",
+          "cases": [
+            {
+              "index": 2,
+              "name": "app icon input validation > rejects a mismatched channel or unapproved output path"
+            },
+            {
+              "index": 8,
+              "name": "native macOS icon packaging > rejects a missing icon.icns"
+            },
+            {
+              "index": 9,
+              "name": "native macOS icon packaging > rejects a missing puppy-app-image.png"
+            }
+          ]
+        },
+        {
+          "path": "tests/integration/release/build-identity/desktopBuildIdentity.test.mjs",
+          "sha256": "e043ab04680fd0a614d41bd986cb5bfb6f24c10570edd49d07d16630562eda61",
+          "cases": [
+            {
+              "index": 12,
+              "name": "desktop build identity > writes one build-info file and validates the release tag"
+            }
+          ]
+        }
+      ],
+      "rust": [
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "PackagedBuildTest.test_the_app_its_executable_its_feed_and_the_artifacts_name_one_build"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "PackagedBuildTest.test_an_internal_app_carrying_the_stable_feed_is_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "PackagedBuildTest.test_a_failing_icon_check_fails_the_release"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "IconInputTest.test_another_channels_artwork_or_an_unapproved_output_is_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "IconInputTest.test_a_missing_icon_icns_is_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "IconInputTest.test_a_missing_app_image_is_refused"
+        },
+        {
+          "package": "python",
+          "python": "tools/release/test_release.py",
+          "test": "BuildInfoTest.test_one_build_info_and_the_release_tag_must_match_exactly"
+        }
+      ]
     }
   ],
   "openAcceptance": [
@@ -55158,60 +55247,6 @@
             {
               "index": 5,
               "name": "dev Open With app > passes on why the dev instance refused a file"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "packaged-artifact-verification",
-      "kind": "gap",
-      "reason": "tools/release/verify-macos-release.py checks that the app, DMG, ZIP and feed metadata exist and the signatures, but not the packaged app's embedded identity against its feed (an Internal app with a Stable feed passes), its icon representations and metadata, or the release tag; the icon tool also accepts any output path and does not check the requested channel against its artwork input.",
-      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/release/release-verification.md",
-      "typescript": [
-        {
-          "path": "tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs",
-          "sha256": "c832dc4c8b87d49c2e9e0547495bb297f0449ff6a3410b8c59862cfcdcf4786a",
-          "cases": [
-            {
-              "index": 0,
-              "name": "packaged Desktop Build Identity verification > verifies app metadata, embedded identity, update feed, and artifact names"
-            },
-            {
-              "index": 1,
-              "name": "packaged Desktop Build Identity verification > fails when a packaged Internal app embeds a Stable update feed"
-            },
-            {
-              "index": 2,
-              "name": "packaged Desktop Build Identity verification > fails release verification when native icon verification fails"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/release/packaging/macosAppIcon.test.mjs",
-          "sha256": "05428210e2132d8e94e0f22a75d2db5b1775f4123cc0d57e88905ee5e6e5b2be",
-          "cases": [
-            {
-              "index": 2,
-              "name": "app icon input validation > rejects a mismatched channel or unapproved output path"
-            },
-            {
-              "index": 8,
-              "name": "native macOS icon packaging > rejects a missing icon.icns"
-            },
-            {
-              "index": 9,
-              "name": "native macOS icon packaging > rejects a missing puppy-app-image.png"
-            }
-          ]
-        },
-        {
-          "path": "tests/integration/release/build-identity/desktopBuildIdentity.test.mjs",
-          "sha256": "e043ab04680fd0a614d41bd986cb5bfb6f24c10570edd49d07d16630562eda61",
-          "cases": [
-            {
-              "index": 12,
-              "name": "desktop build identity > writes one build-info file and validates the release tag"
             }
           ]
         }
