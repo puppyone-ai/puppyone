@@ -624,13 +624,19 @@ impl Render for Shell {
         }
         let size = window.viewport_size();
         let (w, h) = (f32::from(size.width), f32::from(size.height));
-        let file = self.file_mode();
+        let (t, file, home) = (cx.palette(), self.file_mode(), self.home_visible(cx));
         let rail = if file {
             0.
         } else {
             self.chrome.read(cx).rail_width()
         };
-        let panes = self.panes.read(cx).frames(w, h, rail, cx.reduce_motion());
+        let headerless =
+            !home && !file && self.prefs.store.read(cx).state.experimental.hidden_header;
+        let header_h = if headerless { 0. } else { theme::HEADER };
+        let panes =
+            self.panes
+                .read(cx)
+                .frames_with_header(w, h, rail, header_h, cx.reduce_motion());
         let html_chat_shown = file
             && self.file.as_ref().is_some_and(|f| f.read(cx).is_html())
             && (panes.end.is_some()
@@ -641,35 +647,25 @@ impl Render for Shell {
         } else {
             panes.layout
         };
-        let (t, home) = (cx.palette(), self.home_visible(cx));
         let plane = (!home && panes.start.is_some()).then(|| self.frame.layout.explorer_plane());
         let opening = !home && self.opening(cx);
-        // Without the Header (experimental) the panes run up to the top.
-        let seam = (!home && !file && self.prefs.store.read(cx).state.experimental.hidden_header)
-            .then(|| chrome::Seam::new(&self.frame.layout, w, plane.is_some()));
-        self.chrome.read(cx).set_seam(seam);
-        // The Cloud Computer's screen: its card atop the Explorer, the main
-        // area, or on its way between them.
-        let screen = (!home && !file && !self.opening(cx)).then(|| {
-            let (editor, animate) = (self.frame.layout.editor, !cfg!(test) && !cx.reduce_motion());
+        let editor_body = chrome::seam::editor_body(self.frame.layout.editor, headerless);
+        let screen = (!home && !file && !opening).then(|| {
+            let animate = !cfg!(test) && !cx.reduce_motion();
             self.cloud
                 .read(cx)
-                .screen_layout(plane, editor, animate, cx)
+                .screen_layout(plane, editor_body, animate, cx)
         });
         let crossing = screen.as_ref().is_some_and(|s| s.crossing());
         if panes.running || screen.as_ref().is_some_and(|s| s.moving()) {
             window.request_animation_frame();
         }
-        // Native web content draws above GPUI: a dialog or the Cloud screen
-        // (open, or on its way to or from the main area) hides it, and only
-        // surfaces painted in this frame stay visible. A menu, popover or
-        // tooltip is cut out of it instead, so the page around it stays
-        // (`ui::native_cover`).
+        // Native web content draws above GPUI: dialogs or the Cloud screen hide it;
+        // popovers/menus/tooltips cut out via `ui::native_cover`.
         let overlay =
             !self.dialogs.read(cx).is_empty() || self.cloud.read(cx).screen_shown(cx) || crossing;
         crate::web_host::set_overlay(window, overlay);
         crate::web_host::frame_drawn(window);
-        // A capture steps its scenario after each frame, then is taken.
         if !self.frame.captured && std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
             cx.defer_in(window, |s, w, cx| s.capture_tick(w, cx));
         }
@@ -692,49 +688,57 @@ impl Render for Shell {
                 .map(|f| f.into_any_element())
                 .unwrap_or_else(|| Empty.into_any_element())
         } else {
+            let bar = headerless
+                .then(|| chrome::seam::PaneChrome::new(&self.chrome, &self.panes, &panes, rail));
             let mut stack = PaneStack::new();
             if let Some(plane) = plane {
                 let card = screen
                     .as_ref()
-                    .and_then(|screen| self.cloud.read(cx).screen_card(screen, cx));
+                    .and_then(|s| self.cloud.read(cx).screen_card(s, cx));
                 let column = ExplorerColumn::new(self.explorer.view.clone())
+                    .header(bar.map(|b| b.sidebar_bar(plane, cx)))
                     .companion(card)
                     .footer(self.footer(cx));
                 stack = stack.start(plane, column);
             }
             if !home && panes.end.is_some() {
-                // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
-                // content starts at the divider like the product's.
-                stack = stack.end(self.frame.layout.auxiliary, self.sidebar.clone());
+                let end = bar.map_or_else(
+                    || self.sidebar.clone().into_any_element(),
+                    |b| b.end_pane(self.sidebar.clone(), window, cx),
+                );
+                stack = stack.end(self.frame.layout.auxiliary, end);
             }
-            let main = if !home && self.cloud.read(cx).screen_shown(cx) {
+            let screen_shown = !home && self.cloud.read(cx).screen_shown(cx);
+            let main = if screen_shown {
                 self.cloud.read(cx).screen.clone().into_any_element()
             } else {
                 self.editor.clone().into_any_element()
             };
-            // Under the Homepage the editors keep their state but draw nothing and take no input.
+            let main = if let Some(b) = bar {
+                let front = (!screen_shown).then(|| self.editor.read(cx).front.clone());
+                b.main_pane(plane.is_none(), main, front, window, cx)
+            } else {
+                main
+            };
             let main = at(self.frame.layout.editor)
                 .when(home, |d| d.invisible())
                 .child(main);
             stack.main(main).into_any_element()
         });
-        // The live screen above the panes, under the Header and the edges;
-        // on its way to or from the main area, over the edges too.
         let live = screen
             .as_ref()
-            .and_then(|screen| self.cloud.read(cx).screen_live(screen, cx));
+            .and_then(|s| self.cloud.read(cx).screen_live(s, cx));
         let (live, flying) = if crossing { (None, live) } else { (live, None) };
         root = root.children(live);
         let weak = cx.weak_entity();
         root = on_shell_actions(root, move |command, window, cx| {
             let _ = weak.update(cx, |s, cx| s.command(command, window, cx));
         });
-        // The Homepage, with its intro's curtain under the Header.
         if home {
             root = root.child(self.home.clone());
         }
         if self.chrome.read(cx).rail_shown() && !home && !file {
-            root = root.child(self.chrome.read(cx).rail(h, cx));
+            root = root.child(self.chrome.read(cx).rail(h, headerless, cx));
         }
         if opening {
             let explorer = self
@@ -751,35 +755,25 @@ impl Render for Shell {
                 cx,
             ));
         }
-        // A file window draws its own title bar.
-        if !file {
-            if seam.is_some() {
-                let (l, c, e) = (&self.frame.layout, &self.cloud, &self.editor);
-                root = root.children(chrome::seam::underlay(l, w, c, e, cx));
-            }
+        if !file && !headerless {
             root = root.child(at(self.frame.layout.header).child(self.chrome.clone()));
         }
         if (!home && !opening && !file) || (file && !opening && html_chat_shown) {
             root = root.children(panes::edges(&self.panes, &panes, w, rail, window, cx));
         }
         root = root.children(flying);
-        // `FloatingNoticeStack`s over the workspace: its own notices and
-        // the editor's (save failure, held-back Cloud conflict).
         if !home && !opening {
-            let (editor, end) = (
-                self.frame.layout.editor,
-                w - self.frame.layout.editor.right(),
-            );
+            let end = w - self.frame.layout.editor.right();
             let folder = self.folder_notices(cx);
             let project = self.session.project.downgrade();
+            let proj_notices =
+                self.session
+                    .project
+                    .read(cx)
+                    .notices(editor_body, end, folder, project);
             root = root
-                .children(
-                    self.session
-                        .project
-                        .read(cx)
-                        .notices(editor, end, folder, project),
-                )
-                .children(self.editor.read(cx).notices(editor, end, cx))
+                .children(proj_notices)
+                .children(self.editor.read(cx).notices(editor_body, end, cx))
                 .children(explorer::clipboard_notice::stack(
                     &self.explorer.session,
                     w,

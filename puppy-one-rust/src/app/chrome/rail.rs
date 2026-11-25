@@ -5,11 +5,22 @@ use super::*;
 use crate::{geometry::Rect, ui::appearance::ActiveAppearance};
 
 impl WindowChrome {
-    /// The rail in a window `h` tall, drawn from a read.
-    pub(in crate::app) fn rail(&self, h: f32, cx: &App) -> Div {
+    /// The rail in a window `h` tall, drawn from a read. Without a Header it
+    /// runs from the window's top edge while keeping its marks below the
+    /// native window controls.
+    pub(in crate::app) fn rail(&self, h: f32, headerless: bool, cx: &App) -> Div {
         let t = cx.palette();
         let current = self.session.root.clone();
-        let r = Rect::new(0., theme::HEADER, self.rail_width(), h - theme::HEADER);
+        let top = if headerless { 0. } else { theme::HEADER };
+        let r = Rect::new(0., top, self.rail_width(), h - top);
+        let top_menu = headerless
+            .then(|| window_frame::app_menu::render(cx))
+            .flatten();
+        let top_pad = if headerless && top_menu.is_none() {
+            theme::HEADER + 12.
+        } else {
+            12.
+        };
         let mut rail = div()
             .absolute()
             .left(px(r.x))
@@ -25,7 +36,19 @@ impl WindowChrome {
             .flex()
             .flex_col()
             .items_center()
-            .pt(px(12.))
+            .when(top_menu.is_none(), |d| d.pt(px(top_pad)))
+            .when_some(top_menu, |d, menu| {
+                d.child(
+                    div()
+                        .h(px(theme::HEADER))
+                        .w_full()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .mb(px(6.))
+                        .child(menu),
+                )
+            })
             .gap(px(6.));
         let recent: Vec<_> = self
             .owners

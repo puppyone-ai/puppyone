@@ -450,9 +450,22 @@ impl PaneLayout {
     /// crossing its collapse threshold) moves its frame, unless the system
     /// asks for reduced motion.
     pub fn frames(&self, w: f32, h: f32, rail: f32, reduce_motion: bool) -> PaneFrames {
+        self.frames_with_header(w, h, rail, crate::theme::HEADER, reduce_motion)
+    }
+    /// Same as [`PaneLayout::frames`], with an explicit Header height (`0.`
+    /// when the window runs without a Header so every pane and resize edge
+    /// spans from `y = 0` to `h`).
+    pub fn frames_with_header(
+        &self,
+        w: f32,
+        h: f32,
+        rail: f32,
+        header_h: f32,
+        reduce_motion: bool,
+    ) -> PaneFrames {
         self.available.set(w - rail);
         let (explorer, right) = self.preview();
-        let target = Layout::new(w, h, explorer.extent(), right.extent(), rail);
+        let target = Layout::with_header(w, h, explorer.extent(), right.extent(), rail, header_h);
         let resolved = (target.explorer.w, target.auxiliary.w);
         self.resolved.set(resolved);
         let animate = !reduce_motion
@@ -751,6 +764,21 @@ mod tests {
             assert_eq!(p.take_window_minimum(0.), None);
             p.set_right_open(true, cx);
             assert_eq!(p.take_window_minimum(0.), Some(868.));
+        });
+    }
+
+    #[gpui::test]
+    fn headerless_frames_run_full_height_from_zero(cx: &mut TestAppContext) {
+        let panes = panes(cx, true);
+        panes.read_with(cx, |p, _| {
+            let frames = p.frames_with_header(1280., 800., 0., 0., true);
+            assert_eq!(frames.layout.header.h, 0.);
+            assert_eq!(frames.layout.editor.y, 0.);
+            assert_eq!(frames.layout.editor.h, 800.);
+            let start = frames.start.expect("explorer frame");
+            let end = frames.end.expect("right frame");
+            assert_eq!((start.y, start.h), (0., 800.));
+            assert_eq!((end.y, end.h), (0., 800.));
         });
     }
 }

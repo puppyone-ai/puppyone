@@ -86,6 +86,8 @@ impl ProjectLifecycle {
         }
         let t = cx.palette();
         let top = metric::CHROME_HEIGHT;
+        let editor_top = (editor.y - top).max(0.);
+        let editor_h = (editor.bottom() - top).max(0.);
         let cloud = self.files(cx).cloud_opening();
         let docs = self.docs.downgrade();
         // `CloudWorkspaceOpeningLoading`: one line for the stage, and Cancel.
@@ -98,7 +100,7 @@ impl ProjectLifecycle {
             let ty = theme::ty().ui;
             v_flex()
                 .absolute()
-                .top(px(editor.h / 2. + DETAIL_OFFSET))
+                .top(px(editor_h / 2. + DETAIL_OFFSET))
                 .left(px(32.))
                 .right(px(32.))
                 .items_center()
@@ -127,9 +129,9 @@ impl ProjectLifecycle {
         let opening = div()
             .absolute()
             .left(px(editor.x))
-            .top(px(editor.y - top))
+            .top(px(editor_top))
             .w(px(editor.w))
-            .h(px(editor.h))
+            .h(px(editor_h))
             .bg(t.canvas)
             .flex()
             .items_center()
@@ -157,13 +159,15 @@ impl ProjectLifecycle {
                 .when_some(
                     explorer.filter(|explorer| explorer.w > 0.),
                     |d, explorer| {
+                        let explorer_top = (explorer.y - top).max(0.);
+                        let explorer_h = (explorer.bottom() - top).max(0.);
                         d.child(
                             div()
                                 .absolute()
                                 .left(px(explorer.x))
-                                .top(px(explorer.y - top))
+                                .top(px(explorer_top))
                                 .w(px(explorer.w))
-                                .h(px(explorer.h))
+                                .h(px(explorer_h))
                                 .bg(t.sidebar)
                                 .overflow_hidden()
                                 .child(Self::explorer_skeleton(explorer.w)),

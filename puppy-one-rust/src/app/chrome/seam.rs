@@ -1,92 +1,256 @@
-//! Without the Header (experimental): a project window's panes run up to
-//! its top, and the Header's parts stand over them — the sidebar toggle,
-//! the place and the project over the Explorer, the tools over the
-//! document. The window tells the chrome each frame where the panes leave
-//! those parts ([`Seam`]), paints the panes' grounds under it ([`ground`])
-//! and fades the document scrolled up to it ([`document_fade`]).
-use super::super::{at, editor_area::EditorArea, panes::Layout, window_cloud::WindowCloud};
+//! Without the Header (experimental): the window has no Header strip at all
+//! (`layout.header.h == 0`). Every pane and its resize edge runs from the
+//! window's top (`y = 0`) to its bottom, and each pane holds its own top
+//! controls:
+//! - Explorer column: leading controls (`collapse-explorer`, place, project)
+//!   and sidebar window-drag area.
+//! - Main pane: leading controls when the Explorer is collapsed, optional
+//!   editor tabs, window-drag area, project actions, and trailing caption
+//!   buttons when no right sidebar is open — over the document with a top
+//!   scroll-edge fade.
+//! - Right sidebar: its surface runs straight from `y = 0` on macOS, or sits
+//!   below a 40px drag + caption strip on Windows / Linux CSD.
+use super::{
+    WindowChrome,
+    window_frame::{app_menu, title_bar, window_controls},
+};
 use crate::{
+    app::{
+        panes::{PaneFrames, PaneLayout},
+        right_sidebar::RightSidebar,
+    },
+    editor::host::DocumentEditor,
     geometry::Rect,
-    theme,
+    theme::{self, metric},
     ui::{
         appearance::ActiveAppearance,
         scroll_edge::{self, Edge},
     },
 };
 use gpui::{prelude::*, *};
+use gpui_kit::base::{h_flex, v_flex};
 
-/// Where the panes leave the Header's parts this frame.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::app) struct Seam {
-    /// The Explorer column's end while it shows (the rail included): the
-    /// sidebar toggle, the place and the project stay over it.
-    pub sidebar: Option<f32>,
-    /// The right sidebar's share of the window's end: the actions stop
-    /// before it, above the document.
-    pub end: f32,
+impl WindowChrome {
+    /// The Explorer column's top 40px bar when the window has no Header:
+    /// native leading inset, optional in-window app menu, sidebar toggle,
+    /// place / project switchers, and remaining drag space. Sized to the
+    /// Explorer's visible `width` so narrowing drags shrink the place first.
+    pub(in crate::app) fn sidebar_bar(&self, width: f32, rail: f32, cx: &App) -> AnyElement {
+        let open = self.owners.panes.read(cx).explorer().open;
+        let menu = (rail == 0.).then(|| app_menu::render(cx)).flatten();
+        h_flex()
+            .h(px(theme::HEADER))
+            .w(px(width))
+            .flex_shrink_0()
+            .overflow_hidden()
+            .items_center()
+            .pl(px(title_bar::leading_inset(rail)))
+            .pr(px(metric::TITLEBAR_CONTENT_END))
+            .gap(px(2.))
+            .children(menu)
+            .child(self.sidebar_toggle(open))
+            .when(self.shows_project(), |d| {
+                d.child(self.project_context(self.rail, cx))
+            })
+            .child(
+                title_bar::drag_area("header-drag-sidebar")
+                    .flex_1()
+                    .min_w_0(),
+            )
+            .into_any_element()
+    }
+
+    /// The main pane's top 40px bar when the window has no Header: leading
+    /// controls while the Explorer is collapsed (`leading`), optional editor
+    /// tabs, window-drag space, project actions, and trailing window caption
+    /// buttons while the right sidebar is closed (`captions`).
+    pub(in crate::app) fn main_bar(
+        &self,
+        leading: bool,
+        captions: bool,
+        rail: f32,
+        window: &Window,
+        cx: &App,
+    ) -> AnyElement {
+        let trailing_controls = captions
+            .then(|| window_controls::render(window, cx))
+            .flatten();
+        let has_trailing_controls = trailing_controls.is_some();
+        let tabs = self.project_tabs(cx);
+        let with_tabs = tabs.is_some();
+        let actions = self.project_actions(cx);
+        let menu = (leading && rail == 0.)
+            .then(|| app_menu::render(cx))
+            .flatten();
+        let drag = title_bar::drag_area("header-drag")
+            .when(!with_tabs, |d| d.flex_1())
+            .when(with_tabs, |d| {
+                d.w(px(metric::TITLEBAR_DRAG_MIN_WIDTH)).flex_shrink_0()
+            })
+            .min_w(px(metric::TITLEBAR_DRAG_MIN_WIDTH));
+        h_flex()
+            .h(px(theme::HEADER))
+            .w_full()
+            .flex_shrink_0()
+            .items_center()
+            .when(leading, |d| {
+                d.child(
+                    h_flex()
+                        .h_full()
+                        .min_w_0()
+                        .pl(px(title_bar::leading_inset(rail)))
+                        .gap(px(2.))
+                        .children(menu)
+                        .child(self.sidebar_toggle(false))
+                        .when(self.shows_project(), |d| {
+                            d.child(self.project_context(self.rail, cx))
+                        }),
+                )
+            })
+            .when_some(tabs, |d, tabs| {
+                d.child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .h_full()
+                        .when(!leading, |d| d.pl(px(metric::TITLEBAR_CONTENT_END)))
+                        .child(tabs),
+                )
+            })
+            .child(drag)
+            .child(
+                h_flex()
+                    .h_full()
+                    .gap(px(2.))
+                    .pr(px(if has_trailing_controls {
+                        metric::TITLEBAR_CAPTION_ACTIONS_GAP
+                    } else {
+                        metric::TITLEBAR_CONTENT_END
+                    }))
+                    .children(actions),
+            )
+            .children(trailing_controls)
+            .into_any_element()
+    }
 }
-impl Seam {
-    /// In a `w` wide window laid out as `layout`, its Explorer `shown`.
-    pub fn new(layout: &Layout, w: f32, shown: bool) -> Self {
+
+/// Per-frame pane chrome context when a project window runs without a Header.
+#[derive(Clone, Copy)]
+pub(in crate::app) struct PaneChrome<'a> {
+    pub chrome: &'a Entity<WindowChrome>,
+    pub panes: &'a Entity<PaneLayout>,
+    pub start: Option<Rect>,
+    pub end_open: bool,
+    pub rail: f32,
+}
+
+impl<'a> PaneChrome<'a> {
+    pub(in crate::app) fn new(
+        chrome: &'a Entity<WindowChrome>,
+        panes: &'a Entity<PaneLayout>,
+        frames: &PaneFrames,
+        rail: f32,
+    ) -> Self {
         Self {
-            sidebar: shown.then_some(layout.editor.x),
-            end: w - layout.editor.right(),
+            chrome,
+            panes,
+            start: frames.start,
+            end_open: frames.end.is_some(),
+            rail,
         }
     }
-}
 
-/// Under the chrome: the panes' grounds over the Header's strip, and
-/// the document's fade below it (not over the Cloud screen).
-pub(in crate::app) fn underlay(
-    layout: &Layout,
-    w: f32,
-    cloud: &Entity<WindowCloud>,
-    editor: &Entity<EditorArea>,
-    cx: &App,
-) -> Vec<AnyElement> {
-    let front = (!cloud.read(cx).screen_shown(cx)).then(|| editor.read(cx).front.clone());
-    let fade = front.map(|front| document_fade(layout, front, cx).into_any_element());
-    fade.into_iter()
-        .chain(
-            ground(layout, w, cx)
-                .into_iter()
-                .map(IntoElement::into_any_element),
-        )
-        .collect()
-}
-
-/// The panes' grounds over the Header's strip, under the chrome: the
-/// rail's and the Explorer's, the document's and the right sidebar's, each
-/// pane with its hairline edge.
-fn ground(layout: &Layout, w: f32, cx: &App) -> Vec<Div> {
-    let t = cx.palette();
-    let (h, editor) = (layout.header.h, layout.editor);
-    let (start, end) = (editor.x.max(0.), editor.right().min(w));
-    let hairline = theme::metric::SHELL_DIVIDER_WIDTH;
-    let edge = |x: f32| at(Rect::new(x, 0., hairline, h)).bg(t.sidebar_divider);
-    let mut ground = vec![at(Rect::new(start, 0., end - start, h)).bg(t.canvas)];
-    if start > 0. {
-        ground.push(at(Rect::new(0., 0., start, h)).bg(t.sidebar));
-        ground.push(edge(start - hairline));
+    /// The Explorer column's top bar: sized to the visible frame width while
+    /// open so narrowing drags shrink the place live, and held at the plane
+    /// width while sliding closed.
+    pub(in crate::app) fn sidebar_bar(self, plane: Rect, cx: &App) -> AnyElement {
+        let visible = if self.panes.read(cx).explorer().open {
+            self.start.map_or(plane.w, |r| r.w)
+        } else {
+            plane.w
+        };
+        self.chrome.read(cx).sidebar_bar(visible, self.rail, cx)
     }
-    if end < w {
-        ground.push(at(Rect::new(end, 0., w - end, h)).bg(t.auxiliary()));
-        ground.push(edge(end));
+
+    /// The main pane without a Header: its 40px top bar over `content`, with
+    /// the scrolled document fading smoothly into the canvas ground at the
+    /// boundary.
+    pub(in crate::app) fn main_pane(
+        self,
+        leading: bool,
+        content: AnyElement,
+        front: Option<Entity<DocumentEditor>>,
+        window: &Window,
+        cx: &App,
+    ) -> AnyElement {
+        let fade = front.map(|front| document_fade(front, cx));
+        v_flex()
+            .size_full()
+            .bg(cx.palette().canvas)
+            .child(
+                self.chrome
+                    .read(cx)
+                    .main_bar(leading, !self.end_open, self.rail, window, cx),
+            )
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .child(content)
+                    .children(fade),
+            )
+            .into_any_element()
     }
-    ground
+
+    /// The right sidebar pane without a Header: straight from `y = 0` on
+    /// macOS, or below a 40px drag + window-caption bar on Windows / Linux CSD
+    /// so caption controls never overlap sidebar actions.
+    pub(in crate::app) fn end_pane(
+        self,
+        sidebar: Entity<RightSidebar>,
+        window: &Window,
+        cx: &App,
+    ) -> AnyElement {
+        let Some(controls) = window_controls::render(window, cx) else {
+            return sidebar.into_any_element();
+        };
+        v_flex()
+            .size_full()
+            .bg(cx.palette().auxiliary())
+            .child(
+                h_flex()
+                    .h(px(theme::HEADER))
+                    .w_full()
+                    .flex_shrink_0()
+                    .child(title_bar::drag_area("header-drag-end").flex_1().min_w_0())
+                    .child(controls),
+            )
+            .child(div().flex_1().min_h_0().child(sidebar))
+            .into_any_element()
+    }
 }
 
-/// The front document scrolled up under the tools fades into the window's
-/// top instead of being cut at it; never a pinned header row, which is the
-/// edge already. Read at paint time so it follows every scroll frame.
-fn document_fade(
-    layout: &Layout,
-    front: Entity<crate::editor::host::DocumentEditor>,
-    cx: &App,
-) -> impl IntoElement {
+/// The content region of the main pane below its 40px top bar when running
+/// without a Header (where notices and the Cloud Computer screen's stage sit).
+pub(in crate::app) fn editor_body(editor: Rect, headerless: bool) -> Rect {
+    if !headerless {
+        return editor;
+    }
+    Rect::new(
+        editor.x,
+        editor.y + theme::HEADER,
+        editor.w,
+        (editor.h - theme::HEADER).max(0.),
+    )
+}
+
+/// The front document scrolled up under the main pane's tools fades into the
+/// canvas ground instead of being cut off; never a pinned table header row,
+/// which is the edge already. Read at paint time so it follows every frame.
+fn document_fade(front: Entity<DocumentEditor>, cx: &App) -> impl IntoElement {
     let canvas_ground = cx.palette().canvas;
-    let editor = layout.editor;
-    let height = theme::metric::DOCUMENT_TOP_FADE;
+    let height = metric::DOCUMENT_TOP_FADE;
     gpui::canvas(
         |_, _, _| {},
         move |bounds, _, window, cx| {
@@ -100,8 +264,8 @@ fn document_fade(
         },
     )
     .absolute()
-    .left(px(editor.x))
-    .top(px(editor.y))
-    .w(px(editor.w))
+    .left_0()
+    .right_0()
+    .top_0()
     .h(px(height))
 }

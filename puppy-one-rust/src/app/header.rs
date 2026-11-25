@@ -33,7 +33,6 @@ pub(super) struct TitleBar {
     leading: Vec<AnyElement>,
     actions: Vec<AnyElement>,
     tabs: Option<AnyElement>,
-    seamless: Option<super::chrome::window_frame::title_bar::Seamless>,
 }
 impl TitleBar {
     pub fn new() -> Self {
@@ -55,23 +54,10 @@ impl TitleBar {
         self.actions.push(item.into_any_element());
         self
     }
-    /// Without the Header (experimental): no bar of its own, so the panes
-    /// show through; the leading entries stay over the Explorer column
-    /// ending at `sidebar` while it shows, and the actions end `end` before
-    /// the window's end — above the document, not over the right sidebar.
-    pub fn seamless(mut self, sidebar: Option<f32>, end: f32) -> Self {
-        self.seamless = Some(super::chrome::window_frame::title_bar::Seamless { sidebar, end });
-        self
-    }
     /// `.desktop-titlebar-action-divider` (1×18, 3px margins) between two
     /// actions.
     pub fn divider(self, cx: &App) -> Self {
-        let line = div()
-            .w(px(1.))
-            .h(px(18.))
-            .mx(px(3.))
-            .bg(cx.palette().shell_divider);
-        self.action(line)
+        self.action(action_divider(cx))
     }
 }
 impl RenderOnce for TitleBar {
@@ -80,11 +66,21 @@ impl RenderOnce for TitleBar {
             self.leading,
             self.tabs,
             self.actions,
-            self.seamless,
             window,
             cx,
         )
     }
+}
+
+/// `.desktop-titlebar-action-divider` (1×18, 3px margins) between two
+/// toolbar actions.
+pub(super) fn action_divider(cx: &App) -> AnyElement {
+    div()
+        .w(px(1.))
+        .h(px(18.))
+        .mx(px(3.))
+        .bg(cx.palette().shell_divider)
+        .into_any_element()
 }
 
 /// `GitTitlebarStatus` projected from the native Git snapshot.

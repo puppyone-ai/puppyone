@@ -676,7 +676,21 @@ fn the_hidden_header_keeps_the_project_over_the_explorer_and_the_tools_above_the
     draw(cx);
     let header = px(crate::theme::HEADER);
     let layout = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.frame.layout);
-    let explorer = layout(cx).explorer;
+    let l = layout(cx);
+    // The Header is removed from the layout: every pane and resize edge runs
+    // full-height from `y = 0` to `h`.
+    assert_eq!(l.header.h, 0., "header is removed in layout");
+    assert_eq!(l.explorer.y, 0., "explorer runs from window top");
+    assert_eq!(l.editor.y, 0., "editor runs from window top");
+    assert_eq!(l.auxiliary.y, 0., "auxiliary runs from window top");
+    let left_sash = cx.debug_bounds("left-sash").expect("the left resize sash");
+    assert_eq!(left_sash.origin.y, px(0.), "left sash starts at window top");
+    assert_eq!(
+        left_sash.bottom(),
+        px(800.),
+        "left sash reaches window bottom"
+    );
+    let explorer = l.explorer;
     let toggle = cx
         .debug_bounds("collapse-explorer")
         .expect("the sidebar toggle");
@@ -685,12 +699,36 @@ fn the_hidden_header_keeps_the_project_over_the_explorer_and_the_tools_above_the
         assert!(part.bottom() <= header, "at the top: {part:?}");
         assert!(
             part.right() <= px(explorer.right()),
-            "over the Explorer: {part:?}"
+            "inside the Explorer: {part:?}"
         );
     }
     let changes = cx.debug_bounds("header-changes").expect("Changes");
     assert!(changes.bottom() <= header);
-    assert!(changes.left() >= px(layout(cx).editor.x));
+    assert!(changes.left() >= px(l.editor.x));
+    // With the right sidebar open, its resize edge also runs full height and
+    // the tools stay inside the main pane before it.
+    command(&view, cx, Command::ToggleRightSidebar);
+    draw(cx);
+    let l_right = layout(cx);
+    let right_sash = cx
+        .debug_bounds("right-sash")
+        .expect("the right resize sash");
+    assert_eq!(
+        right_sash.origin.y,
+        px(0.),
+        "right sash starts at window top"
+    );
+    assert_eq!(
+        right_sash.bottom(),
+        px(800.),
+        "right sash reaches window bottom"
+    );
+    let changes_with_right = cx
+        .debug_bounds("header-changes")
+        .expect("Changes with right sidebar");
+    assert!(changes_with_right.right() <= px(l_right.editor.right()));
+    command(&view, cx, Command::ToggleRightSidebar);
+    draw(cx);
     // Its menu hangs below it as in the Header.
     cx.simulate_click(project.center(), Modifiers::none());
     draw(cx);
