@@ -924,3 +924,213 @@ fn cloud_project_folders_show_connected_agents_on_homepage(cx: &mut TestAppConte
         "team-space list row shows connected Agent badges"
     );
 }
+
+/// Space-scoped lazy loading + SWR caching + focus cooldown:
+/// - Sitting on `This Mac` fires zero Cloud folder preview/Agent requests.
+/// - Switching to `Personal` lazily fetches only `p-todo` (not `p-issues` in `Design`).
+/// - Repeated focus refreshes within cooldown fire zero extra requests.
+/// - Switching to `Design` lazily fetches `p-issues`, and returning to `Personal`
+///   renders immediately from cache with zero additional requests.
+#[gpui::test]
+fn homepage_lazy_loads_cloud_details_per_space_and_respects_cache_cooldown(
+    cx: &mut TestAppContext,
+) {
+    use std::sync::{Arc, Mutex};
+
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+
+    let calls: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let recorded = calls.clone();
+    let fallback = cloud_project_responder();
+    let responder: crate::cloud::auth::Responder = Arc::new(move |request| {
+        let path = request.path.clone();
+        if path == "/organizations/" {
+            return Ok(serde_json::json!({"code": 0, "data": [
+                {"id": "me", "name": "Alex", "is_default": true, "can_create_projects": true},
+                {"id": "team-1", "name": "Design", "can_create_projects": true}
+            ]}));
+        }
+        if path == "/projects/" {
+            return Ok(serde_json::json!({"code": 0, "data": [
+                {"id": "p-todo", "name": "Todo", "org_id": "me", "updated_at": "2026-10-01T00:00:00Z"},
+                {"id": "p-issues", "name": "Issues", "org_id": "team-1", "updated_at": "2026-10-02T00:00:00Z"}
+            ]}));
+        }
+        if path == "/content/p-todo/ls" {
+            recorded.lock().unwrap().push(path);
+            return Ok(serde_json::json!({"code": 0, "data": {"entries": [
+                {"name": "README.md", "type": "markdown"}
+            ]}}));
+        }
+        if path == "/content/p-issues/ls" {
+            recorded.lock().unwrap().push(path);
+            return Ok(serde_json::json!({"code": 0, "data": {"entries": [
+                {"name": "board.html", "type": "html"}
+            ]}}));
+        }
+        if path == "/projects/p-todo/agent-links" {
+            recorded.lock().unwrap().push(path);
+            return Ok(serde_json::json!({"code": 0, "data": {"connections": [
+                {"id": "a-grok", "name": "Grok Bot", "admission": "sign_in", "grant_id": "g-1"}
+            ]}}));
+        }
+        if path == "/projects/p-todo/access/sessions" {
+            recorded.lock().unwrap().push(path);
+            return Ok(serde_json::json!({"code": 0, "data": []}));
+        }
+        if path == "/projects/p-issues/agent-links" {
+            recorded.lock().unwrap().push(path);
+            return Ok(serde_json::json!({"code": 0, "data": {"connections": []}}));
+        }
+        if path == "/projects/p-issues/access/sessions" {
+            recorded.lock().unwrap().push(path);
+            return Ok(serde_json::json!({"code": 0, "data": []}));
+        }
+        fallback(request)
+    });
+
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(responder);
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        s.prefs.store.update(cx, |p, _| {
+            p.state.experimental.cloud_workspace = true;
+            p.state.remember_project(&folder, 1);
+        });
+    });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud::account::has_account(cx)
+    });
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "home ready", &|s, cx| {
+        let home = s.home.read(cx);
+        !home.list_held()
+            && home.spaces.read(cx).status() == crate::features::cloud::SpacesStatus::Ready
+            && home.visible_projects(cx).len() == 3
+    });
+    draw(cx);
+
+    // 1. Sitting on "This Mac" (default Arc tab): ZERO Cloud folder detail calls.
+    assert!(
+        calls.lock().unwrap().is_empty(),
+        "viewing local Space must not eagerly fetch Cloud folder details: {:?}",
+        calls.lock().unwrap()
+    );
+
+    // 2. Switch to Personal Space -> lazily fetches ONLY p-todo, NOT p-issues.
+    let personal_pill = cx
+        .debug_bounds("home-arc-dock:space:me")
+        .expect("Personal Space pill");
+    cx.simulate_click(personal_pill.center(), Modifiers::default());
+    settle_cloud(&view, cx, "personal details hydrated", &|s, cx| {
+        s.home
+            .read(cx)
+            .discovery
+            .cloud_previews
+            .contains_key("p-todo")
+            && s.home
+                .read(cx)
+                .discovery
+                .cloud_project_agents
+                .contains_key("p-todo")
+    });
+    draw(cx);
+    assert!(
+        cx.debug_bounds("home-folder-agents:p-todo").is_some(),
+        "Grok Bot corner badge appears on p-todo once lazily hydrated"
+    );
+    {
+        let log = calls.lock().unwrap();
+        assert!(
+            log.iter().any(|p| p == "/content/p-todo/ls"),
+            "active Space project `p-todo` fetched previews"
+        );
+        assert!(
+            log.iter().any(|p| p == "/projects/p-todo/agent-links"),
+            "active Space project `p-todo` fetched agent links"
+        );
+        assert!(
+            !log.iter().any(|p| p.contains("p-issues")),
+            "inactive Team Space project `p-issues` must not be fetched yet: {log:?}"
+        );
+    }
+    let after_personal = calls.lock().unwrap().len();
+
+    // 3. Repeated window focus within cooldown fires ZERO extra HTTP calls.
+    view.update(cx, |s, cx| {
+        s.home
+            .update(cx, |h, cx| h.refresh_cloud_home_details(true, cx));
+    });
+    cx.run_until_parked();
+    draw(cx);
+    assert_eq!(
+        calls.lock().unwrap().len(),
+        after_personal,
+        "window focus within cooldown must serve from cache with zero requests"
+    );
+
+    // 4. Switch to Design Space -> lazily fetches p-issues (and skips sessions
+    //    when connections is empty!), zero extra calls for p-todo.
+    let design_pill = cx
+        .debug_bounds("home-arc-dock:space:team-1")
+        .expect("Design Space pill");
+    cx.simulate_click(design_pill.center(), Modifiers::default());
+    settle_cloud(&view, cx, "design details hydrated", &|s, cx| {
+        s.home
+            .read(cx)
+            .discovery
+            .cloud_previews
+            .contains_key("p-issues")
+    });
+    draw(cx);
+    {
+        let log = calls.lock().unwrap();
+        assert_eq!(
+            log.iter()
+                .filter(|p| p.as_str() == "/content/p-todo/ls")
+                .count(),
+            1,
+            "p-todo previews were never refetched"
+        );
+        assert!(
+            !log.iter()
+                .any(|p| p.as_str() == "/projects/p-issues/access/sessions"),
+            "empty agent connections skip sessions endpoint completely"
+        );
+    }
+
+    // 5. Write-through from an open workspace updates Home immediately with 0 requests.
+    let before_write_through = calls.lock().unwrap().len();
+    cx.update(|_, cx| {
+        let scope = crate::features::cloud::HomeDetailsCache::current_scope(cx).unwrap();
+        crate::features::cloud::global_home_details(cx).update(cx, |c, cx| {
+            c.record_cloud_agents(
+                &scope,
+                "p-issues",
+                vec![crate::features::cloud::CachedProjectAgent {
+                    id: "a-wt".into(),
+                    name: "WriteThrough Bot".into(),
+                    avatar: None,
+                    active: true,
+                    last_active_at: None,
+                }],
+                cx,
+            );
+        });
+    });
+    draw(cx);
+    assert!(
+        cx.debug_bounds("home-folder-agents:p-issues").is_some(),
+        "write-through Agent appears on folder corner immediately"
+    );
+    assert_eq!(
+        calls.lock().unwrap().len(),
+        before_write_through,
+        "write-through incurs zero network requests"
+    );
+}

@@ -213,6 +213,9 @@ impl Homepage {
         } else {
             self.space_slide = None;
         }
+        // Space-scoped lazy revalidation: paint cached details at 0 ms and
+        // lazily refresh only stale projects in the newly active Space.
+        self.refresh_cloud_home_details(false, cx);
         cx.notify();
     }
 

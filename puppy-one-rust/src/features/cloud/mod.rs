@@ -10,6 +10,7 @@ mod agent;
 mod billing;
 mod catalog;
 mod clients;
+mod home_details_cache;
 mod publish;
 mod repository;
 mod screen;
@@ -25,6 +26,10 @@ pub use billing::{
 };
 pub use catalog::{CloudCatalog, State as CatalogState, global as global_catalog, owner_of};
 pub use clients::{agents_client, billing_client, services_client};
+pub use home_details_cache::{
+    CachedFilePreview, CachedProjectAgent, DETAILS_CONCURRENCY, HomeDetailsCache,
+    global_home_details, now_millis as home_details_now_millis, read_home_details,
+};
 #[cfg(test)]
 pub use publish::install_factory;
 #[cfg(test)]

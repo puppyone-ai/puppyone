@@ -80,6 +80,7 @@ impl Shell {
             self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
             if !self.file_mode() {
                 explorer.update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
+                self.sync_cloud_home_previews(cx);
             }
             // A lone file has no Git or Terminal; an HTML file window binds its
             // parent folder only for the on-demand Local Agent Chat drawer.

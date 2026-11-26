@@ -1462,10 +1462,33 @@ impl WindowCloud {
             .map(|a| SharedString::from(a.agent.name.clone()));
         self.screen.update(cx, |s, cx| s.set_operator(operator, cx));
         let agents = self.agents.read(cx);
+        let write_through = project
+            .as_deref()
+            .filter(|_| agents.known)
+            .and_then(|project_id| {
+                let scope = crate::features::cloud::HomeDetailsCache::current_scope(cx)?;
+                let mapped: Vec<crate::features::cloud::CachedProjectAgent> = agents
+                    .agents
+                    .iter()
+                    .map(|a| crate::features::cloud::CachedProjectAgent {
+                        id: a.agent.id.clone(),
+                        name: a.agent.name.clone(),
+                        avatar: a.agent.avatar.clone(),
+                        active: a.active,
+                        last_active_at: a.last_active_at.clone(),
+                    })
+                    .collect();
+                Some((scope, project_id.to_owned(), mapped))
+            });
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
         let pending = agents.manageable && !agents.requests.is_empty();
         let gone =
             agents.project_name().is_none() || (!listed && !agents.manageable && agents.known);
+        if let Some((scope, project_id, mapped)) = write_through {
+            crate::features::cloud::global_home_details(cx).update(cx, |c, cx| {
+                c.record_cloud_agents(&scope, &project_id, mapped, cx);
+            });
+        }
         // An open dialog answers a request itself, where the Agent asks.
         if open && (gone || revoked) {
             self.close_dialog(DialogKey::Agents, cx);

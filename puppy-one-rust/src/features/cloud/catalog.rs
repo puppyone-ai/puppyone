@@ -246,6 +246,7 @@ impl CloudCatalog {
                 && let Some(dir) = &self.cache_dir
             {
                 cache::clear(dir);
+                super::home_details_cache::clear_disk_cache(dir);
             }
             if self.state != State::Idle {
                 self.state = State::Idle;

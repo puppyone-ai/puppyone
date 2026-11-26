@@ -498,6 +498,9 @@ impl Shell {
                 self.explorer
                     .session
                     .update(cx, |e, cx| e.entry_created(&parent, listing, &path, cx));
+                if parent.as_os_str().is_empty() {
+                    self.sync_cloud_home_previews(cx);
+                }
                 if !folder && !self.files(cx).allow_quit {
                     self.cloud.update(cx, |c, cx| c.close_screen(cx));
                     self.session
@@ -813,6 +816,23 @@ impl Shell {
         self.editor
             .update(cx, |e, cx| e.set_start_context(start, cx));
     }
+    /// Writes the active hosted Cloud project's current Explorer root file
+    /// previews through to the shared Home SWR cache so returning Home never
+    /// pays for an extra `/content/{id}/ls` call.
+    pub(in crate::app) fn sync_cloud_home_previews(&self, cx: &mut Context<Self>) {
+        let Some(project_id) = self.hosted_project(cx) else {
+            return;
+        };
+        let Some(scope) = crate::features::cloud::HomeDetailsCache::current_scope(cx) else {
+            return;
+        };
+        let selected =
+            home::previews::select_node_previews(&self.explorer.session.read(cx).tree().roots);
+        let cached = home::previews::to_cached(&selected);
+        crate::features::cloud::global_home_details(cx).update(cx, |c, cx| {
+            c.record_cloud_previews(&scope, &project_id, cached, None, cx);
+        });
+    }
     /// A pane menu command, or the runtime asked for something.
     pub(in crate::app) fn editor_event(
         &mut self,
@@ -883,6 +903,7 @@ impl Shell {
         match event {
             SessionEvent::ReferencesChanged => {
                 self.editor.update(cx, |e, cx| e.refresh_references(cx));
+                self.sync_cloud_home_previews(cx);
                 return cx.notify();
             }
             SessionEvent::LoadChildren(path) => {
