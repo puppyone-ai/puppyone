@@ -81,8 +81,8 @@ fn a_window_whose_folder_moved_says_so_and_follows_it(cx: &mut TestAppContext) {
     settle_cloud(&view, cx, "the project", &|s, cx| {
         s.workspace_root(cx).as_deref() == Some(notes.as_path())
     });
-    // Its identity is learned while the project list is read.
-    command(&view, cx, Command::ProjectMenu);
+    // Its identity is learned while the project list (the space's menu) is read.
+    command(&view, cx, Command::LocationMenu);
     settle_cloud(&view, cx, "its identity", &|s, cx| {
         s.prefs
             .store
