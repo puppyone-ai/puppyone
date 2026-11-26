@@ -69,11 +69,11 @@ fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext
         assert!(s.chrome.read(cx).project_focus.is_focused(w));
     });
 }
-/// `WindowNavigationRows`: the current place is checked; choosing a place
-/// closes the menu and opens the Homepage on it. Escape closes the menu
-/// and returns to the Header.
+/// The space's menu lists the projects in this space and the way Home —
+/// never the spaces themselves. Escape closes it and returns to the Header;
+/// Home goes Home.
 #[gpui::test]
-fn a_place_opens_the_homepage_on_it_and_escape_closes_the_menu(cx: &mut TestAppContext) {
+fn the_space_menu_lists_its_projects_and_escape_closes_it(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // The place menu shows only with an account service and Cloud on.
     let (broker, browser) = crate::cloud::auth::account_fixture();
@@ -89,16 +89,21 @@ fn a_place_opens_the_homepage_on_it_and_escape_closes_the_menu(cx: &mut TestAppC
     command(&view, cx, Command::LocationMenu);
     draw(cx);
     draw(cx);
-    let device = crate::localization::t(if cfg!(target_os = "macos") {
+    let row = |key: &str| -> &'static str {
+        Box::leak(format!("menu-item:{}", crate::localization::t(key)).into_boxed_str())
+    };
+    let device = row(if cfg!(target_os = "macos") {
         "shell.workspaceSwitcher.location.thisMac"
     } else {
         "shell.workspaceSwitcher.location.thisComputer"
     });
-    let selector: &'static str = Box::leak(format!("menu-item:{device}").into_boxed_str());
+    let home = row("shell.workspaceSwitcher.home");
+    assert!(cx.debug_bounds(home).is_some(), "the space menu is open");
     assert!(
-        cx.debug_bounds(selector).is_some(),
-        "the place menu is open"
+        cx.debug_bounds(row("shell.workspaceSwitcher.createNew"))
+            .is_some()
     );
+    assert!(cx.debug_bounds(device).is_none(), "no list of places");
     command(&view, cx, Command::Escape);
     view.update_in(cx, |s, w, cx| {
         assert!(s.chrome.read(cx).popover.is_none());
@@ -107,26 +112,19 @@ fn a_place_opens_the_homepage_on_it_and_escape_closes_the_menu(cx: &mut TestAppC
     command(&view, cx, Command::LocationMenu);
     draw(cx);
     draw(cx);
-    let row = cx
-        .debug_bounds(selector)
-        .expect("the place menu opens again");
-    cx.simulate_click(row.center(), Modifiers::none());
+    let home = cx.debug_bounds(home).expect("the space menu opens again");
+    cx.simulate_click(home.center(), Modifiers::none());
     view.read_with(cx, |s, cx| {
         assert!(s.chrome.read(cx).popover.is_none());
         assert!(s.session.project.read(cx).home);
-        assert_eq!(
-            s.home.read(cx).place_focus.as_ref().map(|f| f.0.clone()),
-            Some(super::home::groups::GroupId::LocalOnly)
-        );
     });
 }
-/// `the Header's place, and the way to every other place`: in a project
-/// window the place menu offers Home, this computer with a way to start a
-/// space, then the account and Settings, and Home goes Home; signed out it
-/// offers this computer and Sign in. With the project rail on, the Header
-/// keeps the place alone.
+/// The person lives in the project's menu: signed in it offers Account and
+/// Settings, signed out Settings and Sign in; the space's menu offers
+/// neither, nor a way to start a space. With the project rail on, the
+/// Header keeps the place alone.
 #[gpui::test]
-fn the_place_menu_offers_home_the_places_and_the_account_or_sign_in(cx: &mut TestAppContext) {
+fn the_project_menu_holds_the_account_and_settings_or_sign_in(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud::auth::account_fixture();
     view.update(cx, |s, cx| {
@@ -143,48 +141,36 @@ fn the_place_menu_offers_home_the_places_and_the_account_or_sign_in(cx: &mut Tes
     let row = |key: &str| -> &'static str {
         Box::leak(format!("menu-item:{}", crate::localization::t(key)).into_boxed_str())
     };
-    let device = row(if cfg!(target_os = "macos") {
-        "shell.workspaceSwitcher.location.thisMac"
-    } else {
-        "shell.workspaceSwitcher.location.thisComputer"
-    });
-    let open = |cx: &mut VisualTestContext| {
-        command(&view, cx, Command::LocationMenu);
+    let open = |cx: &mut VisualTestContext, which: Command| {
+        command(&view, cx, which);
         draw(cx);
         draw(cx);
     };
-    open(cx);
+    open(cx, Command::LocationMenu);
     for key in [
-        "shell.workspaceSwitcher.home",
         "settings.space.create",
         "settings.sidebar.account",
         "shell.navigation.settings",
+        "cloud.auth.signIn",
     ] {
-        assert!(cx.debug_bounds(row(key)).is_some(), "{key}");
+        assert!(cx.debug_bounds(row(key)).is_none(), "space menu: {key}");
     }
-    assert!(cx.debug_bounds(device).is_some());
+    command(&view, cx, Command::Escape);
+    open(cx, Command::ProjectMenu);
+    for key in ["settings.sidebar.account", "shell.navigation.settings"] {
+        assert!(cx.debug_bounds(row(key)).is_some(), "project menu: {key}");
+    }
     assert!(cx.debug_bounds(row("cloud.auth.signIn")).is_none());
-    let home = cx
-        .debug_bounds(row("shell.workspaceSwitcher.home"))
-        .unwrap();
-    cx.simulate_click(home.center(), Modifiers::none());
-    view.read_with(cx, |s, cx| {
-        assert!(s.session.project.read(cx).home);
-        assert!(s.chrome.read(cx).popover.is_none());
-    });
-    view.update(cx, |s, cx| {
-        s.session.project.update(cx, |p, _| p.home = false)
-    });
+    command(&view, cx, Command::Escape);
     cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
     settle_cloud(&view, cx, "signed out", &|_, cx| {
         !crate::features::cloud::account::has_account(cx)
     });
-    open(cx);
-    assert!(cx.debug_bounds(device).is_some());
-    assert!(cx.debug_bounds(row("cloud.auth.signIn")).is_some());
-    for key in ["settings.space.create", "settings.sidebar.account"] {
-        assert!(cx.debug_bounds(row(key)).is_none(), "{key}");
+    open(cx, Command::ProjectMenu);
+    for key in ["shell.navigation.settings", "cloud.auth.signIn"] {
+        assert!(cx.debug_bounds(row(key)).is_some(), "signed out: {key}");
     }
+    assert!(cx.debug_bounds(row("settings.sidebar.account")).is_none());
     command(&view, cx, Command::Escape);
     draw(cx);
     assert!(cx.debug_bounds("header-project").is_some());

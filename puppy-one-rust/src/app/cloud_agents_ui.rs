@@ -325,12 +325,15 @@ fn row_face(agent: &WorkspaceAgent, now: i64) -> RowFace {
 
 /// One miniature `18×18` squircle Agent logo for the Header stack: its real
 /// brand artwork (tile or monochrome/icon) or its deterministic creature —
-/// never a generic robot or person silhouette.
+/// never a generic robot or person silhouette. A `quiet` logo (an Agent at
+/// rest) is drawn in greyscale on a ground that sinks into the Header, so a
+/// stack of idle Agents reads as a soft watermark rather than bright stickers.
 fn header_agent_tile(
     name: &str,
     avatar: Option<&str>,
     active: bool,
     waiting: bool,
+    quiet: bool,
     ring_ground: Rgba,
     t: Theme,
 ) -> Div {
@@ -352,10 +355,18 @@ fn header_agent_tile(
             .border_color(theme::alpha(t.text, 0.45))
             .child(compact_agent_face(name, avatar, 12., 3., t.header, t));
     }
+    let ground = if quiet {
+        theme::mix(t.text, t.header, 0.06)
+    } else {
+        t.panel_raised
+    };
+    let edge = theme::alpha(t.text, if quiet { 0.08 } else { 0.12 });
     match brand {
         Some(brand) if agent_brands::tile(brand) => tile
             .child(
-                agent_brands::artwork(brand, t.dark, HEADER_TILE).rounded(px(HEADER_TILE_RADIUS)),
+                agent_brands::artwork(brand, t.dark, HEADER_TILE)
+                    .rounded(px(HEADER_TILE_RADIUS))
+                    .when(quiet, |i| i.grayscale(true)),
             )
             .child(
                 div()
@@ -363,33 +374,27 @@ fn header_agent_tile(
                     .inset_0()
                     .rounded(px(HEADER_TILE_RADIUS))
                     .border_1()
-                    .border_color(theme::alpha(t.text, 0.14)),
+                    .border_color(theme::alpha(t.text, if quiet { 0.10 } else { 0.14 })),
             ),
         Some(brand) => {
             let mark: AnyElement = match agent_brands::monochrome(brand) {
                 Some(path) => svg()
                     .path(path)
                     .size(px(12.))
-                    .text_color(t.text)
-                    .when(!active, |s| s.opacity(0.9))
+                    .text_color(if quiet { t.muted } else { t.text })
                     .into_any_element(),
                 None => agent_brands::artwork(brand, t.dark, (12. * brand.scale).min(14.))
+                    .when(quiet, |i| i.grayscale(true))
                     .into_any_element(),
             };
-            tile.bg(t.panel_raised)
-                .border_1()
-                .border_color(theme::alpha(t.text, 0.12))
-                .child(mark)
+            tile.bg(ground).border_1().border_color(edge).child(mark)
         }
-        None => tile
-            .bg(t.panel_raised)
-            .border_1()
-            .border_color(theme::alpha(t.text, 0.12))
-            .child(
-                img(agent_creature::image(name, active, t.panel_raised))
-                    .size(px(15.))
-                    .flex_none(),
-            ),
+        None => tile.bg(ground).border_1().border_color(edge).child(
+            img(agent_creature::image(name, active, ground))
+                .size(px(15.))
+                .flex_none()
+                .when(quiet, |i| i.grayscale(true)),
+        ),
     }
 }
 
@@ -407,9 +412,11 @@ fn header_stack_agents<'a>(agents: &'a [WorkspaceAgent]) -> Vec<&'a WorkspaceAge
 
 /// Compact overlapping stack of up to 3 real Agent squircle logos. Frontmost
 /// logo renders on top at the left; trailing logos tuck smoothly behind with a
-/// subtle depth fade and a `1.5px` cutout ring.
+/// subtle depth fade and a `1.5px` cutout ring. With `quiet`, every Agent not
+/// at work (or asking) is drawn in greyscale.
 fn header_agent_stack(
     faces: &[(&str, Option<&str>, bool, bool)],
+    quiet: bool,
     ring_ground: Rgba,
     t: Theme,
 ) -> Div {
@@ -420,7 +427,8 @@ fn header_agent_stack(
     let depth = [1.0_f32, 0.90, 0.78];
     let tiles = (0..shown).rev().map(|idx| {
         let (name, avatar, active, waiting) = faces[idx];
-        header_agent_tile(name, avatar, active, waiting, ring_ground, t)
+        let resting = quiet && !active && !waiting;
+        header_agent_tile(name, avatar, active, waiting, resting, ring_ground, t)
             .absolute()
             .top_0()
             .left(px(idx as f32 * step))
@@ -477,6 +485,29 @@ fn header_empty_slot(group: &str, t: Theme) -> Div {
 }
 
 impl WindowCloud {
+    /// The project menu's Agents row: who is here as the same miniature
+    /// logos the Header shows (greyscale at rest, colour at work), whoever
+    /// works first; `None` while nobody is listed.
+    pub(in crate::app) fn agents_menu_stack(&self, cx: &App) -> Option<AnyElement> {
+        let agents = self.agents.read(cx);
+        if agents.agents.is_empty() {
+            return None;
+        }
+        let t = cx.palette();
+        let faces: Vec<(&str, Option<&str>, bool, bool)> = header_stack_agents(&agents.agents)
+            .into_iter()
+            .map(|a| {
+                (
+                    a.agent.name.as_str(),
+                    a.agent.avatar.as_deref(),
+                    a.active,
+                    false,
+                )
+            })
+            .collect();
+        Some(header_agent_stack(&faces, true, t.header, t).into_any_element())
+    }
+
     /// `CloudWorkspaceAgentsTool`: the Header's one Agents entry, built from
     /// the real Agent logos themselves (never a generic robot or people icon).
     /// Quiet miniature stack while nobody works; active logo(s) + green dot +
@@ -539,7 +570,7 @@ impl WindowCloud {
                     .when(!self.agents_panel, |d| d.bg(theme::alpha(t.text, 0.05)))
                     .hover(|d| d.bg(t.active))
                     .cursor(theme::clickable_cursor())
-                    .child(header_agent_stack(&active_faces, ring_ground, t))
+                    .child(header_agent_stack(&active_faces, false, ring_ground, t))
                     .child(div().size(px(6.)).flex_none().rounded_full().bg(t.success))
                     .child(div().min_w_0().truncate().child(who))
                     .on_click(press)
@@ -582,12 +613,16 @@ impl WindowCloud {
                         })
                         .collect()
                 };
+                // At rest the logos are a greyscale watermark at half
+                // strength; the pointer brings them up a little, and an open
+                // list shows them in their own colours.
+                let quiet = !self.agents_panel;
                 let content: AnyElement = if faces.is_empty() {
                     header_empty_slot(group, t).into_any_element()
                 } else {
-                    header_agent_stack(&faces, ring_ground, t)
-                        .when(!self.agents_panel && !asking, |d| {
-                            d.opacity(0.86).group_hover(group, |d| d.opacity(1.))
+                    header_agent_stack(&faces, quiet, ring_ground, t)
+                        .when(quiet && !asking, |d| {
+                            d.opacity(0.5).group_hover(group, |d| d.opacity(0.85))
                         })
                         .into_any_element()
                 };
