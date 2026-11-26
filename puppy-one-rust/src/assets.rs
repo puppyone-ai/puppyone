@@ -118,6 +118,7 @@ embedded! {
     "icons" / "globe-2.svg",
     "icons" / "grip-vertical.svg",
     "icons" / "hand.svg",
+    "icons" / "hash.svg",
     "icons" / "hard-drive.svg",
     "icons" / "highlighter.svg",
     "icons" / "history.svg",
@@ -144,6 +145,7 @@ embedded! {
     "icons" / "mcp-logo.svg",
     "icons" / "message-circle.svg",
     "icons" / "message-square.svg",
+    "icons" / "message-square-plus.svg",
     "icons" / "minus.svg",
     "icons" / "monitor.svg",
     "icons" / "moon.svg",
@@ -167,6 +169,7 @@ embedded! {
     "icons" / "scissors.svg",
     "icons" / "search.svg",
     "icons" / "search-code.svg",
+    "icons" / "send.svg",
     "icons" / "server.svg",
     "icons" / "settings.svg",
     "icons" / "settings-compact.svg",
@@ -332,7 +335,13 @@ mod tests {
                     continue;
                 }
                 let text = std::fs::read_to_string(&path).unwrap();
-                for pattern in ["icon(\"", "icon_sized(\"", "menu_icon(\"", "icon_stroke(\""] {
+                for pattern in [
+                    "icon(\"",
+                    "icon_sized(\"",
+                    "menu_icon(\"",
+                    "icon_stroke(\"",
+                    "Icon::new(\"",
+                ] {
                     for (index, _) in text.match_indices(pattern) {
                         let rest = &text[index + pattern.len()..];
                         let Some(end) = rest.find('"') else { continue };

@@ -1449,10 +1449,10 @@ mod tests {
             .into_iter()
             .chain([ADD_ICON]);
         for name in names {
-            let path = format!("{}/assets/icons/{name}.svg", env!("CARGO_MANIFEST_DIR"));
+            let path = format!("icons/{name}.svg");
             assert!(
-                std::path::Path::new(&path).exists(),
-                "{name}.svg is missing"
+                po_ui::assets::embedded(&path).is_some(),
+                "{name} is not bundled"
             );
         }
     }
