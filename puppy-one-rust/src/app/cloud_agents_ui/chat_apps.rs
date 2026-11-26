@@ -132,17 +132,20 @@ pub(super) fn banner(chat: &Chat) -> Option<Banner> {
 /// The add seat's glyph.
 const ADD_ICON: &str = "message-square-plus";
 
-fn platform_icon(platform: Platform) -> &'static str {
+/// Each app's own logo, unaltered. Telegram's is a full circle and fills the
+/// mark; the others sit on a plain round ground, like Agent brand marks.
+fn platform_logo(platform: Platform) -> (&'static str, bool) {
     match platform {
-        Platform::Telegram => "send",
-        Platform::Slack => "hash",
-        Platform::Wecom => "message-circle",
+        Platform::Telegram => ("integrations/telegram.svg", true),
+        Platform::Slack => ("integrations/slack.png", false),
+        Platform::Wecom => ("integrations/wecom.png", false),
     }
 }
 
-/// The app's mark: a round ground with its glyph.
+/// The app's mark: its logo in a circle.
 pub(super) fn platform_mark(platform: Platform, size: f32, t: Theme) -> Div {
-    let icon = platform_icon(platform);
+    let (logo, fills) = platform_logo(platform);
+    let scale = if fills { 1. } else { 0.62 };
     div()
         .size(px(size))
         .flex_none()
@@ -150,9 +153,12 @@ pub(super) fn platform_mark(platform: Platform, size: f32, t: Theme) -> Div {
         .items_center()
         .justify_center()
         .rounded_full()
-        .bg(theme::alpha(t.accent, 0.12))
-        .text_color(t.accent_text)
-        .child(Icon::new(icon).with_size(px(size * 0.42)).stroke(1.75))
+        .when(!fills, |d| {
+            d.bg(t.panel_raised)
+                .border_1()
+                .border_color(theme::alpha(t.text, 0.08))
+        })
+        .child(img(logo).size(px(size * scale)).flex_none())
 }
 
 impl WindowCloud {
@@ -1444,15 +1450,13 @@ mod tests {
     /// is checked against the bundled files.
     #[test]
     fn every_chat_glyph_is_bundled() {
-        let names = [Platform::Telegram, Platform::Slack, Platform::Wecom]
-            .map(platform_icon)
-            .into_iter()
-            .chain([ADD_ICON]);
-        for name in names {
-            let path = format!("icons/{name}.svg");
+        let logos = [Platform::Telegram, Platform::Slack, Platform::Wecom]
+            .map(|p| platform_logo(p).0.to_owned());
+        let paths = logos.into_iter().chain([format!("icons/{ADD_ICON}.svg")]);
+        for path in paths {
             assert!(
                 po_ui::assets::embedded(&path).is_some(),
-                "{name} is not bundled"
+                "{path} is not bundled"
             );
         }
     }

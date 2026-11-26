@@ -118,7 +118,6 @@ embedded! {
     "icons" / "globe-2.svg",
     "icons" / "grip-vertical.svg",
     "icons" / "hand.svg",
-    "icons" / "hash.svg",
     "icons" / "hard-drive.svg",
     "icons" / "highlighter.svg",
     "icons" / "history.svg",
@@ -169,7 +168,6 @@ embedded! {
     "icons" / "scissors.svg",
     "icons" / "search.svg",
     "icons" / "search-code.svg",
-    "icons" / "send.svg",
     "icons" / "server.svg",
     "icons" / "settings.svg",
     "icons" / "settings-compact.svg",
@@ -260,6 +258,9 @@ embedded! {
     "integrations" / "google-drive.svg",
     "integrations" / "notion.svg",
     "integrations" / "obsidian.svg",
+    "integrations" / "slack.png",
+    "integrations" / "telegram.svg",
+    "integrations" / "wecom.png",
 }
 pub struct Assets;
 impl AssetSource for Assets {
