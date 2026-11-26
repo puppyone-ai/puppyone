@@ -14,10 +14,11 @@ use crate::localization::{t as tr, tf};
 use crate::ui::{
     agent_brands, agent_creature,
     components::{Button, ButtonVariant, Icon, SurfaceFrame, tooltip},
+    moments::paint,
 };
 use crate::workspace::cloud::agents::{Admission, AgentRequest, WorkspaceAgent};
 use gpui_kit::{
-    base::{Disableable as _, Positioner, Selectable as _, h_flex, v_flex},
+    base::{Disableable as _, Positioner, h_flex, v_flex},
     component::Sizable as _,
 };
 use std::{cell::Cell, rc::Rc, time::Duration};
@@ -32,6 +33,12 @@ const CARD_MARK: f32 = 56.;
 const PANEL_WIDTH: f32 = 324.;
 /// An Agent's avatar mark in the list.
 const ROW_MARK: f32 = 32.;
+/// Miniature Agent logo stack inside the Header's Agents entry — echoes
+/// Homepage `SpaceAgents` (`18px` rounded-`5px` tiles) at titlebar scale.
+const HEADER_STACK_MAX: usize = 3;
+const HEADER_TILE: f32 = 18.;
+const HEADER_TILE_RADIUS: f32 = 5.;
+const HEADER_TILE_OVERLAP: f32 = 6.;
 
 /// The Header's Agents anchor: the list and the request card hang under it.
 pub(super) type AgentsAnchor = Rc<Cell<Bounds<Pixels>>>;
@@ -316,11 +323,165 @@ fn row_face(agent: &WorkspaceAgent, now: i64) -> RowFace {
     }
 }
 
+/// One miniature `18×18` squircle Agent logo for the Header stack: its real
+/// brand artwork (tile or monochrome/icon) or its deterministic creature —
+/// never a generic robot or person silhouette.
+fn header_agent_tile(
+    name: &str,
+    avatar: Option<&str>,
+    active: bool,
+    waiting: bool,
+    ring_ground: Rgba,
+    t: Theme,
+) -> Div {
+    let brand = agent_brand(name, avatar);
+    let tile = div()
+        .relative()
+        .size(px(HEADER_TILE))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(HEADER_TILE_RADIUS))
+        .shadow(vec![paint::ring(ring_ground, px(1.5))]);
+    if waiting {
+        return tile
+            .bg(t.header)
+            .border_1()
+            .border_dashed()
+            .border_color(theme::alpha(t.text, 0.45))
+            .child(compact_agent_face(name, avatar, 12., 3., t.header, t));
+    }
+    match brand {
+        Some(brand) if agent_brands::tile(brand) => tile
+            .child(
+                agent_brands::artwork(brand, t.dark, HEADER_TILE).rounded(px(HEADER_TILE_RADIUS)),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .rounded(px(HEADER_TILE_RADIUS))
+                    .border_1()
+                    .border_color(theme::alpha(t.text, 0.14)),
+            ),
+        Some(brand) => {
+            let mark: AnyElement = match agent_brands::monochrome(brand) {
+                Some(path) => svg()
+                    .path(path)
+                    .size(px(12.))
+                    .text_color(t.text)
+                    .when(!active, |s| s.opacity(0.9))
+                    .into_any_element(),
+                None => agent_brands::artwork(brand, t.dark, (12. * brand.scale).min(14.))
+                    .into_any_element(),
+            };
+            tile.bg(t.panel_raised)
+                .border_1()
+                .border_color(theme::alpha(t.text, 0.12))
+                .child(mark)
+        }
+        None => tile
+            .bg(t.panel_raised)
+            .border_1()
+            .border_color(theme::alpha(t.text, 0.12))
+            .child(
+                img(agent_creature::image(name, active, t.panel_raised))
+                    .size(px(15.))
+                    .flex_none(),
+            ),
+    }
+}
+
+/// Ordered faces for the Header's miniature logo stack: working Agents first,
+/// then most recently active, capped at [`HEADER_STACK_MAX`].
+fn header_stack_agents<'a>(agents: &'a [WorkspaceAgent]) -> Vec<&'a WorkspaceAgent> {
+    let mut ordered: Vec<&WorkspaceAgent> = agents.iter().collect();
+    ordered.sort_by(|a, b| {
+        b.active
+            .cmp(&a.active)
+            .then_with(|| b.last_active_at.cmp(&a.last_active_at))
+    });
+    ordered
+}
+
+/// Compact overlapping stack of up to 3 real Agent squircle logos. Frontmost
+/// logo renders on top at the left; trailing logos tuck smoothly behind with a
+/// subtle depth fade and a `1.5px` cutout ring.
+fn header_agent_stack(
+    faces: &[(&str, Option<&str>, bool, bool)],
+    ring_ground: Rgba,
+    t: Theme,
+) -> Div {
+    let shown = faces.len().min(HEADER_STACK_MAX);
+    let more = faces.len().saturating_sub(HEADER_STACK_MAX);
+    let step = HEADER_TILE - HEADER_TILE_OVERLAP;
+    let width = HEADER_TILE + shown.saturating_sub(1) as f32 * step;
+    let depth = [1.0_f32, 0.90, 0.78];
+    let tiles = (0..shown).rev().map(|idx| {
+        let (name, avatar, active, waiting) = faces[idx];
+        header_agent_tile(name, avatar, active, waiting, ring_ground, t)
+            .absolute()
+            .top_0()
+            .left(px(idx as f32 * step))
+            .opacity(depth[idx.min(depth.len() - 1)])
+    });
+    h_flex()
+        .flex_none()
+        .items_center()
+        .child(
+            div()
+                .relative()
+                .flex_none()
+                .w(px(width))
+                .h(px(HEADER_TILE))
+                .children(tiles),
+        )
+        .when(more > 0, |d| {
+            d.child(
+                div()
+                    .ml(px(5.))
+                    .text_size(px(theme::ty().ui.micro))
+                    .line_height(px(14.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.subtle)
+                    .child(format!("+{more}")),
+            )
+        })
+}
+
+/// Empty-project Header slot: a quiet `18×18` dashed squircle with `+`, ready
+/// to turn into the first Agent's logo once invited.
+fn header_empty_slot(group: &str, t: Theme) -> Div {
+    div()
+        .size(px(HEADER_TILE))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(HEADER_TILE_RADIUS))
+        .border_1()
+        .border_dashed()
+        .border_color(theme::alpha(t.muted, 0.55))
+        .text_color(t.muted)
+        .group_hover(SharedString::from(group.to_owned()), |d| {
+            d.border_color(theme::alpha(t.text, 0.65))
+                .text_color(t.text)
+        })
+        .child(
+            Icon::new("plus")
+                .with_size(px(10.))
+                .stroke(2.2)
+                .group_hover_color(SharedString::from(group.to_owned()), t.text),
+        )
+}
+
 impl WindowCloud {
-    /// `CloudWorkspaceAgentsTool`: the Header's one Agents entry. Quiet while
-    /// nobody works; who works while they do; a dot while an Agent asks to
-    /// join (its card hangs under the entry). Nothing when the account may
-    /// not manage the list and nobody is in it.
+    /// `CloudWorkspaceAgentsTool`: the Header's one Agents entry, built from
+    /// the real Agent logos themselves (never a generic robot or people icon).
+    /// Quiet miniature stack while nobody works; active logo(s) + green dot +
+    /// name while working; waiting logo + accent dot when an Agent asks to
+    /// join; quiet dashed `+` squircle when no Agent is here yet.
     pub(super) fn agents_control(&self, cx: &App) -> Option<AnyElement> {
         let agents = self.agents.read(cx);
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
@@ -335,63 +496,144 @@ impl WindowCloud {
         let t = cx.palette();
         let ty = theme::ty().header;
         let label = tr("cloud.share.agent.title");
+        let disabled = checking && !listed;
         let press = self.listener(|s, _: &ClickEvent, window, cx| s.press_agents_entry(window, cx));
         let entry: AnyElement = match presence(&agents.agents, &agents.requests, agents.manageable)
         {
-            Presence::Working(who) => div()
-                .id("cloud-workspace-agents")
-                .debug_selector(|| "cloud-workspace-agents".into())
-                .role(Role::Button)
-                .aria_label(format!("{label} · {who}"))
-                .h(px(theme::control_compact()))
-                .max_w(px(180.))
-                .px(px(8.))
-                .flex()
-                .items_center()
-                .gap(px(6.))
-                .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
-                .text_size(px(ty.meta))
-                .line_height(px(ty.meta_line_height))
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(t.text)
-                .when(self.agents_panel, |d| d.bg(t.active))
-                .when(!self.agents_panel, |d| d.bg(theme::alpha(t.text, 0.05)))
-                .hover(|d| d.bg(t.active))
-                .cursor(theme::clickable_cursor())
-                .child(div().size(px(6.)).flex_none().rounded_full().bg(t.success))
-                .child(div().min_w_0().truncate().child(who))
-                .on_click(press)
-                .into_any_element(),
-            presence => {
-                let asking = presence == Presence::Asking;
-                div()
-                    .relative()
-                    .child(
-                        Button::new("cloud-workspace-agents")
-                            .debug_selector(|| "cloud-workspace-agents".into())
-                            .variant(ButtonVariant::Titlebar)
-                            .icon(Icon::new("bot").stroke(1.75))
-                            .accessibility_label(label)
-                            .tooltip(label)
-                            .selected(self.agents_panel)
-                            .disabled(checking && !listed)
-                            .w(px(theme::metric::TITLEBAR_TOOL_ACTION_WIDTH))
-                            .on_click(press),
-                    )
-                    .when(asking, |d| {
-                        d.child(
-                            div()
-                                .absolute()
-                                .top(px(8.))
-                                .right(px(8.))
-                                .size(px(7.))
-                                .rounded_full()
-                                .bg(t.accent)
-                                .border(px(1.5))
-                                .border_color(t.header),
+            Presence::Working(who) => {
+                let active_faces: Vec<(&str, Option<&str>, bool, bool)> = agents
+                    .agents
+                    .iter()
+                    .filter(|a| a.active)
+                    .map(|a| {
+                        (
+                            a.agent.name.as_str(),
+                            a.agent.avatar.as_deref(),
+                            true,
+                            false,
                         )
                     })
+                    .collect();
+                let ring_ground = if self.agents_panel {
+                    t.active
+                } else {
+                    theme::mix(t.text, t.header, 0.05)
+                };
+                div()
+                    .id("cloud-workspace-agents")
+                    .debug_selector(|| "cloud-workspace-agents".into())
+                    .role(Role::Button)
+                    .aria_label(format!("{label} · {who}"))
+                    .h(px(theme::control_compact()))
+                    .max_w(px(210.))
+                    .px(px(7.))
+                    .flex()
+                    .items_center()
+                    .gap(px(6.))
+                    .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+                    .text_size(px(ty.meta))
+                    .line_height(px(ty.meta_line_height))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.text)
+                    .when(self.agents_panel, |d| d.bg(t.active))
+                    .when(!self.agents_panel, |d| d.bg(theme::alpha(t.text, 0.05)))
+                    .hover(|d| d.bg(t.active))
+                    .cursor(theme::clickable_cursor())
+                    .child(header_agent_stack(&active_faces, ring_ground, t))
+                    .child(div().size(px(6.)).flex_none().rounded_full().bg(t.success))
+                    .child(div().min_w_0().truncate().child(who))
+                    .on_click(press)
                     .into_any_element()
+            }
+            presence => {
+                let asking = presence == Presence::Asking;
+                let group = "cloud-workspace-agents-entry";
+                let ring_ground = if self.agents_panel {
+                    t.selected
+                } else {
+                    t.header
+                };
+                let faces: Vec<(&str, Option<&str>, bool, bool)> = if asking {
+                    let mut list: Vec<(&str, Option<&str>, bool, bool)> = agents
+                        .requests
+                        .iter()
+                        .take(1)
+                        .map(|r| (r.name.as_str(), r.avatar.as_deref(), false, true))
+                        .collect();
+                    list.extend(header_stack_agents(&agents.agents).into_iter().map(|a| {
+                        (
+                            a.agent.name.as_str(),
+                            a.agent.avatar.as_deref(),
+                            a.active,
+                            false,
+                        )
+                    }));
+                    list
+                } else {
+                    header_stack_agents(&agents.agents)
+                        .into_iter()
+                        .map(|a| {
+                            (
+                                a.agent.name.as_str(),
+                                a.agent.avatar.as_deref(),
+                                a.active,
+                                false,
+                            )
+                        })
+                        .collect()
+                };
+                let content: AnyElement = if faces.is_empty() {
+                    header_empty_slot(group, t).into_any_element()
+                } else {
+                    header_agent_stack(&faces, ring_ground, t)
+                        .when(!self.agents_panel && !asking, |d| {
+                            d.opacity(0.86).group_hover(group, |d| d.opacity(1.))
+                        })
+                        .into_any_element()
+                };
+                let mut button = div()
+                    .id("cloud-workspace-agents")
+                    .debug_selector(|| "cloud-workspace-agents".into())
+                    .group(group)
+                    .relative()
+                    .role(Role::Button)
+                    .aria_label(label)
+                    .h(px(theme::control_compact()))
+                    .min_w(px(theme::metric::TITLEBAR_TOOL_ACTION_WIDTH))
+                    .px(px(7.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+                    .when(self.agents_panel, |d| d.bg(t.selected))
+                    .when(disabled, |d| d.opacity(0.55))
+                    .when(!disabled, |d| {
+                        d.cursor(theme::clickable_cursor())
+                            .hover(|d| {
+                                d.bg(if self.agents_panel {
+                                    t.selected
+                                } else {
+                                    t.hover
+                                })
+                            })
+                            .tooltip(tooltip(label))
+                            .on_click(press)
+                    })
+                    .child(content);
+                if asking {
+                    button = button.child(
+                        div()
+                            .absolute()
+                            .top(px(5.))
+                            .right(px(5.))
+                            .size(px(7.))
+                            .rounded_full()
+                            .bg(t.accent)
+                            .border(px(1.5))
+                            .border_color(t.header),
+                    );
+                }
+                button.into_any_element()
             }
         };
         let anchor = self.agents_anchor.clone();
@@ -1148,5 +1390,10 @@ mod tests {
         let face = row_face(&idle, now);
         assert_eq!(face.when, "No recent work");
         assert_eq!(face.detail.as_deref(), Some("Since Oct 29"));
+
+        let roster = [idle, earlier, working];
+        let ordered = header_stack_agents(&roster);
+        let ids: Vec<&str> = ordered.iter().map(|a| a.agent.id.as_str()).collect();
+        assert_eq!(ids, ["c1", "c2", "c3"]);
     }
 }
