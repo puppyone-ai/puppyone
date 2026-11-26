@@ -193,36 +193,48 @@ fn read_only_empty_project_shows_text_without_buttons(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn clicking_paper_tile_opens_create_dialog_for_that_kind(cx: &mut TestAppContext) {
+fn a_kind_row_makes_an_untitled_file_at_once_and_opens_it(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
     let (view, cx) = setup(cx);
     open_folder(&view, cx, temp.path());
 
-    for (expected, selector) in [
-        (Entry::Markdown, "editor-start-create:md"),
-        (Entry::Csv, "editor-start-create:csv"),
-        (Entry::Html, "editor-start-create:html"),
-        (Entry::Whiteboard, "editor-start-create:whiteboard"),
-    ] {
-        click_selector(cx, selector);
-        let opened_kind = view.read_with(cx, |s, cx| {
-            s.dialogs
-                .read(cx)
-                .create_form()
-                .map(|form| form.read(cx).kind())
-        });
-        assert_eq!(
-            opened_kind,
-            Some(expected),
-            "clicking `{selector}` should open the create dialog for {expected:?}"
-        );
-        cx.simulate_keystrokes("escape");
-        draw(cx);
-        assert!(
-            view.read_with(cx, |s, cx| s.dialogs.read(cx).create_form().is_none()),
-            "Escape should dismiss the create dialog"
-        );
-    }
+    click_selector(cx, "editor-start-create:csv");
+    settle(&view, cx, &|s, cx| {
+        s.files(cx).opened().map(|(_, p)| p) == Some(Path::new("Untitled.csv"))
+    });
+    assert!(
+        view.read_with(cx, |s, cx| s.dialogs.read(cx).create_form().is_none()),
+        "no name is asked for"
+    );
+    assert!(temp.path().join("Untitled.csv").is_file());
+    assert!(cx.debug_bounds("editor-start-empty").is_none());
+
+    // The next one of the same kind takes the next free name.
+    view.update_in(cx, |s, w, cx| {
+        s.start_create(Entry::Csv, PathBuf::new(), w, cx)
+    });
+    settle(&view, cx, &|s, cx| {
+        s.files(cx).opened().map(|(_, p)| p) == Some(Path::new("Untitled 2.csv"))
+    });
+    assert!(temp.path().join("Untitled 2.csv").is_file());
+}
+
+#[gpui::test]
+fn a_new_folder_still_asks_for_its_name(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let (view, cx) = setup(cx);
+    open_folder(&view, cx, temp.path());
+    view.update_in(cx, |s, w, cx| {
+        s.start_create(Entry::Folder, PathBuf::new(), w, cx)
+    });
+    draw(cx);
+    let kind = view.read_with(cx, |s, cx| {
+        s.dialogs
+            .read(cx)
+            .create_form()
+            .map(|form| form.read(cx).kind())
+    });
+    assert_eq!(kind, Some(Entry::Folder));
 }
 
 #[gpui::test]
@@ -279,8 +291,8 @@ fn project_with_files_and_none_open_shows_quiet_recent_list(cx: &mut TestAppCont
         "at most 3 recent files are shown"
     );
     assert!(
-        cx.debug_bounds("editor-start-mini-create:md").is_some(),
-        "mini create icons appear beneath the recent list"
+        cx.debug_bounds("editor-start-create:md").is_some(),
+        "the file kinds follow the recent list"
     );
 
     // Clicking the newest recent file reopens d.md and leaves the start view.

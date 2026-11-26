@@ -1,20 +1,18 @@
-//! Empty-project start view (Scheme B) and quiet no-open-file list (Scheme A)
-//! rendered inside the single empty editor pane (`editor_workbench.rs`).
-//!
-//! Only two text sizes (`ty.meta` 13px and `ty.caption` 12px) and the canvas
-//! grey palette are used — no accent colours or badges.
-use super::{
-    editor_area::{EditorArea, EditorEvent},
-    file_sheet::{self, SheetKind},
-};
+//! What the single empty editor pane shows (`editor_workbench.rs`): for a
+//! project with no files, its start list; for one with files but none open,
+//! the recently opened ones. Both are the `+ New` menu's rows laid on the
+//! canvas — the same file glyphs, labels, control height and hover — under a
+//! one-line heading, in two text sizes and the canvas greys. A file kind's
+//! row makes an `Untitled` file at once and opens it.
+use super::editor_area::{EditorArea, EditorEvent};
 use crate::{
     features::create_new::Entry,
-    localization::t as tr,
-    theme::{self, Theme},
+    localization::{t as tr, tf},
+    theme::{self, Theme, metric},
     ui::{
         agent_brand_mark::{AgentMark, brand_image},
         appearance::ActiveAppearance,
-        components::{FileIcon, Icon, tooltip},
+        components::{FileIcon, Icon},
     },
 };
 use gpui::{prelude::*, *};
@@ -59,60 +57,66 @@ fn kind_selector(entry: Entry) -> &'static str {
     }
 }
 
-/// Compact extension caption shown beside the tile's kind label (omitted for
-/// long extensions like `.excalidraw`, matching the reference).
-fn tile_extension(entry: Entry) -> Option<&'static str> {
-    match entry {
-        Entry::Markdown | Entry::Csv | Entry::Html | Entry::Text | Entry::Json => {
-            Some(entry.extension())
-        }
-        _ => None,
-    }
-}
+/// The start list's width: a menu's, wide enough for its longest row.
+const LIST_WIDTH: f32 = 340.;
 
-fn mini_icon(entry: Entry) -> &'static str {
-    match entry {
-        Entry::Markdown | Entry::Text => "file-text",
-        Entry::Csv => "table-2",
-        Entry::Html | Entry::Json => "code-xml",
-        Entry::Whiteboard => "pencil",
-        Entry::ContextMap => "context-map-canvas",
-        Entry::Puppyflow => "workflow",
-        _ => "file",
-    }
-}
-
-fn chip_surface(t: Theme) -> Div {
+/// A row in the `+ New` menu's grammar: an 18px glyph slot and a label at
+/// control size and height, the hover fill, the control radius.
+fn start_row(id: impl Into<ElementId>, selector: String, t: Theme) -> Stateful<Div> {
     h_flex()
-        .h(px(26.))
-        .pl(px(6.))
-        .pr(px(10.))
-        .gap(px(6.))
+        .id(id)
+        .debug_selector(move || selector.clone())
+        .w_full()
+        .h(px(theme::control()))
+        .px(px(metric::MENU_ITEM_PADDING_INLINE))
+        .gap(px(metric::MENU_ITEM_GAP))
         .items_center()
-        .rounded(px(13.))
-        .bg(t.canvas)
-        .border_1()
-        .border_color(t.divider)
-        .text_size(px(theme::ty().ui.meta))
+        .rounded(px(metric::CONTROL_RADIUS))
+        .text_size(px(theme::ty().ui.control))
         .line_height(px(18.))
         .text_color(t.text)
         .cursor(theme::clickable_cursor())
         .hover(move |d| d.bg(t.hover))
 }
 
-fn agent_row_frame(label: &'static str, t: Theme) -> Stateful<Div> {
-    h_flex()
-        .id("editor-start-agent-row")
-        .debug_selector(|| "editor-start-agent-row".into())
-        .mt(px(18.))
+fn glyph_slot(glyph: impl IntoElement) -> Div {
+    div()
+        .size(px(metric::MENU_ICON_SLOT))
+        .flex_none()
+        .flex()
         .items_center()
         .justify_center()
-        .gap(px(8.))
-        .flex_wrap()
-        .text_size(px(theme::ty().ui.caption))
+        .child(glyph)
+}
+
+/// The list's one heading, level with the rows' glyphs.
+fn heading(text: impl Into<SharedString>, t: Theme) -> Div {
+    div()
+        .px(px(metric::MENU_ITEM_PADDING_INLINE))
+        .text_size(px(theme::ty().ui.control))
+        .line_height(px(18.))
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(t.text)
+        .child(text.into())
+}
+
+/// A quiet line at the secondary size.
+fn note(text: impl Into<SharedString>, t: Theme) -> Div {
+    div()
+        .px(px(metric::MENU_ITEM_PADDING_INLINE))
+        .text_size(px(theme::ty().ui.meta))
         .line_height(px(17.))
         .text_color(t.subtle)
-        .child(tr(label))
+        .child(text.into())
+}
+
+/// A menu separator, between kinds of rows.
+fn separator(t: Theme) -> Div {
+    div()
+        .mx(px(metric::MENU_ITEM_PADDING_INLINE))
+        .my(px(6.))
+        .h(px(1.))
+        .bg(t.divider)
 }
 
 impl EditorArea {
@@ -152,9 +156,10 @@ impl EditorArea {
         rows == 0 && !loading && listed && takes_files
     }
 
-    /// Renders either the empty-project start view (when `rows == 0`) or the
-    /// quiet no-open-file list (when `rows > 0`), waiting until the file list
-    /// has arrived so the view never flashes during project entry.
+    /// The start list for a project with no files (`rows == 0`), or the
+    /// recently opened files for one with files and none open. It waits for
+    /// the file list, so it never flashes while a project opens. An empty
+    /// project's whole pane takes files dropped from outside.
     pub(super) fn start_view(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         if self.file_mode {
             return None;
@@ -173,6 +178,7 @@ impl EditorArea {
         }
         let caps = explorer.capabilities();
         let t = cx.palette();
+        let takes_files = rows == 0 && caps.import;
         let content = if rows == 0 {
             self.render_empty_project(caps.create, caps.import, t, cx)
         } else {
@@ -186,9 +192,45 @@ impl EditorArea {
                 .items_center()
                 .justify_center()
                 .px(px(24.))
+                .when(takes_files, |d| {
+                    d.drag_over::<ExternalPaths>(move |d, _, _, _| d.bg(t.hover))
+                        .on_drop(cx.listener(|s, paths: &ExternalPaths, _, cx| {
+                            cx.stop_propagation();
+                            s.drop = None;
+                            cx.emit(EditorEvent::DropExternal(paths.paths().to_vec()));
+                        }))
+                })
                 .child(content)
                 .into_any_element(),
         )
+    }
+
+    /// One row per file kind of the `+ New` menu, each making its file.
+    fn create_rows(&self, kinds: Vec<Entry>, t: Theme, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let icon_theme: SharedString = self
+            .preferences
+            .read(cx)
+            .state
+            .file_icon_theme
+            .clone()
+            .into();
+        kinds
+            .into_iter()
+            .enumerate()
+            .map(|(i, entry)| {
+                let selector = format!("editor-start-create:{}", kind_selector(entry));
+                start_row(("editor-start-create", i), selector, t)
+                    .child(glyph_slot(FileIcon::file(
+                        format!("x{}", entry.extension()),
+                        icon_theme.clone(),
+                    )))
+                    .child(tr(entry.label_key()))
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        cx.emit(EditorEvent::StartCreate(entry));
+                    }))
+                    .into_any_element()
+            })
+            .collect()
     }
 
     fn render_empty_project(
@@ -198,17 +240,16 @@ impl EditorArea {
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let ty = theme::ty().ui;
-        // Read-only project: one quiet sentence, no buttons.
+        let list = v_flex()
+            .w(px(LIST_WIDTH))
+            .max_w_full()
+            .mt(px(-40.))
+            .child(heading(tr("native.start.emptyProject"), t));
+        // Read-only project: the heading alone.
         if !can_create && !takes_files {
-            return div()
+            return list
                 .id("editor-start-readonly")
                 .debug_selector(|| "editor-start-readonly".into())
-                .mt(px(-24.))
-                .text_size(px(ty.meta))
-                .line_height(px(19.))
-                .text_color(t.subtle)
-                .child(tr("native.start.emptyProject"))
                 .into_any_element();
         }
         let hosted = self.start.hosted;
@@ -217,198 +258,108 @@ impl EditorArea {
         } else {
             Vec::new()
         };
-        let tiles = (!kinds.is_empty()).then(|| {
-            h_flex()
-                .mt(px(18.))
-                .gap(px(14.))
-                .flex_wrap()
-                .justify_center()
-                .children(kinds.into_iter().enumerate().map(|(i, entry)| {
-                    let group = format!("editor-start-tile-{i}");
-                    let selector = format!("editor-start-create:{}", kind_selector(entry));
-                    let ext = tile_extension(entry);
-                    v_flex()
-                        .id(("editor-start-tile", i))
-                        .debug_selector(move || selector.clone())
-                        .group(group.clone())
-                        .min_w(px(112.))
-                        .px(px(8.))
-                        .pt(px(12.))
-                        .pb(px(10.))
-                        .items_center()
-                        .gap(px(9.))
-                        .rounded(px(10.))
-                        .text_size(px(ty.meta))
-                        .line_height(px(18.))
-                        .text_color(t.muted)
-                        .cursor(theme::clickable_cursor())
-                        .hover(move |d| d.bg(t.hover).text_color(t.text))
-                        .child(file_sheet::render_start_sheet(
-                            SheetKind::from(entry),
-                            &group,
-                            t,
-                        ))
-                        .child(
-                            h_flex()
-                                .items_baseline()
-                                .gap(px(3.))
-                                .child(tr(entry.label_key()))
-                                .when_some(ext, |d, ext| {
-                                    d.child(
-                                        div()
-                                            .text_size(px(ty.caption))
-                                            .text_color(t.subtle)
-                                            .child(ext),
-                                    )
-                                }),
-                        )
-                        .on_click(cx.listener(move |_, _, _, cx| {
-                            cx.emit(EditorEvent::StartCreate(entry));
-                        }))
-                }))
-        });
-
-        let drop_zone = takes_files.then(|| {
-            let border = theme::alpha(t.text, if t.dark { 0.24 } else { 0.22 });
-            let border_active = theme::alpha(t.text, if t.dark { 0.46 } else { 0.42 });
-            h_flex()
-                .id("editor-start-drop")
-                .debug_selector(|| "editor-start-drop".into())
-                .mt(px(14.))
-                .w(px(488.))
-                .max_w_full()
-                .h(px(44.))
-                .px(px(14.))
-                .items_center()
-                .justify_center()
-                .gap(px(8.))
-                .rounded(px(10.))
-                .border_1()
-                .border_dashed()
-                .border_color(border)
-                .text_size(px(ty.meta))
-                .line_height(px(18.))
-                .text_color(t.muted)
-                .hover(move |d| d.bg(t.hover).text_color(t.text))
-                .drag_over::<ExternalPaths>(move |d, _, _, _| {
-                    d.bg(t.hover).border_color(border_active)
-                })
-                .on_drop(cx.listener(|s, paths: &ExternalPaths, _, cx| {
-                    cx.stop_propagation();
-                    s.drop = None;
-                    cx.emit(EditorEvent::DropExternal(paths.paths().to_vec()));
-                }))
-                .child(
-                    Icon::new("download")
-                        .with_size(px(15.))
-                        .stroke(1.6)
-                        .color(t.subtle),
-                )
-                .child(tr(if hosted {
-                    "native.start.dropCloud"
-                } else {
-                    "native.start.dropLocal"
-                }))
-        });
-
-        let agent_row = self.render_start_agent_row(hosted, t, cx);
-
-        v_flex()
-            .id("editor-start-empty")
+        let creates = !kinds.is_empty();
+        let rows = self.create_rows(kinds, t, cx);
+        let agents = self.render_start_agents(hosted, t, cx);
+        list.id("editor-start-empty")
             .debug_selector(|| "editor-start-empty".into())
-            .mt(px(-24.))
-            .items_center()
-            .child(
-                div()
-                    .text_size(px(ty.meta))
-                    .line_height(px(19.))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(t.text)
-                    .child(tr("native.start.heading")),
-            )
-            .child(
-                div()
-                    .mt(px(2.))
-                    .text_size(px(ty.caption))
-                    .line_height(px(17.))
-                    .text_color(t.subtle)
-                    .child(tr(if hosted {
-                        "native.start.subtitleCloud"
-                    } else {
-                        "native.start.subtitleLocal"
-                    })),
-            )
-            .children(tiles)
-            .children(drop_zone)
-            .children(agent_row)
+            .when(creates, |d| {
+                d.child(
+                    note(tr("native.start.renameLater"), t)
+                        .mt(px(2.))
+                        .mb(px(10.)),
+                )
+            })
+            .children(rows)
+            .when_some(agents, |d, agents| d.child(separator(t)).child(agents))
+            .when(takes_files, |d| {
+                d.child(
+                    note(
+                        tr(if hosted {
+                            "native.start.dropCloud"
+                        } else {
+                            "native.start.dropLocal"
+                        }),
+                        t,
+                    )
+                    .id("editor-start-drop")
+                    .debug_selector(|| "editor-start-drop".into())
+                    .mt(px(14.)),
+                )
+            })
             .into_any_element()
     }
 
-    fn render_start_agent_row(
+    /// The Agent rows: a Cloud project's Add an agent, or this computer's
+    /// detected Agents, each starting a chat in the right sidebar.
+    fn render_start_agents(
         &self,
         hosted: bool,
         t: Theme,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
+        let frame = || {
+            v_flex()
+                .id("editor-start-agent-row")
+                .debug_selector(|| "editor-start-agent-row".into())
+                .w_full()
+        };
         if hosted {
             return self.start.cloud_agents_manageable.then(|| {
-                agent_row_frame("native.start.agentCloud", t)
+                frame()
                     .child(
-                        chip_surface(t)
-                            .id("editor-start-invite-agent")
-                            .debug_selector(|| "editor-start-invite-agent".into())
-                            .child(
-                                div()
-                                    .size(px(16.))
-                                    .flex_none()
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .rounded(px(4.))
-                                    .border_1()
-                                    .border_dashed()
-                                    .border_color(t.subtle)
-                                    .text_color(t.subtle)
-                                    .child(Icon::new("plus").with_size(px(10.)).stroke(2.)),
-                            )
-                            .child(tr("native.start.addAgent"))
-                            .on_click(cx.listener(|_, _, _, cx| {
-                                cx.emit(EditorEvent::InviteCloudAgent);
-                            })),
+                        start_row(
+                            "editor-start-invite-agent",
+                            "editor-start-invite-agent".into(),
+                            t,
+                        )
+                        .child(glyph_slot(
+                            Icon::new("bot")
+                                .with_size(px(15.))
+                                .stroke(1.6)
+                                .color(t.muted),
+                        ))
+                        .child(tr("native.start.addAgent"))
+                        .on_click(cx.listener(|_, _, _, cx| {
+                            cx.emit(EditorEvent::InviteCloudAgent);
+                        })),
                     )
                     .into_any_element()
             });
         }
         (!self.start.local_agents.is_empty()).then(|| {
-            let chips = self
+            let rows = self
                 .start
                 .local_agents
                 .iter()
+                .take(3)
                 .enumerate()
                 .map(|(i, agent)| {
                     let runtime_id = agent.runtime_id.clone();
-                    let selector = format!("editor-start-agent:{}", agent.runtime_id);
-                    let icon: AnyElement = match AgentMark::from_icon_key(agent.icon_key) {
+                    let mark: AnyElement = match AgentMark::from_icon_key(agent.icon_key) {
                         Some(mark) => brand_image(mark, t.dark, 16.)
                             .rounded(px(4.))
                             .into_any_element(),
                         None => Icon::new("bot")
-                            .with_size(px(14.))
+                            .with_size(px(15.))
                             .color(t.muted)
                             .into_any_element(),
                     };
-                    chip_surface(t)
-                        .id(("editor-start-agent", i))
-                        .debug_selector(move || selector.clone())
-                        .child(icon)
-                        .child(agent.label.clone())
-                        .on_click(cx.listener(move |_, _, _, cx| {
-                            cx.emit(EditorEvent::LaunchLocalAgent(runtime_id.clone()));
-                        }))
+                    start_row(
+                        ("editor-start-agent", i),
+                        format!("editor-start-agent:{}", agent.runtime_id),
+                        t,
+                    )
+                    .child(glyph_slot(mark))
+                    .child(tf(
+                        "native.start.askAgent",
+                        &[("name", agent.label.clone().into())],
+                    ))
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        cx.emit(EditorEvent::LaunchLocalAgent(runtime_id.clone()));
+                    }))
                 });
-            agent_row_frame("native.start.agentLocal", t)
-                .children(chips)
-                .into_any_element()
+            frame().children(rows).into_any_element()
         })
     }
 
@@ -439,121 +390,68 @@ impl EditorArea {
             })
             .take(3)
             .collect();
-
-        let recent_section = (!recent.is_empty()).then(|| {
-            v_flex()
-                .mt(px(12.))
-                .w(px(300.))
-                .max_w_full()
-                .gap(px(1.))
-                .child(
-                    div()
-                        .px(px(12.))
-                        .pb(px(4.))
-                        .text_size(px(ty.caption))
-                        .line_height(px(17.))
-                        .text_color(t.subtle)
-                        .child(tr("native.start.recent")),
+        let has_recent = !recent.is_empty();
+        let recent_rows: Vec<AnyElement> = recent
+            .into_iter()
+            .enumerate()
+            .map(|(i, path)| {
+                let file_name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.to_string_lossy().into_owned());
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .map(|p| p.to_string_lossy().replace('\\', "/"));
+                let open_path = path.clone();
+                start_row(
+                    ("editor-start-recent", i),
+                    format!("editor-start-recent:{i}"),
+                    t,
                 )
-                .children(recent.into_iter().enumerate().map(|(i, path)| {
-                    let file_name = path
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| path.to_string_lossy().into_owned());
-                    let parent = path
-                        .parent()
-                        .filter(|p| !p.as_os_str().is_empty())
-                        .map(|p| p.to_string_lossy().replace('\\', "/"));
-                    let selector = format!("editor-start-recent:{i}");
-                    let open_path = path.clone();
-                    h_flex()
-                        .id(("editor-start-recent", i))
-                        .debug_selector(move || selector.clone())
-                        .h(px(30.))
-                        .px(px(12.))
-                        .gap(px(9.))
-                        .items_center()
-                        .rounded(px(7.))
-                        .text_size(px(ty.meta))
-                        .line_height(px(18.))
-                        .text_color(t.text)
-                        .cursor(theme::clickable_cursor())
-                        .hover(move |d| d.bg(t.hover))
-                        .child(FileIcon::file(file_name.clone(), icon_theme.clone()))
-                        .child(div().min_w_0().truncate().child(file_name))
-                        .when_some(parent, |d, where_at| {
-                            d.child(
-                                div()
-                                    .ml_auto()
-                                    .flex_none()
-                                    .max_w(px(120.))
-                                    .truncate()
-                                    .text_size(px(ty.caption))
-                                    .text_color(t.subtle)
-                                    .child(where_at),
-                            )
-                        })
-                        .on_click(cx.listener(move |_, _, _, cx| {
-                            cx.emit(EditorEvent::OpenFile(open_path.clone()));
-                        }))
+                .child(glyph_slot(FileIcon::file(
+                    file_name.clone(),
+                    icon_theme.clone(),
+                )))
+                .child(div().min_w_0().truncate().child(file_name))
+                .when_some(parent, |d, where_at| {
+                    d.child(
+                        div()
+                            .ml_auto()
+                            .flex_none()
+                            .max_w(px(96.))
+                            .truncate()
+                            .text_size(px(ty.meta))
+                            .text_color(t.subtle)
+                            .child(where_at),
+                    )
+                })
+                .on_click(cx.listener(move |_, _, _, cx| {
+                    cx.emit(EditorEvent::OpenFile(open_path.clone()));
                 }))
-        });
-
+                .into_any_element()
+            })
+            .collect();
         let kinds = if can_create {
             self.start_kinds(cx)
         } else {
             Vec::new()
         };
-        let or_new = (!kinds.is_empty()).then(|| {
-            h_flex()
-                .mt(px(14.))
-                .items_center()
-                .gap(px(8.))
-                .text_size(px(ty.caption))
-                .line_height(px(17.))
-                .text_color(t.subtle)
-                .child(tr("native.start.orNew"))
-                .child(
-                    h_flex()
-                        .gap(px(6.))
-                        .children(kinds.into_iter().enumerate().map(|(i, entry)| {
-                            let selector =
-                                format!("editor-start-mini-create:{}", kind_selector(entry));
-                            let label = tr(entry.label_key());
-                            div()
-                                .id(("editor-start-mini", i))
-                                .debug_selector(move || selector.clone())
-                                .size(px(30.))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .rounded(px(7.))
-                                .text_color(t.subtle)
-                                .cursor(theme::clickable_cursor())
-                                .hover(move |d| d.bg(t.hover).text_color(t.text))
-                                .tooltip(tooltip(label))
-                                .child(Icon::new(mini_icon(entry)).with_size(px(16.)).stroke(1.6))
-                                .on_click(cx.listener(move |_, _, _, cx| {
-                                    cx.emit(EditorEvent::StartCreate(entry));
-                                }))
-                        })),
-                )
-        });
-
+        let creates = !kinds.is_empty();
+        let create_rows = self.create_rows(kinds, t, cx);
         v_flex()
             .id("editor-start-closed")
             .debug_selector(|| "editor-start-closed".into())
+            .w(px(LIST_WIDTH))
+            .max_w_full()
             .mt(px(-40.))
-            .items_center()
-            .child(
-                div()
-                    .text_size(px(ty.meta))
-                    .line_height(px(19.))
-                    .text_color(t.subtle)
-                    .child(tr("native.start.noOpenFile")),
-            )
-            .children(recent_section)
-            .children(or_new)
+            .child(heading(tr("native.start.noOpenFile"), t).mb(px(8.)))
+            .when(has_recent, |d| {
+                d.child(note(tr("native.start.recent"), t).mb(px(2.)))
+                    .children(recent_rows)
+            })
+            .when(has_recent && creates, |d| d.child(separator(t)))
+            .children(create_rows)
             .into_any_element()
     }
 }

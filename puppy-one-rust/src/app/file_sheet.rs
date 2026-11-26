@@ -1,13 +1,10 @@
-//! Shared paper-sheet miniatures used by Homepage project folders
-//! (`home/folder`) and the empty-project start view (`editor_start`).
+//! Paper-sheet miniatures in Homepage project folders (`home/folder`).
 //!
 //! Each sheet says what kind of file it is by the layout printed on it — a
-//! document's title and lines, a table's grid, a webpage's bar and blocks, a
-//! whiteboard's shapes and arrow — in the paper's own greys, with no labels or
-//! colour, so both Home and the empty editor stay quiet.
+//! document's title and lines, a table's grid, a webpage's bar and blocks —
+//! in the paper's own greys, with no labels or colour, so Home stays quiet.
 use super::home::previews::PreviewKind;
 use crate::{
-    features::create_new::Entry,
     theme::{self, Theme},
     ui::moments::paint,
 };
@@ -19,7 +16,6 @@ pub(in crate::app) enum SheetKind {
     Md,
     Csv,
     Html,
-    Whiteboard,
     Other,
 }
 
@@ -34,30 +30,15 @@ impl From<PreviewKind> for SheetKind {
     }
 }
 
-impl From<Entry> for SheetKind {
-    fn from(entry: Entry) -> Self {
-        match entry {
-            Entry::Markdown => Self::Md,
-            Entry::Csv => Self::Csv,
-            Entry::Html => Self::Html,
-            Entry::Whiteboard => Self::Whiteboard,
-            _ => Self::Other,
-        }
-    }
-}
-
-/// The paper palette: folder sheets use [`Paper::new`], standing start-view
-/// sheets on the editor canvas use [`Paper::canvas`].
+/// The paper palette of folder sheets ([`Paper::new`]).
 pub(in crate::app) struct Paper {
     pub fill: Rgba,
     pub edge: Rgba,
     pub shadow: Rgba,
-    /// A title, a table's header, a page's bar, whiteboard strokes.
+    /// A title, a table's header, a page's bar.
     pub strong: Rgba,
     /// Lines, cells and blocks.
     pub ink: Rgba,
-    /// Soft tinted fills (table header, browser bar, cards, sticky notes).
-    pub tint: Rgba,
 }
 
 impl Paper {
@@ -79,25 +60,6 @@ impl Paper {
             shadow: tone(theme::alpha(t.shadow, if t.dark { 0.28 } else { 0.10 })),
             strong: tone(theme::mix(t.text, fill, strong)),
             ink: tone(theme::mix(t.text, fill, ink)),
-            tint: tone(theme::alpha(t.text, 0.055)),
-        }
-    }
-
-    /// Paper standing on the editor canvas (`editor_start`): `#fff`/`#232323`
-    /// sheet, quiet hairline border, grey ink and soft tint fills.
-    pub fn canvas(t: Theme) -> Self {
-        let fill = if t.dark { t.menu_bg } else { t.panel_raised };
-        let edge = t.divider;
-        let strong = theme::alpha(t.text, if t.dark { 0.36 } else { 0.34 });
-        let ink = theme::alpha(t.text, if t.dark { 0.18 } else { 0.16 });
-        let tint = theme::alpha(t.text, if t.dark { 0.055 } else { 0.05 });
-        Self {
-            fill,
-            edge,
-            shadow: theme::alpha(t.shadow, 0.),
-            strong,
-            ink,
-            tint,
         }
     }
 }
@@ -135,12 +97,6 @@ fn grid_marks(kind: SheetKind) -> Vec<Mark> {
             (5., 21., 16., 6., 1.5, false),
             (23., 21., 16., 6., 1.5, false),
         ],
-        // A whiteboard: round node, box, sticky card.
-        SheetKind::Whiteboard => vec![
-            (7., 6., 10., 10., 5., true),
-            (24., 16., 14., 9., 2., true),
-            (7., 20., 11., 10., 1.5, false),
-        ],
         // Any other file: lines.
         SheetKind::Other => vec![
             (5., 6., 34., 2., 1., false),
@@ -170,7 +126,6 @@ fn compact_marks(kind: SheetKind) -> Vec<Mark> {
             (2.5, 2.5, 10., 1.5, 0.5, true),
             (2.5, 5., 10., 4., 0.75, false),
         ],
-        SheetKind::Whiteboard => vec![(2.5, 2.5, 4., 4., 2., true), (8., 6., 4.5, 3., 0.75, false)],
         SheetKind::Other => vec![
             (2.5, 3., 10., 1., 0.5, false),
             (2.5, 5.5, 7., 1., 0.5, false),
@@ -314,11 +269,6 @@ fn screen_marks(kind: SheetKind) -> Vec<Mark> {
             (3., 16., 7.5, 5., 1., false),
             (11.5, 16., 7.5, 5., 1., false),
         ],
-        SheetKind::Whiteboard => vec![
-            (4., 5., 6., 6., 3., true),
-            (11., 14., 7.5, 5., 1., true),
-            (4., 16., 5.5, 5.5, 1., false),
-        ],
         SheetKind::Other => vec![
             (3., 4., 16., 1.5, 0.75, false),
             (3., 7.5, 16., 1.5, 0.75, false),
@@ -358,235 +308,4 @@ pub(in crate::app) fn render_screen_sheet(
                     .bg(if is_strong { strong } else { ink })
             },
         ))
-}
-
-#[allow(clippy::too_many_arguments)]
-fn paint_sheet_rect(
-    window: &mut Window,
-    ox: Pixels,
-    oy: Pixels,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    r: f32,
-    color: Rgba,
-) {
-    window.paint_quad(PaintQuad {
-        bounds: Bounds::new(point(ox + px(x), oy + px(y)), size(px(w), px(h))),
-        corner_radii: Corners::all(px(r)),
-        background: color.into(),
-        border_widths: Edges::default(),
-        border_color: transparent_black(),
-        border_style: BorderStyle::default(),
-    });
-}
-
-fn paint_sheet_stroke(
-    window: &mut Window,
-    ox: Pixels,
-    oy: Pixels,
-    pts: &[(f32, f32)],
-    width: f32,
-    closed: bool,
-    color: Rgba,
-) {
-    let mut b = PathBuilder::stroke(px(width));
-    let mapped: Vec<Point<Pixels>> = pts
-        .iter()
-        .map(|&(x, y)| point(ox + px(x), oy + px(y)))
-        .collect();
-    b.add_polygon(&mapped, closed);
-    if let Ok(path) = b.build() {
-        window.paint_path(path, color);
-    }
-}
-
-/// One `72 × 92` standing sheet for the empty-project start view (`editor_start`):
-/// the same greyscale visual language as Home folders, at reading scale, plus a
-/// dedicated whiteboard layout (circle, box, curved arrow, sticky note, wave).
-pub(in crate::app) fn render_start_sheet(kind: SheetKind, hover_group: &str, t: Theme) -> Div {
-    const W: f32 = 72.;
-    const H: f32 = 92.;
-    let paper = Paper::canvas(t);
-    let (ink, tint, stroke_color) = (paper.ink, paper.tint, paper.strong);
-    let ink_soft = theme::alpha(t.text, if t.dark { 0.13 } else { 0.11 });
-    let ink_mid = theme::alpha(t.text, if t.dark { 0.11 } else { 0.095 });
-
-    let draw = paint::paint(move |bounds, window| {
-        let ox = bounds.origin.x;
-        let oy = bounds.origin.y;
-
-        match kind {
-            SheetKind::Md => {
-                // Title bar + two paragraphs of grey text bars.
-                paint_sheet_rect(window, ox, oy, 11., 13., 32., 5., 2., ink);
-                for (i, w) in [52., 47., 50., 28.].into_iter().enumerate() {
-                    paint_sheet_rect(
-                        window,
-                        ox,
-                        oy,
-                        11.,
-                        27. + i as f32 * 8.,
-                        w,
-                        3.,
-                        1.5,
-                        ink_soft,
-                    );
-                }
-                for (i, w) in [49., 44., 36.].into_iter().enumerate() {
-                    paint_sheet_rect(
-                        window,
-                        ox,
-                        oy,
-                        11.,
-                        64. + i as f32 * 8.,
-                        w,
-                        3.,
-                        1.5,
-                        ink_soft,
-                    );
-                }
-            }
-            SheetKind::Csv => {
-                // Header tint + 7-row × 3-column grid + header & cell marks.
-                paint_sheet_rect(window, ox, oy, 9., 11., 54., 10., 0., tint);
-                for r in 0..=7 {
-                    let y = 11. + r as f32 * 10.;
-                    paint_sheet_rect(window, ox, oy, 9., y, 54., 1., 0., ink);
-                }
-                for x in [9., 27., 45., 62.] {
-                    paint_sheet_rect(window, ox, oy, x, 11., 1., 71., 0., ink);
-                }
-                paint_sheet_rect(window, ox, oy, 12., 14.5, 11., 3., 1.5, ink);
-                paint_sheet_rect(window, ox, oy, 30., 14.5, 11., 3., 1.5, ink);
-                paint_sheet_rect(window, ox, oy, 48., 14.5, 10., 3., 1.5, ink);
-                for (r, l) in [(0, 9.), (1, 12.), (2, 7.), (3, 10.), (4, 8.)] {
-                    let y = 24.5 + r as f32 * 10.;
-                    paint_sheet_rect(window, ox, oy, 12., y, l, 3., 1.5, ink_mid);
-                    paint_sheet_rect(window, ox, oy, 30., y, l + 1., 3., 1.5, ink_mid);
-                }
-            }
-            SheetKind::Html => {
-                // Browser chrome bar + 3 window dots + hero block + 2 cards + footer lines.
-                paint_sheet_rect(window, ox, oy, 1., 1., W - 2., 12., 0., tint);
-                paint_sheet_rect(window, ox, oy, 1., 13., W - 2., 1., 0., ink);
-                for cx in [7., 12., 17.] {
-                    paint_sheet_rect(window, ox, oy, cx - 1.6, 7. - 1.6, 3.2, 3.2, 1.6, ink);
-                }
-                paint_sheet_rect(window, ox, oy, 10., 20., 52., 22., 3., tint);
-                paint_sheet_rect(window, ox, oy, 16., 27., 26., 4., 2., ink);
-                paint_sheet_rect(window, ox, oy, 16., 34., 18., 3., 1.5, ink_mid);
-                paint_sheet_rect(window, ox, oy, 10., 48., 24., 18., 3., tint);
-                paint_sheet_rect(window, ox, oy, 38., 48., 24., 18., 3., tint);
-                paint_sheet_rect(window, ox, oy, 10., 72., 44., 3., 1.5, ink_mid);
-                paint_sheet_rect(window, ox, oy, 10., 79., 32., 3., 1.5, ink_mid);
-            }
-            SheetKind::Whiteboard => {
-                // Circle node (cx=24, cy=30, r=10).
-                let circle: Vec<(f32, f32)> = (0..28)
-                    .map(|k| {
-                        let a = (k as f32 / 28.) * std::f32::consts::TAU;
-                        (24. + 10. * a.cos(), 30. + 10. * a.sin())
-                    })
-                    .collect();
-                paint_sheet_stroke(window, ox, oy, &circle, 1.3, true, stroke_color);
-                // Box node (x=38, y=52, w=24, h=17, rx=3).
-                window.paint_quad(PaintQuad {
-                    bounds: Bounds::new(point(ox + px(38.), oy + px(52.)), size(px(24.), px(17.))),
-                    corner_radii: Corners::all(px(3.)),
-                    background: transparent_black().into(),
-                    border_widths: Edges::all(px(1.3)),
-                    border_color: stroke_color.into(),
-                    border_style: BorderStyle::default(),
-                });
-                // Curved connector arrow from circle toward box.
-                let curve: Vec<(f32, f32)> = (0..=10)
-                    .map(|i| {
-                        let s = i as f32 / 10.;
-                        let inv = 1. - s;
-                        let x = inv * inv * inv * 32.
-                            + 3. * inv * inv * s * 38.
-                            + 3. * inv * s * s * 41.
-                            + s * s * s * 44.;
-                        let y = inv * inv * inv * 37.
-                            + 3. * inv * inv * s * 41.
-                            + 3. * inv * s * s * 45.
-                            + s * s * s * 51.;
-                        (x, y)
-                    })
-                    .collect();
-                paint_sheet_stroke(window, ox, oy, &curve, 1.3, false, stroke_color);
-                paint_sheet_stroke(
-                    window,
-                    ox,
-                    oy,
-                    &[(41., 48.), (44., 51.5), (45.2, 47.1)],
-                    1.3,
-                    false,
-                    stroke_color,
-                );
-                // Sticky note with two short ink bars.
-                paint_sheet_rect(window, ox, oy, 11., 55., 17., 17., 2., tint);
-                paint_sheet_rect(window, ox, oy, 14., 60., 11., 2.5, 1.2, ink_soft);
-                paint_sheet_rect(window, ox, oy, 14., 65., 7., 2.5, 1.2, ink_soft);
-                // Freehand top-right stroke.
-                let wave: Vec<(f32, f32)> = (0..=8)
-                    .map(|i| {
-                        let s = i as f32 / 8.;
-                        let inv = 1. - s;
-                        let x = inv * inv * inv * 44.
-                            + 3. * inv * inv * s * 48.
-                            + 3. * inv * s * s * 53.
-                            + s * s * s * 57.;
-                        let y = inv * inv * inv * 20.
-                            + 3. * inv * inv * s * 17.
-                            + 3. * inv * s * s * 17.
-                            + s * s * s * 21.;
-                        (x, y)
-                    })
-                    .collect();
-                paint_sheet_stroke(
-                    window,
-                    ox,
-                    oy,
-                    &wave,
-                    1.3,
-                    false,
-                    theme::alpha(stroke_color, 0.7),
-                );
-            }
-            SheetKind::Other => {
-                paint_sheet_rect(window, ox, oy, 11., 16., 28., 4., 2., ink);
-                for (i, w) in [48., 44., 50., 36., 42.].into_iter().enumerate() {
-                    paint_sheet_rect(
-                        window,
-                        ox,
-                        oy,
-                        11.,
-                        29. + i as f32 * 9.,
-                        w,
-                        3.,
-                        1.5,
-                        ink_soft,
-                    );
-                }
-            }
-        }
-    });
-
-    div()
-        .relative()
-        .w(px(W))
-        .h(px(H))
-        .flex_none()
-        .rounded(px(5.))
-        .overflow_hidden()
-        .bg(paper.fill)
-        .border_1()
-        .border_color(paper.edge)
-        .group_hover(SharedString::from(hover_group.to_owned()), move |d| {
-            d.top(px(-2.)).border_color(paper.strong)
-        })
-        .child(draw)
 }

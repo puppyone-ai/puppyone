@@ -526,8 +526,15 @@ impl Shell {
         if self.files(cx).busy() || self.modal(cx) || !kind.available() {
             return;
         }
-        self.dialogs
-            .update(cx, |d, cx| d.create_entry(ws, parent, kind, window, cx));
+        // A file is made at once as `Untitled` and opened, to be renamed
+        // whenever; a folder still asks for its name.
+        self.dialogs.update(cx, |d, cx| {
+            if kind == crate::features::create_new::Entry::Folder {
+                d.create_entry(ws, parent, kind, window, cx)
+            } else {
+                d.create_untitled(ws, parent, kind, window, cx)
+            }
+        });
     }
     /// What the right sidebar's surfaces ask of the window.
     pub(in crate::app) fn sidebar_event(

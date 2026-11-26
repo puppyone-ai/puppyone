@@ -20,11 +20,92 @@ pub fn create(
     rx
 }
 
+/// `Untitled.md`, else `Untitled 2.md`, `Untitled 3.md`, …: the first name
+/// `taken` does not hold, compared without case as most file systems do.
+pub fn untitled_name(kind: Entry, taken: &[String]) -> String {
+    let taken: std::collections::HashSet<String> = taken.iter().map(|n| n.to_lowercase()).collect();
+    let ext = kind.extension();
+    (1..)
+        .map(|n| match n {
+            1 => format!("Untitled{ext}"),
+            n => format!("Untitled {n}{ext}"),
+        })
+        .find(|name| !taken.contains(&name.to_lowercase()))
+        .unwrap_or_default()
+}
+
+/// Makes the next free `Untitled` file of `kind` in `parent`. Someone else
+/// may take that name first, so a refused name moves on to the next one.
+pub fn create_untitled(
+    workspace: Arc<Workspace>,
+    parent: PathBuf,
+    kind: Entry,
+) -> async_channel::Receiver<Created> {
+    let (tx, rx) = async_channel::bounded(1);
+    crate::localization::spawn(move || {
+        let mut taken: Vec<String> = workspace
+            .list(&parent)
+            .map(|nodes| nodes.into_iter().map(|n| n.name).collect())
+            .unwrap_or_default();
+        let mut result = Err(String::new());
+        for _ in 0..3 {
+            let name = untitled_name(kind, &taken);
+            match workspace.create_entry(&parent, &name, false, kind.initial_text()) {
+                Ok(path) => {
+                    result = Ok((path, workspace.list(&parent).map_err(|e| e.to_string())));
+                    break;
+                }
+                Err(e) => {
+                    result = Err(e.to_string());
+                    taken.push(name);
+                }
+            }
+        }
+        let _ = tx.send_blocking(result);
+    });
+    rx
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{editor::registry, features::create_new::create_entry_draft::normalize_name};
     use std::{path::Path, time::Duration};
+
+    #[test]
+    fn untitled_files_take_the_first_free_number_without_case() {
+        let taken = |names: &[&str]| names.iter().map(|n| n.to_string()).collect::<Vec<_>>();
+        assert_eq!(untitled_name(Entry::Markdown, &[]), "Untitled.md");
+        assert_eq!(
+            untitled_name(Entry::Markdown, &taken(&["untitled.MD", "Untitled 2.md"])),
+            "Untitled 3.md"
+        );
+        assert_eq!(
+            untitled_name(Entry::Csv, &taken(&["Untitled.md"])),
+            "Untitled.csv"
+        );
+        assert_eq!(
+            untitled_name(Entry::Whiteboard, &taken(&["Untitled.excalidraw"])),
+            "Untitled 2.excalidraw"
+        );
+    }
+
+    #[test]
+    fn an_untitled_file_is_made_next_to_the_ones_already_there() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Untitled.md"), "kept").unwrap();
+        let workspace = Workspace::open(dir.path()).unwrap();
+        let (path, nodes) = create_untitled(workspace, PathBuf::new(), Entry::Markdown)
+            .recv_blocking()
+            .unwrap()
+            .unwrap();
+        assert_eq!(path, Path::new("Untitled 2.md"));
+        assert!(nodes.unwrap().iter().any(|n| n.name == "Untitled 2.md"));
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("Untitled.md")).unwrap(),
+            "kept"
+        );
+    }
 
     #[test]
     fn both_whiteboard_extensions_create_real_editable_documents_without_renaming_them() {

@@ -39,8 +39,44 @@ impl DialogLayer {
         cx.observe(&form, |_, _, cx| cx.notify()).detach();
         self.open(Modal::CreateEntry(form), cx);
     }
-    /// The create form is writing its entry: the window waits for it.
+    /// Makes the next free `Untitled` file of `kind` in `parent` at once and
+    /// hands it on like the form does, so it opens to be renamed later. If it
+    /// cannot be made, the form opens instead and says why when submitted.
+    pub fn create_untitled(
+        &mut self,
+        workspace: Arc<Workspace>,
+        parent: PathBuf,
+        kind: Entry,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.untitled {
+            return;
+        }
+        self.untitled = true;
+        let rx =
+            crate::features::create_new::create_untitled(workspace.clone(), parent.clone(), kind);
+        cx.spawn_in(window, async move |this, cx| {
+            let result = rx.recv().await;
+            let _ = this.update_in(cx, |s, window, cx| {
+                s.untitled = false;
+                match result {
+                    Ok(Ok((path, nodes))) => cx.emit(DialogEvent::Created {
+                        workspace,
+                        parent,
+                        path,
+                        folder: false,
+                        nodes,
+                    }),
+                    _ => s.create_entry(workspace, parent, kind, window, cx),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+    /// A new entry is being written: the window waits for it.
     pub fn creating(&self, cx: &App) -> bool {
-        self.create_form().is_some_and(|f| f.read(cx).busy())
+        self.untitled || self.create_form().is_some_and(|f| f.read(cx).busy())
     }
 }
