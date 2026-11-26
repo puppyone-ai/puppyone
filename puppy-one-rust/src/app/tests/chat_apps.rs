@@ -148,6 +148,30 @@ fn only_managers_add_chats_or_open_them(cx: &mut TestAppContext) {
     assert!(cx.debug_bounds("cloud-chat-manage").is_some());
 }
 
+/// In a project with nobody in it yet, the Header's seat opens the roster
+/// for a manager who can add chats: inviting an Agent and adding to a chat
+/// sit side by side there, and neither is skipped.
+#[gpui::test]
+fn the_empty_seat_offers_both_the_agent_and_the_chat(cx: &mut TestAppContext) {
+    let server: Shared = Arc::new(Mutex::new(ChatServer {
+        manage: true,
+        ..Default::default()
+    }));
+    let (view, cx) = open(cx, server);
+    draw(cx);
+    view.update_in(cx, |s, window, cx| {
+        s.cloud.update(cx, |c, cx| {
+            c.press_agents(crate::features::cloud::Opener::Invite, window, cx)
+        })
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-agent-invite").is_none());
+    let seat = cx.debug_bounds("cloud-chat-add-seat").unwrap();
+    cx.simulate_click(seat.center(), Modifiers::none());
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-chat-add").is_some());
+}
+
 /// Telegram in two steps: the links open Telegram, the chat knocks here with
 /// its name, and letting it in says where it is. Nothing gets in unasked.
 #[gpui::test]

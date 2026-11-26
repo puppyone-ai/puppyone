@@ -992,7 +992,17 @@ impl WindowCloud {
             return;
         }
         self.show_popover(None, cx);
-        self.agents.update(cx, |a, cx| a.open(opener, cx));
+        // A manager who can also add the project to a chat picks between the
+        // two on the roster; the invite is one seat there.
+        let chats = self.chats.read(cx);
+        let roster = matches!(opener, Opener::Invite) && chats.available() && chats.can_manage;
+        self.agents.update(cx, |a, cx| {
+            if roster {
+                a.open_roster(cx)
+            } else {
+                a.open(opener, cx)
+            }
+        });
         if !self.dialog_open(DialogKey::Agents, cx) {
             self.open_dialog(DialogKey::Agents, cx);
         }

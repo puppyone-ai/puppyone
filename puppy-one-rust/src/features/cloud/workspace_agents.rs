@@ -460,12 +460,21 @@ impl CloudAgents {
     /// A mark, the stack or the seat opens the dialog; with nobody here
     /// yet, or from the seat, it opens on the invite (`openFirst`).
     pub fn open(&mut self, opener: Opener, cx: &mut Context<Self>) {
+        let invite = matches!(opener, Opener::Invite)
+            || (self.agents.is_empty() && self.requests.is_empty());
+        self.open_on(opener, invite, cx);
+    }
+    /// The seat when the project can also go into a chat: the roster, where
+    /// "Invite agent" and "Add to chat" sit side by side.
+    pub fn open_roster(&mut self, cx: &mut Context<Self>) {
+        self.open_on(Opener::More, false, cx);
+    }
+    fn open_on(&mut self, opener: Opener, invite: bool, cx: &mut Context<Self>) {
         self.opener = opener;
         self.confirming = None;
         self.change_failed = false;
         self.decision_failed = false;
-        self.invite_open = matches!(self.opener, Opener::Invite)
-            || (self.agents.is_empty() && self.requests.is_empty());
+        self.invite_open = invite;
         self.tick(cx);
         cx.notify();
     }
