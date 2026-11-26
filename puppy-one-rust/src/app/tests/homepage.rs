@@ -56,8 +56,8 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
             p.state.remember_project(&linked, 1);
         });
         s.refresh_cloud_catalog(true, cx);
-        // The Header project menu hydrates the same list as the Homepage.
-        s.set_popover(Some(Popover::Project), cx);
+        // The Header space menu hydrates the same list as the Homepage.
+        s.set_popover(Some(Popover::Place), cx);
     });
     cx.update(|_, cx| {
         crate::features::cloud::account::install_fixture(broker, browser, cx);
