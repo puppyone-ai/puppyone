@@ -753,9 +753,12 @@ impl EditorArea {
                             s.sync(w, cx);
                         },
                     ));
-                let (slot, pane_loading) = {
+                let (slot, pane_loading, split) = {
                     let docs = self.docs.read(cx);
                     let slot = editor.as_deref().and_then(|key| docs.slot_for_key(key));
+                    let split = docs
+                        .state()
+                        .is_some_and(|s| s.layout.root.panes().len() > 1);
                     let active_pane = docs.state().is_some_and(|s| s.layout.active == *id);
                     let active_loading = active_pane
                         && docs
@@ -764,7 +767,7 @@ impl EditorArea {
                     let key_loading = editor
                         .as_deref()
                         .is_some_and(|key| docs.is_hibernated_or_loading(key));
-                    (slot, active_loading || key_loading)
+                    (slot, active_loading || key_loading, split)
                 };
                 if let Some(editor) = slot.and_then(|slot| self.hosts.get(&slot)) {
                     view = view.child(editor.clone());
@@ -774,10 +777,14 @@ impl EditorArea {
                     if let Some(presence) = slot.and_then(|slot| self.file_presence(slot, cx)) {
                         view = view.child(presence);
                     }
-                } else if !pane_loading {
+                } else if !pane_loading && split {
+                    // Only a split has an empty pane to close; the last
+                    // pane is the editor area itself (`showPaneHandle`).
                     let close = id.clone();
+                    let selector = format!("close-empty:{id}");
                     view = view.child(
                         div()
+                            .debug_selector(move || selector.clone())
                             .absolute()
                             .top(px(4. + self.chrome_inset(cx)))
                             .right(px(4.))

@@ -20,11 +20,14 @@ pub const MAX_BACKGROUND_HOSTS: usize = 3;
 /// through the workspace Provider on re-activation without holding a live
 /// `WorkingCopy` or `DocumentEditor`. The document is still open: its
 /// retained models (undo history) wait here for its next view.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HibernatedSlot {
     pub path: PathBuf,
     pub failed_at_navigation: Option<u64>,
     pub models: DocumentModels,
+    /// A tab from the saved layout, its file not read yet: it waits here
+    /// until its pane shows it.
+    pub restored: bool,
 }
 
 /// Snapshot of a live slot evaluated by the retention policy (`WB-01`).
@@ -35,7 +38,6 @@ pub struct SlotCandidate {
     pub visible: bool,
     pub admitted: bool,
     pub closing: bool,
-    pub restoring: bool,
     pub dirty: bool,
     pub saving_or_busy: bool,
     pub cloud_conflict: bool,
@@ -52,7 +54,6 @@ impl SlotCandidate {
         self.visible
             || !self.admitted
             || self.closing
-            || self.restoring
             || self.dirty
             || self.saving_or_busy
             || self.cloud_conflict
@@ -76,7 +77,7 @@ pub fn select_slots_to_hibernate(
     let cap = max_live_slots.max(1);
     let live_count = candidates
         .iter()
-        .filter(|c| c.admitted && !c.closing && !c.restoring)
+        .filter(|c| c.admitted && !c.closing)
         .count();
     if live_count <= cap {
         return Vec::new();
@@ -106,7 +107,7 @@ pub fn select_slots_to_hibernate(
 pub struct BackgroundHostCandidate {
     pub key: String,
     pub active: bool,
-    pub restoring_or_loading_metadata: bool,
+    pub loading_metadata: bool,
     pub has_unsaved_or_busy_slots: bool,
     pub has_pending_mutations: bool,
 }
@@ -116,7 +117,7 @@ impl BackgroundHostCandidate {
     /// for unload (`WB-02`).
     pub fn can_unload(&self) -> bool {
         !self.active
-            && !self.restoring_or_loading_metadata
+            && !self.loading_metadata
             && !self.has_unsaved_or_busy_slots
             && !self.has_pending_mutations
     }
@@ -170,7 +171,6 @@ mod tests {
             visible,
             admitted: true,
             closing: false,
-            restoring: false,
             dirty: false,
             saving_or_busy: false,
             cloud_conflict: false,
@@ -233,35 +233,35 @@ mod tests {
             BackgroundHostCandidate {
                 key: "ws-active".into(),
                 active: true,
-                restoring_or_loading_metadata: false,
+                loading_metadata: false,
                 has_unsaved_or_busy_slots: false,
                 has_pending_mutations: false,
             },
             BackgroundHostCandidate {
                 key: "ws-dirty".into(),
                 active: false,
-                restoring_or_loading_metadata: false,
+                loading_metadata: false,
                 has_unsaved_or_busy_slots: true,
                 has_pending_mutations: false,
             },
             BackgroundHostCandidate {
                 key: "ws-old-clean".into(),
                 active: false,
-                restoring_or_loading_metadata: false,
+                loading_metadata: false,
                 has_unsaved_or_busy_slots: false,
                 has_pending_mutations: false,
             },
             BackgroundHostCandidate {
                 key: "ws-mid-clean".into(),
                 active: false,
-                restoring_or_loading_metadata: false,
+                loading_metadata: false,
                 has_unsaved_or_busy_slots: false,
                 has_pending_mutations: false,
             },
             BackgroundHostCandidate {
                 key: "ws-new-clean".into(),
                 active: false,
-                restoring_or_loading_metadata: false,
+                loading_metadata: false,
                 has_unsaved_or_busy_slots: false,
                 has_pending_mutations: false,
             },

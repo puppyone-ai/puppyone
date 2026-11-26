@@ -1,9 +1,15 @@
-//! Layout restoration is untrusted metadata. Every candidate is read through
-//! the admitted Provider before publication. Interaction wins over late restore.
+//! Layout restoration is untrusted metadata. The saved tabs and panes show
+//! at once, each tab hibernated: its file is read through the admitted
+//! Provider only when its pane shows it, and a tab whose file is gone or is
+//! not a file closes quietly. Nothing a person does races the restore: what
+//! they open before the saved layout arrives stays, and the saved tabs join it.
 use super::*;
 use crate::platform::editor_state_storage::{Event, Storage};
 use serde_json::{Value, json};
-use std::time::{Duration, Instant};
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
 
 impl Runtime {
     pub fn native() -> Self {
@@ -14,10 +20,11 @@ impl Runtime {
             scratch,
             storage: Some(Storage::native()),
             draft_journal: Some(journal),
+            starting_file: true,
             ..Default::default()
         }
     }
-    pub(super) fn poll_metadata(&mut self, wake: &Wake) {
+    pub(super) fn poll_metadata(&mut self) {
         while let Some(event) = self.storage.as_ref().and_then(Storage::next) {
             match event {
                 Event::Saved => self.metadata_inflight = self.metadata_inflight.saturating_sub(1),
@@ -29,133 +36,38 @@ impl Runtime {
                         continue;
                     };
                     host.metadata_loaded = true;
-                    if host.interacted || self.quitting {
+                    if self.quitting {
                         continue;
                     }
-                    let Some(value) = value.filter(|v| v["version"] == 1) else {
-                        continue;
-                    };
-                    if let Ok(entries) = serde_json::from_value::<
-                        Vec<super::super::view_state::PersistedViewStateEntry>,
-                    >(value["viewStates"].clone())
+                    if let Some(value) = value.filter(|v| v["version"] == 1)
+                        && host.restore(&value)
                     {
-                        host.view_states =
-                            super::super::view_state::ViewStateStore::from_persisted(entries);
+                        self.generation += 1;
                     }
-                    let Some(editors) = value["group"]["editors"]
-                        .as_array()
-                        .filter(|v| v.len() <= 128)
-                    else {
-                        continue;
-                    };
-                    let ws = host.empty.workspace.clone().unwrap();
-                    for editor in editors {
-                        let Some(path) = editor["resource"].as_str() else {
-                            continue;
-                        };
-                        let path = PathBuf::from(path);
-                        let Ok(resource) = ws.resource_id(&path) else {
-                            continue;
-                        };
-                        if resource.path.is_root() {
-                            continue;
-                        }
-                        let key = resource_key(&resource);
-                        if editor["id"].as_str() != Some(&key)
-                            || host.slots.values().any(|s| s.key == key)
-                        {
-                            continue;
-                        }
-                        self.serial += 1;
-                        let mut files = Documents::in_workspace_with_journal(
-                            ws.clone(),
-                            self.draft_journal.clone(),
-                        );
-                        files.task_scope = self.scratch.task_scope.clone();
-                        files.begin(Intent::OpenFile(path.clone()), wake);
-                        host.slots.insert(
-                            self.serial,
-                            Slot {
-                                drop_target: None,
-                                key,
-                                path,
-                                files,
-                                admitted: false,
-                                failed: false,
-                                opening: 0,
-                                closing: false,
-                                reported_error: None,
-                                restoring: true,
-                                rehydrating: None,
-                            },
-                        );
-                    }
-                    host.restore = Some(value);
                 }
             }
         }
-        if self.file_window {
+    }
+    /// A project just entered with no tab to show opens its starting file,
+    /// once its saved layout is in.
+    pub(super) fn open_starting_file(&mut self, wake: &Wake) {
+        let Some(host) = self.active.as_ref().and_then(|key| self.hosts.get_mut(key)) else {
+            return;
+        };
+        if !host.starting || !host.metadata_loaded {
             return;
         }
-        for host in self.hosts.values_mut() {
-            if host.restore.is_some() && host.slots.values().all(|s| s.admitted) {
-                let value = host.restore.take().unwrap();
-                if host.interacted {
-                    continue;
-                }
-                let mut catalog = super::super::catalog::Catalog::default();
-                if let Some(editors) = value["group"]["editors"].as_array() {
-                    for input in editors {
-                        let Some(key) = input["id"].as_str() else {
-                            continue;
-                        };
-                        if catalog.editors.iter().any(|e| e.id == key) {
-                            continue;
-                        }
-                        if let Some(slot) = host.slots.values().find(|s| s.admitted && s.key == key)
-                        {
-                            let path = slot.files.opened().unwrap().1;
-                            catalog.editors.push(Input {
-                                id: key.into(),
-                                label: path
-                                    .file_name()
-                                    .unwrap_or_default()
-                                    .to_string_lossy()
-                                    .into_owned(),
-                            });
-                        }
-                    }
-                }
-                let valid: std::collections::HashSet<_> =
-                    catalog.editors.iter().map(|i| i.id.clone()).collect();
-                let active = value["group"]["activeEditorId"]
-                    .as_str()
-                    .filter(|id| valid.contains(*id))
-                    .map(str::to_owned)
-                    .or_else(|| catalog.editors.first().map(|i| i.id.clone()));
-                if let Some(mru) = value["group"]["mostRecentlyUsed"].as_array() {
-                    for id in mru.iter().filter_map(Value::as_str) {
-                        if valid.contains(id) && !catalog.mru.iter().any(|v| v == id) {
-                            catalog.mru.push(id.into());
-                        }
-                    }
-                }
-                if let Some(id) = &active {
-                    catalog.activate(id);
-                }
-                let layout = super::super::layout::Layout::parse(&value["layout"], &valid, active);
-                if let Some(id) = layout.active_editor() {
-                    catalog.activate(id);
-                }
-                host.state = Workbench { catalog, layout };
-                for (slot_id, slot) in &mut host.slots {
-                    slot.restoring = false;
-                    if let Some(vs) = host.view_states.get(&slot.key).cloned() {
-                        self.pending_view_restores.insert(*slot_id, vs);
-                    }
-                }
-                self.generation += 1;
-            }
+        host.starting = false;
+        if !self.starting_file
+            || self.file_window
+            || self.quitting
+            || !host.state.catalog.editors.is_empty()
+            || !host.slots.is_empty()
+        {
+            return;
+        }
+        if let Some(path) = starting_file(&host.rows) {
+            self.begin(Intent::OpenFile(path), wake);
         }
     }
     /// Coalesce only non-document metadata, off the UI thread. Also called when
@@ -170,7 +82,7 @@ impl Runtime {
         };
         let now = Instant::now();
         for (key, host) in &mut self.hosts {
-            if !host.metadata_loaded || host.restore.is_some() {
+            if !host.metadata_loaded {
                 continue;
             }
             let editors: Vec<_> = host
@@ -221,4 +133,126 @@ impl Runtime {
             }
         }
     }
+}
+
+impl Host {
+    /// Shows the saved tabs and panes, every tab hibernated until its pane
+    /// shows it. What was opened before they arrived keeps its pane, and the
+    /// saved tabs follow it. `false` when nothing was restored.
+    pub(super) fn restore(&mut self, value: &Value) -> bool {
+        use super::super::{
+            catalog::Catalog,
+            layout::Layout,
+            retention::HibernatedSlot,
+            view_state::{PersistedViewStateEntry, ViewStateStore},
+        };
+        if let Ok(entries) =
+            serde_json::from_value::<Vec<PersistedViewStateEntry>>(value["viewStates"].clone())
+        {
+            self.view_states = ViewStateStore::from_persisted(entries);
+        }
+        let Some(editors) = value["group"]["editors"]
+            .as_array()
+            .filter(|v| v.len() <= 128)
+        else {
+            return false;
+        };
+        let Some(ws) = self.empty.workspace.clone() else {
+            return false;
+        };
+        let mut restored: Vec<Input> = Vec::new();
+        for editor in editors {
+            let Some(path) = editor["resource"].as_str() else {
+                continue;
+            };
+            let path = PathBuf::from(path);
+            let Ok(resource) = ws.resource_id(&path) else {
+                continue;
+            };
+            if resource.path.is_root() {
+                continue;
+            }
+            let key = resource_key(&resource);
+            if editor["id"].as_str() != Some(&key)
+                || restored.iter().any(|input| input.id == key)
+                || self.state.catalog.editors.iter().any(|e| e.id == key)
+                || self.slots.values().any(|s| s.key == key)
+            {
+                continue;
+            }
+            restored.push(Input {
+                id: key.clone(),
+                label: path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned(),
+            });
+            self.hibernated.insert(
+                key,
+                HibernatedSlot {
+                    path,
+                    restored: true,
+                    ..Default::default()
+                },
+            );
+        }
+        if restored.is_empty() {
+            return false;
+        }
+        if !self.state.catalog.editors.is_empty() || !self.slots.is_empty() {
+            let catalog = &mut self.state.catalog;
+            catalog
+                .mru
+                .extend(restored.iter().map(|input| input.id.clone()));
+            catalog.editors.extend(restored);
+            return true;
+        }
+        let valid: std::collections::HashSet<_> =
+            restored.iter().map(|input| input.id.clone()).collect();
+        let mut catalog = Catalog {
+            editors: restored,
+            ..Default::default()
+        };
+        if let Some(mru) = value["group"]["mostRecentlyUsed"].as_array() {
+            for id in mru.iter().filter_map(Value::as_str) {
+                if valid.contains(id) && !catalog.mru.iter().any(|v| v == id) {
+                    catalog.mru.push(id.into());
+                }
+            }
+        }
+        let active = value["group"]["activeEditorId"]
+            .as_str()
+            .filter(|id| valid.contains(*id))
+            .map(str::to_owned)
+            .or_else(|| catalog.editors.first().map(|i| i.id.clone()));
+        if let Some(id) = &active {
+            catalog.activate(id);
+        }
+        let layout = Layout::parse(&value["layout"], &valid, active);
+        if let Some(id) = layout.active_editor() {
+            catalog.activate(id);
+        }
+        self.state = Workbench { catalog, layout };
+        self.sync_panes();
+        true
+    }
+}
+
+/// The README at the project's root, else its first file, in the order the
+/// Explorer lists them (`workbench.startupEditor: "readme"`). Hidden files
+/// never start a project.
+fn starting_file(rows: &[Node]) -> Option<PathBuf> {
+    let files = || {
+        rows.iter()
+            .filter(|n| !n.folder && !n.name.starts_with('.'))
+    };
+    files()
+        .find(|n| {
+            Path::new(&n.name)
+                .file_stem()
+                .is_some_and(|stem| stem.eq_ignore_ascii_case("readme"))
+        })
+        .or_else(|| files().next())
+        .map(|n| n.path.clone())
 }
