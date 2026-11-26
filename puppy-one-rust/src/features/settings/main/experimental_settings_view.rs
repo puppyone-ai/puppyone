@@ -1,7 +1,8 @@
 //! Native `ExperimentalSettingsView`: the groups, switches and choice segments
 //! backed by native consumers.
 use super::super::{
-    preference_types::Preferences, settings_workspace_surface::SettingsWorkspaceSurface,
+    preference_types::{HomeSpaceLayout, Preferences},
+    settings_workspace_surface::SettingsWorkspaceSurface,
 };
 use super::Page;
 use crate::{
@@ -88,7 +89,10 @@ fn groups(
         ),
         (
             "imports",
-            vec![setting!("otherAppImports", experimental.other_app_imports)],
+            vec![
+                setting!("otherAppImports", experimental.other_app_imports),
+                setting!("startWithAgent", experimental.start_with_agent),
+            ],
         ),
         ("cloud", cloud),
     ]
@@ -100,52 +104,89 @@ impl SettingsWorkspaceSurface {
         let account = crate::features::flags::account_available(cx);
         let hosts = crate::features::flags::host_devices_available(cx);
         for (index, (group, settings)) in groups(account, hosts).into_iter().enumerate() {
-            let rows = settings
+            let mut rows = Vec::with_capacity(settings.len() + 1);
+            if group == "header" {
+                let current = state.experimental.home_space_layout;
+                let segments = [
+                    (HomeSpaceLayout::Arc, "arc"),
+                    (HomeSpaceLayout::Tabs, "tabs"),
+                    (HomeSpaceLayout::Classic, "classic"),
+                ]
                 .into_iter()
-                .map(|setting| {
-                    let label = tr(&format!("settings.experimental.{}.title", setting.key));
-                    let detail: SharedString =
-                        tr(&format!("settings.experimental.{}.detail", setting.key)).into();
-                    let value = (setting.get)(&state);
-                    let control: AnyElement = match setting.choices {
-                        Some((off, on)) => {
-                            let segments =
-                                [(false, off), (true, on)].into_iter().map(|(choice, key)| {
-                                    let prefs = self.preferences.clone();
-                                    let set = setting.set;
-                                    Segment::new(tr(&format!(
-                                        "settings.experimental.{}.{key}",
-                                        setting.key
-                                    )))
-                                    .selected(value == choice)
-                                    .on_select(
-                                        move |_, cx| {
-                                            prefs.update(cx, |p, cx| {
-                                                p.change(|p| set(p, choice), cx)
-                                            })
-                                        },
-                                    )
-                                });
-                            SegmentedControl::new(setting.key)
-                                .segments(segments)
-                                .tooltip(detail)
-                                .into_any_element()
-                        }
-                        None => {
-                            let prefs = self.preferences.clone();
-                            let set = setting.set;
-                            Switch::new(SharedString::from(setting.key), label)
-                                .checked(value)
-                                .tooltip(detail)
-                                .on_change(move |on, _, cx| {
-                                    prefs.update(cx, |p, cx| p.change(|p| set(p, on), cx))
+                .map(|(choice, key)| {
+                    let prefs = self.preferences.clone();
+                    Segment::new(tr(&format!("settings.experimental.homeSpaceLayout.{key}")))
+                        .selected(current == choice)
+                        .on_select(move |_, cx| {
+                            prefs.update(cx, |p, cx| {
+                                p.change(|p| p.experimental.home_space_layout = choice, cx)
+                            })
+                        })
+                });
+                let control = SegmentedControl::new("homeSpaceLayout")
+                    .segments(segments)
+                    .tooltip(tr("settings.experimental.homeSpaceLayout.detail"))
+                    .into_any_element();
+                rows.push(
+                    SettingRow::new(tr("settings.experimental.homeSpaceLayout.title"))
+                        .control(control),
+                );
+                let hide_view = state.experimental.hide_home_view_controls;
+                let prefs = self.preferences.clone();
+                let hide_label = tr("settings.experimental.hideHomeViewControls.title");
+                rows.push(
+                    SettingRow::new(hide_label).control(
+                        Switch::new("hideHomeViewControls", hide_label)
+                            .checked(hide_view)
+                            .tooltip(tr("settings.experimental.hideHomeViewControls.detail"))
+                            .on_change(move |on, _, cx| {
+                                prefs.update(cx, |p, cx| {
+                                    p.change(|p| p.experimental.hide_home_view_controls = on, cx)
                                 })
-                                .into_any_element()
-                        }
-                    };
-                    SettingRow::new(label).control(control)
-                })
-                .collect::<Vec<_>>();
+                            })
+                            .into_any_element(),
+                    ),
+                );
+            }
+            rows.extend(settings.into_iter().map(|setting| {
+                let label = tr(&format!("settings.experimental.{}.title", setting.key));
+                let detail: SharedString =
+                    tr(&format!("settings.experimental.{}.detail", setting.key)).into();
+                let value = (setting.get)(&state);
+                let control: AnyElement = match setting.choices {
+                    Some((off, on)) => {
+                        let segments =
+                            [(false, off), (true, on)].into_iter().map(|(choice, key)| {
+                                let prefs = self.preferences.clone();
+                                let set = setting.set;
+                                Segment::new(tr(&format!(
+                                    "settings.experimental.{}.{key}",
+                                    setting.key
+                                )))
+                                .selected(value == choice)
+                                .on_select(move |_, cx| {
+                                    prefs.update(cx, |p, cx| p.change(|p| set(p, choice), cx))
+                                })
+                            });
+                        SegmentedControl::new(setting.key)
+                            .segments(segments)
+                            .tooltip(detail)
+                            .into_any_element()
+                    }
+                    None => {
+                        let prefs = self.preferences.clone();
+                        let set = setting.set;
+                        Switch::new(SharedString::from(setting.key), label)
+                            .checked(value)
+                            .tooltip(detail)
+                            .on_change(move |on, _, cx| {
+                                prefs.update(cx, |p, cx| p.change(|p| set(p, on), cx))
+                            })
+                            .into_any_element()
+                    }
+                };
+                SettingRow::new(label).control(control)
+            }));
             content = content.child(
                 SettingsSubsection::new()
                     .title(tr(&format!("settings.experimental.groups.{group}")))
@@ -182,7 +223,10 @@ mod tests {
             ]
         );
         assert_eq!(keys_in("markdown", true, true), ["markdownBlockDrag"]);
-        assert_eq!(keys_in("imports", true, true), ["otherAppImports"]);
+        assert_eq!(
+            keys_in("imports", true, true),
+            ["otherAppImports", "startWithAgent"]
+        );
     }
 
     /// HX-1: the Other computers switch follows the release gate, not the

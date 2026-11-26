@@ -54,12 +54,30 @@ fn home_with_spaces<'a>(
     (view, cx)
 }
 
+/// Switches Home to the legacy stacked `Classic` layout for tests that
+/// inspect vertically stacked groups together.
+fn use_classic_home(view: &Entity<Shell>, cx: &mut VisualTestContext) {
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(
+                |p| {
+                    p.experimental.home_space_layout =
+                        crate::features::settings::HomeSpaceLayout::Classic
+                },
+                cx,
+            )
+        })
+    });
+    draw(cx);
+}
+
 #[gpui::test]
 fn the_homepage_groups_projects_by_the_place_that_holds_them(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();
     let folder = temp.path().canonicalize().unwrap().join("Notes");
     std::fs::create_dir(&folder).unwrap();
-    let (_view, cx) = home_with_spaces(cx, &folder);
+    let (view, cx) = home_with_spaces(cx, &folder);
+    use_classic_home(&view, cx);
     let local = cx.debug_bounds("home-group:local-only").expect("This Mac");
     let personal = cx
         .debug_bounds("home-group:space:me")
@@ -86,6 +104,7 @@ fn a_folder_dropped_on_a_team_opens_its_publication_to_that_team(cx: &mut TestAp
     std::fs::create_dir(&folder).unwrap();
     std::fs::write(folder.join("a.md"), "# A\n").unwrap();
     let (view, cx) = home_with_spaces(cx, &folder);
+    use_classic_home(&view, cx);
     let notes: &'static str =
         Box::leak(format!("home-project:local:{}", folder.display()).into_boxed_str());
     let from = cx.debug_bounds(notes).unwrap().center();
@@ -418,6 +437,7 @@ fn the_personal_spaces_agents_stand_with_its_heading(cx: &mut TestAppContext) {
     let folder = temp.path().canonicalize().unwrap().join("Notes");
     std::fs::create_dir(&folder).unwrap();
     let (view, cx) = home_with_spaces(cx, &folder);
+    use_classic_home(&view, cx);
     view.update(cx, |s, cx| {
         s.home.update(cx, |h, cx| {
             h.discovery.cloud_details_override = true;
@@ -438,6 +458,53 @@ fn the_personal_spaces_agents_stand_with_its_heading(cx: &mut TestAppContext) {
     let team = cx.debug_bounds("home-group:space:team-1").unwrap();
     assert!(personal.contains(&face.center()));
     assert!(!team.contains(&face.center()));
+}
+
+/// Hiding the Header on Home takes the bar and brand away while keeping the
+/// page where it was and the account circle in place so Account and Settings
+/// stay reachable.
+#[gpui::test]
+fn hiding_the_header_on_home_keeps_the_page_where_it_was(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = home_with_spaces(cx, &folder);
+    let before = cx.debug_bounds("home-arc-head").expect("the Arc heading");
+    let account_before = cx
+        .debug_bounds("header-account")
+        .expect("the account circle");
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.experimental.hidden_header = true, cx)
+        })
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("homepage-brand").is_none());
+    let account_after = cx
+        .debug_bounds("header-account")
+        .expect("account circle remains reachable");
+    assert_eq!(account_before, account_after);
+    let after = cx.debug_bounds("home-arc-head").expect("the Arc heading");
+    assert_eq!(before.origin, after.origin, "nothing moves up");
+    cx.simulate_click(account_after.center(), Modifiers::default());
+    draw(cx);
+    draw(cx);
+    let account_item: &'static str = Box::leak(
+        format!(
+            "menu-item:{}",
+            crate::localization::t("settings.sidebar.account")
+        )
+        .into_boxed_str(),
+    );
+    let settings_item: &'static str = Box::leak(
+        format!(
+            "menu-item:{}",
+            crate::localization::t("shell.navigation.settings")
+        )
+        .into_boxed_str(),
+    );
+    assert!(cx.debug_bounds(account_item).is_some());
+    assert!(cx.debug_bounds(settings_item).is_some());
 }
 
 /// Signed in, the Homepage Header ends with the person's circle: it names
@@ -474,4 +541,295 @@ fn the_header_account_circle_names_the_account_and_signs_out(cx: &mut TestAppCon
     });
     draw(cx);
     assert!(cx.debug_bounds("header-account").is_none());
+}
+
+/// Arc is the default Home. Its page stays on the app's own neutral canvas
+/// (no Space tint, no colour picker, no `+` menu up top), and each Space
+/// ends its projects with a dashed New project tile. In a Cloud Space it asks
+/// only for the name, already kept in that Space.
+#[gpui::test]
+fn a_cloud_spaces_new_project_tile_asks_only_for_the_name(cx: &mut TestAppContext) {
+    use crate::features::settings::HomeSpaceLayout;
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = home_with_spaces(cx, &folder);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.prefs.store.read(cx).state.experimental.home_space_layout,
+            HomeSpaceLayout::Arc,
+            "Arc horizontal swipe is the default Home layout"
+        );
+    });
+    let personal_pill = cx
+        .debug_bounds("home-arc-dock:space:me")
+        .expect("Personal pill in Arc dock");
+    cx.simulate_click(personal_pill.center(), Modifiers::default());
+    draw(cx);
+    assert!(
+        cx.debug_bounds("home-space-add").is_none(),
+        "no top-right create menu"
+    );
+    assert!(
+        cx.debug_bounds("home-space-color").is_none(),
+        "no colour picker"
+    );
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.home.read(cx).home_palette(cx).canvas,
+            cx.palette().canvas,
+            "the page keeps the app's neutral canvas"
+        );
+    });
+    let tile = cx
+        .debug_bounds("home-new-project")
+        .expect("dashed New project tile");
+    cx.simulate_click(tile.center(), Modifiers::default());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        let home = s.home.read(cx);
+        let create = home.create.as_ref().expect("the name step");
+        assert!(create.scoped);
+        assert_eq!(create.audience, super::home::create_project::Audience::Team);
+        assert_eq!(create.team.as_deref(), Some("me"));
+    });
+    assert!(
+        cx.debug_bounds("create-audience:local").is_none(),
+        "no local / Cloud choice"
+    );
+    assert!(
+        cx.debug_bounds("create-project-stored-cloud").is_none(),
+        "no place row"
+    );
+}
+
+/// On this computer, clicking the dashed New project tile opens the create
+/// dialog immediately defaulted to `Documents/PuppyOne` (never popping Finder
+/// first, never asking local vs Cloud), and offers detected local Agents,
+/// Open a folder, and Import right inside the dialog instead of in a top-right
+/// menu.
+#[gpui::test]
+fn a_local_new_project_defaults_to_puppyone_and_offers_detected_agents(cx: &mut TestAppContext) {
+    use super::home::discovery::HomepageLocalAgent;
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = home_with_spaces(cx, &folder);
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| {
+            h.discovery.local_agents_override = Some(vec![HomepageLocalAgent {
+                runtime_id: "claude".into(),
+                label: "Claude Code".into(),
+                icon_key: "claude".into(),
+                connected: true,
+            }]);
+            cx.notify();
+        });
+    });
+    draw(cx);
+    assert!(
+        cx.debug_bounds("home-space-more").is_none(),
+        "no top-right create menu"
+    );
+    let tile = cx
+        .debug_bounds("home-new-project")
+        .expect("dashed New project tile");
+    cx.simulate_click(tile.center(), Modifiers::default());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        let home = s.home.read(cx);
+        let create = home
+            .create
+            .as_ref()
+            .expect("create dialog opens immediately");
+        assert!(create.scoped);
+        assert_eq!(
+            create.audience,
+            super::home::create_project::Audience::Local
+        );
+        assert_eq!(
+            create
+                .destination
+                .location
+                .as_deref()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str()),
+            Some("PuppyOne"),
+            "defaults to Documents/PuppyOne"
+        );
+    });
+    assert!(
+        cx.debug_bounds("create-audience:team").is_none(),
+        "no local / Cloud choice"
+    );
+    assert!(cx.debug_bounds("create-project-location-line").is_some());
+    // The other ways in sit on the footer row, level with Cancel / Create.
+    let cancel = cx.debug_bounds("create-project-cancel").expect("Cancel");
+    for id in ["create-open-folder", "create-import"] {
+        let link = cx.debug_bounds(id).expect(id);
+        assert!(
+            (link.center().y - cancel.center().y).abs() < px(2.),
+            "{id} shares the Cancel / Create row"
+        );
+        assert!(
+            link.right() < cancel.left(),
+            "{id} {link:?} overlaps Cancel {cancel:?}"
+        );
+    }
+    // Start with Agent is Experimental and off by default.
+    assert!(cx.debug_bounds("create-start-with-agent").is_none());
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.experimental.start_with_agent = true, cx)
+        })
+    });
+    draw(cx);
+    let trigger = cx
+        .debug_bounds("create-start-with-agent")
+        .expect("Start with Agent once the Experimental switch is on");
+    cx.simulate_click(trigger.center(), Modifiers::default());
+    draw(cx);
+    draw(cx);
+    let claude = cx
+        .debug_bounds("menu-item:Claude Code")
+        .expect("detected Agent in the menu");
+    cx.simulate_click(claude.center(), Modifiers::default());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        let home = s.home.read(cx);
+        assert!(home.create.is_none());
+        let start = home
+            .agent_start
+            .as_ref()
+            .expect("hands off to Agent start dialog");
+        assert_eq!(start.agent.runtime_id, "claude");
+    });
+}
+
+/// Default Home (`Arc`) keeps the floating bottom dock visible even when
+/// signed out, showing This Mac beside a quiet Cloud sign-in entry that opens
+/// the Sign in dialog.
+#[gpui::test]
+fn signed_out_home_shows_arc_dock_with_sign_in_guidance(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = setup(cx);
+    let (broker, browser, _control) = crate::cloud::auth::sign_in_fixture();
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        s.prefs.store.update(cx, |p, _| {
+            p.state.experimental.cloud_workspace = true;
+            p.state.remember_project(&folder, 1);
+        });
+    });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "signed-out account", &|_, cx| {
+        crate::features::cloud::account::status(cx)
+            == Some(crate::features::cloud::account::Status::SignedOut)
+    });
+    command(&view, cx, Command::Home);
+    settle_cloud(&view, cx, "signed-out home", &|s, cx| {
+        !s.home.read(cx).list_held()
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("home-arc-dock").is_some());
+    assert!(cx.debug_bounds("home-arc-dock:local-only").is_some());
+    let sign_in = cx
+        .debug_bounds("home-arc-dock-sign-in")
+        .expect("signed-out dock guides user to sign in");
+    cx.simulate_click(sign_in.center(), Modifiers::default());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert!(s.has_dialog("SignIn", cx));
+    });
+}
+
+/// On Home with Spaces, a local project's `⋯` menu replaces "Who can open it"
+/// with a `Move to ▸` submenu listing every writable Cloud Space.
+#[gpui::test]
+fn a_local_projects_menu_offers_move_to_space_submenu(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    std::fs::write(folder.join("a.md"), "# A\n").unwrap();
+    let (view, cx) = home_with_spaces(cx, &folder);
+    let audience = view.read_with(cx, |s, cx| {
+        let home = s.home.read(cx);
+        let item = home
+            .visible_projects(cx)
+            .into_iter()
+            .find(|i| i.local_path.is_some())
+            .expect("the local project");
+        (item.id.clone(), home.audience_of_id(&item.id, cx).unwrap())
+    });
+    assert_eq!(
+        audience
+            .1
+            .spaces
+            .iter()
+            .map(|s| s.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["me", "team-1"]
+    );
+    // Open the project's `⋯` menu directly and confirm `Move to ▸` appears
+    // without the legacy "Who can open it" items.
+    view.update_in(cx, |s, w, cx| {
+        let viewport = w.viewport_size();
+        let target = super::project_actions::Target::Local {
+            path: folder.clone(),
+            name: "Notes".into(),
+        };
+        let actions = s.chrome.read(cx).project_actions.clone();
+        actions.update(cx, |a, cx| {
+            a.open(
+                target,
+                Bounds::new(point(px(200.), px(200.)), size(px(28.), px(28.))),
+                true,
+                viewport,
+                Some(audience.0.clone()),
+                w,
+                cx,
+            );
+            a.set_audience(Some(audience.1.clone()), cx);
+        });
+    });
+    draw(cx);
+    let only_this: &'static str = Box::leak(
+        format!(
+            "menu-item:{}",
+            crate::localization::t("shell.projectAudience.onlyThisComputer")
+        )
+        .into_boxed_str(),
+    );
+    assert!(cx.debug_bounds(only_this).is_none());
+    let move_to: &'static str = Box::leak(
+        format!(
+            "menu-item:{}",
+            crate::localization::t("home.project.moveTo")
+        )
+        .into_boxed_str(),
+    );
+    let move_bounds = cx.debug_bounds(move_to).expect("Move to submenu row");
+    // Hover / right-arrow into `Move to ▸` to reveal both Spaces.
+    cx.simulate_mouse_move(move_bounds.center(), None, Modifiers::default());
+    draw(cx);
+    draw(cx);
+    let design: &'static str = Box::leak("menu-item:Design".to_owned().into_boxed_str());
+    let design_bounds = cx
+        .debug_bounds(design)
+        .expect("Design Space inside Move to submenu");
+    cx.simulate_click(design_bounds.center(), Modifiers::default());
+    settle_cloud(&view, cx, "the publication to Design", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(folder.as_path())
+            && s.has_dialog("CloudPublish", cx)
+    });
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.cloud.read(cx).publish.read(cx).target.as_deref(),
+            Some("team-1")
+        );
+    });
 }

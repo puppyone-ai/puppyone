@@ -60,6 +60,10 @@ pub(in crate::app) struct CreateProject {
     /// where it runs instead of who can open it; one made on this computer
     /// becomes one of its computers.
     pub(in crate::app) computer: bool,
+    /// Started from a Space's own New project tile: where it goes already
+    /// follows from that Space, so the dialog asks for nothing but the name
+    /// (and, on this computer, shows the folder picked first).
+    pub(in crate::app) scoped: bool,
 }
 
 /// Who can open the new project: the Homepage's three audiences.
@@ -255,11 +259,22 @@ impl Homepage {
             cx,
             Self::submit_create_project,
         );
-        // A computer runs in the Cloud when it can, on this computer otherwise.
-        let audience = if computer && !self.creatable_teams(cx).is_empty() {
-            Audience::Team
+        // Default to the active Space tab when it accepts new projects, else
+        // this computer (or Cloud in Computer Mode when available).
+        let active_team = match &self.active_group {
+            Some(groups::GroupId::Space(id))
+                if self.creatable_teams(cx).iter().any(|(tid, _)| tid == id) =>
+            {
+                Some(id.clone())
+            }
+            _ => None,
+        };
+        let (audience, team) = if let Some(team_id) = active_team {
+            (Audience::Team, Some(team_id))
+        } else if computer && !self.creatable_teams(cx).is_empty() {
+            (Audience::Team, None)
         } else {
-            Audience::Local
+            (Audience::Local, None)
         };
         name.read(cx).focus_handle(cx).focus(window, cx);
         self.create = Some(CreateProject {
@@ -271,15 +286,49 @@ impl Homepage {
             },
             error: None,
             audience,
-            team: None,
+            team,
             cloud_operation: None,
             submitting: false,
             advanced_open: false,
             // A Cloud computer comes with its desktop and screen.
             cloud_desktop: computer,
             computer,
+            scoped: false,
         });
         self.open_dialog(DialogKey::CreateProject, cx);
+        cx.notify();
+    }
+    /// New project from a Space's dashed tile.
+    /// - In a Cloud Space: asks only for the name, created directly in that Space.
+    /// - On this computer: opens the create dialog immediately, prefilled with
+    ///   the default `Documents/PuppyOne` folder (changeable inline), without
+    ///   asking local vs Cloud, and with detected local Agents / Open folder /
+    ///   Import right inside the creation flow.
+    pub(in crate::app) fn begin_new_project_in(
+        &mut self,
+        group: groups::GroupId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.create.is_some()
+            || crate::features::flags::computer_mode_enabled(&self.preferences, cx)
+        {
+            return self.begin_create_project(window, cx);
+        }
+        self.begin_create_project(window, cx);
+        if let Some(create) = self.create.as_mut() {
+            match group {
+                groups::GroupId::Space(space) => {
+                    create.audience = Audience::Team;
+                    create.team = Some(space);
+                }
+                _ => {
+                    create.audience = Audience::Local;
+                    create.team = None;
+                }
+            }
+            create.scoped = true;
+        }
         cx.notify();
     }
     /// The destination of the entry dialog on top.
@@ -883,6 +932,159 @@ impl Homepage {
             .child(summary)
             .when(open, |d| d.child(desktop))
     }
+    /// The scoped local dialog's footer start: the other ways in, quiet text
+    /// on the same row as Cancel / Create — open a folder, import, and (only
+    /// with the Experimental switch) start with a detected Agent.
+    fn scoped_footer_links(&self, busy: bool, cx: &mut Context<Self>) -> AnyElement {
+        use gpui_kit::base::Selectable as _;
+        let t = cx.palette();
+        let link = |id: &'static str, icon: Icon, label: &'static str| {
+            Button::new(id)
+                .debug_selector(move || id.into())
+                .variant(ButtonVariant::Ghost)
+                .icon(icon.small().stroke(1.75))
+                .label(tr(label))
+                .text_size(px(theme::ty().ui.meta))
+                .px(px(6.))
+                .disabled(busy)
+        };
+        let agents = if self
+            .preferences
+            .read(cx)
+            .state
+            .experimental
+            .start_with_agent
+        {
+            self.visible_local_agents(cx)
+        } else {
+            vec![]
+        };
+        let agent_menu = (!agents.is_empty()).then(|| {
+            let open = self.menu == Some(HomeMenu::CreateAgent) && !busy;
+            let host = self.weak.clone();
+            let opened = host.clone();
+            let label = tr("home.create.startWithAgent");
+            let trigger = Button::new("create-start-with-agent")
+                .debug_selector(|| "create-start-with-agent".into())
+                .variant(ButtonVariant::Ghost)
+                .icon(Icon::new("sparkles").small().stroke(1.75))
+                .trailing(Icon::new("chevron-down").with_size(px(10.)).stroke(2.))
+                .accessibility_label(label)
+                .tooltip(label)
+                .px(px(6.))
+                .disabled(busy)
+                .selected(open);
+            PopoverMenu::new("create-start-with-agent-menu")
+                .anchor(Anchor::TopLeft)
+                .offset(px(theme::metric::MENU_PADDING))
+                .open(open)
+                .on_open_change(move |now, _, cx| {
+                    let _ = opened.update(cx, |s, cx| {
+                        let is = s.menu == Some(HomeMenu::CreateAgent);
+                        if *now != is {
+                            s.menu = now.then_some(HomeMenu::CreateAgent);
+                            cx.notify();
+                        }
+                    });
+                })
+                .trigger(trigger)
+                .menu(move |surface, _, _| {
+                    let rows: Vec<MenuItem> = agents
+                        .into_iter()
+                        .map(|agent| {
+                            let mark = super::components::HomepageAgentBrandMark::new(
+                                Some(&agent.icon_key),
+                                agent.label.clone(),
+                            )
+                            .size(16.);
+                            let host = host.clone();
+                            MenuItem::new(agent.label.clone())
+                                .icon_element(mark)
+                                .on_click(move |w, cx| {
+                                    let agent = agent.clone();
+                                    let _ = host.update(cx, |s, cx| {
+                                        s.menu = None;
+                                        s.close_create_project(w, cx);
+                                        s.begin_agent_start(agent, w, cx);
+                                    });
+                                })
+                        })
+                        .collect();
+                    surface.min_w(px(184.)).keyboard_navigation().items(rows)
+                })
+        });
+        h_flex()
+            .flex_1()
+            .min_w_0()
+            .ml(px(-6.))
+            .items_center()
+            .gap(px(2.))
+            .text_color(t.muted)
+            .child(
+                link(
+                    "create-open-folder",
+                    Icon::product(ProductIcon::Folder),
+                    "home.create.openFolder",
+                )
+                .on_click(cx.listener(|s, _, w, cx| {
+                    s.close_create_project(w, cx);
+                    s.command(Command::OpenFolder, cx);
+                })),
+            )
+            .child(
+                link("create-import", Icon::new("download"), "home.create.import").on_click(
+                    cx.listener(|s, _, w, cx| {
+                        s.close_create_project(w, cx);
+                        s.begin_import(w, cx);
+                    }),
+                ),
+            )
+            .children(agent_menu)
+            .into_any_element()
+    }
+
+    /// The scoped local dialog's place: one quiet line under the name, the
+    /// folder it goes in and Change.
+    fn scoped_location_line(&self, destination: &Destination, cx: &mut Context<Self>) -> Div {
+        let t = cx.palette();
+        let place = destination
+            .location
+            .as_deref()
+            .map(path_for_display)
+            .unwrap_or_else(|| tr("onboarding.entry.create.locationPlaceholder").into());
+        h_flex()
+            .debug_selector(|| "create-project-location-line".into())
+            .w_full()
+            .min_w_0()
+            .items_center()
+            .gap(px(6.))
+            .pl(px(2.))
+            .text_size(px(theme::ty().ui.meta))
+            .line_height(px(18.))
+            .text_color(t.subtle)
+            .child(
+                Icon::product(ProductIcon::Folder)
+                    .with_size(px(13.))
+                    .stroke(1.75)
+                    .color(t.subtle),
+            )
+            .child(div().flex_1().min_w_0().truncate().child(place))
+            .child(
+                Button::new("create-project-location")
+                    .debug_selector(|| "create-project-location".into())
+                    .variant(ButtonVariant::Ghost)
+                    .label(tr(if destination.choosing {
+                        "onboarding.entry.create.browsing"
+                    } else {
+                        "onboarding.entry.create.change"
+                    }))
+                    .text_size(px(theme::ty().ui.meta))
+                    .px(px(6.))
+                    .disabled(destination.choosing)
+                    .on_click(cx.listener(|s, _, w, cx| s.choose_project_location(w, cx))),
+            )
+    }
+
     pub(in crate::app) fn create_project_dialog(
         &self,
         create: &CreateProject,
@@ -895,7 +1097,7 @@ impl Homepage {
         let ty = theme::ty();
         let host = self.weak.clone();
         let destination = &create.destination;
-        let several = self.create_audiences(cx).len() > 1;
+        let several = !create.scoped && self.create_audiences(cx).len() > 1;
         let in_cloud = create.audience == Audience::Team;
         let busy = destination.choosing || create.submitting;
         let can_create = !busy
@@ -904,10 +1106,12 @@ impl Homepage {
             } else {
                 destination.location.is_some()
             };
+        // A Space's own tile already says where: a Cloud project needs no
+        // place row, a local one defaults to `Documents/PuppyOne`.
         let location = if in_cloud {
-            self.cloud_location(cx)
+            (!create.scoped).then(|| self.cloud_location(cx))
         } else {
-            self.location_field(
+            Some(self.location_field(
                 destination,
                 create.submitting,
                 if several {
@@ -916,29 +1120,50 @@ impl Homepage {
                     "onboarding.entry.create.locationLabel"
                 },
                 cx,
-            )
+            ))
         };
-        Dialog::new("create-project")
-            .width(400.)
+        let scoped_local = create.scoped && !in_cloud;
+        // From a Space's own tile: just the name (and on this computer one
+        // quiet line for where it goes); the other ways in sit on the
+        // footer row beside Cancel / Create.
+        let fields = if create.scoped {
+            v_flex()
+                .gap(px(10.))
+                .child(
+                    self.field_box(create.submitting, cx).px(px(8.)).child(
+                        div()
+                            .w_full()
+                            .text_color(t.text)
+                            .child(destination.name.clone()),
+                    ),
+                )
+                .when(scoped_local, |d| {
+                    d.child(self.scoped_location_line(destination, cx))
+                })
+                .when(in_cloud && self.cloud_computer_offered(cx), |d| {
+                    d.child(self.create_advanced(create, cx))
+                })
+        } else {
+            v_flex()
+                .gap(px(18.))
+                .child(self.name_field(destination, create.submitting, cx))
+                .when(several, |d| d.child(self.audience_choices(create, cx)))
+                .children(location)
+                .when(in_cloud && self.cloud_computer_offered(cx), |d| {
+                    d.child(self.create_advanced(create, cx))
+                })
+        };
+        let mut dialog = Dialog::new("create-project")
+            .width(if scoped_local { 460. } else { 400. })
             .inset(24.)
-            .body_padding(10., 22.)
-            .leading(Icon::new("folder-plus").stroke(1.8), t.accent)
+            .body_padding(10., if create.scoped { 16. } else { 22. })
             .title(tr("onboarding.entry.create.title"))
             .on_close(move |w, cx| {
                 let _ = host.update(cx, |s, cx| s.close_create_project(w, cx));
             })
             .child(
                 v_flex()
-                    .child(
-                        v_flex()
-                            .gap(px(18.))
-                            .child(self.name_field(destination, create.submitting, cx))
-                            .when(several, |d| d.child(self.audience_choices(create, cx)))
-                            .child(location)
-                            .when(in_cloud && self.cloud_computer_offered(cx), |d| {
-                                d.child(self.create_advanced(create, cx))
-                            }),
-                    )
+                    .child(fields)
                     .children(create.error.clone().map(|error| {
                         div()
                             .mt(px(8.))
@@ -947,9 +1172,17 @@ impl Homepage {
                             .text_color(t.danger)
                             .child(error)
                     })),
-            )
+            );
+        if !create.scoped {
+            dialog = dialog.leading(Icon::new("folder-plus").stroke(1.8), t.accent);
+        }
+        if scoped_local {
+            dialog = dialog.footer(self.scoped_footer_links(busy, cx));
+        }
+        dialog
             .footer(
                 Button::new("create-project-cancel")
+                    .debug_selector(|| "create-project-cancel".into())
                     .variant(ButtonVariant::Secondary)
                     .label(tr("common.action.cancel"))
                     .disabled(busy)
@@ -960,6 +1193,8 @@ impl Homepage {
                     .variant(ButtonVariant::Solid)
                     .label(tr(if create.submitting {
                         "onboarding.entry.create.submitting"
+                    } else if create.scoped {
+                        "home.create.submit"
                     } else {
                         "onboarding.entry.create.submit"
                     }))

@@ -64,6 +64,7 @@ pub fn render_frame(
     leading: Vec<AnyElement>,
     tabs: Option<AnyElement>,
     actions: Vec<AnyElement>,
+    transparent: bool,
     window: &mut Window,
     cx: &mut App,
 ) -> Div {
@@ -84,12 +85,14 @@ pub fn render_frame(
         .size_full()
         .flex()
         .items_center()
-        .bg(t.header)
         .map(|mut d| {
             d.style().border_widths.bottom = Some(px(metric::SHELL_DIVIDER_WIDTH).into());
             d
         })
-        .border_color(t.shell_divider)
+        .when(!transparent, |d| {
+            d.bg(t.header).border_color(t.shell_divider)
+        })
+        .when(transparent, |d| d.border_color(transparent_black()))
         .child(
             h_flex()
                 .h_full()

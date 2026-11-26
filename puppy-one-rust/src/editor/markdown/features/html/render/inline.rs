@@ -33,7 +33,7 @@ impl Surface<'_, '_, '_> {
                 Rgba { a: 0., ..t.control },
                 0.26,
             ));
-        meta.apply(chip.style());
+        meta.apply_for(chip.style(), self.render.language());
         // Named by its subject (an image's alt), without the failure reason.
         let shown = label.split(" · ").next().unwrap_or(label).to_owned();
         div()
@@ -212,10 +212,13 @@ impl Surface<'_, '_, '_> {
                     }
                     let start = text.len();
                     text.push_str(&s);
-                    let font = RenderCx::font(&crate::editor::view::style::TextStyle {
-                        mono: style.mono || style.text.mono,
-                        ..style.text.clone()
-                    });
+                    let font = RenderCx::font_for(
+                        &crate::editor::view::style::TextStyle {
+                            mono: style.mono || style.text.mono,
+                            ..style.text.clone()
+                        },
+                        self.render.language(),
+                    );
                     runs.push(TextRun {
                         len: s.len(),
                         font,
@@ -247,7 +250,7 @@ impl Surface<'_, '_, '_> {
                     text.push('\n');
                     runs.push(TextRun {
                         len: 1,
-                        font: RenderCx::font(&base),
+                        font: RenderCx::font_for(&base, self.render.language()),
                         color: base.color.into(),
                         background_color: None,
                         underline: None,
@@ -284,7 +287,7 @@ impl Surface<'_, '_, '_> {
             flush(self, &mut text, &mut runs, &mut links, &mut segments);
         }
         let mut d = div().w_full();
-        base.apply(d.style());
+        base.apply_for(d.style(), self.render.language());
         d.style().text.text_align = Some(inherit.align);
         if has_atoms {
             d = d

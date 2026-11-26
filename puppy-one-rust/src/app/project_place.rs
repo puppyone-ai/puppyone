@@ -455,7 +455,8 @@ impl WindowCloud {
                 .flex_shrink(1.)
                 .max_w(px(max_width))
                 .text_size(px(ty.content))
-                .line_height(px(ty.line_height));
+                .line_height(px(ty.line_height))
+                .label_offset_y(px(super::chrome::HEADER_TEXT_OPTICAL_Y));
         }
         if menu.link.is_some() {
             let color = if link_has_problem(menu.link.as_ref()) {

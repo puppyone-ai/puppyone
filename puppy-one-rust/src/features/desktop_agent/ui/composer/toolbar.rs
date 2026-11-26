@@ -1,5 +1,5 @@
-//! `AgentComposerToolbar`: the session pickers, the attachment menu and
-//! the send/stop action.
+//! `AgentComposerToolbar`: the capsule's inline attach & circular send/stop
+//! buttons, plus the quiet model / effort / mode chips underneath.
 use super::super::agent_theme::AgentTheme;
 use super::{ComposerEvent, ComposerInput, ComposerView};
 use crate::features::desktop_agent::domain::agent_session_controls::AgentSessionControlId;
@@ -10,48 +10,31 @@ use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex};
 use gpui_kit::component::Sizable as _;
 
+/// Capsule inline button height (matches single-line prompt `21px + 2 * 4.5px`).
+pub(super) const CAPSULE_ACTION: f32 = 30.;
+
 impl ComposerView {
-    pub(super) fn render_toolbar(
-        &mut self,
+    /// Leading `+` attachment menu inside the capsule.
+    pub(super) fn render_attach(
+        &self,
         view: &ComposerInput,
         a: &AgentTheme,
-        window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Div {
-        let runtime_label = view.runtime_label.clone();
-        let running = view.running;
-        let stopping = view.stopping;
-        let submitting = view.submitting;
-        let submittable = view.submittable;
-        let viewport = f32::from(window.viewport_size().width);
-        let mut controls = h_flex().min_w_0().flex_1().gap(px(2.)).overflow_hidden();
-        for control in &view.session_controls {
-            let width = match control.id {
-                AgentSessionControlId::Model => 148f32.min(viewport * 0.34),
-                AgentSessionControlId::Effort => 72f32.min(viewport * 0.2),
-                AgentSessionControlId::Mode => 88f32.min(viewport * 0.22),
-            };
-            let disabled = view.configuration_disabled;
-            let picker = self
-                .pickers
-                .update(cx, |p, cx| p.picker(control, width, disabled, cx));
-            controls = controls.child(div().min_w_0().flex_shrink(1.).child(picker));
-        }
+    ) -> AnyElement {
         let accepts_files = view.accepts_files;
         let host = cx.weak_entity();
         let workspace_host = cx.weak_entity();
-        let attach = PopoverMenu::new("agent-panel-attach-menu")
+        PopoverMenu::new("agent-panel-attach-menu")
             .anchor(Anchor::BottomLeft)
             .trigger(
                 IconButton::new(
                     "agent-panel-attach",
-                    Icon::new("paperclip")
-                        .with_size(px(15.))
-                        .stroke(1.6)
-                        .rotate(-std::f32::consts::FRAC_PI_4),
+                    Icon::new("plus").with_size(px(16.)).stroke(1.75),
                 )
                 .label(t("agent.reference.add"))
-                .with_size(px(theme::control_compact()))
+                .with_size(px(CAPSULE_ACTION))
+                .size(px(CAPSULE_ACTION))
+                .rounded_full()
                 .color(a.text_subtle)
                 .disabled(!accepts_files || view.composer_disabled),
             )
@@ -73,7 +56,23 @@ impl ComposerView {
                                 .update(cx, |_, cx| cx.emit(ComposerEvent::PickWorkspace));
                         }),
                 )
-            });
+            })
+            .into_any_element()
+    }
+
+    /// Trailing circular send/stop action inside the capsule: ghost circle when
+    /// empty/disabled, high-contrast solid circle when ready or running.
+    pub(super) fn render_primary_action(
+        &self,
+        view: &ComposerInput,
+        a: &AgentTheme,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let runtime_label = view.runtime_label.clone();
+        let running = view.running;
+        let stopping = view.stopping;
+        let submitting = view.submitting;
+        let submittable = view.submittable;
         let action_label = if running {
             tf(
                 if stopping {
@@ -95,7 +94,7 @@ impl ComposerView {
         };
         let glyph: AnyElement = if busy {
             Icon::new("loader-circle")
-                .with_size(px(15.))
+                .with_size(px(14.))
                 .color(glyph_color)
                 .into_any_element()
         } else if running {
@@ -106,22 +105,22 @@ impl ComposerView {
                 .into_any_element()
         } else {
             Icon::new("arrow-up")
-                .with_size(px(15.))
-                .stroke(2.1)
+                .with_size(px(14.))
+                .stroke(2.)
                 .color(glyph_color)
                 .into_any_element()
         };
-        let primary = gpui_kit::base::Button::new("agent-panel-primary")
+        gpui_kit::base::Button::new("agent-panel-primary")
             .debug_selector(|| "agent-composer-action".into())
             .accessibility_label(action_label.clone())
             .disabled(disabled)
-            .size(px(theme::control_compact()))
-            .ml(px(4.))
+            .flex_none()
+            .size(px(CAPSULE_ACTION))
             .opacity(if stopping { 0.52 } else { 1. })
             .child(
                 div()
-                    .size(px(theme::control_compact()))
-                    .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+                    .size(px(CAPSULE_ACTION))
+                    .rounded_full()
                     .bg(surface)
                     .flex()
                     .items_center()
@@ -130,7 +129,7 @@ impl ComposerView {
             )
             .when(!disabled, |b| {
                 b.cursor(theme::clickable_cursor())
-                    .hover(|s| s.opacity(0.84))
+                    .hover(|s| s.opacity(0.86))
             })
             .tooltip(tooltip(action_label))
             .on_click(cx.listener(move |_, _, _, cx| {
@@ -139,19 +138,41 @@ impl ComposerView {
                 } else {
                     ComposerEvent::Submit
                 });
-            }));
-        h_flex()
-            .min_h(px(theme::control_compact() + 6.))
-            .pb(px(6.))
-            .px(px(6.))
-            .gap(px(8.))
-            .child(controls)
-            .child(
-                h_flex()
-                    .gap(px(2.))
-                    .flex_shrink_0()
-                    .child(attach)
-                    .child(primary),
-            )
+            }))
+            .into_any_element()
+    }
+
+    /// Quiet model / effort / mode chips sitting below the capsule, left-aligned
+    /// to the sidebar's 16pt grid (`dock` 8 + `pl` 2 + chip `px` 6 = 16).
+    pub(super) fn render_controls_row(
+        &mut self,
+        view: &ComposerInput,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if view.session_controls.is_empty() {
+            return None;
+        }
+        let viewport = f32::from(window.viewport_size().width);
+        let mut controls = h_flex()
+            .w_full()
+            .min_w_0()
+            .mt(px(5.))
+            .pl(px(2.))
+            .gap(px(4.))
+            .overflow_hidden();
+        for control in &view.session_controls {
+            let width = match control.id {
+                AgentSessionControlId::Model => 160f32.min(viewport * 0.42),
+                AgentSessionControlId::Effort => 84f32.min(viewport * 0.24),
+                AgentSessionControlId::Mode => 96f32.min(viewport * 0.26),
+            };
+            let disabled = view.configuration_disabled;
+            let picker = self
+                .pickers
+                .update(cx, |p, cx| p.picker(control, width, disabled, cx));
+            controls = controls.child(div().min_w_0().flex_shrink(1.).child(picker));
+        }
+        Some(controls.into_any_element())
     }
 }

@@ -228,6 +228,16 @@ impl Conventions {
     pub fn format_primary_shortcut(&self, key: &str) -> String {
         format!("{}{key}", self.primary_modifier_symbol)
     }
+
+    /// Optical vertical lift (px) for single-line Header text: on macOS GPUI
+    /// centers line boxes with `(ascent + descent) / 2`, which leaves SF Pro
+    /// glyphs ~1.5px below traffic lights and place icons.
+    pub const fn header_text_optical_y(self) -> f32 {
+        match self.os {
+            Os::Macos => -1.5,
+            Os::Windows | Os::Linux | Os::Other => 0.,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -276,5 +286,9 @@ mod tests {
         assert_eq!(mac.reveal_label_key, "workspace.node.revealInFinder");
         assert_eq!(win.reveal_label_key, "native.desktop.showInExplorer");
         assert_eq!(linux.reveal_label_key, "native.desktop.showInFiles");
+
+        assert_eq!(mac.header_text_optical_y(), -1.5);
+        assert_eq!(win.header_text_optical_y(), 0.);
+        assert_eq!(linux.header_text_optical_y(), 0.);
     }
 }

@@ -39,6 +39,13 @@ use gpui::{prelude::*, *};
 pub(super) use project_menu::PROJECT_MIN_WIDTH;
 use std::path::PathBuf;
 
+/// Optical vertical lift for single-line Header text on macOS: GPUI centers a
+/// line box using `(ascent + descent) / 2`, which leaves `.SystemUIFont`
+/// (SF Pro) glyphs sitting ~1.5px below the geometric centerline of the
+/// traffic lights, place icons (`💻` / `☁` / `SpaceMark`), and vertical divider.
+pub(in crate::app) const HEADER_TEXT_OPTICAL_Y: f32 =
+    crate::platform::conventions::Conventions::current().header_text_optical_y();
+
 /// Header popovers the chrome holds: one at a time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Popover {
@@ -383,24 +390,30 @@ impl WindowChrome {
         let o = &self.owners;
         let session = &self.session;
         if session.home {
-            let mut bar = header::TitleBar::new();
-            let home = o.home.read(cx);
-            let empty = home.project_items(cx).is_empty();
-            // `hasProjects || navigation.account`.
-            if home.has_projects(cx) || navigation::account_rows(cx) {
-                bar = bar.leading(self.brand(cx));
-            }
-            if crate::features::flags::cloud_enabled(&o.preferences, cx) {
-                let retry = self.weak.clone();
-                bar = bar.action(header::cloud_status(
-                    &o.cloud.read(cx).catalog,
-                    session.cloud_opening,
-                    empty,
-                    move |_, cx| {
-                        let _ = retry.update(cx, |_, cx| cx.emit(ChromeEvent::RefreshCatalog));
-                    },
-                    cx,
-                ));
+            let hidden = o.preferences.read(cx).state.experimental.hidden_header;
+            // Hiding the Header drops the bar and brand while keeping the
+            // page in place and the trailing account circle (or Sign in) so
+            // Account and Settings stay reachable.
+            let mut bar = header::TitleBar::new().transparent(hidden);
+            if !hidden {
+                let home = o.home.read(cx);
+                let empty = home.project_items(cx).is_empty();
+                // `hasProjects || navigation.account`.
+                if home.has_projects(cx) || navigation::account_rows(cx) {
+                    bar = bar.leading(self.brand(cx));
+                }
+                if crate::features::flags::cloud_enabled(&o.preferences, cx) {
+                    let retry = self.weak.clone();
+                    bar = bar.action(header::cloud_status(
+                        &o.cloud.read(cx).catalog,
+                        session.cloud_opening,
+                        empty,
+                        move |_, cx| {
+                            let _ = retry.update(cx, |_, cx| cx.emit(ChromeEvent::RefreshCatalog));
+                        },
+                        cx,
+                    ));
+                }
             }
             if let Some(email) = account::email(cx) {
                 return bar.action(self.account(&email, cx));
@@ -443,6 +456,7 @@ impl WindowChrome {
                         .pr(px(8.))
                         .text_size(px(ty.content))
                         .line_height(px(ty.line_height))
+                        .label_offset_y(px(HEADER_TEXT_OPTICAL_Y))
                         .on_click(self.listener(|_, _, _, cx| {
                             cx.emit(ChromeEvent::Navigate(navigation::Navigate::SignIn))
                         })),

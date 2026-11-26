@@ -429,6 +429,40 @@ impl AgentChats {
         Ok(cx.new(|cx| HistoryBrowser::new(source, discovery, window, cx)))
     }
 
+    /// Cached recent sessions for `root` (never starts discovery on its own).
+    pub fn cached_recent_sessions(
+        &self,
+        root: &Path,
+        excluded: &[String],
+        limit: usize,
+    ) -> Vec<crate::agent::contract::dto::SessionMetadata> {
+        let Some(project) = self.projects.get(root) else {
+            return Vec::new();
+        };
+        project
+            .history
+            .snapshot()
+            .sessions
+            .into_iter()
+            .filter(|s| !excluded.contains(&s.id))
+            .take(limit)
+            .collect()
+    }
+
+    /// Activates and watches `root`'s conversation history when the user has
+    /// already granted `chatHistoryDiscoveryEnabled`.
+    pub fn watch_recent_history(
+        &mut self,
+        root: &Path,
+        wake: crate::wake::Wake,
+        cx: &mut App,
+    ) -> Option<Box<dyn FnOnce()>> {
+        let history = self.project_agents(root, cx).ok()?.history.clone();
+        let unwatch = history.watch(wake);
+        history.activate();
+        Some(unwatch)
+    }
+
     /// Dev captures: every chat of `root` is prepared, or failed.
     #[cfg(feature = "dev-capture")]
     pub fn capture_settled(&self, root: &Path, cx: &App) -> bool {

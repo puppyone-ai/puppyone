@@ -88,9 +88,10 @@ impl ComposerView {
             .min_w_0()
             .flex_wrap()
             .items_start()
-            .gap(px(14.))
-            .pt(px(12.))
-            .px(px(12.));
+            .gap(px(12.))
+            .pt(px(10.))
+            .pb(px(2.))
+            .px(px(13.));
         for reference in media {
             let id = reference.id.clone();
             let name = reference.display_name.clone();

@@ -14,8 +14,12 @@ mod workbench;
 pub use application::ui_runtime::UiRuntime;
 pub use domain::agent_workspace_path::resolve_agent_workspace_provider_path;
 
-pub use domain::agent_chat_history_target::AuxiliaryWorkbenchHistoryTarget as HistoryTarget;
-pub use ui::agent_conversation_history::{HistoryBrowser, HistoryBrowserEvent};
+pub use domain::agent_chat_history_target::{
+    AuxiliaryWorkbenchHistoryTarget as HistoryTarget, create_agent_chat_history_target,
+};
+pub use ui::agent_conversation_history::{
+    HistoryBrowser, HistoryBrowserEvent, format_history_date,
+};
 pub use ui::panel::{AgentChatTabPanel, bind_keys};
 #[cfg(feature = "dev-capture")]
 pub use workbench::{AgentChatItem, lab_history_browser};

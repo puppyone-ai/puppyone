@@ -240,7 +240,10 @@ impl Shell {
                 self.panes.update(cx, |p, cx| p.toggle_explorer(cx));
             }
             Command::ToggleRightSidebar => {
-                self.sidebar.update(cx, |s, cx| s.toggle_agent(cx));
+                self.sidebar.update(cx, |s, cx| {
+                    s.toggle_agent(cx);
+                    s.focus_active(window, cx);
+                });
             }
             Command::Settings => self.show_settings(None, None, false, window, cx),
             Command::Feedback => {

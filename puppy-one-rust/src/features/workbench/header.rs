@@ -253,14 +253,14 @@ impl Workbench {
                 .line_height(px(m.header.line_height))
                 .text_color(fg)
                 .cursor(theme::navigation_cursor())
-                .when(active, |d| d.bg(t.selected))
+                .when(active, |d| d.bg(t.hover))
                 .when(!active, |d| {
                     d.group_hover(group_name.clone(), |s| s.bg(t.hover).text_color(t.text))
                 })
                 .when(compact, |d| {
                     d.tooltip(crate::ui::components::tooltip(accessible.clone()))
                 })
-                .child(
+                .child(if compact {
                     div()
                         .w(px(metrics::COMPACT))
                         .h_full()
@@ -268,8 +268,20 @@ impl Workbench {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .child(status),
-                )
+                        .child(status)
+                } else {
+                    // Aligns the first tab's 14px mark onto the sidebar's 16pt
+                    // left grid (`HEADER_PADDING_INLINE` 6 + 10 = 16).
+                    div()
+                        .h_full()
+                        .pl(px(10.))
+                        .pr(px(7.))
+                        .flex_shrink_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(status)
+                })
                 .when(!compact, |d| {
                     d.child(
                         div()
@@ -391,7 +403,10 @@ impl Workbench {
             )
             .left(px(create_start))
             .debug_selector(move || format!("workbench-new-tab-{group}"))
-            .on_click(cx.listener(move |s, _, _, cx| s.add(group, cx))),
+            .on_click(cx.listener(move |s, _, w, cx| {
+                s.add(group, cx);
+                s.focus_active(w, cx);
+            })),
         );
         if g.tabs.is_empty() && self.project().unwrap().layout.groups.len() > 1 {
             rail = rail.child(

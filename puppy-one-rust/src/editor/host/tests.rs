@@ -1786,3 +1786,74 @@ fn a_pane_announces_loading_and_shows_a_read_failure(cx: &mut TestAppContext) {
             .any(|m| matches!(m, ClientMessage::RetryRead))
     );
 }
+
+/// Opening a Markdown document in `DocumentEditor` resolves the pane bounds on
+/// Frame 1 without triggering a redundant `cx.notify()` repaint while the menu
+/// is closed, and shapes Frame 1 directly in the document's own language.
+#[gpui::test]
+fn opening_markdown_in_host_avoids_frame_one_renotify_and_uses_content_language(
+    cx: &mut TestAppContext,
+) {
+    use crate::ui::fonts::test_support::take_asked;
+    use std::cell::Cell;
+
+    let prev_locale = crate::localization::current().code.to_owned();
+    cx.update(|cx| {
+        if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+            gpui_kit::init(cx);
+        }
+        crate::editor::view::bind_keys(cx);
+        crate::editor::csv::bind_keys(cx);
+        super::bind_keys(cx);
+        crate::ui::form_input::bind_keys(cx);
+        crate::localization::set_current("en");
+        crate::ui::fonts::install(cx);
+    });
+
+    let (view, cx) = cx.add_window_view(|_, cx| DocumentEditor::new(cx));
+    let open = HostMessage::Open {
+        id: "md-first-frame".into(),
+        name: "notes.md".into(),
+        text: "# 架构笔记\n\n- 用户访谈集齐十个\n- 修复首帧跳动问题\n".into(),
+        revision: 0,
+        external: false,
+    };
+    view.update_in(cx, |v, w, cx| {
+        v.receive(&open, w, cx);
+    });
+
+    let notifies = Rc::new(Cell::new(0usize));
+    let counter = notifies.clone();
+    cx.update(|_, cx| {
+        cx.observe(&view, move |_, _| {
+            counter.set(counter.get() + 1);
+        })
+        .detach();
+    });
+
+    take_asked();
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+    cx.run_until_parked();
+
+    assert!(
+        view.read_with(cx, |v, _| v.bounds.get().is_some()),
+        "pane bounds must be recorded during Frame 1"
+    );
+    assert_eq!(
+        notifies.get(),
+        0,
+        "measuring pane bounds on Frame 1 must not trigger a redundant DocumentEditor notify"
+    );
+    assert_eq!(
+        take_asked(),
+        [Some("zh-Hans".into())],
+        "Frame 1 through DocumentEditor must ask solely for zh-Hans"
+    );
+
+    cx.update(|_, cx| {
+        crate::localization::set_current(&prev_locale);
+        crate::ui::fonts::install(cx);
+    });
+}

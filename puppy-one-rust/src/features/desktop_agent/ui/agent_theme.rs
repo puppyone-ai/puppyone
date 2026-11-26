@@ -2,7 +2,7 @@
 //! roles derived from the product theme. Chat lives in the right sidebar, so
 //! `--agent-canvas` is `--po-surface-auxiliary`.
 use crate::theme::{Theme, alpha, mix};
-use gpui::Rgba;
+use gpui::{BoxShadow, Rgba, point, px};
 
 #[derive(Clone, Copy)]
 pub struct AgentTheme {
@@ -17,8 +17,12 @@ pub struct AgentTheme {
     pub border_subtle: Rgba,
     pub control_surface: Rgba,
     pub composer_surface: Rgba,
+    pub composer_border: Rgba,
+    pub composer_border_focus: Rgba,
+    pub composer_focus_halo: Rgba,
+    pub composer_highlight: Rgba,
+    pub composer_placeholder: Rgba,
     pub user_message_surface: Rgba,
-    pub user_message_border: Rgba,
     pub row_hover: Rgba,
     pub tool_action: Rgba,
     pub tool_active: Rgba,
@@ -69,14 +73,27 @@ impl AgentTheme {
             border_subtle,
             control_surface,
             code_header_surface: crate::theme::alpha(control_surface, 0.3),
-            composer_surface: t.active,
-            user_message_surface: t.hover,
-            user_message_border: alpha(border_subtle, 0.62),
+            // Composer floats distinctly above the sidebar surface with crisp
+            // edges and focus halo; sent prompts stay quiet and borderless.
+            composer_surface: if t.dark {
+                mix(t.panel_raised, text, 0.05)
+            } else {
+                t.panel_raised
+            },
+            composer_border: alpha(text, if t.dark { 0.13 } else { 0.17 }),
+            composer_border_focus: alpha(text, if t.dark { 0.28 } else { 0.34 }),
+            composer_focus_halo: alpha(text, if t.dark { 0.055 } else { 0.06 }),
+            composer_highlight: crate::theme::composer_highlight(t.dark),
+            composer_placeholder: mix(text_muted, t.subtle, 0.52),
+            user_message_surface: alpha(text, if t.dark { 0.04 } else { 0.045 }),
             row_hover: alpha(t.hover, 0.86),
-            tool_action: text_muted,
-            tool_active: mix(text, text_muted, 0.78),
+            // Tool steps are quiet process logs beneath the conversation:
+            // quiet icon, softly muted verb, and an even lighter subtle
+            // command/subject on the right (all sharpening on hover).
+            tool_action: mix(text_muted, t.subtle, 0.45),
+            tool_active: mix(text, text_muted, 0.65),
             tool_glyph: t.subtle,
-            tool_subject: mix(text, text_muted, 0.86),
+            tool_subject: t.subtle,
             evidence_rail: t.border_strong,
             inline_code_surface: mix(text, canvas, 0.08),
             inline_code_border: mix(text, canvas, 0.14),
@@ -92,13 +109,40 @@ impl AgentTheme {
             blocking_icon_surface: alpha(t.warning, 0.1),
             blocking_icon: mix(t.warning, text_muted, 0.62),
             accent: t.accent,
-            action_disabled_text: alpha(text, 0.48),
-            action_disabled_surface: alpha(text, 0.14),
+            action_disabled_text: t.text_disabled,
+            action_disabled_surface: alpha(text, if t.dark { 0.04 } else { 0.045 }),
             primary_hover: mix(text, canvas, 0.88),
             loader: t.muted,
             launcher_placeholder_surface: alpha(control_surface, 0.64),
             launcher_placeholder_text: alpha(t.subtle, 0.82),
             launcher_focus_border: mix(t.focus_ring, border_subtle, 0.58),
         }
+    }
+
+    /// Elevated shadow stack shared by the chat capsule and the L1 launcher
+    /// hero composer: 1px top inset sheen in dark mode, a soft 3px outer focus
+    /// halo when focused, and calm elevation beneath.
+    pub fn composer_shadows(&self, dark: bool, focused: bool) -> Vec<BoxShadow> {
+        let mut shadows = Vec::with_capacity(4);
+        if dark {
+            shadows.push(BoxShadow {
+                color: self.composer_highlight.into(),
+                offset: point(px(0.), px(1.)),
+                blur_radius: px(0.),
+                spread_radius: px(0.),
+                inset: true,
+            });
+        }
+        if focused {
+            shadows.push(BoxShadow {
+                color: self.composer_focus_halo.into(),
+                offset: point(px(0.), px(0.)),
+                blur_radius: px(0.),
+                spread_radius: px(3.),
+                inset: false,
+            });
+        }
+        shadows.extend(crate::theme::composer_elevation(dark));
+        shadows
     }
 }

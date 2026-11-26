@@ -120,6 +120,9 @@ impl WindowChrome {
                         .debug_selector(|| "header-document-name".into())
                         .min_w_0()
                         .truncate()
+                        .when(super::HEADER_TEXT_OPTICAL_Y != 0., |d| {
+                            d.relative().top(px(super::HEADER_TEXT_OPTICAL_Y))
+                        })
                         .child(name),
                 )
                 .into_any_element(),

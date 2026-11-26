@@ -3,7 +3,7 @@
 use super::super::agent_markdown_policy::initial_window;
 use super::super::agent_theme::AgentTheme;
 use super::super::elements::{mention_chip, run_feedback};
-use super::view::{CONTENT_MAX, INSET, PAD_BOTTOM, PAD_TOP, TranscriptView};
+use super::view::{CONTENT_INSET, CONTENT_MAX, INSET, PAD_BOTTOM, PAD_TOP, TranscriptView};
 use crate::agent::contract::dto::Part;
 use crate::features::desktop_agent::domain::agent_activity_presentation::format_agent_duration;
 use crate::features::desktop_agent::domain::agent_prompt_mentions::{
@@ -30,7 +30,7 @@ impl TranscriptView {
         let palette = cx.palette();
         let a = AgentTheme::new(&palette);
         let last = index + 1 == self.row_signatures.len();
-        let content_width = (self.width - 2. * INSET).clamp(0., CONTENT_MAX);
+        let content_width = (self.width - 2. * INSET).clamp(0., CONTENT_MAX + 2. * CONTENT_INSET);
         let row_id = self
             .rows
             .get(index)
@@ -64,6 +64,7 @@ impl TranscriptView {
         div()
             .debug_selector(move || format!("agent-row:{row_id}"))
             .w_full()
+            .min_w_0()
             .pl(px(INSET))
             .pr(px(INSET))
             .when(index == 0, |d| d.pt(px(PAD_TOP)))
@@ -72,7 +73,8 @@ impl TranscriptView {
             .child(
                 div()
                     .w_full()
-                    .max_w(px(CONTENT_MAX))
+                    .min_w_0()
+                    .max_w(px(CONTENT_MAX + 2. * CONTENT_INSET))
                     .mx_auto()
                     .when_some(entrance, |d, opacity| {
                         d.opacity(opacity).debug_selector(move || entering)
@@ -178,7 +180,7 @@ impl TranscriptView {
             t("agent.part.update").into()
         };
         div()
-            .px(px(12.))
+            .px(px(CONTENT_INSET))
             .text_size(px(theme::ty().left.meta))
             .text_color(a.text_subtle)
             .child(label)
@@ -209,32 +211,62 @@ impl TranscriptView {
                 })
                 .to_string()
             });
-        let mut body = h_flex().flex_wrap().items_baseline().gap_y(px(2.));
-        for segment in split_agent_prompt_mentions(&text, &mentions) {
-            body = match segment {
-                PromptPart::Text(text) => body.child(div().whitespace_normal().child(text)),
-                PromptPart::Mention { text, .. } => body.child(mention_chip(a, text, false)),
-            };
-        }
+        let segments = split_agent_prompt_mentions(&text, &mentions);
+        let has_mentions = segments
+            .iter()
+            .any(|segment| matches!(segment, PromptPart::Mention { .. }));
+        let body: AnyElement = if !has_mentions {
+            // Plain text lives in a single bounded block so GPUI's line wrapper
+            // wraps long paths, spaces, CJK, and explicit newlines inside the
+            // bubble width instead of taking an unconstrained flex-row width.
+            div()
+                .w_full()
+                .min_w_0()
+                .whitespace_normal()
+                .child(text.clone())
+                .into_any_element()
+        } else {
+            let mut row = h_flex()
+                .w_full()
+                .min_w_0()
+                .flex_wrap()
+                .items_baseline()
+                .gap_y(px(2.));
+            for segment in segments {
+                row = match segment {
+                    PromptPart::Text(text) => {
+                        row.child(div().min_w_0().max_w_full().whitespace_normal().child(text))
+                    }
+                    PromptPart::Mention { text, .. } => row.child(mention_chip(a, text, false)),
+                };
+            }
+            row.into_any_element()
+        };
         let selector = format!("agent-user-message:{}", part.id);
         v_flex()
             .debug_selector(move || selector)
             .w_full()
-            .px(px(12.))
+            .min_w_0()
+            .overflow_hidden()
+            .px(px(CONTENT_INSET))
             .py(px(8.))
-            .rounded(px(8.))
-            .border_1()
-            .border_color(a.user_message_border)
+            .rounded(px(10.))
             .bg(a.user_message_surface)
             .when(!media.is_empty(), |d| {
                 d.child(
                     h_flex()
+                        .w_full()
+                        .min_w_0()
+                        .flex_wrap()
                         .gap(px(6.))
                         .mb(px(6.))
                         .children(media.iter().map(|reference| {
                             let selector = format!("agent-media:{}", reference.display_name);
                             div()
                                 .debug_selector(move || selector)
+                                .min_w_0()
+                                .max_w_full()
+                                .truncate()
                                 .px(px(6.))
                                 .py(px(2.))
                                 .rounded(px(4.))
@@ -249,6 +281,8 @@ impl TranscriptView {
             .when(!text.is_empty(), |d| {
                 d.child(
                     div()
+                        .w_full()
+                        .min_w_0()
                         .text_size(px(m.left.content))
                         .line_height(px(m.left.content * 1.6))
                         .text_color(a.text)
@@ -319,14 +353,14 @@ impl TranscriptView {
             .pt(px(2.))
             .child(
                 div()
-                    .px(px(12.))
+                    .px(px(CONTENT_INSET))
                     .when(!body.is_empty(), |d| {
                         d.child(super::super::agent_markdown::render(
                             &body,
                             palette,
                             &id,
                             order,
-                            content_width - 24.,
+                            content_width - 2. * CONTENT_INSET,
                             window,
                             cx,
                         ))
@@ -334,6 +368,8 @@ impl TranscriptView {
                     .when(!tail.is_empty(), |d| {
                         d.child(
                             div()
+                                .w_full()
+                                .min_w_0()
                                 .text_size(px(m.left.content))
                                 .line_height(px(m.left.content * 1.6))
                                 .whitespace_normal()
@@ -346,7 +382,7 @@ impl TranscriptView {
                 let selector = format!("agent-reply-state:{label}");
                 div()
                     .debug_selector(move || selector)
-                    .px(px(12.))
+                    .px(px(CONTENT_INSET))
                     .mt(px(4.))
                     .text_size(px(m.left.meta))
                     .text_color(if state == "failed" {
@@ -361,7 +397,7 @@ impl TranscriptView {
                 let row = row_id.to_owned();
                 let answer = id.clone();
                 d.child(
-                    div().px(px(12.)).flex().child(
+                    div().px(px(CONTENT_INSET)).flex().child(
                         div()
                             .id(SharedString::from(format!("agent-md-disclosure-{id}")))
                             .debug_selector(move || {

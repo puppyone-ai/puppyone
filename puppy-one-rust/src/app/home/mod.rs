@@ -114,6 +114,8 @@ pub(in crate::app) enum HomeEvent {
         path: PathBuf,
     },
     ManageSpace(String),
+    CreateSpace,
+    SignIn,
     OpenSettings(crate::features::settings::Page),
     WindowFolder,
     Command(Command),
@@ -147,6 +149,11 @@ pub(in crate::app) struct Homepage {
     /// the account turning up afterwards does not hold it again.
     released_restoring: bool,
     pub list_held_since: Option<Instant>,
+    pub(in crate::app) active_group: Option<groups::GroupId>,
+    pub(in crate::app::home) space_slide: Option<(crate::ui::motion::Timeline, f32, Rgba)>,
+    /// The active Space's unified tone (Arc / Tabs layouts), this frame.
+    pub(in crate::app::home) tint: Option<Theme>,
+    pub(in crate::app::home) swipe: projects::SpaceSwipeGesture,
     pub place_focus: Option<(groups::GroupId, Instant, Option<Instant>)>,
     pub drop_over: Option<groups::GroupId>,
     /// Computer Mode's plain folders are folded away.
@@ -262,6 +269,49 @@ impl Homepage {
         })
         .detach();
         crate::features::cloud::account::observe(window, cx, |h, _, cx| h.refresh(cx)).detach();
+        // Experimental Arc / Tabs Home: ⌘[ / ⌘] or Alt+← / Alt+→ glides between Spaces.
+        {
+            let home = cx.weak_entity();
+            let own = window.window_handle();
+            cx.intercept_keystrokes(move |event, window, cx| {
+                if window.window_handle() != own {
+                    return;
+                }
+                let k = &event.keystroke;
+                let delta = if k.modifiers.platform && !k.modifiers.shift && !k.modifiers.control {
+                    match k.key.as_str() {
+                        "[" => Some(-1isize),
+                        "]" => Some(1isize),
+                        _ => None,
+                    }
+                } else if k.modifiers.alt
+                    && !k.modifiers.platform
+                    && !k.modifiers.control
+                    && !k.modifiers.shift
+                {
+                    match k.key.as_str() {
+                        "left" => Some(-1isize),
+                        "right" => Some(1isize),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
+                let Some(delta) = delta else { return };
+                let _ = home.update(cx, |h, cx| {
+                    let mode = h.preferences.read(cx).state.experimental.home_space_layout;
+                    if h.session.home
+                        && !h.session.restoring
+                        && h.top_dialog(cx).is_none()
+                        && mode != crate::features::settings::HomeSpaceLayout::Classic
+                    {
+                        h.step_active_space(delta, cx);
+                        cx.stop_propagation();
+                    }
+                });
+            })
+            .detach();
+        }
         if cfg!(debug_assertions) {
             let home = cx.weak_entity();
             let own = window.window_handle();
@@ -310,6 +360,10 @@ impl Homepage {
             released_for: None,
             released_restoring: false,
             list_held_since: None,
+            active_group: None,
+            space_slide: None,
+            tint: None,
+            swipe: projects::SpaceSwipeGesture::default(),
             place_focus: None,
             drop_over: None,
             plain_folders_closed: false,
@@ -588,6 +642,16 @@ impl Homepage {
             .as_ref()
             .map(|timeline| intro::current(timeline, w, h).content);
 
+        let space_layout = self
+            .preferences
+            .read(cx)
+            .state
+            .experimental
+            .home_space_layout;
+        let canvas: Option<Rgba> = None;
+        let mut overlays: Vec<AnyElement> = Vec::new();
+        self.tint = None;
+
         let body: AnyElement = if has_projects {
             let items = self.visible_projects(cx);
             let held = self.groups_held(&items, window, cx);
@@ -598,49 +662,85 @@ impl Homepage {
             };
             let list_held = self.list_held();
             let held = held || list_held;
-
-            // One toolbar: ways to start a project at its start, how the
-            // projects are shown at its end.
-            let start_actions = OnboardingStartActions::new(
-                busy,
-                cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)),
-                cx.listener(|s, _, _, cx| s.command(Command::OpenFolder, cx)),
-                cx.listener(|s, _, w, cx| s.begin_import(w, cx)),
-            )
-            .agents_menu(self.new_project_menu(busy, cx))
-            .computer_mode(crate::features::flags::computer_mode_enabled(
-                &self.preferences,
-                cx,
-            ));
-            let view = (!list_held).then(|| self.project_toolbar(busy, cx));
-            let head = OnboardingBrandLockup::projects(start_actions, view);
             let note = (crate::features::flags::cloud_enabled(&self.preferences, cx)
                 && self.spaces.read(cx).status() == SpacesStatus::Error)
                 .then(|| {
                     SpacesUnavailableNote::new(cx.listener(|s, _, _, cx| s.read_spaces(true, cx)))
                         .into_any_element()
                 });
-            let list =
-                self.project_groups(groups, note, held, column, w, w <= 520., busy, window, cx);
-            let primary = div()
-                .flex_1()
-                .min_h_0()
-                .w_full()
-                .flex()
-                .flex_col()
-                .gap(px(8.))
-                .rounded(px(metric::CARD_RADIUS))
-                .when(self.dragging, |d| d.bg(t.hover))
-                .child(list);
 
-            v_flex()
-                .w(px(column))
-                .flex_1()
-                .min_h_0()
-                .max_h_full()
-                .child(head)
-                .child(primary)
-                .into_any_element()
+            if space_layout == crate::features::settings::HomeSpaceLayout::Classic {
+                // Classic layout: all places & spaces stacked vertically with full toolbar.
+                let mut start_actions = OnboardingStartActions::new(
+                    busy,
+                    cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)),
+                    cx.listener(|s, _, _, cx| s.command(Command::OpenFolder, cx)),
+                    cx.listener(|s, _, w, cx| s.begin_import(w, cx)),
+                )
+                .computer_mode(crate::features::flags::computer_mode_enabled(
+                    &self.preferences,
+                    cx,
+                ));
+                // Starting with an Agent is an Experimental switch, off by default.
+                if self
+                    .preferences
+                    .read(cx)
+                    .state
+                    .experimental
+                    .start_with_agent
+                {
+                    start_actions = start_actions.agents_menu(self.new_project_menu(busy, cx));
+                }
+                let hide_view = self
+                    .preferences
+                    .read(cx)
+                    .state
+                    .experimental
+                    .hide_home_view_controls;
+                let view = (!list_held && !hide_view).then(|| self.project_toolbar(busy, cx));
+                let head = OnboardingBrandLockup::projects(start_actions, view);
+                let list =
+                    self.project_groups(groups, note, held, column, w, w <= 520., busy, window, cx);
+                let primary = div()
+                    .flex_1()
+                    .min_h_0()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .gap(px(8.))
+                    .rounded(px(metric::CARD_RADIUS))
+                    .when(self.dragging, |d| d.bg(t.hover))
+                    .child(list);
+
+                v_flex()
+                    .w(px(column))
+                    .flex_1()
+                    .min_h_0()
+                    .max_h_full()
+                    .child(head)
+                    .child(primary)
+                    .into_any_element()
+            } else {
+                // Experimental Scheme A (Arc) or Scheme B (Minimal single-row Tabs)
+                // on the app's own neutral canvas: only the Space's small dot
+                // carries its colour, never the page.
+                let active_id = self.resolve_active_group(&groups);
+                if !held && space_layout == crate::features::settings::HomeSpaceLayout::Arc {
+                    overlays = self.arc_overlays(&groups, active_id.as_ref(), busy, cx);
+                }
+                self.render_space_home(
+                    space_layout,
+                    groups,
+                    note,
+                    held,
+                    column,
+                    w,
+                    w <= 520.,
+                    busy,
+                    window,
+                    cx,
+                )
+            }
         } else {
             let brand = OnboardingBrandLockup::empty(self.moment_copy(cx));
             let primary = div()
@@ -676,6 +776,11 @@ impl Homepage {
                 .child(primary)
                 .child(actions)
                 .into_any_element();
+            if space_layout == crate::features::settings::HomeSpaceLayout::Arc
+                && !(self.disclosure_shown && self.intro.is_none())
+            {
+                overlays = self.arc_overlays(&[], None, busy, cx);
+            }
             self.first_run_row(w, launcher, window, cx)
         };
 
@@ -685,10 +790,16 @@ impl Homepage {
         let host_ext_leave = self.weak.clone();
         let show_disclosure = !has_projects && self.disclosure_shown && self.intro.is_none();
 
+        let host_swipe = self.weak.clone();
         OnboardingHomeLayout::new(state, w, h, column, body)
+            .canvas(canvas)
+            .overlays(overlays)
             .error(self.error.clone())
             .intro_opacity(intro_opacity)
             .show_telemetry_disclosure(show_disclosure)
+            .on_scroll_wheel(move |event, _, cx| {
+                let _ = host_swipe.update(cx, |s, cx| s.handle_space_swipe(event, cx));
+            })
             .on_project_drag_move(move |event, window, cx| {
                 let size = window.viewport_size();
                 let at = event.event.position;

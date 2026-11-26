@@ -5,10 +5,12 @@
 //! - `row` — List row (`34 × 26` `ProjectFolderGlyph`, `open_control`, actions)
 mod groups_view;
 mod row;
+mod space_views;
 mod tile;
 mod toolbar;
 
 pub(in crate::app::home) use groups_view::SpacesUnavailableNote;
+pub(in crate::app::home) use space_views::SpaceSwipeGesture;
 
 use super::*;
 use crate::features::settings::{HomepageLayout, HomepageSort};
@@ -67,6 +69,12 @@ pub(in crate::app::home) enum Look {
 }
 
 impl Homepage {
+    /// The palette Home draws its projects with: the active Space's unified
+    /// tint in the Arc / Tabs layouts, else the app's own.
+    pub(in crate::app) fn home_palette(&self, cx: &App) -> Theme {
+        self.tint.unwrap_or_else(|| cx.palette())
+    }
+
     /// What a computer on this computer is doing (`toVisualPowerState`):
     /// running unless the registry says it starts or sleeps.
     pub(in crate::app::home) fn item_power(
@@ -97,6 +105,10 @@ pub(in crate::app) enum HomeMenu {
     NewProject,
     /// The create dialog's team selector.
     CreateTeam,
+    /// Quiet combined View & Sort menu for experimental Arc / Tabs Home layouts.
+    SpaceView,
+    /// The scoped New project dialog's Start with Agent menu (Experimental).
+    CreateAgent,
 }
 
 /// Five Finder-proportioned folders across the page, sharing equal cells down

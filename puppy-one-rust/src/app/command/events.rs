@@ -4,6 +4,61 @@ use super::super::*;
 
 /// What the window's owners ask of it.
 impl Shell {
+    /// Applies initial preferences and hydrates preloaded launch state on window build.
+    pub(in crate::app) fn hydrate_initial_preferences(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(stored) = self.prefs.apply_initial(window, cx)
+            && !self.file_mode()
+        {
+            self.panes.update(cx, |p, cx| p.restore(stored, cx));
+        }
+        // Saved preferences may already be loaded synchronously before the
+        // first window subscribes to `PreferencesChanged`; hydrate the launch
+        // restore and Cloud catalog immediately instead of waiting for an
+        // event that will never fire.
+        if self.prefs.store.read(cx).loaded {
+            self.refresh_cloud_catalog(false, cx);
+            self.restore_last_if_ready(cx);
+        }
+    }
+    /// Starts restoring the launch's last active project once preferences are
+    /// loaded; returns `true` when it ran.
+    pub(in crate::app) fn restore_last_if_ready(&mut self, cx: &mut Context<Self>) -> bool {
+        if !self.session.project.read(cx).record.restore_last || !self.prefs.store.read(cx).loaded {
+            return false;
+        }
+        let last = windows::last_active_project_in(&self.prefs.store, cx);
+        self.session.project.update(cx, |p, cx| {
+            p.restore_last(last, cx);
+            p.restore_device(cx);
+        });
+        true
+    }
+    /// The preferences changed: the appearance (the whole window renders
+    /// again) and the pane layout, when they did.
+    pub(in crate::app) fn preferences_changed(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (appearance, panes) = self.prefs.changed(window, cx);
+        if appearance {
+            self.gate_editors(window, cx);
+        }
+        if let Some(stored) = panes
+            && !self.file_mode()
+        {
+            self.panes.update(cx, |p, cx| p.restore(stored, cx));
+        }
+    }
+    /// The window appearance or an installed Sub Theme changed.
+    pub(in crate::app) fn apply_appearance(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.prefs.apply(window, cx);
+        self.gate_editors(window, cx);
+    }
     /// The Header card or menu that is open: one at a time.
     pub(in crate::app) fn set_popover(&mut self, popover: Option<Popover>, cx: &mut Context<Self>) {
         if self.chrome.read(cx).popover != popover {
@@ -202,6 +257,13 @@ impl Shell {
             home::HomeEvent::Command(command) => return self.command(*command, window, cx),
             home::HomeEvent::ManageSpace(space) => {
                 return self.open_space_settings(space.clone(), false, window, cx);
+            }
+            home::HomeEvent::CreateSpace => {
+                self.cloud
+                    .update(cx, |c, cx| c.open_create_space(window, cx));
+            }
+            home::HomeEvent::SignIn => {
+                self.cloud.update(cx, |c, cx| c.open_sign_in(window, cx));
             }
             // A file error of that folder says why.
             home::HomeEvent::WindowFolder => {}

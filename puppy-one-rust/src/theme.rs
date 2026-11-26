@@ -78,6 +78,93 @@ pub fn space_mark(tone: usize, dark: bool) -> Rgba {
 pub fn space_mark_letter() -> Rgba {
     rgb(0xffffff)
 }
+/// CSS `oklch(l c h / a)` converted to sRGB (clamped to the gamut).
+pub fn oklch(l: f32, c: f32, h: f32, a: f32) -> Rgba {
+    let hr = h.to_radians();
+    let (ca, cb) = (c * hr.cos(), c * hr.sin());
+    let l_ = l + 0.396_337_78 * ca + 0.215_803_76 * cb;
+    let m_ = l - 0.105_561_346 * ca - 0.063_854_17 * cb;
+    let s_ = l - 0.089_484_18 * ca - 1.291_485_5 * cb;
+    let (l3, m3, s3) = (l_ * l_ * l_, m_ * m_ * m_, s_ * s_ * s_);
+    let r = 4.076_741_7 * l3 - 3.307_711_6 * m3 + 0.230_969_94 * s3;
+    let g = -1.268_438 * l3 + 2.609_757_4 * m3 - 0.341_319_38 * s3;
+    let b = -0.004_196_086_3 * l3 - 0.703_418_6 * m3 + 1.707_614_7 * s3;
+    let encode = |x: f32| {
+        let x = x.clamp(0., 1.);
+        if x <= 0.003_130_8 {
+            12.92 * x
+        } else {
+            1.055 * x.powf(1. / 2.4) - 0.055
+        }
+    };
+    Rgba {
+        r: encode(r),
+        g: encode(g),
+        b: encode(b),
+        a,
+    }
+}
+/// The clean hue (degrees) and chroma scale behind each `.po-space-mark`
+/// tone: blue, violet, green, amber, rose, and a quiet slate.
+fn space_hue(tone: usize) -> (f32, f32) {
+    const HUES: [(f32, f32); 6] = [
+        (250., 1.),
+        (305., 1.),
+        (160., 1.),
+        (70., 1.),
+        (15., 1.),
+        (240., 0.45),
+    ];
+    HUES[tone % HUES.len()]
+}
+/// A Space's own dot: its hue, vivid enough to name it at 6px without shouting.
+pub fn space_dot(tone: usize, dark: bool) -> Rgba {
+    let (h, k) = space_hue(tone);
+    if dark {
+        oklch(0.70, 0.095 * k, h, 1.)
+    } else {
+        oklch(0.64, 0.105 * k, h, 1.)
+    }
+}
+/// Home's restrained unified Space tone: one quiet OKLCH hue for the whole
+/// surface — canvas, text, folders (derived from text and canvas), hover,
+/// dividers, menus and the selected pill — clean, airy and calm without
+/// overpowering the content.
+pub fn space_tint(base: Theme, tone: usize) -> Theme {
+    let (h, k) = space_hue(tone);
+    let ok = |l: f32, c: f32, a: f32| oklch(l, c * k, h, a);
+    let mut t = base;
+    if base.dark {
+        t.canvas = ok(0.212, 0.013, 1.);
+        t.panel = ok(0.236, 0.013, 1.);
+        t.panel_raised = ok(0.262, 0.013, 1.);
+        t.menu_bg = ok(0.258, 0.013, 1.);
+        t.text = ok(0.955, 0.004, 1.);
+        t.muted = ok(0.74, 0.010, 1.);
+        t.subtle = ok(0.58, 0.011, 1.);
+        t.hover = ok(0.92, 0.015, 0.055);
+        t.active = ok(0.92, 0.015, 0.085);
+        t.selected = ok(0.315, 0.024, 1.);
+        t.divider = ok(0.95, 0.010, 0.075);
+        t.border = ok(0.95, 0.010, 0.095);
+        t.border_subtle = ok(0.95, 0.010, 0.055);
+    } else {
+        t.canvas = ok(0.972, 0.015, 1.);
+        t.panel = ok(0.982, 0.011, 1.);
+        t.panel_raised = ok(0.994, 0.004, 1.);
+        t.menu_bg = ok(0.992, 0.006, 1.);
+        t.text = ok(0.24, 0.010, 1.);
+        t.muted = ok(0.47, 0.012, 1.);
+        t.subtle = ok(0.60, 0.012, 1.);
+        t.hover = ok(0.35, 0.020, 0.055);
+        t.active = ok(0.35, 0.020, 0.085);
+        t.selected = ok(0.925, 0.024, 1.);
+        t.divider = ok(0.32, 0.015, 0.08);
+        t.border = ok(0.32, 0.015, 0.10);
+        t.border_subtle = ok(0.32, 0.015, 0.06);
+    }
+    t
+}
 /// `color-mix(in srgb, c p%, transparent)`.
 pub fn fade(color: Rgba, weight: f32) -> Rgba {
     mix(color, rgba(0x00000000), weight)
@@ -530,6 +617,58 @@ pub fn elevation_low(t: &Theme) -> gpui::BoxShadow {
         offset: gpui::point(gpui::px(0.), gpui::px(2.)),
         blur_radius: gpui::px(4.),
         spread_radius: gpui::px(-2.),
+    }
+}
+/// Floating launcher popover shadow for dark and light themes.
+pub fn popover_elevation(dark: bool) -> Vec<gpui::BoxShadow> {
+    vec![gpui::BoxShadow {
+        color: alpha(rgb(0x000000), if dark { 0.65 } else { 0.22 }).into(),
+        offset: gpui::point(gpui::px(0.), gpui::px(14.)),
+        blur_radius: gpui::px(32.),
+        spread_radius: gpui::px(-10.),
+        inset: false,
+    }]
+}
+/// Top inset sheen tint for the floating Agent composer in dark mode.
+pub fn composer_highlight(dark: bool) -> Rgba {
+    alpha(rgb(0xffffff), if dark { 0.045 } else { 0. })
+}
+/// Agent composer card elevation shadows for dark and light themes.
+pub fn composer_elevation(dark: bool) -> Vec<gpui::BoxShadow> {
+    if dark {
+        vec![
+            gpui::BoxShadow {
+                color: alpha(rgb(0x000000), 0.45).into(),
+                offset: gpui::point(gpui::px(0.), gpui::px(1.)),
+                blur_radius: gpui::px(2.),
+                spread_radius: gpui::px(0.),
+                inset: false,
+            },
+            gpui::BoxShadow {
+                color: alpha(rgb(0x000000), 0.68).into(),
+                offset: gpui::point(gpui::px(0.), gpui::px(10.)),
+                blur_radius: gpui::px(28.),
+                spread_radius: gpui::px(-10.),
+                inset: false,
+            },
+        ]
+    } else {
+        vec![
+            gpui::BoxShadow {
+                color: alpha(rgb(0x1e1c18), 0.08).into(),
+                offset: gpui::point(gpui::px(0.), gpui::px(1.)),
+                blur_radius: gpui::px(2.),
+                spread_radius: gpui::px(0.),
+                inset: false,
+            },
+            gpui::BoxShadow {
+                color: alpha(rgb(0x1e1c18), 0.20).into(),
+                offset: gpui::point(gpui::px(0.), gpui::px(10.)),
+                blur_radius: gpui::px(26.),
+                spread_radius: gpui::px(-10.),
+                inset: false,
+            },
+        ]
     }
 }
 /// Chromium's checked native checkbox: (fill, check). The fill is the
@@ -1044,6 +1183,31 @@ pub mod pane {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+    /// OKLCH lands where CSS puts it, and each Space's tint keeps one hue:
+    /// a light, clearly coloured canvas that differs between Spaces.
+    #[test]
+    fn oklch_and_space_tints_are_clean_and_distinct() {
+        let close = |a: f32, b: f32| (a - b).abs() < 0.01;
+        let white = oklch(1., 0., 0., 1.);
+        assert!(close(white.r, 1.) && close(white.g, 1.) && close(white.b, 1.));
+        let black = oklch(0., 0., 0., 1.);
+        assert!(close(black.r, 0.) && close(black.g, 0.) && close(black.b, 0.));
+        let neutral = oklch(0.985, 0., 0., 1.);
+        assert!(close(neutral.r, neutral.g) && close(neutral.g, neutral.b));
+        for dark in [false, true] {
+            let base = Theme::new(dark);
+            let amber = space_tint(base, 3);
+            let violet = space_tint(base, 1);
+            assert_ne!(amber.canvas, violet.canvas);
+            assert_ne!(amber.canvas, base.canvas);
+            // Amber is warm (red over blue); violet leans blue.
+            assert!(amber.canvas.r > amber.canvas.b);
+            assert!(violet.canvas.b > violet.canvas.g);
+            // Text keeps its contrast against the tinted canvas.
+            let lum = |c: Rgba| 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+            assert!((lum(amber.text) - lum(amber.canvas)).abs() > 0.6);
+        }
+    }
     #[test]
     fn every_file_icon_binding_uses_the_active_palette_and_inherited_ink() {
         for (pack, _) in pack_choices() {

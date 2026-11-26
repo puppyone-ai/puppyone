@@ -70,7 +70,8 @@ impl WindowChrome {
             .min_w_0()
             .px(px(6.))
             .text_size(px(ty.content))
-            .line_height(px(ty.line_height));
+            .line_height(px(ty.line_height))
+            .label_offset_y(px(HEADER_TEXT_OPTICAL_Y));
         if !compact {
             project = project.icon(
                 Icon::product(crate::ui::components::ProductIcon::Folder)
@@ -105,6 +106,9 @@ impl WindowChrome {
                                 .text_size(px(ty.content))
                                 .line_height(px(ty.line_height))
                                 .text_color(t.text_disabled)
+                                .when(HEADER_TEXT_OPTICAL_Y != 0., |d| {
+                                    d.relative().top(px(HEADER_TEXT_OPTICAL_Y))
+                                })
                                 .child("/"),
                         )
                     }
@@ -140,7 +144,8 @@ impl WindowChrome {
             .label(tr("shell.brand.name"))
             .px(px(6.))
             .text_size(px(ty.content))
-            .line_height(px(ty.line_height));
+            .line_height(px(ty.line_height))
+            .label_offset_y(px(HEADER_TEXT_OPTICAL_Y));
         self.header_popover(Popover::Brand, button, cx)
             .into_any_element()
     }

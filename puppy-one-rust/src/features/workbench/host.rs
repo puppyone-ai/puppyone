@@ -40,7 +40,9 @@ pub type CreationRetry = Rc<dyn Fn(&mut Window, &mut App)>;
 /// The shell's part of the workbench.
 pub trait WorkbenchHost {
     /// A launcher tab's content (`renderLauncher(context)`).
-    fn launcher(&self, context: LauncherContext, cx: &mut App) -> AnyElement;
+    fn launcher(&self, context: LauncherContext, window: &mut Window, cx: &mut App) -> AnyElement;
+    /// Move keyboard focus into the launcher of `group` (e.g. its hero prompt input).
+    fn focus_launcher(&self, _group: Id, _window: &mut Window, _cx: &mut App) {}
     /// A launcher tab's own title while it shows something other than the
     /// launcher (History), and its mark in `color`.
     fn launcher_title(&self, tab: Id, cx: &App) -> Option<String>;

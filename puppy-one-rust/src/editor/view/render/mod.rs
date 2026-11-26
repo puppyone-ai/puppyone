@@ -13,7 +13,7 @@
 mod baseline;
 mod cache;
 
-pub use baseline::{chromium_baseline, chromium_text_top, primary_metrics};
+pub use baseline::{chromium_baseline, chromium_text_top, primary_metrics, primary_metrics_for};
 pub use cache::{LeafEntry, MeasureCache, ParagraphCache, TextMetrics};
 
 use crate::editor::{
@@ -80,8 +80,17 @@ impl RenderCx<'_> {
         round_half_down(v * self.scale) / self.scale
     }
 
+    /// The content language resolved for this surface (`None`: interface locale).
+    pub fn language(&self) -> Option<&str> {
+        self.decorations.surface().language.as_deref()
+    }
+
     pub fn font(style: &TextStyle) -> Font {
-        let text = style.refinement();
+        Self::font_for(style, None)
+    }
+
+    pub fn font_for(style: &TextStyle, language: Option<&str>) -> Font {
+        let text = style.refinement_for(language);
         Font {
             family: style.family(),
             features: text.font_features.unwrap_or_default(),
@@ -95,9 +104,13 @@ impl RenderCx<'_> {
         }
     }
 
+    pub fn font_of(&self, style: &TextStyle) -> Font {
+        Self::font_for(style, self.language())
+    }
+
     /// Shaping runs of `leaf` as Kit's plain inline path styles it.
-    fn runs(leaf: &LeafText, style: &TextStyle) -> Vec<TextRun> {
-        let base = Self::font(style);
+    fn runs(&self, leaf: &LeafText, style: &TextStyle) -> Vec<TextRun> {
+        let base = self.font_of(style);
         // Inline code shapes in the monospaced face at the full size (Kit's
         // inline-code scale is 1 in the editor).
         let mono = TextStyle {
@@ -159,6 +172,8 @@ impl RenderCx<'_> {
         }
         (
             style.family(),
+            crate::ui::fonts::content_language_key(self.language()),
+            crate::ui::fonts::generation(),
             style.size.to_bits(),
             style.weight.to_bits(),
             style.italic,
@@ -177,7 +192,7 @@ impl RenderCx<'_> {
             Some(m) => m,
             None => {
                 drop(cache);
-                let runs = Self::runs(leaf, style);
+                let runs = self.runs(leaf, style);
                 let shaped = self.window.text_system().shape_text(
                     leaf.text.clone().into(),
                     px(style.size),
@@ -226,7 +241,7 @@ impl RenderCx<'_> {
         if text.is_empty() {
             return (1, 0.);
         }
-        let font = Self::font(style);
+        let font = self.font_of(style);
         let run = TextRun {
             len: text.len(),
             font,
@@ -270,7 +285,7 @@ impl RenderCx<'_> {
 
     /// Unrounded ascent and descent of the style's primary face.
     fn primary_metrics(&mut self, style: &TextStyle) -> (f32, f32) {
-        primary_metrics(self.window, style)
+        primary_metrics_for(self.window, style, self.language())
     }
 
     /// Top (relative to `block_top`) of a text container whose first row
@@ -428,7 +443,7 @@ impl RenderCx<'_> {
             Some(w) => container.w(px(w)),
             None => container.whitespace_nowrap(),
         };
-        style.apply(container.style());
+        style.apply_for(container.style(), self.language());
         container.style().text.text_align = Some(align);
         (
             container.child(element).into_any_element(),
@@ -482,7 +497,7 @@ impl RenderCx<'_> {
             .p_0()
             .border_0()
             .bg(transparent_black());
-        refinement.text = style.refinement();
+        refinement.text = style.refinement_for(self.language());
         refinement.text.font_features = Some(FontFeatures(std::sync::Arc::new(vec![
             ("liga".into(), 0),
             ("calt".into(), 0),
@@ -549,7 +564,7 @@ impl RenderCx<'_> {
             Align::Center => label.justify_center(),
             Align::End => label.justify_end(),
         };
-        style.apply(label.style());
+        style.apply_for(label.style(), self.language());
         label.child(text.clone()).into_any_element()
     }
 
@@ -667,7 +682,7 @@ impl RenderCx<'_> {
         const SPACES: [char; 7] = [
             '\u{2003}', '\u{2002}', '\u{2004}', '\u{2005}', '\u{2009}', '\u{2006}', '\u{200a}',
         ];
-        let font = Self::font(style);
+        let font = self.font_of(style);
         let mut advances: Vec<(char, f32)> = SPACES
             .iter()
             .filter_map(|&c| {
@@ -729,7 +744,7 @@ impl RenderCx<'_> {
         else {
             return Vec::new();
         };
-        let runs = Self::runs(&leaf, style);
+        let runs = self.runs(&leaf, style);
         let shaped = self.window.text_system().shape_text(
             leaf.text.clone().into(),
             px(style.size),
@@ -847,7 +862,7 @@ impl RenderCx<'_> {
         else {
             return Vec::new();
         };
-        let runs = Self::runs(&leaf, style);
+        let runs = self.runs(&leaf, style);
         let shaped = self.window.text_system().shape_text(
             leaf.text.clone().into(),
             px(style.size),

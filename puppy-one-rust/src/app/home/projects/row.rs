@@ -134,7 +134,7 @@ impl Homepage {
         keys: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let t = cx.palette();
+        let t = self.home_palette(cx);
         let ty = theme::ty().ui;
         let name = item_name(item);
         let linked = item.linked.is_some();
@@ -218,6 +218,7 @@ impl Homepage {
                             .into_any_element()
                         }
                         _ => ProjectFolderGlyph::compact(self.item_previews(item))
+                            .theme(t)
                             .lit(lit)
                             .fade(fade)
                             .into_any_element(),
@@ -306,7 +307,7 @@ impl Homepage {
         busy: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let t = cx.palette();
+        let t = self.home_palette(cx);
         let label = tf(
             "cloud.home.openLinkedCloudProject",
             &[("project", linked.name.clone().into())],
@@ -359,7 +360,7 @@ impl Homepage {
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let target = crate::app::project_actions::Target::of(item)?;
-        let t = cx.palette();
+        let t = self.home_palette(cx);
         let name = item_name(item);
         let open = self.actions.read(cx).item() == Some(item.id.as_str());
         let id = item.id.clone();

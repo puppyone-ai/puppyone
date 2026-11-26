@@ -115,8 +115,9 @@ impl TextStyle {
             (false, Face::Sans) => Category::Sans,
         }
     }
-    /// The text refinement a container applies so Kit leaves inherit it.
-    pub fn refinement(&self) -> TextStyleRefinement {
+    /// The text refinement a container applies so Kit leaves inherit it,
+    /// using an explicit content `language` (`None`: interface locale).
+    pub fn refinement_for(&self, language: Option<&str>) -> TextStyleRefinement {
         TextStyleRefinement {
             color: Some(self.color.into()),
             font_family: Some(self.family()),
@@ -125,9 +126,9 @@ impl TextStyle {
             } else {
                 FontFeatures::default()
             }),
-            // The locale's script faces after the face (`--po-md-content-font`,
-            // `--po-font-code`).
-            font_fallbacks: Some(crate::ui::fonts::fallbacks(self.category())),
+            // The content language's script faces after the face
+            // (`--po-md-content-font`, `--po-font-code`).
+            font_fallbacks: Some(crate::ui::fonts::fallbacks_for(self.category(), language)),
             font_size: Some(px(self.size).into()),
             line_height: Some(px(self.line_height_px()).into()),
             // The weight also steers the script fallback faces (PingFang SC).
@@ -140,9 +141,18 @@ impl TextStyle {
             ..Default::default()
         }
     }
-    /// Apply as an element's inherited text style.
+    /// The text refinement under the interface's own script cascade (`None`).
+    pub fn refinement(&self) -> TextStyleRefinement {
+        self.refinement_for(None)
+    }
+    /// Apply as an element's inherited text style under an explicit content
+    /// `language` (`None`: interface locale).
+    pub fn apply_for(&self, style: &mut StyleRefinement, language: Option<&str>) {
+        style.text = self.refinement_for(language);
+    }
+    /// Apply as an element's inherited text style under the interface locale.
     pub fn apply(&self, style: &mut StyleRefinement) {
-        style.text = self.refinement();
+        self.apply_for(style, None);
     }
 }
 

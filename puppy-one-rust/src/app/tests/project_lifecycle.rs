@@ -204,7 +204,10 @@ fn preloaded_preferences_restore_last_project_and_layout_without_hanging(cx: &mu
     let mut content = None;
     let (_, vcx) = cx.add_window_view(|w, cx| {
         let store = cx.new(|cx| PreferencesStore::isolated(data_dir.path().to_path_buf(), cx));
-        assert!(store.read(cx).loaded, "saved preferences load synchronously");
+        assert!(
+            store.read(cx).loaded,
+            "saved preferences load synchronously"
+        );
         let plan = windows::LaunchPlan {
             file: None,
             workspace: None,

@@ -33,7 +33,8 @@ pub(super) fn loading() -> AnyElement {
             LoadingMark::new("editor-loading-mark")
                 .area()
                 .size(LoaderSize::Md)
-                .tone(Tone::Neutral),
+                .tone(Tone::Neutral)
+                .silent(),
         )
         .test_support()
         .into_any_element()

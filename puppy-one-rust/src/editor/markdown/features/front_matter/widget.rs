@@ -57,6 +57,7 @@ impl BlockWidget for FrontMatterWidget {
             .fold(KEY_MIN, f32::max)
             .min(width / 2.);
         let value_width = (width - key_width - COLUMN_GAP).max(0.);
+        let language = cx.render.language().map(str::to_owned);
         let cell = |style: &TextStyle, text: &str, x: f32, y: f32, w: f32, rows: usize| {
             let mut d = div()
                 .absolute()
@@ -64,7 +65,7 @@ impl BlockWidget for FrontMatterWidget {
                 .top(px(y))
                 .w(px(w))
                 .h(px(rows as f32 * row));
-            style.apply(d.style());
+            style.apply_for(d.style(), language.as_deref());
             d.child(SharedString::from(text.to_owned()))
         };
         let mut children = Vec::new();

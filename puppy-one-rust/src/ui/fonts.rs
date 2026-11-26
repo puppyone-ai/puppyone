@@ -14,7 +14,10 @@
 //! [`with_content_language`].
 use crate::typography::fonts::{self, Category, Role, Selection};
 use gpui::{App, Font, FontFallbacks, FontFeatures, FontStyle, FontWeight, SharedString};
-use std::cell::RefCell;
+use std::{
+    cell::RefCell,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 /// GPUI's alias for the platform interface face (`system-ui`).
 const SYSTEM_UI: &str = ".SystemUIFont";
@@ -180,6 +183,20 @@ fn content_key(language: &str) -> &'static str {
         .unwrap_or(GENERIC)
 }
 
+/// The normalized script cascade bucket for an explicit content language
+/// (`None` means the interface's own cascade).
+pub fn content_language_key(language: Option<&str>) -> Option<&'static str> {
+    language.map(content_key)
+}
+
+/// Monotonic generation bumped whenever the active font stacks change (locale
+/// or font preference change), so shaping/measurement caches invalidate cleanly.
+static ACTIVE_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+pub fn generation() -> u64 {
+    ACTIVE_GENERATION.load(Ordering::Acquire)
+}
+
 #[derive(Clone)]
 struct Active {
     locale: String,
@@ -306,6 +323,7 @@ pub fn install(cx: &App) {
     if !current {
         let active = resolve(&locale, &selection, cx);
         ACTIVE.with_borrow_mut(|a| *a = Some(active));
+        ACTIVE_GENERATION.fetch_add(1, Ordering::AcqRel);
     }
 }
 
@@ -335,14 +353,14 @@ pub fn font(role: Role, cx: &App) -> Font {
     }
 }
 
-/// The locale's script cascade for text that names its own face (the
-/// editor's text styles): the content language's inside
-/// [`with_content_language`], else the interface's. Before the first
-/// install it is the default locale's unprobed order.
-pub fn fallbacks(category: Category) -> FontFallbacks {
+/// The script cascade for text that names its own face under an explicit
+/// content `language` (`None`: the interface's own cascade). Prefer this over
+/// [`fallbacks`] so callers carry language explicitly instead of relying on
+/// ambient thread-local state.
+pub fn fallbacks_for(category: Category, language: Option<&str>) -> FontFallbacks {
     #[cfg(any(test, feature = "test-support"))]
-    test_support::record();
-    let content = CONTENT.with_borrow(|c| c.as_deref().map(content_key));
+    test_support::record_language(language);
+    let content = language.map(content_key);
     let names = ACTIVE.with_borrow(|a| {
         a.as_ref().map(|a| {
             content
@@ -361,6 +379,14 @@ pub fn fallbacks(category: Category) -> FontFallbacks {
     }))
 }
 
+/// The locale's script cascade for text that names its own face (the
+/// editor's text styles): the content language's inside
+/// [`with_content_language`], else the interface's. Before the first
+/// install it is the default locale's unprobed order.
+pub fn fallbacks(category: Category) -> FontFallbacks {
+    CONTENT.with_borrow(|c| fallbacks_for(category, c.as_deref()))
+}
+
 /// Tests: under which content languages text asked for its cascade.
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
@@ -370,8 +396,8 @@ pub mod test_support {
         static ASKED: RefCell<Vec<Option<SharedString>>> = const { RefCell::new(Vec::new()) };
     }
 
-    pub(super) fn record() {
-        let language = CONTENT.with_borrow(Clone::clone);
+    pub(super) fn record_language(language: Option<&str>) {
+        let language = language.map(|l| SharedString::from(l.to_owned()));
         ASKED.with_borrow_mut(|asked| {
             if !asked.contains(&language) {
                 asked.push(language);
@@ -441,6 +467,50 @@ mod tests {
         ACTIVE.with_borrow_mut(|a| *a = Some(active));
         assert_eq!(first(Category::Sans).as_deref(), Some("PingFang TC"));
         assert_eq!(within("zh-Hans").as_deref(), Some("PingFang SC"));
+        ACTIVE.with_borrow_mut(|a| *a = None);
+    }
+
+    #[test]
+    fn fallbacks_for_uses_explicit_language_and_ignores_ambient_scope() {
+        let installed = [
+            "PingFang SC",
+            "PingFang TC",
+            "Hiragino Sans",
+            "Apple SD Gothic Neo",
+            "Apple Color Emoji",
+        ];
+        let active = resolve_with("en", &Selection::default(), &mut with(&installed));
+        ACTIVE.with_borrow_mut(|a| *a = Some(active));
+
+        assert_eq!(content_language_key(None), None);
+        assert_eq!(content_language_key(Some("en-US")), Some("und"));
+        assert_eq!(content_language_key(Some("zh-Hans")), Some("zh-Hans"));
+        assert_eq!(content_language_key(Some("zh-Hant")), Some("zh-Hant"));
+        assert_eq!(content_language_key(Some("ja")), Some("ja"));
+        assert_eq!(content_language_key(Some("ko-KR")), Some("ko"));
+
+        let first_for = |category, lang| {
+            fallbacks_for(category, lang)
+                .fallback_list()
+                .first()
+                .cloned()
+        };
+        let interface = first_for(Category::Sans, None);
+        assert_ne!(interface.as_deref(), Some("PingFang SC"));
+
+        // Explicit language overrides any ambient thread-local content language.
+        with_content_language(Some(&"ja".into()), || {
+            assert_eq!(
+                first_for(Category::Sans, Some("zh-Hans")).as_deref(),
+                Some("PingFang SC")
+            );
+            assert_eq!(
+                first_for(Category::Monospace, Some("zh-Hant")).as_deref(),
+                Some("PingFang TC")
+            );
+            assert_eq!(first_for(Category::Sans, None), interface);
+        });
+
         ACTIVE.with_borrow_mut(|a| *a = None);
     }
 
@@ -531,12 +601,17 @@ mod tests {
         // bundled faces count as installed here.
         let locale = || ACTIVE.with_borrow(|a| a.as_ref().map(|a| a.locale.clone()));
         cx.update(|cx| {
+            let gen0 = generation();
             crate::localization::set_current("ja");
             assert_eq!(font(Role::Code, cx).family.as_ref(), crate::theme::mono());
             assert_eq!(locale().as_deref(), Some("ja"));
+            let gen1 = generation();
+            assert!(gen1 > gen0, "reinstalling fonts must bump generation");
             crate::localization::set_current("zh-Hans");
             assert_eq!(font(Role::Ui, cx).family.as_ref(), SYSTEM_UI);
             assert_eq!(locale().as_deref(), Some("zh-Hans"));
+            let gen2 = generation();
+            assert!(gen2 > gen1, "locale switch must bump generation");
             // The platform mono renders when nothing the terminal stack
             // lists is installed.
             assert_eq!(

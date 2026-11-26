@@ -358,56 +358,13 @@ impl Shell {
             }
         })
         .detach();
-        if let Some(stored) = s.prefs.apply_initial(window, cx)
-            && !s.file_mode()
-        {
-            s.panes.update(cx, |p, cx| p.restore(stored, cx));
-        }
-        // Saved preferences may already be loaded synchronously before the
-        // first window subscribes to `PreferencesChanged`; hydrate the launch
-        // restore and Cloud catalog immediately instead of waiting for an
-        // event that will never fire.
-        if s.prefs.store.read(cx).loaded {
-            s.refresh_cloud_catalog(false, cx);
-            s.restore_last_if_ready(cx);
-        }
+        s.hydrate_initial_preferences(window, cx);
         s.constrain_window(window, cx);
         s.push_explorer_host(window, cx);
         // What the window shows from its first frame.
         s.sync_session_view(cx);
         s.sync_window_title(window, cx);
         s
-    }
-    /// Starts restoring the launch's last active project once preferences are
-    /// loaded; returns `true` when it ran.
-    pub(in crate::app) fn restore_last_if_ready(&mut self, cx: &mut Context<Self>) -> bool {
-        if !self.session.project.read(cx).record.restore_last || !self.prefs.store.read(cx).loaded {
-            return false;
-        }
-        let last = windows::last_active_project_in(&self.prefs.store, cx);
-        self.session.project.update(cx, |p, cx| {
-            p.restore_last(last, cx);
-            p.restore_device(cx);
-        });
-        true
-    }
-    /// The preferences changed: the appearance (the whole window renders
-    /// again) and the pane layout, when they did.
-    fn preferences_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (appearance, panes) = self.prefs.changed(window, cx);
-        if appearance {
-            self.gate_editors(window, cx);
-        }
-        if let Some(stored) = panes
-            && !self.file_mode()
-        {
-            self.panes.update(cx, |p, cx| p.restore(stored, cx));
-        }
-    }
-    /// The window appearance or an installed Sub Theme changed.
-    fn apply_appearance(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.prefs.apply(window, cx);
-        self.gate_editors(window, cx);
     }
     /// The window takes `owner`'s events (`on`) and draws again when it
     /// changes.

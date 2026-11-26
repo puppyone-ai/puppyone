@@ -63,6 +63,7 @@ pub struct TextInput {
     /// Text with tokens to install at the next render (a restored draft).
     pending_content: Option<InputContent>,
     max_chars: usize,
+    last_wrap_rows: usize,
     _subscriptions: Vec<Subscription>,
 }
 impl EventEmitter<InputEvent> for TextInput {}
@@ -127,6 +128,16 @@ impl TextInput {
                 cx.notify();
             }
         ));
+        let mut subscriptions = vec![subscription];
+        if let Field::Multi(state) = &field {
+            subscriptions.push(cx.observe(state, |this, state, cx| {
+                let rows = state.read(cx).display_map().wrap_row_count();
+                if rows != this.last_wrap_rows {
+                    this.last_wrap_rows = rows;
+                    cx.notify();
+                }
+            }));
+        }
         Self {
             field,
             focus,
@@ -148,7 +159,8 @@ impl TextInput {
             token_renderer: None,
             pending_content: None,
             max_chars,
-            _subscriptions: vec![subscription],
+            last_wrap_rows: 1,
+            _subscriptions: subscriptions,
         }
     }
     /// `type="password"`: Kit masks the value and exposes it to no one.
@@ -160,6 +172,19 @@ impl TextInput {
     }
     pub fn text(&self) -> &str {
         &self.value
+    }
+    /// Number of wrapped visual rows currently laid out by a multiline field.
+    pub fn wrap_row_count(&self, cx: &App) -> usize {
+        match &self.field {
+            Field::Single(_) => 1,
+            Field::Multi(state) => state.read(cx).display_map().wrap_row_count(),
+        }
+    }
+    /// Cap the auto-grow row ceiling of a multiline field before internal scrolling.
+    pub fn set_max_rows(&self, max_rows: usize, cx: &mut App) {
+        if let Field::Multi(state) = &self.field {
+            state.update(cx, |s, cx| s.set_auto_grow(1, max_rows, cx));
+        }
     }
     pub fn composing(&self, window: &mut Window, cx: &mut App) -> bool {
         dispatch!(&self.field, |s| s

@@ -245,7 +245,7 @@ impl WorkbenchLauncher {
     }
     /// `prepare(item.id, historyTarget.payload)` for a hosted conversation:
     /// the launcher becomes its chat, unless another tab has it open.
-    fn open_hosted_history_target(
+    pub(super) fn open_hosted_history_target(
         &mut self,
         group: Id,
         tab: Id,

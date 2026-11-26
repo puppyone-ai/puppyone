@@ -541,6 +541,7 @@ impl EditorArea {
                 owner,
                 slot,
                 pane: None,
+                live_bounds: None,
             });
             editor
         });

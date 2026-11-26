@@ -247,7 +247,7 @@ impl EditorView {
             }
         }
         extensions.ensure_keymaps_registered(cx);
-        Self {
+        let mut view = Self {
             state,
             secondary: Vec::new(),
             committed_rev: 0,
@@ -268,7 +268,12 @@ impl EditorView {
             chrome_inset: 0.,
             has_header_banner: false,
             model: None,
-        }
+        };
+        // Settle the initial document surface (background, content language,
+        // chrome insets) before Frame 1 renders, without mutating state in
+        // `EditorView::render`.
+        view.sync_decorations(false);
+        view
     }
 
     /// Make this the document's own view (`DocumentModels`): it continues

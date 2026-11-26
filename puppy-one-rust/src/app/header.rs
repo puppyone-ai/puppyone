@@ -33,10 +33,16 @@ pub(super) struct TitleBar {
     leading: Vec<AnyElement>,
     actions: Vec<AnyElement>,
     tabs: Option<AnyElement>,
+    transparent: bool,
 }
 impl TitleBar {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// No bar of its own: no fill and no rule, the page shows through.
+    pub fn transparent(mut self, transparent: bool) -> Self {
+        self.transparent = transparent;
+        self
     }
     pub fn tabs(mut self, tabs: impl IntoElement) -> Self {
         self.tabs = Some(tabs.into_any_element());
@@ -66,6 +72,7 @@ impl RenderOnce for TitleBar {
             self.leading,
             self.tabs,
             self.actions,
+            self.transparent,
             window,
             cx,
         )

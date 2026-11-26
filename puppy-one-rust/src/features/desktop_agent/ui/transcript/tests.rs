@@ -850,3 +850,71 @@ fn only_new_answers_fade_in_and_only_once(cx: &mut TestAppContext) {
         assert!(view.read_with(cx, |v, _| v.entering.is_empty()));
     }
 }
+
+#[gpui::test]
+fn long_user_message_wraps_within_narrow_sidebar_width(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let (view, cx) = cx.add_window_view(|_, cx| TranscriptView::new(cx));
+    cx.simulate_resize(size(px(340.), px(600.)));
+
+    // 1. Plain long path + Chinese prompt (no mentions): must wrap inside 340px
+    // rather than overflowing on a single unwrapped flex line.
+    let actor = SessionActor::new(ActorOptions::default()).unwrap();
+    actor
+        .dispatch(json!({"type": "command.received", "command": {
+            "commandId": "wrap-1", "operationId": "op-1", "kind": "start", "status": "dispatching",
+            "userMessageId": "client-1", "intentFingerprint": "fp-1",
+            "intent": {
+                "prompt": "`/Users/supersayajin/Documents/puppyone Vault/游戏/历史最佳游戏.md` 把《艾迪芬奇的记忆》改为已玩完",
+                "promptMentions": [],
+                "referenceDisplays": [],
+                "model": null, "effort": null, "mode": null
+            }}}))
+        .unwrap();
+    present(&view, &actor, cx);
+    draw(cx);
+    let id = user_part_ids(&actor)[0].clone();
+    let sel: &'static str = Box::leak(format!("agent-user-message:{id}").into_boxed_str());
+    let bubble = cx.debug_bounds(sel).expect("plain user message bubble");
+    assert!(
+        bubble.right() <= px(340.),
+        "plain user message must stay within 340px sidebar: {bubble:?}"
+    );
+    assert!(
+        bubble.size.height > px(56.),
+        "long user message must wrap across multiple lines: {bubble:?}"
+    );
+
+    // 2. Long message mixed with an inline @mention must also wrap cleanly.
+    let actor2 = SessionActor::new(ActorOptions::default()).unwrap();
+    let prompt = "Please check @docs/README.md and `/Users/supersayajin/Documents/puppyone Vault/游戏/历史最佳游戏.md` for formatting";
+    let start = prompt.find("@docs/README.md").unwrap();
+    let end = start + "@docs/README.md".len();
+    actor2
+        .dispatch(json!({"type": "command.received", "command": {
+            "commandId": "wrap-2", "operationId": "op-2", "kind": "start", "status": "dispatching",
+            "userMessageId": "client-2", "intentFingerprint": "fp-2",
+            "intent": {
+                "prompt": prompt,
+                "promptMentions": [{"referenceId": "file-1", "start": start, "end": end}],
+                "referenceDisplays": [
+                    {"id": "file-1", "kind": "workspace-file", "displayName": "README.md", "relativePath": "docs/README.md"}
+                ],
+                "model": null, "effort": null, "mode": null
+            }}}))
+        .unwrap();
+    present(&view, &actor2, cx);
+    draw(cx);
+    let id2 = user_part_ids(&actor2)[0].clone();
+    let sel2: &'static str = Box::leak(format!("agent-user-message:{id2}").into_boxed_str());
+    let bubble2 = cx.debug_bounds(sel2).expect("mention user message bubble");
+    assert!(
+        bubble2.right() <= px(340.),
+        "mention user message must stay within 340px sidebar: {bubble2:?}"
+    );
+    assert!(
+        bubble2.size.height > px(56.),
+        "mention user message must wrap across multiple lines: {bubble2:?}"
+    );
+}

@@ -205,6 +205,16 @@ pub struct PaneDrag {
     /// The pane's bounds in the window, which its preview takes the shape
     /// and a bitmap of.
     pub pane: Option<Bounds<Pixels>>,
+    /// Live pane bounds populated by the host's measurement canvas without
+    /// forcing an extra initial re-render.
+    pub live_bounds: Option<Rc<std::cell::Cell<Option<Bounds<Pixels>>>>>,
+}
+
+impl PaneDrag {
+    pub fn resolved_pane(&self) -> Option<Bounds<Pixels>> {
+        self.pane
+            .or_else(|| self.live_bounds.as_ref().and_then(|b| b.get()))
+    }
 }
 /// The handle (`.desktop-editor-pane-handle-shell` / `-handle`).
 pub fn handle(

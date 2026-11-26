@@ -111,6 +111,8 @@ pub trait WorkbenchItem {
         _cx: &mut App,
     ) {
     }
+    /// Focus the item's primary input (e.g. a chat composer) when revealed.
+    fn focus(&self, _window: &mut Window, _cx: &mut App) {}
     /// `onPresentationChange` and the item's host requests: the Workbench
     /// redraws when the item changes.
     fn watch(&self, cx: &mut Context<Workbench>) -> Subscription;

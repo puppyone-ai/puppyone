@@ -329,6 +329,13 @@ impl RightSidebar {
         self.set_open(true, cx);
         cx.notify();
     }
+    /// Focuses the active workbench chat or launcher composer when visible.
+    pub fn focus_active(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.shows(Surface::Agent, cx) {
+            self.workbench
+                .update(cx, |w, cx| w.focus_active(window, cx));
+        }
+    }
     /// The Changes entry (`useGitPresentation.toggle`): close Git when it
     /// shows (Changes or History), else reveal the Changes list.
     pub fn toggle_git(&mut self, cx: &mut Context<Self>) {

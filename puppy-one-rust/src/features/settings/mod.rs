@@ -15,9 +15,9 @@ pub use agent_routing_preferences::{
     AgentRoutePatch, AgentRoutePreference, AgentRoutingPreferences,
 };
 pub use preference_types::{
-    ExplorerPins, FilesVisibility, GitSidebarLayout, HeaderCoachmarks, HomepageLayout,
-    HomepageSort, PinnedFile, Preferences, RecentProject, RightSidebarSurface, SetupSuggestions,
-    SubThemeIds, ThemeMode, supported_project_name,
+    ExplorerPins, FilesVisibility, GitSidebarLayout, HeaderCoachmarks, HomeSpaceLayout,
+    HomepageLayout, HomepageSort, PinnedFile, Preferences, RecentProject, RightSidebarSurface,
+    SetupSuggestions, SubThemeIds, ThemeMode, supported_project_name,
 };
 pub use preferences_store::{PreferencesChanged, PreferencesStore, Slice, observe_slice};
 pub use settings_workspace_surface::{SettingsEvent, SettingsWorkspaceSurface};

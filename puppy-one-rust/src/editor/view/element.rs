@@ -492,12 +492,7 @@ impl Element for EditorElement {
         window: &mut Window,
         cx: &mut App,
     ) -> Prepainted {
-        // The content's text, built and laid out here, takes its language's
-        // script faces (`lang`); the editor's chrome keeps the interface's.
-        let language = self.view.read(cx).surface().language.clone();
-        crate::ui::fonts::with_content_language(language.as_ref(), || {
-            self.prepaint_content(bounds, window, cx)
-        })
+        self.prepaint_content(bounds, window, cx)
     }
 
     fn paint(

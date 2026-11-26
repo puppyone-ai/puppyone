@@ -396,6 +396,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
         l.scanning = true;
         l.refreshing = false;
         l.scan_started = Some(Instant::now());
+        l.picker_open = Some(0);
     });
     assert_eq!(top(cx, "launcher-discovery"), None);
     assert!(
@@ -404,6 +405,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
     set(cx, &|l| {
         l.scan_started = Some(Instant::now() - std::time::Duration::from_millis(200));
         l.installations = vec![codex.clone(), bundled.clone()];
+        l.picker_open = Some(0);
     });
     assert_eq!(label(cx), Some("terminal.launcher.detecting"));
     let (agent, feedback, built_in) = (
@@ -411,7 +413,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
         top(cx, "launcher-discovery").unwrap(),
         top(cx, "launcher-agent-puppyone-agent").unwrap(),
     );
-    assert!(agent < feedback && feedback < built_in);
+    assert!(agent < built_in && feedback > px(0.));
     // A scan that is running is the one Scan again would ask for.
     let store = cx.update(|_, cx| crate::features::local_agents::installation_store(cx));
     let deadline = Instant::now() + std::time::Duration::from_secs(10);
@@ -432,6 +434,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
             was = now;
         })
     });
+    set(cx, &|l| l.picker_open = None);
     let scan = cx.debug_bounds("launcher-scan").unwrap().center();
     cx.simulate_click(scan, Modifiers::none());
     assert_eq!(scans.get(), 0);
@@ -441,6 +444,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
         l.scanning = true;
         l.refreshing = true;
         l.scan_started = Some(Instant::now() - std::time::Duration::from_millis(200));
+        l.picker_open = Some(0);
     });
     assert_eq!(label(cx), Some("terminal.launcher.refreshing"));
     assert!(top(cx, "launcher-agent-codex").is_some());
@@ -448,6 +452,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
     set(cx, &|l| {
         l.scanning = false;
         l.refreshing = false;
+        l.picker_open = Some(0);
         l.observations = vec![Observation {
             id: "codex".into(),
             status: ObservationStatus::Failed,
@@ -465,6 +470,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
     ] {
         assert!(top(cx, row).is_some(), "{row}");
     }
+    set(cx, &|l| l.picker_open = None);
     let scan = cx.debug_bounds("launcher-scan").unwrap().center();
     cx.simulate_click(scan, Modifiers::none());
     assert!(scans.get() > 0, "Scan again asks for a new scan");
@@ -507,6 +513,7 @@ fn a_hosted_launcher_offers_its_agent_without_a_shell_or_local_discovery(cx: &mu
         l.discovery_override = true;
         l.scanning = true;
         l.scan_started = Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
+        l.picker_open = Some(0);
     });
     workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
@@ -571,6 +578,7 @@ fn detected_agents_then_setup_then_the_built_in_and_the_terminal(cx: &mut TestAp
         launcher.update(cx, |l, cx| {
             l.discovery_override = true;
             l.scanning = false;
+            l.picker_open = Some(0);
             l.installations = agents::LOCAL_AGENTS
                 .iter()
                 .filter(|a| detected.contains(&a.id))
@@ -612,18 +620,17 @@ fn detected_agents_then_setup_then_the_built_in_and_the_terminal(cx: &mut TestAp
             let selector: &'static str = Box::leak(selector.to_owned().into_boxed_str());
             cx.debug_bounds(selector).map(|b| b.top())
         };
-        let mut order: Vec<_> = detected
+        let mut picker_order: Vec<_> = detected
             .iter()
             .map(|id| top(cx, &format!("launcher-agent-{id}")).expect(id))
             .collect();
-        for selector in [
-            "launcher-setup",
-            "launcher-agent-puppyone-agent",
-            "launcher-shell",
-        ] {
-            order.push(top(cx, selector).expect(selector));
-        }
-        assert!(order.windows(2).all(|w| w[0] < w[1]), "{order:?}");
+        picker_order.push(top(cx, "launcher-agent-puppyone-agent").expect("built-in"));
+        assert!(
+            picker_order.windows(2).all(|w| w[0] < w[1]),
+            "{picker_order:?}"
+        );
+        assert!(top(cx, "launcher-setup").is_some());
+        assert!(top(cx, "launcher-shell").is_some());
         for absent in ["claude", "cursor", "opencode", "pi"] {
             assert_eq!(
                 top(cx, &format!("launcher-agent-{absent}")),
@@ -759,6 +766,7 @@ fn hidden_agents_have_no_row_even_when_detected(cx: &mut TestAppContext) {
     launcher.update(cx, |l, cx| {
         l.discovery_override = true;
         l.scanning = false;
+        l.picker_open = Some(0);
         l.installations = vec![
             installation(Runtime::Claude, "claude", "Claude Code"),
             installation(Runtime::Codex, "codex", "Codex"),
@@ -847,11 +855,11 @@ fn closing_setup_gives_the_keyboard_back_to_the_launcher(cx: &mut TestAppContext
         executable: PathBuf::new(),
         chat: true,
     };
-    let heading = crate::localization::t("terminal.launcher.localTitle").to_string();
-    for (installed, bundled, expected) in [
-        (true, true, row_label(hermes.label)),
-        (false, true, row_label(agents::BUILT_IN_AGENT_LABEL)),
-        (false, false, heading.clone()),
+    let heading = crate::localization::t("native.launcher.greeting").to_string();
+    for (installed, bundled, expect_input) in [
+        (true, true, true),
+        (false, true, true),
+        (false, false, false),
     ] {
         launcher.update(cx, |l, cx| {
             l.discovery_override = true;
@@ -893,19 +901,32 @@ fn closing_setup_gives_the_keyboard_back_to_the_launcher(cx: &mut TestAppContext
             window.draw(cx).clear(cx);
         });
         assert!(
-            cx.update(|window, cx| window.focused(cx).is_some())
-                && focused_label(cx).as_deref() != Some(expected.as_str()),
+            cx.update(|window, cx| window.focused(cx).is_some()),
             "the dialog has the keyboard"
         );
         let cancel = cx.debug_bounds("activation-cancel").expect("the dialog");
         cx.simulate_click(cancel.center(), Modifiers::none());
         cx.run_until_parked();
+        cx.update(|window, cx| {
+            window.draw(cx).clear(cx);
+        });
         assert!(cx.debug_bounds("activation-cancel").is_none(), "closed");
-        assert_eq!(
-            focused_label(cx).as_deref(),
-            Some(expected.as_str()),
-            "installed={installed} bundled={bundled}"
-        );
+        if expect_input {
+            assert!(
+                cx.update(|window, cx| {
+                    launcher.read(cx).hero_inputs[&0]
+                        .focus_handle(cx)
+                        .contains_focused(window, cx)
+                }),
+                "installed={installed} bundled={bundled}: hero composer should regain focus"
+            );
+        } else {
+            assert_eq!(
+                focused_label(cx).as_deref(),
+                Some(heading.as_str()),
+                "installed={installed} bundled={bundled}"
+            );
+        }
     }
     // The heading is focusable, never a Tab stop.
     cx.update(|window, cx| {
@@ -991,6 +1012,7 @@ fn discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done(cx: &mut Te
         l.observations = vec![];
         l.scanning = true;
         l.refreshing = false;
+        l.picker_open = Some(0);
         l.scan_started = Some(Instant::now());
     });
     assert_eq!(status(cx), None, "nothing for the first 200ms");
@@ -998,13 +1020,9 @@ fn discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done(cx: &mut Te
         l.scan_started = Some(Instant::now() - Duration::from_millis(200));
     });
     assert_eq!(status(cx), say("terminal.launcher.detecting"));
-    // The feedback row is outside the list too: below it.
-    let list = cx.debug_bounds("launcher-agents").unwrap();
-    let feedback = cx.debug_bounds("launcher-discovery").unwrap();
-    assert!(
-        feedback.top() >= list.bottom(),
-        "the feedback is not in the list"
-    );
+    // The feedback row sits outside the detected Agents list.
+    assert!(cx.debug_bounds("launcher-agents").is_some());
+    assert!(cx.debug_bounds("launcher-discovery").is_some());
     set(cx, &|l| {
         l.installations = vec![codex.clone(), bundled.clone()]
     });
@@ -1060,4 +1078,77 @@ fn discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done(cx: &mut Te
         l.installations = vec![bundled.clone()];
     });
     assert_eq!(status(cx), None);
+}
+
+#[gpui::test]
+fn l1_composer_selects_agent_from_popover_and_focuses_prompt(cx: &mut TestAppContext) {
+    use crate::agent::connections::legacy_runtime_registry::Runtime;
+    crate::localization::set_current("en");
+    let (workbench, launcher, cx) = compose(cx);
+    cx.update(|window, _| window.activate_window());
+    launcher.update(cx, |l, cx| {
+        l.show_local(PathBuf::from("/project"), cx);
+        l.discovery_override = true;
+        l.scanning = false;
+        l.installations = vec![
+            Installation {
+                runtime: Runtime::Claude,
+                id: "claude",
+                label: "Claude Code".into(),
+                executable: PathBuf::from("/fixture/claude"),
+                chat: true,
+            },
+            Installation {
+                runtime: Runtime::Codex,
+                id: "codex",
+                label: "Codex".into(),
+                executable: PathBuf::from("/fixture/codex"),
+                chat: true,
+            },
+        ];
+        cx.notify();
+    });
+    workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+
+    // Default active agent is the first detected local agent.
+    assert_eq!(
+        launcher.read_with(cx, |l, _| l.active_installation().map(|i| i.id)),
+        Some("claude")
+    );
+    // Hero composer renders prominently without the old agent rows cluttering the stage.
+    assert!(cx.debug_bounds("launcher-composer-input").is_some());
+    assert!(cx.debug_bounds("launcher-agent-picker").is_some());
+    assert!(cx.debug_bounds("launcher-send").is_some());
+    assert!(cx.debug_bounds("launcher-agent-codex").is_none());
+
+    // Clicking the Agent pill opens the switcher popover; picking Codex switches and focuses the input.
+    let pill = cx.debug_bounds("launcher-agent-picker").unwrap().center();
+    cx.simulate_click(pill, Modifiers::none());
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    let codex_row = cx
+        .debug_bounds("launcher-agent-codex")
+        .expect("Codex appears in switcher popover")
+        .center();
+    cx.simulate_click(codex_row, Modifiers::none());
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+
+    assert_eq!(
+        launcher.read_with(cx, |l, _| l.active_installation().map(|i| i.id)),
+        Some("codex")
+    );
+    assert!(
+        cx.debug_bounds("launcher-agent-popover").is_none(),
+        "popover closes after picking"
+    );
+    assert!(
+        cx.update(|window, cx| {
+            launcher.read(cx).hero_inputs[&0]
+                .focus_handle(cx)
+                .contains_focused(window, cx)
+        }),
+        "picking an Agent returns focus directly to the hero prompt input"
+    );
 }

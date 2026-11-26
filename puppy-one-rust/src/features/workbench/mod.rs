@@ -263,6 +263,32 @@ impl Workbench {
     pub fn set_host(&mut self, host: Rc<dyn WorkbenchHost>) {
         self.host = Some(host);
     }
+    /// Move keyboard focus into the active tab's composer (or active launcher's
+    /// hero composer) so opening the sidebar or adding a tab is ready to type.
+    pub fn focus_active(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(p) = self.project() else {
+            return;
+        };
+        let group = p.layout.active_group;
+        let active = p
+            .layout
+            .groups
+            .get(&group)
+            .and_then(|g| g.active)
+            .and_then(|tab| p.content.get(&tab));
+        match active {
+            Some(Content::Item { item, .. }) => {
+                let item = item.clone();
+                item.focus(window, cx);
+            }
+            Some(Content::Retained(_)) => {}
+            _ => {
+                if let Some(host) = self.host.clone() {
+                    host.focus_launcher(group, window, cx);
+                }
+            }
+        }
+    }
     /// A tab's title: a launcher showing something else (History) takes
     /// the host's.
     fn tab_title(&self, tab: Id, content: &Content, cx: &App) -> String {

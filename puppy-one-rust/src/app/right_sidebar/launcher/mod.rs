@@ -22,6 +22,7 @@ use crate::features::workbench::{
     WorkbenchView,
 };
 use crate::ui::components::Icon;
+use crate::ui::form_input::{InputEvent, TextInput};
 use crate::wake::Wake;
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
@@ -41,14 +42,6 @@ pub(crate) enum LauncherEvent {
     CloudPublished,
 }
 impl EventEmitter<LauncherEvent> for WorkbenchLauncher {}
-
-/// A launcher row's "open in a terminal" menu, pinned at the pointer.
-struct LauncherMenu {
-    group: Id,
-    tab: Option<Id>,
-    installation: Installation,
-    at: Point<Pixels>,
-}
 
 pub(crate) struct WorkbenchLauncher {
     workbench: WeakEntity<Workbench>,
@@ -85,7 +78,6 @@ pub(crate) struct WorkbenchLauncher {
     /// A hosted Agent run's changes were accepted.
     cloud_published: Arc<AtomicBool>,
     wake: Wake,
-    menu: Option<LauncherMenu>,
     /// The shown project, as the workbench last reported it.
     shown: WorkbenchView,
     /// Each launcher's Agent rows' focus, by Agent.
@@ -96,6 +88,21 @@ pub(crate) struct WorkbenchLauncher {
     return_targets: HashMap<Id, Vec<FocusHandle>>,
     /// The launcher whose setup section was last used.
     setup_group: Option<Id>,
+    /// The Agent currently selected in the L1 composer-first launcher.
+    selected_agent: Option<String>,
+    /// Per-group L1 hero prompt inputs.
+    hero_inputs: HashMap<Id, Entity<TextInput>>,
+    /// Per-group active launcher tab id, updated on render for Enter submit.
+    hero_tabs: HashMap<Id, Option<Id>>,
+    /// Which group currently has its Agent picker popover open.
+    picker_open: Option<Id>,
+    /// Focus handle per group's Agent picker popover (for Escape dismissal).
+    picker_focus: HashMap<Id, FocusHandle>,
+    /// Group whose hero input should take focus as soon as it renders.
+    pending_focus: Option<Id>,
+    /// Passive history watcher for the shown local project (only when the user
+    /// already granted `chatHistoryDiscoveryEnabled`).
+    recent_watch: Option<(PathBuf, Box<dyn FnOnce()>)>,
 }
 
 impl WorkbenchLauncher {
@@ -142,12 +149,18 @@ impl WorkbenchLauncher {
             owner: crate::features::agent_presence::owner(window),
             cloud_published: Default::default(),
             wake,
-            menu: None,
             shown: WorkbenchView::default(),
             row_focus: HashMap::new(),
             heading_focus: HashMap::new(),
             return_targets: HashMap::new(),
             setup_group: None,
+            selected_agent: None,
+            hero_inputs: HashMap::new(),
+            hero_tabs: HashMap::new(),
+            picker_open: None,
+            picker_focus: HashMap::new(),
+            pending_focus: None,
+            recent_watch: None,
         }
     }
     fn woke(&mut self, cx: &mut Context<Self>) {
@@ -177,10 +190,23 @@ impl WorkbenchLauncher {
         cx: &mut Context<Self>,
     ) {
         self.chats.set_preference_store(store.clone());
+        if self.selected_agent.is_none() {
+            self.selected_agent = store
+                .read(cx)
+                .state
+                .agent_routing
+                .selected_runtime_id
+                .clone();
+        }
         // Discovery granted elsewhere (Settings) starts the open browsers.
-        cx.observe(&store, |s, _, cx| s.sync_history(cx)).detach();
+        cx.observe(&store, |s, _, cx| {
+            s.sync_history(cx);
+            s.ensure_recent_watch(cx);
+        })
+        .detach();
         self.preferences = Some(store);
         self.setup = None;
+        self.ensure_recent_watch(cx);
     }
     /// Hidden local Agents, routing and Payments reach the launcher and
     /// every open chat.
@@ -222,6 +248,7 @@ impl WorkbenchLauncher {
         self.show(root, cx);
     }
     fn show(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+        self.shown.root = Some(root.clone());
         if let Some(workbench) = self.workbench.upgrade() {
             let roots = workbench.update(cx, |w, cx| {
                 w.show(root, cx);
@@ -230,6 +257,220 @@ impl WorkbenchLauncher {
             if self.shown.roots != roots {
                 self.shown.roots = roots.clone();
                 self.chats.set_roots(roots);
+            }
+        }
+        self.picker_open = None;
+        self.ensure_recent_watch(cx);
+        cx.notify();
+    }
+    /// Starts passively watching local conversation history for the shown
+    /// project ONLY if the user has already granted history discovery permission.
+    fn ensure_recent_watch(&mut self, cx: &mut Context<Self>) {
+        if self.hosted.is_open() || !self.history_discovery(cx) {
+            if let Some((_, unwatch)) = self.recent_watch.take() {
+                unwatch();
+            }
+            return;
+        }
+        let Some(root) = self.shown.root.clone() else {
+            return;
+        };
+        if !root.is_dir() {
+            return;
+        }
+        if self
+            .recent_watch
+            .as_ref()
+            .is_some_and(|(watched, _)| watched == &root)
+        {
+            return;
+        }
+        if let Some((_, unwatch)) = self.recent_watch.take() {
+            unwatch();
+        }
+        if let Some(unwatch) = self
+            .chats
+            .watch_recent_history(&root, self.wake.clone(), cx)
+        {
+            self.recent_watch = Some((root, unwatch));
+        }
+    }
+    /// Cached recent sessions for the current project (max 3), never starting
+    /// discovery without explicit permission.
+    pub(super) fn recent_sessions(
+        &self,
+        cx: &App,
+    ) -> Vec<crate::agent::contract::dto::SessionMetadata> {
+        if self.hosted.is_open() {
+            return self
+                .hosted
+                .cached_recent_sessions(&self.shown.open_chats, 3);
+        }
+        if !self.history_discovery(cx) {
+            return Vec::new();
+        }
+        let Some(root) = self.shown.root.as_ref() else {
+            return Vec::new();
+        };
+        self.chats
+            .cached_recent_sessions(root, &self.shown.open_chats, 3)
+    }
+    /// The currently selected Agent in the L1 composer: remembers the user's
+    /// last pick, falling back to the first detected local Agent, then Built-in.
+    pub(super) fn active_installation(&self) -> Option<Installation> {
+        let visible = self.visible_installations();
+        if let Some(selected) = self.selected_agent.as_deref()
+            && let Some(found) = visible
+                .iter()
+                .find(|i| i.chat && (i.id == selected || agent_chat_runtime_id(i) == selected))
+        {
+            return Some(found.clone());
+        }
+        visible
+            .iter()
+            .find(|i| i.chat && !i.bundled())
+            .or_else(|| visible.iter().find(|i| i.chat))
+            .cloned()
+    }
+    /// Selects `id` as the active Agent for the L1 composer and returns focus
+    /// to `group`'s prompt input.
+    pub(super) fn select_agent(
+        &mut self,
+        group: Id,
+        id: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.selected_agent = Some(id);
+        self.picker_open = None;
+        self.focus_group(group, window, cx);
+        cx.notify();
+    }
+    /// Gets or creates `group`'s L1 hero prompt input.
+    pub(super) fn hero_input(
+        &mut self,
+        group: Id,
+        tab: Option<Id>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<TextInput> {
+        self.hero_tabs.insert(group, tab);
+        let input =
+            self.hero_inputs
+                .entry(group)
+                .or_insert_with(|| {
+                    let input = cx.new(|cx| {
+                        let mut input = TextInput::new("", true, 64_000, window, cx);
+                        let size = crate::theme::ty().left.content;
+                        input.prompt_text = Some((size, size * 1.5));
+                        input.placeholder_color = Some(|t| {
+                            crate::features::desktop_agent::AgentTheme::new(t).composer_placeholder
+                        });
+                        input.min_height = size * 1.5 * 2.;
+                        input.appearance = false;
+                        input.submit_on_enter = true;
+                        input.set_max_rows(6, cx);
+                        input
+                    });
+                    cx.subscribe_in(&input, window, move |s, _, event: &InputEvent, w, cx| {
+                        match event {
+                            InputEvent::Changed => cx.notify(),
+                            InputEvent::Submit => s.submit_hero(group, w, cx),
+                        }
+                    })
+                    .detach();
+                    input
+                })
+                .clone();
+        if self.pending_focus == Some(group) {
+            self.pending_focus = None;
+            input.focus_handle(cx).focus(window, cx);
+        }
+        input
+    }
+    /// Focuses `group`'s L1 hero prompt input immediately (or on its next render).
+    pub(super) fn focus_group(&mut self, group: Id, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(input) = self.hero_inputs.get(&group) {
+            self.pending_focus = None;
+            input.focus_handle(cx).focus(window, cx);
+        } else {
+            self.pending_focus = Some(group);
+            cx.notify();
+        }
+    }
+    /// Submits `group`'s L1 hero prompt: creates a fresh chat tab on the
+    /// selected Agent and sends the prompt without any extra click.
+    pub(super) fn submit_hero(&mut self, group: Id, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(input) = self.hero_inputs.get(&group).cloned() else {
+            return;
+        };
+        if input.update(cx, |i, cx| i.composing(window, cx)) {
+            return;
+        }
+        let prompt = input.read(cx).current_text(cx);
+        if prompt.trim().is_empty() {
+            return;
+        }
+        let Some(installation) = self.active_installation() else {
+            return;
+        };
+        let tab = self.hero_tabs.get(&group).copied().flatten();
+        self.picker_open = None;
+        self.selected_agent = Some(installation.id.to_owned());
+        input.update(cx, |i, cx| i.set_text("", cx));
+        if self.hosted.is_open() {
+            self.launch_hosted_with_prompt(group, tab, prompt, window, cx);
+        } else {
+            let runtime_id = agent_chat_runtime_id(&installation);
+            self.launch_seeded_runtime_chat(group, tab, &runtime_id, &prompt, window, cx);
+        }
+    }
+    /// Creates a hosted Cloud Agent chat tab with an initial prompt already
+    /// submitted.
+    fn launch_hosted_with_prompt(
+        &mut self,
+        group: Id,
+        tab: Option<Id>,
+        prompt: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(workbench) = self.workbench.upgrade() else {
+            return;
+        };
+        let (root, can_chat) = {
+            let w = workbench.read(cx);
+            let Some(root) = w.root().cloned() else {
+                return;
+            };
+            if let Some(tab) = tab
+                && !w.launcher_available(&root, tab)
+            {
+                return;
+            }
+            (root, w.can_create(ItemKind::Chat))
+        };
+        if !can_chat {
+            return;
+        }
+        self.launch_errors.remove(&group);
+        let Some(id) = tab.or_else(|| workbench.update(cx, |w, cx| w.new_launcher_tab(group, cx)))
+        else {
+            return;
+        };
+        match self.hosted.chat_with_prompt(
+            &root,
+            &format!("tab:{id}"),
+            None,
+            Some(prompt),
+            window,
+            cx,
+        ) {
+            Ok(item) => {
+                workbench.update(cx, |w, cx| w.place(group, Some(id), Rc::new(item), cx));
+            }
+            Err(error) => {
+                self.launch_errors.insert(group, error);
             }
         }
         cx.notify();
@@ -511,8 +752,11 @@ pub(crate) fn compose(
 }
 
 impl WorkbenchHost for Entity<WorkbenchLauncher> {
-    fn launcher(&self, context: LauncherContext, cx: &mut App) -> AnyElement {
-        self.update(cx, |l, cx| l.render_launcher(context, cx))
+    fn launcher(&self, context: LauncherContext, window: &mut Window, cx: &mut App) -> AnyElement {
+        self.update(cx, |l, cx| l.render_launcher(context, window, cx))
+    }
+    fn focus_launcher(&self, group: Id, window: &mut Window, cx: &mut App) {
+        self.update(cx, |l, cx| l.focus_group(group, window, cx));
     }
     fn launcher_title(&self, tab: Id, cx: &App) -> Option<String> {
         self.read(cx)
@@ -554,6 +798,11 @@ impl WorkbenchHost for Entity<WorkbenchLauncher> {
         });
     }
     fn shutdown(&self, cx: &mut App) {
-        self.update(cx, |l, _| l.chats.shutdown());
+        self.update(cx, |l, _| {
+            if let Some((_, unwatch)) = l.recent_watch.take() {
+                unwatch();
+            }
+            l.chats.shutdown();
+        });
     }
 }

@@ -9,9 +9,12 @@ use crate::theme::{self, Theme};
 use crate::ui::components::Icon;
 use gpui_kit::base::h_flex;
 
-/// `AgentToolGlyph` frames are 18 units drawn at 16px.
+/// `AgentToolGlyph` frames are 18 units drawn at 16px; `@1.2` gives ~1.07px
+/// on-screen stroke matching the settled 14.5px Lucide icons (`1.75 * 14.5 / 24 = 1.06px`).
 const GLYPH: f32 = 16.;
 const GLYPH_UNIT: f32 = GLYPH / 18.;
+const LUCIDE_TOOL_SIZE: f32 = 14.5;
+const LUCIDE_TOOL_STROKE: f32 = 1.75;
 
 fn ease(t: f32) -> f32 {
     if t < 0.5 {
@@ -61,15 +64,15 @@ pub fn tool_glyph(
     let frame = || div().relative().size(px(GLYPH)).flex_shrink_0();
     let lucide = |name: &str| {
         Icon::new(name)
-            .with_size(px(15.))
-            .stroke(1.85)
+            .with_size(px(LUCIDE_TOOL_SIZE))
+            .stroke(LUCIDE_TOOL_STROKE)
             .color(color)
             .into_any_element()
     };
     let duration = |ms: u64| Animation::new(std::time::Duration::from_millis(ms)).repeat();
     match kind {
         AgentToolGlyphKind::Search if active => frame()
-            .child(layer("icons/agent-glyph-search.svg").with_animation(
+            .child(layer("icons/agent-glyph-search@1.2.svg").with_animation(
                 ElementId::Name(format!("{id}-search").into()),
                 duration(1_600),
                 |g, delta| {
@@ -93,55 +96,46 @@ pub fn tool_glyph(
                 },
             ))
             .into_any_element(),
-        AgentToolGlyphKind::Search => frame()
-            .child(layer("icons/agent-glyph-search.svg"))
+        AgentToolGlyphKind::Search => lucide("search"),
+        AgentToolGlyphKind::Read if active => frame()
+            .child(layer("icons/agent-glyph-read@1.2.svg"))
+            .child(layer("icons/agent-glyph-read-scan@1.2.svg").with_animation(
+                ElementId::Name(format!("{id}-read").into()),
+                duration(1_550),
+                |scan, delta| {
+                    let (_, y, opacity) = keyframes(
+                        delta,
+                        &[
+                            (0., 0., 0., 0.),
+                            (0.15, 0., 0., 0.),
+                            (0.25, 0., 0., 0.72),
+                            (0.72, 0., 4., 0.72),
+                            (0.82, 0., 4., 0.),
+                            (0.9, 0., 0., 0.),
+                            (1., 0., 0., 0.),
+                        ],
+                    );
+                    scan.with_transformation(Transformation::translate(point(
+                        px(0.),
+                        px(y * GLYPH_UNIT),
+                    )))
+                    .opacity(opacity)
+                },
+            ))
             .into_any_element(),
-        AgentToolGlyphKind::Read => frame()
-            .child(layer("icons/agent-glyph-read.svg"))
-            .when(active, |d| {
-                d.child(layer("icons/agent-glyph-read-scan.svg").with_animation(
-                    ElementId::Name(format!("{id}-read").into()),
-                    duration(1_550),
-                    |scan, delta| {
-                        let (_, y, opacity) = keyframes(
-                            delta,
-                            &[
-                                (0., 0., 0., 0.),
-                                (0.15, 0., 0., 0.),
-                                (0.25, 0., 0., 0.72),
-                                (0.72, 0., 4., 0.72),
-                                (0.82, 0., 4., 0.),
-                                (0.9, 0., 0., 0.),
-                                (1., 0., 0., 0.),
-                            ],
-                        );
-                        scan.with_transformation(Transformation::translate(point(
-                            px(0.),
-                            px(y * GLYPH_UNIT),
-                        )))
-                        .opacity(opacity)
-                    },
-                ))
-            })
-            .into_any_element(),
+        AgentToolGlyphKind::Read => lucide("file-text"),
         kind @ (AgentToolGlyphKind::Edit | AgentToolGlyphKind::Write) => {
             let edit = kind == AgentToolGlyphKind::Edit;
             if !active {
-                return frame()
-                    .child(layer(if edit {
-                        "icons/agent-glyph-edit.svg"
-                    } else {
-                        "icons/agent-glyph-write.svg"
-                    }))
-                    .into_any_element();
+                return lucide(if edit { "file-pen-line" } else { "file-plus-2" });
             }
             frame()
                 .child(layer(if edit {
-                    "icons/agent-glyph-edit-base.svg"
+                    "icons/agent-glyph-edit-base@1.2.svg"
                 } else {
-                    "icons/agent-glyph-write-base.svg"
+                    "icons/agent-glyph-write-base@1.2.svg"
                 }))
-                .child(layer("icons/agent-glyph-ink.svg").with_animation(
+                .child(layer("icons/agent-glyph-ink@1.2.svg").with_animation(
                     ElementId::Name(format!("{id}-ink").into()),
                     duration(1_500),
                     |ink, delta| {
@@ -158,7 +152,7 @@ pub fn tool_glyph(
                         ink.opacity(opacity)
                     },
                 ))
-                .child(layer("icons/agent-glyph-pen.svg").with_animation(
+                .child(layer("icons/agent-glyph-pen@1.2.svg").with_animation(
                     ElementId::Name(format!("{id}-pen").into()),
                     duration(1_500),
                     |pen, delta| {
@@ -210,31 +204,32 @@ pub fn step_icon(
             tool_glyph(id, kind, active, color)
         }
         StepIcon::Brain => Icon::new("brain")
-            .with_size(px(13.))
-            .stroke(2.)
-            .color(a.tool_action)
+            .with_size(px(LUCIDE_TOOL_SIZE))
+            .stroke(LUCIDE_TOOL_STROKE)
+            .color(a.tool_glyph)
             .into_any_element(),
         StepIcon::ListTodo => Icon::new("list-todo")
-            .with_size(px(13.))
-            .stroke(2.)
-            .color(a.tool_action)
+            .with_size(px(LUCIDE_TOOL_SIZE))
+            .stroke(LUCIDE_TOOL_STROKE)
+            .color(a.tool_glyph)
             .into_any_element(),
     }
 }
 
-/// `StatusIcon`.
+/// `StatusIcon`: completed steps stay quiet without a trailing checkmark
+/// (matching Option E and `.desktop-agent-tool-status.is-completed`); failed,
+/// stopped, and pending steps keep their status mark.
 pub fn status_icon_element(icon: &StatusIcon, a: &AgentTheme, t: &Theme) -> Option<AnyElement> {
     let (name, color) = match icon {
-        StatusIcon::None => return None,
+        StatusIcon::None | StatusIcon::Completed { .. } => return None,
         StatusIcon::Failed { .. } => ("circle-alert", t.danger),
-        StatusIcon::Completed { .. } => ("check", a.text_subtle),
         StatusIcon::Stopped { .. } => ("circle-slash-2", a.text_subtle),
         StatusIcon::Pending { .. } => ("circle", a.text_subtle),
     };
     Some(
         Icon::new(name)
             .with_size(px(12.))
-            .stroke(2.)
+            .stroke(1.75)
             .color(color)
             .into_any_element(),
     )
@@ -279,15 +274,15 @@ pub fn step_line(
     };
     h_flex()
         .id(id)
-        .group(group)
+        .group(group.clone())
         .w_full()
         .min_w_0()
-        .min_h(px(theme::control_compact()))
+        .min_h(px(26.))
         .px(px(ROW_PADDING))
         .gap(px(8.))
         .rounded(px(6.))
-        .text_size(px(m.left.content))
-        .line_height(px(m.left.line_height))
+        .text_size(px(m.right.meta))
+        .line_height(px(m.right.meta_line_height))
         .text_color(a.tool_action)
         .when(has_detail, |d| {
             d.cursor(theme::clickable_cursor())
@@ -295,7 +290,8 @@ pub fn step_line(
         })
         .child(
             div()
-                .size(px(TOOL_ICON))
+                .w(px(TOOL_ICON))
+                .h(px(16.))
                 .flex_none()
                 .flex()
                 .items_center()
@@ -309,7 +305,8 @@ pub fn step_line(
                 .flex_1()
                 .min_w_0()
                 .overflow_hidden()
-                .text_color(a.text_subtle)
+                .text_color(a.tool_subject)
+                .group_hover(group, move |s| s.text_color(a.text_muted))
                 .children(subject),
         )
         .children(metadata)
@@ -318,6 +315,7 @@ pub fn step_line(
 
 /// `AgentToolStepPath` / `AgentToolStepCode` / `AgentToolStepText`.
 pub fn subject_element(subject: &StepSubject, a: &AgentTheme) -> AnyElement {
+    let m = theme::ty();
     let line = || {
         h_flex()
             .min_w_0()
@@ -330,7 +328,7 @@ pub fn subject_element(subject: &StepSubject, a: &AgentTheme) -> AnyElement {
             .min_w_0()
             .flex_shrink(100.)
             .truncate()
-            .text_color(a.text_subtle)
+            .text_color(theme::alpha(a.text_subtle, 0.75))
             .child(text)
     };
     match subject {
@@ -341,7 +339,6 @@ pub fn subject_element(subject: &StepSubject, a: &AgentTheme) -> AnyElement {
                     .flex_shrink_0()
                     .max_w_full()
                     .truncate()
-                    .text_color(a.tool_subject)
                     .child(name.clone()),
             )
             .when(!folder.is_empty(), |d| d.child(context(folder.clone())))
@@ -355,8 +352,7 @@ pub fn subject_element(subject: &StepSubject, a: &AgentTheme) -> AnyElement {
                     .min_w_0()
                     .truncate()
                     .font_family(theme::mono())
-                    .text_size(px(mono_size()))
-                    .text_color(a.tool_subject)
+                    .text_size(px(m.right.caption))
                     .child(text.clone()),
             )
             .children(scope.clone().map(context))
@@ -364,7 +360,6 @@ pub fn subject_element(subject: &StepSubject, a: &AgentTheme) -> AnyElement {
         StepSubject::Text(text) => div()
             .min_w_0()
             .truncate()
-            .text_color(a.text_subtle)
             .child(text.clone())
             .into_any_element(),
     }

@@ -480,3 +480,152 @@ fn failed_mentions_retry_in_place_or_remove(cx: &mut TestAppContext) {
         }
     }
 }
+
+#[gpui::test]
+fn capsule_composer_places_session_controls_below_the_circular_action(cx: &mut TestAppContext) {
+    use crate::features::desktop_agent::domain::agent_session_controls::{
+        AgentSessionControl, AgentSessionControlId, AgentSessionControlOption,
+    };
+    crate::localization::set_current("en");
+    let (composer, _log, cx) = setup(cx);
+    let control = |id, value: &str, label: &str| AgentSessionControl {
+        id,
+        value: Some(value.into()),
+        options: vec![AgentSessionControlOption {
+            value: value.into(),
+            label: label.into(),
+            description: None,
+            keywords: None,
+        }],
+    };
+    composer.update_in(cx, |c, window, cx| {
+        c.set_input(
+            ComposerInput {
+                draft: "Hello".into(),
+                submittable: true,
+                session_controls: vec![
+                    control(AgentSessionControlId::Model, "gpt-5", "GPT-5"),
+                    control(AgentSessionControlId::Effort, "low", "Low"),
+                ],
+                ..Default::default()
+            },
+            window,
+            cx,
+        )
+    });
+    draw(cx);
+    let action = cx
+        .debug_bounds("agent-composer-action")
+        .expect("circular send action");
+    let model = cx
+        .debug_bounds("agent-picker-Model")
+        .expect("model chip below capsule");
+    let effort = cx
+        .debug_bounds("agent-picker-Effort")
+        .expect("effort chip below capsule");
+    assert_eq!(action.size.width, action.size.height, "circular action");
+    assert!(
+        model.origin.y > action.bottom(),
+        "model chip should sit below the floating capsule: model={model:?} action={action:?}"
+    );
+    assert!(
+        effort.origin.y > action.bottom() && effort.origin.x > model.right(),
+        "effort chip should sit beside model below capsule: effort={effort:?} model={model:?}"
+    );
+}
+
+#[gpui::test]
+fn capsule_morphs_to_full_width_multiline_and_preserves_focus(cx: &mut TestAppContext) {
+    crate::localization::set_current("en");
+    let (composer, _log, cx) = setup(cx);
+    draw(cx);
+    let single_input = cx
+        .debug_bounds("agent-composer-input")
+        .expect("single-line input");
+    let single_action = cx
+        .debug_bounds("agent-composer-action")
+        .expect("single-line action");
+    assert!(
+        single_input.right() <= single_action.origin.x,
+        "single-line input sits inline left of action: input={single_input:?} action={single_action:?}"
+    );
+
+    // Pressing Shift+Enter expands into M1 2-row full-width layout while preserving focus.
+    cx.simulate_input("first");
+    cx.simulate_keystrokes("shift-enter");
+    draw(cx);
+    cx.simulate_input("second");
+    draw(cx);
+    assert_eq!(text(&composer, cx), "first\nsecond");
+
+    let multi_input = cx
+        .debug_bounds("agent-composer-input")
+        .expect("multiline input");
+    let multi_action = cx
+        .debug_bounds("agent-composer-action")
+        .expect("multiline action");
+    assert!(
+        multi_input.size.width > single_input.size.width + px(40.),
+        "multiline input expands to full width: single={single_input:?} multi={multi_input:?}"
+    );
+    assert!(
+        multi_action.origin.y >= multi_input.bottom(),
+        "action sits below the multiline text block: input={multi_input:?} action={multi_action:?}"
+    );
+
+    // Deleting everything in the editor collapses back to the compact single-line capsule.
+    cx.simulate_keystrokes("secondary-a backspace");
+    draw(cx);
+    assert_eq!(text(&composer, cx), "");
+    let collapsed_input = cx
+        .debug_bounds("agent-composer-input")
+        .expect("collapsed input");
+    let collapsed_action = cx
+        .debug_bounds("agent-composer-action")
+        .expect("collapsed action");
+    assert!(
+        collapsed_input.right() <= collapsed_action.origin.x,
+        "empty editor returns to single-line pill: input={collapsed_input:?} action={collapsed_action:?}"
+    );
+
+    // Controlled draft with a long wrapping paragraph (no newline) expands via soft-wrap,
+    // and clearing the controlled draft (as on submit) collapses back to a single-line pill.
+    let long_line = "fjksdjfkljaskldfjaskldjfklsajdf".repeat(8);
+    composer.update_in(cx, |c, window, cx| {
+        c.set_input(
+            ComposerInput {
+                draft: long_line,
+                ..Default::default()
+            },
+            window,
+            cx,
+        )
+    });
+    draw(cx);
+    draw(cx);
+    let wrapped_input = cx
+        .debug_bounds("agent-composer-input")
+        .expect("soft-wrapped input");
+    let wrapped_action = cx
+        .debug_bounds("agent-composer-action")
+        .expect("soft-wrapped action");
+    assert!(
+        wrapped_action.origin.y >= wrapped_input.bottom(),
+        "soft-wrapped text expands to 2-row M1 layout: input={wrapped_input:?} action={wrapped_action:?}"
+    );
+
+    composer.update_in(cx, |c, window, cx| {
+        c.set_input(ComposerInput::default(), window, cx)
+    });
+    draw(cx);
+    let reset_input = cx
+        .debug_bounds("agent-composer-input")
+        .expect("reset input");
+    let reset_action = cx
+        .debug_bounds("agent-composer-action")
+        .expect("reset action");
+    assert!(
+        reset_input.right() <= reset_action.origin.x,
+        "cleared controlled draft collapses back to single-line pill: input={reset_input:?} action={reset_action:?}"
+    );
+}

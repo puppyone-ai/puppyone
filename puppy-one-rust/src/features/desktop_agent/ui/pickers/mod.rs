@@ -106,22 +106,21 @@ impl SessionPickers {
         let searchable = control.options.len() > 6;
         let trigger_selector = format!("agent-picker-{id:?}");
         let label_selector = format!("agent-picker-{id:?}:{label}");
-        let trigger = div()
+        let trigger = h_flex()
             .id(SharedString::from(format!("agent-picker-{id:?}")))
             .debug_selector(move || trigger_selector)
-            .h(px(theme::control_compact()))
+            .h(px(22.))
             .px(px(6.))
-            .flex()
-            .items_center()
+            .gap(px(3.))
             .min_w_0()
             .max_w(px(width))
             .overflow_hidden()
-            .rounded(px(theme::metric::CONTROL_RADIUS))
+            .rounded(px(6.))
             .text_color(a.text_subtle)
             .when(disabled, |d| d.opacity(0.45))
             .when(!disabled, |d| {
                 d.cursor(theme::clickable_cursor())
-                    .hover(move |s| s.bg(a.row_hover))
+                    .hover(move |s| s.bg(a.row_hover).text_color(a.text))
                     .on_click(cx.listener(move |s, _, window, cx| {
                         if s.open == Some(id) {
                             s.close(cx);
@@ -143,9 +142,15 @@ impl SessionPickers {
                     .debug_selector(move || label_selector)
                     .min_w_0()
                     .truncate()
-                    .text_size(px(theme::ty().left.content))
-                    .line_height(px(theme::ty().left.line_height))
+                    .text_size(px(theme::ty().right.caption))
+                    .line_height(px(16.))
                     .child(label),
+            )
+            .child(
+                Icon::new("chevron-down")
+                    .with_size(px(10.5))
+                    .stroke(2.)
+                    .color(theme::alpha(a.text_subtle, 0.8)),
             );
         let mut root = div().relative().flex_shrink(1.).min_w_0().child(trigger);
         if open {

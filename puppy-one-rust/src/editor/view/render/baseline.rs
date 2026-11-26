@@ -29,8 +29,16 @@ pub(super) fn chromium_line_height(scale: f32, height: f32) -> f32 {
 }
 
 pub fn primary_metrics(window: &Window, style: &TextStyle) -> (f32, f32) {
+    primary_metrics_for(window, style, None)
+}
+
+pub fn primary_metrics_for(
+    window: &Window,
+    style: &TextStyle,
+    language: Option<&str>,
+) -> (f32, f32) {
     let ts = window.text_system();
-    let id = ts.resolve_font(&RenderCx::font(style));
+    let id = ts.resolve_font(&RenderCx::font_for(style, language));
     let size = px(style.size);
     (
         f32::from(ts.ascent(id, size)),

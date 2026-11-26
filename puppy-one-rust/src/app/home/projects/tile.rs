@@ -40,7 +40,7 @@ impl Homepage {
         if look == Look::Plain {
             return self.plain_tile(index, item, focus, lit, is_stop, busy, keys, cx);
         }
-        let t = cx.palette();
+        let t = self.home_palette(cx);
         let ty = theme::ty().ui;
         let name = item_name(item);
         let place = match &item.local_path {
@@ -132,6 +132,7 @@ impl Homepage {
                     .fade(fade.or(status.map(|_| 0.4)))
                     .into_any_element(),
                     _ => ProjectFolderGlyph::grid(self.item_previews(item))
+                        .theme(t)
                         .lit(lit)
                         .fade(fade.or(status.map(|_| 0.4)))
                         .into_any_element(),
@@ -214,7 +215,7 @@ impl Homepage {
         keys: impl Fn(&KeyDownEvent, &mut Window, &mut App) + 'static,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let t = cx.palette();
+        let t = self.home_palette(cx);
         let ty = theme::ty().ui;
         let name = item_name(item);
         let place = item
@@ -251,6 +252,7 @@ impl Homepage {
             .child(
                 div().flex_none().child(
                     ProjectFolderGlyph::tiny()
+                        .theme(t)
                         .lit(lit)
                         .fade(status.map(|_| 0.4)),
                 ),

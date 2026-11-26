@@ -199,7 +199,7 @@ impl BlockWidget for TabsWidget {
                     click(window, cx);
                 })
                 .child(SharedString::from(item.label.clone()));
-            text.apply(label.style());
+            text.apply_for(label.style(), cx.render.language());
             label = label.text_color(if shown || ring { t.text } else { t.muted });
             if ring {
                 let inset = -(FOCUS_RING + FOCUS_OFFSET);

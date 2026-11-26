@@ -30,9 +30,9 @@ use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, v_flex};
 use std::path::PathBuf;
 
-/// `PROJECT_ACTION_MENU_WIDTH`: the local menu has room for its folder's
-/// commands and who can open it.
-const MENU_WIDTH_LOCAL: f32 = 260.;
+/// `PROJECT_ACTION_MENU_WIDTH`: compact width for Copy path, Rename,
+/// `Move to ▸` and Unlink.
+const MENU_WIDTH_LOCAL: f32 = 204.;
 const MENU_WIDTH_CLOUD: f32 = 184.;
 /// `PROJECT_NAME_MAX_LENGTH`.
 const NAME_MAX_LOCAL: usize = 120;

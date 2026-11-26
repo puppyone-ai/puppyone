@@ -105,6 +105,8 @@ pub(in crate::app::home) struct ProjectFolderGlyph {
     fade: Option<f32>,
     /// Another size than the Grid's or the List's, without sheets.
     size: Option<(f32, f32)>,
+    /// The palette to draw with (a Space's tint), else the app's.
+    theme: Option<Theme>,
 }
 
 impl ProjectFolderGlyph {
@@ -116,7 +118,13 @@ impl ProjectFolderGlyph {
             is_lit: false,
             fade: None,
             size: None,
+            theme: None,
         }
+    }
+
+    pub fn theme(mut self, theme: Theme) -> Self {
+        self.theme = Some(theme);
+        self
     }
 
     /// `24 × 18`, a plain folder's in Computer Mode's quiet grid.
@@ -147,7 +155,7 @@ impl ProjectFolderGlyph {
 
 impl RenderOnce for ProjectFolderGlyph {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let t = cx.palette();
+        let t = self.theme.unwrap_or_else(|| cx.palette());
         let (w, h) = self.size.unwrap_or(if self.compact {
             LIST_FOLDER_SIZE
         } else {

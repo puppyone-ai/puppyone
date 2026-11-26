@@ -5,6 +5,11 @@ use core::prelude::v1::test;
 #[gpui::test]
 fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.experimental.hidden_header = false, cx)
+        })
+    });
     // Collapsed, the Explorer's expand button is in the Header.
     command(&view, cx, Command::ToggleExplorer);
     view.update(cx, |s, cx| assert!(!s.panes.read(cx).explorer().open));
@@ -217,6 +222,9 @@ fn the_homepage_brand_opens_the_places_and_the_account_but_not_home(cx: &mut Tes
         assert!(cx.debug_bounds(end).is_none(), "{end}");
     }
     view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.experimental.hidden_header = false, cx)
+        });
         s.session
             .project
             .update(cx, |p, _| p.record.fixture = false)
@@ -265,6 +273,9 @@ fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppCon
         assert!(!s.home_visible(cx));
     });
     view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.experimental.hidden_header = false, cx)
+        });
         s.session
             .project
             .update(cx, |p, _| p.record.fixture = false)
@@ -549,6 +560,9 @@ fn the_header_expands_a_collapsed_explorer_and_keeps_the_project_beside_editor_t
         s.workspace_root(cx).as_deref() == Some(root.as_path())
     });
     view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.experimental.hidden_header = false, cx)
+        });
         s.session
             .docs
             .update(cx, |d, _| d.begin(Intent::OpenFile("a.md".into())))
@@ -658,13 +672,16 @@ fn the_hidden_header_keeps_the_project_over_the_explorer_and_the_tools_above_the
         s.workspace_root(cx).as_deref() == Some(root.as_path())
     });
     // Measure the normal Header widths before switching to headerless mode.
+    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
+    store.update(cx, |store, cx| {
+        store.change(|p| p.experimental.hidden_header = false, cx)
+    });
     draw(cx);
     let full_place = cx
         .debug_bounds("project-place")
         .expect("the place")
         .size
         .width;
-    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
     store.update(cx, |store, cx| {
         store.change(|p| p.experimental.hidden_header = true, cx)
     });
@@ -698,6 +715,10 @@ fn the_hidden_header_keeps_the_project_over_the_explorer_and_the_tools_above_the
     assert!(
         place.size.width <= px(crate::theme::control()) && place.size.width < full_place,
         "place is compact logo-only in headerless sidebar: {place:?} vs {full_place:?}"
+    );
+    assert!(
+        (place.center().y - project.center().y).abs() <= px(0.5),
+        "compact place and project controls stay vertically aligned: place={place:?} project={project:?}"
     );
     let full_compact_project = project.size.width;
     for part in [place, project] {

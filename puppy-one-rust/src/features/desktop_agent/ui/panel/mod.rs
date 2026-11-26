@@ -247,6 +247,11 @@ impl AgentChatTabPanel {
         &self.controller
     }
 
+    /// Focuses the chat composer's prompt input.
+    pub fn focus_composer(&self, window: &mut Window, cx: &mut App) {
+        self.composer.update(cx, |c, cx| c.focus(window, cx));
+    }
+
     /// `presented` / `commandTarget` from the Workbench item.
     pub fn set_presentation(
         &mut self,

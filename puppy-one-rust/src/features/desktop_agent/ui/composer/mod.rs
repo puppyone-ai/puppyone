@@ -128,6 +128,11 @@ pub struct ComposerView {
     /// Mentions removed by their Retry: their reference is acquired again,
     /// not released (`retryMentionRemoval`).
     retried: Vec<String>,
+    /// Whether the capsule has morphed into its 2-row full-width layout (M1).
+    multiline: bool,
+    /// Character count where single-line soft-wrap first triggered expansion,
+    /// providing hysteresis so widening the input never causes oscillation.
+    wrap_expand_chars: Option<usize>,
 }
 
 /// `.desktop-agent-prompt-mention`: the chip a mention token renders as,
@@ -311,15 +316,17 @@ impl ComposerView {
                 cx,
             )
         });
-        input.update(cx, |input, _| {
+        input.update(cx, |input, cx| {
             // One 1.5em line at rest; Enter sends, Shift+Enter breaks the line.
+            // Cap auto-grow at 7 rows before internal scrolling.
             let size = crate::theme::ty().left.content;
             input.prompt_text = Some((size, size * 1.5));
-            input.placeholder_color = Some(|t| AgentTheme::new(t).text_subtle);
+            input.placeholder_color = Some(|t| AgentTheme::new(t).composer_placeholder);
             input.min_height = size * 1.5;
             input.appearance = false;
             input.submit_on_enter = true;
             input.paste_files = true;
+            input.set_max_rows(7, cx);
         });
         let references = Rc::<RefCell<HashMap<String, DraftReference>>>::default();
         let renderer = token_renderer(references.clone(), cx.weak_entity());
@@ -334,6 +341,7 @@ impl ComposerView {
             InputEvent::Changed => s.changed(cx),
         })
         .detach();
+        cx.observe(&input, |s, _, cx| s.sync_multiline(cx)).detach();
         cx.observe(&pickers, |_, _, cx| cx.notify()).detach();
         Self {
             input,
@@ -342,6 +350,8 @@ impl ComposerView {
             shown_draft: Default::default(),
             references,
             retried: Vec::new(),
+            multiline: false,
+            wrap_expand_chars: None,
         }
     }
     /// The conversation changed: the draft shows in the editor, and new
@@ -357,6 +367,7 @@ impl ComposerView {
             .collect();
         self.data = data;
         self.sync(window, cx);
+        self.sync_multiline(cx);
         cx.notify();
     }
     /// Whether the editor is composing (IME) text.
@@ -486,9 +497,55 @@ impl ComposerView {
             mentions: document.1,
             removed,
         });
+        self.sync_multiline(cx);
     }
 
-    /// `AgentComposer`.
+    /// Approximate display width units (ASCII = 1, wide/CJK = 2) for safe
+    /// collapse hysteresis when no single-line wrap threshold was measured.
+    fn weighted_len(text: &str) -> usize {
+        text.chars().map(|c| if c.is_ascii() { 1 } else { 2 }).sum()
+    }
+
+    /// Adaptive M1 morphing: stay a compact 42px single-line pill while text
+    /// fits on one line with no visual attachments; morph into a full-width
+    /// 2-row soft card on newline, soft-wrap, or visual attachment, with
+    /// hysteresis so widening the text field never oscillates.
+    fn sync_multiline(&mut self, cx: &mut Context<Self>) {
+        let has_visual = self.data.references.iter().any(is_agent_media_reference);
+        let text = self.input.read(cx).current_text(cx);
+        let has_newline = text.contains('\n');
+        let wrap_rows = self.input.read(cx).wrap_row_count(cx);
+        let chars = text.chars().count();
+
+        let next = if has_visual || has_newline {
+            true
+        } else if wrap_rows > 1 {
+            if !self.multiline && wrap_rows == 2 {
+                self.wrap_expand_chars = Some(chars);
+            }
+            true
+        } else if !self.multiline || text.is_empty() {
+            self.wrap_expand_chars = None;
+            false
+        } else {
+            match self.wrap_expand_chars {
+                Some(trigger) => chars + 6 >= trigger,
+                None => Self::weighted_len(&text) > 20,
+            }
+        };
+
+        if !next {
+            self.wrap_expand_chars = None;
+        }
+        if next != self.multiline {
+            self.multiline = next;
+            cx.notify();
+        }
+    }
+
+    /// `AgentComposer`: M1 adaptive floating capsule (`[+ | prompt | ↑]` at
+    /// 1 line, morphing into full-width text over `[+ ... ↑]` when multiline
+    /// or holding visual attachments), with quiet session chips below on 16pt.
     fn render_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let view = self.data.clone();
         let t_ = cx.palette();
@@ -501,45 +558,92 @@ impl ComposerView {
         };
         self.input
             .update(cx, |input, _| input.set_placeholder(placeholder));
-        let toolbar = self.render_toolbar(&view, &a, window, cx);
+        let attach = self.render_attach(&view, &a, cx);
+        let primary = self.render_primary_action(&view, &a, cx);
+        let controls = self.render_controls_row(&view, window, cx);
         let focused = self.input.focus_handle(cx).contains_focused(window, cx);
         let size = theme::ty().left.content;
+        let line_height = size * 1.5;
+        let text_pad_y = ((toolbar::CAPSULE_ACTION - line_height) * 0.5).max(3.);
         let visual = self.render_visual_attachments(cx);
+        let has_visual = visual.is_some();
+        let expanded = self.multiline || has_visual;
         let commands = self.render_commands(cx);
+        let shadow = a.composer_shadows(t_.dark, focused);
+        let body: AnyElement = if expanded {
+            v_flex()
+                .w_full()
+                .min_w_0()
+                .child(
+                    div()
+                        .debug_selector(|| "agent-composer-input".into())
+                        .w_full()
+                        .min_w_0()
+                        .pt(px(if has_visual { 6. } else { 11. }))
+                        .pb(px(4.))
+                        // 9px wrapper + Textarea's 4px inner inset = 13px symmetric horizontal padding.
+                        .px(px(9.))
+                        .text_size(px(size))
+                        .line_height(px(line_height))
+                        .child(self.input.clone()),
+                )
+                .child(
+                    h_flex()
+                        .w_full()
+                        .items_center()
+                        .justify_between()
+                        .pt(px(2.))
+                        .pb(px(6.))
+                        .px(px(6.))
+                        .child(attach)
+                        .child(primary),
+                )
+                .into_any_element()
+        } else {
+            h_flex()
+                .w_full()
+                .min_w_0()
+                .items_end()
+                .gap(px(2.))
+                .p(px(5.))
+                .child(attach)
+                .child(
+                    div()
+                        .debug_selector(|| "agent-composer-input".into())
+                        .flex_1()
+                        .min_w_0()
+                        .py(px(text_pad_y))
+                        .text_size(px(size))
+                        .line_height(px(line_height))
+                        .child(self.input.clone()),
+                )
+                .child(primary)
+                .into_any_element()
+        };
         v_flex()
             .w_full()
             .min_w_0()
             .max_w(px(900.))
             .mx_auto()
-            .gap(px(4.))
-            .children(commands)
+            .children(commands.map(|c| div().mb(px(6.)).child(c)))
             .child(
                 v_flex()
                     .w_full()
                     .min_w_0()
-                    .rounded(px(8.))
+                    .rounded(px(if expanded { 18. } else { 21. }))
                     .border_1()
-                    .border_color(if focused { a.border } else { a.border_subtle })
+                    .border_color(if focused {
+                        a.composer_border_focus
+                    } else {
+                        a.composer_border
+                    })
                     .bg(a.composer_surface)
+                    .shadow(shadow)
                     .when(view.composer_disabled, |d| d.opacity(0.72))
                     .children(visual)
-                    .child(
-                        div()
-                            .px(px(12.))
-                            .py(px(12.))
-                            .min_h(px(size * 1.5 + 24.))
-                            .text_size(px(size))
-                            .line_height(px(size * 1.5))
-                            .child(
-                                h_flex()
-                                    .flex_wrap()
-                                    .items_start()
-                                    .gap_y(px(1.))
-                                    .child(div().flex_1().min_w(px(40.)).child(self.input.clone())),
-                            ),
-                    )
-                    .child(toolbar),
+                    .child(body),
             )
+            .children(controls)
             .into_any_element()
     }
 }
