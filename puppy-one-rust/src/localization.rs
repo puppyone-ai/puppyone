@@ -75,88 +75,112 @@ const CLOUD_HEADER_TOOLS_MESSAGES: &str = r#"{
     "native.computer.open": "Open the computer",
     "native.computer.close": "Back to files",
     "native.agents.working": "{count} agents",
-    "native.agents.access": "Can access {project}",
+    "native.agents.active": "Working",
+    "native.agents.ends": "Ends {date}",
+    "native.agents.since": "Since {date}",
+    "native.agents.viaLink": "Via link",
     "native.agents.invite": "Invite",
     "native.agents.watch": "Watch",
     "native.agents.removeConfirm": "Remove {name}?",
-    "native.agents.removeDetail": "It loses access to this project"
+    "native.agents.removeDetail": "Loses project access"
   },
   "zh-Hans": {
     "native.computer.title": "电脑",
     "native.computer.open": "打开电脑",
     "native.computer.close": "回到文件",
     "native.agents.working": "{count} 个 Agent",
-    "native.agents.access": "可访问 {project}",
+    "native.agents.active": "工作中",
+    "native.agents.ends": "{date} 到期",
+    "native.agents.since": "{date} 加入",
+    "native.agents.viaLink": "链接加入",
     "native.agents.invite": "邀请",
     "native.agents.watch": "查看",
     "native.agents.removeConfirm": "移除 {name}？",
-    "native.agents.removeDetail": "它将无法再访问这个项目"
+    "native.agents.removeDetail": "将失去此项目权限"
   },
   "ja": {
     "native.computer.title": "コンピューター",
     "native.computer.open": "コンピューターを開く",
     "native.computer.close": "ファイルに戻る",
     "native.agents.working": "{count} 個の Agent",
-    "native.agents.access": "{project} にアクセス可能",
+    "native.agents.active": "作業中",
+    "native.agents.ends": "{date} まで",
+    "native.agents.since": "{date} から",
+    "native.agents.viaLink": "リンク経由",
     "native.agents.invite": "招待",
     "native.agents.watch": "見る",
     "native.agents.removeConfirm": "{name} を削除しますか？",
-    "native.agents.removeDetail": "このプロジェクトにアクセスできなくなります"
+    "native.agents.removeDetail": "アクセス権を失います"
   },
   "ko": {
     "native.computer.title": "컴퓨터",
     "native.computer.open": "컴퓨터 열기",
     "native.computer.close": "파일로 돌아가기",
     "native.agents.working": "Agent {count}개",
-    "native.agents.access": "{project}에 접근 가능",
+    "native.agents.active": "작업 중",
+    "native.agents.ends": "{date} 만료",
+    "native.agents.since": "{date}부터",
+    "native.agents.viaLink": "링크로 참여",
     "native.agents.invite": "초대",
     "native.agents.watch": "보기",
     "native.agents.removeConfirm": "{name}을(를) 제거할까요?",
-    "native.agents.removeDetail": "이 프로젝트에 더 이상 접근할 수 없습니다"
+    "native.agents.removeDetail": "프로젝트 접근 권한이 사라집니다"
   },
   "es": {
     "native.computer.title": "Computadora",
     "native.computer.open": "Abrir la computadora",
     "native.computer.close": "Volver a los archivos",
     "native.agents.working": "{count} agents",
-    "native.agents.access": "Pueden acceder a {project}",
+    "native.agents.active": "Activo",
+    "native.agents.ends": "Hasta {date}",
+    "native.agents.since": "Desde {date}",
+    "native.agents.viaLink": "Por enlace",
     "native.agents.invite": "Invitar",
     "native.agents.watch": "Ver",
     "native.agents.removeConfirm": "¿Quitar a {name}?",
-    "native.agents.removeDetail": "Perderá el acceso a este proyecto"
+    "native.agents.removeDetail": "Perderá acceso al proyecto"
   },
   "pt-BR": {
     "native.computer.title": "Computador",
     "native.computer.open": "Abrir o computador",
     "native.computer.close": "Voltar aos arquivos",
     "native.agents.working": "{count} agents",
-    "native.agents.access": "Podem acessar {project}",
+    "native.agents.active": "Ativo",
+    "native.agents.ends": "Até {date}",
+    "native.agents.since": "Desde {date}",
+    "native.agents.viaLink": "Por link",
     "native.agents.invite": "Convidar",
     "native.agents.watch": "Ver",
     "native.agents.removeConfirm": "Remover {name}?",
-    "native.agents.removeDetail": "Ele perderá o acesso a este projeto"
+    "native.agents.removeDetail": "Perderá acesso ao projeto"
   },
   "fr": {
     "native.computer.title": "Ordinateur",
     "native.computer.open": "Ouvrir l’ordinateur",
     "native.computer.close": "Revenir aux fichiers",
     "native.agents.working": "{count} agents",
-    "native.agents.access": "Ont accès à {project}",
+    "native.agents.active": "En cours",
+    "native.agents.ends": "Jusqu’au {date}",
+    "native.agents.since": "Depuis {date}",
+    "native.agents.viaLink": "Par lien",
     "native.agents.invite": "Inviter",
     "native.agents.watch": "Voir",
     "native.agents.removeConfirm": "Retirer {name} ?",
-    "native.agents.removeDetail": "Il n’aura plus accès à ce projet"
+    "native.agents.removeDetail": "Perdra l’accès au projet"
   },
   "de": {
     "native.computer.title": "Computer",
     "native.computer.open": "Computer öffnen",
     "native.computer.close": "Zurück zu den Dateien",
     "native.agents.working": "{count} Agents",
-    "native.agents.access": "Zugriff auf {project}",
+    "native.agents.active": "Aktiv",
+    "native.agents.ends": "Bis {date}",
+    "native.agents.since": "Seit {date}",
+    "native.agents.viaLink": "Per Link",
     "native.agents.invite": "Einladen",
     "native.agents.watch": "Ansehen",
     "native.agents.removeConfirm": "{name} entfernen?",
-    "native.agents.removeDetail": "Der Zugriff auf dieses Projekt endet"
+    "native.agents.removeDetail": "Verliert Projektzugriff"
   }
 }"#;
 
