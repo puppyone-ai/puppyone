@@ -129,13 +129,20 @@ pub(super) fn banner(chat: &Chat) -> Option<Banner> {
     }
 }
 
-/// The app's mark: a round ground with its glyph.
-pub(super) fn platform_mark(platform: Platform, size: f32, t: Theme) -> Div {
-    let icon = match platform {
+/// The add seat's glyph.
+const ADD_ICON: &str = "message-square-plus";
+
+fn platform_icon(platform: Platform) -> &'static str {
+    match platform {
         Platform::Telegram => "send",
         Platform::Slack => "hash",
         Platform::Wecom => "message-circle",
-    };
+    }
+}
+
+/// The app's mark: a round ground with its glyph.
+pub(super) fn platform_mark(platform: Platform, size: f32, t: Theme) -> Div {
+    let icon = platform_icon(platform);
     div()
         .size(px(size))
         .flex_none()
@@ -300,11 +307,7 @@ impl WindowCloud {
                     .border_color(theme::alpha(t.accent, 0.7))
                     .bg(theme::alpha(t.accent, 0.08))
                     .text_color(t.accent_text)
-                    .child(
-                        Icon::new("message-square-plus")
-                            .with_size(px(20.))
-                            .stroke(1.75),
-                    ),
+                    .child(Icon::new(ADD_ICON).with_size(px(20.)).stroke(1.75)),
             )
             .child(
                 div()
@@ -1436,6 +1439,23 @@ fn working_dot(t: Theme) -> Div {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    /// A glyph missing from the icon set draws nothing, so every chat glyph
+    /// is checked against the bundled files.
+    #[test]
+    fn every_chat_glyph_is_bundled() {
+        let names = [Platform::Telegram, Platform::Slack, Platform::Wecom]
+            .map(platform_icon)
+            .into_iter()
+            .chain([ADD_ICON]);
+        for name in names {
+            let path = format!("{}/assets/icons/{name}.svg", env!("CARGO_MANIFEST_DIR"));
+            assert!(
+                std::path::Path::new(&path).exists(),
+                "{name}.svg is missing"
+            );
+        }
+    }
 
     fn chat(changes: serde_json::Value) -> Chat {
         let mut base = serde_json::json!({"id": "c1", "platform": "telegram", "chat_kind": "group",
