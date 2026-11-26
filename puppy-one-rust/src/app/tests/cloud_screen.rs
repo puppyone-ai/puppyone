@@ -230,7 +230,7 @@ fn sync_sandbox(view: &Entity<Shell>, cx: &mut VisualTestContext, sandbox: &Valu
 }
 
 #[gpui::test]
-fn experiment_flag_and_a_present_screen_gate_sidebar_card_settings_tab_and_live_screen(
+fn experiment_flag_and_a_present_screen_gate_the_header_computer_settings_tab_and_live_screen(
     cx: &mut TestAppContext,
 ) {
     let sandbox = Arc::new(Mutex::new(sandbox_json(false, false, true)));
@@ -260,8 +260,8 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_card_settings_tab_and_live_
 
     let (view, cx) = open_cloud_project_window(cx, false, api, screen_ws);
 
-    // Off by default: neither thumbnail nor Computer settings page is available.
-    assert!(cx.debug_bounds("cloud-screen-card").is_none());
+    // Off by default: neither the Header's Computer nor its settings page.
+    assert!(cx.debug_bounds("header-cloud-computer").is_none());
     view.read_with(cx, |s, cx| {
         assert!(!s.cloud.read(cx).screen_shown(cx));
         let settings = s.dialogs.read(cx).settings.read(cx);
@@ -276,24 +276,25 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_card_settings_tab_and_live_
         });
     });
     draw(cx);
-    assert!(cx.debug_bounds("cloud-screen-card").is_none());
+    assert!(cx.debug_bounds("header-cloud-computer").is_none());
     view.read_with(cx, |s, cx| {
         let settings = s.dialogs.read(cx).settings.read(cx);
         assert!(settings.page_available(Page::CloudComputer, cx));
     });
 
-    // A computer with a desktop offers the screen's card on the bottom edge
-    // of the left sidebar, even with its stream turned off (the screen then
-    // offers to turn it on).
+    // A computer with a desktop offers its Computer button in the Header
+    // (never among the files), even with its stream turned off (the screen
+    // then offers to turn it on).
     sync_sandbox(&view, cx, &sandbox_json(true, true, false));
-    let thumb = cx.debug_bounds("cloud-screen-card").unwrap();
-    let height = cx.update(|w, _| f32::from(w.viewport_size().height));
-    let gap = height - crate::theme::footer() - f32::from(thumb.bottom());
-    assert!((0. ..=12.).contains(&gap), "{gap}px above the bottom edge");
+    let button = cx.debug_bounds("header-cloud-computer").unwrap();
+    let history = cx.debug_bounds("header-cloud-history").unwrap();
+    assert!(button.center().y > history.origin.y && button.center().y < history.bottom());
+    assert!(button.origin.x < history.origin.x);
+    assert!(cx.debug_bounds("cloud-screen-card").is_none());
 
-    // Clicking the sidebar card opens the Cloud Computer screen in the main area
-    // and gates the underlying editor area.
-    click_selector(cx, "cloud-screen-card");
+    // Pressing it opens the Cloud Computer screen in the main area and gates
+    // the underlying editor area.
+    click_selector(cx, "header-cloud-computer");
     view.read_with(cx, |s, cx| {
         assert!(s.cloud.read(cx).screen_shown(cx));
         assert!(s.editor_gate(cx).modal);
@@ -313,7 +314,7 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_card_settings_tab_and_live_
     });
     sync_sandbox(&view, cx, &sandbox_json(true, false, true));
     assert_eq!(changes.load(Ordering::Acquire), 1);
-    assert!(cx.debug_bounds("cloud-screen-card").is_none());
+    assert!(cx.debug_bounds("header-cloud-computer").is_none());
     view.read_with(cx, |s, cx| {
         assert!(!s.cloud.read(cx).screen_shown(cx));
         assert!(!s.editor_gate(cx).modal);
@@ -332,18 +333,19 @@ fn experiment_flag_and_a_present_screen_gate_sidebar_card_settings_tab_and_live_
             }]
         }),
     );
-    assert!(cx.debug_bounds("cloud-screen-card").is_some());
-    click_selector(cx, "cloud-screen-card");
+    assert!(cx.debug_bounds("header-cloud-computer").is_some());
+    click_selector(cx, "header-cloud-computer");
     assert!(cx.debug_bounds("cloud-screen-notice").is_some());
 
-    // Turning the experiment off immediately closes the screen and hides the thumbnail.
+    // Turning the experiment off immediately closes the screen and hides the
+    // Header's Computer.
     view.update(cx, |s, cx| {
         s.prefs.store.update(cx, |p, cx| {
             p.change(|st| st.experimental.cloud_computer_screen = false, cx);
         });
     });
     draw(cx);
-    assert!(cx.debug_bounds("cloud-screen-card").is_none());
+    assert!(cx.debug_bounds("header-cloud-computer").is_none());
     view.read_with(cx, |s, cx| {
         assert!(!s.cloud.read(cx).screen_shown(cx));
         assert!(!s.editor_gate(cx).modal);
@@ -419,7 +421,7 @@ fn screen_notices_drive_stream_toggle_and_asleep_wake(cx: &mut TestAppContext) {
     });
 
     let (view, cx) = open_cloud_project_window(cx, true, api, screen_ws);
-    click_selector(cx, "cloud-screen-card");
+    click_selector(cx, "header-cloud-computer");
 
     // 1. A desktop with its stream off -> clicking "Show screen" sends {"screen_stream": true}
     //    and hits 409 Asleep -> shows "Wake it".
@@ -434,18 +436,17 @@ fn screen_notices_drive_stream_toggle_and_asleep_wake(cx: &mut TestAppContext) {
         Some(&json!({"screen_stream": true}))
     );
     assert!(cx.debug_bounds("cloud-screen-wake").is_some());
-    assert!(cx.debug_bounds("cloud-screen-card-wake").is_some());
 
-    // 2. Clicking the inline sidebar "Wake it" wakes/reopens the workspace and streams live RFB frames!
+    // 2. Its "Wake it" wakes/reopens the workspace and streams live RFB frames.
     let opens_before = workbench_opens.load(Ordering::Acquire);
     asleep.store(false, Ordering::Release);
-    click_selector(cx, "cloud-screen-card-wake");
+    click_selector(cx, "cloud-screen-wake");
     settle_screen(&view, cx, "woken live RFB frame", &|s, cx| {
         workbench_opens.load(Ordering::Acquire) > opens_before
             && s.cloud.read(cx).screen_shown(cx)
             && s.cloud.read(cx).screen.read(cx).has_live_frame()
     });
-    assert!(cx.debug_bounds("cloud-screen-card-wake").is_none());
+    assert!(cx.debug_bounds("cloud-screen-wake").is_none());
     hold_open.store(false, Ordering::Release);
 }
 
@@ -528,7 +529,7 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
     });
 
     let (view, cx) = open_cloud_project_window(cx, true, api, screen_ws);
-    click_selector(cx, "cloud-screen-card");
+    click_selector(cx, "header-cloud-computer");
 
     // Initial connection succeeds and renders a 4x2 frame.
     settle_screen(&view, cx, "initial RFB frame", &|s, cx| {
@@ -574,8 +575,8 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
     });
     assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
 
-    // Opening a file from the Explorer sends the screen back into its card
-    // as a live thumbnail, with the editor ungated and the stream kept.
+    // Opening a file from the Explorer closes the screen back to the files,
+    // with the editor ungated and the stream kept for the Header's preview.
     view.update_in(cx, |s, w, cx| {
         s.explorer_event(&ExplorerEvent::Open(PathBuf::from("cloud.md")), w, cx);
     });
@@ -597,19 +598,18 @@ fn live_rfb_stream_auto_reconnects_three_times_recovers_on_retry_and_closes_on_f
         assert!(files.error.is_none(), "cloud file response must be valid");
         assert_eq!(files.document.as_ref().unwrap().text, "# Cloud\n");
     });
-    let card = cx.debug_bounds("cloud-screen-card").unwrap();
-    let live = cx.debug_bounds("cloud-screen-live").unwrap();
-    assert!(live.origin.x > card.origin.x && live.origin.y > card.origin.y);
-    assert!(live.bottom_right().x < card.bottom_right().x);
-    assert!(live.bottom_right().y < card.bottom_right().y);
-    assert_eq!(live.size, size(px(48.), px(32.)));
+    assert!(cx.debug_bounds("cloud-screen-live").is_none());
+    assert!(cx.debug_bounds("cloud-screen-card").is_none());
+    view.read_with(cx, |s, cx| {
+        assert!(s.cloud.read(cx).screen.read(cx).has_live_frame());
+    });
     assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
 
     // The fixture supplies a valid file response, so no file-error modal
-    // needs to be dismissed before reopening the same stream from its card.
+    // needs to be dismissed before reopening the same stream from the Header.
     draw(cx);
     view.read_with(cx, |s, cx| assert!(!s.modal(cx)));
-    click_selector(cx, "cloud-screen-card");
+    click_selector(cx, "header-cloud-computer");
     view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
     assert_screen_on_stage(cx);
     assert_eq!(tickets_minted.load(Ordering::Acquire), 5);
@@ -723,7 +723,7 @@ fn explicit_take_control_gates_rfb_input_and_releases_on_escape_or_button(cx: &m
     });
 
     let (view, cx) = open_cloud_project_window(cx, true, api, screen_ws);
-    click_selector(cx, "cloud-screen-card");
+    click_selector(cx, "header-cloud-computer");
     settle_screen(&view, cx, "live RFB frame", &|s, cx| {
         s.cloud.read(cx).screen.read(cx).has_live_frame()
     });
@@ -785,9 +785,7 @@ fn explicit_take_control_gates_rfb_input_and_releases_on_escape_or_button(cx: &m
 }
 
 #[gpui::test]
-fn an_agent_at_work_unfolds_the_card_into_a_live_preview_until_folded_by_hand(
-    cx: &mut TestAppContext,
-) {
+fn an_agent_at_work_marks_the_header_computer_and_its_preview_names_it(cx: &mut TestAppContext) {
     let at = |secs: i64| {
         chrono::DateTime::from_timestamp_millis(crate::clock::now_ms() + secs * 1000)
             .unwrap_or_default()
@@ -849,41 +847,51 @@ fn an_agent_at_work_unfolds_the_card_into_a_live_preview_until_folded_by_hand(
         },
     );
     draw(cx);
-    let live = |cx: &mut VisualTestContext| cx.debug_bounds("cloud-screen-live").unwrap();
 
-    // The card unfolds into a live preview the card's width, and says who
-    // is at work.
-    let card = cx.debug_bounds("cloud-screen-card").unwrap();
-    let preview = live(cx);
-    assert_eq!(preview.size.width, card.size.width - px(16.));
-    assert!(preview.size.height > px(100.));
-    assert!(card.size.height > preview.size.height + px(40.));
+    // The Header's Computer says someone works there; nothing about the
+    // computer is left among the files.
+    assert!(cx.debug_bounds("header-cloud-computer-working").is_some());
+    assert!(cx.debug_bounds("cloud-screen-card").is_none());
+    assert!(cx.debug_bounds("cloud-screen-live").is_none());
     view.read_with(cx, |s, cx| {
+        let screen = s.cloud.read(cx).screen.read(cx);
         assert_eq!(
-            s.cloud
-                .read(cx)
-                .screen
-                .read(cx)
-                .operator_for_lab()
-                .map(|n| n.as_ref()),
+            screen.operator_for_lab().map(|n| n.as_ref()),
             Some("Claude Code")
         );
+        assert_eq!(screen.status_line(cx).as_ref(), "Claude Code is using it");
         assert!(!s.cloud.read(cx).screen_shown(cx));
     });
 
-    // Its toggle folds it to the row without opening the screen, and
-    // unfolds it again.
-    click_selector(cx, "cloud-screen-card-toggle");
-    assert_eq!(live(cx).size, size(px(48.), px(32.)));
-    view.read_with(cx, |s, cx| assert!(!s.cloud.read(cx).screen_shown(cx)));
-    click_selector(cx, "cloud-screen-card-toggle");
-    assert_eq!(live(cx).size, preview.size);
+    // Resting on it previews the live desktop after a moment, and the
+    // preview leaves with the pointer.
+    let button = cx.debug_bounds("header-cloud-computer").unwrap();
+    let rest = |cx: &mut VisualTestContext, ms: u64| {
+        cx.executor().advance_clock(Duration::from_millis(ms));
+        cx.run_until_parked();
+        draw(cx);
+    };
+    cx.simulate_mouse_move(button.center(), None, Modifiers::none());
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-computer-peek").is_none());
+    rest(cx, 350);
+    let peek = cx.debug_bounds("cloud-computer-peek").unwrap();
+    assert!(peek.origin.y > button.origin.y);
+    assert!(peek.right() <= button.right() + px(1.));
+    cx.simulate_mouse_move(point(px(400.), px(500.)), None, Modifiers::none());
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-computer-peek").is_none());
 
-    // Opened, the card is a row again and the screen stands on the main area.
-    click_selector(cx, "cloud-screen-card");
+    // Pressed, the screen stands on the main area and no preview covers it.
+    click_selector(cx, "header-cloud-computer");
     view.read_with(cx, |s, cx| assert!(s.cloud.read(cx).screen_shown(cx)));
     assert_screen_on_stage(cx);
-    assert!(cx.debug_bounds("cloud-screen-card-toggle").is_none());
+    cx.simulate_mouse_move(button.center(), None, Modifiers::none());
+    rest(cx, 350);
+    assert!(cx.debug_bounds("cloud-computer-peek").is_none());
+    // Pressed again, it goes back to the files.
+    click_selector(cx, "header-cloud-computer");
+    view.read_with(cx, |s, cx| assert!(!s.cloud.read(cx).screen_shown(cx)));
 
     hold_open.store(false, Ordering::Release);
 }

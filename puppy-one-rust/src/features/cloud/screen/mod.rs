@@ -1,7 +1,6 @@
-//! Cloud Computer Screen (`computer-mode-experiment/workbench-redesign-v4.html`):
-//! one live screen that lives in the sidebar card — folded to a row, or
-//! unfolded to a preview while an Agent works there — and moves onto the
-//! main area when opened, over a persistent VNC/RFB stream with explicit
+//! Cloud Computer Screen: one live screen over a persistent VNC/RFB stream.
+//! It opens over the main area from the Header's Computer button, which
+//! previews its live picture on hover while it is closed, with explicit
 //! `Take control` input gating.
 //!
 //! In Computer Mode the same screen shows a computer on this computer
@@ -30,8 +29,9 @@ use crate::{
 use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
 use keys::{InputState, map_pointer};
-use motion::{Card, Place, Pose, ScreenMotion, Shown};
+use motion::{Place, Pose, ScreenMotion, Shown};
 use rfb::RfbCommand;
+pub use stage::ScreenState;
 use std::{cell::RefCell, sync::Arc, time::Duration};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,15 +51,10 @@ pub(super) enum StreamPhase {
     Failed,
 }
 
-/// The screen's places in one frame of the window.
+/// The screen's place in one frame of the window.
 pub struct ScreenLayout {
-    /// The sidebar card, while the Explorer shows.
-    card: Option<Card>,
     /// The main area.
     stage: Rect,
-    /// The Explorer's start edge (the main area's while it is closed): the
-    /// moving screen is never drawn past it.
-    clip_x: f32,
     /// The live screen, while there is a picture.
     shown: Option<Shown>,
 }
@@ -88,9 +83,6 @@ pub struct CloudScreen {
     interactive: bool,
     /// The Agent at work in this computer now, by name.
     operator: Option<SharedString>,
-    /// The card folded or unfolded by hand; the next Agent to start or stop
-    /// working hands it back.
-    fold: Option<bool>,
     /// Sampled once per painted frame by the window (`ScreenMotion`).
     motion: RefCell<ScreenMotion>,
     saving: bool,
@@ -143,7 +135,6 @@ impl CloudScreen {
             shown: false,
             interactive: false,
             operator: None,
-            fold: None,
             motion: RefCell::default(),
             saving: false,
             phase: StreamPhase::Idle,
@@ -167,7 +158,9 @@ impl CloudScreen {
         self.interactive && self.is_shown(cx)
     }
 
-    pub(super) fn entry_available(&self, cx: &App) -> bool {
+    /// There is a computer screen to offer here (the Header shows its
+    /// Computer button).
+    pub fn entry_available(&self, cx: &App) -> bool {
         if self.local.is_some() {
             return flags::computer_mode_enabled(&self.preferences, cx);
         }
@@ -224,7 +217,6 @@ impl CloudScreen {
             self.teardown_session(cx);
             self.shown = false;
             self.interactive = false;
-            self.fold = None;
         }
         let port = |r: &Option<Record>| {
             r.as_ref()
@@ -272,7 +264,6 @@ impl CloudScreen {
         let was_shown = self.is_shown(cx);
         self.teardown_session(cx);
         self.saving = false;
-        self.fold = None;
         self.sandbox = target
             .as_ref()
             .map(SandboxTarget::sandbox)
@@ -358,21 +349,12 @@ impl CloudScreen {
     }
 
     /// The Agent at work in this computer (`WorkspaceAgent::active`): the
-    /// card unfolds to watch it, and folds again when it stops.
+    /// Header's Computer button marks it and its preview names it.
     pub fn set_operator(&mut self, operator: Option<SharedString>, cx: &mut Context<Self>) {
         if self.operator == operator {
             return;
         }
-        if self.operator.is_some() != operator.is_some() {
-            self.fold = None;
-        }
         self.operator = operator;
-        cx.notify();
-    }
-
-    /// The card's fold toggle.
-    pub(super) fn toggle_fold(&mut self, cx: &mut Context<Self>) {
-        self.fold = Some(!self.unfolded());
         cx.notify();
     }
 
@@ -384,37 +366,17 @@ impl CloudScreen {
             && self.frame_image.is_some()
     }
 
-    /// The card shows the live preview: off the main area, and unfolded by
-    /// hand or while an Agent works.
-    fn unfolded(&self) -> bool {
-        !self.shown && self.frame_image.is_some() && self.fold.unwrap_or(self.operator.is_some())
-    }
-
-    /// Where the screen is this frame: its card at the top of the Explorer's
-    /// `plane` (when the Explorer shows) and the main area at `stage`.
+    /// Where the screen is this frame over the main area at `stage`.
     /// Samples the motion, so the window calls it once per frame.
-    pub fn layout(
-        &self,
-        plane: Option<Rect>,
-        stage: Rect,
-        animate: bool,
-        cx: &App,
-    ) -> ScreenLayout {
+    pub fn layout(&self, stage: Rect, animate: bool, cx: &App) -> ScreenLayout {
         let aspect = motion::aspect(self.frame_dims);
-        let card = plane
-            .filter(|_| self.entry_available(cx))
-            .map(|plane| Card::new(plane, crate::theme::footer(), aspect));
         let shown = if self.live(cx) {
             let place = if self.shown {
                 Place::Stage
-            } else if card.is_some() {
-                Place::Card {
-                    unfolded: self.unfolded(),
-                }
             } else {
                 Place::Away
             };
-            let target = Pose::at(place, card, stage, aspect);
+            let target = Pose::at(place, stage, aspect);
             Some(
                 self.motion
                     .borrow_mut()
@@ -424,12 +386,7 @@ impl CloudScreen {
             self.motion.borrow_mut().forget();
             None
         };
-        ScreenLayout {
-            card,
-            clip_x: plane.map_or(stage.x, |plane| plane.x),
-            stage,
-            shown,
-        }
+        ScreenLayout { stage, shown }
     }
 
     fn on_preferences_changed(&mut self, cx: &mut Context<Self>) {

@@ -8,11 +8,13 @@
 //! [`SessionView`] (and which Header card is open); it keeps the Cloud
 //! entities current when those change, and asks the window for what is
 //! the window's ([`CloudEvent`]). Its Header parts and notice are drawn
-//! from a read (`cloud.read(cx).agents_control(..)`), its dialogs on the
+//! from a read (`cloud.read(cx).agents_control(..)`,
+//! `cloud.read(cx).computer_control(..)`), its dialogs on the
 //! dialog layer.
 use super::{
     Popover,
-    cloud_agents_ui::{AgentCards, AgentsAnchor},
+    cloud_agents_ui::AgentsAnchor,
+    cloud_computer_ui::ComputerAnchor,
     dialogs::{DialogKey, DialogLayer},
     project_place::Disconnect,
     session::SessionView,
@@ -73,8 +75,13 @@ pub(super) struct WindowCloud {
     /// Cloud Computer Screen (`CloudComputerScreen.tsx`).
     pub screen: Entity<CloudScreen>,
     pub agents_anchor: AgentsAnchor,
-    /// The card under the Header face pointed at.
-    pub(super) agent_cards: AgentCards,
+    /// The Header's Agents list is open.
+    pub(super) agents_panel: bool,
+    /// Where the Header's Computer button is.
+    pub(super) computer_anchor: ComputerAnchor,
+    /// The Computer button's live preview shows (the pointer rests on it).
+    pub(super) computer_peek: bool,
+    pub(super) computer_peek_timer: Option<Task<()>>,
     /// The request card's Deny, which a press on a Header mark reaches.
     pub(super) deny_focus: FocusHandle,
     /// Captures: the Header shows the Cloud tools over a local folder.
@@ -198,7 +205,10 @@ impl WindowCloud {
             agents,
             screen,
             agents_anchor: Default::default(),
-            agent_cards: Default::default(),
+            agents_panel: false,
+            computer_anchor: Default::default(),
+            computer_peek: false,
+            computer_peek_timer: None,
             deny_focus: cx.focus_handle(),
             #[cfg(feature = "dev-capture")]
             capture_hosted: false,
@@ -448,19 +458,15 @@ impl WindowCloud {
     }
 
     // --------------------------------------------------------- computer screen
-    /// Where the screen is this frame (sampled once per frame): its card at
-    /// the top of the Explorer's `plane`, the main area at `stage`.
+    /// Where the screen is this frame over the main area at `stage`
+    /// (sampled once per frame).
     pub fn screen_layout(
         &self,
-        plane: Option<crate::geometry::Rect>,
         stage: crate::geometry::Rect,
         animate: bool,
         cx: &App,
     ) -> ScreenLayout {
-        self.screen.read(cx).layout(plane, stage, animate, cx)
-    }
-    pub fn screen_card(&self, layout: &ScreenLayout, cx: &App) -> Option<AnyElement> {
-        self.screen.read(cx).render_card(&self.screen, layout, cx)
+        self.screen.read(cx).layout(stage, animate, cx)
     }
     pub fn screen_live(&self, layout: &ScreenLayout, cx: &App) -> Option<AnyElement> {
         self.screen.read(cx).render_live(&self.screen, layout, cx)

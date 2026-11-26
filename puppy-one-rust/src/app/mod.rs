@@ -14,6 +14,7 @@ mod dev;
 pub use chrome::Popover;
 mod cloud_agents_ui;
 mod cloud_authority;
+mod cloud_computer_ui;
 mod cloud_publish;
 pub(crate) mod coachmarks;
 mod command;
@@ -651,9 +652,7 @@ impl Render for Shell {
         let editor_body = chrome::seam::editor_body(self.frame.layout.editor, headerless);
         let screen = (!home && !file && !opening).then(|| {
             let animate = !cfg!(test) && !cx.reduce_motion();
-            self.cloud
-                .read(cx)
-                .screen_layout(plane, editor_body, animate, cx)
+            self.cloud.read(cx).screen_layout(editor_body, animate, cx)
         });
         let crossing = screen.as_ref().is_some_and(|s| s.crossing());
         if panes.running || screen.as_ref().is_some_and(|s| s.moving()) {
@@ -693,12 +692,8 @@ impl Render for Shell {
                 .then(|| chrome::seam::PaneChrome::new(&self.chrome, &self.panes, &panes, rail));
             let mut stack = PaneStack::new();
             if let Some(plane) = plane {
-                let card = screen
-                    .as_ref()
-                    .and_then(|s| self.cloud.read(cx).screen_card(s, cx));
                 let column = ExplorerColumn::new(self.explorer.view.clone())
                     .header(bar.map(|b| b.sidebar_bar(plane, cx)))
-                    .companion(card)
                     .footer(self.footer(cx));
                 stack = stack.start(plane, column);
             }

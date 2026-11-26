@@ -329,10 +329,16 @@ impl WindowChrome {
             return actions;
         }
         let coachmarks = self.coachmarks.read(cx);
+        let cloud = o.cloud.read(cx);
         if hosted {
-            let cloud = o.cloud.read(cx);
-            if let Some(agents) = cloud.agents_control(cx) {
-                actions.push(agents.into_any_element());
+            // `CloudWorkspaceHeaderTools`: the Agents entry and the
+            // Computer, then a rule before the project's record.
+            let agents = cloud.agents_control(cx);
+            let computer = cloud.computer_control(cx);
+            let tools = agents.is_some() || computer.is_some();
+            actions.extend(agents);
+            actions.extend(computer);
+            if tools {
                 actions.push(header::action_divider(cx));
             }
             // `HistoryTool`: the hosted Project's own record.
@@ -350,7 +356,14 @@ impl WindowChrome {
                         .into_any_element(),
                 );
             }
-        } else if changes {
+        } else if let Some(computer) = cloud.computer_control(cx) {
+            // Computer Mode: the computer on this computer, as a tool.
+            actions.push(computer);
+            if changes || agent {
+                actions.push(header::action_divider(cx));
+            }
+        }
+        if !hosted && changes {
             use gpui_kit::base::Selectable as _;
             let status = header::GitTitlebarStatus::of(sidebar.source_control.read(cx));
             let introduced = coachmarks.active() == Some(Coachmark::Changes);

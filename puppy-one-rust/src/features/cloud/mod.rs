@@ -31,7 +31,7 @@ pub use publish::install_factory;
 pub(crate) use publish::states as publish_states;
 pub use publish::{CloudPublish, HeaderStatus, Organizations, format_transfer};
 pub use repository::RepositoryCloud;
-pub use screen::{CloudScreen, CloudScreenEvent, ScreenLayout};
+pub use screen::{CloudScreen, CloudScreenEvent, ScreenLayout, ScreenState};
 pub use spaces::{
     CloudSpaces, Status as SpacesStatus, global as global_spaces, mark as space_mark,
     name as space_name, read as global_spaces_read,

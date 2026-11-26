@@ -54,6 +54,7 @@ fn native() -> &'static Value {
             HIDDEN_HEADER_MESSAGES,
             HOME_SPACE_LAYOUT_MESSAGES,
             LAUNCHER_L1_MESSAGES,
+            CLOUD_HEADER_TOOLS_MESSAGES,
         ] {
             let extra: Value = serde_json::from_str(raw).expect("native extension catalogs");
             for (locale, messages) in extra.as_object().unwrap() {
@@ -65,6 +66,99 @@ fn native() -> &'static Value {
         data
     })
 }
+
+/// The Header's workspace tools in a hosted project: the Computer button and
+/// its preview, and the Agents entry with its list.
+const CLOUD_HEADER_TOOLS_MESSAGES: &str = r#"{
+  "en": {
+    "native.computer.title": "Computer",
+    "native.computer.open": "Open the computer",
+    "native.computer.close": "Back to files",
+    "native.agents.working": "{count} agents",
+    "native.agents.access": "Can access {project}",
+    "native.agents.invite": "Invite",
+    "native.agents.watch": "Watch",
+    "native.agents.removeConfirm": "Remove {name}?",
+    "native.agents.removeDetail": "It loses access to this project"
+  },
+  "zh-Hans": {
+    "native.computer.title": "电脑",
+    "native.computer.open": "打开电脑",
+    "native.computer.close": "回到文件",
+    "native.agents.working": "{count} 个 Agent",
+    "native.agents.access": "可访问 {project}",
+    "native.agents.invite": "邀请",
+    "native.agents.watch": "查看",
+    "native.agents.removeConfirm": "移除 {name}？",
+    "native.agents.removeDetail": "它将无法再访问这个项目"
+  },
+  "ja": {
+    "native.computer.title": "コンピューター",
+    "native.computer.open": "コンピューターを開く",
+    "native.computer.close": "ファイルに戻る",
+    "native.agents.working": "{count} 個の Agent",
+    "native.agents.access": "{project} にアクセス可能",
+    "native.agents.invite": "招待",
+    "native.agents.watch": "見る",
+    "native.agents.removeConfirm": "{name} を削除しますか？",
+    "native.agents.removeDetail": "このプロジェクトにアクセスできなくなります"
+  },
+  "ko": {
+    "native.computer.title": "컴퓨터",
+    "native.computer.open": "컴퓨터 열기",
+    "native.computer.close": "파일로 돌아가기",
+    "native.agents.working": "Agent {count}개",
+    "native.agents.access": "{project}에 접근 가능",
+    "native.agents.invite": "초대",
+    "native.agents.watch": "보기",
+    "native.agents.removeConfirm": "{name}을(를) 제거할까요?",
+    "native.agents.removeDetail": "이 프로젝트에 더 이상 접근할 수 없습니다"
+  },
+  "es": {
+    "native.computer.title": "Computadora",
+    "native.computer.open": "Abrir la computadora",
+    "native.computer.close": "Volver a los archivos",
+    "native.agents.working": "{count} agents",
+    "native.agents.access": "Pueden acceder a {project}",
+    "native.agents.invite": "Invitar",
+    "native.agents.watch": "Ver",
+    "native.agents.removeConfirm": "¿Quitar a {name}?",
+    "native.agents.removeDetail": "Perderá el acceso a este proyecto"
+  },
+  "pt-BR": {
+    "native.computer.title": "Computador",
+    "native.computer.open": "Abrir o computador",
+    "native.computer.close": "Voltar aos arquivos",
+    "native.agents.working": "{count} agents",
+    "native.agents.access": "Podem acessar {project}",
+    "native.agents.invite": "Convidar",
+    "native.agents.watch": "Ver",
+    "native.agents.removeConfirm": "Remover {name}?",
+    "native.agents.removeDetail": "Ele perderá o acesso a este projeto"
+  },
+  "fr": {
+    "native.computer.title": "Ordinateur",
+    "native.computer.open": "Ouvrir l’ordinateur",
+    "native.computer.close": "Revenir aux fichiers",
+    "native.agents.working": "{count} agents",
+    "native.agents.access": "Ont accès à {project}",
+    "native.agents.invite": "Inviter",
+    "native.agents.watch": "Voir",
+    "native.agents.removeConfirm": "Retirer {name} ?",
+    "native.agents.removeDetail": "Il n’aura plus accès à ce projet"
+  },
+  "de": {
+    "native.computer.title": "Computer",
+    "native.computer.open": "Computer öffnen",
+    "native.computer.close": "Zurück zu den Dateien",
+    "native.agents.working": "{count} Agents",
+    "native.agents.access": "Zugriff auf {project}",
+    "native.agents.invite": "Einladen",
+    "native.agents.watch": "Ansehen",
+    "native.agents.removeConfirm": "{name} entfernen?",
+    "native.agents.removeDetail": "Der Zugriff auf dieses Projekt endet"
+  }
+}"#;
 
 const LAUNCHER_L1_MESSAGES: &str = r#"{
   "en": {

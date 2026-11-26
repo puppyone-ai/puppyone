@@ -1,11 +1,11 @@
-//! Where the live screen sits, and how it gets there
-//! (`computer-mode-experiment/workbench-redesign-v4.html`).
+//! Where the live screen sits, and how it gets there.
 //!
-//! The screen is one element in three places: folded into the sidebar card's
-//! row as a thumbnail, unfolded in that card as a live preview, or over the
-//! main area. Between places it moves and scales over 420ms; a change during
-//! a move starts from what is on screen, and a target that moves (a pane
-//! opening, the window resizing) is followed at every frame.
+//! The screen has one place: over the main area. Opening it grows it in
+//! from slightly smaller and transparent; closing it shrinks and fades it
+//! the same way, over 420ms. A change during a move starts from what is on
+//! screen, and a target that moves (a pane opening, the window resizing) is
+//! followed at every frame. While it is closed, the Header's Computer
+//! button shows its live picture on hover (`app::cloud_computer_ui`).
 use crate::{
     geometry::Rect,
     ui::motion::{FrameTimeline, cubic_bezier},
@@ -26,92 +26,8 @@ fn ease(t: f32) -> f32 {
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
-
-/// The sidebar card (`.sc`), inside the Explorer column's plane. Folded, it
-/// is a 52px row: a 48×32 thumbnail 8px in, then the title and status.
-/// Unfolded, the preview takes the card's width less 8px each side at the
-/// screen's aspect, with the title and status under it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Card {
-    /// The card's box in window coordinates. It stands on the Explorer's
-    /// bottom edge: its height follows the unfold and it grows upwards.
-    pub x: f32,
-    pub bottom: f32,
-    pub w: f32,
-    /// The unfolded preview's height.
-    preview: f32,
-}
-impl Card {
-    /// The card's inset in the plane: level with the Explorer's rows.
-    pub const INSET_X: f32 = 12.;
-    pub const INSET_BOTTOM: f32 = 8.;
-    pub const RADIUS: f32 = 10.;
-    pub const ROW: f32 = 52.;
-    pub const PAD: f32 = 8.;
-    const THUMB_W: f32 = 48.;
-    const THUMB_H: f32 = 32.;
-    /// Thumbnail to title in the row.
-    const META_GAP: f32 = 12.;
-    /// Preview to title, the title and status, and the card's end.
-    const UNDER_PREVIEW: f32 = 9.;
-    const META_H: f32 = 38.;
-    const END: f32 = 4.;
-
-    /// The card at the bottom of the Explorer's `plane`, over its `footer`,
-    /// its preview at the screen's `aspect` (height over width), kept between
-    /// a wide 2:1 and 4:3.
-    pub fn new(plane: Rect, footer: f32, aspect: f32) -> Self {
-        let w = (plane.w - 2. * Self::INSET_X).max(Self::THUMB_W + 2. * Self::PAD);
-        let preview = (w - 2. * Self::PAD) * aspect.clamp(0.5, 0.75);
-        Self {
-            x: plane.x + Self::INSET_X,
-            bottom: plane.y + plane.h - footer - Self::INSET_BOTTOM,
-            w,
-            preview: preview.round(),
-        }
-    }
-    /// The card's top in window coordinates at `unfold`.
-    pub fn top(&self, unfold: f32) -> f32 {
-        self.bottom - self.height(unfold)
-    }
-    pub fn height(&self, unfold: f32) -> f32 {
-        let open = Self::PAD + self.preview + Self::UNDER_PREVIEW + Self::META_H + Self::END;
-        lerp(Self::ROW, open, unfold)
-    }
-    /// The screen's place in the card, relative to the card's box.
-    pub fn slot(&self, unfold: f32) -> Rect {
-        Rect::new(
-            Self::PAD,
-            lerp((Self::ROW - Self::THUMB_H) / 2., Self::PAD, unfold),
-            lerp(Self::THUMB_W, self.w - 2. * Self::PAD, unfold),
-            lerp(Self::THUMB_H, self.preview, unfold),
-        )
-    }
-    /// The screen's place in the card, in window coordinates.
-    pub fn slot_in_window(&self, unfold: f32) -> Rect {
-        let slot = self.slot(unfold);
-        Rect::new(self.x + slot.x, self.top(unfold) + slot.y, slot.w, slot.h)
-    }
-    /// Where the title and status start, relative to the card's box.
-    pub fn meta(&self, unfold: f32) -> (f32, f32) {
-        (
-            lerp(
-                Self::PAD + Self::THUMB_W + Self::META_GAP,
-                Self::PAD + 2.,
-                unfold,
-            ),
-            lerp(8., Self::PAD + self.preview + Self::UNDER_PREVIEW, unfold),
-        )
-    }
-    /// The fold toggle's top, beside the title.
-    pub fn toggle_top(&self, unfold: f32) -> f32 {
-        lerp(14., Self::PAD + self.preview + 12., unfold)
-    }
-    /// The screen's corner radius at `unfold`.
-    pub fn radius(unfold: f32) -> f32 {
-        lerp(5., 7., unfold)
-    }
-}
+/// How much smaller the screen is while it grows in or fades out.
+const AWAY_SCALE: f32 = 0.96;
 
 /// The Cloud Computer's desktop: one fixed 16:10 resolution (WXGA, the
 /// size computer-use Agents see best at), never the window's. A window
@@ -156,12 +72,9 @@ pub fn on_stage(stage: Rect, aspect: f32) -> Rect {
 /// Where the screen belongs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Place {
-    /// In the sidebar card, folded to its row or unfolded to a preview.
-    Card { unfolded: bool },
     /// Over the main area.
     Stage,
-    /// Nowhere to go back to (the Explorer is closed): it slides out to the
-    /// window's start and fades.
+    /// Closed: it shrinks a little toward the main area's centre and fades.
     Away,
 }
 
@@ -171,48 +84,31 @@ pub struct Pose {
     /// Window coordinates.
     pub rect: Rect,
     pub radius: f32,
-    /// How far the sidebar card has unfolded (0 row, 1 preview).
-    pub unfold: f32,
     pub opacity: f32,
-    /// How the picture fills `rect`: 0 covers it (a thumbnail crops), 1
-    /// shows all of it. It is also how far the screen stands on the main
-    /// area (its shadow).
+    /// How far the screen stands on the main area (its shadow).
     pub fit: f32,
 }
 impl Pose {
-    /// Where `place` puts the screen: `card` when the Explorer shows,
-    /// `stage` the main area, the desktop at `aspect`.
-    pub fn at(place: Place, card: Option<Card>, stage: Rect, aspect: f32) -> Self {
-        match (place, card) {
-            (Place::Stage, _) => Self {
-                rect: on_stage(stage, aspect),
+    /// Where `place` puts the screen on the main area at `stage`, the
+    /// desktop at `aspect`.
+    pub fn at(place: Place, stage: Rect, aspect: f32) -> Self {
+        let open = on_stage(stage, aspect);
+        match place {
+            Place::Stage => Self {
+                rect: open,
                 radius: STAGE_RADIUS,
-                unfold: 0.,
                 opacity: 1.,
                 fit: 1.,
             },
-            (Place::Card { unfolded }, Some(card)) => {
-                let unfold = if unfolded { 1. } else { 0. };
+            Place::Away => {
+                let (w, h) = (open.w * AWAY_SCALE, open.h * AWAY_SCALE);
                 Self {
-                    rect: card.slot_in_window(unfold),
-                    radius: Card::radius(unfold),
-                    unfold,
-                    opacity: 1.,
+                    rect: Rect::new(open.x + (open.w - w) / 2., open.y + (open.h - h) / 2., w, h),
+                    radius: STAGE_RADIUS,
+                    opacity: 0.,
                     fit: 0.,
                 }
             }
-            (Place::Card { .. } | Place::Away, _) => Self {
-                rect: Rect::new(
-                    stage.x - Card::THUMB_W - 12.,
-                    stage.y + 10.,
-                    Card::THUMB_W,
-                    Card::THUMB_H,
-                ),
-                radius: Card::radius(0.),
-                unfold: 0.,
-                opacity: 0.,
-                fit: 0.,
-            },
         }
     }
     fn toward(self, to: Self, t: f32) -> Self {
@@ -224,29 +120,31 @@ impl Pose {
                 lerp(self.rect.h, to.rect.h, t),
             ),
             radius: lerp(self.radius, to.radius, t),
-            unfold: lerp(self.unfold, to.unfold, t),
             opacity: lerp(self.opacity, to.opacity, t),
             fit: lerp(self.fit, to.fit, t),
         }
     }
-    /// The picture's rect for a `width × height` frame: between covering the
-    /// pose and fitting inside it, centred.
+    /// The picture's rect for a `width × height` frame: all of it, inside
+    /// the pose and centred.
     pub fn picture(&self, width: u32, height: u32) -> Option<Rect> {
-        let (fw, fh) = (width as f32, height as f32);
-        if fw <= 0. || fh <= 0. || self.rect.w <= 0. || self.rect.h <= 0. {
-            return None;
-        }
-        let cover = (self.rect.w / fw).max(self.rect.h / fh);
-        let contain = (self.rect.w / fw).min(self.rect.h / fh);
-        let scale = lerp(cover, contain, self.fit);
-        let (w, h) = (fw * scale, fh * scale);
-        Some(Rect::new(
-            self.rect.x + (self.rect.w - w) / 2.,
-            self.rect.y + (self.rect.h - h) / 2.,
-            w,
-            h,
-        ))
+        contain(self.rect, width, height)
     }
+}
+
+/// A `width × height` frame shown whole inside `rect`, centred.
+pub fn contain(rect: Rect, width: u32, height: u32) -> Option<Rect> {
+    let (fw, fh) = (width as f32, height as f32);
+    if fw <= 0. || fh <= 0. || rect.w <= 0. || rect.h <= 0. {
+        return None;
+    }
+    let scale = (rect.w / fw).min(rect.h / fh);
+    let (w, h) = (fw * scale, fh * scale);
+    Some(Rect::new(
+        rect.x + (rect.w - w) / 2.,
+        rect.y + (rect.h - h) / 2.,
+        w,
+        h,
+    ))
 }
 
 /// This frame's pose, and whether it is still on its way.
@@ -255,8 +153,8 @@ pub struct Shown {
     pub pose: Pose,
     pub place: Place,
     pub moving: bool,
-    /// The move goes to or from the main area, so it crosses the Explorer's
-    /// edge (a fold or unfold stays inside the sidebar).
+    /// The move goes to or from the main area (native web content there
+    /// hides until it lands).
     pub crosses: bool,
 }
 
@@ -320,9 +218,6 @@ mod tests {
     use super::*;
     use core::prelude::v1::test;
 
-    fn card() -> Card {
-        Card::new(Rect::new(0., 40., 260., 700.), 0., 0.625)
-    }
     const STAGE: Rect = Rect {
         x: 260.,
         y: 40.,
@@ -331,49 +226,30 @@ mod tests {
     };
 
     #[test]
-    fn the_card_is_a_row_folded_and_a_preview_at_the_screens_aspect_unfolded() {
-        let card = card();
-        // On the Explorer's bottom edge, growing upwards as it unfolds.
-        assert_eq!((card.x, card.bottom, card.w), (12., 732., 236.));
-        assert_eq!(card.height(0.), 52.);
-        assert_eq!(card.top(0.), 680.);
-        assert_eq!(card.slot_in_window(0.).y, 690.);
-        assert_eq!(card.top(1.), 732. - card.height(1.));
-        assert_eq!(
-            Card::new(Rect::new(0., 40., 260., 700.), 44., 0.625).bottom,
-            688.
-        );
-        assert_eq!(card.slot(0.), Rect::new(8., 10., 48., 32.));
-        // 220 wide at 10:16.
-        assert_eq!(card.slot(1.), Rect::new(8., 8., 220., 138.));
-        assert_eq!(card.height(1.), 8. + 138. + 9. + 38. + 4.);
-        assert_eq!(card.meta(0.), (68., 8.));
-        assert_eq!(card.meta(1.), (10., 155.));
-        // A tall or wide screen keeps the preview between 2:1 and 4:3.
-        assert_eq!(
-            Card::new(Rect::new(0., 0., 260., 0.), 0., 2.).slot(1.).h,
-            165.
-        );
-        assert_eq!(
-            Card::new(Rect::new(0., 0., 260., 0.), 0., 0.1).slot(1.).h,
-            110.
-        );
+    fn closed_the_screen_is_a_little_smaller_transparent_and_centred_where_it_opens() {
+        let open = Pose::at(Place::Stage, STAGE, 0.625);
+        let away = Pose::at(Place::Away, STAGE, 0.625);
+        assert_eq!(open.opacity, 1.);
+        assert_eq!(away.opacity, 0.);
+        assert!((away.rect.w - open.rect.w * AWAY_SCALE).abs() < 0.01);
+        let centre = |r: Rect| (r.x + r.w / 2., r.y + r.h / 2.);
+        let (a, o) = (centre(away.rect), centre(open.rect));
+        assert!((a.0 - o.0).abs() < 0.01 && (a.1 - o.1).abs() < 0.01);
     }
 
     #[test]
     fn a_change_moves_from_what_is_on_screen_and_settles_on_the_target() {
-        let card = Some(card());
         let mut motion = ScreenMotion::default();
         let start = Instant::now();
-        let row = Pose::at(Place::Card { unfolded: false }, card, STAGE, 0.625);
-        let shown = motion.frame(Place::Card { unfolded: false }, row, true, start);
-        assert_eq!(shown.pose, row);
+        let away = Pose::at(Place::Away, STAGE, 0.625);
+        let shown = motion.frame(Place::Away, away, true, start);
+        assert_eq!(shown.pose, away);
         assert!(!shown.moving);
 
-        // Opening: the first frame still shows the row, then it flies.
-        let stage = Pose::at(Place::Stage, card, STAGE, 0.625);
+        // Opening: the first frame still shows it closed, then it grows in.
+        let stage = Pose::at(Place::Stage, STAGE, 0.625);
         let first = motion.frame(Place::Stage, stage, true, start);
-        assert_eq!(first.pose, row);
+        assert_eq!(first.pose, away);
         assert!(first.moving && first.crosses);
         let mut at = start;
         let mut mid = first;
@@ -381,47 +257,42 @@ mod tests {
             at += Duration::from_millis(16);
             mid = motion.frame(Place::Stage, stage, true, at);
         }
-        assert!(mid.pose.rect.w > row.rect.w && mid.pose.rect.w < STAGE.w);
-        assert!(mid.pose.fit > 0. && mid.pose.fit < 1.);
+        assert!(mid.pose.rect.w > away.rect.w && mid.pose.rect.w < stage.rect.w);
+        assert!(mid.pose.opacity > 0. && mid.pose.opacity < 1.);
 
         // Closing half way: it turns back from where it is.
-        let back = motion.frame(Place::Card { unfolded: true }, row, true, at);
+        let back = motion.frame(Place::Away, away, true, at);
         assert_eq!(back.pose, mid.pose);
         for _ in 0..40 {
             at += Duration::from_millis(16);
-            motion.frame(Place::Card { unfolded: true }, row, true, at);
+            motion.frame(Place::Away, away, true, at);
         }
-        let settled = motion.frame(Place::Card { unfolded: true }, row, true, at);
+        let settled = motion.frame(Place::Away, away, true, at);
         assert!(!settled.moving);
-        assert_eq!(settled.pose, row);
+        assert_eq!(settled.pose, away);
     }
 
     #[test]
     fn without_motion_the_screen_is_where_it_belongs() {
-        let card = Some(card());
         let mut motion = ScreenMotion::default();
         let now = Instant::now();
-        let row = Pose::at(Place::Card { unfolded: false }, card, STAGE, 0.625);
-        motion.frame(Place::Card { unfolded: false }, row, false, now);
-        let stage = Pose::at(Place::Stage, card, STAGE, 0.625);
+        let away = Pose::at(Place::Away, STAGE, 0.625);
+        motion.frame(Place::Away, away, false, now);
+        let stage = Pose::at(Place::Stage, STAGE, 0.625);
         let shown = motion.frame(Place::Stage, stage, false, now);
         assert_eq!(shown.pose, stage);
         assert!(!shown.moving);
     }
 
     #[test]
-    fn a_thumbnail_crops_the_picture_and_the_main_area_shows_all_of_it() {
-        let row = Pose::at(Place::Card { unfolded: false }, Some(card()), STAGE, 0.625);
-        // 16:10 into 3:2: cover crops the sides.
-        let cropped = row.picture(1600, 1000).unwrap();
-        assert_eq!(cropped.h, row.rect.h);
-        assert!(cropped.w > row.rect.w);
+    fn the_main_area_shows_all_of_the_picture_centred() {
         // A 4:3 picture on a 16:10 screen shows all of it, centred.
-        let stage = Pose::at(Place::Stage, None, STAGE, 0.625);
+        let stage = Pose::at(Place::Stage, STAGE, 0.625);
         let whole = stage.picture(1200, 900).unwrap();
         assert_eq!(whole.h, stage.rect.h);
         assert!(whole.w < stage.rect.w);
         assert_eq!(whole.x, stage.rect.x + (stage.rect.w - whole.w) / 2.);
+        assert!(contain(Rect::new(0., 0., 0., 10.), 4, 2).is_none());
     }
 
     #[test]
@@ -447,12 +318,5 @@ mod tests {
         // The desktop's own shape wins when the server keeps one.
         assert_eq!(aspect(Some((1024, 768))), 0.75);
         assert_eq!(aspect(Some((1280, 800))), 0.625);
-    }
-
-    #[test]
-    fn without_a_card_the_screen_leaves_toward_the_windows_start_and_fades() {
-        let away = Pose::at(Place::Away, None, STAGE, 0.625);
-        assert!(away.rect.right() < STAGE.x);
-        assert_eq!(away.opacity, 0.);
     }
 }

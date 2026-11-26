@@ -28,11 +28,10 @@ const COPIED_FLASH: Duration = Duration::from_millis(1600);
 /// past this, one let in that has not connected is said not to have.
 const CONNECT_WAIT: Duration = Duration::from_secs(10 * 60);
 
-/// Who opened the Agents dialog: one Agent's mark, the stack of the ones at
-/// rest, or the empty seat.
+/// What opened the Agents dialog: the roster (captures), or the invite
+/// (the Header list's `Invite`, or the Agents entry while nobody is here).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Opener {
-    Agent(String),
     More,
     Invite,
 }
