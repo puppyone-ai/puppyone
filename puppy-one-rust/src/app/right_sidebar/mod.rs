@@ -306,6 +306,25 @@ impl RightSidebar {
             .ok()
     }
 
+    /// Opens the Agent workbench surface and launches a fresh local Agent chat
+    /// tab on `runtime_id` (used by the empty-project start view).
+    pub fn launch_local_agent(
+        &mut self,
+        runtime_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.surface = Surface::Agent;
+        self.store(cx);
+        self.set_open(true, cx);
+        if let Some((group, tab)) = self.workbench.update(cx, |w, cx| w.prepare_launch_slot(cx)) {
+            self.launcher.update(cx, |l, cx| {
+                l.launch_runtime_chat(group, tab, runtime_id, window, cx)
+            });
+        }
+        cx.notify();
+    }
+
     /// Opens the Agent workbench surface and launches a seeded local Agent chat
     /// tab on `runtime_id` for a project started from `AgentProjectStartDialog`.
     pub fn launch_agent_start(

@@ -167,6 +167,12 @@ impl ExplorerSession {
     pub fn workspace(&self) -> Option<&Arc<Workspace>> {
         self.workspace.as_ref()
     }
+    #[cfg(test)]
+    pub fn clear_workspace(&mut self, cx: &mut Context<Self>) {
+        self.workspace = None;
+        self.tree = Tree::new();
+        cx.notify();
+    }
     /// What the shown workspace allows (nothing before one opens).
     pub fn capabilities(&self) -> crate::workspace::contracts::Capabilities {
         self.workspace

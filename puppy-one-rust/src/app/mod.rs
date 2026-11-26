@@ -21,9 +21,11 @@ mod command;
 mod create_space;
 mod dialogs;
 mod editor_area;
+mod editor_start;
 mod editor_workbench;
 mod explorer;
 mod file_mode;
+mod file_sheet;
 mod header;
 mod home;
 mod host_sharing;
@@ -291,6 +293,7 @@ impl Shell {
         let workbench = s.sidebar.read(cx).workbench.clone();
         cx.observe_in(&workbench, window, |s, _, w, cx| s.gate_editors(w, cx))
             .detach();
+        s.wire_editor_start(cx);
         // The create form holds the window open while it writes; the
         // preferences drain before it closes.
         cx.observe(&s.dialogs, |s, _, cx| {
@@ -363,6 +366,7 @@ impl Shell {
         s.constrain_window(window, cx);
         s.push_explorer_host(window, cx);
         // What the window shows from its first frame.
+        s.sync_editor_start(cx);
         s.sync_session_view(cx);
         s.sync_window_title(window, cx);
         s
@@ -485,14 +489,20 @@ impl Shell {
     /// The window's gate over the editors changed.
     fn gate_editors(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let gate = self.editor_gate(cx);
-        self.editor.update(cx, |e, cx| e.set_gate(gate, window, cx));
+        let start = self.start_context(cx);
+        self.editor.update(cx, |e, cx| {
+            e.set_start_context(start, cx);
+            e.set_gate(gate, window, cx)
+        });
     }
     /// The editor area takes the runtime's messages under the window's gate.
     fn sync_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let gate = self.editor_gate(cx);
+        let start = self.start_context(cx);
         let file_mode = self.file_mode();
         self.editor.update(cx, |e, cx| {
             e.set_file_mode(file_mode);
+            e.set_start_context(start, cx);
             e.set_gate(gate, window, cx);
             e.sync(window, cx)
         });

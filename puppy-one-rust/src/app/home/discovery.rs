@@ -166,10 +166,12 @@ impl Homepage {
             "p-issues".into(),
             agents
                 .iter()
-                .map(|(id, name)| FolderAgentBadge {
+                .enumerate()
+                .map(|(i, (id, name))| FolderAgentBadge {
                     id: (*id).into(),
                     name: (*name).into(),
                     avatar: None,
+                    active: i == 0,
                 })
                 .collect(),
         );
@@ -409,10 +411,14 @@ impl Homepage {
             let mut dedup_order: Vec<String> = Vec::new();
             let mut dedup: HashMap<String, HomepageCloudAgent> = HashMap::new();
             let mut per_project: HashMap<String, Vec<FolderAgentBadge>> = HashMap::new();
-            for project_id in &personal_ids {
+            let personal_set: HashSet<&str> = personal_ids.iter().map(String::as_str).collect();
+            for project_id in &cloud_ids {
                 let Ok(inventory) = agents_client.links(project_id) else {
                     continue;
                 };
+                if inventory.connections.is_empty() {
+                    continue;
+                }
                 let sessions = agents_client.sessions(project_id).ok();
                 let resolved = crate::workspace::cloud::agents::resolve(
                     &inventory.connections,
@@ -422,6 +428,7 @@ impl Homepage {
                 if resolved.is_empty() {
                     continue;
                 }
+                let is_personal = personal_set.contains(project_id.as_str());
                 let mut badges = Vec::with_capacity(resolved.len());
                 for ws_agent in resolved {
                     let entry = HomepageCloudAgent {
@@ -434,16 +441,20 @@ impl Homepage {
                         id: entry.id.clone(),
                         name: entry.name.clone(),
                         avatar: entry.avatar.clone(),
+                        active: ws_agent.active,
                     });
-                    let key = format!("{}\0{}", entry.name, entry.avatar.as_deref().unwrap_or(""));
-                    if let Some(existing) = dedup.get_mut(&key) {
-                        existing.last_active_at = newer_iso_timestamp(
-                            existing.last_active_at.as_deref(),
-                            entry.last_active_at.as_deref(),
-                        );
-                    } else {
-                        dedup_order.push(key.clone());
-                        dedup.insert(key, entry);
+                    if is_personal {
+                        let key =
+                            format!("{}\0{}", entry.name, entry.avatar.as_deref().unwrap_or(""));
+                        if let Some(existing) = dedup.get_mut(&key) {
+                            existing.last_active_at = newer_iso_timestamp(
+                                existing.last_active_at.as_deref(),
+                                entry.last_active_at.as_deref(),
+                            );
+                        } else {
+                            dedup_order.push(key.clone());
+                            dedup.insert(key, entry);
+                        }
                     }
                 }
                 per_project.insert(project_id.clone(), badges);

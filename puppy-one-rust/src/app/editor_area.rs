@@ -10,6 +10,7 @@
 //! menu commands go back to the window ([`EditorEvent`]).
 use super::{
     Command,
+    editor_start::StartContext,
     editor_workbench::{EditorDrop, EditorResize},
     explorer::ExplorerSession,
     session::DocumentSession,
@@ -46,6 +47,16 @@ pub(super) enum EditorEvent {
     Command(Command),
     /// The runtime was asked for something: the window pumps it now.
     Pump,
+    /// Start view tile: open the create-entry naming dialog at project root.
+    StartCreate(crate::features::create_new::Entry),
+    /// Start view drop box: import dropped OS files into project root.
+    DropExternal(Vec<std::path::PathBuf>),
+    /// Start view local Agent chip: open right sidebar chat on `runtime_id`.
+    LaunchLocalAgent(String),
+    /// Start view Cloud "Add an agent" chip: open the two-step invite dialog.
+    InviteCloudAgent,
+    /// Quiet no-open-file list: open a recently viewed project file.
+    OpenFile(std::path::PathBuf),
 }
 
 /// Pending external Finder file drop outside the active local workspace (`WB-21`).
@@ -69,6 +80,8 @@ pub(super) struct EditorArea {
     /// A file window: one document, no workspace around it.
     pub(super) file_mode: bool,
     pub(super) gate: EditorGate,
+    /// Context for the empty-project start view (`editor_start.rs`).
+    pub(super) start: StartContext,
     /// The front document's host (the active slot's, once it has one).
     pub front: Entity<DocumentEditor>,
     /// Every slot's host, by slot id.
@@ -161,6 +174,7 @@ impl EditorArea {
         if let Some(presence) = crate::features::agent_presence::store(cx) {
             cx.observe(&presence, |_, _, cx| cx.notify()).detach();
         }
+        cx.observe(&explorer, |_, _, cx| cx.notify()).detach();
         cx.observe(&preferences, |s, _, cx| {
             s.sync_chrome_inset(cx);
             cx.notify();
@@ -177,6 +191,7 @@ impl EditorArea {
             weak: cx.weak_entity(),
             file_mode: false,
             gate: EditorGate::default(),
+            start: StartContext::default(),
             front,
             hosts,
             resize: None,
@@ -194,6 +209,12 @@ impl EditorArea {
     /// A file window's editors have no workspace around them.
     pub fn set_file_mode(&mut self, file_mode: bool) {
         self.file_mode = file_mode;
+    }
+    pub fn set_start_context(&mut self, start: StartContext, cx: &mut Context<Self>) {
+        if self.start != start {
+            self.start = start;
+            cx.notify();
+        }
     }
     /// Floating header height over top-row documents when the project window
     /// runs without a Header.

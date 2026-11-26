@@ -767,6 +767,52 @@ impl Shell {
         self.receive(window, cx);
         cx.notify();
     }
+    /// Window context read by the empty-project start view.
+    pub(in crate::app) fn start_context(&self, cx: &App) -> editor_start::StartContext {
+        let hosted = self.hosted_project(cx).is_some();
+        let loading =
+            self.opening(cx) || self.session.project.read(cx).picking || self.files(cx).folder_busy;
+        let cloud_agents_manageable = hosted && self.cloud.read(cx).agents.read(cx).manageable;
+        let local_agents = if hosted {
+            Vec::new()
+        } else {
+            self.sidebar
+                .read(cx)
+                .launcher
+                .read(cx)
+                .visible_installations()
+                .into_iter()
+                .filter(|inst| !inst.bundled() && inst.chat)
+                .map(|inst| editor_start::StartAgent {
+                    runtime_id: crate::features::local_agents::agent_chat_runtime_id(&inst),
+                    icon_key: inst.runtime.icon_key(),
+                    label: inst.label,
+                })
+                .collect()
+        };
+        editor_start::StartContext {
+            hosted,
+            loading,
+            cloud_agents_manageable,
+            local_agents,
+        }
+    }
+    /// Observes local Agent discovery and Cloud Agent permissions so the
+    /// start view stays live.
+    pub(in crate::app) fn wire_editor_start(&self, cx: &mut Context<Self>) {
+        let launcher = self.sidebar.read(cx).launcher.clone();
+        cx.observe(&launcher, |s, _, cx| s.sync_editor_start(cx))
+            .detach();
+        let cloud_agents = self.cloud.read(cx).agents.clone();
+        cx.observe(&cloud_agents, |s, _, cx| s.sync_editor_start(cx))
+            .detach();
+    }
+    /// Pushes updated start-view context into the editor area.
+    pub(in crate::app) fn sync_editor_start(&mut self, cx: &mut Context<Self>) {
+        let start = self.start_context(cx);
+        self.editor
+            .update(cx, |e, cx| e.set_start_context(start, cx));
+    }
     /// A pane menu command, or the runtime asked for something.
     pub(in crate::app) fn editor_event(
         &mut self,
@@ -777,6 +823,33 @@ impl Shell {
         match event {
             editor_area::EditorEvent::Command(command) => self.command(*command, window, cx),
             editor_area::EditorEvent::Pump => {
+                self.receive(window, cx);
+                cx.notify();
+            }
+            editor_area::EditorEvent::StartCreate(kind) => {
+                self.start_create(*kind, PathBuf::new(), window, cx);
+            }
+            editor_area::EditorEvent::DropExternal(paths) => {
+                let paths = paths.clone();
+                self.explorer.view.update(cx, |e, cx| {
+                    e.drop_external(&paths, std::path::Path::new(""), cx)
+                });
+            }
+            editor_area::EditorEvent::LaunchLocalAgent(runtime_id) => {
+                let runtime_id = runtime_id.clone();
+                self.sidebar
+                    .update(cx, |s, cx| s.launch_local_agent(&runtime_id, window, cx));
+            }
+            editor_area::EditorEvent::InviteCloudAgent => {
+                self.cloud
+                    .update(cx, |c, cx| c.press_agents_invite(window, cx));
+            }
+            editor_area::EditorEvent::OpenFile(path) => {
+                let path = path.clone();
+                self.cloud.update(cx, |c, cx| c.close_screen(cx));
+                self.session
+                    .docs
+                    .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
                 self.receive(window, cx);
                 cx.notify();
             }

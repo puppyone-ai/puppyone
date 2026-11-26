@@ -1020,6 +1020,29 @@ impl WorkbenchLauncher {
         self.launch(group, tab, Some(installation), window, cx);
     }
 
+    /// Launches a fresh local Agent chat tab on `runtime_id` in `(group, tab)`.
+    pub(crate) fn launch_runtime_chat(
+        &mut self,
+        group: Id,
+        tab: Option<Id>,
+        runtime_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.hosted.is_open() {
+            return;
+        }
+        let Some(installation) = self
+            .visible_installations()
+            .into_iter()
+            .find(|i| agent_chat_runtime_id(i) == runtime_id)
+        else {
+            return;
+        };
+        self.chat_mode = true;
+        self.launch(group, tab, Some(installation), window, cx);
+    }
+
     /// Launches a fresh local Agent chat tab on `runtime_id` with `initial_prompt`
     /// seeded and armed for one-shot auto-submit once the controller initializes.
     pub(crate) fn launch_seeded_runtime_chat(

@@ -438,6 +438,7 @@ impl Runtime {
                 }
             }
         }
+        host.reconcile_recent(&completed.outcome.removed, &completed.outcome.moved);
         for id in &mutation.slots {
             if let Some(slot) = host.slots.get_mut(id) {
                 slot.files.release_operation(wake);

@@ -833,3 +833,94 @@ fn a_local_projects_menu_offers_move_to_space_submenu(cx: &mut TestAppContext) {
         );
     });
 }
+
+/// Every Cloud project folder on the Homepage (both Personal and Team spaces)
+/// renders its connected Agents at the folder's bottom-right corner in Grid
+/// view and inline in List view.
+#[gpui::test]
+fn cloud_project_folders_show_connected_agents_on_homepage(cx: &mut TestAppContext) {
+    use super::home::folder::FolderAgentBadge;
+    use crate::features::settings::HomepageLayout;
+
+    let temp = tempfile::tempdir().unwrap();
+    let folder = temp.path().canonicalize().unwrap().join("Notes");
+    std::fs::create_dir(&folder).unwrap();
+    let (view, cx) = home_with_spaces(cx, &folder);
+    use_classic_home(&view, cx);
+
+    view.update(cx, |s, cx| {
+        s.home.update(cx, |h, cx| {
+            h.discovery.cloud_details_override = true;
+            h.discovery.cloud_project_agents.insert(
+                "p-todo".into(),
+                vec![FolderAgentBadge {
+                    id: "a-grok".into(),
+                    name: "Grok Bot".into(),
+                    avatar: None,
+                    active: true,
+                }],
+            );
+            h.discovery.cloud_project_agents.insert(
+                "p-issues".into(),
+                vec![
+                    FolderAgentBadge {
+                        id: "a-1".into(),
+                        name: "Grok Bot".into(),
+                        avatar: None,
+                        active: false,
+                    },
+                    FolderAgentBadge {
+                        id: "a-2".into(),
+                        name: "Codex".into(),
+                        avatar: Some("codex".into()),
+                        active: false,
+                    },
+                    FolderAgentBadge {
+                        id: "a-3".into(),
+                        name: "Claude".into(),
+                        avatar: Some("claude".into()),
+                        active: true,
+                    },
+                    FolderAgentBadge {
+                        id: "a-4".into(),
+                        name: "Cursor".into(),
+                        avatar: Some("cursor".into()),
+                        active: false,
+                    },
+                ],
+            );
+            cx.notify();
+        });
+    });
+    draw(cx);
+
+    // Grid view: both personal-space (`p-todo`) and team-space (`p-issues`)
+    // folders show their corner Agent stack inside the folder bounds.
+    let todo_card = cx.debug_bounds("home-project:cloud:p-todo").unwrap();
+    let todo_agents = cx
+        .debug_bounds("home-folder-agents:p-todo")
+        .expect("personal-space folder shows connected Agent corner badge");
+    assert!(todo_card.contains(&todo_agents.center()));
+
+    let issues_card = cx.debug_bounds("home-project:cloud:p-issues").unwrap();
+    let issues_agents = cx
+        .debug_bounds("home-folder-agents:p-issues")
+        .expect("team-space folder shows connected Agent corner badges");
+    assert!(issues_card.contains(&issues_agents.center()));
+
+    // List view: both projects show inline Agent badges.
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.homepage_project_layout = HomepageLayout::List, cx)
+        })
+    });
+    draw(cx);
+    assert!(
+        cx.debug_bounds("home-row-agents:p-todo").is_some(),
+        "personal-space list row shows connected Agent badge"
+    );
+    assert!(
+        cx.debug_bounds("home-row-agents:p-issues").is_some(),
+        "team-space list row shows connected Agent badges"
+    );
+}
