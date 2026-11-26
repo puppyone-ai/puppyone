@@ -21,6 +21,8 @@ use gpui_kit::{
 use std::rc::Rc;
 
 type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
+/// Called with `true` when the pointer enters, `false` when it leaves.
+type HoverHandler = Rc<dyn Fn(bool, &mut Window, &mut App)>;
 
 /// The product's five tones; every surface picks the one it means.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -91,7 +93,7 @@ pub struct FloatingNotice {
     actions: Vec<NoticeAction>,
     on_dismiss: Option<Handler>,
     /// The pointer entered (`true`) or left (`false`) the notice.
-    on_hover: Option<Rc<dyn Fn(bool, &mut Window, &mut App)>>,
+    on_hover: Option<HoverHandler>,
     /// `dismissLabel` (default `shared-ui.notice.dismiss`).
     dismiss_label: Option<SharedString>,
     /// `--po-floating-notice-font-size` / `-line-height` overrides.
