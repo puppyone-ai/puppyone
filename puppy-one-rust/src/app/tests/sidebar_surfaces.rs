@@ -309,9 +309,11 @@ fn the_header_agent_entry_is_one_toggle_without_a_menu(cx: &mut TestAppContext) 
     draw(cx);
     let shown =
         |cx: &mut VisualTestContext| view.update(cx, |s, cx| s.right_shows(Surface::Agent, cx));
-    let entry = cx.debug_bounds("header-agent").expect("the Agent entry");
     let before = shown(cx);
     for expected in [!before, before] {
+        // The entry moves when the sidebar opens or closes (the Header lays
+        // out around it), so each click aims at where it is now.
+        let entry = cx.debug_bounds("header-agent").expect("the Agent entry");
         cx.simulate_click(entry.center(), Modifiers::default());
         draw(cx);
         assert_eq!(shown(cx), expected, "one click toggles the workbench");
