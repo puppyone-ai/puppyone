@@ -4,7 +4,7 @@
 //! is the user's own connection.
 use super::super::elements::{ButtonTone, agent_button};
 use super::{AgentChatPanelEvent, AgentChatTabPanel};
-use crate::agent::contract::dto::Model;
+use crate::agent::contract::dto::{Capability, Model, RuntimeInspection};
 use crate::features::desktop_agent::domain::agent_session_controls::{
     AgentSessionControl, AgentSessionControlId, AgentSessionControlOption,
 };
@@ -115,6 +115,32 @@ pub(crate) fn derive_compute(
         offered,
         managed,
     }
+}
+
+/// Projects a [`RuntimeInspection`] for the L1 launcher's parameter controls:
+/// for runtimes backed by `Capability::ModelConnections` (such as Built-in
+/// Agent), filters `models` to the user's ready/allowed connections using the
+/// unified [`ComputeSnapshot`] so unconfigured or disallowed routes never show.
+pub fn filter_launcher_inspection(
+    inspection: &RuntimeInspection,
+    payments: bool,
+    selected_model: Option<&str>,
+    cx: &App,
+) -> RuntimeInspection {
+    if !inspection.capability(Capability::ModelConnections) {
+        return inspection.clone();
+    }
+    let snapshot = current_compute_snapshot(cx, false);
+    let view = derive_compute(
+        snapshot.as_ref(),
+        &inspection.models,
+        payments,
+        selected_model,
+        false,
+    );
+    let mut filtered = inspection.clone();
+    filtered.models = view.offered;
+    filtered
 }
 
 impl AgentChatTabPanel {

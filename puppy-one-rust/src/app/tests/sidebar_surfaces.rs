@@ -309,9 +309,9 @@ fn the_header_agent_entry_is_one_toggle_without_a_menu(cx: &mut TestAppContext) 
     draw(cx);
     let shown =
         |cx: &mut VisualTestContext| view.update(cx, |s, cx| s.right_shows(Surface::Agent, cx));
-    let entry = cx.debug_bounds("header-agent").expect("the Agent entry");
     let before = shown(cx);
     for expected in [!before, before] {
+        let entry = cx.debug_bounds("header-agent").expect("the Agent entry");
         cx.simulate_click(entry.center(), Modifiers::default());
         draw(cx);
         assert_eq!(shown(cx), expected, "one click toggles the workbench");
@@ -454,5 +454,109 @@ fn closing_last_workbench_tab_collapses_right_sidebar_and_reopening_creates_fres
                 .contains_focused(window, cx)
         }),
         "reopening the right sidebar focuses the fresh New tab's hero composer"
+    );
+}
+
+/// Full-shell end-to-end regression: dragging a file directly from the left
+/// Explorer (`tree-row-name:AGENTS.md`) across the window into the right
+/// sidebar's `New tab` Hero Composer (`launcher-composer-input`) drops cleanly,
+/// inserts the atomic `@AGENTS.md` mention chip, and keeps the draft ready to
+/// send.
+#[gpui::test]
+fn dragging_explorer_file_into_launcher_composer_works_end_to_end(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("AGENTS.md"), "# Agents\n").unwrap();
+    let (view, cx) = setup(cx);
+    cx.update(|w, cx| {
+        w.activate_window();
+        cx.set_reduce_motion(true);
+    });
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell, &App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                draw(cx);
+                if view.read_with(cx, |s, cx| ready(s, cx)) {
+                    break;
+                }
+                assert!(std::time::Instant::now() < deadline, "Shell did not settle");
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        };
+    view.update(cx, |s, cx| {
+        s.session
+            .docs
+            .update(cx, |d, _| d.begin(Intent::OpenFolder(temp.path().into())));
+    });
+    settle(&view, cx, &|s, cx| {
+        s.explorer
+            .session
+            .read(cx)
+            .tree()
+            .rows
+            .iter()
+            .any(|r| r.path == std::path::Path::new("AGENTS.md"))
+    });
+    if !view.read_with(cx, |s, cx| s.right_shows(Surface::Agent, cx)) {
+        cx.update(|_, cx| cx.set_reduce_motion(true));
+        command(&view, cx, Command::ToggleRightSidebar);
+    }
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    settle(&view, cx, &|s, cx| {
+        s.sidebar.read(cx).workbench.read(cx).tab_count() == 1
+            && s.frame.layout.editor.right() <= s.frame.layout.auxiliary.x + 0.5
+    });
+    draw(cx);
+
+    let row = cx
+        .debug_bounds("tree-row-name:AGENTS.md")
+        .expect("AGENTS.md renders in left Explorer")
+        .center();
+    let target = cx
+        .debug_bounds("launcher-composer-input")
+        .expect("Hero Composer input renders in right sidebar")
+        .center();
+
+    cx.simulate_mouse_down(row, MouseButton::Left, Modifiers::default());
+    cx.simulate_mouse_move(
+        point(row.x + px(8.), row.y + px(4.)),
+        Some(MouseButton::Left),
+        Modifiers::default(),
+    );
+    draw(cx);
+    assert!(
+        cx.update(|_, cx| cx.has_active_drag()),
+        "dragging AGENTS.md from left Explorer must activate a ResourceDrag"
+    );
+    cx.simulate_mouse_move(target, Some(MouseButton::Left), Modifiers::default());
+    draw(cx);
+    cx.simulate_mouse_up(target, MouseButton::Left, Modifiers::default());
+    cx.run_until_parked();
+    draw(cx);
+
+    let tab = view
+        .read_with(cx, |s, cx| {
+            s.sidebar.read(cx).workbench.read(cx).active_tab()
+        })
+        .unwrap();
+    let text = view.read_with(cx, |s, cx| {
+        s.sidebar
+            .read(cx)
+            .launcher
+            .read(cx)
+            .tab_input(tab)
+            .unwrap()
+            .read(cx)
+            .current_text(cx)
+    });
+    assert!(
+        cx.debug_bounds("agent-mention:@AGENTS.md").is_some(),
+        "dropping AGENTS.md from left Explorer into right sidebar New tab composer must insert @AGENTS.md chip (text={text:?})"
+    );
+    assert!(
+        text.contains("@AGENTS.md"),
+        "composer buffer must contain @AGENTS.md token text, got {text:?}"
     );
 }

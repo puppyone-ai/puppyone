@@ -1533,3 +1533,518 @@ fn two_launcher_tabs_keep_independent_drafts_and_closing_destroys_state(cx: &mut
     assert!(cx.debug_bounds("launcher-heading").is_none());
     assert!(cx.debug_bounds("launcher-composer-input").is_none());
 }
+
+#[gpui::test]
+fn dropping_explorer_files_stages_mentions_and_images_and_refuses_other_workspaces(
+    cx: &mut TestAppContext,
+) {
+    use crate::agent::connections::legacy_runtime_registry::Runtime;
+    use crate::features::desktop_agent::{SeededAttachment, SeededPromptSegment};
+    use crate::ui::resource_drag::ResourceDrag;
+
+    crate::localization::set_current("en");
+    let ours = tempfile::tempdir().unwrap();
+    let theirs = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(ours.path().join("docs")).unwrap();
+    std::fs::write(ours.path().join("AGENTS.md"), "# Agents\n").unwrap();
+    std::fs::write(ours.path().join("docs/guide.md"), "# Guide\n").unwrap();
+    std::fs::write(ours.path().join("capture.png"), b"png").unwrap();
+    std::fs::write(theirs.path().join("secret.md"), "# Secret\n").unwrap();
+
+    let (workbench, launcher, cx) = compose(cx);
+    cx.update(|window, _| window.activate_window());
+    launcher.update(cx, |l, cx| {
+        l.show_local(ours.path().to_path_buf(), cx);
+        l.discovery_override = true;
+        l.scanning = false;
+        l.installations = vec![
+            Installation {
+                runtime: Runtime::Claude,
+                id: "claude",
+                label: "Claude Code".into(),
+                executable: PathBuf::from("/fixture/claude"),
+                chat: true,
+            },
+            Installation {
+                runtime: Runtime::Codex,
+                id: "codex",
+                label: "Codex".into(),
+                executable: PathBuf::from("/fixture/codex"),
+                chat: true,
+            },
+        ];
+        cx.notify();
+    });
+    let tab = workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    let slot = LauncherSlot::Tab(tab);
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+
+    // Local mode exposes the leading `+` attach menu trigger.
+    assert!(cx.debug_bounds("launcher-attach-trigger").is_some());
+
+    // 1. Cross-workspace drag is refused with the localized notice.
+    let other_ws = crate::workspace::Workspace::open(theirs.path()).unwrap();
+    let cross_drag = ResourceDrag {
+        single_file: true,
+        paths: vec![PathBuf::from("secret.md")],
+        label: "secret.md".into(),
+        workspace: Some(other_ws),
+        native: Rc::new(std::cell::Cell::new(false)),
+    };
+    launcher.update_in(cx, |l, w, cx| {
+        l.drop_resources(slot, 0, Some(tab), &cross_drag, w, cx);
+    });
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert!(launcher.read_with(cx, |l, _| l.staged_attachments(tab).is_empty()));
+    assert!(
+        cx.debug_bounds(
+            "launcher-notice:That item belongs to another workspace and was not added."
+        )
+        .is_some()
+    );
+
+    // 2. Non-local/Cloud workspace drag is refused with resourceUnavailable.
+    let cloud_ws = crate::workspace::Workspace::from_provider(Arc::new(
+        crate::workspace::testing::Memory::new("memory://cloud/project/"),
+    ))
+    .unwrap();
+    let cloud_drag = ResourceDrag {
+        single_file: true,
+        paths: vec![PathBuf::from("doc.md")],
+        label: "doc.md".into(),
+        workspace: Some(cloud_ws),
+        native: Rc::new(std::cell::Cell::new(false)),
+    };
+    launcher.update_in(cx, |l, w, cx| {
+        l.drop_resources(slot, 0, Some(tab), &cloud_drag, w, cx);
+    });
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert!(launcher.read_with(cx, |l, _| l.staged_attachments(tab).is_empty()));
+    assert!(
+        cx.debug_bounds("launcher-notice:That workspace item is no longer available.")
+            .is_some()
+    );
+
+    // 3. Same-workspace drag stages text files as atomic inline `@path` chips
+    //    and images on the 40px visual shelf.
+    let own_ws = crate::workspace::Workspace::open(ours.path()).unwrap();
+    let own_drag = ResourceDrag {
+        single_file: false,
+        paths: vec![
+            PathBuf::from("AGENTS.md"),
+            PathBuf::from("docs/guide.md"),
+            PathBuf::from("capture.png"),
+        ],
+        label: "3 items".into(),
+        workspace: Some(own_ws),
+        native: Rc::new(std::cell::Cell::new(false)),
+    };
+    launcher.update_in(cx, |l, w, cx| {
+        l.drop_resources(slot, 0, Some(tab), &own_drag, w, cx);
+    });
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+
+    assert_eq!(
+        launcher.read_with(cx, |l, _| l.staged_attachments(tab)),
+        vec![
+            ("AGENTS.md".to_owned(), false),
+            ("guide.md".to_owned(), false),
+            ("capture.png".to_owned(), true),
+        ]
+    );
+    assert!(cx.debug_bounds("agent-mention:@AGENTS.md").is_some());
+    assert!(cx.debug_bounds("agent-mention:@docs/guide.md").is_some());
+    assert!(cx.debug_bounds("launcher-attachment:capture.png").is_some());
+
+    // Seeded submission captures both ordered Mention segments and all 3 attachments.
+    let submission = launcher.read_with(cx, |l, cx| l.build_seeded_submission(slot, cx));
+    assert_eq!(submission.attachments.len(), 3);
+    assert!(matches!(
+        &submission.attachments[0],
+        SeededAttachment::WorkspacePath { relative_path, .. } if relative_path == "AGENTS.md"
+    ));
+    assert!(
+        submission
+            .segments
+            .iter()
+            .any(|s| *s == SeededPromptSegment::Mention(0))
+    );
+    assert!(
+        submission
+            .segments
+            .iter()
+            .any(|s| *s == SeededPromptSegment::Mention(1))
+    );
+
+    // 4. Switching Agent preserves all staged attachments and inline mentions.
+    let pill = cx.debug_bounds("launcher-agent-picker").unwrap().center();
+    cx.simulate_click(pill, Modifiers::none());
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    let codex_row = cx.debug_bounds("launcher-agent-codex").unwrap().center();
+    cx.simulate_click(codex_row, Modifiers::none());
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert_eq!(
+        launcher.read_with(cx, |l, _| l.active_installation().map(|i| i.id)),
+        Some("codex")
+    );
+    assert_eq!(
+        launcher
+            .read_with(cx, |l, _| l.staged_attachments(tab))
+            .len(),
+        3
+    );
+
+    // 5. Hovering the visual image card reveals its remove button; clicking drops only that image.
+    let card_center = cx
+        .debug_bounds("launcher-attachment:capture.png")
+        .unwrap()
+        .center();
+    cx.simulate_mouse_move(card_center, None, Modifiers::none());
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    let remove_img = cx
+        .debug_bounds("launcher-attachment-remove:capture.png")
+        .unwrap()
+        .center();
+    cx.simulate_click(remove_img, Modifiers::none());
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert!(cx.debug_bounds("launcher-attachment:capture.png").is_none());
+    assert_eq!(
+        launcher.read_with(cx, |l, _| l.staged_attachments(tab)),
+        vec![
+            ("AGENTS.md".to_owned(), false),
+            ("guide.md".to_owned(), false),
+        ]
+    );
+
+    // 6. Deleting an inline `@AGENTS.md` token removes its backing attachment.
+    let first_token_id =
+        launcher.read_with(cx, |l, cx| l.tab_input(tab).unwrap().read(cx).token_ids(cx))[0].clone();
+    let input = launcher.read_with(cx, |l, _| l.tab_input(tab).unwrap());
+    input.update_in(cx, |i, w, cx| {
+        assert!(i.remove_token(&first_token_id, w, cx));
+    });
+    launcher.update(cx, |l, cx| l.sync_page_attachments(slot, cx));
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert_eq!(
+        launcher.read_with(cx, |l, _| l.staged_attachments(tab)),
+        vec![("guide.md".to_owned(), false)]
+    );
+    assert!(cx.debug_bounds("agent-mention:@AGENTS.md").is_none());
+    assert!(cx.debug_bounds("agent-mention:@docs/guide.md").is_some());
+}
+
+#[gpui::test]
+fn dropping_external_finder_files_and_pasting_images_work_on_launcher(cx: &mut TestAppContext) {
+    use crate::agent::connections::legacy_runtime_registry::Runtime;
+    use crate::features::desktop_agent::SeededAttachment;
+    use crate::ui::form_input::PastedFiles;
+    use gpui::{ExternalPaths, FileDropEvent, Image, ImageFormat};
+
+    crate::localization::set_current("en");
+    let project = tempfile::tempdir().unwrap();
+    let finder = tempfile::tempdir().unwrap();
+    let inside_file = project.path().join("README.md");
+    let ext_note = finder.path().join("notes.txt");
+    let ext_img = finder.path().join("diagram.png");
+    let ext_dir = finder.path().join("external-dir");
+    std::fs::write(&inside_file, "# Readme\n").unwrap();
+    std::fs::write(&ext_note, "notes").unwrap();
+    std::fs::write(&ext_img, b"png").unwrap();
+    std::fs::create_dir_all(&ext_dir).unwrap();
+
+    let (workbench, launcher, cx) = compose(cx);
+    cx.update(|window, _| window.activate_window());
+    launcher.update(cx, |l, cx| {
+        l.show_local(project.path().to_path_buf(), cx);
+        l.discovery_override = true;
+        l.scanning = false;
+        l.installations = vec![Installation {
+            runtime: Runtime::Codex,
+            id: "codex",
+            label: "Codex".into(),
+            executable: PathBuf::from("/fixture/codex"),
+            chat: true,
+        }];
+        cx.notify();
+    });
+    let tab = workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    let slot = LauncherSlot::Tab(tab);
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+
+    // Real GPUI FileDropEvent directly over the Hero Composer input.
+    let target = cx
+        .debug_bounds("launcher-composer-input")
+        .expect("composer input renders")
+        .center();
+    cx.simulate_event(FileDropEvent::Entered {
+        position: target,
+        paths: ExternalPaths(
+            vec![
+                inside_file.clone(),
+                ext_note.clone(),
+                ext_img.clone(),
+                ext_dir.clone(),
+            ]
+            .into(),
+        ),
+    });
+    cx.simulate_event(FileDropEvent::Submit { position: target });
+    cx.run_until_parked();
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+
+    assert!(cx.debug_bounds("agent-mention:@README.md").is_some());
+    assert!(cx.debug_bounds("agent-mention:@notes.txt").is_some());
+    assert!(cx.debug_bounds("launcher-attachment:diagram.png").is_some());
+    let prompt_text = launcher.read_with(cx, |l, cx| {
+        l.tab_input(tab).unwrap().read(cx).current_text(cx)
+    });
+    assert!(
+        prompt_text.contains(&ext_dir.to_string_lossy().to_string()),
+        "dropped external directory path should be inserted into prompt: {prompt_text:?}"
+    );
+
+    // Pasting an image via clipboard (`PastedFiles`) stages a visual card.
+    let pasted = PastedFiles {
+        images: vec![Image::from_bytes(ImageFormat::Png, vec![1, 2, 3, 4])],
+        paths: vec![],
+    };
+    launcher.update_in(cx, |l, w, cx| {
+        l.paste_files(slot, 0, Some(tab), &pasted, w, cx);
+    });
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert!(
+        cx.debug_bounds("launcher-attachment:pasted-image-1.png")
+            .is_some()
+    );
+
+    let submission = launcher.read_with(cx, |l, cx| l.build_seeded_submission(slot, cx));
+    assert_eq!(submission.attachments.len(), 4);
+    assert!(
+        matches!(
+            &submission.attachments[0],
+            SeededAttachment::ExternalFile { display_name, .. } if display_name == "notes.txt"
+        ) || matches!(
+            &submission.attachments[0],
+            SeededAttachment::WorkspacePath { relative_path, .. } if relative_path == "README.md"
+        )
+    );
+    assert!(submission.attachments.iter().any(|a| matches!(
+        a,
+        SeededAttachment::WorkspacePath { relative_path, .. } if relative_path == "README.md"
+    )));
+    assert!(submission.attachments.iter().any(|a| matches!(
+        a,
+        SeededAttachment::ExternalFile { display_name, .. } if display_name == "notes.txt"
+    )));
+    assert!(submission.attachments.iter().any(|a| matches!(
+        a,
+        SeededAttachment::ExternalFile { display_name, .. } if display_name == "diagram.png"
+    )));
+    assert!(submission.attachments.iter().any(|a| matches!(
+        a,
+        SeededAttachment::PastedImage { name, .. } if name == "pasted-image-1.png"
+    )));
+}
+
+#[gpui::test]
+fn l1_launcher_shows_provider_parameter_pickers_persists_per_provider_routes_and_switches_cleanly(
+    cx: &mut TestAppContext,
+) {
+    use crate::agent::connections::legacy_runtime_registry::Runtime;
+    use crate::agent::contract::dto::{Capabilities, Mode, Model, RuntimeInspection};
+
+    crate::localization::set_current("en");
+    let (workbench, launcher, cx) = compose(cx);
+    cx.update(|window, _| window.activate_window());
+
+    let prefs = cx.update(|_, cx| {
+        cx.new(|_| {
+            let mut store = PreferencesStore::memory();
+            store.state.agent_routing = store.state.agent_routing.select_runtime(Some("codex"));
+            store
+        })
+    });
+
+    let codex_inspection = RuntimeInspection {
+        selected_runtime_id: Some("codex".into()),
+        capabilities: Some(Capabilities {
+            model_selection: true,
+            mode_selection: true,
+            ..Default::default()
+        }),
+        models: vec![
+            Model {
+                id: "gpt-5.4".into(),
+                model: "gpt-5.4".into(),
+                display_name: "GPT-5.4".into(),
+                is_default: true,
+                provider_id: Some("openai".into()),
+                variants: Some(vec!["low".into(), "medium".into(), "high".into()]),
+                default_variant: Some("medium".into()),
+                ..Default::default()
+            },
+            Model {
+                id: "o3".into(),
+                model: "o3".into(),
+                display_name: "o3".into(),
+                is_default: false,
+                provider_id: Some("openai".into()),
+                variants: Some(vec!["medium".into(), "high".into(), "xhigh".into()]),
+                default_variant: Some("high".into()),
+                ..Default::default()
+            },
+        ],
+        modes: Some(vec![
+            Mode {
+                id: "agent".into(),
+                display_name: "Agent".into(),
+                description: String::new(),
+                is_default: true,
+            },
+            Mode {
+                id: "plan".into(),
+                display_name: "Plan".into(),
+                description: String::new(),
+                is_default: false,
+            },
+        ]),
+        ..Default::default()
+    };
+    let cursor_inspection = RuntimeInspection {
+        selected_runtime_id: Some("cursor".into()),
+        capabilities: Some(Capabilities {
+            model_selection: true,
+            mode_selection: true,
+            ..Default::default()
+        }),
+        models: vec![
+            Model {
+                id: "auto".into(),
+                model: "auto".into(),
+                display_name: "Auto".into(),
+                is_default: true,
+                ..Default::default()
+            },
+            Model {
+                id: "composer".into(),
+                model: "composer".into(),
+                display_name: "Composer".into(),
+                is_default: false,
+                ..Default::default()
+            },
+        ],
+        modes: Some(vec![
+            Mode {
+                id: "agent".into(),
+                display_name: "Agent".into(),
+                description: String::new(),
+                is_default: true,
+            },
+            Mode {
+                id: "ask".into(),
+                display_name: "Ask".into(),
+                description: String::new(),
+                is_default: false,
+            },
+        ]),
+        ..Default::default()
+    };
+
+    launcher.update(cx, |l, cx| {
+        l.set_preference_store(prefs.clone(), cx);
+        l.show_local(PathBuf::from("/project"), cx);
+        l.discovery_override = true;
+        l.scanning = false;
+        l.installations = vec![
+            Installation {
+                runtime: Runtime::Codex,
+                id: "codex",
+                label: "Codex".into(),
+                executable: PathBuf::from("/fixture/codex"),
+                chat: true,
+            },
+            Installation {
+                runtime: Runtime::Cursor,
+                id: "cursor",
+                label: "Cursor".into(),
+                executable: PathBuf::from("/fixture/cursor"),
+                chat: true,
+            },
+        ];
+        l.inspection_override
+            .insert("codex".into(), codex_inspection);
+        l.inspection_override
+            .insert("cursor".into(), cursor_inspection);
+        cx.notify();
+    });
+    workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    let draw = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        cx.update(|w, cx| w.draw(cx).clear(cx));
+    };
+    let click = |cx: &mut VisualTestContext, selector: &'static str| {
+        let bounds = cx.debug_bounds(selector).expect(selector);
+        cx.simulate_click(bounds.center(), Modifiers::none());
+        draw(cx);
+    };
+    draw(cx);
+
+    // 1. Codex exposes Model, Effort, and Mode chips with runtime defaults.
+    assert!(cx.debug_bounds("launcher-controls").is_some());
+    assert!(cx.debug_bounds("agent-picker-Model:GPT-5.4").is_some());
+    assert!(cx.debug_bounds("agent-picker-Effort:Standard").is_some());
+    assert!(cx.debug_bounds("agent-picker-Mode:Agent").is_some());
+
+    // 2. Picking o3 + Extra high + Plan updates chips and persists under routes["codex"].
+    click(cx, "agent-picker-Model");
+    click(cx, "menu-item:o3");
+    assert!(cx.debug_bounds("agent-picker-Model:o3").is_some());
+    assert!(cx.debug_bounds("agent-picker-Effort:High").is_some());
+
+    click(cx, "agent-picker-Effort");
+    click(cx, "menu-item:Extra high");
+    assert!(cx.debug_bounds("agent-picker-Effort:Extra high").is_some());
+
+    click(cx, "agent-picker-Mode");
+    click(cx, "menu-item:Plan");
+    assert!(cx.debug_bounds("agent-picker-Mode:Plan").is_some());
+
+    let codex_route = prefs.read_with(cx, |p, _| {
+        p.state
+            .agent_routing
+            .routes
+            .get("codex")
+            .cloned()
+            .expect("codex route persisted")
+    });
+    assert_eq!(codex_route.model_id.as_deref(), Some("o3"));
+    assert_eq!(codex_route.effort.as_deref(), Some("xhigh"));
+    assert_eq!(codex_route.mode.as_deref(), Some("plan"));
+
+    // 3. Switching provider to Cursor shows Cursor's Model + Mode (no invented Effort).
+    click(cx, "launcher-agent-picker");
+    click(cx, "launcher-agent-cursor");
+    assert!(cx.debug_bounds("agent-picker-Model:Auto").is_some());
+    assert!(cx.debug_bounds("agent-picker-Effort").is_none());
+    assert!(cx.debug_bounds("agent-picker-Mode:Agent").is_some());
+
+    click(cx, "agent-picker-Model");
+    click(cx, "menu-item:Composer");
+    click(cx, "agent-picker-Mode");
+    click(cx, "menu-item:Ask");
+    assert!(cx.debug_bounds("agent-picker-Model:Composer").is_some());
+    assert!(cx.debug_bounds("agent-picker-Mode:Ask").is_some());
+
+    // 4. Switching back to Codex restores Codex's saved o3 / Extra high / Plan intact.
+    click(cx, "launcher-agent-picker");
+    click(cx, "launcher-agent-codex");
+    assert!(cx.debug_bounds("agent-picker-Model:o3").is_some());
+    assert!(cx.debug_bounds("agent-picker-Effort:Extra high").is_some());
+    assert!(cx.debug_bounds("agent-picker-Mode:Plan").is_some());
+}

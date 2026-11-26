@@ -11,6 +11,7 @@ use crate::theme;
 use crate::ui::agent_brand_mark::{AgentMark, monochrome_mark};
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::{Icon, Spinner, tooltip};
+use crate::ui::resource_drag::ResourceDrag;
 use gpui_kit::base::{h_flex, v_flex};
 use gpui_kit::component::Sizable as _;
 
@@ -496,6 +497,8 @@ impl WorkbenchLauncher {
         });
 
         let stage_width = content_width(width);
+        let controls_row =
+            self.render_parameter_controls(slot, stage_width, cloud, chats, window, cx);
         let a = AgentTheme::new(&t);
         let recent = self.recent_sessions(cx);
         let has_recent = !recent.is_empty();
@@ -607,6 +610,25 @@ impl WorkbenchLauncher {
             );
         }
 
+        // Quiet drop/attachment status notice (e.g. cross-workspace refusal).
+        let notice_row = self.notice(slot).map(|message| {
+            let selector = format!("launcher-notice:{message}");
+            h_flex()
+                .id(("launcher-notice", key_id))
+                .role(Role::Status)
+                .aria_label(message.to_owned())
+                .debug_selector(move || selector)
+                .test_support()
+                .w_full()
+                .min_w_0()
+                .px(px(4.))
+                .text_size(px(m.right.caption))
+                .line_height(px(m.right.caption_line_height))
+                .text_color(a.text_subtle)
+                .whitespace_normal()
+                .child(message.to_owned())
+        });
+
         let scroll = self.page_scroll(slot, cx);
         div()
             .id(("launcher", key_id))
@@ -615,6 +637,12 @@ impl WorkbenchLauncher {
             .track_scroll(&scroll)
             .bg(t.auxiliary())
             .text_color(t.terminal_fg)
+            .on_drop(cx.listener(move |s, drag: &ResourceDrag, w, cx| {
+                s.drop_resources(slot, group, tab, drag, w, cx);
+            }))
+            .on_drop(cx.listener(move |s, paths: &ExternalPaths, w, cx| {
+                s.add_external_paths(slot, group, tab, paths.paths().to_vec(), w, cx);
+            }))
             .child(
                 v_flex()
                     .min_h_full()
@@ -636,6 +664,8 @@ impl WorkbenchLauncher {
                                     .max_w_full()
                                     .child(header)
                                     .child(hero_card)
+                                    .children(controls_row)
+                                    .children(notice_row.map(|n| div().mt(px(8.)).child(n)))
                                     .children(error_row.map(|e| div().mt(px(10.)).child(e)))
                                     .children(discovery_row.map(|d| div().mt(px(10.)).child(d)))
                                     .children(setup_view.map(|s| div().mt(px(12.)).child(s)))

@@ -297,6 +297,49 @@ impl TextInput {
         self.value = dispatch!(&self.field, |s| s.read(cx).value());
         ok
     }
+    /// Inserts plain text at the caret with automatic whitespace separation,
+    /// preserving any existing inline tokens.
+    pub fn insert_text(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if text.is_empty() {
+            return;
+        }
+        if let Some(content) = self.pending_content.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                let end = content.text().len();
+                s.set_value(content, window, cx);
+                s.set_selected_range(end..end, cx);
+            }));
+        }
+        if let Some(value) = self.pending.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                s.set_value(value.text, window, cx);
+                s.set_selected_range(
+                    value.anchor.min(value.cursor)..value.anchor.max(value.cursor),
+                    cx,
+                );
+            }));
+        }
+        dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+            let value = s.value().to_string();
+            let range = s.selected_range();
+            let before = value[..range.start].chars().next_back();
+            let after = value[range.end..].chars().next();
+            if !range.is_empty() {
+                use gpui::EntityInputHandler as _;
+                let utf16 = |byte: usize| value[..byte].encode_utf16().count();
+                s.replace_text_in_range(Some(utf16(range.start)..utf16(range.end)), "", window, cx);
+            }
+            if before.is_some_and(|c| !c.is_whitespace()) {
+                s.insert(" ", window, cx);
+            }
+            s.insert(text, window, cx);
+            if after.is_some_and(|c| !c.is_whitespace()) {
+                s.insert(" ", window, cx);
+            }
+        }));
+        self.value = dispatch!(&self.field, |s| s.read(cx).value());
+        cx.notify();
+    }
     /// Deletes the token `id` as an edit, leaving the caret where it was
     /// (`removeMentionFromEditor`).
     pub fn remove_token(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {

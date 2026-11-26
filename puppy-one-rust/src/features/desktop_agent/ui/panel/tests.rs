@@ -1170,3 +1170,98 @@ fn a_dropped_workspace_image_keeps_its_preview(cx: &mut TestAppContext) {
             .is_some()
     );
 }
+
+/// Seeded launcher handoff stages workspace + external + pasted attachments on
+/// the real controller, reconstructs exact non-duplicated inline `@mention`
+/// spans, and preserves the draft with actionable error chips when a reference
+/// is refused by the runtime instead of dropping user input.
+#[gpui::test]
+fn seeded_launcher_submission_stages_references_and_preserves_mentions(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    crate::localization::set_current("en");
+    let ours = tempfile::tempdir().unwrap();
+    let finder = tempfile::tempdir().unwrap();
+    let ws_file = ours.path().join("notes.md");
+    let ext_file = finder.path().join("spec.txt");
+    std::fs::write(&ws_file, "# notes\n").unwrap();
+    std::fs::write(&ext_file, "spec").unwrap();
+    let root = ours.path().to_string_lossy().into_owned();
+
+    let slot = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let kept = slot.clone();
+    let (panel, cx) = cx.add_window_view(|window, cx| {
+        let (panel, asked) =
+            AgentChatTabPanel::seeded_fixture_at(&root, true, None, "", window, cx);
+        *kept.borrow_mut() = Some(asked);
+        panel
+    });
+    let asked = slot.borrow().clone().unwrap();
+    draw(cx);
+
+    let submission = super::SeededSubmission {
+        text: "Review @notes.md and @spec.txt".into(),
+        segments: vec![
+            super::SeededPromptSegment::Text("Review ".into()),
+            super::SeededPromptSegment::Mention(0),
+            super::SeededPromptSegment::Text(" and ".into()),
+            super::SeededPromptSegment::Mention(1),
+        ],
+        attachments: vec![
+            super::SeededAttachment::WorkspacePath {
+                path: ws_file,
+                relative_path: "notes.md".into(),
+            },
+            super::SeededAttachment::ExternalFile {
+                path: ext_file,
+                display_name: "spec.txt".into(),
+                mime: "text/plain".into(),
+            },
+            super::SeededAttachment::PastedImage {
+                name: "pasted-image-1.png".into(),
+                mime: "image/png".into(),
+                bytes: std::sync::Arc::new(vec![1, 2, 3, 4]),
+            },
+        ],
+    };
+
+    panel.update_in(cx, |p, w, cx| p.set_seeded_submission(submission, w, cx));
+    cx.run_until_parked();
+    draw(cx);
+
+    let ops = asked.borrow().clone();
+    assert!(
+        ops.contains(&AgentOperation::ResolveWorkspaceReferences),
+        "workspace path must be resolved via controller: {ops:?}"
+    );
+    assert!(
+        ops.contains(&AgentOperation::StageReferences),
+        "external file and pasted image must be staged via controller: {ops:?}"
+    );
+
+    let (references, document) = panel.update(cx, |p, cx| {
+        (
+            p.controller.get_snapshot().references,
+            p.composer.read(cx).document(cx),
+        )
+    });
+    assert_eq!(references.len(), 3, "all 3 seeded attachments tracked");
+    // Mentions are reconstructed once at their exact positions (no duplication).
+    assert_eq!(document.0.matches("@notes.md").count(), 1, "{document:?}");
+    assert_eq!(document.0.matches("@spec.txt").count(), 1, "{document:?}");
+    assert!(
+        document.0.starts_with("Review @notes.md and @spec.txt"),
+        "exact prompt text preserved: {document:?}"
+    );
+    assert_eq!(
+        document.1.len(),
+        2,
+        "non-media references map to 2 atomic UTF-16 PromptMentions"
+    );
+    // Fixture refuses staging references (ReferenceStatus::Error), so auto-submit
+    // holds back cleanly instead of dropping the prompt or starting an invalid turn.
+    assert!(
+        !ops.contains(&AgentOperation::StartTurn),
+        "failed references must preserve the draft in the composer rather than submitting"
+    );
+}

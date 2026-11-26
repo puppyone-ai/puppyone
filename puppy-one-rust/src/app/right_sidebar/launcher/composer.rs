@@ -5,13 +5,17 @@
 //! occlusion (preventing clicks from passing through to underlying recent
 //! sessions), outside-click dismissal, and Escape focus restoration.
 use super::*;
-use crate::features::desktop_agent::AgentTheme;
+use crate::features::desktop_agent::{AgentSessionControlId, AgentTheme};
 use crate::localization::t as tr;
 use crate::theme;
 use crate::ui::agent_brand_mark::{LauncherIdentity, launcher_icon};
 use crate::ui::appearance::ActiveAppearance;
-use crate::ui::components::{Dismiss, Icon, PopoverMenu, SurfaceFrame, SurfaceVariant, tooltip};
-use gpui_kit::base::{h_flex, v_flex};
+use crate::ui::components::{
+    Dismiss, Icon, IconButton, MenuItem, PopoverMenu, ProductIcon, SurfaceFrame, SurfaceVariant,
+    tooltip,
+};
+use crate::ui::resource_drag::ResourceDrag;
+use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 use gpui_kit::component::Sizable as _;
 
 impl WorkbenchLauncher {
@@ -247,12 +251,64 @@ impl WorkbenchLauncher {
         let input = self.ensure_page_input(slot, group, tab, window, cx);
         let focused = input.focus_handle(cx).contains_focused(window, cx);
         let has_text = !input.read(cx).current_text(cx).trim().is_empty();
-        let can_send = has_text && chats && active.is_some();
+        let has_attachments = !cloud && self.has_attachments(slot);
+        let can_send = (has_text || has_attachments) && chats && active.is_some();
         let picker_open = self.is_picker_open(slot);
+        let visual = (!cloud)
+            .then(|| self.render_visual_attachments(slot, cx))
+            .flatten();
+        let has_visual = visual.is_some();
+
+        // Leading `+` attachment menu (local mode only, matching active chat).
+        let attach_menu = (!cloud).then(|| {
+            let host_computer = cx.weak_entity();
+            let host_workspace = cx.weak_entity();
+            div()
+                .debug_selector(|| "launcher-attach-trigger".into())
+                .child(
+                    PopoverMenu::new(("launcher-attach-menu", key_id))
+                        .anchor(Anchor::TopLeft)
+                        .offset(px(4.))
+                        .trigger(
+                            IconButton::new(
+                                ("launcher-attach-trigger", key_id),
+                                Icon::new("plus").with_size(px(15.)).stroke(1.75),
+                            )
+                            .label(tr("agent.reference.add"))
+                            .with_size(px(28.))
+                            .size(px(28.))
+                            .rounded(px(10.))
+                            .color(a.text_subtle)
+                            .disabled(!chats),
+                        )
+                        .menu(move |menu, _, _| {
+                            let host_computer = host_computer.clone();
+                            let host_workspace = host_workspace.clone();
+                            menu.item(
+                                MenuItem::new(tr("agent.reference.addFromComputer"))
+                                    .icon("paperclip")
+                                    .on_click(move |w, cx| {
+                                        let _ = host_computer.update(cx, |s, cx| {
+                                            s.pick_external_files(slot, group, tab, w, cx);
+                                        });
+                                    }),
+                            )
+                            .item(
+                                MenuItem::new(tr("agent.reference.addFromWorkspace"))
+                                    .product_icon(ProductIcon::Folder)
+                                    .on_click(move |w, cx| {
+                                        let _ = host_workspace.update(cx, |s, cx| {
+                                            s.pick_workspace_files(slot, group, tab, w, cx);
+                                        });
+                                    }),
+                            )
+                        }),
+                )
+        });
 
         // Trigger button: concentric inner radius (16px card - 6px bar = 10px),
-        // left icon edge sits at 6px bar + 8px button = 14px, flush with the
-        // prompt text inset (10px wrapper + 4px Textarea xsmall inset = 14px).
+        // left icon edge sits at 6px bar + 8px button = 14px when alone, flush
+        // with the prompt text inset (10px wrapper + 4px Textarea xsmall inset = 14px).
         let trigger = gpui_kit::base::Button::new(("launcher-agent-picker", key_id))
             .debug_selector(|| "launcher-agent-picker".into())
             .h(px(28.))
@@ -350,6 +406,8 @@ impl WorkbenchLauncher {
 
         let size = m.left.content;
         let line_height = size * 1.5;
+        let drop_border = a.accent;
+        let drop_surface = theme::mix(a.accent, a.composer_surface, 0.06);
         v_flex()
             .w_full()
             .min_w_0()
@@ -361,12 +419,21 @@ impl WorkbenchLauncher {
                 a.composer_border
             })
             .bg(a.composer_surface)
+            .when(!cloud, |card| {
+                card.drag_over::<ResourceDrag>(move |s, _, _, _| {
+                    s.border_color(drop_border).bg(drop_surface)
+                })
+                .drag_over::<ExternalPaths>(move |s, _, _, _| {
+                    s.border_color(drop_border).bg(drop_surface)
+                })
+            })
+            .children(visual)
             .child(
                 div()
                     .debug_selector(|| "launcher-composer-input".into())
                     .w_full()
                     .min_w_0()
-                    .pt(px(12.))
+                    .pt(px(if has_visual { 6. } else { 12. }))
                     .pb(px(6.))
                     // 10px wrapper + Textarea's 4px inner inset = 14px symmetric horizontal padding.
                     .px(px(10.))
@@ -382,10 +449,53 @@ impl WorkbenchLauncher {
                     .pt(px(2.))
                     .pb(px(6.))
                     .px(px(6.))
+                    .children(attach_menu)
                     .child(div().min_w_0().flex_shrink(1.).child(agent_pill))
                     .child(div().flex_1())
                     .child(send_button),
             )
             .into_any_element()
+    }
+
+    /// Quiet `Model` / `Effort` / `Mode` parameter chips directly beneath the
+    /// Hero Composer card, reusing the exact shared [`SessionPickers`] widget
+    /// from active Agent Chat so users can configure provider parameters in
+    /// Act 1 before sending their first prompt.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn render_parameter_controls(
+        &mut self,
+        slot: LauncherSlot,
+        stage_width: f32,
+        cloud: bool,
+        chats: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if cloud {
+            return None;
+        }
+        let controls = self.active_controls(cx);
+        if controls.is_empty() {
+            return None;
+        }
+        let pickers = self.ensure_page_pickers(slot, window, cx);
+        let mut row = h_flex()
+            .debug_selector(|| "launcher-controls".into())
+            .w_full()
+            .min_w_0()
+            .mt(px(6.))
+            .pl(px(2.))
+            .gap(px(4.))
+            .overflow_hidden();
+        for control in &controls {
+            let width = match control.id {
+                AgentSessionControlId::Model => 170f32.min(stage_width * 0.48),
+                AgentSessionControlId::Effort => 88f32.min(stage_width * 0.25),
+                AgentSessionControlId::Mode => 104f32.min(stage_width * 0.27),
+            };
+            let picker = pickers.update(cx, |p, cx| p.picker(control, width, !chats, cx));
+            row = row.child(div().min_w_0().flex_shrink(1.).child(picker));
+        }
+        Some(row.into_any_element())
     }
 }

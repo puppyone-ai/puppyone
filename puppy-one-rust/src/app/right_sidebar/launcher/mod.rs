@@ -4,11 +4,14 @@
 //! Architecture:
 //! - [`state`] — Pure domain state (`AgentSelection`, deterministic active
 //!   Agent resolution across incremental discovery, `LauncherPageState`).
+//! - [`attachments`] — Pre-launch Explorer/Finder drop, clipboard paste, attach
+//!   menu, visual thumbnail shelf, and seeded handoff to active Agent Chat.
 //! - [`composer`] — L1 hero prompt composer card and occluding Agent switcher
 //!   popover built on `PopoverMenu` + `SurfaceFrame`.
 //! - [`view`] — L1 stage layout composition (composer, discovery feedback,
 //!   setup section, recent sessions, quiet utility footer).
 //! - [`history`] — Cross-runtime History browser hosting and session restore.
+mod attachments;
 mod composer;
 mod history;
 #[cfg(feature = "dev-capture")]
@@ -19,8 +22,12 @@ mod tests;
 mod view;
 
 use crate::agent::connections::legacy_local_agent_inventory::{self as agents, Installation};
+use crate::agent::contract::dto::RuntimeInspection;
 use crate::features::cloud::{HostedChats, hosted_installation};
-use crate::features::desktop_agent::{AgentChats, HistoryBrowser};
+use crate::features::desktop_agent::{
+    AgentChats, AgentSessionControl, AgentSessionControlId, HistoryBrowser, PickerEvent,
+    SeededSubmission, SessionPickers, filter_launcher_inspection,
+};
 use crate::features::local_agents::agent_chat_runtime_id;
 use crate::features::settings::{AgentRoutingPreferences, PreferencesStore};
 use crate::features::terminal::TerminalItem;
@@ -29,13 +36,16 @@ use crate::features::workbench::{
     WorkbenchView,
 };
 use crate::ui::components::Icon;
-use crate::ui::form_input::{InputEvent, TextInput};
+use crate::ui::form_input::{InputEvent, PastedFiles, TextInput};
 use crate::wake::Wake;
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
-use state::{AgentSelection, LauncherPageState, LauncherSlot, launcher_placeholder};
+use state::{
+    AgentSelection, LauncherPageState, LauncherSlot, launcher_placeholder,
+    resolve_runtime_controls, route_patch_for_control,
+};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     rc::Rc,
     sync::{
@@ -88,6 +98,19 @@ pub(crate) struct WorkbenchLauncher {
     setup_slot: Option<LauncherSlot>,
     /// Single source of truth for the L1 launcher's selected Agent.
     selection: AgentSelection,
+    /// Latest per-runtime routing preferences (`model`, `effort`, `mode`) kept
+    /// converged with `PreferencesStore.state.agent_routing`.
+    routing: AgentRoutingPreferences,
+    /// `usePaymentsExperience()`: gates managed compute models for Built-in Agent.
+    payments: bool,
+    /// Cached lightweight runtime inspections (`models`, `variants`, `modes`,
+    /// `capabilities`) keyed by `(project_root, canonical_runtime_id)`.
+    inspections: HashMap<(PathBuf, String), RuntimeInspection>,
+    /// `(project_root, canonical_runtime_id)` keys with an inspection in flight.
+    inspecting: HashSet<(PathBuf, String)>,
+    /// Monotonic generation bumped on rescan / model connection reload to drop
+    /// stale inspection responses.
+    inspection_generation: u64,
     /// Per-tab launcher page state (composer input, popover, focus, scroll,
     /// launch error): strictly isolated per tab and dropped when closed.
     pages: HashMap<LauncherSlot, LauncherPageState>,
@@ -97,6 +120,9 @@ pub(crate) struct WorkbenchLauncher {
     /// Test-only deterministic recent sessions fixture for overlap/occlusion tests.
     #[cfg(test)]
     recent_override: Option<Vec<crate::agent::contract::dto::SessionMetadata>>,
+    /// Test-only runtime inspections keyed by canonical runtime id.
+    #[cfg(test)]
+    inspection_override: HashMap<String, RuntimeInspection>,
 }
 
 impl WorkbenchLauncher {
@@ -144,10 +170,17 @@ impl WorkbenchLauncher {
             shown: WorkbenchView::default(),
             setup_slot: None,
             selection: AgentSelection::default(),
+            routing: AgentRoutingPreferences::default(),
+            payments: false,
+            inspections: HashMap::new(),
+            inspecting: HashSet::new(),
+            inspection_generation: 0,
             pages: HashMap::new(),
             recent_watch: None,
             #[cfg(test)]
             recent_override: None,
+            #[cfg(test)]
+            inspection_override: HashMap::new(),
         }
     }
 
@@ -172,6 +205,7 @@ impl WorkbenchLauncher {
         self.installations = found.installations;
         self.observations = found.observations;
         self.sync_placeholders(cx);
+        self.ensure_active_inspection(cx);
         cx.notify();
     }
 
@@ -222,10 +256,18 @@ impl WorkbenchLauncher {
                     cx,
                 )
             });
+            self.routing = store.read(cx).state.agent_routing.clone();
+            self.ensure_active_inspection(cx);
             return;
         }
-        if self.selection.sync_preferences(&routing) {
+        let route_changed = self.routing != routing;
+        self.routing = routing.clone();
+        let selection_changed = self.selection.sync_preferences(&routing);
+        if selection_changed {
             self.sync_placeholders(cx);
+            self.ensure_active_inspection(cx);
+        }
+        if selection_changed || route_changed {
             cx.notify();
         }
     }
@@ -240,20 +282,26 @@ impl WorkbenchLauncher {
         cx: &mut Context<Self>,
     ) {
         let hidden_changed = self.hidden_agents != hidden;
+        let routing_changed = self.routing != routing || self.payments != payments;
         self.hidden_agents = hidden.clone();
+        self.routing = routing.clone();
+        self.payments = payments;
         let selection_changed = self.selection.sync_preferences(&routing);
         let chats_changed = self.chats.set_preferences(hidden, routing, payments, cx);
         if hidden_changed || selection_changed {
             self.sync_placeholders(cx);
+            self.ensure_active_inspection(cx);
         }
-        if hidden_changed || selection_changed || chats_changed {
+        if hidden_changed || selection_changed || routing_changed || chats_changed {
             cx.notify();
         }
     }
 
-    /// Model connections changed: every chat rereads them.
+    /// Model connections changed: every chat rereads them and launcher
+    /// inspections refresh.
     pub fn reload_model_connections(&mut self, cx: &mut Context<Self>) {
         self.chats.reload_model_connections(cx);
+        self.invalidate_inspections(cx);
     }
 
     /// A local folder's workbench: this machine's Agents and terminals.
@@ -295,9 +343,10 @@ impl WorkbenchLauncher {
                 self.chats.set_roots(roots);
             }
         }
-        self.close_all_pickers();
+        self.close_all_pickers(cx);
         self.ensure_recent_watch(cx);
         self.sync_placeholders(cx);
+        self.ensure_active_inspection(cx);
         cx.notify();
     }
 
@@ -333,6 +382,9 @@ impl WorkbenchLauncher {
                     state.picker_open = false;
                 }
             }
+            if let Some(pickers) = self.pages.get(&slot).and_then(|p| p.pickers.clone()) {
+                pickers.update(cx, |p, cx| p.close(cx));
+            }
         }
         self.page_mut(slot, cx).picker_open = open;
         if changed {
@@ -340,9 +392,17 @@ impl WorkbenchLauncher {
         }
     }
 
-    fn close_all_pickers(&mut self) {
+    fn close_all_pickers(&mut self, cx: &mut Context<Self>) {
+        let pickers: Vec<Entity<SessionPickers>> = self
+            .pages
+            .values()
+            .filter_map(|p| p.pickers.clone())
+            .collect();
         for state in self.pages.values_mut() {
             state.picker_open = false;
+        }
+        for picker in pickers {
+            picker.update(cx, |p, cx| p.close(cx));
         }
     }
 
@@ -360,6 +420,38 @@ impl WorkbenchLauncher {
         self.pages
             .get(&slot)
             .and_then(|p| p.launch_error.as_deref())
+    }
+
+    fn set_notice(
+        &mut self,
+        slot: LauncherSlot,
+        text: impl Into<SharedString>,
+        cx: &mut Context<Self>,
+    ) {
+        self.page_mut(slot, cx).notice = Some(text.into());
+        cx.notify();
+    }
+
+    fn clear_notice(&mut self, slot: LauncherSlot) {
+        if let Some(state) = self.pages.get_mut(&slot) {
+            state.notice = None;
+        }
+    }
+
+    fn notice(&self, slot: LauncherSlot) -> Option<&str> {
+        self.pages.get(&slot).and_then(|p| p.notice.as_deref())
+    }
+
+    fn has_attachments(&self, slot: LauncherSlot) -> bool {
+        self.pages
+            .get(&slot)
+            .is_some_and(LauncherPageState::has_attachments)
+    }
+
+    fn on_input_changed(&mut self, slot: LauncherSlot, cx: &mut Context<Self>) {
+        self.sync_page_attachments(slot, cx);
+        self.clear_notice(slot);
+        cx.notify();
     }
 
     fn row_focus(
@@ -393,6 +485,19 @@ impl WorkbenchLauncher {
     #[cfg(test)]
     pub(super) fn has_tab_page(&self, tab: Id) -> bool {
         self.pages.contains_key(&LauncherSlot::Tab(tab))
+    }
+
+    #[cfg(test)]
+    pub(super) fn staged_attachments(&self, tab: Id) -> Vec<(String, bool)> {
+        self.pages
+            .get(&LauncherSlot::Tab(tab))
+            .map(|p| {
+                p.attachments
+                    .iter()
+                    .map(|a| (a.display_name.clone(), a.is_image))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Synchronizes the dynamic placeholder on every mounted launcher page
@@ -507,10 +612,194 @@ impl WorkbenchLauncher {
                     )
                 });
             }
+            self.routing = self.routing.select_runtime(Some(&runtime_id));
+            self.chats.set_preferences(
+                self.hidden_agents.clone(),
+                self.routing.clone(),
+                self.payments,
+                cx,
+            );
         }
         self.set_picker_open(slot, false, cx);
         self.sync_placeholders(cx);
+        self.ensure_active_inspection(cx);
         self.focus_page(slot, group, tab, window, cx);
+        cx.notify();
+    }
+
+    // ------------------------------------------- provider parameter controls
+
+    fn invalidate_inspections(&mut self, cx: &mut Context<Self>) {
+        self.inspection_generation = self.inspection_generation.wrapping_add(1);
+        self.inspections.clear();
+        self.inspecting.clear();
+        self.ensure_active_inspection(cx);
+    }
+
+    /// Triggers a single deduplicated background runtime inspection for the
+    /// active local Agent so Act 1 can offer real `Model`, `Effort`, and `Mode`
+    /// parameter pickers without creating a session or starting a turn.
+    fn ensure_active_inspection(&mut self, cx: &mut Context<Self>) {
+        if self.hosted.is_open() {
+            return;
+        }
+        let Some(root) = self.shown.root.clone().filter(|r| r.is_dir()) else {
+            return;
+        };
+        let Some(installation) = self.active_installation() else {
+            return;
+        };
+        let runtime_id = agent_chat_runtime_id(&installation);
+        #[cfg(test)]
+        if self.inspection_override.contains_key(&runtime_id) {
+            return;
+        }
+        let key = (root.clone(), runtime_id.clone());
+        if self.inspections.contains_key(&key) || self.inspecting.contains(&key) {
+            return;
+        }
+        let Ok(call) = self.chats.inspect_runtime(&root, &runtime_id, cx) else {
+            return;
+        };
+        self.inspecting.insert(key.clone());
+        let generation = self.inspection_generation;
+        cx.spawn(async move |this, cx| {
+            let result = call.await;
+            let _ = this.update(cx, |s, cx| {
+                s.inspecting.remove(&key);
+                if s.inspection_generation != generation {
+                    return;
+                }
+                if let Ok(inspection) = result {
+                    s.inspections.insert(key, inspection);
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
+
+    /// Returns `(canonical_runtime_id, filtered_inspection)` for the active
+    /// local Agent if an inspection has landed.
+    fn active_inspection(&self, cx: &App) -> Option<(String, RuntimeInspection)> {
+        if self.hosted.is_open() {
+            return None;
+        }
+        let installation = self.active_installation()?;
+        let runtime_id = agent_chat_runtime_id(&installation);
+        #[cfg(test)]
+        let raw = self.inspection_override.get(&runtime_id).or_else(|| {
+            self.shown
+                .root
+                .as_ref()
+                .and_then(|root| self.inspections.get(&(root.clone(), runtime_id.clone())))
+        })?;
+        #[cfg(not(test))]
+        let raw = self
+            .shown
+            .root
+            .as_ref()
+            .and_then(|root| self.inspections.get(&(root.clone(), runtime_id.clone())))?;
+        let selected_model = self
+            .routing
+            .routes
+            .get(&runtime_id)
+            .and_then(|r| r.model_id.as_deref());
+        let filtered = filter_launcher_inspection(raw, self.payments, selected_model, cx);
+        Some((runtime_id, filtered))
+    }
+
+    /// Effective `Model`, `Effort`, and `Mode` controls for the active local
+    /// Agent, projected cleanly from its negotiated capabilities and saved
+    /// per-runtime route preferences.
+    fn active_controls(&self, cx: &App) -> Vec<AgentSessionControl> {
+        let Some((runtime_id, inspection)) = self.active_inspection(cx) else {
+            return Vec::new();
+        };
+        let route = self
+            .routing
+            .routes
+            .get(&runtime_id)
+            .cloned()
+            .unwrap_or_default();
+        resolve_runtime_controls(&inspection, &route)
+    }
+
+    /// Gets or creates `slot`'s `SessionPickers` entity (anchored downward for
+    /// Act 1's upper-middle layout). Never mutates an existing picker entity
+    /// during render.
+    fn ensure_page_pickers(
+        &mut self,
+        slot: LauncherSlot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<SessionPickers> {
+        if let Some(existing) = self.pages.get(&slot).and_then(|p| p.pickers.clone()) {
+            return existing;
+        }
+        let pickers = cx.new(|cx| {
+            let mut p = SessionPickers::new(window, cx);
+            p.set_anchor_below(true);
+            p
+        });
+        cx.subscribe(&pickers, move |s, _, event: &PickerEvent, cx| match event {
+            PickerEvent::Select { id, value } => {
+                s.select_control(slot, *id, value.clone(), cx);
+            }
+        })
+        .detach();
+        cx.observe(&pickers, move |s, pickers, cx| {
+            if pickers.read(cx).is_open() && s.is_picker_open(slot) {
+                s.set_picker_open(slot, false, cx);
+            }
+            cx.notify();
+        })
+        .detach();
+        self.page_mut(slot, cx).pickers = Some(pickers.clone());
+        pickers
+    }
+
+    /// Persists a fine-grained parameter choice (`Model`, `Effort`, `Mode`) for
+    /// the active local Agent into `PreferencesStore.agent_routing` and syncs
+    /// `AgentChats` immediately so the very next submitted turn uses it.
+    fn select_control(
+        &mut self,
+        _slot: LauncherSlot,
+        id: AgentSessionControlId,
+        value: String,
+        cx: &mut Context<Self>,
+    ) {
+        let Some((runtime_id, inspection)) = self.active_inspection(cx) else {
+            return;
+        };
+        let current = self
+            .routing
+            .routes
+            .get(&runtime_id)
+            .cloned()
+            .unwrap_or_default();
+        let patch = route_patch_for_control(&inspection, &current, id, &value);
+        self.routing = self.routing.update_route(&runtime_id, &patch);
+        let store_loaded = self
+            .preferences
+            .as_ref()
+            .is_none_or(|store| store.read(cx).loaded);
+        if store_loaded && let Some(store) = self.preferences.clone() {
+            let runtime = runtime_id.clone();
+            let patch = patch.clone();
+            store.update(cx, |store, cx| {
+                store.change(
+                    |p| p.agent_routing = p.agent_routing.update_route(&runtime, &patch),
+                    cx,
+                )
+            });
+        }
+        self.chats.set_preferences(
+            self.hidden_agents.clone(),
+            self.routing.clone(),
+            self.payments,
+            cx,
+        );
         cx.notify();
     }
 
@@ -539,6 +828,8 @@ impl WorkbenchLauncher {
             input.min_height = size * 1.5 * 2.;
             input.appearance = false;
             input.submit_on_enter = true;
+            input.paste_files = true;
+            input.token_renderer = Some(attachments::launcher_token_renderer());
             input.set_rows(2, 6, cx);
             input
         });
@@ -546,10 +837,14 @@ impl WorkbenchLauncher {
             &input,
             window,
             move |s, _, event: &InputEvent, w, cx| match event {
-                InputEvent::Changed => cx.notify(),
+                InputEvent::Changed => s.on_input_changed(slot, cx),
                 InputEvent::Submit => s.submit_hero(slot, group, tab, w, cx),
             },
         )
+        .detach();
+        cx.subscribe_in(&input, window, move |s, _, pasted: &PastedFiles, w, cx| {
+            s.paste_files(slot, group, tab, pasted, w, cx);
+        })
         .detach();
         self.page_mut(slot, cx).input = Some(input.clone());
         input
@@ -569,8 +864,9 @@ impl WorkbenchLauncher {
         input.focus_handle(cx).focus(window, cx);
     }
 
-    /// Submits `slot`'s L1 hero prompt: creates a fresh chat tab on the
-    /// selected Agent and sends the prompt without any extra click.
+    /// Submits `slot`'s L1 hero prompt (including any staged file/image
+    /// attachments): creates a fresh chat tab on the selected Agent and hands
+    /// off the draft + attachments without any extra click.
     fn submit_hero(
         &mut self,
         slot: LauncherSlot,
@@ -585,8 +881,10 @@ impl WorkbenchLauncher {
         if input.update(cx, |i, cx| i.composing(window, cx)) {
             return;
         }
+        self.sync_page_attachments(slot, cx);
         let prompt = input.read(cx).current_text(cx);
-        if prompt.trim().is_empty() {
+        let has_attachments = !self.hosted.is_open() && self.has_attachments(slot);
+        if prompt.trim().is_empty() && !has_attachments {
             return;
         }
         let Some(installation) = self.active_installation() else {
@@ -599,7 +897,12 @@ impl WorkbenchLauncher {
                     .and_then(|wb| wb.read(cx).group_of(id))
             })
             .unwrap_or(fallback_group);
+        let submission = self.build_seeded_submission(slot, cx);
         self.set_picker_open(slot, false, cx);
+        self.clear_notice(slot);
+        if let Some(page) = self.pages.get_mut(&slot) {
+            page.attachments.clear();
+        }
         input.update(cx, |i, cx| i.set_text("", cx));
         if self.hosted.is_open() {
             self.launch_hosted_with_prompt(group, tab, prompt, window, cx);
@@ -619,7 +922,7 @@ impl WorkbenchLauncher {
                     )
                 });
             }
-            self.launch_seeded_runtime_chat(group, tab, &runtime_id, &prompt, window, cx);
+            self.launch_seeded_submission(group, tab, &runtime_id, submission, window, cx);
         }
     }
 
@@ -728,6 +1031,30 @@ impl WorkbenchLauncher {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.launch_seeded_submission(
+            group,
+            tab,
+            runtime_id,
+            SeededSubmission {
+                text: initial_prompt.to_owned(),
+                ..Default::default()
+            },
+            window,
+            cx,
+        );
+    }
+
+    /// Launches a fresh local Agent chat tab on `runtime_id` with a full
+    /// [`SeededSubmission`] (text segments + staged file/image attachments).
+    fn launch_seeded_submission(
+        &mut self,
+        group: Id,
+        tab: Option<Id>,
+        runtime_id: &str,
+        submission: SeededSubmission,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.hosted.is_open() {
             return;
         }
@@ -758,7 +1085,7 @@ impl WorkbenchLauncher {
         self.clear_launch_error(slot);
         match self
             .chats
-            .prepare_seeded(&root, runtime_id, initial_prompt, window, cx)
+            .prepare_seeded_submission(&root, runtime_id, submission, window, cx)
         {
             Ok(item) => {
                 self.remove_page(slot);
@@ -771,10 +1098,12 @@ impl WorkbenchLauncher {
         cx.notify();
     }
 
-    /// `discovery.refresh`: rescan local agent installations.
+    /// `discovery.refresh`: rescan local agent installations and refresh
+    /// cached runtime inspections.
     fn rescan(&mut self, cx: &mut Context<Self>) {
         self.discovery.update(cx, |s, cx| s.refresh(cx));
         self.sync_inventory(cx);
+        self.invalidate_inspections(cx);
     }
 
     /// `CloudAgentWorkbench.prepare(id, session)`: a hosted chat for `tab`

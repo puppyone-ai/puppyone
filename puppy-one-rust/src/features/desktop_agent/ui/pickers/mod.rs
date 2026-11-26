@@ -33,6 +33,9 @@ pub struct SessionPickers {
     open: Option<AgentSessionControlId>,
     /// The option the keyboard moved to.
     active: Option<usize>,
+    /// Open popover below trigger (`Anchor::TopLeft`) instead of above
+    /// (`Anchor::BottomLeft`), used when the composer sits in upper-middle Act 1.
+    anchor_below: bool,
     query: Entity<TextInput>,
     focus: FocusHandle,
     scroll: ScrollHandle,
@@ -53,10 +56,19 @@ impl SessionPickers {
         Self {
             open: None,
             active: None,
+            anchor_below: false,
             query,
             focus: cx.focus_handle(),
             scroll: ScrollHandle::new(),
         }
+    }
+    /// Controls whether dropdown popovers open below the trigger chip.
+    pub fn set_anchor_below(&mut self, below: bool) {
+        self.anchor_below = below;
+    }
+    /// Whether any parameter picker popover is currently open.
+    pub fn is_open(&self) -> bool {
+        self.open.is_some()
     }
     /// Dev captures: `id`'s picker shows open.
     #[cfg(feature = "dev-capture")]
@@ -154,7 +166,18 @@ impl SessionPickers {
             );
         let mut root = div().relative().flex_shrink(1.).min_w_0().child(trigger);
         if open {
-            root = root.child(
+            let anchor_wrap = if self.anchor_below {
+                div().absolute().bottom_0().left_0().child(
+                    deferred(
+                        anchored()
+                            .anchor(Anchor::TopLeft)
+                            .offset(point(px(0.), px(4.)))
+                            .snap_to_window_with_margin(px(8.))
+                            .child(self.popover(control, cx)),
+                    )
+                    .with_priority(gpui_kit::base::POPUP_PRIORITY),
+                )
+            } else {
                 div().absolute().top_0().left_0().child(
                     deferred(
                         anchored()
@@ -164,8 +187,9 @@ impl SessionPickers {
                             .child(self.popover(control, cx)),
                     )
                     .with_priority(gpui_kit::base::POPUP_PRIORITY),
-                ),
-            );
+                )
+            };
+            root = root.child(anchor_wrap);
         }
         root.into_any_element()
     }
