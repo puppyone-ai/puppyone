@@ -312,7 +312,11 @@
       "native.chatApps.importAsk": "Ask about them from a chat.",
       "native.chatApps.importSee": "The agent in {chat} can see them now.",
       "native.chatApps.chatsCount": "{n} chats",
-      "native.chatApps.open": "Open"
+      "native.chatApps.open": "Open",
+      "native.chatApps.wecomElsewhere": "This bot is connected somewhere else, and a bot works in one place at a time. Connect it again to use it here.",
+      "native.chatApps.wecomName": "WeCom",
+      "native.chatApps.wecomGroup": "WeCom group",
+      "native.chatApps.wecomTaken": "This bot is already used by another PuppyOne space."
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -625,7 +629,11 @@
       "native.chatApps.importAsk": "可以在聊天里问它们。",
       "native.chatApps.importSee": "{chat} 里的 Agent 现在就能看到。",
       "native.chatApps.chatsCount": "{n} 个聊天",
-      "native.chatApps.open": "打开"
+      "native.chatApps.open": "打开",
+      "native.chatApps.wecomElsewhere": "这个机器人在别处连上了，同一个机器人一次只能连一处。再点一次连接，就会接回这里。",
+      "native.chatApps.wecomName": "企业微信",
+      "native.chatApps.wecomGroup": "企业微信群",
+      "native.chatApps.wecomTaken": "这个机器人已经被另一个 PuppyOne 空间使用。"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -938,7 +946,11 @@
       "native.chatApps.importAsk": "チャットからこれらについて質問できます。",
       "native.chatApps.importSee": "{chat} のエージェントが今すぐ見られます。",
       "native.chatApps.chatsCount": "{n} 件のチャット",
-      "native.chatApps.open": "開く"
+      "native.chatApps.open": "開く",
+      "native.chatApps.wecomElsewhere": "このボットは別の場所で接続されています。ボットは一度に 1 か所でのみ使えます。ここで使うにはもう一度接続してください。",
+      "native.chatApps.wecomName": "WeCom",
+      "native.chatApps.wecomGroup": "WeCom グループ",
+      "native.chatApps.wecomTaken": "このボットはすでに別の PuppyOne スペースで使われています。"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -1251,7 +1263,11 @@
       "native.chatApps.importAsk": "채팅에서 이 파일들에 대해 물어보세요.",
       "native.chatApps.importSee": "{chat}의 에이전트가 이제 볼 수 있습니다.",
       "native.chatApps.chatsCount": "채팅 {n}개",
-      "native.chatApps.open": "열기"
+      "native.chatApps.open": "열기",
+      "native.chatApps.wecomElsewhere": "이 봇이 다른 곳에 연결되어 있습니다. 봇은 한 번에 한 곳에서만 쓸 수 있습니다. 여기서 쓰려면 다시 연결하세요.",
+      "native.chatApps.wecomName": "WeCom",
+      "native.chatApps.wecomGroup": "WeCom 그룹",
+      "native.chatApps.wecomTaken": "이 봇은 이미 다른 PuppyOne 공간에서 쓰고 있습니다."
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -1564,7 +1580,11 @@
       "native.chatApps.importAsk": "Pregunta por ellos desde un chat.",
       "native.chatApps.importSee": "El agente de {chat} ya puede verlos.",
       "native.chatApps.chatsCount": "{n} chats",
-      "native.chatApps.open": "Abrir"
+      "native.chatApps.open": "Abrir",
+      "native.chatApps.wecomElsewhere": "Este bot está conectado en otro lugar y solo funciona en un sitio a la vez. Conéctalo de nuevo para usarlo aquí.",
+      "native.chatApps.wecomName": "WeCom",
+      "native.chatApps.wecomGroup": "Grupo de WeCom",
+      "native.chatApps.wecomTaken": "Otro espacio de PuppyOne ya usa este bot."
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -1877,7 +1897,11 @@
       "native.chatApps.importAsk": "Pergunte sobre eles em um chat.",
       "native.chatApps.importSee": "O agente em {chat} já pode vê-los.",
       "native.chatApps.chatsCount": "{n} chats",
-      "native.chatApps.open": "Abrir"
+      "native.chatApps.open": "Abrir",
+      "native.chatApps.wecomElsewhere": "Este bot está conectado em outro lugar e só funciona em um lugar por vez. Conecte de novo para usá-lo aqui.",
+      "native.chatApps.wecomName": "WeCom",
+      "native.chatApps.wecomGroup": "Grupo do WeCom",
+      "native.chatApps.wecomTaken": "Outro espaço do PuppyOne já usa este bot."
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -2190,7 +2214,11 @@
       "native.chatApps.importAsk": "Posez des questions à leur sujet depuis une discussion.",
       "native.chatApps.importSee": "L’agent dans {chat} peut les voir dès maintenant.",
       "native.chatApps.chatsCount": "{n} discussions",
-      "native.chatApps.open": "Ouvrir"
+      "native.chatApps.open": "Ouvrir",
+      "native.chatApps.wecomElsewhere": "Ce bot est connecté ailleurs, et un bot ne fonctionne qu’à un seul endroit à la fois. Connectez-le à nouveau pour l’utiliser ici.",
+      "native.chatApps.wecomName": "WeCom",
+      "native.chatApps.wecomGroup": "Groupe WeCom",
+      "native.chatApps.wecomTaken": "Ce bot est déjà utilisé par un autre espace PuppyOne."
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -2503,7 +2531,11 @@
       "native.chatApps.importAsk": "Frag in einem Chat danach.",
       "native.chatApps.importSee": "Der Agent in {chat} kann sie jetzt sehen.",
       "native.chatApps.chatsCount": "{n} Chats",
-      "native.chatApps.open": "Öffnen"
+      "native.chatApps.open": "Öffnen",
+      "native.chatApps.wecomElsewhere": "Dieser Bot ist woanders verbunden, und ein Bot funktioniert nur an einem Ort gleichzeitig. Verbinde ihn erneut, um ihn hier zu nutzen.",
+      "native.chatApps.wecomName": "WeCom",
+      "native.chatApps.wecomGroup": "WeCom-Gruppe",
+      "native.chatApps.wecomTaken": "Dieser Bot wird bereits von einem anderen PuppyOne-Bereich genutzt."
     }
   }
 }

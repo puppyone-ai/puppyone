@@ -28,7 +28,7 @@ use std::{
 mod chat_apps;
 mod dialog;
 mod invite;
-pub(super) use chat_apps::ChatInputs;
+pub(super) use chat_apps::{ChatInputs, chat_title};
 #[cfg(test)]
 pub(in crate::app) fn banner_of(
     chat: &crate::workspace::cloud::chat_apps::Chat,
@@ -486,7 +486,7 @@ impl WindowCloud {
                     SharedString::from(format!("cloud-workspace-chat:{id}")),
                     format!(
                         "{} · {}",
-                        chat.display_name,
+                        chat_apps::chat_title(chat),
                         tr("native.chatApps.statusWorking")
                     ),
                     t,

@@ -101,6 +101,23 @@ pub(super) fn reads_line(chat: &Chat) -> String {
         "native.chatApps.readsMention"
     })
 }
+/// The app's name as people know it here (WeCom is 企业微信 in Chinese).
+pub(in crate::app) fn app_name(platform: Platform) -> String {
+    match platform {
+        Platform::Wecom => tr("native.chatApps.wecomName"),
+        other => other.name().to_owned(),
+    }
+}
+/// What a chat is called. WeCom cannot read group names, so until someone
+/// renames it a WeCom chat has the server's default, shown in this language.
+pub(in crate::app) fn chat_title(chat: &Chat) -> String {
+    if chat.platform == Platform::Wecom && chat.display_name == WECOM_DEFAULT_NAME {
+        return tr("native.chatApps.wecomGroup");
+    }
+    chat.display_name.clone()
+}
+/// The name the server gives a WeCom group (`chat_name` in the gateway).
+const WECOM_DEFAULT_NAME: &str = "WeCom group";
 /// The name a knocking chat shows: WeCom cannot read group names.
 pub(super) fn knock_name(chat: &Chat) -> String {
     match (&chat.platform, &chat.knock_hint) {
@@ -108,7 +125,7 @@ pub(super) fn knock_name(chat: &Chat) -> String {
             "native.chatApps.wecomSent",
             &[("code", code.clone().into())],
         ),
-        _ => chat.display_name.clone(),
+        _ => chat_title(chat),
     }
 }
 /// At most one banner, most pressing first.
@@ -221,7 +238,7 @@ impl WindowCloud {
                     .child(platform_mark(chat.platform, TILE_MARK, t))
                     .when(chat.working, |d| d.child(working_dot(t))),
             )
-            .child(Self::tile_name(chat.display_name.clone(), t))
+            .child(Self::tile_name(chat_title(chat), t))
             .child(
                 div()
                     .max_w_full()
@@ -340,7 +357,7 @@ impl WindowCloud {
         let picker =
             SegmentedControl::new("cloud-chat-app").segments(chats.platforms.iter().map(|&p| {
                 let entity = self.chats.clone();
-                Segment::new(p.name())
+                Segment::new(app_name(p))
                     .selected(p == flow.platform)
                     .on_select(move |_, cx| entity.update(cx, |c, cx| c.choose(p, cx)))
             }));
@@ -395,6 +412,8 @@ impl WindowCloud {
         if let Some(error) = flow.error {
             column = column.child(div().text_color(t.danger).child(tr(match error {
                 FlowError::WeComRejected => "native.chatApps.wecomRejected",
+                FlowError::WeComElsewhere => "native.chatApps.wecomElsewhere",
+                FlowError::WeComTaken => "native.chatApps.wecomTaken",
                 FlowError::SlackNotAdded => "native.chatApps.slackFailed",
                 FlowError::NotManager => "native.chatApps.onlyManagers",
                 FlowError::Failed => "cloud.share.agent.changeFailed",
@@ -607,7 +626,7 @@ impl WindowCloud {
                 n,
                 tf(
                     "native.chatApps.invitedTo",
-                    &[("chat", chat.display_name.clone().into())],
+                    &[("chat", chat_title(chat).into())],
                 ),
                 t,
             ),
@@ -959,7 +978,7 @@ impl WindowCloud {
                     .text_color(t.text)
                     .child(tf(
                         "native.chatApps.agentIn",
-                        &[("chat", chat.display_name.clone().into())],
+                        &[("chat", chat_title(chat).into())],
                     )),
             )
             .child(
@@ -1001,7 +1020,7 @@ impl WindowCloud {
         let renaming = self.chat_inputs.renaming.as_deref() == Some(chat.id.as_str());
         let back = self.chats.clone();
         let host = self.weak.clone();
-        let (id, name) = (chat.id.clone(), chat.display_name.clone());
+        let (id, name) = (chat.id.clone(), chat_title(chat));
         let editable = self.chats.read(cx).can_manage && chat.stopped_reason.is_none();
         h_flex()
             .items_center()
@@ -1063,7 +1082,7 @@ impl WindowCloud {
                     .flex_none()
                     .text_size(px(ty.meta))
                     .text_color(t.subtle)
-                    .child(chat.platform.name()),
+                    .child(app_name(chat.platform)),
             )
             .into_any_element()
     }
@@ -1205,7 +1224,7 @@ impl WindowCloud {
             WhoCanAsk::Project => Some(tr("native.chatApps.projectHint")),
             WhoCanAsk::Anyone => Some(tf(
                 "native.chatApps.anyoneHint",
-                &[("chat", chat.display_name.clone().into())],
+                &[("chat", chat_title(chat).into())],
             )),
             WhoCanAsk::Owner => None,
         };
@@ -1276,7 +1295,7 @@ impl WindowCloud {
                     .border_color(theme::alpha(t.danger, 0.35))
                     .child(div().min_w_0().text_color(t.text).child(tf(
                         "native.chatApps.removeConfirm",
-                        &[("chat", chat.display_name.clone().into())],
+                        &[("chat", chat_title(chat).into())],
                     )))
                     .child(
                         h_flex()
@@ -1360,7 +1379,7 @@ impl WindowCloud {
                 (
                     tf(
                         "native.chatApps.bannerRemoved",
-                        &[("app", platform.name().into())],
+                        &[("app", app_name(platform).into())],
                     ),
                     Some((
                         "native.chatApps.addAgain",
@@ -1445,6 +1464,16 @@ fn working_dot(t: Theme) -> Div {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+
+    #[test]
+    fn wecom_says_its_own_name_and_names_its_groups_in_the_language() {
+        let unnamed = chat(serde_json::json!({"platform": "wecom", "display_name": "WeCom group"}));
+        let renamed = chat(serde_json::json!({"platform": "wecom", "display_name": "研发群"}));
+        assert_eq!(chat_title(&unnamed), tr("native.chatApps.wecomGroup"));
+        assert_eq!(chat_title(&renamed), "研发群");
+        assert_eq!(app_name(Platform::Wecom), tr("native.chatApps.wecomName"));
+        assert_eq!(app_name(Platform::Slack), "Slack");
+    }
 
     /// A glyph missing from the icon set draws nothing, so every chat glyph
     /// is checked against the bundled files.

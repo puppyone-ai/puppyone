@@ -688,7 +688,7 @@ impl WindowCloud {
         if n.failed == 0 && chats.can_manage && chats.available() {
             let in_chats: Vec<_> = chats
                 .active()
-                .map(|c| (c.id.clone(), c.display_name.clone()))
+                .map(|c| (c.id.clone(), super::cloud_agents_ui::chat_title(c)))
                 .collect();
             let host = self.weak.clone();
             let (line, label, target) = match in_chats.as_slice() {

@@ -44,6 +44,10 @@ pub enum Stage {
 pub enum FlowError {
     Failed,
     WeComRejected,
+    /// Another process or place connected the same bot; one bot, one place.
+    WeComElsewhere,
+    /// The bot belongs to another space.
+    WeComTaken,
     SlackNotAdded,
     NotManager,
 }
@@ -409,7 +413,10 @@ impl CloudChats {
         let Some(flow) = &mut self.flow else {
             return;
         };
-        if flow.stage != Stage::Connecting {
+        // While connecting, and while the code is out: a bot that drops out
+        // sends the person back to connect it, saying why.
+        let waiting_on_bot = flow.platform == Platform::Wecom && flow.stage == Stage::Waiting;
+        if flow.stage != Stage::Connecting && !waiting_on_bot {
             return;
         }
         let Some(id) = flow.connection.as_ref().map(|c| c.id.clone()) else {
@@ -419,6 +426,7 @@ impl CloudChats {
             return;
         };
         match now.status.as_str() {
+            "active" if waiting_on_bot => {}
             "active" => {
                 flow.connection = Some(now);
                 self.begin(Some(id), cx);
@@ -426,6 +434,11 @@ impl CloudChats {
             "failed" => {
                 flow.stage = Stage::Add;
                 flow.error = Some(FlowError::WeComRejected);
+                self.end_wait(cx);
+            }
+            "displaced" => {
+                flow.stage = Stage::Add;
+                flow.error = Some(FlowError::WeComElsewhere);
                 self.end_wait(cx);
             }
             _ => {}
@@ -550,6 +563,11 @@ impl CloudChats {
                 }
             }
             Err(Error::Status(403)) => flow.error = Some(FlowError::NotManager),
+            // WeCom: the bot is no longer connected here.
+            Err(Error::Status(409)) if flow.platform == Platform::Wecom => {
+                flow.stage = Stage::Add;
+                flow.error = Some(FlowError::WeComElsewhere);
+            }
             Err(_) => flow.error = Some(FlowError::Failed),
         }
         self.schedule(cx);
@@ -613,7 +631,7 @@ impl CloudChats {
                         s.tick(cx);
                     }
                     Err(Error::Status(403)) => flow.error = Some(FlowError::NotManager),
-                    Err(Error::Status(409)) => flow.error = Some(FlowError::WeComRejected),
+                    Err(Error::Status(409)) => flow.error = Some(FlowError::WeComTaken),
                     Err(_) => flow.error = Some(FlowError::Failed),
                 }
                 cx.notify();
@@ -1025,6 +1043,34 @@ mod tests {
             assert_eq!(
                 (flow.stage.clone(), flow.error),
                 (Stage::Add, Some(FlowError::WeComRejected))
+            );
+        });
+    }
+
+    /// One bot works in one place: when it connects somewhere else, the code
+    /// on screen is dead, so the flow goes back to connecting and says why.
+    #[gpui::test]
+    fn a_wecom_bot_taken_elsewhere_while_waiting_asks_to_connect_again(cx: &mut TestAppContext) {
+        let (server, chats) = setup(cx);
+        chats.update(cx, |c, cx| {
+            c.open_add(cx);
+            c.choose(Platform::Wecom, cx);
+            c.wecom_connect("bot".into(), "secret-placeholder".into(), cx)
+        });
+        cx.run_until_parked();
+        *server.connections.lock().unwrap() =
+            json!([{"id": "bot", "platform": "wecom", "display_name": "Bot", "status": "active"}]);
+        *server.link.lock().unwrap() = link("waiting", "wecom");
+        poll(&chats, cx);
+        cx.run_until_parked();
+        assert_eq!(stage(&chats, cx), Stage::Waiting);
+        *server.connections.lock().unwrap() = json!([{"id": "bot", "platform": "wecom", "display_name": "Bot", "status": "displaced"}]);
+        poll(&chats, cx);
+        chats.read_with(cx, |c, _| {
+            let flow = c.flow.as_ref().unwrap();
+            assert_eq!(
+                (flow.stage.clone(), flow.error),
+                (Stage::Add, Some(FlowError::WeComElsewhere))
             );
         });
     }
