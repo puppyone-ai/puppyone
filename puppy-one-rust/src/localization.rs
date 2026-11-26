@@ -84,6 +84,60 @@ const LAUNCHER_L1_MESSAGES: &str = r#"{
     "native.launcher.openInTerminal": "在 Terminal 中打开",
     "native.launcher.recent": "最近",
     "native.launcher.allHistory": "全部历史"
+  },
+  "ja": {
+    "native.launcher.greeting": "今日は何に取り組みますか？",
+    "native.launcher.workingIn": "{project} で作業中",
+    "native.launcher.askPlaceholder": "{agent} に何でも質問、@ でファイルを追加",
+    "native.launcher.localAgents": "ローカル Agent",
+    "native.launcher.openInTerminal": "Terminal で開く",
+    "native.launcher.recent": "最近",
+    "native.launcher.allHistory": "すべての履歴"
+  },
+  "ko": {
+    "native.launcher.greeting": "오늘은 무엇을 작업할까요?",
+    "native.launcher.workingIn": "{project}에서 작업 중",
+    "native.launcher.askPlaceholder": "{agent}에게 무엇이든 물어보세요. @로 파일 추가",
+    "native.launcher.localAgents": "로컬 Agent",
+    "native.launcher.openInTerminal": "Terminal에서 열기",
+    "native.launcher.recent": "최근",
+    "native.launcher.allHistory": "전체 기록"
+  },
+  "es": {
+    "native.launcher.greeting": "¿En qué te gustaría trabajar?",
+    "native.launcher.workingIn": "Trabajando en {project}",
+    "native.launcher.askPlaceholder": "Pregunta lo que quieras a {agent}, @ para añadir archivos",
+    "native.launcher.localAgents": "Agentes locales",
+    "native.launcher.openInTerminal": "Abrir en Terminal",
+    "native.launcher.recent": "Recientes",
+    "native.launcher.allHistory": "Todo el historial"
+  },
+  "pt-BR": {
+    "native.launcher.greeting": "No que você gostaria de trabalhar?",
+    "native.launcher.workingIn": "Trabalhando em {project}",
+    "native.launcher.askPlaceholder": "Pergunte qualquer coisa a {agent}, @ para adicionar arquivos",
+    "native.launcher.localAgents": "Agentes locais",
+    "native.launcher.openInTerminal": "Abrir no Terminal",
+    "native.launcher.recent": "Recentes",
+    "native.launcher.allHistory": "Todo o histórico"
+  },
+  "fr": {
+    "native.launcher.greeting": "Sur quoi souhaitez-vous travailler ?",
+    "native.launcher.workingIn": "Travail dans {project}",
+    "native.launcher.askPlaceholder": "Posez n’importe quelle question à {agent}, @ pour ajouter des fichiers",
+    "native.launcher.localAgents": "Agents locaux",
+    "native.launcher.openInTerminal": "Ouvrir dans le Terminal",
+    "native.launcher.recent": "Récents",
+    "native.launcher.allHistory": "Tout l’historique"
+  },
+  "de": {
+    "native.launcher.greeting": "Woran möchtest du arbeiten?",
+    "native.launcher.workingIn": "Arbeitet in {project}",
+    "native.launcher.askPlaceholder": "Frag {agent} alles, @ zum Hinzufügen von Dateien",
+    "native.launcher.localAgents": "Lokale Agenten",
+    "native.launcher.openInTerminal": "Im Terminal öffnen",
+    "native.launcher.recent": "Zuletzt",
+    "native.launcher.allHistory": "Gesamter Verlauf"
   }
 }"#;
 
