@@ -157,8 +157,14 @@ fn the_project_menu_holds_the_account_and_settings_or_sign_in(cx: &mut TestAppCo
     }
     command(&view, cx, Command::Escape);
     open(cx, Command::ProjectMenu);
+    let info = cx
+        .debug_bounds("project-menu-info")
+        .expect("project info leads the project menu");
     for key in ["settings.sidebar.account", "shell.navigation.settings"] {
-        assert!(cx.debug_bounds(row(key)).is_some(), "project menu: {key}");
+        let item = cx
+            .debug_bounds(row(key))
+            .unwrap_or_else(|| panic!("project menu: {key}"));
+        assert!(info.origin.y < item.origin.y, "project info leads {key}");
     }
     assert!(cx.debug_bounds(row("cloud.auth.signIn")).is_none());
     command(&view, cx, Command::Escape);

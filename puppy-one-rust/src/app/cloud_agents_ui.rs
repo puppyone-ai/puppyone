@@ -485,27 +485,200 @@ fn header_empty_slot(group: &str, t: Theme) -> Div {
 }
 
 impl WindowCloud {
-    /// The project menu's Agents row: who is here as the same miniature
-    /// logos the Header shows (greyscale at rest, colour at work), whoever
-    /// works first; `None` while nobody is listed.
-    pub(in crate::app) fn agents_menu_stack(&self, cx: &App) -> Option<AnyElement> {
+    /// Opens the two-step invite flow directly (used by the project menu's
+    /// Agents strip `+ Invite` action).
+    pub(in crate::app) fn press_agents_invite(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.press_agents(Opener::Invite, window, cx);
+    }
+
+    /// The project menu's Agents section: a quiet `Agents` heading over a
+    /// horizontal row of the Agents in this project (up to 6 real avatars,
+    /// active first, plus a compact `+` circle to invite), or `No agents yet`
+    /// with a compact `+ Invite` button while the project has none.
+    pub(in crate::app) fn project_menu_agents_section(
+        &self,
+        on_open: impl Fn(&mut Window, &mut App) + 'static,
+        on_invite: impl Fn(&mut Window, &mut App) + 'static,
+        cx: &App,
+    ) -> Option<AnyElement> {
         let agents = self.agents.read(cx);
-        if agents.agents.is_empty() {
+        if agents.agents.is_empty() && !agents.manageable {
             return None;
         }
         let t = cx.palette();
-        let faces: Vec<(&str, Option<&str>, bool, bool)> = header_stack_agents(&agents.agents)
-            .into_iter()
-            .map(|a| {
-                (
-                    a.agent.name.as_str(),
-                    a.agent.avatar.as_deref(),
-                    a.active,
-                    false,
+        let ty = theme::ty().ui;
+        let ordered = header_stack_agents(&agents.agents);
+        let count = ordered.len();
+        let on_open = Rc::new(on_open);
+        let on_invite = Rc::new(on_invite);
+        let heading = h_flex()
+            .items_center()
+            .justify_between()
+            .child(
+                div()
+                    .text_size(px(ty.micro))
+                    .line_height(px(14.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.subtle)
+                    .child(tr("cloud.share.agent.title")),
+            )
+            .when(count > 0, |d| {
+                d.child(
+                    div()
+                        .text_size(px(ty.micro))
+                        .line_height(px(14.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(t.subtle)
+                        .child(count.to_string()),
                 )
-            })
-            .collect();
-        Some(header_agent_stack(&faces, true, t.header, t).into_any_element())
+            });
+        let body: AnyElement = if count == 0 {
+            let invite = on_invite.clone();
+            h_flex()
+                .items_center()
+                .justify_between()
+                .gap(px(8.))
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .text_size(px(ty.caption))
+                        .line_height(px(16.))
+                        .text_color(t.subtle)
+                        .child(tr("native.agents.empty")),
+                )
+                .when(agents.manageable, |d| {
+                    d.child(
+                        div()
+                            .id("project-menu-agents-invite")
+                            .debug_selector(|| "project-menu-agents-invite".into())
+                            .flex_none()
+                            .h(px(22.))
+                            .px(px(7.))
+                            .flex()
+                            .items_center()
+                            .gap(px(4.))
+                            .rounded(px(5.))
+                            .bg(theme::alpha(t.text, 0.06))
+                            .border_1()
+                            .border_color(theme::alpha(t.text, 0.08))
+                            .text_size(px(ty.micro))
+                            .line_height(px(14.))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.muted)
+                            .cursor(theme::clickable_cursor())
+                            .hover(|d| d.bg(theme::alpha(t.text, 0.12)).text_color(t.text))
+                            .child(Icon::new("plus").with_size(px(10.5)).stroke(2.2))
+                            .child(tr("native.agents.invite"))
+                            .on_click(move |_, window, cx| invite(window, cx)),
+                    )
+                })
+                .into_any_element()
+        } else {
+            const MAX_ROW: usize = 6;
+            const MARK_SIZE: f32 = 24.;
+            let shown = ordered.len().min(MAX_ROW);
+            let extra = ordered.len().saturating_sub(MAX_ROW);
+            let avatars = ordered.into_iter().take(shown).enumerate().map(|(i, a)| {
+                let open = on_open.clone();
+                let tip = if a.active {
+                    format!("{} · {}", a.agent.name, tr("native.agents.active"))
+                } else {
+                    a.agent.name.clone()
+                };
+                div()
+                    .id(("project-menu-agent", i))
+                    .debug_selector({
+                        let id = a.agent.id.clone();
+                        move || format!("project-menu-agent:{id}")
+                    })
+                    .flex_none()
+                    .rounded_full()
+                    .cursor(theme::clickable_cursor())
+                    .tooltip(tooltip(tip))
+                    .child(agent_mark(
+                        &a.agent.name,
+                        a.agent.avatar.as_deref(),
+                        Look {
+                            size: MARK_SIZE,
+                            ground: t.header,
+                            active: a.active,
+                            waiting: false,
+                            header: false,
+                        },
+                        t,
+                    ))
+                    .on_click(move |_, window, cx| open(window, cx))
+            });
+            h_flex()
+                .items_center()
+                .gap(px(6.))
+                .children(avatars)
+                .when(extra > 0, |d| {
+                    let open = on_open.clone();
+                    d.child(
+                        div()
+                            .id("project-menu-agents-more")
+                            .h(px(MARK_SIZE))
+                            .px(px(6.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded_full()
+                            .bg(theme::alpha(t.text, 0.06))
+                            .text_size(px(ty.micro))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.subtle)
+                            .cursor(theme::clickable_cursor())
+                            .hover(|d| d.bg(theme::alpha(t.text, 0.12)).text_color(t.text))
+                            .child(format!("+{extra}"))
+                            .on_click(move |_, window, cx| open(window, cx)),
+                    )
+                })
+                .when(agents.manageable, |d| {
+                    let invite = on_invite.clone();
+                    d.child(
+                        div()
+                            .id("project-menu-agents-invite")
+                            .debug_selector(|| "project-menu-agents-invite".into())
+                            .size(px(MARK_SIZE))
+                            .flex_none()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded_full()
+                            .border_1()
+                            .border_dashed()
+                            .border_color(theme::alpha(t.muted, 0.45))
+                            .text_color(t.muted)
+                            .cursor(theme::clickable_cursor())
+                            .hover(|d| {
+                                d.border_color(theme::alpha(t.text, 0.65))
+                                    .bg(t.hover)
+                                    .text_color(t.text)
+                            })
+                            .tooltip(tooltip(tr("native.agentInvite.title")))
+                            .child(Icon::new("plus").with_size(px(11.)).stroke(2.2))
+                            .on_click(move |_, window, cx| invite(window, cx)),
+                    )
+                })
+                .into_any_element()
+        };
+        Some(
+            v_flex()
+                .id("project-menu-agents")
+                .debug_selector(|| "project-menu-agents".into())
+                .px(px(8.))
+                .py(px(6.))
+                .gap(px(7.))
+                .child(heading)
+                .child(body)
+                .into_any_element(),
+        )
     }
 
     /// `CloudWorkspaceAgentsTool`: the Header's one Agents entry, built from

@@ -188,15 +188,16 @@ impl WindowChrome {
             .flex();
         if open {
             match popover {
-                // The project's own menu: its computer, Agents and history
-                // (or a folder's settings and path), then the person.
+                // The project's own menu: this project's information first,
+                // then a horizontal row of the Agents in it, then its tools
+                // (computer, history / folder info & path), then the person.
                 Popover::Project => {
                     let fill = self.project_actions_menu(cx);
                     menu = menu.menu(move |surface, _, _| {
                         fill(
                             surface
                                 .variant(MenuVariant::Project)
-                                .min_w(px(PROJECT_MENU_WIDTH))
+                                .min_w(px(256.))
                                 .max_w(px(320.)),
                         )
                     });
@@ -248,17 +249,15 @@ impl WindowChrome {
         }
         menu
     }
-    /// `ProjectMenu`: what belongs to the open project, then the person.
-    ///
-    /// - A hosted Project: its Computer (with where it stands), its Agents
-    ///   (their logos, or Add an agent) and its History.
-    /// - A folder on this computer: its Computer in Computer Mode, its
-    ///   settings page and its path to copy.
-    /// - Then Account (with who is signed in) and Settings, or Sign in.
+    /// `ProjectMenu`: this project's information first, then the Agents in it
+    /// (as a horizontal row), then the project's tools (Computer, History, or
+    /// a local folder's settings & path), and finally the person (Account and
+    /// Settings, or Sign in).
     ///
     /// Home leads only while there is no space button to hold it.
     fn project_actions_menu(&self, cx: &App) -> impl FnOnce(Menu) -> Menu + 'static {
         use super::navigation::Navigate;
+        use crate::app::project_place::{Place, place_name};
         let host = self.weak.clone();
         let t = cx.palette();
         let ty = theme::ty().ui;
@@ -266,7 +265,8 @@ impl WindowChrome {
         let items = self.owners.home.read(cx).project_items(cx);
         let cloud_entity = self.owners.cloud.clone();
         let cloud = cloud_entity.read(cx);
-        let has_place = !opening && cloud.place_menu(&items, cx).is_some();
+        let place_menu = (!opening).then(|| cloud.place_menu(&items, cx)).flatten();
+        let has_place = place_menu.is_some();
         let hosted = self.session.hosted.is_some() || cloud.capture_hosted();
         let command = |command: Command| {
             let host = host.clone();
@@ -306,6 +306,125 @@ impl WindowChrome {
                 .children(dot.map(|dot| div().size(px(6.)).flex_none().rounded_full().bg(dot)))
                 .child(div().min_w_0().truncate().child(text))
         };
+
+        // 1. This project's identity and where it lives.
+        let project_name = self
+            .opening_project_name(cx)
+            .unwrap_or_else(|| self.session.name.clone());
+        let project_info: Option<AnyElement> = (!project_name.is_empty()).then(|| {
+            let (mark, subtitle): (AnyElement, Option<String>) = match &place_menu {
+                Some(menu) => match (&menu.space, menu.place) {
+                    (Some(space), _) => (
+                        crate::features::cloud::space_mark(space).into_any_element(),
+                        Some(format!(
+                            "{} · {}",
+                            crate::features::cloud::space_name(space),
+                            tr("cloud.home.location.cloud")
+                        )),
+                    ),
+                    (None, Place::Cloud) => (
+                        Icon::product(crate::ui::components::ProductIcon::Cloud)
+                            .with_size(px(16.))
+                            .stroke(1.75)
+                            .color(t.brand_blue)
+                            .into_any_element(),
+                        Some(place_name(menu).0),
+                    ),
+                    (None, Place::Computer) => (
+                        Icon::product(crate::ui::components::ProductIcon::Local)
+                            .with_size(px(16.))
+                            .stroke(1.75)
+                            .color(t.muted)
+                            .into_any_element(),
+                        Some(match &menu.detail {
+                            Some(detail) => format!("{} · {detail}", place_name(menu).0),
+                            None => place_name(menu).0,
+                        }),
+                    ),
+                    (None, Place::Local) => (
+                        Icon::product(crate::ui::components::ProductIcon::Folder)
+                            .with_size(px(16.))
+                            .stroke(1.75)
+                            .color(t.muted)
+                            .into_any_element(),
+                        menu.address
+                            .as_ref()
+                            .map(|a| a.short.clone())
+                            .or_else(|| Some(place_name(menu).0)),
+                    ),
+                },
+                None => (
+                    Icon::product(if hosted {
+                        crate::ui::components::ProductIcon::Cloud
+                    } else {
+                        crate::ui::components::ProductIcon::Folder
+                    })
+                    .with_size(px(16.))
+                    .stroke(1.75)
+                    .color(if hosted { t.brand_blue } else { t.muted })
+                    .into_any_element(),
+                    self.session
+                        .root
+                        .as_deref()
+                        .and_then(crate::app::project_place::local_address)
+                        .map(|a| a.short),
+                ),
+            };
+            h_flex()
+                .id("project-menu-info")
+                .debug_selector(|| "project-menu-info".into())
+                .items_start()
+                .gap(px(9.))
+                .px(px(8.))
+                .py(px(7.))
+                .child(
+                    div()
+                        .size(px(18.))
+                        .mt(px(1.))
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(mark),
+                )
+                .child(
+                    gpui_kit::base::v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .gap(px(2.))
+                        .child(
+                            div()
+                                .truncate()
+                                .text_size(px(ty.meta))
+                                .line_height(px(18.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(t.text)
+                                .child(project_name),
+                        )
+                        .children(subtitle.map(|sub| {
+                            div()
+                                .truncate()
+                                .text_size(px(ty.micro))
+                                .line_height(px(15.))
+                                .text_color(t.subtle)
+                                .child(sub)
+                        })),
+                )
+                .into_any_element()
+        });
+
+        // 2. Agents in this project (horizontal strip for hosted Cloud projects).
+        let agents_section: Option<AnyElement> = (hosted && !opening)
+            .then(|| {
+                cloud.project_menu_agents_section(
+                    on_cloud(WindowCloud::press_agents_entry),
+                    on_cloud(WindowCloud::press_agents_invite),
+                    cx,
+                )
+            })
+            .flatten();
+
+        // 3. The project's other tools & actions.
         let mut lead = vec![];
         if !has_place {
             lead.push(
@@ -314,7 +433,6 @@ impl WindowChrome {
                     .on_click(command(Command::Home)),
             );
         }
-        // The project's own things.
         let mut project = vec![];
         let screen = cloud.screen.read(cx);
         if screen.entry_available(cx) {
@@ -333,34 +451,6 @@ impl WindowChrome {
             );
         }
         if hosted && !opening {
-            let agents = cloud.agents.read(cx);
-            if !agents.agents.is_empty() || agents.manageable {
-                let working: Vec<&str> = agents
-                    .agents
-                    .iter()
-                    .filter(|a| a.active)
-                    .map(|a| a.agent.name.as_str())
-                    .collect();
-                let row = match cloud.agents_menu_stack(cx) {
-                    Some(stack) => {
-                        let mut row = MenuItem::new(tr("cloud.share.agent.title"))
-                            .icon_sized(Icon::new("link-2").with_size(px(15.)).stroke(1.75))
-                            .trailing(stack);
-                        row = match working.as_slice() {
-                            [] => row,
-                            [one] => row.detail(SharedString::from(one.to_string())),
-                            many => row.detail(SharedString::from(crate::localization::tf(
-                                "native.agents.working",
-                                &[("count", many.len().into())],
-                            ))),
-                        };
-                        row
-                    }
-                    None => MenuItem::new(tr("native.agentInvite.title"))
-                        .icon_sized(Icon::new("plus").with_size(px(15.)).stroke(2.)),
-                };
-                project.push(row.on_click(on_cloud(WindowCloud::press_agents_entry)));
-            }
             if crate::features::cloud::account::has_account(cx) {
                 project.push(
                     MenuItem::new(tr("source-control.history.title"))
@@ -387,7 +477,8 @@ impl WindowChrome {
                     }),
             );
         }
-        // The person: who is signed in and Settings, or Sign in.
+
+        // 4. The person: Account and Settings, or Settings and Sign in.
         let mut person = vec![];
         if let Some(email) =
             super::account::email(cx).filter(|_| crate::features::cloud::account::has_account(cx))
@@ -418,17 +509,35 @@ impl WindowChrome {
                     .on_click(navigate(Navigate::SignIn)),
             );
         }
-        move |menu| {
-            let mut menu = menu;
-            let mut first = true;
-            for section in [lead, project, person] {
+
+        move |mut menu| {
+            let mut has_above = false;
+            if let Some(info) = project_info {
+                menu = menu.child_element(info);
+                has_above = true;
+            }
+            if !lead.is_empty() {
+                if has_above {
+                    menu = menu.separator();
+                }
+                menu = menu.items(lead);
+                has_above = true;
+            }
+            if let Some(agents) = agents_section {
+                if has_above {
+                    menu = menu.separator();
+                }
+                menu = menu.child_element(agents);
+                has_above = true;
+            }
+            for section in [project, person] {
                 if section.is_empty() {
                     continue;
                 }
-                if !first {
+                if has_above {
                     menu = menu.separator();
                 }
-                first = false;
+                has_above = true;
                 menu = menu.items(section);
             }
             menu
