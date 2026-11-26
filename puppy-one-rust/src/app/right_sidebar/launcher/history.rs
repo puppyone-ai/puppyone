@@ -35,7 +35,7 @@ impl WorkbenchLauncher {
         match browser {
             Ok(browser) => self.install_history(tab, browser, window, cx),
             Err(error) => {
-                self.launch_errors.insert(group, error);
+                self.set_launch_error(group, error, cx);
                 cx.notify();
             }
         }
@@ -289,7 +289,7 @@ impl WorkbenchLauncher {
                 if let Some(browser) = self.history.get(&tab) {
                     browser.update(cx, |browser, _| browser.opening = None);
                 }
-                self.launch_errors.insert(group, error);
+                self.set_launch_error(group, error, cx);
             }
         }
         cx.notify();

@@ -163,7 +163,7 @@ impl SessionPickers {
                             .snap_to_window_with_margin(px(8.))
                             .child(self.popover(control, cx)),
                     )
-                    .with_priority(1),
+                    .with_priority(gpui_kit::base::POPUP_PRIORITY),
                 ),
             );
         }

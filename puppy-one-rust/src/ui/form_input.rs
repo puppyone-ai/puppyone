@@ -182,16 +182,29 @@ impl TextInput {
     }
     /// Cap the auto-grow row ceiling of a multiline field before internal scrolling.
     pub fn set_max_rows(&self, max_rows: usize, cx: &mut App) {
+        self.set_rows(1, max_rows, cx);
+    }
+    /// Set both the minimum and maximum auto-grow rows of a multiline field.
+    pub fn set_rows(&self, min_rows: usize, max_rows: usize, cx: &mut App) {
         if let Field::Multi(state) = &self.field {
-            state.update(cx, |s, cx| s.set_auto_grow(1, max_rows, cx));
+            state.update(cx, |s, cx| s.set_auto_grow(min_rows, max_rows, cx));
         }
+    }
+    /// The latest painted caret bounds of the underlying field, for alignment checks.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn cursor_bounds(&self, cx: &App) -> Option<Bounds<Pixels>> {
+        dispatch!(&self.field, |s| s.read(cx).cursor_layout().map(|(b, _)| b))
     }
     pub fn composing(&self, window: &mut Window, cx: &mut App) -> bool {
         dispatch!(&self.field, |s| s
             .update(cx, |s, cx| s.marked_text_range(window, cx).is_some()))
     }
-    pub fn set_placeholder(&mut self, text: impl Into<SharedString>) {
-        self.placeholder = text.into();
+    pub fn set_placeholder(&mut self, text: impl Into<SharedString>, cx: &mut Context<Self>) {
+        let next = text.into();
+        if self.placeholder != next {
+            self.placeholder = next;
+            cx.notify();
+        }
     }
     pub fn placeholder(&self) -> &str {
         &self.placeholder
@@ -388,6 +401,9 @@ impl Render for TextInput {
                 );
             }));
         }
+        // Keep cached value aligned with the underlying editor buffer so the
+        // placeholder overlay never drifts out of sync with live edits.
+        self.value = dispatch!(&self.field, |s| s.read(cx).value());
         // A custom placeholder colour is drawn by this host over an empty field.
         let kit_placeholder = if self.placeholder_color.is_some() {
             SharedString::default()
@@ -443,6 +459,9 @@ impl Render for TextInput {
                 .appearance(self.appearance)
                 .disabled(self.disabled)
                 .w_full()
+                // Override BaseInput's `items_center()` so the first line and
+                // caret always stay pinned to the top edge alongside `overlay`.
+                .items_start()
                 .when_some(self.prompt_text, |area, (size, line)| {
                     use gpui_kit::component::Sizable as _;
                     area.xsmall().text_size(px(size)).line_height(px(line))
@@ -452,22 +471,52 @@ impl Render for TextInput {
                 ))
                 .into_any_element(),
         };
+        let is_empty = self.value.is_empty();
+        let composing = is_empty && self.composing(window, cx);
         let overlay = self
             .placeholder_color
-            .filter(|_| self.value.is_empty())
+            .filter(|_| is_empty && !composing)
             .map(|color| color(&t))
             .map(|color| {
+                use gpui_kit::component::Size;
                 let (size, line) = self.prompt_text.unwrap_or((14., 21.));
-                div()
-                    .absolute()
-                    .top_0()
-                    .left(px(4.))
-                    .right(px(4.))
-                    .text_size(px(size))
-                    .line_height(px(line))
-                    .text_color(color)
-                    .truncate()
-                    .child(self.placeholder.clone())
+                let tier = if self.prompt_text.is_some() {
+                    Size::XSmall
+                } else {
+                    Size::Medium
+                };
+                let pad_x = tier.input_px();
+                let pad_y = tier.input_py();
+                match &self.field {
+                    Field::Single(_) => div()
+                        .debug_selector(|| "form-input-placeholder".into())
+                        .absolute()
+                        .inset_0()
+                        .px(pad_x)
+                        .flex()
+                        .items_center()
+                        .child(
+                            div()
+                                .w_full()
+                                .min_w_0()
+                                .text_size(px(size))
+                                .line_height(px(line))
+                                .text_color(color)
+                                .truncate()
+                                .child(self.placeholder.clone()),
+                        ),
+                    Field::Multi(_) => div()
+                        .debug_selector(|| "form-input-placeholder".into())
+                        .absolute()
+                        .top(pad_y)
+                        .left(pad_x)
+                        .right(pad_x)
+                        .text_size(px(size))
+                        .line_height(px(line))
+                        .text_color(color)
+                        .truncate()
+                        .child(self.placeholder.clone()),
+                }
             });
         div()
             .key_context("PuppyForm")

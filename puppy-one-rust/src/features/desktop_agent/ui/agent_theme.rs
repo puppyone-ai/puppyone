@@ -76,7 +76,7 @@ impl AgentTheme {
             // Composer floats distinctly above the sidebar surface with crisp
             // edges and focus halo; sent prompts stay quiet and borderless.
             composer_surface: if t.dark {
-                mix(t.panel_raised, text, 0.05)
+                mix(text, t.panel_raised, 0.04)
             } else {
                 t.panel_raised
             },
@@ -110,7 +110,7 @@ impl AgentTheme {
             blocking_icon: mix(t.warning, text_muted, 0.62),
             accent: t.accent,
             action_disabled_text: t.text_disabled,
-            action_disabled_surface: alpha(text, if t.dark { 0.04 } else { 0.045 }),
+            action_disabled_surface: alpha(text, if t.dark { 0.075 } else { 0.055 }),
             primary_hover: mix(text, canvas, 0.88),
             loader: t.muted,
             launcher_placeholder_surface: alpha(control_surface, 0.64),
@@ -144,5 +144,42 @@ impl AgentTheme {
         }
         shadows.extend(crate::theme::composer_elevation(dark));
         shadows
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AgentTheme;
+    use crate::theme::pack_theme;
+
+    #[test]
+    fn composer_surface_respects_dark_and_light_polarity() {
+        let dark = pack_theme("default-neutral", true);
+        let dark_agent = AgentTheme::new(&dark);
+        let dark_lum = (dark_agent.composer_surface.r
+            + dark_agent.composer_surface.g
+            + dark_agent.composer_surface.b)
+            / 3.;
+        assert!(
+            dark_lum < 0.25,
+            "dark composer surface must stay dark, got {:?}",
+            dark_agent.composer_surface
+        );
+        assert!(
+            dark_lum > dark.auxiliary().r,
+            "dark composer surface should lift subtly above the dark sidebar"
+        );
+
+        let light = pack_theme("default-neutral", false);
+        let light_agent = AgentTheme::new(&light);
+        let light_lum = (light_agent.composer_surface.r
+            + light_agent.composer_surface.g
+            + light_agent.composer_surface.b)
+            / 3.;
+        assert!(
+            light_lum > 0.90,
+            "light composer surface must stay bright, got {:?}",
+            light_agent.composer_surface
+        );
     }
 }
