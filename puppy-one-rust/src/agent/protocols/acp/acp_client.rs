@@ -21,6 +21,7 @@ use std::rc::{Rc, Weak};
 use tokio::task::spawn_local;
 
 const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 30_000;
+const AUTHENTICATE_REQUEST_TIMEOUT_MS: u64 = 180_000;
 
 /// An async callback answering one native request.
 pub type RequestHandler = Rc<dyn Fn(Value) -> LocalBoxFuture<'static, AgentResult<Value>>>;
@@ -228,8 +229,15 @@ impl AcpClient {
         Ok(response)
     }
 
+    /// `client.authenticate(params)`: interactive browser/OAuth sign-in may wait
+    /// for human confirmation, so it allows a wider timeout than metadata RPCs.
     pub async fn authenticate(&self, params: Value) -> AgentResult<Value> {
-        self.request("authenticate", params, None).await
+        self.request(
+            "authenticate",
+            params,
+            Some(AUTHENTICATE_REQUEST_TIMEOUT_MS),
+        )
+        .await
     }
 
     /// `client.requestExtension(method, params, { timeoutMs })`.

@@ -8,6 +8,7 @@ pub struct WorkBuddyChannel {
     pub channel: &'static str,
     pub route: &'static str,
     pub authentication_method_id: &'static str,
+    pub isolated_auth_id: &'static str,
     pub config_directory_name: &'static str,
     pub config_directory_environment_variable: &'static str,
 }
@@ -19,6 +20,7 @@ pub const WORKBUDDY_CHINA_CHANNEL: WorkBuddyChannel = WorkBuddyChannel {
     channel: "china-app",
     route: "internal",
     authentication_method_id: "internal",
+    isolated_auth_id: "puppyone-workbuddy-china",
     config_directory_name: ".workbuddy",
     config_directory_environment_variable: "WORKBUDDY_CHINA_CONFIG_DIR",
 };
@@ -30,6 +32,7 @@ pub const WORKBUDDY_INTERNATIONAL_CHANNEL: WorkBuddyChannel = WorkBuddyChannel {
     channel: "international-app",
     route: "public",
     authentication_method_id: "external",
+    isolated_auth_id: "puppyone-workbuddy-international",
     config_directory_name: ".workbuddy-ai",
     config_directory_environment_variable: "WORKBUDDY_INTERNATIONAL_CONFIG_DIR",
 };

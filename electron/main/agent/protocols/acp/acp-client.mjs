@@ -8,6 +8,7 @@ import {
 } from "./acp-methods.mjs";
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const AUTHENTICATE_REQUEST_TIMEOUT_MS = 180_000;
 
 /**
  * Provider-neutral Agent Client Protocol connection.
@@ -72,7 +73,10 @@ export class AcpClient {
     return response;
   }
 
-  authenticate(params) { return this.#request("authenticate", params); }
+  authenticate(params) {
+    // Interactive browser/OAuth sign-in may wait for human confirmation.
+    return this.#request("authenticate", params, { timeoutMs: AUTHENTICATE_REQUEST_TIMEOUT_MS });
+  }
   requestExtension(method, params = {}, options = {}) {
     if (this.disposed) throw new Error("ACP client is closed.");
     if (typeof method !== "string" || !method.trim()) throw new TypeError("ACP extension method is required.");

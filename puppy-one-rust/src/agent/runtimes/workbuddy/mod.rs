@@ -3,6 +3,7 @@
 mod tests;
 pub mod workbuddy_acp_adapter;
 pub mod workbuddy_channels;
+pub mod workbuddy_completion_inspector;
 pub mod workbuddy_config_directory;
 pub mod workbuddy_discovery;
 pub mod workbuddy_environment;
