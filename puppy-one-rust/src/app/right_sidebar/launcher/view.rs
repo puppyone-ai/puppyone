@@ -6,7 +6,7 @@ use super::*;
 use crate::features::desktop_agent::{
     AgentTheme, create_agent_chat_history_target, format_history_date,
 };
-use crate::localization::t as tr;
+use crate::localization::{Arg, bidi_isolate, t as tr, tf};
 use crate::theme;
 use crate::ui::agent_brand_mark::{AgentMark, monochrome_mark};
 use crate::ui::appearance::ActiveAppearance;
@@ -450,8 +450,7 @@ impl WorkbenchLauncher {
         let recent_section = self.render_recent_sessions(group, tab, &recent, cx);
         let footer = self.render_footer(group, tab, cloud, terminals, has_recent, cx);
 
-        // Accessible status & heading regions (visually silent — no boilerplate
-        // greeting copy or sparkles cluttering the workspace).
+        // Polite screen-reader availability region (visually silent).
         let availability = div()
             .id(("launcher-availability", group))
             .role(Role::Status)
@@ -461,16 +460,72 @@ impl WorkbenchLauncher {
             .size(px(1.))
             .overflow_hidden();
 
+        // Restrained header above the composer: quiet PuppyOne brand mark,
+        // calm medium title, and a single subtle workspace line.
+        let subtitle = if cloud {
+            Some(tr("cloud.home.cloud").to_string())
+        } else {
+            self.shown
+                .root
+                .as_ref()
+                .and_then(|root| root.file_name().map(|n| n.to_string_lossy().into_owned()))
+                .filter(|name| !name.is_empty())
+                .map(|name| {
+                    tf(
+                        "native.launcher.workingIn",
+                        &[("project", Arg::Text(bidi_isolate(&name)))],
+                    )
+                })
+        };
         let heading_focus = self.heading_focus(group, cx);
-        let heading = div()
-            .id(("launcher-heading", group))
-            .test_support()
-            .track_focus(&heading_focus)
-            .role(Role::Heading)
-            .aria_label(tr("native.launcher.greeting"))
-            .absolute()
-            .size(px(1.))
-            .overflow_hidden();
+        let header = v_flex()
+            .w_full()
+            .items_center()
+            .mb(px(16.))
+            .child(
+                div()
+                    .debug_selector(|| "launcher-brand-logo".into())
+                    .mb(px(10.))
+                    .opacity(0.78)
+                    .child(
+                        img(SharedString::from(if t.dark {
+                            "brand/puppy-dark-onboarding.svg"
+                        } else {
+                            "brand/puppy-lite.svg"
+                        }))
+                        .size(px(24.))
+                        .object_fit(ObjectFit::Contain),
+                    ),
+            )
+            .child(
+                div()
+                    .id(("launcher-heading", group))
+                    .debug_selector(|| "launcher-heading".into())
+                    .test_support()
+                    .track_focus(&heading_focus)
+                    .role(Role::Heading)
+                    .aria_label(tr("native.launcher.greeting"))
+                    .text_size(px(14.))
+                    .line_height(px(20.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.text)
+                    .text_center()
+                    .child(tr("native.launcher.greeting")),
+            )
+            .when_some(subtitle, |d, line| {
+                d.child(
+                    div()
+                        .debug_selector(|| "launcher-subtitle".into())
+                        .mt(px(3.))
+                        .max_w_full()
+                        .truncate()
+                        .text_size(px(12.))
+                        .line_height(px(16.))
+                        .text_color(t.subtle)
+                        .text_center()
+                        .child(line),
+                )
+            });
 
         let scroll = self.group_scroll(group, cx);
         div()
@@ -498,7 +553,7 @@ impl WorkbenchLauncher {
                                     .relative()
                                     .w(px(content_width(width)))
                                     .max_w_full()
-                                    .child(heading)
+                                    .child(header)
                                     .child(hero_card)
                                     .children(error_row.map(|e| div().mt(px(10.)).child(e)))
                                     .children(discovery_row.map(|d| div().mt(px(10.)).child(d)))

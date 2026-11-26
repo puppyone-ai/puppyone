@@ -152,7 +152,7 @@ impl WorkbenchLauncher {
         let dismiss_term = dismiss.clone();
 
         SurfaceFrame::new(("launcher-agent-popover", group))
-            .variant(SurfaceVariant::Menu)
+            .variant(SurfaceVariant::CompactMenu)
             .palette(t)
             .radius(12.)
             .absorb_mouse_down()
@@ -345,7 +345,6 @@ impl WorkbenchLauncher {
                 a.composer_border
             })
             .bg(a.composer_surface)
-            .shadow(a.composer_shadows(t.dark, focused))
             .child(
                 div()
                     .debug_selector(|| "launcher-composer-input".into())

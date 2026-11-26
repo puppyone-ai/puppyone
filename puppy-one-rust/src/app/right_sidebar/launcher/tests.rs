@@ -1122,8 +1122,22 @@ fn l1_composer_selects_agent_from_popover_and_focuses_prompt(cx: &mut TestAppCon
         launcher.read_with(cx, |l, _| l.active_installation().map(|i| i.id)),
         Some("claude")
     );
-    // Hero composer renders prominently without the old agent rows cluttering the stage.
-    assert!(cx.debug_bounds("launcher-composer-input").is_some());
+    // Restrained brand mark, title, and workspace subtitle sit cleanly above the hero composer.
+    let logo_bounds = cx
+        .debug_bounds("launcher-brand-logo")
+        .expect("restrained brand logo renders");
+    let heading_bounds = cx
+        .debug_bounds("launcher-heading")
+        .expect("restrained heading renders");
+    let subtitle_bounds = cx
+        .debug_bounds("launcher-subtitle")
+        .expect("workspace subtitle renders");
+    let composer_bounds = cx
+        .debug_bounds("launcher-composer-input")
+        .expect("hero composer input renders");
+    assert!(logo_bounds.bottom() <= heading_bounds.origin.y);
+    assert!(heading_bounds.bottom() <= subtitle_bounds.origin.y);
+    assert!(subtitle_bounds.bottom() <= composer_bounds.origin.y);
     assert!(cx.debug_bounds("launcher-agent-picker").is_some());
     assert!(cx.debug_bounds("launcher-send").is_some());
     assert!(cx.debug_bounds("launcher-agent-codex").is_none());

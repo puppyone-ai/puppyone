@@ -568,7 +568,6 @@ impl ComposerView {
         let has_visual = visual.is_some();
         let expanded = self.multiline || has_visual;
         let commands = self.render_commands(cx);
-        let shadow = a.composer_shadows(t_.dark, focused);
         let body: AnyElement = if expanded {
             v_flex()
                 .w_full()
@@ -637,7 +636,6 @@ impl ComposerView {
                         a.composer_border
                     })
                     .bg(a.composer_surface)
-                    .shadow(shadow)
                     .when(view.composer_disabled, |d| d.opacity(0.72))
                     .children(visual)
                     .child(body),

@@ -2,7 +2,7 @@
 //! roles derived from the product theme. Chat lives in the right sidebar, so
 //! `--agent-canvas` is `--po-surface-auxiliary`.
 use crate::theme::{Theme, alpha, mix};
-use gpui::{BoxShadow, Rgba, point, px};
+use gpui::Rgba;
 
 #[derive(Clone, Copy)]
 pub struct AgentTheme {
@@ -19,8 +19,6 @@ pub struct AgentTheme {
     pub composer_surface: Rgba,
     pub composer_border: Rgba,
     pub composer_border_focus: Rgba,
-    pub composer_focus_halo: Rgba,
-    pub composer_highlight: Rgba,
     pub composer_placeholder: Rgba,
     pub user_message_surface: Rgba,
     pub row_hover: Rgba,
@@ -73,17 +71,16 @@ impl AgentTheme {
             border_subtle,
             control_surface,
             code_header_surface: crate::theme::alpha(control_surface, 0.3),
-            // Composer floats distinctly above the sidebar surface with crisp
-            // edges and focus halo; sent prompts stay quiet and borderless.
+            // Composer lifts cleanly above the sidebar via surface contrast and
+            // a crisp 1px border (no heavy drop shadow or outer focus halo);
+            // sent prompts stay quiet and borderless.
             composer_surface: if t.dark {
                 mix(text, t.panel_raised, 0.04)
             } else {
                 t.panel_raised
             },
-            composer_border: alpha(text, if t.dark { 0.13 } else { 0.17 }),
-            composer_border_focus: alpha(text, if t.dark { 0.28 } else { 0.34 }),
-            composer_focus_halo: alpha(text, if t.dark { 0.055 } else { 0.06 }),
-            composer_highlight: crate::theme::composer_highlight(t.dark),
+            composer_border: alpha(text, if t.dark { 0.13 } else { 0.15 }),
+            composer_border_focus: alpha(text, if t.dark { 0.24 } else { 0.28 }),
             composer_placeholder: mix(text_muted, t.subtle, 0.52),
             user_message_surface: alpha(text, if t.dark { 0.04 } else { 0.045 }),
             row_hover: alpha(t.hover, 0.86),
@@ -117,33 +114,6 @@ impl AgentTheme {
             launcher_placeholder_text: alpha(t.subtle, 0.82),
             launcher_focus_border: mix(t.focus_ring, border_subtle, 0.58),
         }
-    }
-
-    /// Elevated shadow stack shared by the chat capsule and the L1 launcher
-    /// hero composer: 1px top inset sheen in dark mode, a soft 3px outer focus
-    /// halo when focused, and calm elevation beneath.
-    pub fn composer_shadows(&self, dark: bool, focused: bool) -> Vec<BoxShadow> {
-        let mut shadows = Vec::with_capacity(4);
-        if dark {
-            shadows.push(BoxShadow {
-                color: self.composer_highlight.into(),
-                offset: point(px(0.), px(1.)),
-                blur_radius: px(0.),
-                spread_radius: px(0.),
-                inset: true,
-            });
-        }
-        if focused {
-            shadows.push(BoxShadow {
-                color: self.composer_focus_halo.into(),
-                offset: point(px(0.), px(0.)),
-                blur_radius: px(0.),
-                spread_radius: px(3.),
-                inset: false,
-            });
-        }
-        shadows.extend(crate::theme::composer_elevation(dark));
-        shadows
     }
 }
 
