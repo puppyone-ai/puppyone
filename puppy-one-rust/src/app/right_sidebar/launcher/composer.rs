@@ -17,9 +17,12 @@ use gpui_kit::component::Sizable as _;
 impl WorkbenchLauncher {
     /// One row inside the Agent switcher popover. Keyed focus handles keep
     /// keyboard focus stable when discovery prepends newly found Agents.
+    #[allow(clippy::too_many_arguments)]
     fn agent_picker_row(
         &mut self,
+        slot: LauncherSlot,
         group: Id,
+        tab: Option<Id>,
         installation: &Installation,
         selected: bool,
         available: bool,
@@ -29,8 +32,9 @@ impl WorkbenchLauncher {
         let t = cx.palette();
         let m = theme::ty();
         let id = installation.id;
-        let key = SharedString::from(format!("launcher-pick-{group}-{id}"));
-        let focus = self.row_focus(group, id, cx);
+        let key_id = slot.element_key();
+        let key = SharedString::from(format!("launcher-pick-{key_id}-{id}"));
+        let focus = self.row_focus(slot, id, cx);
         let id_owned = id.to_owned();
         let host = cx.weak_entity();
         gpui_kit::base::Button::new(ElementId::Name(key.clone()))
@@ -87,7 +91,9 @@ impl WorkbenchLauncher {
             .on_click(move |_, w, cx| {
                 cx.stop_propagation();
                 dismiss(w, cx);
-                let _ = host.update(cx, |s, cx| s.select_agent(group, id_owned.clone(), w, cx));
+                let _ = host.update(cx, |s, cx| {
+                    s.select_agent(slot, group, tab, id_owned.clone(), w, cx)
+                });
             })
     }
 
@@ -95,6 +101,7 @@ impl WorkbenchLauncher {
     #[allow(clippy::too_many_arguments)]
     fn render_agent_popover_surface(
         &mut self,
+        slot: LauncherSlot,
         group: Id,
         tab: Option<Id>,
         active: Option<&Installation>,
@@ -106,10 +113,11 @@ impl WorkbenchLauncher {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let t = cx.palette();
+        let key_id = slot.element_key();
         let active_id = active.map(|i| i.id);
 
         let mut external = v_flex()
-            .id(("launcher-agents", group))
+            .id(("launcher-agents", key_id))
             .role(Role::List)
             .debug_selector(|| "launcher-agents".into())
             .gap(px(1.));
@@ -117,7 +125,9 @@ impl WorkbenchLauncher {
             let selected = active_id == Some(installation.id);
             let available = if installation.chat { chats } else { terminals };
             external = external.child(self.agent_picker_row(
+                slot,
                 group,
+                tab,
                 installation,
                 selected,
                 available,
@@ -131,7 +141,9 @@ impl WorkbenchLauncher {
             let selected = active_id == Some(installation.id);
             let available = if installation.chat { chats } else { terminals };
             bundled = bundled.child(self.agent_picker_row(
+                slot,
                 group,
+                tab,
                 installation,
                 selected,
                 available,
@@ -151,7 +163,7 @@ impl WorkbenchLauncher {
         let host = cx.weak_entity();
         let dismiss_term = dismiss.clone();
 
-        SurfaceFrame::new(("launcher-agent-popover", group))
+        SurfaceFrame::new(("launcher-agent-popover", key_id))
             .variant(SurfaceVariant::CompactMenu)
             .palette(t)
             .radius(12.)
@@ -175,7 +187,7 @@ impl WorkbenchLauncher {
                 let target = active_for_term.clone();
                 d.child(div().h(px(1.)).bg(t.divider).my(px(4.)).mx(px(6.)))
                     .child(
-                        gpui_kit::base::Button::new(("launcher-open-in-term", group))
+                        gpui_kit::base::Button::new(("launcher-open-in-term", key_id))
                             .w_full()
                             .h(px(30.))
                             .justify_start()
@@ -201,7 +213,7 @@ impl WorkbenchLauncher {
                                 dismiss_term(w, cx);
                                 let target = target.clone();
                                 let _ = host.update(cx, |s, cx| {
-                                    s.set_picker_open(group, false, cx);
+                                    s.set_picker_open(slot, false, cx);
                                     s.chat_mode = false;
                                     s.launch(group, tab, target, w, cx);
                                 });
@@ -216,6 +228,7 @@ impl WorkbenchLauncher {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn render_hero_composer(
         &mut self,
+        slot: LauncherSlot,
         group: Id,
         tab: Option<Id>,
         active: Option<&Installation>,
@@ -229,21 +242,23 @@ impl WorkbenchLauncher {
         let t = cx.palette();
         let a = AgentTheme::new(&t);
         let m = theme::ty();
+        let key_id = slot.element_key();
 
-        let input = self.ensure_group_input(group, tab, window, cx);
+        let input = self.ensure_page_input(slot, group, tab, window, cx);
         let focused = input.focus_handle(cx).contains_focused(window, cx);
         let has_text = !input.read(cx).current_text(cx).trim().is_empty();
         let can_send = has_text && chats && active.is_some();
-        let picker_open = self.is_picker_open(group);
+        let picker_open = self.is_picker_open(slot);
 
-        // Trigger pill: left edge sits at 6px bar + 7px pill = 13px, flush with
-        // the prompt text inset (9px wrapper + 4px Textarea xsmall inset = 13px).
-        let trigger = gpui_kit::base::Button::new(("launcher-agent-picker", group))
+        // Trigger button: concentric inner radius (16px card - 6px bar = 10px),
+        // left icon edge sits at 6px bar + 8px button = 14px, flush with the
+        // prompt text inset (10px wrapper + 4px Textarea xsmall inset = 14px).
+        let trigger = gpui_kit::base::Button::new(("launcher-agent-picker", key_id))
             .debug_selector(|| "launcher-agent-picker".into())
             .h(px(28.))
-            .px(px(7.))
+            .px(px(8.))
             .gap(px(6.))
-            .rounded_full()
+            .rounded(px(10.))
             .text_size(px(12.5))
             .line_height(px(16.))
             .text_color(if picker_open { t.text } else { t.muted })
@@ -270,13 +285,13 @@ impl WorkbenchLauncher {
         let host_content = cx.weak_entity();
         let active_cloned = active.cloned();
         let visible_cloned = visible.to_vec();
-        let agent_pill = PopoverMenu::new(("launcher-agent-popover-menu", group))
+        let agent_pill = PopoverMenu::new(("launcher-agent-popover-menu", key_id))
             .anchor(Anchor::TopLeft)
             .offset(px(4.))
             .open(picker_open)
             .on_open_change(move |opened, _w, cx| {
                 let _ = host_toggle.update(cx, |s, cx| {
-                    s.set_picker_open(group, *opened, cx);
+                    s.set_picker_open(slot, *opened, cx);
                 });
             })
             .trigger(trigger)
@@ -284,6 +299,7 @@ impl WorkbenchLauncher {
                 host_content
                     .update(cx, |s, cx| {
                         s.render_agent_popover_surface(
+                            slot,
                             group,
                             tab,
                             active_cloned.as_ref(),
@@ -298,21 +314,21 @@ impl WorkbenchLauncher {
                     .unwrap_or_else(|_| div().into_any_element())
             });
 
-        // Circular send button (matches active chat capsule geometry & states).
+        // Circular send button (compact 28px concentric with the 28px toolbar).
         let (send_bg, send_fg) = if can_send {
             (a.text, a.canvas)
         } else {
             (a.action_disabled_surface, a.action_disabled_text)
         };
-        let send_button = gpui_kit::base::Button::new(("launcher-send", group))
+        let send_button = gpui_kit::base::Button::new(("launcher-send", key_id))
             .debug_selector(|| "launcher-send".into())
             .accessibility_label(tr("agent.composer.send"))
             .disabled(!can_send)
             .flex_none()
-            .size(px(30.))
+            .size(px(28.))
             .child(
                 div()
-                    .size(px(30.))
+                    .size(px(28.))
                     .rounded_full()
                     .bg(send_bg)
                     .flex()
@@ -320,7 +336,7 @@ impl WorkbenchLauncher {
                     .justify_center()
                     .child(
                         Icon::new("arrow-up")
-                            .with_size(px(14.))
+                            .with_size(px(13.5))
                             .stroke(2.)
                             .color(send_fg),
                     ),
@@ -330,14 +346,14 @@ impl WorkbenchLauncher {
                     .hover(|s| s.opacity(0.86))
             })
             .tooltip(tooltip(tr("agent.composer.send")))
-            .on_click(cx.listener(move |s, _, w, cx| s.submit_hero(group, w, cx)));
+            .on_click(cx.listener(move |s, _, w, cx| s.submit_hero(slot, group, tab, w, cx)));
 
         let size = m.left.content;
         let line_height = size * 1.5;
         v_flex()
             .w_full()
             .min_w_0()
-            .rounded(px(18.))
+            .rounded(px(16.))
             .border_1()
             .border_color(if focused {
                 a.composer_border_focus
@@ -351,9 +367,9 @@ impl WorkbenchLauncher {
                     .w_full()
                     .min_w_0()
                     .pt(px(12.))
-                    .pb(px(4.))
-                    // 9px wrapper + Textarea's 4px inner inset = 13px symmetric horizontal padding.
-                    .px(px(9.))
+                    .pb(px(6.))
+                    // 10px wrapper + Textarea's 4px inner inset = 14px symmetric horizontal padding.
+                    .px(px(10.))
                     .text_size(px(size))
                     .line_height(px(line_height))
                     .child(input),

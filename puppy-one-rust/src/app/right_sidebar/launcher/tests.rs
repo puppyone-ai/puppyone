@@ -361,9 +361,10 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
     use std::time::Instant;
     let (workbench, launcher, cx) = compose(cx);
     launcher.update(cx, |l, cx| l.show_local(PathBuf::from("/project"), cx));
-    workbench
+    let tab = workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
         .unwrap();
+    let slot = LauncherSlot::Tab(tab);
     let installation = |runtime, id, label: &str| Installation {
         runtime,
         id,
@@ -397,7 +398,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
         l.scanning = true;
         l.refreshing = false;
         l.scan_started = Some(Instant::now());
-        l.set_picker_open(0, true, cx);
+        l.set_picker_open(slot, true, cx);
     });
     assert_eq!(top(cx, "launcher-discovery"), None);
     assert!(
@@ -406,7 +407,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
     set(cx, &|l, cx| {
         l.scan_started = Some(Instant::now() - std::time::Duration::from_millis(200));
         l.installations = vec![codex.clone(), bundled.clone()];
-        l.set_picker_open(0, true, cx);
+        l.set_picker_open(slot, true, cx);
     });
     assert_eq!(label(cx), Some("terminal.launcher.detecting"));
     let (agent, feedback, built_in) = (
@@ -435,7 +436,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
             was = now;
         })
     });
-    set(cx, &|l, cx| l.set_picker_open(0, false, cx));
+    set(cx, &|l, cx| l.set_picker_open(slot, false, cx));
     let scan = cx.debug_bounds("launcher-scan").unwrap().center();
     cx.simulate_click(scan, Modifiers::none());
     assert_eq!(scans.get(), 0);
@@ -445,7 +446,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
         l.scanning = true;
         l.refreshing = true;
         l.scan_started = Some(Instant::now() - std::time::Duration::from_millis(200));
-        l.set_picker_open(0, true, cx);
+        l.set_picker_open(slot, true, cx);
     });
     assert_eq!(label(cx), Some("terminal.launcher.refreshing"));
     assert!(top(cx, "launcher-agent-codex").is_some());
@@ -453,13 +454,13 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
     set(cx, &|l, cx| {
         l.scanning = false;
         l.refreshing = false;
-        l.set_picker_open(0, true, cx);
+        l.set_picker_open(slot, true, cx);
         l.observations = vec![Observation {
             id: "codex".into(),
             status: ObservationStatus::Failed,
             failure: Some(ObservationFailure::Product),
         }];
-        l.set_launch_error(0, "The Agent could not start.".into(), cx);
+        l.set_launch_error(slot, "The Agent could not start.".into(), cx);
     });
     assert_eq!(top(cx, "launcher-discovery"), None);
     assert!(top(cx, "launcher-error").is_some());
@@ -470,7 +471,7 @@ fn discovery_feedback_waits_names_a_refresh_and_never_takes_a_row_away(cx: &mut 
     ] {
         assert!(top(cx, row).is_some(), "{row}");
     }
-    set(cx, &|l, cx| l.set_picker_open(0, false, cx));
+    set(cx, &|l, cx| l.set_picker_open(slot, false, cx));
     let scan = cx.debug_bounds("launcher-scan").unwrap().center();
     cx.simulate_click(scan, Modifiers::none());
     assert!(scans.get() > 0, "Scan again asks for a new scan");
@@ -513,11 +514,13 @@ fn a_hosted_launcher_offers_its_agent_without_a_shell_or_local_discovery(cx: &mu
         l.discovery_override = true;
         l.scanning = true;
         l.scan_started = Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
-        l.set_picker_open(0, true, cx);
     });
-    workbench
+    let tab = workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
         .unwrap();
+    launcher.update(cx, |l, cx| {
+        l.set_picker_open(LauncherSlot::Tab(tab), true, cx);
+    });
     cx.update(|w, cx| {
         w.draw(cx).clear(cx);
     });
@@ -566,7 +569,7 @@ fn detected_agents_then_setup_then_the_built_in_and_the_terminal(cx: &mut TestAp
         l.set_preference_store(prefs, cx);
         l.show_local(PathBuf::from("/project"), cx)
     });
-    workbench
+    let tab = workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
         .unwrap();
     let detected: &[&str] = if cursor_supported {
@@ -578,7 +581,7 @@ fn detected_agents_then_setup_then_the_built_in_and_the_terminal(cx: &mut TestAp
         launcher.update(cx, |l, cx| {
             l.discovery_override = true;
             l.scanning = false;
-            l.set_picker_open(0, true, cx);
+            l.set_picker_open(LauncherSlot::Tab(tab), true, cx);
             l.installations = agents::LOCAL_AGENTS
                 .iter()
                 .filter(|a| detected.contains(&a.id))
@@ -742,7 +745,7 @@ fn hidden_agents_have_no_row_even_when_detected(cx: &mut TestAppContext) {
     use crate::agent::connections::legacy_runtime_registry::Runtime;
     let (workbench, launcher, cx) = compose(cx);
     launcher.update(cx, |l, cx| l.show_local(PathBuf::from("/project"), cx));
-    workbench
+    let tab = workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
         .unwrap();
     let installation = |runtime, id, label: &str| Installation {
@@ -766,7 +769,7 @@ fn hidden_agents_have_no_row_even_when_detected(cx: &mut TestAppContext) {
     launcher.update(cx, |l, cx| {
         l.discovery_override = true;
         l.scanning = false;
-        l.set_picker_open(0, true, cx);
+        l.set_picker_open(LauncherSlot::Tab(tab), true, cx);
         l.installations = vec![
             installation(Runtime::Claude, "claude", "Claude Code"),
             installation(Runtime::Codex, "codex", "Codex"),
@@ -841,7 +844,7 @@ fn closing_setup_gives_the_keyboard_back_to_the_launcher(cx: &mut TestAppContext
         l.set_preference_store(prefs, cx);
         l.show_local(PathBuf::from("/project"), cx)
     });
-    workbench
+    let tab = workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
         .unwrap();
     let hermes = agents::LOCAL_AGENTS
@@ -855,7 +858,13 @@ fn closing_setup_gives_the_keyboard_back_to_the_launcher(cx: &mut TestAppContext
         executable: PathBuf::new(),
         chat: true,
     };
-    let heading = crate::localization::t("native.launcher.greeting").to_string();
+    let heading = crate::localization::tf(
+        "native.launcher.greetingInProject",
+        &[(
+            "project",
+            crate::localization::Arg::Text(crate::localization::bidi_isolate("project")),
+        )],
+    );
     for (installed, bundled, expect_input) in [
         (true, true, true),
         (false, true, true),
@@ -916,7 +925,7 @@ fn closing_setup_gives_the_keyboard_back_to_the_launcher(cx: &mut TestAppContext
                 cx.update(|window, cx| {
                     launcher
                         .read(cx)
-                        .group_input(0)
+                        .tab_input(tab)
                         .expect("hero input mounted")
                         .focus_handle(cx)
                         .contains_focused(window, cx)
@@ -963,9 +972,10 @@ fn discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done(cx: &mut Te
     let (workbench, launcher, cx) = compose(cx);
     cx.update(|window, _| window.activate_window());
     launcher.update(cx, |l, cx| l.show_local(PathBuf::from("/project"), cx));
-    workbench
+    let tab = workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
         .unwrap();
+    let slot = LauncherSlot::Tab(tab);
     let installation = |runtime, id, label: &str| Installation {
         runtime,
         id,
@@ -996,7 +1006,7 @@ fn discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done(cx: &mut Te
         cx.update(|window, _| {
             let found = window.find_all_by_role(Role::Status);
             assert_eq!(found.len(), 1, "one status");
-            let list = ElementId::from(("launcher-agents", 0u64));
+            let list = ElementId::from(("launcher-agents", slot.element_key()));
             assert!(!found[0].path().contains(&list), "outside the Agent list");
             found[0]
                 .label()
@@ -1006,7 +1016,7 @@ fn discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done(cx: &mut Te
     };
     let in_list = |cx: &mut VisualTestContext, label: &str| {
         cx.update(|window, _| {
-            let list = ElementId::from(("launcher-agents", 0u64));
+            let list = ElementId::from(("launcher-agents", slot.element_key()));
             window.find_by_label(label).path().contains(&list)
         })
     };
@@ -1016,7 +1026,7 @@ fn discovery_keeps_a_focused_row_and_announces_when_the_scan_is_done(cx: &mut Te
         l.observations = vec![];
         l.scanning = true;
         l.refreshing = false;
-        l.set_picker_open(0, true, cx);
+        l.set_picker_open(slot, true, cx);
         l.scan_started = Some(Instant::now());
     });
     assert_eq!(status(cx), None, "nothing for the first 200ms");
@@ -1112,7 +1122,7 @@ fn l1_composer_selects_agent_from_popover_and_focuses_prompt(cx: &mut TestAppCon
         ];
         cx.notify();
     });
-    workbench
+    let tab = workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
         .unwrap();
     cx.update(|w, cx| w.draw(cx).clear(cx));
@@ -1122,22 +1132,16 @@ fn l1_composer_selects_agent_from_popover_and_focuses_prompt(cx: &mut TestAppCon
         launcher.read_with(cx, |l, _| l.active_installation().map(|i| i.id)),
         Some("claude")
     );
-    // Restrained brand mark, title, and workspace subtitle sit cleanly above the hero composer.
-    let logo_bounds = cx
-        .debug_bounds("launcher-brand-logo")
-        .expect("restrained brand logo renders");
+    // Single restrained title naming the project sits above the hero composer (no logo/subtitle).
     let heading_bounds = cx
         .debug_bounds("launcher-heading")
-        .expect("restrained heading renders");
-    let subtitle_bounds = cx
-        .debug_bounds("launcher-subtitle")
-        .expect("workspace subtitle renders");
+        .expect("restrained project heading renders");
     let composer_bounds = cx
         .debug_bounds("launcher-composer-input")
         .expect("hero composer input renders");
-    assert!(logo_bounds.bottom() <= heading_bounds.origin.y);
-    assert!(heading_bounds.bottom() <= subtitle_bounds.origin.y);
-    assert!(subtitle_bounds.bottom() <= composer_bounds.origin.y);
+    assert!(heading_bounds.bottom() <= composer_bounds.origin.y);
+    assert!(cx.debug_bounds("launcher-brand-logo").is_none());
+    assert!(cx.debug_bounds("launcher-subtitle").is_none());
     assert!(cx.debug_bounds("launcher-agent-picker").is_some());
     assert!(cx.debug_bounds("launcher-send").is_some());
     assert!(cx.debug_bounds("launcher-agent-codex").is_none());
@@ -1165,7 +1169,7 @@ fn l1_composer_selects_agent_from_popover_and_focuses_prompt(cx: &mut TestAppCon
         cx.update(|window, cx| {
             launcher
                 .read(cx)
-                .group_input(0)
+                .tab_input(tab)
                 .expect("hero input mounted")
                 .focus_handle(cx)
                 .contains_focused(window, cx)
@@ -1176,7 +1180,7 @@ fn l1_composer_selects_agent_from_popover_and_focuses_prompt(cx: &mut TestAppCon
     // Placeholder text matches the newly selected Agent and aligns vertically
     // with the actual editable text line / caret (not offset by items_center).
     let placeholder_text = launcher.read_with(cx, |l, cx| {
-        l.group_input(0)
+        l.tab_input(tab)
             .expect("hero input mounted")
             .read(cx)
             .placeholder()
@@ -1199,7 +1203,7 @@ fn l1_composer_selects_agent_from_popover_and_focuses_prompt(cx: &mut TestAppCon
     );
     let caret = launcher
         .read_with(cx, |l, cx| {
-            l.group_input(0)
+            l.tab_input(tab)
                 .expect("hero input mounted")
                 .read(cx)
                 .cursor_bounds(cx)
@@ -1259,7 +1263,7 @@ fn switching_provider_persists_routing_syncs_placeholder_without_render_and_neve
         l.sync_placeholders(cx);
         cx.notify();
     });
-    workbench
+    let tab = workbench
         .update(cx, |w, cx| w.new_launcher_tab(0, cx))
         .unwrap();
     cx.update(|w, cx| w.draw(cx).clear(cx));
@@ -1313,7 +1317,7 @@ fn switching_provider_persists_routing_syncs_placeholder_without_render_and_neve
             Some(expected_runtime.to_string())
         );
         let placeholder = launcher.read_with(cx, |l, cx| {
-            l.group_input(0)
+            l.tab_input(tab)
                 .expect("hero input mounted")
                 .read(cx)
                 .placeholder()
@@ -1474,4 +1478,58 @@ fn agent_popover_occludes_underlying_recent_sessions_and_blocks_click_through(
         );
         assert_eq!(w.creation_failure_tab(), None);
     });
+}
+
+#[gpui::test]
+fn two_launcher_tabs_keep_independent_drafts_and_closing_destroys_state(cx: &mut TestAppContext) {
+    let (workbench, launcher, cx) = compose(cx);
+    launcher.update(cx, |l, cx| l.show_local(PathBuf::from("/project"), cx));
+
+    let tab_a = workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    let input_a = launcher
+        .read_with(cx, |l, _| l.tab_input(tab_a))
+        .expect("tab A mounts its own hero input");
+    input_a.update(cx, |i, cx| i.set_text("draft for tab A", cx));
+
+    let tab_b = workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    let input_b = launcher
+        .read_with(cx, |l, _| l.tab_input(tab_b))
+        .expect("tab B mounts its own hero input");
+
+    // 1 tab = 1 page: each launcher tab owns its own TextInput and draft.
+    assert_ne!(input_a.entity_id(), input_b.entity_id());
+    assert_eq!(input_b.read_with(cx, |i, cx| i.current_text(cx)), "");
+    input_b.update(cx, |i, cx| i.set_text("draft for tab B", cx));
+    assert_eq!(
+        input_a.read_with(cx, |i, cx| i.current_text(cx)),
+        "draft for tab A"
+    );
+
+    // Closing tab B destroys tab B's launcher page state while tab A stays intact.
+    workbench.update(cx, |w, cx| w.close_for_test(tab_b, cx));
+    cx.run_until_parked();
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert!(!launcher.read_with(cx, |l, _| l.has_tab_page(tab_b)));
+    assert!(launcher.read_with(cx, |l, _| l.has_tab_page(tab_a)));
+    assert_eq!(
+        launcher
+            .read_with(cx, |l, _| l.tab_input(tab_a))
+            .expect("tab A survives")
+            .read_with(cx, |i, cx| i.current_text(cx)),
+        "draft for tab A"
+    );
+
+    // Closing the final tab destroys its page state and renders zero ghost launcher.
+    workbench.update(cx, |w, cx| w.close_for_test(tab_a, cx));
+    cx.run_until_parked();
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert!(!launcher.read_with(cx, |l, _| l.has_tab_page(tab_a)));
+    assert!(cx.debug_bounds("launcher-heading").is_none());
+    assert!(cx.debug_bounds("launcher-composer-input").is_none());
 }

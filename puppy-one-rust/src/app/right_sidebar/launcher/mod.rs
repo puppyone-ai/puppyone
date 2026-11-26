@@ -3,7 +3,7 @@
 //!
 //! Architecture:
 //! - [`state`] — Pure domain state (`AgentSelection`, deterministic active
-//!   Agent resolution across incremental discovery, `LauncherGroupState`).
+//!   Agent resolution across incremental discovery, `LauncherPageState`).
 //! - [`composer`] — L1 hero prompt composer card and occluding Agent switcher
 //!   popover built on `PopoverMenu` + `SurfaceFrame`.
 //! - [`view`] — L1 stage layout composition (composer, discovery feedback,
@@ -33,7 +33,7 @@ use crate::ui::form_input::{InputEvent, TextInput};
 use crate::wake::Wake;
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
-use state::{AgentSelection, LauncherGroupState, launcher_placeholder};
+use state::{AgentSelection, LauncherPageState, LauncherSlot, launcher_placeholder};
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -84,13 +84,13 @@ pub(crate) struct WorkbenchLauncher {
     wake: Wake,
     /// The shown project, as the workbench last reported it.
     shown: WorkbenchView,
-    /// The launcher group whose setup section was last used.
-    setup_group: Option<Id>,
+    /// The launcher page whose setup section was last used.
+    setup_slot: Option<LauncherSlot>,
     /// Single source of truth for the L1 launcher's selected Agent.
     selection: AgentSelection,
-    /// Cohesive per-group launcher UI state (composer input, popover, focus,
-    /// scroll, launch error).
-    groups: HashMap<Id, LauncherGroupState>,
+    /// Per-tab launcher page state (composer input, popover, focus, scroll,
+    /// launch error): strictly isolated per tab and dropped when closed.
+    pages: HashMap<LauncherSlot, LauncherPageState>,
     /// Passive history watcher for the shown local project (only when the user
     /// already granted `chatHistoryDiscoveryEnabled`).
     recent_watch: Option<(PathBuf, Box<dyn FnOnce()>)>,
@@ -142,9 +142,9 @@ impl WorkbenchLauncher {
             cloud_published: Default::default(),
             wake,
             shown: WorkbenchView::default(),
-            setup_group: None,
+            setup_slot: None,
             selection: AgentSelection::default(),
-            groups: HashMap::new(),
+            pages: HashMap::new(),
             recent_watch: None,
             #[cfg(test)]
             recent_override: None,
@@ -280,6 +280,10 @@ impl WorkbenchLauncher {
     }
 
     fn show(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+        if self.shown.root.as_ref() != Some(&root) {
+            self.pages.clear();
+            self.setup_slot = None;
+        }
         self.shown.root = Some(root.clone());
         if let Some(workbench) = self.workbench.upgrade() {
             let roots = workbench.update(cx, |w, cx| {
@@ -297,91 +301,105 @@ impl WorkbenchLauncher {
         cx.notify();
     }
 
-    // --------------------------------------------------- group state helpers
+    // --------------------------------------------------- page state helpers
 
-    fn group_mut(&mut self, group: Id, cx: &mut Context<Self>) -> &mut LauncherGroupState {
-        self.groups
-            .entry(group)
-            .or_insert_with(|| LauncherGroupState::new(cx.focus_handle().tab_stop(false)))
+    fn page_mut(&mut self, slot: LauncherSlot, cx: &mut Context<Self>) -> &mut LauncherPageState {
+        self.pages
+            .entry(slot)
+            .or_insert_with(|| LauncherPageState::new(cx.focus_handle().tab_stop(false)))
     }
 
-    pub(super) fn is_picker_open(&self, group: Id) -> bool {
-        self.groups.get(&group).is_some_and(|g| g.picker_open)
+    fn remove_page(&mut self, slot: LauncherSlot) {
+        self.pages.remove(&slot);
+        if self.setup_slot == Some(slot) {
+            self.setup_slot = None;
+        }
     }
 
-    pub(super) fn set_picker_open(&mut self, group: Id, open: bool, cx: &mut Context<Self>) {
-        let changed = self.groups.get(&group).map(|g| g.picker_open) != Some(open)
+    fn is_picker_open(&self, slot: LauncherSlot) -> bool {
+        self.pages.get(&slot).is_some_and(|p| p.picker_open)
+    }
+
+    fn set_picker_open(&mut self, slot: LauncherSlot, open: bool, cx: &mut Context<Self>) {
+        let changed = self.pages.get(&slot).map(|p| p.picker_open) != Some(open)
             || (open
                 && self
-                    .groups
+                    .pages
                     .iter()
-                    .any(|(id, g)| *id != group && g.picker_open));
+                    .any(|(id, p)| *id != slot && p.picker_open));
         if open {
-            for (id, state) in &mut self.groups {
-                if *id != group {
+            for (id, state) in &mut self.pages {
+                if *id != slot {
                     state.picker_open = false;
                 }
             }
         }
-        self.group_mut(group, cx).picker_open = open;
+        self.page_mut(slot, cx).picker_open = open;
         if changed {
             cx.notify();
         }
     }
 
     fn close_all_pickers(&mut self) {
-        for state in self.groups.values_mut() {
+        for state in self.pages.values_mut() {
             state.picker_open = false;
         }
     }
 
-    pub(super) fn set_launch_error(&mut self, group: Id, error: String, cx: &mut Context<Self>) {
-        self.group_mut(group, cx).launch_error = Some(error);
+    fn set_launch_error(&mut self, slot: LauncherSlot, error: String, cx: &mut Context<Self>) {
+        self.page_mut(slot, cx).launch_error = Some(error);
     }
 
-    pub(super) fn clear_launch_error(&mut self, group: Id) {
-        if let Some(state) = self.groups.get_mut(&group) {
+    fn clear_launch_error(&mut self, slot: LauncherSlot) {
+        if let Some(state) = self.pages.get_mut(&slot) {
             state.launch_error = None;
         }
     }
 
-    pub(super) fn launch_error(&self, group: Id) -> Option<&str> {
-        self.groups
-            .get(&group)
-            .and_then(|g| g.launch_error.as_deref())
+    fn launch_error(&self, slot: LauncherSlot) -> Option<&str> {
+        self.pages
+            .get(&slot)
+            .and_then(|p| p.launch_error.as_deref())
     }
 
-    pub(super) fn row_focus(
+    fn row_focus(
         &mut self,
-        group: Id,
+        slot: LauncherSlot,
         id: &'static str,
         cx: &mut Context<Self>,
     ) -> FocusHandle {
-        self.group_mut(group, cx)
+        self.page_mut(slot, cx)
             .row_focus
             .entry(id)
             .or_insert_with(|| cx.focus_handle())
             .clone()
     }
 
-    pub(super) fn heading_focus(&mut self, group: Id, cx: &mut Context<Self>) -> FocusHandle {
-        self.group_mut(group, cx).heading_focus.clone()
+    fn heading_focus(&mut self, slot: LauncherSlot, cx: &mut Context<Self>) -> FocusHandle {
+        self.page_mut(slot, cx).heading_focus.clone()
     }
 
-    pub(super) fn group_scroll(&mut self, group: Id, cx: &mut Context<Self>) -> ScrollHandle {
-        self.group_mut(group, cx).scroll.clone()
+    fn page_scroll(&mut self, slot: LauncherSlot, cx: &mut Context<Self>) -> ScrollHandle {
+        self.page_mut(slot, cx).scroll.clone()
     }
 
     #[cfg(test)]
-    pub(super) fn group_input(&self, group: Id) -> Option<Entity<TextInput>> {
-        self.groups.get(&group).and_then(|g| g.input.clone())
+    pub(crate) fn tab_input(&self, tab: Id) -> Option<Entity<TextInput>> {
+        self.pages
+            .get(&LauncherSlot::Tab(tab))
+            .and_then(|p| p.input.clone())
     }
 
-    /// Synchronizes the dynamic placeholder on every mounted group hero input
-    /// strictly during state transitions — never during `render()`.
+    #[cfg(test)]
+    pub(super) fn has_tab_page(&self, tab: Id) -> bool {
+        self.pages.contains_key(&LauncherSlot::Tab(tab))
+    }
+
+    /// Synchronizes the dynamic placeholder on every mounted launcher page
+    /// hero input strictly during state transitions — never during `render()`.
     pub(super) fn sync_placeholders(&self, cx: &mut Context<Self>) {
         let placeholder = launcher_placeholder(self.active_installation().as_ref());
-        for state in self.groups.values() {
+        for state in self.pages.values() {
             if let Some(input) = &state.input {
                 let text = placeholder.clone();
                 input.update(cx, |i, cx| i.set_placeholder(text, cx));
@@ -465,10 +483,12 @@ impl WorkbenchLauncher {
 
     /// Selects `id` as the active Agent for the L1 composer, persists the
     /// choice to `PreferencesStore.agent_routing`, updates all placeholders,
-    /// and returns keyboard focus to `group`'s prompt input.
-    pub(super) fn select_agent(
+    /// and returns keyboard focus to `slot`'s prompt input.
+    fn select_agent(
         &mut self,
+        slot: LauncherSlot,
         group: Id,
+        tab: Option<Id>,
         id: String,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -488,25 +508,25 @@ impl WorkbenchLauncher {
                 });
             }
         }
-        self.set_picker_open(group, false, cx);
+        self.set_picker_open(slot, false, cx);
         self.sync_placeholders(cx);
-        self.focus_group(group, window, cx);
+        self.focus_page(slot, group, tab, window, cx);
         cx.notify();
     }
 
-    /// Gets or creates `group`'s L1 hero prompt input, initialized with the
+    /// Gets or creates `slot`'s L1 hero prompt input, initialized with the
     /// active Agent's placeholder. Never calls `cx.notify()` on existing child
     /// inputs during render.
-    pub(super) fn ensure_group_input(
+    fn ensure_page_input(
         &mut self,
+        slot: LauncherSlot,
         group: Id,
         tab: Option<Id>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<TextInput> {
-        let existing = self.groups.get(&group).and_then(|g| g.input.clone());
+        let existing = self.pages.get(&slot).and_then(|p| p.input.clone());
         if let Some(input) = existing {
-            self.group_mut(group, cx).tab = tab;
             return input;
         }
         let initial_placeholder = launcher_placeholder(self.active_installation().as_ref());
@@ -527,28 +547,39 @@ impl WorkbenchLauncher {
             window,
             move |s, _, event: &InputEvent, w, cx| match event {
                 InputEvent::Changed => cx.notify(),
-                InputEvent::Submit => s.submit_hero(group, w, cx),
+                InputEvent::Submit => s.submit_hero(slot, group, tab, w, cx),
             },
         )
         .detach();
-        let state = self.group_mut(group, cx);
-        state.tab = tab;
-        state.input = Some(input.clone());
+        self.page_mut(slot, cx).input = Some(input.clone());
         input
     }
 
-    /// Focuses `group`'s L1 hero prompt input immediately (creating the input
+    /// Focuses `slot`'s L1 hero prompt input immediately (creating the input
     /// eagerly if needed, so focus never waits for a render side effect).
-    pub(super) fn focus_group(&mut self, group: Id, window: &mut Window, cx: &mut Context<Self>) {
-        let tab = self.groups.get(&group).and_then(|g| g.tab);
-        let input = self.ensure_group_input(group, tab, window, cx);
+    fn focus_page(
+        &mut self,
+        slot: LauncherSlot,
+        group: Id,
+        tab: Option<Id>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let input = self.ensure_page_input(slot, group, tab, window, cx);
         input.focus_handle(cx).focus(window, cx);
     }
 
-    /// Submits `group`'s L1 hero prompt: creates a fresh chat tab on the
+    /// Submits `slot`'s L1 hero prompt: creates a fresh chat tab on the
     /// selected Agent and sends the prompt without any extra click.
-    pub(super) fn submit_hero(&mut self, group: Id, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(input) = self.groups.get(&group).and_then(|g| g.input.clone()) else {
+    fn submit_hero(
+        &mut self,
+        slot: LauncherSlot,
+        fallback_group: Id,
+        tab: Option<Id>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(input) = self.pages.get(&slot).and_then(|p| p.input.clone()) else {
             return;
         };
         if input.update(cx, |i, cx| i.composing(window, cx)) {
@@ -561,8 +592,14 @@ impl WorkbenchLauncher {
         let Some(installation) = self.active_installation() else {
             return;
         };
-        let tab = self.groups.get(&group).and_then(|g| g.tab);
-        self.set_picker_open(group, false, cx);
+        let group = tab
+            .and_then(|id| {
+                self.workbench
+                    .upgrade()
+                    .and_then(|wb| wb.read(cx).group_of(id))
+            })
+            .unwrap_or(fallback_group);
+        self.set_picker_open(slot, false, cx);
         input.update(cx, |i, cx| i.set_text("", cx));
         if self.hosted.is_open() {
             self.launch_hosted_with_prompt(group, tab, prompt, window, cx);
@@ -614,7 +651,8 @@ impl WorkbenchLauncher {
         if !can_chat {
             return;
         }
-        self.clear_launch_error(group);
+        let slot = LauncherSlot::of(group, tab);
+        self.clear_launch_error(slot);
         let Some(id) = tab.or_else(|| workbench.update(cx, |w, cx| w.new_launcher_tab(group, cx)))
         else {
             return;
@@ -628,10 +666,12 @@ impl WorkbenchLauncher {
             cx,
         ) {
             Ok(item) => {
+                self.remove_page(slot);
+                self.remove_page(LauncherSlot::Tab(id));
                 workbench.update(cx, |w, cx| w.place(group, Some(id), Rc::new(item), cx));
             }
             Err(error) => {
-                self.set_launch_error(group, error, cx);
+                self.set_launch_error(LauncherSlot::Tab(id), error, cx);
             }
         }
         cx.notify();
@@ -713,17 +753,19 @@ impl WorkbenchLauncher {
             self.shown.roots = roots.clone();
             self.chats.set_roots(roots);
         }
+        let slot = LauncherSlot::of(group, tab);
         self.chat_mode = true;
-        self.clear_launch_error(group);
+        self.clear_launch_error(slot);
         match self
             .chats
             .prepare_seeded(&root, runtime_id, initial_prompt, window, cx)
         {
             Ok(item) => {
+                self.remove_page(slot);
                 workbench.update(cx, |w, cx| w.place(group, tab, Rc::new(item), cx));
             }
             Err(error) => {
-                self.set_launch_error(group, error, cx);
+                self.set_launch_error(slot, error, cx);
             }
         }
         cx.notify();
@@ -799,12 +841,13 @@ impl WorkbenchLauncher {
                 w.can_create(ItemKind::Terminal),
             )
         };
+        let slot = LauncherSlot::of(group, tab);
         // Cloud: the hosted Agent only, no session lease of this machine.
         if self.hosted.is_open() {
             if !installation.as_ref().is_some_and(|i| i.chat) || !can_chat {
                 return;
             }
-            self.clear_launch_error(group);
+            self.clear_launch_error(slot);
             let Some(id) =
                 tab.or_else(|| workbench.update(cx, |w, cx| w.new_launcher_tab(group, cx)))
             else {
@@ -812,10 +855,12 @@ impl WorkbenchLauncher {
             };
             match self.hosted_chat(&root, id, None, window, cx) {
                 Ok(item) => {
+                    self.remove_page(slot);
+                    self.remove_page(LauncherSlot::Tab(id));
                     workbench.update(cx, |w, cx| w.place(group, Some(id), item, cx));
                 }
                 Err(error) => {
-                    self.set_launch_error(group, error, cx);
+                    self.set_launch_error(LauncherSlot::Tab(id), error, cx);
                 }
             }
             cx.notify();
@@ -827,7 +872,7 @@ impl WorkbenchLauncher {
         if !(if chat { can_chat } else { can_terminal }) {
             return;
         }
-        self.clear_launch_error(group);
+        self.clear_launch_error(slot);
         let item = if let Some(installation) = installation.clone().filter(|_| chat) {
             // `prepareAgentChatWorkbenchItem(project, itemId, recipe.id)`;
             // `launchError`: a refused creation stays on the launcher with
@@ -841,7 +886,7 @@ impl WorkbenchLauncher {
             ) {
                 Ok(item) => item,
                 Err(error) => {
-                    self.set_launch_error(group, error, cx);
+                    self.set_launch_error(slot, error, cx);
                     cx.notify();
                     return;
                 }
@@ -849,6 +894,7 @@ impl WorkbenchLauncher {
         } else {
             Rc::new(TerminalItem::launch(root, installation, window, cx))
         };
+        self.remove_page(slot);
         workbench.update(cx, |w, cx| w.place(group, tab, item, cx));
         cx.notify();
     }
@@ -919,8 +965,9 @@ impl WorkbenchHost for Entity<WorkbenchLauncher> {
     fn launcher(&self, context: LauncherContext, window: &mut Window, cx: &mut App) -> AnyElement {
         self.update(cx, |l, cx| l.render_launcher(context, window, cx))
     }
-    fn focus_launcher(&self, group: Id, window: &mut Window, cx: &mut App) {
-        self.update(cx, |l, cx| l.focus_group(group, window, cx));
+    fn focus_launcher(&self, group: Id, tab: Option<Id>, window: &mut Window, cx: &mut App) {
+        let slot = LauncherSlot::of(group, tab);
+        self.update(cx, |l, cx| l.focus_page(slot, group, tab, window, cx));
     }
     fn launcher_title(&self, tab: Id, cx: &App) -> Option<String> {
         self.read(cx)
@@ -959,6 +1006,7 @@ impl WorkbenchHost for Entity<WorkbenchLauncher> {
     fn tab_removed(&self, tab: Id, cx: &mut App) {
         self.update(cx, |l, _| {
             l.history.remove(&tab);
+            l.remove_page(LauncherSlot::Tab(tab));
         });
     }
     fn shutdown(&self, cx: &mut App) {

@@ -35,7 +35,7 @@ impl WorkbenchLauncher {
         match browser {
             Ok(browser) => self.install_history(tab, browser, window, cx),
             Err(error) => {
-                self.set_launch_error(group, error, cx);
+                self.set_launch_error(LauncherSlot::Tab(tab), error, cx);
                 cx.notify();
             }
         }
@@ -135,6 +135,7 @@ impl WorkbenchLauncher {
                     let item: Rc<dyn WorkbenchItem> =
                         Rc::new(s.chats.saved_chat(saved, window, cx));
                     s.history.remove(&tab);
+                    s.remove_page(LauncherSlot::Tab(tab));
                     workbench.update(cx, |w, cx| w.commit_creation(permit, item, cx));
                     cx.notify();
                     return;
@@ -247,7 +248,7 @@ impl WorkbenchLauncher {
     /// the launcher becomes its chat, unless another tab has it open.
     pub(super) fn open_hosted_history_target(
         &mut self,
-        group: Id,
+        _group: Id,
         tab: Id,
         target: HistoryTarget,
         window: &mut Window,
@@ -282,6 +283,7 @@ impl WorkbenchLauncher {
         match self.hosted_chat(&root, tab, Some(session), window, cx) {
             Ok(item) => {
                 self.history.remove(&tab);
+                self.remove_page(LauncherSlot::Tab(tab));
                 workbench.update(cx, |w, cx| w.commit_creation(permit, item, cx));
             }
             Err(error) => {
@@ -289,7 +291,7 @@ impl WorkbenchLauncher {
                 if let Some(browser) = self.history.get(&tab) {
                     browser.update(cx, |browser, _| browser.opening = None);
                 }
-                self.set_launch_error(group, error, cx);
+                self.set_launch_error(LauncherSlot::Tab(tab), error, cx);
             }
         }
         cx.notify();

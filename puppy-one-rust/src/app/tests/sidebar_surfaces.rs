@@ -350,3 +350,109 @@ fn a_header_hint_waits_for_the_pointer_to_rest_and_goes_when_it_leaves(cx: &mut 
     rest(cx, 1_000);
     assert!(cx.debug_bounds("tooltip").is_none());
 }
+
+/// Option A ("1 tab = 1 page"): opening an empty Agent workbench creates one
+/// real `New tab` launcher; closing that last tab collapses the right sidebar
+/// with no ghost launcher left behind; reopening creates a fresh `New tab` and
+/// focuses its composer.
+#[gpui::test]
+fn closing_last_workbench_tab_collapses_right_sidebar_and_reopening_creates_fresh_tab(
+    cx: &mut TestAppContext,
+) {
+    let (view, cx) = setup(cx);
+    cx.update(|w, cx| {
+        w.activate_window();
+        cx.set_reduce_motion(true);
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let ws = crate::workspace::Workspace::open(dir.path()).unwrap();
+    view.update(cx, |s, cx| {
+        s.session.docs.update(cx, |d, _| {
+            d.workspace = Some(crate::workspace::Workspace::open(dir.path()).unwrap());
+        });
+        s.sidebar.update(cx, |b, cx| b.enter(&ws, cx));
+    });
+    if !view.read_with(cx, |s, cx| s.right_shows(Surface::Agent, cx)) {
+        command(&view, cx, Command::ToggleRightSidebar);
+    }
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        cx.run_until_parked();
+        draw(cx);
+        let ready = view.read_with(cx, |s, cx| {
+            s.sidebar.read(cx).workbench.read(cx).tab_count() == 1
+        });
+        if ready {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "initial New tab launcher did not appear after opening right sidebar"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+
+    let first_tab = view
+        .read_with(cx, |s, cx| {
+            s.sidebar.read(cx).workbench.read(cx).active_tab()
+        })
+        .expect("initial launcher tab is active");
+    assert!(cx.debug_bounds("launcher-heading").is_some());
+    assert!(cx.debug_bounds("launcher-composer-input").is_some());
+
+    // Click the tab's real close button in the workbench header.
+    let close_selector: &'static str =
+        Box::leak(format!("workbench-close-{first_tab}").into_boxed_str());
+    let close_bounds = cx
+        .debug_bounds(close_selector)
+        .expect("active launcher tab renders its close button");
+    cx.simulate_click(close_bounds.center(), Modifiers::default());
+    cx.run_until_parked();
+    draw(cx);
+
+    view.read_with(cx, |s, cx| {
+        assert!(
+            !s.panes.read(cx).right().open,
+            "closing the last tab collapses the right sidebar"
+        );
+        let wb = s.sidebar.read(cx).workbench.read(cx);
+        assert!(!wb.content_visible());
+        assert_eq!(wb.tab_count(), 0);
+    });
+    assert!(
+        cx.debug_bounds("launcher-heading").is_none(),
+        "no un-tabbed ghost launcher renders after closing the last tab"
+    );
+    assert!(cx.debug_bounds("launcher-composer-input").is_none());
+
+    // Reopening via Header / ⌘J creates a fresh New tab and focuses its composer.
+    command(&view, cx, Command::ToggleRightSidebar);
+    cx.run_until_parked();
+    draw(cx);
+
+    let second_tab = view.read_with(cx, |s, cx| {
+        assert!(s.panes.read(cx).right().open);
+        assert!(s.right_shows(Surface::Agent, cx));
+        let wb = s.sidebar.read(cx).workbench.read(cx);
+        assert!(wb.content_visible());
+        assert_eq!(wb.tab_count(), 1);
+        wb.active_tab().expect("fresh launcher tab is active")
+    });
+    assert_ne!(second_tab, first_tab);
+    assert!(cx.debug_bounds("launcher-heading").is_some());
+    assert!(cx.debug_bounds("launcher-composer-input").is_some());
+    assert!(
+        cx.update(|window, cx| {
+            view.read(cx)
+                .sidebar
+                .read(cx)
+                .launcher
+                .read(cx)
+                .tab_input(second_tab)
+                .expect("fresh tab mounts its own hero input")
+                .focus_handle(cx)
+                .contains_focused(window, cx)
+        }),
+        "reopening the right sidebar focuses the fresh New tab's hero composer"
+    );
+}

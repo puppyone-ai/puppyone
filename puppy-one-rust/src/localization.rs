@@ -68,8 +68,8 @@ fn native() -> &'static Value {
 
 const LAUNCHER_L1_MESSAGES: &str = r#"{
   "en": {
-    "native.launcher.greeting": "What would you like to work on?",
-    "native.launcher.workingIn": "Working in {project}",
+    "native.launcher.greeting": "Start a session",
+    "native.launcher.greetingInProject": "Work in {project}",
     "native.launcher.askPlaceholder": "Ask {agent}…",
     "native.launcher.localAgents": "Local Agents",
     "native.launcher.openInTerminal": "Open in Terminal",
@@ -77,8 +77,8 @@ const LAUNCHER_L1_MESSAGES: &str = r#"{
     "native.launcher.allHistory": "All history"
   },
   "zh-Hans": {
-    "native.launcher.greeting": "今天想做什么？",
-    "native.launcher.workingIn": "在 {project} 中工作",
+    "native.launcher.greeting": "开始新会话",
+    "native.launcher.greetingInProject": "在 {project} 中开始",
     "native.launcher.askPlaceholder": "向 {agent} 提问…",
     "native.launcher.localAgents": "本机 Agent",
     "native.launcher.openInTerminal": "在 Terminal 中打开",

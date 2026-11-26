@@ -1,7 +1,7 @@
 //! Pure domain state for the right sidebar's L1 composer-first launcher:
 //! authoritative Agent selection synchronized with `AgentRoutingPreferences`,
 //! deterministic resolution across incremental discovery, and cohesive
-//! per-group UI state.
+//! per-tab UI state.
 use crate::agent::connections::legacy_local_agent_inventory::{self as agents, Installation};
 use crate::features::local_agents::{agent_chat_runtime_id, local_agent_id_for_agent_chat_runtime};
 use crate::features::settings::AgentRoutingPreferences;
@@ -173,10 +173,35 @@ pub(super) fn launcher_placeholder(active: Option<&Installation>) -> String {
     }
 }
 
-/// Cohesive per-group UI state for one workbench group's launcher surface.
-pub(super) struct LauncherGroupState {
+/// Identity of a single launcher page: strictly scoped to its tab (`1 tab = 1
+/// page`) so multiple `New tab` tabs never share draft input, popover state, or
+/// errors, and closing a tab destroys its page state cleanly.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(super) enum LauncherSlot {
+    Tab(Id),
+    EmptyGroup(Id),
+}
+
+impl LauncherSlot {
+    pub fn of(group: Id, tab: Option<Id>) -> Self {
+        match tab {
+            Some(id) => Self::Tab(id),
+            None => Self::EmptyGroup(group),
+        }
+    }
+
+    /// Collision-free GPUI element integer key per launcher page.
+    pub fn element_key(self) -> u64 {
+        match self {
+            Self::Tab(id) => (id << 1) | 1,
+            Self::EmptyGroup(id) => id << 1,
+        }
+    }
+}
+
+/// Cohesive per-tab UI state for one launcher page instance.
+pub(super) struct LauncherPageState {
     pub input: Option<Entity<TextInput>>,
-    pub tab: Option<Id>,
     pub picker_open: bool,
     pub row_focus: HashMap<&'static str, FocusHandle>,
     pub heading_focus: FocusHandle,
@@ -184,11 +209,10 @@ pub(super) struct LauncherGroupState {
     pub scroll: ScrollHandle,
 }
 
-impl LauncherGroupState {
+impl LauncherPageState {
     pub fn new(heading_focus: FocusHandle) -> Self {
         Self {
             input: None,
-            tab: None,
             picker_open: false,
             row_focus: HashMap::new(),
             heading_focus,

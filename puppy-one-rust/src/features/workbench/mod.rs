@@ -90,6 +90,9 @@ struct Project {
     layout: Layout,
     content: HashMap<Id, Content>,
     loading: bool,
+    /// Sidebar opened while saved state was still loading: create a fresh
+    /// `New tab` once loading settles if the project has zero saved tabs.
+    ensure_tab_on_load: bool,
     saved: Option<blake3::Hash>,
     storage_error: Option<String>,
 }
@@ -141,6 +144,9 @@ pub enum WorkbenchEvent {
         root: PathBuf,
         path: String,
     },
+    /// The user closed the last remaining tab in the active project, leaving
+    /// the workbench empty so the right sidebar can collapse cleanly.
+    ClosedLastTab,
 }
 impl EventEmitter<WorkbenchEvent> for Workbench {}
 pub struct Workbench {
@@ -254,6 +260,11 @@ impl Workbench {
     }
     /// The sidebar showed or hid the workbench.
     pub fn set_content_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
+        if !visible {
+            for project in self.projects.values_mut() {
+                project.ensure_tab_on_load = false;
+            }
+        }
         if self.content_visible != visible {
             self.content_visible = visible;
             cx.notify();
@@ -270,23 +281,19 @@ impl Workbench {
             return;
         };
         let group = p.layout.active_group;
-        let active = p
-            .layout
-            .groups
-            .get(&group)
-            .and_then(|g| g.active)
-            .and_then(|tab| p.content.get(&tab));
+        let active_tab = p.layout.groups.get(&group).and_then(|g| g.active);
+        let active = active_tab.and_then(|tab| p.content.get(&tab));
         match active {
             Some(Content::Item { item, .. }) => {
                 let item = item.clone();
                 item.focus(window, cx);
             }
-            Some(Content::Retained(_)) => {}
-            _ => {
+            Some(Content::Launcher) => {
                 if let Some(host) = self.host.clone() {
-                    host.focus_launcher(group, window, cx);
+                    host.focus_launcher(group, active_tab, window, cx);
                 }
             }
+            Some(Content::Retained(_)) | None => {}
         }
     }
     /// A tab's title: a launcher showing something else (History) takes

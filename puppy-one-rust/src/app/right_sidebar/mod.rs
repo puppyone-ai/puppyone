@@ -115,17 +115,19 @@ impl RightSidebar {
             launcher::LauncherEvent::CloudPublished => cx.emit(SidebarEvent::CloudPublished),
         })
         .detach();
-        cx.subscribe(&workbench, |_, _, event, cx| {
-            cx.emit(match event {
-                WorkbenchEvent::OpenModelConnections => {
-                    SidebarEvent::OpenSettings(Page::ModelConnections)
-                }
-                WorkbenchEvent::OpenAccount => SidebarEvent::OpenSettings(Page::Account),
-                WorkbenchEvent::OpenAgentFile { root, path } => SidebarEvent::OpenAgentFile {
-                    root: root.clone(),
-                    path: path.clone(),
-                },
-            })
+        cx.subscribe(&workbench, |s, _, event, cx| match event {
+            WorkbenchEvent::OpenModelConnections => {
+                cx.emit(SidebarEvent::OpenSettings(Page::ModelConnections))
+            }
+            WorkbenchEvent::OpenAccount => cx.emit(SidebarEvent::OpenSettings(Page::Account)),
+            WorkbenchEvent::OpenAgentFile { root, path } => cx.emit(SidebarEvent::OpenAgentFile {
+                root: root.clone(),
+                path: path.clone(),
+            }),
+            WorkbenchEvent::ClosedLastTab => {
+                s.collapse(cx);
+                cx.emit(SidebarEvent::Closed);
+            }
         })
         .detach();
         // History and Back store the surface (`rightSidebarSurface`).
@@ -197,11 +199,16 @@ impl RightSidebar {
         sidebar
     }
     /// `AuxiliaryPanelHost`'s `contentVisible`: the workbench presents its
-    /// items only while the open sidebar shows it.
+    /// items only while the open sidebar shows it, and ensures an empty
+    /// workbench starts with one real `New tab` page whenever revealed.
     fn sync_workbench_visibility(&self, cx: &mut App) {
         let visible = self.shows(Surface::Agent, cx);
-        self.workbench
-            .update(cx, |w, cx| w.set_content_visible(visible, cx));
+        self.workbench.update(cx, |w, cx| {
+            w.set_content_visible(visible, cx);
+            if visible {
+                w.ensure_open_tab(cx);
+            }
+        });
     }
     fn show(&mut self, shown: &Shown, cx: &mut Context<Self>) {
         let Shown {
@@ -251,6 +258,7 @@ impl RightSidebar {
         } else if let Some(target) = workspace.agent_target() {
             self.launcher.update(cx, |s, cx| s.show_hosted(target, cx));
         }
+        self.sync_workbench_visibility(cx);
     }
 
     /// Model connections changed: every Agent chat rereads them.
@@ -268,6 +276,7 @@ impl RightSidebar {
         self.restored = true;
         self.surface = Surface::Agent;
         self.launcher.update(cx, |l, cx| l.show_local(root, cx));
+        self.sync_workbench_visibility(cx);
         cx.notify();
     }
 
@@ -327,6 +336,10 @@ impl RightSidebar {
         self.surface = Surface::Agent;
         self.store(cx);
         self.set_open(true, cx);
+        self.workbench.update(cx, |w, cx| {
+            w.set_content_visible(true, cx);
+            w.ensure_open_tab(cx);
+        });
         cx.notify();
     }
     /// Focuses the active workbench chat or launcher composer when visible.
