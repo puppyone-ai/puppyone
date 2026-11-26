@@ -1,9 +1,11 @@
 //! `ProjectOpeningSurface` and `ProjectPreparation`: a chosen project is
 //! entered at once. Until it answers, the window is that project's window:
 //! its name in the Header, the Explorer column waiting for its first folder
-//! (the tree's skeleton), and the loading mark at the exact centre of the
-//! editor's region. A Cloud project says which stage it has reached and can
-//! be abandoned (Cancel, or Escape); a local folder has no stages to name.
+//! (the tree's skeleton), the right sidebar's column in its own ground, and
+//! the loading mark at the exact centre of the editor's region. A Cloud
+//! project says which stage it has reached and can be abandoned (Cancel, or
+//! Escape); a local folder has no stages to name. The column edges stay, so
+//! the columns can be sized while the files are on their way.
 //! The project being left keeps its place behind the wait, so a failed or
 //! cancelled open simply shows it again.
 use super::ProjectLifecycle;
@@ -71,12 +73,15 @@ impl ProjectLifecycle {
     }
     /// `ProjectPreparation` over a `w`×`h` window below the Header, or
     /// nothing while no project is on its way in. `explorer` is where the
-    /// Explorer column is while it shows, `editor` the editor's region.
+    /// Explorer column is while it shows, `auxiliary` the right sidebar's
+    /// column while it shows (it waits in its own ground), `editor` the
+    /// editor's region.
     pub(in crate::app) fn preparation(
         &self,
         w: f32,
         h: f32,
         explorer: Option<Rect>,
+        auxiliary: Option<Rect>,
         editor: Rect,
         cx: &App,
     ) -> Option<AnyElement> {
@@ -179,6 +184,22 @@ impl ProjectLifecycle {
                                 .bg(t.sidebar)
                                 .overflow_hidden()
                                 .child(Self::explorer_skeleton(explorer.w)),
+                        )
+                    },
+                )
+                .when_some(
+                    auxiliary.filter(|auxiliary| auxiliary.w > 0.),
+                    |d, auxiliary| {
+                        let auxiliary_top = (auxiliary.y - top).max(0.);
+                        let auxiliary_h = (auxiliary.bottom() - top).max(0.);
+                        d.child(
+                            div()
+                                .absolute()
+                                .left(px(auxiliary.x))
+                                .top(px(auxiliary_top))
+                                .w(px(auxiliary.w))
+                                .h(px(auxiliary_h))
+                                .bg(t.auxiliary()),
                         )
                     },
                 )

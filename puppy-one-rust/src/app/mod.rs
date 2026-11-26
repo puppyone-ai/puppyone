@@ -708,10 +708,8 @@ impl Render for Shell {
                 stack = stack.start(plane, column);
             }
             if !home && panes.end.is_some() {
-                let end = bar.map_or_else(
-                    || self.sidebar.clone().into_any_element(),
-                    |b| b.end_pane(self.sidebar.clone(), window, cx),
-                );
+                let sidebar = &self.sidebar;
+                let end = chrome::seam::end_column(bar, sidebar, opening, headerless, window, cx);
                 stack = stack.end(self.frame.layout.auxiliary, end);
             }
             let screen_shown = !home && self.cloud.read(cx).screen_shown(cx);
@@ -753,10 +751,12 @@ impl Render for Shell {
                 .explorer()
                 .open
                 .then_some(self.frame.layout.explorer);
+            let auxiliary = panes.end.is_some().then_some(self.frame.layout.auxiliary);
             root = root.children(self.session.project.read(cx).preparation(
                 w,
                 h,
                 explorer,
+                auxiliary,
                 self.frame.layout.editor,
                 cx,
             ));
@@ -764,7 +764,7 @@ impl Render for Shell {
         if !file && !headerless {
             root = root.child(at(self.frame.layout.header).child(self.chrome.clone()));
         }
-        if (!home && !opening && !file) || (file && !opening && html_chat_shown) {
+        if (!home && !file) || (file && !opening && html_chat_shown) {
             root = root.children(panes::edges(&self.panes, &panes, w, rail, window, cx));
         }
         root = root.children(flying);

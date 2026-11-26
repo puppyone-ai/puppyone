@@ -309,12 +309,12 @@ impl<'a> PaneChrome<'a> {
     /// so caption controls never overlap sidebar actions.
     pub(in crate::app) fn end_pane(
         self,
-        sidebar: Entity<RightSidebar>,
+        content: AnyElement,
         window: &Window,
         cx: &App,
     ) -> AnyElement {
         let Some(controls) = window_controls::render(window, cx) else {
-            return sidebar.into_any_element();
+            return content;
         };
         v_flex()
             .size_full()
@@ -327,9 +327,50 @@ impl<'a> PaneChrome<'a> {
                     .child(title_bar::drag_area("header-drag-end").flex_1().min_w_0())
                     .child(controls),
             )
-            .child(div().flex_1().min_h_0().child(sidebar))
+            .child(div().flex_1().min_h_0().child(content))
             .into_any_element()
     }
+}
+
+/// The right sidebar's column. While a project opens its Agent and Git are
+/// not bound to it yet, so the column waits in its place like the
+/// Explorer's, in its own ground, instead of showing tabs from before.
+pub(in crate::app) fn end_column(
+    bar: Option<PaneChrome>,
+    sidebar: &Entity<RightSidebar>,
+    opening: bool,
+    headerless: bool,
+    window: &Window,
+    cx: &App,
+) -> AnyElement {
+    let content = if opening {
+        waiting_end(headerless, cx)
+    } else {
+        sidebar.clone().into_any_element()
+    };
+    match bar {
+        Some(bar) => bar.end_pane(content, window, cx),
+        None => content,
+    }
+}
+
+/// The waiting right sidebar column; without a Header its top still moves
+/// the window.
+fn waiting_end(headerless: bool, cx: &App) -> AnyElement {
+    v_flex()
+        .id("right-sidebar-waiting")
+        .debug_selector(|| "right-sidebar-waiting".into())
+        .size_full()
+        .bg(cx.palette().auxiliary())
+        .when(headerless, |d| {
+            d.child(
+                title_bar::drag_area("header-drag-end-waiting")
+                    .w_full()
+                    .h(px(theme::HEADER))
+                    .flex_shrink_0(),
+            )
+        })
+        .into_any_element()
 }
 
 /// The content region of the main pane below its 40px top bar when running

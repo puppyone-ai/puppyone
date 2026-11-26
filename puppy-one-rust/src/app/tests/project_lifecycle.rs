@@ -137,6 +137,60 @@ fn a_cloud_project_is_entered_at_once_and_escape_abandons_it(cx: &mut TestAppCon
     });
     assert!(cx.debug_bounds("project-preparation").is_none());
 }
+/// While a project opens, the right sidebar's column waits in its place
+/// (its Agent is not bound yet: no tabs from before), with or without a
+/// Header, and both column edges stay so the layout never jumps.
+#[gpui::test]
+fn the_right_sidebar_waits_in_its_column_while_a_project_opens(cx: &mut TestAppContext) {
+    let responder: crate::cloud::auth::Responder = std::sync::Arc::new(|request| {
+        if request.path.ends_with("/workbench/files") {
+            std::thread::sleep(std::time::Duration::from_millis(600));
+        }
+        cloud_project_responder()(request)
+    });
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud::auth::responding_account_fixture(with_catalog(responder));
+    view.update(cx, |s, cx| {
+        s.session
+            .project
+            .update(cx, |p, _| p.record.fixture = false);
+        s.prefs.store.update(cx, |p, _| {
+            p.state.experimental.cloud_workspace = true;
+            p.state.experimental.hidden_header = true;
+        });
+        s.panes.update(cx, |p, cx| p.set_right_open(true, cx));
+    });
+    cx.update(|_, cx| crate::features::cloud::account::install_fixture(broker, browser, cx));
+    settle_cloud(&view, cx, "the catalog", &|s, cx| {
+        s.home
+            .read(cx)
+            .project_items(cx)
+            .iter()
+            .any(|i| i.label == "Fixture Cloud")
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    draw(cx);
+    view.read_with(cx, |s, cx| assert!(s.opening(cx)));
+    let column = view.read_with(cx, |s, _| s.frame.layout.auxiliary);
+    let waiting = cx
+        .debug_bounds("right-sidebar-waiting")
+        .expect("the right sidebar's column waits");
+    assert!((f32::from(waiting.origin.x) - column.x).abs() < 0.5);
+    assert!((f32::from(waiting.size.width) - column.w).abs() < 0.5);
+    assert_eq!(
+        f32::from(waiting.origin.y),
+        0.,
+        "from the top without a Header"
+    );
+    assert!(cx.debug_bounds("right-sash").is_some(), "its edge stays");
+    assert!(
+        cx.debug_bounds("left-sash").is_some(),
+        "the Explorer's edge stays"
+    );
+    command(&view, cx, Command::Escape);
+    draw(cx);
+    assert!(cx.debug_bounds("right-sidebar-waiting").is_none());
+}
 /// W-6: choosing another project while one is still opening replaces it.
 #[gpui::test]
 fn a_newer_choice_replaces_a_project_still_opening(cx: &mut TestAppContext) {
