@@ -629,7 +629,8 @@ impl Inner {
                 .map(|id| text(Some(&Value::from(id)), 160))
                 .filter(|id| !id.is_empty())
         });
-        let requires_auth = self.authentication_method_id.is_some() || selected_auth_method.is_some();
+        let requires_auth =
+            self.authentication_method_id.is_some() || selected_auth_method.is_some();
         let account_ready = if requires_auth {
             self.authenticated_method_id.borrow().is_some()
         } else {

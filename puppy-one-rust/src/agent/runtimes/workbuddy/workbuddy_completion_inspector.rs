@@ -98,9 +98,8 @@ fn parse_error_envelope(raw: &Value) -> Option<(String, &'static str, Option<Str
     if let Some(biz) = biz_code.filter(|b| !b.is_empty()) {
         parts.push(format!("bizCode={biz}"));
     }
-    let diagnostic = (!parts.is_empty()).then(|| {
-        redact_secret_text(text::head16(&parts.join(", "), MAX_DIAGNOSTIC_CHARS))
-    });
+    let diagnostic = (!parts.is_empty())
+        .then(|| redact_secret_text(text::head16(&parts.join(", "), MAX_DIAGNOSTIC_CHARS)));
     Some((redacted, failure_code, diagnostic))
 }
 
