@@ -210,6 +210,60 @@ const LAUNCHER_L1_MESSAGES: &str = r#"{
     "native.launcher.openInTerminal": "在 Terminal 中打开",
     "native.launcher.recent": "最近",
     "native.launcher.allHistory": "全部历史"
+  },
+  "ja": {
+    "native.launcher.greeting": "セッションを開始",
+    "native.launcher.greetingInProject": "{project} で作業",
+    "native.launcher.askPlaceholder": "{agent} に質問…",
+    "native.launcher.localAgents": "ローカル Agent",
+    "native.launcher.openInTerminal": "Terminal で開く",
+    "native.launcher.recent": "最近",
+    "native.launcher.allHistory": "すべての履歴"
+  },
+  "ko": {
+    "native.launcher.greeting": "세션 시작",
+    "native.launcher.greetingInProject": "{project}에서 작업",
+    "native.launcher.askPlaceholder": "{agent}에게 질문…",
+    "native.launcher.localAgents": "로컬 Agent",
+    "native.launcher.openInTerminal": "Terminal에서 열기",
+    "native.launcher.recent": "최근",
+    "native.launcher.allHistory": "전체 기록"
+  },
+  "es": {
+    "native.launcher.greeting": "Iniciar una sesión",
+    "native.launcher.greetingInProject": "Trabajar en {project}",
+    "native.launcher.askPlaceholder": "Pregunta a {agent}…",
+    "native.launcher.localAgents": "Agents locales",
+    "native.launcher.openInTerminal": "Abrir en Terminal",
+    "native.launcher.recent": "Recientes",
+    "native.launcher.allHistory": "Todo el historial"
+  },
+  "pt-BR": {
+    "native.launcher.greeting": "Iniciar uma sessão",
+    "native.launcher.greetingInProject": "Trabalhar em {project}",
+    "native.launcher.askPlaceholder": "Pergunte ao {agent}…",
+    "native.launcher.localAgents": "Agents locais",
+    "native.launcher.openInTerminal": "Abrir no Terminal",
+    "native.launcher.recent": "Recentes",
+    "native.launcher.allHistory": "Todo o histórico"
+  },
+  "fr": {
+    "native.launcher.greeting": "Démarrer une session",
+    "native.launcher.greetingInProject": "Travailler dans {project}",
+    "native.launcher.askPlaceholder": "Demander à {agent}…",
+    "native.launcher.localAgents": "Agents locaux",
+    "native.launcher.openInTerminal": "Ouvrir dans Terminal",
+    "native.launcher.recent": "Récents",
+    "native.launcher.allHistory": "Tout l’historique"
+  },
+  "de": {
+    "native.launcher.greeting": "Sitzung starten",
+    "native.launcher.greetingInProject": "In {project} arbeiten",
+    "native.launcher.askPlaceholder": "{agent} fragen…",
+    "native.launcher.localAgents": "Lokale Agents",
+    "native.launcher.openInTerminal": "In Terminal öffnen",
+    "native.launcher.recent": "Zuletzt verwendet",
+    "native.launcher.allHistory": "Gesamter Verlauf"
   }
 }"#;
 

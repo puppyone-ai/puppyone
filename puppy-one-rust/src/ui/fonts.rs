@@ -73,11 +73,18 @@ static MEASURED: std::sync::OnceLock<[std::collections::BTreeMap<u16, f32>; 3]> 
 const MEASURED_WEIGHTS: [u16; 4] = [400, 500, 600, 700];
 
 /// Measure "0" in the configured faces, to the thousandth of an em; a
-/// result outside any text face's range (a test text system) is dropped.
+/// synthetic test text system (which resolves every family to one dummy face)
+/// or any result outside a real text face's range is dropped.
 fn measure(cx: &App) {
+    let faces = crate::platform::fonts::faces();
+    let text = cx.text_system();
+    let missing = text.resolve_font(&gpui::font(MISSING));
+    if text.resolve_font(&gpui::font(faces.sans.family)) == missing
+        && text.resolve_font(&gpui::font(faces.mono.family)) == missing
+    {
+        return;
+    }
     MEASURED.get_or_init(|| {
-        let faces = crate::platform::fonts::faces();
-        let text = cx.text_system();
         [faces.sans.family, faces.serif.family, faces.mono.family].map(|family| {
             MEASURED_WEIGHTS
                 .iter()
