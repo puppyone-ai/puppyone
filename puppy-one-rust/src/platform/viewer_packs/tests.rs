@@ -21,7 +21,15 @@ fn make_tar_gz(entries: &[(&str, &[u8])]) -> Vec<u8> {
 #[test]
 fn pinned_excalidraw_spec_parses_digests_and_fonts() {
     let spec = excalidraw_spec();
-    assert!(!spec.version.is_empty());
+    assert_eq!(
+        spec.version,
+        excalidraw_pack_version("0.18.1", &spec.script_sha256, &spec.style_sha256)
+    );
+    assert!(spec.version.starts_with("0.18.1-b"), "{}", spec.version);
+    assert_ne!(
+        excalidraw_pack_version("0.18.1", &spec.script_sha256, &spec.style_sha256),
+        excalidraw_pack_version("0.18.1", &spec.script_sha256, "000000000000")
+    );
     assert_eq!(spec.script_sha256.len(), 64);
     assert_eq!(spec.style_sha256.len(), 64);
     assert!(spec.fonts.len() >= 200);

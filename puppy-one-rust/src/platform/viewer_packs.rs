@@ -35,6 +35,18 @@ pub struct ExcalidrawPack {
     pub dir: PathBuf,
 }
 
+/// Derive an immutable SemVer pack version from the pinned Excalidraw SDK
+/// version and compiled bundle digests so CSS/JS bridge changes never collide
+/// with already-published immutable CDN objects for the same upstream SDK.
+pub(crate) fn excalidraw_pack_version(
+    sdk_version: &str,
+    script_sha256: &str,
+    style_sha256: &str,
+) -> String {
+    let digest = sha256_hex(format!("{script_sha256}:{style_sha256}").as_bytes());
+    format!("{sdk_version}-b{}", &digest[..12])
+}
+
 pub fn excalidraw_spec() -> &'static ExcalidrawSpec {
     static SPEC: OnceLock<ExcalidrawSpec> = OnceLock::new();
     SPEC.get_or_init(|| {
@@ -44,10 +56,9 @@ pub fn excalidraw_spec() -> &'static ExcalidrawSpec {
         let font_manifest: serde_json::Value =
             serde_json::from_str(include_str!("../../assets/web/excalidraw-fonts.json"))
                 .expect("valid excalidraw font manifest");
-        let version = font_manifest["version"]
+        let sdk_version = font_manifest["version"]
             .as_str()
-            .expect("excalidraw version")
-            .to_owned();
+            .expect("excalidraw version");
         let script_sha256 = receipt["outputs"]["excalidraw.js"]
             .as_str()
             .expect("excalidraw.js sha256")
@@ -56,6 +67,7 @@ pub fn excalidraw_spec() -> &'static ExcalidrawSpec {
             .as_str()
             .expect("excalidraw.css sha256")
             .to_owned();
+        let version = excalidraw_pack_version(sdk_version, &script_sha256, &style_sha256);
         let fonts = font_manifest["fonts"]
             .as_object()
             .expect("excalidraw fonts map")
