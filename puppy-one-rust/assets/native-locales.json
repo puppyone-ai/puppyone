@@ -222,14 +222,15 @@
       "native.space.transferRule": "Transferring makes you a member of {space}.",
       "native.space.transferAction": "Transfer",
       "native.start.dropLocal": "Or drag files or folders from Finder here",
-      "native.start.dropCloud": "Or drag files from your computer here to upload",
-      "native.start.addAgent": "Add an agent",
+      "native.start.dropCloud": "Or drag files from your computer here",
       "native.start.emptyProject": "This project has no files yet",
       "native.start.noOpenFile": "No open files",
       "native.start.recent": "Recently opened",
       "native.explorer.empty": "No files yet",
       "native.start.renameLater": "New files open right away. Rename them anytime.",
-      "native.start.askAgent": "Let {name} do it"
+      "native.start.askAgent": "Let {name} do it",
+      "native.start.handTitle": "Hand this project to your agent",
+      "native.start.joinedHint": "Tell it what to make in your chat with it. Its files show up here."
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -452,14 +453,15 @@
       "native.space.transferRule": "转让后，你会成为 {space} 的成员。",
       "native.space.transferAction": "转让",
       "native.start.dropLocal": "或者从访达把文件、文件夹拖到这里",
-      "native.start.dropCloud": "或者把电脑上的文件拖到这里上传",
-      "native.start.addAgent": "添加 Agent",
+      "native.start.dropCloud": "或者把电脑上的文件拖到这里",
       "native.start.emptyProject": "这个项目还没有文件",
       "native.start.noOpenFile": "没有打开的文件",
       "native.start.recent": "最近打开",
       "native.explorer.empty": "还没有文件",
       "native.start.renameLater": "新文件会直接建好并打开，名字随时能改。",
-      "native.start.askAgent": "让 {name} 来做"
+      "native.start.askAgent": "让 {name} 来做",
+      "native.start.handTitle": "把这个项目交给 Agent",
+      "native.start.joinedHint": "回到你和它的对话，告诉它要做什么。它做的文件会出现在这里。"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -682,14 +684,15 @@
       "native.space.transferRule": "譲渡すると、あなたは {space} のメンバーになります。",
       "native.space.transferAction": "譲渡",
       "native.start.dropLocal": "または Finder からファイルやフォルダをここにドラッグ",
-      "native.start.dropCloud": "またはコンピュータのファイルをここにドラッグしてアップロード",
-      "native.start.addAgent": "Agent を追加",
+      "native.start.dropCloud": "またはコンピュータのファイルをここにドラッグ",
       "native.start.emptyProject": "このプロジェクトにはまだファイルがありません",
       "native.start.noOpenFile": "開いているファイルはありません",
       "native.start.recent": "最近開いたファイル",
       "native.explorer.empty": "まだファイルがありません",
       "native.start.renameLater": "新しいファイルはすぐに作成されて開きます。名前はいつでも変更できます。",
-      "native.start.askAgent": "{name} に任せる"
+      "native.start.askAgent": "{name} に任せる",
+      "native.start.handTitle": "このプロジェクトを Agent に任せる",
+      "native.start.joinedHint": "Agent とのチャットで作ってほしいものを伝えてください。ファイルはここに表示されます。"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -912,14 +915,15 @@
       "native.space.transferRule": "이전하면 내가 {space}의 멤버가 됩니다.",
       "native.space.transferAction": "이전",
       "native.start.dropLocal": "또는 Finder에서 파일이나 폴더를 여기로 끌어다 놓으세요",
-      "native.start.dropCloud": "또는 컴퓨터의 파일을 여기로 끌어다 업로드하세요",
-      "native.start.addAgent": "Agent 추가",
+      "native.start.dropCloud": "또는 컴퓨터의 파일을 여기로 끌어 오세요",
       "native.start.emptyProject": "이 프로젝트에는 아직 파일이 없습니다",
       "native.start.noOpenFile": "열린 파일 없음",
       "native.start.recent": "최근에 연 파일",
       "native.explorer.empty": "아직 파일이 없습니다",
       "native.start.renameLater": "새 파일은 바로 만들어져 열립니다. 이름은 언제든 바꿀 수 있어요.",
-      "native.start.askAgent": "{name}에게 맡기기"
+      "native.start.askAgent": "{name}에게 맡기기",
+      "native.start.handTitle": "이 프로젝트를 Agent에게 맡기기",
+      "native.start.joinedHint": "Agent와의 대화에서 무엇을 만들지 알려 주세요. 만든 파일은 여기에 나타납니다."
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -1142,14 +1146,15 @@
       "native.space.transferRule": "Al transferirlo pasas a ser miembro de {space}.",
       "native.space.transferAction": "Transferir",
       "native.start.dropLocal": "O arrastra archivos o carpetas aquí desde el Finder",
-      "native.start.dropCloud": "O arrastra archivos desde tu ordenador aquí para subirlos",
-      "native.start.addAgent": "Añadir Agent",
+      "native.start.dropCloud": "O arrastra aquí archivos de tu ordenador",
       "native.start.emptyProject": "Este proyecto todavía no tiene archivos",
       "native.start.noOpenFile": "No hay archivos abiertos",
       "native.start.recent": "Abiertos recientemente",
       "native.explorer.empty": "Todavía no hay archivos",
       "native.start.renameLater": "Los archivos nuevos se crean y se abren al instante. Puedes cambiarles el nombre cuando quieras.",
-      "native.start.askAgent": "Que lo haga {name}"
+      "native.start.askAgent": "Que lo haga {name}",
+      "native.start.handTitle": "Encarga este proyecto a tu agente",
+      "native.start.joinedHint": "Dile qué hacer en tu chat con él. Sus archivos aparecerán aquí."
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -1372,14 +1377,15 @@
       "native.space.transferRule": "Ao transferir, você passa a ser membro de {space}.",
       "native.space.transferAction": "Transferir",
       "native.start.dropLocal": "Ou arraste arquivos ou pastas do Finder para cá",
-      "native.start.dropCloud": "Ou arraste arquivos do seu computador para cá para enviar",
-      "native.start.addAgent": "Adicionar Agent",
+      "native.start.dropCloud": "Ou arraste arquivos do seu computador para cá",
       "native.start.emptyProject": "Este projeto ainda não tem arquivos",
       "native.start.noOpenFile": "Nenhum arquivo aberto",
       "native.start.recent": "Abertos recentemente",
       "native.explorer.empty": "Ainda não há arquivos",
       "native.start.renameLater": "Novos arquivos são criados e abertos na hora. Você pode renomeá-los quando quiser.",
-      "native.start.askAgent": "Deixar o {name} fazer"
+      "native.start.askAgent": "Deixar o {name} fazer",
+      "native.start.handTitle": "Entregue este projeto ao seu agente",
+      "native.start.joinedHint": "Diga o que fazer na sua conversa com ele. Os arquivos aparecem aqui."
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -1602,14 +1608,15 @@
       "native.space.transferRule": "Après le transfert, vous devenez membre de {space}.",
       "native.space.transferAction": "Transférer",
       "native.start.dropLocal": "Ou glissez des fichiers ou dossiers ici depuis le Finder",
-      "native.start.dropCloud": "Ou glissez des fichiers depuis votre ordinateur ici pour les importer",
-      "native.start.addAgent": "Ajouter un Agent",
+      "native.start.dropCloud": "Ou glissez ici des fichiers de votre ordinateur",
       "native.start.emptyProject": "Ce projet ne contient encore aucun fichier",
       "native.start.noOpenFile": "Aucun fichier ouvert",
       "native.start.recent": "Ouverts récemment",
       "native.explorer.empty": "Aucun fichier pour l’instant",
       "native.start.renameLater": "Les nouveaux fichiers sont créés et ouverts aussitôt. Vous pouvez les renommer à tout moment.",
-      "native.start.askAgent": "Laisser {name} s’en charger"
+      "native.start.askAgent": "Laisser {name} s’en charger",
+      "native.start.handTitle": "Confiez ce projet à votre agent",
+      "native.start.joinedHint": "Dites-lui quoi faire dans votre conversation. Ses fichiers apparaîtront ici."
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1832,14 +1839,15 @@
       "native.space.transferRule": "Nach der Übertragung bist du Mitglied von {space}.",
       "native.space.transferAction": "Übertragen",
       "native.start.dropLocal": "Oder Dateien oder Ordner aus dem Finder hierher ziehen",
-      "native.start.dropCloud": "Oder Dateien vom Computer zum Hochladen hierher ziehen",
-      "native.start.addAgent": "Agent hinzufügen",
+      "native.start.dropCloud": "Oder zieh Dateien von deinem Computer hierher",
       "native.start.emptyProject": "Dieses Projekt enthält noch keine Dateien",
       "native.start.noOpenFile": "Keine geöffneten Dateien",
       "native.start.recent": "Zuletzt geöffnet",
       "native.explorer.empty": "Noch keine Dateien",
       "native.start.renameLater": "Neue Dateien werden sofort angelegt und geöffnet. Umbenennen geht jederzeit.",
-      "native.start.askAgent": "{name} machen lassen"
+      "native.start.askAgent": "{name} machen lassen",
+      "native.start.handTitle": "Übergib dieses Projekt deinem Agenten",
+      "native.start.joinedHint": "Sag ihm im Chat, was es machen soll. Seine Dateien erscheinen hier."
     }
   }
 }

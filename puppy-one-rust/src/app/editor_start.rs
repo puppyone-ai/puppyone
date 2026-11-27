@@ -6,18 +6,22 @@
 //! row makes an `Untitled` file at once and opens it.
 use super::editor_area::{EditorArea, EditorEvent};
 use crate::{
-    features::create_new::Entry,
+    features::{
+        cloud::{CloudAgents, CopyStatus, InvitePhase},
+        create_new::Entry,
+    },
     localization::{t as tr, tf},
     theme::{self, Theme, metric},
     ui::{
         agent_brand_mark::{AgentMark, brand_image},
+        agent_brands,
         appearance::ActiveAppearance,
-        components::{FileIcon, Icon},
+        components::{Button, ButtonVariant, FileIcon, Icon},
     },
 };
 use gpui::{prelude::*, *};
 use gpui_kit::{
-    base::{h_flex, v_flex},
+    base::{Disableable as _, h_flex, v_flex},
     component::Sizable as _,
 };
 use std::path::{Path, PathBuf};
@@ -38,6 +42,190 @@ pub(super) struct StartContext {
     pub loading: bool,
     pub cloud_agents_manageable: bool,
     pub local_agents: Vec<StartAgent>,
+    /// Where handing a Cloud project to an Agent stands.
+    pub invite: StartInvite,
+    /// What went wrong copying or answering, as a catalog key.
+    pub invite_alert: Option<&'static str>,
+}
+
+/// The empty Cloud project's hand-off, as the Agents' invite stands.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) enum StartInvite {
+    /// Nothing copied yet.
+    #[default]
+    Give,
+    /// The invite is being made.
+    Copying,
+    /// The message is out; no Agent has asked yet.
+    Waiting,
+    /// The message lapsed with nobody asking.
+    Lapsed,
+    /// An Agent asks to join.
+    Knocking {
+        request: String,
+        name: String,
+        deciding: bool,
+    },
+    /// Let in, not connected yet.
+    Connecting(String),
+    /// In the project: the hand-off is done.
+    Joined(String),
+}
+impl StartInvite {
+    pub(super) fn of(agents: &CloudAgents) -> Self {
+        let joined = || {
+            agents
+                .joined()
+                .map(|a| a.agent.name.clone())
+                .unwrap_or_default()
+        };
+        match agents.invite_phase() {
+            InvitePhase::Joined => Self::Joined(joined()),
+            InvitePhase::Connecting => Self::Connecting(joined()),
+            InvitePhase::Knocking => {
+                agents
+                    .requests
+                    .first()
+                    .map_or(Self::Waiting, |r| Self::Knocking {
+                        request: r.id.clone(),
+                        name: r.name.clone(),
+                        deciding: agents.deciding.contains(&r.id),
+                    })
+            }
+            InvitePhase::Waiting => Self::Waiting,
+            InvitePhase::Give if agents.copy == CopyStatus::Copying => Self::Copying,
+            // An Agent already in the project ends the hand-off, whenever
+            // it came.
+            InvitePhase::Give | InvitePhase::Lapsed if !agents.agents.is_empty() => Self::Joined(
+                agents
+                    .agents
+                    .iter()
+                    .find(|a| a.active)
+                    .or(agents.agents.first())
+                    .map(|a| a.agent.name.clone())
+                    .unwrap_or_default(),
+            ),
+            InvitePhase::Give => Self::Give,
+            InvitePhase::Lapsed => Self::Lapsed,
+        }
+    }
+}
+/// A failed copy or answer, said under the hand-off.
+pub(super) fn invite_alert(agents: &CloudAgents) -> Option<&'static str> {
+    match agents.copy {
+        CopyStatus::Failed => Some("cloud.share.agent.failed"),
+        CopyStatus::NotOwner => Some("cloud.share.agent.notOwner"),
+        _ => agents
+            .decision_failed
+            .then_some("cloud.share.agent.changeFailed"),
+    }
+}
+
+/// The cloud Agents a Cloud project is handed to (the README's table).
+const HANDOFF_BRANDS: [&str; 6] = ["chatgpt", "claude", "grok-bot", "manus", "muse", "viktor"];
+const MARK: f32 = 24.;
+const MARK_STEP: f32 = 17.;
+
+/// The marks side by side, each over the last, in a box sized for them:
+/// overlapping children made with negative margins do not size their flex
+/// parent in GPUI, so each is placed absolutely. Every mark sits on the
+/// same white disc (most are drawn for white), a ring of canvas between
+/// neighbours; full-bleed artwork fills its disc.
+fn brand_stack(t: Theme) -> Div {
+    let brands: Vec<_> = HANDOFF_BRANDS
+        .iter()
+        .filter_map(|id| agent_brands::get(id))
+        .collect();
+    let width = MARK + MARK_STEP * (brands.len().max(1) - 1) as f32;
+    div()
+        .relative()
+        .flex_none()
+        .w(px(width))
+        .h(px(MARK))
+        .children(brands.into_iter().enumerate().map(|(i, brand)| {
+            let fills = agent_brands::tile(brand) || matches!(brand.id, "muse" | "viktor");
+            let mark: AnyElement = if fills {
+                agent_brands::artwork(brand, false, MARK)
+                    .rounded_full()
+                    .into_any_element()
+            } else if brand.id == "claude" {
+                // Claude's own orange mark, as on the README, not Claude Code's.
+                img("agents/claude.png")
+                    .size(px(MARK * 0.86))
+                    .flex_none()
+                    .into_any_element()
+            } else if let Some(path) = agent_brands::monochrome(brand) {
+                svg()
+                    .path(path)
+                    .size(px(MARK * 0.58))
+                    .text_color(gpui::rgb(0x0d0d0d))
+                    .into_any_element()
+            } else {
+                agent_brands::artwork(brand, false, MARK * 0.62 * brand.scale).into_any_element()
+            };
+            div()
+                .absolute()
+                .left(px(i as f32 * MARK_STEP - 1.5))
+                .top(px(-1.5))
+                .size(px(MARK + 3.))
+                .rounded_full()
+                .bg(t.canvas)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    div()
+                        .size(px(MARK))
+                        .rounded_full()
+                        .overflow_hidden()
+                        .bg(gpui::rgb(0xffffff))
+                        .border_1()
+                        .border_color(theme::alpha(t.text, 0.12))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(mark),
+                )
+        }))
+}
+
+/// `Copy message` with the Agents it works with: the prompt itself stays
+/// out of sight.
+fn handoff_pill(label: impl Into<SharedString>, enabled: bool, t: Theme) -> Stateful<Div> {
+    h_flex()
+        .id("editor-start-copy-invite")
+        .debug_selector(|| "editor-start-copy-invite".into())
+        .h(px(38.))
+        .pl(px(7.))
+        .pr(px(16.))
+        .gap(px(10.))
+        .items_center()
+        .rounded(px(19.))
+        .border_1()
+        .border_color(t.divider)
+        .bg(t.canvas)
+        .text_size(px(theme::ty().ui.control))
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(t.text)
+        .when(enabled, |d| {
+            d.cursor(theme::clickable_cursor())
+                .hover(move |d| d.bg(t.hover))
+        })
+        .when(!enabled, |d| d.opacity(0.6))
+        .child(brand_stack(t))
+        .child(label.into())
+}
+
+/// One quiet status line in the hand-off: a dot in `dot`, then the text.
+fn status_line(text: impl Into<SharedString>, dot: Rgba, t: Theme) -> Div {
+    h_flex()
+        .gap(px(8.))
+        .items_center()
+        .text_size(px(theme::ty().ui.control))
+        .line_height(px(18.))
+        .text_color(t.text)
+        .child(div().size(px(7.)).flex_none().rounded_full().bg(dot))
+        .child(text.into())
 }
 
 fn kind_selector(entry: Entry) -> &'static str {
@@ -135,6 +323,22 @@ impl EditorArea {
     /// Whether the empty-project start view is currently active and accepting
     /// file drops into the project root (suppresses the WB-21 split preview).
     pub(super) fn shows_empty_start(&self, cx: &App) -> bool {
+        self.empty_start_visible(cx)
+            && self
+                .explorer
+                .read(cx)
+                .workspace()
+                .is_some_and(|ws| ws.capabilities().import)
+    }
+
+    /// Whether the empty Cloud project's hand-off is on screen, answering
+    /// the Agents' requests in place of the Header.
+    pub(super) fn shows_cloud_handoff(&self, cx: &App) -> bool {
+        self.start.hosted && self.start.cloud_agents_manageable && self.empty_start_visible(cx)
+    }
+
+    /// The empty-project start view is on screen.
+    fn empty_start_visible(&self, cx: &App) -> bool {
         if self.file_mode {
             return false;
         }
@@ -150,10 +354,7 @@ impl EditorArea {
         let rows = explorer.tree().rows.len();
         let loading = self.start.loading
             || (rows == 0 && (docs.folder_busy || docs.cloud_opening().is_some()));
-        let takes_files = explorer
-            .workspace()
-            .is_some_and(|ws| ws.capabilities().import);
-        rows == 0 && !loading && listed && takes_files
+        rows == 0 && !loading && listed
     }
 
     /// The start list for a project with no files (`rows == 0`), or the
@@ -240,11 +441,19 @@ impl EditorArea {
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let handoff = self.start.hosted && self.start.cloud_agents_manageable;
         let list = v_flex()
             .w(px(LIST_WIDTH))
             .max_w_full()
             .mt(px(-40.))
-            .child(heading(tr("native.start.emptyProject"), t));
+            .child(heading(
+                tr(if handoff {
+                    "native.start.handTitle"
+                } else {
+                    "native.start.emptyProject"
+                }),
+                t,
+            ));
         // Read-only project: the heading alone.
         if !can_create && !takes_files {
             return list
@@ -261,8 +470,13 @@ impl EditorArea {
         let creates = !kinds.is_empty();
         let rows = self.create_rows(kinds, t, cx);
         let agents = self.render_start_agents(hosted, t, cx);
+        let handoff = handoff.then(|| self.render_handoff(t, cx));
         list.id("editor-start-empty")
             .debug_selector(|| "editor-start-empty".into())
+            .when_some(handoff, |d, handoff| {
+                d.child(handoff)
+                    .when(creates, |d| d.child(separator(t).my(px(16.))))
+            })
             .when(creates, |d| {
                 d.child(
                     note(tr("native.start.renameLater"), t)
@@ -290,8 +504,8 @@ impl EditorArea {
             .into_any_element()
     }
 
-    /// The Agent rows: a Cloud project's Add an agent, or this computer's
-    /// detected Agents, each starting a chat in the right sidebar.
+    /// The local Agent rows: this computer's detected Agents, each starting
+    /// a chat in the right sidebar. A Cloud project has its hand-off instead.
     fn render_start_agents(
         &self,
         hosted: bool,
@@ -305,27 +519,7 @@ impl EditorArea {
                 .w_full()
         };
         if hosted {
-            return self.start.cloud_agents_manageable.then(|| {
-                frame()
-                    .child(
-                        start_row(
-                            "editor-start-invite-agent",
-                            "editor-start-invite-agent".into(),
-                            t,
-                        )
-                        .child(glyph_slot(
-                            Icon::new("bot")
-                                .with_size(px(15.))
-                                .stroke(1.6)
-                                .color(t.muted),
-                        ))
-                        .child(tr("native.start.addAgent"))
-                        .on_click(cx.listener(|_, _, _, cx| {
-                            cx.emit(EditorEvent::InviteCloudAgent);
-                        })),
-                    )
-                    .into_any_element()
-            });
+            return None;
         }
         (!self.start.local_agents.is_empty()).then(|| {
             let rows = self
@@ -361,6 +555,172 @@ impl EditorArea {
                 });
             frame().children(rows).into_any_element()
         })
+    }
+
+    /// The empty Cloud project's hand-off, in place: `Copy message` with the
+    /// Agents it works with, then the wait, the Agent asking to join and
+    /// answered here, and the Agent in. Letting it in ends the onboarding;
+    /// its first file ends this view.
+    fn render_handoff(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+        let copy = |key: &'static str, cx: &mut Context<Self>| {
+            handoff_pill(tr(key), true, t).on_click(cx.listener(|_, _, _, cx| {
+                cx.emit(EditorEvent::CopyInvite);
+            }))
+        };
+        let body: AnyElement = match &self.start.invite {
+            StartInvite::Give => copy("native.agentInvite.copy", cx).into_any_element(),
+            StartInvite::Copying => {
+                handoff_pill(tr("native.agentInvite.copy"), false, t).into_any_element()
+            }
+            StartInvite::Waiting => v_flex()
+                .gap(px(12.))
+                .items_start()
+                .child(copy("native.agentInvite.copyAgain", cx))
+                .child(
+                    v_flex()
+                        .id("editor-start-waiting")
+                        .debug_selector(|| "editor-start-waiting".into())
+                        .gap(px(2.))
+                        .child(status_line(tr("native.agentInvite.paste"), t.accent, t))
+                        .child(
+                            div()
+                                .pl(px(15.))
+                                .child(note(tr("native.agentInvite.waiting"), t).px_0()),
+                        ),
+                )
+                .into_any_element(),
+            StartInvite::Lapsed => v_flex()
+                .gap(px(10.))
+                .items_start()
+                .child(note(tr("native.agentInvite.lapsed"), t).px_0())
+                .child(copy("native.agentInvite.renew", cx))
+                .into_any_element(),
+            StartInvite::Knocking {
+                request,
+                name,
+                deciding,
+            } => {
+                let answer = |allow: bool, request: String| {
+                    cx.listener(move |_, _, _, cx| {
+                        cx.emit(EditorEvent::AnswerAgent {
+                            request: request.clone(),
+                            allow,
+                        });
+                    })
+                };
+                v_flex()
+                    .id("editor-start-knock")
+                    .debug_selector(|| "editor-start-knock".into())
+                    .w_full()
+                    .p(px(12.))
+                    .rounded(px(10.))
+                    .bg(theme::alpha(t.accent, 0.08))
+                    .border_1()
+                    .border_color(theme::alpha(t.accent, 0.35))
+                    .child(
+                        div()
+                            .text_size(px(theme::ty().ui.control))
+                            .line_height(px(18.))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.text)
+                            .child(tf(
+                                "native.agentInvite.wants",
+                                &[("name", name.clone().into())],
+                            )),
+                    )
+                    .child(note(tr("native.agentInvite.access"), t).px_0().mt(px(2.)))
+                    .child(
+                        h_flex()
+                            .mt(px(10.))
+                            .justify_end()
+                            .gap(px(8.))
+                            .child(
+                                Button::new("editor-start-deny")
+                                    .debug_selector(|| "editor-start-deny".into())
+                                    .variant(ButtonVariant::Ghost)
+                                    .label(tr("cloud.share.agent.request.deny"))
+                                    .disabled(*deciding)
+                                    .on_click(answer(false, request.clone())),
+                            )
+                            .child(
+                                Button::new("editor-start-allow")
+                                    .debug_selector(|| "editor-start-allow".into())
+                                    .variant(ButtonVariant::FilledPrimary)
+                                    .label(tr("native.agentInvite.letIn"))
+                                    .disabled(*deciding)
+                                    .on_click(answer(true, request.clone())),
+                            ),
+                    )
+                    .into_any_element()
+            }
+            StartInvite::Connecting(name) => v_flex()
+                .id("editor-start-connecting")
+                .debug_selector(|| "editor-start-connecting".into())
+                .gap(px(2.))
+                .child(status_line(
+                    tf(
+                        "native.agentInvite.connecting",
+                        &[("name", name.clone().into())],
+                    ),
+                    t.accent,
+                    t,
+                ))
+                .child(
+                    div()
+                        .pl(px(15.))
+                        .child(note(tr("native.agentInvite.connectingHint"), t).px_0()),
+                )
+                .into_any_element(),
+            StartInvite::Joined(name) => v_flex()
+                .id("editor-start-joined")
+                .debug_selector(|| "editor-start-joined".into())
+                .gap(px(2.))
+                .child(status_line(
+                    tf(
+                        "native.agentInvite.joined",
+                        &[("name", name.clone().into())],
+                    ),
+                    t.success,
+                    t,
+                ))
+                .child(
+                    div()
+                        .pl(px(15.))
+                        .child(note(tr("native.start.joinedHint"), t).px_0()),
+                )
+                .into_any_element(),
+        };
+        v_flex()
+            .id("editor-start-handoff")
+            .debug_selector(|| "editor-start-handoff".into())
+            .px(px(metric::MENU_ITEM_PADDING_INLINE))
+            .mt(px(2.))
+            .items_start()
+            .when(
+                matches!(self.start.invite, StartInvite::Give | StartInvite::Copying),
+                |d| {
+                    d.child(
+                        note(tr("native.agentInvite.sendHint"), t)
+                            .px_0()
+                            .mb(px(14.)),
+                    )
+                },
+            )
+            .when(
+                !matches!(self.start.invite, StartInvite::Give | StartInvite::Copying),
+                |d| d.mt(px(12.)),
+            )
+            .child(body)
+            .when_some(self.start.invite_alert, |d, key| {
+                d.child(
+                    div()
+                        .mt(px(8.))
+                        .text_size(px(theme::ty().ui.meta))
+                        .text_color(t.danger)
+                        .child(tr(key)),
+                )
+            })
+            .into_any_element()
     }
 
     fn render_no_open_file(

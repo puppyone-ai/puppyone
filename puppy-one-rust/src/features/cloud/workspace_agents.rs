@@ -105,6 +105,9 @@ pub struct CloudAgents {
     pub opener: Opener,
     /// The dialog shows the invite rather than the roster.
     pub invite_open: bool,
+    /// The empty Cloud project's start view shows the invite and answers
+    /// requests itself, so the Header leaves its request card out.
+    pub inline: bool,
     /// Where the invite stands.
     pub invite_flow: Invite,
     /// The Agents here when the message went out, so a newcomer is known.
@@ -180,6 +183,7 @@ impl CloudAgents {
             invite_timer: None,
             opener: Opener::More,
             invite_open: false,
+            inline: false,
             invite_flow: Invite::Give,
             baseline: HashSet::new(),
             turned_away: None,
@@ -306,6 +310,13 @@ impl CloudAgents {
             if visible {
                 self.refresh(cx);
             }
+        }
+    }
+    /// Whether the start view answers requests in place of the Header.
+    pub fn set_inline(&mut self, inline: bool, cx: &mut Context<Self>) {
+        if self.inline != inline {
+            self.inline = inline;
+            cx.notify();
         }
     }
     /// An invite is out and no Agent has answered it yet.

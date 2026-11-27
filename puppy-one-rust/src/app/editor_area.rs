@@ -53,8 +53,10 @@ pub(super) enum EditorEvent {
     DropExternal(Vec<std::path::PathBuf>),
     /// Start view local Agent chip: open right sidebar chat on `runtime_id`.
     LaunchLocalAgent(String),
-    /// Start view Cloud "Add an agent" chip: open the two-step invite dialog.
-    InviteCloudAgent,
+    /// Cloud start view: copy a new invite message (`Copy message`).
+    CopyInvite,
+    /// Cloud start view: let an Agent asking to join in, or turn it away.
+    AnswerAgent { request: String, allow: bool },
     /// Quiet no-open-file list: open a recently viewed project file.
     OpenFile(std::path::PathBuf),
 }

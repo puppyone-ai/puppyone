@@ -1262,8 +1262,9 @@ impl WindowCloud {
     /// Deny into keyboard reach.
     fn request_card(&self, cx: &App) -> Option<AnyElement> {
         let agents = self.agents.read(cx);
-        // The open dialog answers it instead, never a second overlay.
-        if !agents.manageable || self.dialog_open(DialogKey::Agents, cx) {
+        // The open dialog, or the empty project's start view, answers it
+        // instead: never a second place to say yes.
+        if !agents.manageable || agents.inline || self.dialog_open(DialogKey::Agents, cx) {
             return None;
         }
         let request = agents.requests.first()?;

@@ -2,7 +2,7 @@
 //! in the single empty editor pane, plus the Explorer empty-state note.
 use super::*;
 use crate::{
-    app::editor_start::{StartAgent, StartContext},
+    app::editor_start::{StartAgent, StartContext, StartInvite},
     editor::workbench::layout::Direction,
     features::create_new::Entry,
 };
@@ -318,6 +318,7 @@ fn start_view_agent_row_follows_local_and_cloud_context(cx: &mut TestAppContext)
                     loading: false,
                     cloud_agents_manageable: false,
                     local_agents: Vec::new(),
+                    ..Default::default()
                 },
                 cx,
             )
@@ -339,6 +340,7 @@ fn start_view_agent_row_follows_local_and_cloud_context(cx: &mut TestAppContext)
                         icon_key: "claude",
                         label: "Claude Code".into(),
                     }],
+                    ..Default::default()
                 },
                 cx,
             )
@@ -348,37 +350,49 @@ fn start_view_agent_row_follows_local_and_cloud_context(cx: &mut TestAppContext)
     assert!(cx.debug_bounds("editor-start-agent-row").is_some());
     assert!(cx.debug_bounds("editor-start-agent:claude").is_some());
 
-    // Cloud with manageable == false: invite chip is hidden.
-    view.update(cx, |s, cx| {
-        s.editor.update(cx, |e, cx| {
-            e.set_start_context(
-                StartContext {
-                    hosted: true,
-                    loading: false,
-                    cloud_agents_manageable: false,
-                    local_agents: Vec::new(),
-                },
-                cx,
-            )
+    // A Cloud project its viewer cannot manage: no hand-off.
+    let cloud = |cx: &mut VisualTestContext, manageable: bool, invite: StartInvite| {
+        view.update(cx, |s, cx| {
+            s.editor.update(cx, |e, cx| {
+                e.set_start_context(
+                    StartContext {
+                        hosted: true,
+                        cloud_agents_manageable: manageable,
+                        invite,
+                        ..Default::default()
+                    },
+                    cx,
+                )
+            });
         });
-    });
-    draw(cx);
-    assert!(cx.debug_bounds("editor-start-invite-agent").is_none());
+        draw(cx);
+    };
+    cloud(cx, false, StartInvite::Give);
+    assert!(cx.debug_bounds("editor-start-copy-invite").is_none());
+    assert!(cx.debug_bounds("editor-start-agent-row").is_none());
 
-    // Cloud with manageable == true: invite chip appears.
-    view.update(cx, |s, cx| {
-        s.editor.update(cx, |e, cx| {
-            e.set_start_context(
-                StartContext {
-                    hosted: true,
-                    loading: false,
-                    cloud_agents_manageable: true,
-                    local_agents: Vec::new(),
-                },
-                cx,
-            )
-        });
-    });
-    draw(cx);
-    assert!(cx.debug_bounds("editor-start-invite-agent").is_some());
+    // Its owner hands it to an Agent from the start view, step by step.
+    cloud(cx, true, StartInvite::Give);
+    assert!(cx.debug_bounds("editor-start-handoff").is_some());
+    assert!(cx.debug_bounds("editor-start-copy-invite").is_some());
+    assert!(
+        view.read_with(cx, |s, cx| s.editor.read(cx).shows_cloud_handoff(cx)),
+        "the start view answers the Agents in place of the Header"
+    );
+    cloud(cx, true, StartInvite::Waiting);
+    assert!(cx.debug_bounds("editor-start-waiting").is_some());
+    cloud(
+        cx,
+        true,
+        StartInvite::Knocking {
+            request: "r1".into(),
+            name: "Claude".into(),
+            deciding: false,
+        },
+    );
+    assert!(cx.debug_bounds("editor-start-knock").is_some());
+    assert!(cx.debug_bounds("editor-start-allow").is_some());
+    assert!(cx.debug_bounds("editor-start-copy-invite").is_none());
+    cloud(cx, true, StartInvite::Joined("Claude".into()));
+    assert!(cx.debug_bounds("editor-start-joined").is_some());
 }

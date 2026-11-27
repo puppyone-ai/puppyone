@@ -779,7 +779,8 @@ impl Shell {
     }
     /// Window context read by the empty-project start view.
     pub(in crate::app) fn start_context(&self, cx: &App) -> editor_start::StartContext {
-        let hosted = self.hosted_project(cx).is_some();
+        // Dev captures stand a fixture Cloud project on a folder.
+        let hosted = self.hosted_project(cx).is_some() || self.cloud.read(cx).capture_hosted();
         let loading =
             self.opening(cx) || self.session.project.read(cx).picking || self.files(cx).folder_busy;
         let cloud_agents_manageable = hosted && self.cloud.read(cx).agents.read(cx).manageable;
@@ -800,11 +801,22 @@ impl Shell {
                 })
                 .collect()
         };
+        let (invite, invite_alert) = if cloud_agents_manageable {
+            let agents = self.cloud.read(cx).agents.read(cx);
+            (
+                editor_start::StartInvite::of(agents),
+                editor_start::invite_alert(agents),
+            )
+        } else {
+            Default::default()
+        };
         editor_start::StartContext {
             hosted,
             loading,
             cloud_agents_manageable,
             local_agents,
+            invite,
+            invite_alert,
         }
     }
     /// Observes local Agent discovery and Cloud Agent permissions so the
@@ -816,12 +828,23 @@ impl Shell {
         let cloud_agents = self.cloud.read(cx).agents.clone();
         cx.observe(&cloud_agents, |s, _, cx| s.sync_editor_start(cx))
             .detach();
+        // Files arriving or a file opening end the empty project's invite.
+        let explorer = self.explorer.session.clone();
+        cx.observe(&explorer, |s, _, cx| s.sync_editor_start(cx))
+            .detach();
+        let docs = self.session.docs.clone();
+        cx.observe(&docs, |s, _, cx| s.sync_editor_start(cx))
+            .detach();
     }
-    /// Pushes updated start-view context into the editor area.
+    /// Pushes updated start-view context into the editor area, and tells
+    /// the Cloud Agents whether the start view answers their requests.
     pub(in crate::app) fn sync_editor_start(&mut self, cx: &mut Context<Self>) {
         let start = self.start_context(cx);
         self.editor
             .update(cx, |e, cx| e.set_start_context(start, cx));
+        let inline = self.editor.read(cx).shows_cloud_handoff(cx);
+        let agents = self.cloud.read(cx).agents.clone();
+        agents.update(cx, |a, cx| a.set_inline(inline, cx));
     }
     /// Writes the active hosted Cloud project's current Explorer root file
     /// previews through to the shared Home SWR cache so returning Home never
@@ -867,9 +890,18 @@ impl Shell {
                 self.sidebar
                     .update(cx, |s, cx| s.launch_local_agent(&runtime_id, window, cx));
             }
-            editor_area::EditorEvent::InviteCloudAgent => {
-                self.cloud
-                    .update(cx, |c, cx| c.press_agents_invite(window, cx));
+            editor_area::EditorEvent::CopyInvite => {
+                let agents = self.cloud.read(cx).agents.clone();
+                agents.update(cx, |a, cx| {
+                    if a.invite_phase() == crate::features::cloud::InvitePhase::Lapsed {
+                        a.reset_invite(cx);
+                    }
+                    a.copy_invite(cx)
+                });
+            }
+            editor_area::EditorEvent::AnswerAgent { request, allow } => {
+                let agents = self.cloud.read(cx).agents.clone();
+                agents.update(cx, |a, cx| a.decide(request, *allow, cx));
             }
             editor_area::EditorEvent::OpenFile(path) => {
                 let path = path.clone();
