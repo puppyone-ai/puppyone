@@ -2,6 +2,7 @@ import { AcpRuntimeAdapter } from "../../protocols/acp/acp-runtime-adapter.mjs";
 import { JsonlRpcErrorResponse } from "../../transports/jsonl-rpc-connection.mjs";
 import { WORKBUDDY_HOST_ENVIRONMENT } from "./workbuddy-environment.mjs";
 import { requireWorkBuddyChannel } from "./workbuddy-channels.mjs";
+import { createWorkBuddyCompletionInspector } from "./workbuddy-completion-inspector.mjs";
 import { workBuddyConfigDirectory } from "./workbuddy-config-directory.mjs";
 import { workBuddyHistorySource } from "./workbuddy-history-source.mjs";
 
@@ -24,6 +25,7 @@ export class WorkBuddyAcpAdapter extends AcpRuntimeAdapter {
       },
       authenticationMethodId: channel.authenticationMethodId,
       isAlreadyAuthenticated: workBuddyIsAlreadyAuthenticated,
+      completionInspectorFactory: () => createWorkBuddyCompletionInspector(),
       processArgs: () => [...(readiness.argsPrefix ?? []), "--acp"],
       environmentOverlay: ({ environment }) => {
         const configDirectory = workBuddyConfigDirectory({ channel, environment });
@@ -40,10 +42,17 @@ export class WorkBuddyAcpAdapter extends AcpRuntimeAdapter {
   }
 }
 
+function userInfoHasUsableToken(userInfo) {
+  if (!userInfo || typeof userInfo !== "object" || Array.isArray(userInfo)) return false;
+  return ["accessToken", "token"].some((key) => (
+    typeof userInfo[key] === "string" && userInfo[key].trim().length > 0
+  ));
+}
+
 async function workBuddyIsAlreadyAuthenticated({ client }) {
   try {
     const response = await client.requestExtension("_codebuddy.ai/getUserInfo", {});
-    return Boolean(response?.userInfo && typeof response.userInfo === "object");
+    return userInfoHasUsableToken(response?.userInfo);
   } catch (error) {
     // Older ACP builds may not expose the read-only identity extension. They
     // retain the previous explicit-authentication behavior as a safe fallback.

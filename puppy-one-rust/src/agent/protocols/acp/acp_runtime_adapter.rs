@@ -622,7 +622,19 @@ impl Inner {
         let name = self.display_name();
         let config = self.session_config.borrow().clone();
         let models = public_models(&config, &self.runtime_id());
-        let account_ready = !models.is_empty() || self.authenticated_method_id.borrow().is_some();
+        let selected_auth_method = self.client().and_then(|client| {
+            self.authentication_method_selector
+                .as_ref()
+                .and_then(|selector| selector(&client.auth_methods()))
+                .map(|id| text(Some(&Value::from(id)), 160))
+                .filter(|id| !id.is_empty())
+        });
+        let requires_auth = self.authentication_method_id.is_some() || selected_auth_method.is_some();
+        let account_ready = if requires_auth {
+            self.authenticated_method_id.borrow().is_some()
+        } else {
+            !models.is_empty()
+        };
         let account = Obj::new()
             .set(
                 "account",
@@ -718,6 +730,26 @@ fn required_id(value: Option<&Value>, label: &str) -> AgentResult<String> {
 /// `value ?? fallback` for an optional field.
 fn present<'a>(value: Option<&'a Value>, fallback: Option<&'a Value>) -> Option<&'a Value> {
     value.filter(|v| !v.is_null()).or(fallback)
+}
+
+fn refusal_error_message(
+    completion: Option<&Value>,
+    response: &Value,
+    display_name: &str,
+) -> String {
+    for candidate in [
+        completion.and_then(|c| c.get("errorMessage")),
+        completion.and_then(|c| c.get("message")),
+        completion.and_then(|c| c.get("diagnostic")),
+        response.get("error").filter(|e| e.is_string()),
+        response.get("error").and_then(|e| e.get("message")),
+    ] {
+        let message = text(candidate, 1_000);
+        if !message.is_empty() {
+            return message;
+        }
+    }
+    format!("{display_name} refused the request.")
 }
 
 /// `AcpRuntimeAdapter`.
@@ -1386,37 +1418,86 @@ impl AcpRuntimeAdapter {
                             })
                         };
                         let stop_reason = text(response.get("stopReason"), 160);
-                        let payload = Obj::new()
-                            .set(
-                                "status",
-                                if interrupted {
-                                    "interrupted"
-                                } else {
-                                    "completed"
-                                },
-                            )
-                            .set(
-                                "stopReason",
-                                if stop_reason.is_empty() {
-                                    Value::Null
-                                } else {
-                                    Value::from(stop_reason)
-                                },
-                            )
-                            .spread(&completion.unwrap_or(Value::Null))
-                            .build();
-                        let kind = if interrupted {
-                            "turn.interrupted"
+                        if !interrupted && stop_reason == "refusal" {
+                            let message = refusal_error_message(
+                                completion.as_ref(),
+                                &response,
+                                &inner.display_name(),
+                            );
+                            let redacted = redact_secret_text(&message);
+                            let code = completion
+                                .as_ref()
+                                .and_then(|c| c.get("failureCode"))
+                                .and_then(Value::as_str)
+                                .filter(|s| !s.is_empty())
+                                .unwrap_or("ACP_PROMPT_REFUSED");
+                            let diagnostic = completion
+                                .as_ref()
+                                .and_then(|c| c.get("diagnostic"))
+                                .and_then(Value::as_str)
+                                .map(redact_secret_text)
+                                .filter(|d| !d.is_empty() && d != &redacted);
+                            let error_payload = Obj::new()
+                                .set("code", code)
+                                .set("message", redacted.as_str())
+                                .set("recoverable", true)
+                                .opt("diagnostic", diagnostic)
+                                .build();
+                            inner.emit(event(
+                                "provider.error",
+                                session.as_deref(),
+                                Some(&active.turn_id),
+                                None,
+                                error_payload,
+                            ));
+                            inner.emit(event(
+                                "turn.failed",
+                                session.as_deref(),
+                                Some(&active.turn_id),
+                                None,
+                                json!({ "status": "failed", "message": redacted }),
+                            ));
+                        } else if !interrupted && stop_reason == "cancelled" {
+                            inner.emit(event(
+                                "turn.interrupted",
+                                session.as_deref(),
+                                Some(&active.turn_id),
+                                None,
+                                json!({ "status": "interrupted" }),
+                            ));
                         } else {
-                            "turn.completed"
-                        };
-                        inner.emit(event(
-                            kind,
-                            session.as_deref(),
-                            Some(&active.turn_id),
-                            None,
-                            payload,
-                        ));
+                            let payload = Obj::new()
+                                .set(
+                                    "status",
+                                    if interrupted {
+                                        "interrupted"
+                                    } else {
+                                        "completed"
+                                    },
+                                )
+                                .set(
+                                    "stopReason",
+                                    if stop_reason.is_empty() {
+                                        Value::Null
+                                    } else {
+                                        Value::from(stop_reason)
+                                    },
+                                )
+                                .spread(&completion.unwrap_or(Value::Null))
+                                .build();
+                            let kind = if interrupted {
+                                "turn.interrupted"
+                            } else {
+                                "turn.completed"
+                            };
+                            inner.emit(event(
+                                kind,
+                                session.as_deref(),
+                                Some(&active.turn_id),
+                                None,
+                                payload,
+                            ));
+                        }
                     }
                     Err(error) if error.delivery_outcome.as_deref() == Some("unknown") => {
                         (inner.on_exit)(json!({

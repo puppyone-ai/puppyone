@@ -560,3 +560,85 @@ fn keeps_an_inline_display_mention_while_delivering_workspace_data_as_an_acp_res
         ]
     );
 }
+
+#[test]
+fn uses_an_interactive_timeout_for_acp_authenticate() {
+    run_local(async {
+        let connection = FakeConnection::new();
+        connection.result("authenticate", json!({}));
+        let client = client(&connection, AcpDelegate::default());
+        client
+            .authenticate(json!({ "methodId": "internal" }))
+            .await
+            .unwrap();
+        let request = connection.requests.borrow()[0].clone();
+        assert_eq!(request["method"], "authenticate");
+        assert_eq!(request["timeoutMs"], 180_000);
+    });
+}
+
+#[test]
+fn turns_acp_refusal_and_unrequested_cancel_into_non_completed_turn_events() {
+    use super::acp_runtime_adapter::{AcpAdapterOptions, AcpRuntimeAdapter};
+    use crate::agent::runtime::agent_runtime_port::AgentRuntimeAdapter;
+    use std::cell::RefCell;
+
+    run_local(async {
+        for (stop_reason, expected_terminal, expects_provider_error) in [
+            ("refusal", "turn.failed", true),
+            ("cancelled", "turn.interrupted", false),
+        ] {
+            let connection = FakeConnection::new();
+            connection.result(
+                "initialize",
+                json!({
+                    "protocolVersion": 1,
+                    "agentInfo": { "name": "Fixture ACP", "version": "1.0.0" },
+                    "agentCapabilities": {},
+                    "authMethods": [],
+                }),
+            );
+            connection.result("session/new", json!({ "sessionId": "session-1" }));
+            connection.result("session/prompt", json!({ "stopReason": stop_reason }));
+
+            let events: Rc<RefCell<Vec<Value>>> = Rc::default();
+            let recorded = events.clone();
+            let mut options = AcpAdapterOptions::new(
+                json!({ "executablePath": "/tools/fixture", "environment": {} }),
+                "/workspace",
+                json!({ "id": "fixture", "displayName": "Fixture ACP" }),
+            );
+            options.on_event = Rc::new(move |event| recorded.borrow_mut().push(event));
+            let fake = connection.clone();
+            options.connection_factory =
+                Some(Rc::new(move |_| Ok(fake.clone() as Rc<dyn RpcConnection>)));
+            options.project_instruction_loader = Some(Rc::new(|_| Ok(None)));
+            let adapter = AcpRuntimeAdapter::new(options).unwrap();
+            adapter
+                .bootstrap(&json!({ "kind": "create" }))
+                .await
+                .unwrap();
+            adapter
+                .start_turn(json!({ "prompt": "hello" }))
+                .await
+                .unwrap();
+            for _ in 0..8 {
+                tokio::task::yield_now().await;
+            }
+            let emitted = events.borrow().clone();
+            assert!(
+                emitted.iter().any(|e| e["type"] == expected_terminal),
+                "expected {expected_terminal} for stopReason={stop_reason}, got {emitted:?}"
+            );
+            assert!(
+                !emitted.iter().any(|e| e["type"] == "turn.completed"),
+                "must not emit turn.completed for stopReason={stop_reason}"
+            );
+            assert_eq!(
+                emitted.iter().any(|e| e["type"] == "provider.error"),
+                expects_provider_error
+            );
+            adapter.dispose().await.unwrap();
+        }
+    });
+}

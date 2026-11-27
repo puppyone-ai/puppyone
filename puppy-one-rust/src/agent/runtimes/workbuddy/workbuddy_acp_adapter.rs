@@ -1,6 +1,7 @@
 //! `runtimes/workbuddy/workbuddy-acp-adapter.mjs`: WorkBuddy product and
 //! profile policy around the shared ACP runtime core.
 use super::workbuddy_channels::WorkBuddyChannel;
+use super::workbuddy_completion_inspector::WorkBuddyCompletionInspector;
 use super::workbuddy_config_directory::work_buddy_config_directory;
 use super::workbuddy_discovery::{
     WORKBUDDY_GATEWAY_AUTH_ENV, WORKBUDDY_LITE_WB_ENV, WORKBUDDY_LITE_WB_LAUNCH_MODE,
@@ -10,14 +11,33 @@ use super::workbuddy_environment::WORKBUDDY_HOST_ENVIRONMENT;
 use super::workbuddy_history_source::work_buddy_history_source;
 use crate::agent::agent_error::AgentResult;
 use crate::agent::protocols::acp::acp_client::AcpClient;
-use crate::agent::protocols::acp::acp_runtime_adapter::{AcpAdapterOptions, AcpRuntimeAdapter};
+use crate::agent::protocols::acp::acp_runtime_adapter::{
+    AcpAdapterOptions, AcpRuntimeAdapter, CompletionInspector,
+};
 use crate::agent::runtimes::hermes::hermes_acp_adapter::{
     readiness_args_prefix, readiness_environment,
 };
 use crate::agent::transports::jsonl_rpc_connection::rpc_error_code;
 use crate::platform::paths;
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 use std::rc::Rc;
+
+/// Disables WorkBuddy's shared disk product cache (`CodeBuddy-Product-Cache`)
+/// when isolating credentials for `lite-wb` Desktop 5.11.3+ bundles so the
+/// standalone CLI never reads Desktop's cached `workbuddy-desktop` auth id or
+/// writes PuppyOne's auth id back into Desktop's shared cache.
+pub(crate) const WORKBUDDY_DISABLE_PRODUCT_CACHE_ENV: &str = "CODEBUDDY_DISABLE_PRODUCT_CACHE";
+/// Product configuration overlay read by `EnvProductProvider` and
+/// `FileAuthenticationStorage::readEnvProductAuthId` to direct auth storage to
+/// PuppyOne's own `.info` slot instead of Desktop's encrypted
+/// `workbuddy-desktop.info`.
+pub(crate) const WORKBUDDY_PRODUCT_CONFIG_ENV: &str = "ACC_PRODUCT_CONFIG_V3";
+const WORKBUDDY_EXPLICIT_AUTH_ENV_KEYS: &[&str] = &[
+    "CODEBUDDY_AUTH_TOKEN",
+    "CODEBUDDY_API_KEY",
+    "ACC_PRODUCT_CONFIG_V3",
+    "ACC_PRODUCT_CONFIG_PATH",
+];
 
 /// `new WorkBuddyAcpAdapter({ channel, ...options })`.
 pub fn work_buddy_acp_adapter(
@@ -36,6 +56,9 @@ pub fn work_buddy_acp_adapter(
     options.authentication_method_id = Some(channel.authentication_method_id.into());
     options.is_already_authenticated = Some(Rc::new(|client, _| {
         Box::pin(async move { work_buddy_is_already_authenticated(&client).await })
+    }));
+    options.completion_inspector_factory = Some(Rc::new(|_, _| {
+        Some(Rc::new(WorkBuddyCompletionInspector) as Rc<dyn CompletionInspector>)
     }));
     let args_prefix = readiness_args_prefix(&options.readiness);
     let serve_stdio = options
@@ -87,6 +110,19 @@ pub fn work_buddy_acp_adapter(
             if serve_stdio {
                 overlay.insert(WORKBUDDY_LITE_WB_ENV.into(), Value::from("1"));
                 overlay.insert(WORKBUDDY_GATEWAY_AUTH_ENV.into(), Value::from("password"));
+                let has_explicit_auth = WORKBUDDY_EXPLICIT_AUTH_ENV_KEYS
+                    .iter()
+                    .any(|key| read(key).is_some_and(|value| !value.trim().is_empty()));
+                if !has_explicit_auth {
+                    overlay.insert(WORKBUDDY_DISABLE_PRODUCT_CACHE_ENV.into(), Value::from("1"));
+                    overlay.insert(
+                        WORKBUDDY_PRODUCT_CONFIG_ENV.into(),
+                        Value::from(
+                            json!({ "authentication": { "id": channel.isolated_auth_id } })
+                                .to_string(),
+                        ),
+                    );
+                }
             }
             Value::Object(overlay)
         }));
@@ -100,14 +136,32 @@ pub fn work_buddy_acp_adapter(
     AcpRuntimeAdapter::new(options)
 }
 
+/// WorkBuddy Desktop 5.11.3+ encrypts `auth.accessToken` / `auth.refreshToken`
+/// in `workbuddy-desktop.info` with a Desktop-held key while leaving `account`
+/// metadata in plaintext. `_codebuddy.ai/getUserInfo` can therefore return a
+/// non-null `userInfo` object whose `accessToken`/`token` is absent when
+/// standalone decryption fails (`category=missing-key`). Require a usable
+/// non-empty token string before skipping authentication.
+fn user_info_has_usable_token(user_info: &Value) -> bool {
+    user_info.is_object()
+        && ["accessToken", "token"].iter().any(|key| {
+            user_info
+                .get(*key)
+                .and_then(Value::as_str)
+                .is_some_and(|token| !token.trim().is_empty())
+        })
+}
+
 /// Older ACP builds may not expose the read-only identity extension; they
 /// keep the previous explicit-authentication behavior as a safe fallback.
 async fn work_buddy_is_already_authenticated(client: &AcpClient) -> AgentResult<bool> {
     match client
-        .request_extension("_codebuddy.ai/getUserInfo", serde_json::json!({}), None)
+        .request_extension("_codebuddy.ai/getUserInfo", json!({}), None)
         .await
     {
-        Ok(response) => Ok(response.get("userInfo").is_some_and(Value::is_object)),
+        Ok(response) => Ok(response
+            .get("userInfo")
+            .is_some_and(user_info_has_usable_token)),
         Err(error) if rpc_error_code(&error) == Some(-32601) => Ok(false),
         Err(error) => Err(error),
     }

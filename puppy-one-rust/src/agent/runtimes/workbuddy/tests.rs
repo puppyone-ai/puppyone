@@ -115,7 +115,13 @@ fn work_buddy_connection(authenticated: bool) -> Rc<FakeConnection> {
     connection.result(
         "_codebuddy.ai/getUserInfo",
         if authenticated {
-            json!({ "userInfo": { "userId": "workbuddy-user", "userName": "WorkBuddy User" } })
+            json!({
+                "userInfo": {
+                    "userId": "workbuddy-user",
+                    "userName": "WorkBuddy User",
+                    "accessToken": "workbuddy-access-token",
+                }
+            })
         } else {
             json!({})
         },
@@ -511,6 +517,171 @@ fn detects_lite_wb_only_desktop_bundles_and_launches_via_serve_stdio_acp() {
             env.get("CODEBUDDY_GATEWAY_AUTH").map(String::as_str),
             Some("password")
         );
+        // Desktop 5.11.3+ encrypts `workbuddy-desktop.info` with a Desktop-held
+        // key; PuppyOne isolates its own auth slot and disables Desktop's shared
+        // product cache so standalone ACP never collides with Desktop.
+        assert_eq!(
+            env.get("CODEBUDDY_DISABLE_PRODUCT_CACHE")
+                .map(String::as_str),
+            Some("1")
+        );
+        assert_eq!(
+            env.get("ACC_PRODUCT_CONFIG_V3")
+                .and_then(|raw| serde_json::from_str::<Value>(raw).ok()),
+            Some(json!({ "authentication": { "id": "puppyone-workbuddy-china" } }))
+        );
+    });
+}
+
+#[test]
+fn treats_user_info_without_usable_access_token_as_unauthenticated() {
+    run_local(async {
+        let connection = work_buddy_connection(false);
+        connection.result(
+            "_codebuddy.ai/getUserInfo",
+            json!({
+                "userInfo": {
+                    "userId": "b923088d-e0c3-45ed-9780-4a1fb8aa4e6c",
+                    "userName": "",
+                    "userNickname": "",
+                    "authType": "local",
+                }
+            }),
+        );
+        let mut options = AcpAdapterOptions::new(
+            json!({
+                "executablePath": "/Applications/WorkBuddy.app/Contents/Resources/cli/bin/codebuddy",
+                "environment": { "HOME": "/Users/test", "PATH": "/usr/bin" },
+                "version": "2.176.0",
+            }),
+            "/workspace",
+            WORKBUDDY_CHINA_RUNTIME_DESCRIPTOR.clone(),
+        );
+        let fake = connection.clone();
+        options.connection_factory =
+            Some(Rc::new(move |_| Ok(fake.clone() as Rc<dyn RpcConnection>)));
+        options.project_instruction_loader = Some(Rc::new(|_| Ok(None)));
+        let adapter = work_buddy_acp_adapter(WORKBUDDY_CHINA_CHANNEL, options).unwrap();
+        adapter
+            .bootstrap(&json!({ "kind": "create" }))
+            .await
+            .unwrap();
+        assert_eq!(
+            methods(&connection),
+            [
+                "initialize",
+                "_codebuddy.ai/getUserInfo",
+                "authenticate",
+                "session/new",
+            ]
+        );
+        adapter.dispose().await.unwrap();
+    });
+}
+
+#[test]
+fn preserves_explicit_auth_overrides_on_lite_wb_bundles() {
+    run_local(async {
+        let readiness = json!({
+            "executablePath": "D:\\WorkBuddy\\WorkBuddy.exe",
+            "argsPrefix": ["D:\\WorkBuddy\\resources\\app.asar.unpacked\\cli\\bin\\codebuddy"],
+            "acpLaunchMode": "serve-stdio",
+            "environment": {
+                "ELECTRON_RUN_AS_NODE": "1",
+                "CODEBUDDY_AUTH_TOKEN": "custom-bearer-token",
+            },
+            "version": "2.176.0",
+        });
+        let (_connection, launch, _result) = bootstrap(
+            WORKBUDDY_CHINA_CHANNEL,
+            &WORKBUDDY_CHINA_RUNTIME_DESCRIPTOR,
+            readiness,
+            true,
+        )
+        .await;
+        let env = env_of(&launch);
+        assert_eq!(
+            env.get("CODEBUDDY_AUTH_TOKEN").map(String::as_str),
+            Some("custom-bearer-token")
+        );
+        assert!(!env.contains_key("ACC_PRODUCT_CONFIG_V3"));
+        assert!(!env.contains_key("CODEBUDDY_DISABLE_PRODUCT_CACHE"));
+    });
+}
+
+#[test]
+fn surfaces_workbuddy_refusal_metadata_as_provider_error_and_turn_failed() {
+    run_local(async {
+        let connection = work_buddy_connection(true);
+        connection.result(
+            "session/prompt",
+            json!({
+                "stopReason": "refusal",
+                "_meta": {
+                    "codebuddy.ai/errorMessage": "{\"code\":-32000,\"message\":\"Authentication required. Please use /login command to sign in to your account\",\"data\":{\"category\":\"auth\",\"statusCode\":401}}"
+                }
+            }),
+        );
+        let events: Rc<RefCell<Vec<Value>>> = Rc::default();
+        let recorded_events = events.clone();
+        let mut options = AcpAdapterOptions::new(
+            json!({
+                "executablePath": "/Applications/WorkBuddy.app/Contents/Resources/cli/bin/codebuddy",
+                "environment": { "HOME": "/Users/test", "PATH": "/usr/bin" },
+                "version": "2.176.0",
+            }),
+            "/workspace",
+            WORKBUDDY_CHINA_RUNTIME_DESCRIPTOR.clone(),
+        );
+        options.on_event = Rc::new(move |event| recorded_events.borrow_mut().push(event));
+        let fake = connection.clone();
+        options.connection_factory =
+            Some(Rc::new(move |_| Ok(fake.clone() as Rc<dyn RpcConnection>)));
+        options.project_instruction_loader = Some(Rc::new(|_| Ok(None)));
+        let adapter = work_buddy_acp_adapter(WORKBUDDY_CHINA_CHANNEL, options).unwrap();
+        adapter
+            .bootstrap(&json!({ "kind": "create" }))
+            .await
+            .unwrap();
+        adapter
+            .start_turn(json!({ "prompt": "hello" }))
+            .await
+            .unwrap();
+        for _ in 0..8 {
+            tokio::task::yield_now().await;
+        }
+        let emitted = events.borrow().clone();
+        let error_event = emitted
+            .iter()
+            .find(|e| e["type"] == "provider.error")
+            .expect("provider.error must be emitted on refusal");
+        assert_eq!(error_event["payload"]["code"], "AUTHENTICATION_REQUIRED");
+        assert!(
+            error_event["payload"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Authentication required")
+        );
+        assert_eq!(error_event["payload"]["recoverable"], true);
+        assert!(
+            error_event["payload"]["diagnostic"]
+                .as_str()
+                .unwrap()
+                .contains("category=auth")
+        );
+        let failed_event = emitted
+            .iter()
+            .find(|e| e["type"] == "turn.failed")
+            .expect("turn.failed must be emitted on refusal");
+        assert_eq!(failed_event["payload"]["status"], "failed");
+        assert!(
+            failed_event["payload"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Authentication required")
+        );
+        assert!(!emitted.iter().any(|e| e["type"] == "turn.completed"));
+        adapter.dispose().await.unwrap();
     });
 }
 
