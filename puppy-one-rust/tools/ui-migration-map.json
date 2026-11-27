@@ -513,7 +513,7 @@
         "src/app/command/events.rs"
       ],
       "evidence": [
-        "test:a_place_opens_the_homepage_on_it_and_escape_closes_the_menu",
+        "test:the_space_menu_lists_its_projects_and_escape_closes_it",
         "test:a_space_made_from_the_place_menu_opens_its_members_ready_to_invite"
       ],
       "remaining": "Home, the places (this computer, every space, Create space) and the account rows open from the place button and the Homepage brand; Sign in sits at the Header's end while signed out. Not pixel-compared at v0.4.4 5e87974ef."
@@ -757,7 +757,7 @@
       ],
       "evidence": [
         "test:project_popup_toggle_outside_and_escape_restore_focus",
-        "test:a_place_opens_the_homepage_on_it_and_escape_closes_the_menu",
+        "test:the_space_menu_lists_its_projects_and_escape_closes_it",
         "test:the_rail_offers_rename_and_unlink_for_a_remembered_project",
         "test:project_menu_home_shows_the_homepage_and_hides_the_editor"
       ],
@@ -2274,7 +2274,7 @@
       "evidence": [
         "test:notices_follow_the_association",
         "test:the_place_names_a_space_or_this_computer_and_states_a_link",
-        "test:a_place_opens_the_homepage_on_it_and_escape_closes_the_menu",
+        "test:the_space_menu_lists_its_projects_and_escape_closes_it",
         "test:a_local_address_is_the_folder_that_holds_it_shortened",
         "test:a_vanished_cloud_projects_link_is_ended_from_its_notice"
       ],
@@ -2315,8 +2315,8 @@
         "test:copying_an_invite_waits_for_a_newcomer",
         "test:the_dialog_opens_on_inviting_only_while_nobody_is_here",
         "test:removing_asks_once_on_the_tile_and_tells_the_header",
-        "test:requests_lead_then_whoever_is_at_work_and_the_rest_rest",
-        "test:the_agents_stand_in_the_header_and_open_their_dialog",
+        "test:the_header_entry_says_who_works_and_who_asks",
+        "test:the_agents_are_one_quiet_header_entry_with_their_list",
         "test:a_name_makes_the_products_creature",
         "test:the_drawing_ends_each_pass_on_the_answered_chat"
       ],
