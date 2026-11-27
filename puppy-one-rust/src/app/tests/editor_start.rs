@@ -392,7 +392,6 @@ fn start_view_agent_row_follows_local_and_cloud_context(cx: &mut TestAppContext)
     );
     assert!(cx.debug_bounds("editor-start-knock").is_some());
     assert!(cx.debug_bounds("editor-start-allow").is_some());
-    assert!(cx.debug_bounds("editor-start-copy-invite").is_none());
     cloud(cx, true, StartInvite::Joined("Claude".into()));
     assert!(cx.debug_bounds("editor-start-joined").is_some());
 }

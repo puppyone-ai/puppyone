@@ -801,11 +801,12 @@ impl Shell {
                 })
                 .collect()
         };
-        let (invite, invite_alert) = if cloud_agents_manageable {
+        let (invite, invite_alert, project_name) = if cloud_agents_manageable {
             let agents = self.cloud.read(cx).agents.read(cx);
             (
                 editor_start::StartInvite::of(agents),
                 editor_start::invite_alert(agents),
+                agents.project_name().unwrap_or_default().to_owned(),
             )
         } else {
             Default::default()
@@ -817,6 +818,7 @@ impl Shell {
             local_agents,
             invite,
             invite_alert,
+            project_name,
         }
     }
     /// Observes local Agent discovery and Cloud Agent permissions so the
