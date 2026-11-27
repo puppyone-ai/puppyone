@@ -441,19 +441,11 @@ impl EditorArea {
         t: Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let handoff = self.start.hosted && self.start.cloud_agents_manageable;
         let list = v_flex()
             .w(px(LIST_WIDTH))
             .max_w_full()
             .mt(px(-40.))
-            .child(heading(
-                tr(if handoff {
-                    "native.start.handTitle"
-                } else {
-                    "native.start.emptyProject"
-                }),
-                t,
-            ));
+            .child(heading(tr("native.start.emptyProject"), t));
         // Read-only project: the heading alone.
         if !can_create && !takes_files {
             return list
@@ -462,6 +454,9 @@ impl EditorArea {
                 .into_any_element();
         }
         let hosted = self.start.hosted;
+        if hosted && self.start.cloud_agents_manageable {
+            return self.render_cloud_empty(takes_files, t, cx);
+        }
         let kinds = if can_create {
             self.start_kinds(cx)
         } else {
@@ -470,13 +465,8 @@ impl EditorArea {
         let creates = !kinds.is_empty();
         let rows = self.create_rows(kinds, t, cx);
         let agents = self.render_start_agents(hosted, t, cx);
-        let handoff = handoff.then(|| self.render_handoff(t, cx));
         list.id("editor-start-empty")
             .debug_selector(|| "editor-start-empty".into())
-            .when_some(handoff, |d, handoff| {
-                d.child(handoff)
-                    .when(creates, |d| d.child(separator(t).my(px(16.))))
-            })
             .when(creates, |d| {
                 d.child(
                     note(tr("native.start.renameLater"), t)
@@ -557,6 +547,84 @@ impl EditorArea {
         })
     }
 
+    /// The empty Cloud project as drawn in the onboarding mockup: the
+    /// project's empty folder (the Home folder's outline, flat and faint),
+    /// one title and one line, the hand-off, then the drop hint, all
+    /// centred.
+    fn render_cloud_empty(
+        &self,
+        takes_files: bool,
+        t: Theme,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let ty = theme::ty().ui;
+        let ghost = theme::mix(t.text, t.canvas, 0.065);
+        let (w, h) = (84., 63.);
+        let layer = |path: &'static str| {
+            svg()
+                .path(path)
+                .absolute()
+                .top_0()
+                .left_0()
+                .w(px(w))
+                .h(px(h))
+                .text_color(ghost)
+        };
+        v_flex()
+            .id("editor-start-empty")
+            .debug_selector(|| "editor-start-empty".into())
+            .mt(px(-30.))
+            .items_center()
+            .child(
+                div()
+                    .relative()
+                    .w(px(w))
+                    .h(px(h))
+                    .child(layer("home/folder-back.svg"))
+                    .child(layer("home/folder-front.svg")),
+            )
+            .child(
+                div()
+                    .mt(px(18.))
+                    .text_size(px(ty.body))
+                    .line_height(px(20.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.text)
+                    .child(tr("native.start.handTitle")),
+            )
+            // Once an Agent is let in, how to bring one is said.
+            .when(
+                !matches!(
+                    self.start.invite,
+                    StartInvite::Connecting(_) | StartInvite::Joined(_)
+                ),
+                |d| {
+                    d.child(
+                        div()
+                            .mt(px(4.))
+                            .text_size(px(ty.meta))
+                            .line_height(px(18.))
+                            .text_color(t.subtle)
+                            .child(tr("native.agentInvite.sendHint")),
+                    )
+                },
+            )
+            .child(self.render_handoff(t, cx))
+            .when(takes_files, |d| {
+                d.child(
+                    div()
+                        .id("editor-start-drop")
+                        .debug_selector(|| "editor-start-drop".into())
+                        .mt(px(18.))
+                        .text_size(px(ty.meta))
+                        .line_height(px(17.))
+                        .text_color(t.subtle)
+                        .child(tr("native.start.dropCloud")),
+                )
+            })
+            .into_any_element()
+    }
+
     /// The empty Cloud project's hand-off, in place: `Copy message` with the
     /// Agents it works with, then the wait, the Agent asking to join and
     /// answered here, and the Agent in. Letting it in ends the onboarding;
@@ -574,13 +642,14 @@ impl EditorArea {
             }
             StartInvite::Waiting => v_flex()
                 .gap(px(12.))
-                .items_start()
+                .items_center()
                 .child(copy("native.agentInvite.copyAgain", cx))
                 .child(
                     v_flex()
                         .id("editor-start-waiting")
                         .debug_selector(|| "editor-start-waiting".into())
                         .gap(px(2.))
+                        .items_center()
                         .child(status_line(tr("native.agentInvite.paste"), t.accent, t))
                         .child(
                             div()
@@ -591,7 +660,7 @@ impl EditorArea {
                 .into_any_element(),
             StartInvite::Lapsed => v_flex()
                 .gap(px(10.))
-                .items_start()
+                .items_center()
                 .child(note(tr("native.agentInvite.lapsed"), t).px_0())
                 .child(copy("native.agentInvite.renew", cx))
                 .into_any_element(),
@@ -611,7 +680,7 @@ impl EditorArea {
                 v_flex()
                     .id("editor-start-knock")
                     .debug_selector(|| "editor-start-knock".into())
-                    .w_full()
+                    .w(px(380.))
                     .p(px(12.))
                     .rounded(px(10.))
                     .bg(theme::alpha(t.accent, 0.08))
@@ -657,6 +726,7 @@ impl EditorArea {
                 .id("editor-start-connecting")
                 .debug_selector(|| "editor-start-connecting".into())
                 .gap(px(2.))
+                .items_center()
                 .child(status_line(
                     tf(
                         "native.agentInvite.connecting",
@@ -675,6 +745,7 @@ impl EditorArea {
                 .id("editor-start-joined")
                 .debug_selector(|| "editor-start-joined".into())
                 .gap(px(2.))
+                .items_center()
                 .child(status_line(
                     tf(
                         "native.agentInvite.joined",
@@ -693,23 +764,8 @@ impl EditorArea {
         v_flex()
             .id("editor-start-handoff")
             .debug_selector(|| "editor-start-handoff".into())
-            .px(px(metric::MENU_ITEM_PADDING_INLINE))
-            .mt(px(2.))
-            .items_start()
-            .when(
-                matches!(self.start.invite, StartInvite::Give | StartInvite::Copying),
-                |d| {
-                    d.child(
-                        note(tr("native.agentInvite.sendHint"), t)
-                            .px_0()
-                            .mb(px(14.)),
-                    )
-                },
-            )
-            .when(
-                !matches!(self.start.invite, StartInvite::Give | StartInvite::Copying),
-                |d| d.mt(px(12.)),
-            )
+            .mt(px(20.))
+            .items_center()
             .child(body)
             .when_some(self.start.invite_alert, |d, key| {
                 d.child(
