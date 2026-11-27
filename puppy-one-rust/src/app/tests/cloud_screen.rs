@@ -287,9 +287,9 @@ fn experiment_flag_and_a_present_screen_gate_the_header_computer_settings_tab_an
     // then offers to turn it on).
     sync_sandbox(&view, cx, &sandbox_json(true, true, false));
     let button = cx.debug_bounds("header-cloud-computer").unwrap();
-    let history = cx.debug_bounds("header-cloud-history").unwrap();
-    assert!(button.center().y > history.origin.y && button.center().y < history.bottom());
-    assert!(button.origin.x < history.origin.x);
+    let agent = cx.debug_bounds("header-agent").unwrap();
+    assert!(button.center().y > agent.origin.y && button.center().y < agent.bottom());
+    assert!(button.origin.x < agent.origin.x);
     assert!(cx.debug_bounds("cloud-screen-card").is_none());
 
     // Pressing it opens the Cloud Computer screen in the main area and gates

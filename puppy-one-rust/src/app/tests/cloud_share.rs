@@ -627,10 +627,10 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
         assert_eq!(offered.len(), 1);
         assert_eq!(offered[0].label, crate::features::cloud::HOSTED_AGENT_LABEL);
     });
-    // `History among a Cloud project's Header tools`: the hosted Project's
-    // record is offered in its Header, and this Mac's Changes are not.
+    // A Cloud project's History lives in its project menu, not the Header,
+    // and this Mac's Changes are not offered.
     draw(cx);
-    assert!(cx.debug_bounds("header-cloud-history").is_some());
+    assert!(cx.debug_bounds("header-cloud-history").is_none());
     assert!(cx.debug_bounds("header-changes").is_none());
     assert!(cx.debug_bounds("header-agent").is_some());
     // Opening the Agent sidebar sends nothing.

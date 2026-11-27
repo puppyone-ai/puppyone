@@ -264,7 +264,6 @@ impl WindowChrome {
     /// host tools, the Agent entry, and Sign in. Shared between the normal
     /// Header and the headerless main pane's top strip.
     pub(super) fn project_actions(&self, cx: &App) -> Vec<AnyElement> {
-        use crate::localization::t as tr;
         let o = &self.owners;
         let session = &self.session;
         let opening = session.opening;
@@ -332,29 +331,16 @@ impl WindowChrome {
         let cloud = o.cloud.read(cx);
         if hosted {
             // `CloudWorkspaceHeaderTools`: the Agents entry and the
-            // Computer, then a rule before the project's record.
+            // Computer, then a rule before the Agent entry. The project's
+            // History is looked at now and then, so it lives in the project
+            // menu, not here.
             let agents = cloud.agents_control(cx);
             let computer = cloud.computer_control(cx);
             let tools = agents.is_some() || computer.is_some();
             actions.extend(agents);
             actions.extend(computer);
-            if tools {
+            if tools && agent {
                 actions.push(header::action_divider(cx));
-            }
-            // `HistoryTool`: the hosted Project's own record.
-            if crate::features::cloud::account::has_account(cx) {
-                let label = tr("source-control.history.title");
-                actions.push(
-                    Button::new("cloud-history")
-                        .debug_selector(|| "header-cloud-history".into())
-                        .variant(ButtonVariant::Titlebar)
-                        .icon(crate::ui::components::Icon::new("history").stroke(1.75))
-                        .accessibility_label(label)
-                        .tooltip(label)
-                        .w(px(theme::metric::TITLEBAR_TOOL_ACTION_WIDTH))
-                        .on_click(self.listener(|s, _, _, cx| s.command(Command::CloudHistory, cx)))
-                        .into_any_element(),
-                );
             }
         } else if let Some(computer) = cloud.computer_control(cx) {
             // Computer Mode: the computer on this computer, as a tool.
