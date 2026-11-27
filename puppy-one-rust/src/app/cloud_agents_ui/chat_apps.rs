@@ -8,7 +8,7 @@ use super::invite::{Mark, action, copy_icon};
 use super::*;
 use crate::features::cloud::{AddFlow, CHAT_NAME_MAX, ChatStage, FlowError};
 use crate::ui::components::{
-    IconButton, Segment, SegmentedControl, Select, SelectOption, SettingRow, Switch,
+    IconButton, QrCode, Segment, SegmentedControl, Select, SelectOption, SettingRow, Switch,
 };
 use crate::ui::form_input::TextInput;
 use crate::workspace::cloud::chat_apps::{Change, Chat, Platform, Stopped, WhoCanAsk};
@@ -486,6 +486,39 @@ impl WindowCloud {
                 "native.chatApps.newLink",
                 t,
             )),
+            ChatStage::Waiting if flow.scanning => {
+                let link = flow
+                    .started
+                    .as_ref()
+                    .and_then(|s| s.links.as_ref())
+                    .map(|l| l.dm.clone())
+                    .unwrap_or_default();
+                // Phone scanners read dark on light, in either theme.
+                let (ink, paper) = if t.dark {
+                    (t.text_inverse, t.text)
+                } else {
+                    (t.text, t.canvas)
+                };
+                v_flex()
+                    .child(
+                        div()
+                            .text_color(t.text)
+                            .child(tr("native.chatApps.scanHint")),
+                    )
+                    .child(
+                        div()
+                            .id("cloud-chat-telegram-qr")
+                            .debug_selector(|| "cloud-chat-telegram-qr".into())
+                            .mt(px(10.))
+                            .p(px(1.))
+                            .rounded(px(7.))
+                            .border_1()
+                            .border_color(t.border_subtle)
+                            .w(px(134.))
+                            .child(QrCode::new(&link, ink, paper)),
+                    )
+                    .child(self.waiting_row("native.chatApps.waitingChat", flow, t))
+            }
             ChatStage::Waiting => v_flex()
                 .child(
                     div()
@@ -533,6 +566,19 @@ impl WindowCloud {
                             )
                             .disabled(flow.busy)
                             .on_click(open(false)),
+                        ))
+                        .child(marked(
+                            "cloud-chat-telegram-scan",
+                            action(
+                                "cloud-chat-telegram-scan",
+                                tr("native.chatApps.scanPhone"),
+                                ButtonVariant::Ghost,
+                            )
+                            .disabled(flow.busy)
+                            .on_click({
+                                let entity = self.chats.clone();
+                                move |_, _, cx| entity.update(cx, |c, cx| c.telegram_scan(cx))
+                            }),
                         )),
                 ),
         };

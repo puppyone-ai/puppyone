@@ -61,6 +61,8 @@ pub struct AddFlow {
     pub connection: Option<Connection>,
     /// The Telegram links were opened at least once.
     pub opened: bool,
+    /// Telegram: the direct-chat link is shown as a QR code for a phone.
+    pub scanning: bool,
     pub busy: bool,
     pub error: Option<FlowError>,
     /// The chat a manager just turned away.
@@ -75,6 +77,7 @@ impl AddFlow {
             started: None,
             connection: None,
             opened: false,
+            scanning: false,
             busy: false,
             error: None,
             turned_away: None,
@@ -611,6 +614,21 @@ impl CloudChats {
         }
         flow.opened = true;
         self.pending_open = Some(group);
+        self.begin(None, cx);
+    }
+    /// Telegram: show the direct-chat link as a QR code. Scanning it opens
+    /// the bot on the phone, whose Start button knocks with the code.
+    pub fn telegram_scan(&mut self, cx: &mut Context<Self>) {
+        let Some(flow) = &mut self.flow else {
+            return;
+        };
+        flow.scanning = true;
+        flow.opened = true;
+        if flow.started.as_ref().is_some_and(|s| s.links.is_some()) && flow.stage == Stage::Waiting
+        {
+            cx.notify();
+            return;
+        }
         self.begin(None, cx);
     }
     /// Slack: install in a workspace, or wait in the one already in.

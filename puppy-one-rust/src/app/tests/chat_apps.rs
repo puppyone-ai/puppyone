@@ -172,6 +172,37 @@ fn the_empty_seat_offers_both_the_agent_and_the_chat(cx: &mut TestAppContext) {
     assert!(cx.debug_bounds("cloud-chat-add").is_some());
 }
 
+/// On a phone: the direct-chat link shows as a QR code here (nothing opens on
+/// this computer), and the step waits for the knock its Start button sends.
+#[gpui::test]
+fn telegram_can_be_scanned_with_a_phone(cx: &mut TestAppContext) {
+    let server: Shared = Arc::new(Mutex::new(ChatServer {
+        manage: true,
+        ..Default::default()
+    }));
+    let (view, cx) = open(cx, server.clone());
+    roster(&view, cx);
+    let seat = cx.debug_bounds("cloud-chat-add-seat").unwrap();
+    cx.simulate_click(seat.center(), Modifiers::none());
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-chat-telegram-qr").is_none());
+    let scan = cx.debug_bounds("cloud-chat-telegram-scan").unwrap();
+    cx.simulate_click(scan.center(), Modifiers::none());
+    settle_cloud(&view, cx, "the link", &|s, cx| {
+        s.cloud
+            .read(cx)
+            .chats
+            .read(cx)
+            .flow
+            .as_ref()
+            .is_some_and(|f| f.waiting() && f.scanning)
+    });
+    draw(cx);
+    assert!(cx.debug_bounds("cloud-chat-telegram-qr").is_some());
+    assert!(cx.debug_bounds("cloud-chat-waiting").is_some());
+    assert_eq!(writes(&server)[0].2, json!({"platform": "telegram"}));
+}
+
 /// Telegram in two steps: the links open Telegram, the chat knocks here with
 /// its name, and letting it in says where it is. Nothing gets in unasked.
 #[gpui::test]
