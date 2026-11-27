@@ -18,6 +18,8 @@ type Get = fn(&Preferences) -> bool;
 type Set = fn(&mut Preferences, bool);
 struct Setting {
     key: &'static str,
+    title_key: Option<&'static str>,
+    detail_key: Option<&'static str>,
     get: Get,
     set: Set,
     /// `(false label, true label)` for segment rows.
@@ -25,10 +27,10 @@ struct Setting {
 }
 macro_rules! setting {
     ($key:literal, $($field:ident).+) => {
-        Setting { key: $key, get: |p| p.$($field).+, set: |p, v| p.$($field).+ = v, choices: None }
+        Setting { key: $key, title_key: None, detail_key: None, get: |p| p.$($field).+, set: |p, v| p.$($field).+ = v, choices: None }
     };
     ($key:literal, $($field:ident).+, $off:literal, $on:literal) => {
-        Setting { key: $key, get: |p| p.$($field).+, set: |p, v| p.$($field).+ = v, choices: Some(($off, $on)) }
+        Setting { key: $key, title_key: None, detail_key: None, get: |p| p.$($field).+, set: |p, v| p.$($field).+ = v, choices: Some(($off, $on)) }
     };
 }
 /// Supported experimental groups. `hostDevices` shows only while Other
@@ -77,7 +79,14 @@ fn groups(
                     "panes",
                     "header"
                 ),
-                setting!("hiddenHeader", experimental.hidden_header),
+                Setting {
+                    key: "showHeader",
+                    title_key: Some("native.experimental.showHeader.title"),
+                    detail_key: Some("native.experimental.showHeader.detail"),
+                    get: |p| !p.experimental.hidden_header,
+                    set: |p, v| p.experimental.hidden_header = !v,
+                    choices: None,
+                },
             ],
         ),
         (
@@ -131,17 +140,17 @@ impl SettingsWorkspaceSurface {
                     SettingRow::new(tr("settings.experimental.homeSpaceLayout.title"))
                         .control(control),
                 );
-                let hide_view = state.experimental.hide_home_view_controls;
+                let show_view = !state.experimental.hide_home_view_controls;
                 let prefs = self.preferences.clone();
-                let hide_label = tr("settings.experimental.hideHomeViewControls.title");
+                let show_label = tr("native.experimental.showHomeViewControls.title");
                 rows.push(
-                    SettingRow::new(hide_label).control(
-                        Switch::new("hideHomeViewControls", hide_label)
-                            .checked(hide_view)
-                            .tooltip(tr("settings.experimental.hideHomeViewControls.detail"))
+                    SettingRow::new(show_label).control(
+                        Switch::new("showHomeViewControls", show_label)
+                            .checked(show_view)
+                            .tooltip(tr("native.experimental.showHomeViewControls.detail"))
                             .on_change(move |on, _, cx| {
                                 prefs.update(cx, |p, cx| {
-                                    p.change(|p| p.experimental.hide_home_view_controls = on, cx)
+                                    p.change(|p| p.experimental.hide_home_view_controls = !on, cx)
                                 })
                             })
                             .into_any_element(),
@@ -149,9 +158,14 @@ impl SettingsWorkspaceSurface {
                 );
             }
             rows.extend(settings.into_iter().map(|setting| {
-                let label = tr(&format!("settings.experimental.{}.title", setting.key));
-                let detail: SharedString =
-                    tr(&format!("settings.experimental.{}.detail", setting.key)).into();
+                let label = match setting.title_key {
+                    Some(k) => tr(k),
+                    None => tr(&format!("settings.experimental.{}.title", setting.key)),
+                };
+                let detail: SharedString = match setting.detail_key {
+                    Some(k) => tr(k).into(),
+                    None => tr(&format!("settings.experimental.{}.detail", setting.key)).into(),
+                };
                 let value = (setting.get)(&state);
                 let control: AnyElement = match setting.choices {
                     Some((off, on)) => {
@@ -219,9 +233,25 @@ mod tests {
                 "projectSwitcherRail",
                 "alwaysShowOnboardingCoachmarks",
                 "editorTabsInHeader",
-                "hiddenHeader",
+                "showHeader",
             ]
         );
+        // Positive-phrased toggles default to OFF while keeping the clean
+        // headerless / quiet-Home defaults underneath.
+        let mut prefs = super::Preferences::default();
+        let show_header = groups(true, true)
+            .into_iter()
+            .find(|(id, _)| *id == "header")
+            .unwrap()
+            .1
+            .into_iter()
+            .find(|s| s.key == "showHeader")
+            .unwrap();
+        assert!(!(show_header.get)(&prefs));
+        assert!(prefs.experimental.hide_home_view_controls);
+        (show_header.set)(&mut prefs, true);
+        assert!(!prefs.experimental.hidden_header);
+        assert!((show_header.get)(&prefs));
         assert_eq!(keys_in("markdown", true, true), ["markdownBlockDrag"]);
         assert_eq!(
             keys_in("imports", true, true),

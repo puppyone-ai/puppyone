@@ -230,7 +230,11 @@
       "native.start.renameLater": "New files open right away. Rename them anytime.",
       "native.start.askAgent": "Let {name} do it",
       "native.start.handTitle": "Hand this project to your agent",
-      "native.start.joinedHint": "Tell it what to make in your chat with it. Its files show up here."
+      "native.start.joinedHint": "Tell it what to make in your chat with it. Its files show up here.",
+      "native.experimental.showHomeViewControls.title": "Show Home view & sort buttons",
+      "native.experimental.showHomeViewControls.detail": "Show the Grid/List layout and sort controls on Home.",
+      "native.experimental.showHeader.title": "Show the Header",
+      "native.experimental.showHeader.detail": "Show the full top bar across project windows instead of keeping the project in the sidebar and tools above the document."
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -461,7 +465,11 @@
       "native.start.renameLater": "新文件会直接建好并打开，名字随时能改。",
       "native.start.askAgent": "让 {name} 来做",
       "native.start.handTitle": "把这个项目交给 Agent",
-      "native.start.joinedHint": "回到你和它的对话，告诉它要做什么。它做的文件会出现在这里。"
+      "native.start.joinedHint": "回到你和它的对话，告诉它要做什么。它做的文件会出现在这里。",
+      "native.experimental.showHomeViewControls.title": "显示 Home 视图与排序按钮",
+      "native.experimental.showHomeViewControls.detail": "在 Home 页上显示网格/列表排布与排序按钮。",
+      "native.experimental.showHeader.title": "显示顶部 Header",
+      "native.experimental.showHeader.detail": "在项目窗口顶部显示完整的 Header 栏，而不是把项目与工具收纳到侧栏和文档上方。"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -692,7 +700,11 @@
       "native.start.renameLater": "新しいファイルはすぐに作成されて開きます。名前はいつでも変更できます。",
       "native.start.askAgent": "{name} に任せる",
       "native.start.handTitle": "このプロジェクトを Agent に任せる",
-      "native.start.joinedHint": "Agent とのチャットで作ってほしいものを伝えてください。ファイルはここに表示されます。"
+      "native.start.joinedHint": "Agent とのチャットで作ってほしいものを伝えてください。ファイルはここに表示されます。",
+      "native.experimental.showHomeViewControls.title": "Home の表示・並び替えボタンを表示",
+      "native.experimental.showHomeViewControls.detail": "Home にグリッド/リスト切替と並び替えボタンを表示します。",
+      "native.experimental.showHeader.title": "Header を表示",
+      "native.experimental.showHeader.detail": "プロジェクトやツールをサイドバーやドキュメント上部に収める代わりに、プロジェクトウィンドウ上部にフル Header バーを表示します。"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -923,7 +935,11 @@
       "native.start.renameLater": "새 파일은 바로 만들어져 열립니다. 이름은 언제든 바꿀 수 있어요.",
       "native.start.askAgent": "{name}에게 맡기기",
       "native.start.handTitle": "이 프로젝트를 Agent에게 맡기기",
-      "native.start.joinedHint": "Agent와의 대화에서 무엇을 만들지 알려 주세요. 만든 파일은 여기에 나타납니다."
+      "native.start.joinedHint": "Agent와의 대화에서 무엇을 만들지 알려 주세요. 만든 파일은 여기에 나타납니다.",
+      "native.experimental.showHomeViewControls.title": "Home 보기 및 정렬 버튼 표시",
+      "native.experimental.showHomeViewControls.detail": "Home 화면에 그리드/목록 전환 및 정렬 버튼을 표시합니다.",
+      "native.experimental.showHeader.title": "Header 표시",
+      "native.experimental.showHeader.detail": "프로젝트와 도구를 사이드바 및 문서 위에 배치하는 대신 프로젝트 창 상단에 전체 Header 막대를 표시합니다."
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -1154,7 +1170,11 @@
       "native.start.renameLater": "Los archivos nuevos se crean y se abren al instante. Puedes cambiarles el nombre cuando quieras.",
       "native.start.askAgent": "Que lo haga {name}",
       "native.start.handTitle": "Encarga este proyecto a tu agente",
-      "native.start.joinedHint": "Dile qué hacer en tu chat con él. Sus archivos aparecerán aquí."
+      "native.start.joinedHint": "Dile qué hacer en tu chat con él. Sus archivos aparecerán aquí.",
+      "native.experimental.showHomeViewControls.title": "Mostrar vista y orden en Inicio",
+      "native.experimental.showHomeViewControls.detail": "Muestra los botones de cuadrícula/lista y ordenación en la página de Inicio.",
+      "native.experimental.showHeader.title": "Mostrar el Header",
+      "native.experimental.showHeader.detail": "Muestra la barra superior completa en las ventanas de proyecto en lugar de mantener el proyecto en la barra lateral y las herramientas sobre el documento."
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -1385,7 +1405,11 @@
       "native.start.renameLater": "Novos arquivos são criados e abertos na hora. Você pode renomeá-los quando quiser.",
       "native.start.askAgent": "Deixar o {name} fazer",
       "native.start.handTitle": "Entregue este projeto ao seu agente",
-      "native.start.joinedHint": "Diga o que fazer na sua conversa com ele. Os arquivos aparecem aqui."
+      "native.start.joinedHint": "Diga o que fazer na sua conversa com ele. Os arquivos aparecem aqui.",
+      "native.experimental.showHomeViewControls.title": "Mostrar visualização e ordenação no Início",
+      "native.experimental.showHomeViewControls.detail": "Mostra os controles de grade/lista e ordenação na página inicial.",
+      "native.experimental.showHeader.title": "Mostrar o Header",
+      "native.experimental.showHeader.detail": "Mostra a barra superior completa nas janelas de projeto em vez de manter o projeto na barra lateral e as ferramentas acima do documento."
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -1616,7 +1640,11 @@
       "native.start.renameLater": "Les nouveaux fichiers sont créés et ouverts aussitôt. Vous pouvez les renommer à tout moment.",
       "native.start.askAgent": "Laisser {name} s’en charger",
       "native.start.handTitle": "Confiez ce projet à votre agent",
-      "native.start.joinedHint": "Dites-lui quoi faire dans votre conversation. Ses fichiers apparaîtront ici."
+      "native.start.joinedHint": "Dites-lui quoi faire dans votre conversation. Ses fichiers apparaîtront ici.",
+      "native.experimental.showHomeViewControls.title": "Afficher les boutons de vue et de tri sur l’accueil",
+      "native.experimental.showHomeViewControls.detail": "Affiche les contrôles grille/liste et de tri sur la page d’accueil.",
+      "native.experimental.showHeader.title": "Afficher le Header",
+      "native.experimental.showHeader.detail": "Affiche la barre supérieure complète dans les fenêtres de projet au lieu de garder le projet dans la barre latérale et les outils au-dessus du document."
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1847,7 +1875,11 @@
       "native.start.renameLater": "Neue Dateien werden sofort angelegt und geöffnet. Umbenennen geht jederzeit.",
       "native.start.askAgent": "{name} machen lassen",
       "native.start.handTitle": "Übergib dieses Projekt deinem Agenten",
-      "native.start.joinedHint": "Sag ihm im Chat, was es machen soll. Seine Dateien erscheinen hier."
+      "native.start.joinedHint": "Sag ihm im Chat, was es machen soll. Seine Dateien erscheinen hier.",
+      "native.experimental.showHomeViewControls.title": "Ansichts- & Sortierbuttons auf Startseite anzeigen",
+      "native.experimental.showHomeViewControls.detail": "Zeigt Raster-/Listenansicht und Sortierbuttons auf der Startseite an.",
+      "native.experimental.showHeader.title": "Header anzeigen",
+      "native.experimental.showHeader.detail": "Zeigt die vollständige obere Leiste in Projektfenstern an, statt Projekt in der Seitenleiste und Werkzeuge über dem Dokument zu belassen."
     }
   }
 }
