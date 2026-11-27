@@ -122,87 +122,39 @@ pub(super) fn invite_alert(agents: &CloudAgents) -> Option<&'static str> {
     }
 }
 
-/// How an Agent reaches a Cloud project: by where it works, not by brand.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) enum Handoff {
-    /// ChatGPT, Claude: no computer of their own; a connector, not yet.
-    Chat,
-    /// Grok Bot, Manus, Muse: their own cloud computer runs the invite.
-    #[default]
-    Cloud,
-    /// Viktor: lives in Slack, where the invite is sent to it.
-    Team,
-}
-impl Handoff {
-    const ALL: [Handoff; 3] = [Handoff::Chat, Handoff::Cloud, Handoff::Team];
-    fn id(self) -> &'static str {
-        match self {
-            Self::Chat => "chat",
-            Self::Cloud => "cloud",
-            Self::Team => "team",
-        }
-    }
-    /// The README's marks of the Agents in this kind.
-    fn logos(self) -> &'static [&'static str] {
-        match self {
-            Self::Chat => &["chatgpt", "claude"],
-            Self::Cloud => &["grok", "manus", "muse"],
-            Self::Team => &["viktor"],
-        }
-    }
-    /// `(kind, who, how)` catalog keys.
-    fn copy(self) -> (&'static str, &'static str, &'static str) {
-        match self {
-            Self::Chat => (
-                "native.start.chatKind",
-                "native.start.chatWho",
-                "native.start.chatHow",
-            ),
-            Self::Cloud => (
-                "native.start.cloudKind",
-                "native.start.cloudWho",
-                "native.start.cloudHow",
-            ),
-            Self::Team => (
-                "native.start.teamKind",
-                "native.start.teamWho",
-                "native.start.teamHow",
-            ),
-        }
-    }
-    /// The invite works for Agents with a computer to run it on.
-    fn ready(self) -> bool {
-        self != Self::Chat
-    }
-}
+/// The Agents the first card names, as the README draws them.
+const HAVE_LOGOS: [&str; 5] = ["claude", "manus", "grok", "muse", "viktor"];
+/// Where the second card's Agent would live.
+const GROUP_LOGOS: [&str; 3] = ["slack", "feishu", "wecom"];
+const LOGO: f32 = 32.;
+const CARD_WIDTH: f32 = 266.;
 
-const LOGO: f32 = 24.;
-const LOGO_STEP: f32 = 19.;
-/// Where a row's text starts: the widest logo stack and its gap.
-const ROW_TEXT: f32 = 14. + LOGO + LOGO_STEP * 2. + 12.;
-
-/// A kind's marks, each over the last on its white tile, in a box sized
-/// for them (GPUI does not size a flex parent to negative-margin overlap).
-fn logo_stack(logos: &[&str], ring: Rgba) -> Div {
-    let width = LOGO + LOGO_STEP * 2.;
+/// Marks side by side, each over the last, in a box sized for them (GPUI
+/// does not size a flex parent to negative-margin overlap). `paths` are
+/// asset paths; each mark sits on a white tile ringed in `ring`.
+fn logo_stack(paths: &[String], step: f32, ring: Rgba) -> Div {
+    let width = LOGO + step * (paths.len().max(1) - 1) as f32;
     div()
         .relative()
         .flex_none()
         .w(px(width))
         .h(px(LOGO))
-        .children(logos.iter().enumerate().map(|(i, name)| {
+        .children(paths.iter().enumerate().map(|(i, path)| {
             div()
                 .absolute()
-                .left(px(i as f32 * LOGO_STEP))
+                .left(px(i as f32 * step))
                 .top_0()
                 .size(px(LOGO))
-                .rounded(px(7.))
+                .rounded(px(9.))
                 .overflow_hidden()
                 .bg(theme::brand_disc_surface())
                 .border_2()
                 .border_color(ring)
+                .flex()
+                .items_center()
+                .justify_center()
                 .child(
-                    img(SharedString::from(format!("agents/handoff-{name}.png")))
+                    img(SharedString::from(path.clone()))
                         .size_full()
                         .object_fit(ObjectFit::Cover),
                 )
@@ -533,9 +485,11 @@ impl EditorArea {
         })
     }
 
-    /// The empty Cloud project (`handoff-v4`): its card on the left, and
-    /// one list on the right of the ways to hand it to an Agent, by where
-    /// the Agent works. What follows a copy happens in the chosen row.
+    /// The empty Cloud project (`handoff-options` E): one question — do
+    /// you already have an Agent? — and two cards. Yes: copy the message
+    /// and give it to that Agent; the wait, its asking to join (answered
+    /// here) and its arrival follow under the cards. No: make one in your
+    /// team's chat, with this project in it (not yet).
     fn render_cloud_empty(
         &self,
         takes_files: bool,
@@ -543,95 +497,166 @@ impl EditorArea {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let ty = theme::ty().ui;
-        let card_fill = theme::mix(t.text, t.canvas, 0.035);
-        // The project's card: its empty folder, its name, room for files.
-        let ghost = theme::mix(t.text, t.canvas, 0.07);
-        let (w, h) = (112., 84.);
-        let layer = |path: &'static str| {
-            svg()
-                .path(path)
-                .absolute()
-                .top_0()
-                .left_0()
-                .w(px(w))
-                .h(px(h))
-                .text_color(ghost)
-        };
-        let card = v_flex()
-            .w(px(232.))
-            .flex_none()
-            .items_center()
-            .pt(px(30.))
-            .pb(px(22.))
-            .px(px(20.))
-            .rounded(px(16.))
-            .bg(card_fill)
-            .border_1()
-            .border_color(t.divider)
-            .child(
-                div()
-                    .relative()
-                    .w(px(w))
-                    .h(px(h))
-                    .child(layer("home/folder-back.svg"))
-                    .child(layer("home/folder-front.svg")),
-            )
-            .child(
-                div()
-                    .mt(px(16.))
-                    .max_w_full()
-                    .truncate()
-                    .text_size(px(ty.body))
-                    .line_height(px(20.))
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .text_color(t.text)
-                    .child(self.start.project_name.clone()),
-            )
-            .when(takes_files, |d| {
-                d.child(
-                    div()
-                        .id("editor-start-drop")
-                        .debug_selector(|| "editor-start-drop".into())
-                        .mt(px(4.))
-                        .text_size(px(ty.meta))
-                        .line_height(px(17.))
-                        .text_color(t.subtle)
-                        .child(tr("native.start.cardEmpty")),
-                )
-            });
-        let joined = match &self.start.invite {
+        let fill = theme::mix(t.text, t.canvas, 0.035);
+        let invite = &self.start.invite;
+        let busy = matches!(
+            invite,
+            StartInvite::Waiting | StartInvite::Knocking { .. } | StartInvite::Connecting(_)
+        );
+        let joined = match invite {
             StartInvite::Joined(name) => Some(name.clone()),
             _ => None,
         };
-        let (title, hint): (SharedString, SharedString) = match &joined {
+        let (title, ask): (SharedString, SharedString) = match &joined {
             Some(name) => (
                 tf("native.start.joinedTitle", &[("name", name.clone().into())]).into(),
                 tr("native.start.joinedHint").into(),
             ),
             None => (
                 tr("native.start.handTitle").into(),
-                tr("native.start.handHint").into(),
+                tr("native.start.handAsk").into(),
             ),
         };
-        let rows: Vec<AnyElement> = Handoff::ALL
+        let card = |active: bool| {
+            v_flex()
+                .w(px(CARD_WIDTH))
+                .flex_none()
+                .min_h(px(214.))
+                .pt(px(18.))
+                .px(px(16.))
+                .pb(px(14.))
+                .rounded(px(14.))
+                .bg(fill)
+                .border_1()
+                .border_color(if active {
+                    theme::alpha(t.accent, 0.9)
+                } else {
+                    t.divider
+                })
+        };
+        let card_title = |key: &'static str| {
+            div()
+                .mt(px(16.))
+                .text_size(px(ty.control))
+                .line_height(px(18.))
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(t.text)
+                .child(tr(key))
+        };
+        let card_how = |key: &'static str| {
+            div()
+                .mt(px(8.))
+                .flex_1()
+                .text_size(px(ty.meta))
+                .line_height(px(18.))
+                .text_color(t.muted)
+                .child(tr(key))
+        };
+        // Yes: the message, and where it stands.
+        let copy = |key: &'static str, cx: &mut Context<Self>| {
+            Button::new("editor-start-copy-invite")
+                .debug_selector(|| "editor-start-copy-invite".into())
+                .variant(ButtonVariant::FilledPrimary)
+                .icon(Icon::new("copy").stroke(1.75))
+                .label(tr(key))
+                .w_full()
+                .on_click(cx.listener(|_, _, _, cx| cx.emit(EditorEvent::CopyInvite)))
+                .into_any_element()
+        };
+        let quiet = |label: SharedString, color: Rgba| {
+            h_flex()
+                .id("editor-start-have-status")
+                .h(px(32.))
+                .w_full()
+                .gap(px(6.))
+                .items_center()
+                .justify_center()
+                .rounded(px(8.))
+                .bg(t.hover)
+                .text_size(px(ty.meta))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(color)
+                .child(label)
+                .into_any_element()
+        };
+        let have_action = match invite {
+            StartInvite::Give => copy("native.agentInvite.copy", cx),
+            StartInvite::Lapsed => copy("native.agentInvite.renew", cx),
+            StartInvite::Copying => quiet(tr("native.agentInvite.copy").into(), t.subtle),
+            StartInvite::Waiting => quiet(tr("native.start.copied").into(), t.text),
+            StartInvite::Knocking { .. } => quiet(tr("native.start.waitKnock").into(), t.text),
+            StartInvite::Connecting(name) => quiet(
+                tf(
+                    "native.agentInvite.connecting",
+                    &[("name", name.clone().into())],
+                )
+                .into(),
+                t.text,
+            ),
+            StartInvite::Joined(name) => quiet(
+                tf(
+                    "native.agentInvite.joined",
+                    &[("name", name.clone().into())],
+                )
+                .into(),
+                t.success,
+            ),
+        };
+        let have_logos: Vec<String> = HAVE_LOGOS
             .iter()
-            .enumerate()
-            .map(|(i, kind)| self.handoff_row(*kind, i > 0, card_fill, t, cx))
+            .map(|n| format!("agents/handoff-{n}.png"))
             .collect();
-        let list = v_flex()
-            .id("editor-start-handoff")
-            .debug_selector(|| "editor-start-handoff".into())
-            .mt(px(16.))
-            .w_full()
-            .rounded(px(12.))
-            .overflow_hidden()
-            .bg(card_fill)
-            .border_1()
-            .border_color(t.divider)
-            .children(rows);
-        let right = v_flex()
-            .w(px(440.))
-            .flex_none()
+        let have = card(busy)
+            .id("editor-start-have")
+            .debug_selector(|| "editor-start-have".into())
+            .child(logo_stack(&have_logos, 27., fill))
+            .child(card_title("native.start.haveTitle"))
+            .child(card_how("native.start.haveHow").flex_none())
+            .child(
+                div()
+                    .mt(px(2.))
+                    .flex_1()
+                    .text_size(px(ty.meta))
+                    .line_height(px(18.))
+                    .text_color(t.subtle)
+                    .child(tr("native.start.haveWho")),
+            )
+            .child(div().mt(px(14.)).w_full().child(have_action));
+        // No: an Agent in the team's chat, with this project in it.
+        let group_logos: Vec<String> = GROUP_LOGOS
+            .iter()
+            .map(|n| format!("integrations/{n}.svg"))
+            .collect();
+        let group = card(false)
+            .id("editor-start-group")
+            .debug_selector(|| "editor-start-group".into())
+            .when(busy, |d| d.opacity(0.42))
+            .child(logo_stack(&group_logos, 30., fill))
+            .child(card_title("native.start.groupTitle"))
+            .child(card_how("native.start.groupHow"))
+            .child(
+                div().mt(px(14.)).w_full().child(
+                    Button::new("editor-start-group-soon")
+                        .variant(ButtonVariant::Outline)
+                        .label(tr("native.start.soon"))
+                        .disabled(true)
+                        .w_full(),
+                ),
+            );
+        let follow = self.handoff_follow(t, cx);
+        let foot: SharedString = if takes_files {
+            // No space after a full-width stop.
+            let note = tr("native.start.webNote");
+            let gap = if note.ends_with('。') { "" } else { " " };
+            format!("{note}{gap}{}", tr("native.start.dropHint")).into()
+        } else {
+            tr("native.start.webNote").into()
+        };
+        v_flex()
+            .id("editor-start-empty")
+            .debug_selector(|| "editor-start-empty".into())
+            .w(px(CARD_WIDTH * 2. + 12.))
+            .mt(px(-24.))
             .child(
                 div()
                     .text_size(px(ty.body))
@@ -654,9 +679,19 @@ impl EditorArea {
                     .text_size(px(ty.meta))
                     .line_height(px(17.))
                     .text_color(t.subtle)
-                    .child(hint),
+                    .child(ask),
             )
-            .child(list)
+            .child(
+                h_flex()
+                    .id("editor-start-handoff")
+                    .debug_selector(|| "editor-start-handoff".into())
+                    .mt(px(18.))
+                    .gap(px(12.))
+                    .items_stretch()
+                    .child(have)
+                    .child(group),
+            )
+            .children(follow)
             .when_some(self.start.invite_alert, |d, key| {
                 d.child(
                     div()
@@ -665,151 +700,22 @@ impl EditorArea {
                         .text_color(t.danger)
                         .child(tr(key)),
                 )
-            });
-        h_flex()
-            .id("editor-start-empty")
-            .debug_selector(|| "editor-start-empty".into())
-            .mt(px(-18.))
-            .gap(px(40.))
-            .items_start()
-            .child(card)
-            .child(right)
-            .into_any_element()
-    }
-
-    /// One way to hand the project over: the kind's marks, what it is and
-    /// how it connects, and its action; the chosen row carries what
-    /// follows the copy.
-    fn handoff_row(
-        &self,
-        kind: Handoff,
-        rule: bool,
-        fill: Rgba,
-        t: Theme,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let ty = theme::ty().ui;
-        let invite = &self.start.invite;
-        let busy = matches!(
-            invite,
-            StartInvite::Waiting | StartInvite::Knocking { .. } | StartInvite::Connecting(_)
-        );
-        let chosen = kind == self.handoff_pick && !matches!(invite, StartInvite::Give);
-        let dim = busy && !chosen;
-        let (kind_key, who_key, how_key) = kind.copy();
-        let group = format!("editor-start-handoff-{}", kind.id());
-        let trailing: AnyElement = if !kind.ready() {
-            div().child(tr("native.start.soon")).into_any_element()
-        } else if chosen && matches!(invite, StartInvite::Joined(_)) {
-            h_flex()
-                .gap(px(6.))
-                .items_center()
-                .text_color(t.success)
-                .child(dot(t.success))
-                .child(tr("native.start.joinedTag"))
-                .into_any_element()
-        } else if chosen && matches!(invite, StartInvite::Waiting) {
-            div().child(tr("native.start.copied")).into_any_element()
-        } else if chosen && busy {
-            div().into_any_element()
-        } else {
-            div()
-                .group_hover(SharedString::from(group.clone()), |d| {
-                    d.text_color(t.accent)
-                })
-                .child(tr("native.agentInvite.copy"))
-                .into_any_element()
-        };
-        let enabled = kind.ready() && !busy && !matches!(invite, StartInvite::Copying);
-        let head = h_flex()
-            .id(SharedString::from(group.clone()))
-            .group(SharedString::from(group.clone()))
-            .debug_selector({
-                let selector = if kind == Handoff::Cloud {
-                    "editor-start-copy-invite".to_owned()
-                } else {
-                    format!("editor-start-copy-invite:{}", kind.id())
-                };
-                move || selector.clone()
             })
-            .h(px(64.))
-            .px(px(14.))
-            .gap(px(12.))
-            .items_center()
-            .child(logo_stack(kind.logos(), fill))
-            .child(
-                v_flex()
-                    .flex_1()
-                    .min_w_0()
-                    .child(
-                        h_flex()
-                            .gap(px(8.))
-                            .items_baseline()
-                            .child(
-                                div()
-                                    .text_size(px(ty.control))
-                                    .line_height(px(18.))
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .text_color(t.text)
-                                    .child(tr(kind_key)),
-                            )
-                            .child(
-                                div()
-                                    .min_w_0()
-                                    .truncate()
-                                    .text_size(px(ty.meta))
-                                    .text_color(t.subtle)
-                                    .child(tr(who_key)),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(ty.meta))
-                            .line_height(px(17.))
-                            .text_color(t.subtle)
-                            .child(tr(how_key)),
-                    ),
-            )
             .child(
                 div()
-                    .flex_none()
+                    .id("editor-start-drop")
+                    .debug_selector(|| "editor-start-drop".into())
+                    .mt(px(12.))
                     .text_size(px(ty.meta))
+                    .line_height(px(17.))
                     .text_color(t.subtle)
-                    .child(trailing),
+                    .child(foot),
             )
-            .when(enabled, |d| {
-                d.cursor(theme::clickable_cursor())
-                    .hover(move |d| d.bg(t.hover))
-                    .on_click(cx.listener(move |s, _, _, cx| {
-                        s.handoff_pick = kind;
-                        cx.emit(EditorEvent::CopyInvite);
-                        cx.notify();
-                    }))
-            });
-        let follow = chosen.then(|| self.handoff_follow(t, cx)).flatten();
-        v_flex()
-            .relative()
-            .when(chosen && busy, |d| d.bg(theme::alpha(t.accent, 0.07)))
-            .when(dim, |d| d.opacity(0.42))
-            .when(rule, |d| {
-                d.child(
-                    div()
-                        .absolute()
-                        .top_0()
-                        .left(px(ROW_TEXT))
-                        .right_0()
-                        .h(px(1.))
-                        .bg(t.divider),
-                )
-            })
-            .child(head)
-            .children(follow)
-            .when(!chosen || !busy, |d| d.bg(fill))
             .into_any_element()
     }
 
-    /// What follows the copy, under the chosen row: the wait, the Agent
-    /// asking to join (answered here), or the lapse.
+    /// What follows the copy, in one bar under the cards: the wait, the
+    /// Agent asking to join (answered here), or the lapse.
     fn handoff_follow(&self, t: Theme, cx: &mut Context<Self>) -> Option<AnyElement> {
         let ty = theme::ty().ui;
         let small = |text: SharedString| {
@@ -818,17 +724,6 @@ impl EditorArea {
                 .line_height(px(17.))
                 .text_color(t.subtle)
                 .child(text)
-        };
-        let link = |id: &'static str, key: &'static str, cx: &mut Context<Self>| {
-            div()
-                .id(id)
-                .debug_selector(move || id.into())
-                .text_size(px(ty.meta))
-                .text_color(t.muted)
-                .cursor(theme::clickable_cursor())
-                .hover(move |d| d.text_color(t.text))
-                .child(tr(key))
-                .on_click(cx.listener(|_, _, _, cx| cx.emit(EditorEvent::CopyInvite)))
         };
         let body: AnyElement = match &self.start.invite {
             StartInvite::Waiting => h_flex()
@@ -844,36 +739,19 @@ impl EditorArea {
                         .text_color(t.text)
                         .child(tr("native.start.pasteWait")),
                 )
-                .child(link(
-                    "editor-start-copy-again",
-                    "native.agentInvite.copyAgain",
-                    cx,
-                ))
-                .into_any_element(),
-            StartInvite::Lapsed => h_flex()
-                .gap(px(8.))
-                .items_center()
                 .child(
                     div()
-                        .flex_1()
-                        .child(small(tr("native.agentInvite.lapsed").into())),
+                        .id("editor-start-copy-again")
+                        .debug_selector(|| "editor-start-copy-again".into())
+                        .text_size(px(ty.meta))
+                        .text_color(t.muted)
+                        .cursor(theme::clickable_cursor())
+                        .hover(move |d| d.text_color(t.text))
+                        .child(tr("native.agentInvite.copyAgain"))
+                        .on_click(cx.listener(|_, _, _, cx| cx.emit(EditorEvent::CopyInvite))),
                 )
-                .child(link("editor-start-renew", "native.agentInvite.renew", cx))
                 .into_any_element(),
-            StartInvite::Connecting(name) => h_flex()
-                .id("editor-start-connecting")
-                .debug_selector(|| "editor-start-connecting".into())
-                .gap(px(8.))
-                .items_center()
-                .child(dot(t.accent))
-                .child(small(
-                    tf(
-                        "native.agentInvite.connecting",
-                        &[("name", name.clone().into())],
-                    )
-                    .into(),
-                ))
-                .into_any_element(),
+            StartInvite::Lapsed => small(tr("native.agentInvite.lapsed").into()).into_any_element(),
             StartInvite::Knocking {
                 request,
                 name,
@@ -930,9 +808,13 @@ impl EditorArea {
         };
         Some(
             div()
-                .pl(px(ROW_TEXT))
-                .pr(px(14.))
-                .pb(px(14.))
+                .mt(px(12.))
+                .px(px(14.))
+                .py(px(12.))
+                .rounded(px(12.))
+                .bg(theme::alpha(t.accent, 0.07))
+                .border_1()
+                .border_color(theme::alpha(t.accent, 0.3))
                 .child(body)
                 .into_any_element(),
         )

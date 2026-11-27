@@ -259,12 +259,15 @@ embedded! {
     "home" / "folder-cloud.svg",
     "home" / "folder-front.svg",
     "integrations" / "airtable.png",
+    "integrations" / "feishu.svg",
     "integrations" / "github-inverse.svg",
     "integrations" / "github.svg",
     "integrations" / "gitlab.svg",
     "integrations" / "google-drive.svg",
     "integrations" / "notion.svg",
     "integrations" / "obsidian.svg",
+    "integrations" / "slack.svg",
+    "integrations" / "wecom.svg",
 }
 pub struct Assets;
 impl AssetSource for Assets {

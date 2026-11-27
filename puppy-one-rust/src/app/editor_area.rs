@@ -84,8 +84,6 @@ pub(super) struct EditorArea {
     pub(super) gate: EditorGate,
     /// Context for the empty-project start view (`editor_start.rs`).
     pub(super) start: StartContext,
-    /// The empty Cloud project's row a copy came from.
-    pub(super) handoff_pick: super::editor_start::Handoff,
     /// The front document's host (the active slot's, once it has one).
     pub front: Entity<DocumentEditor>,
     /// Every slot's host, by slot id.
@@ -196,7 +194,6 @@ impl EditorArea {
             file_mode: false,
             gate: EditorGate::default(),
             start: StartContext::default(),
-            handoff_pick: Default::default(),
             front,
             hosts,
             resize: None,
