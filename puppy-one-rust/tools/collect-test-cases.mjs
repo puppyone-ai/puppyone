@@ -15,6 +15,31 @@ if (git('rev-parse', 'HEAD').toString().trim() !== reference.commit) throw Error
 const dirty = git('status', '--porcelain', '--untracked-files=no').toString().trim();
 if (dirty) throw Error(`TS reference has tracked modifications: ${dirty}`);
 const {createVitest, version} = await import(pathToFileURL(path.join(checkout, 'node_modules/vitest/dist/node.js')));
+const output = path.join(root, 'artifacts/test-parity');
+const outputPath = path.join(output, 'typescript-cases.json');
+const testsTreeSha = git('rev-parse', `${reference.commit}:tests`).toString().trim();
+const scriptSha256 = createHash('sha256').update(await readFile(import.meta.filename)).digest('hex');
+if (!process.argv.includes('--force')) {
+  try {
+    const cached = JSON.parse(await readFile(outputPath, 'utf8'));
+    if (
+      cached.referenceCommit === reference.commit
+      && cached.vitestVersion === version
+      && cached.testsTreeSha === testsTreeSha
+      && cached.scriptSha256 === scriptSha256
+      && Array.isArray(cached.files)
+      && cached.files.length > 0
+      && cached.files.some(file => Array.isArray(file.cases) && file.cases.length > 0)
+    ) {
+      const total = cached.files.reduce((n, f) => n + f.cases.length, 0);
+      const skipped = cached.files.reduce((n, f) => n + f.cases.filter(c => c.skipped).length, 0);
+      console.log(`Cached TS collection verified (${cached.files.length} files; ${total} cases; ${skipped} skipped)`);
+      process.exit(0);
+    }
+  } catch {
+    // Missing or invalid cache; collect fresh from Vitest below.
+  }
+}
 const previous = process.cwd();
 process.chdir(checkout);
 const vitest = await createVitest('test', {
@@ -38,10 +63,9 @@ try {
   }
   files.sort((a,b) => a.path.localeCompare(b.path, 'en'));
   if (!files.length || !files.some(file => file.cases.length)) throw Error('Empty TS collection');
-  const output = path.join(root, 'artifacts/test-parity');
   await mkdir(output, {recursive: true});
-  await writeFile(path.join(output, 'typescript-cases.json'), JSON.stringify({
-    referenceCommit: reference.commit, vitestVersion: version, files,
+  await writeFile(outputPath, JSON.stringify({
+    referenceCommit: reference.commit, vitestVersion: version, testsTreeSha, scriptSha256, files,
   }, null, 2) + '\n');
   console.log(`${files.length} files; ${files.reduce((n, f) => n + f.cases.length, 0)} cases; ${files.reduce((n, f) => n + f.cases.filter(c => c.skipped).length, 0)} skipped`);
 } finally {

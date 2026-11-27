@@ -41,6 +41,7 @@ jobs:
     environment:
       name: desktop-signing
     permissions:
+      actions: read
       attestations: write
       contents: read
       id-token: write
@@ -49,6 +50,7 @@ jobs:
       release_name: ${{ steps.release.outputs.release_name }}
       release_tag: ${{ steps.release.outputs.tag }}
     env:
+      CARGO_INCREMENTAL: "0"
       PUBLIC_DOWNLOAD_ORIGIN: https://downloads.puppyone.ai
       VITE_DESKTOP_CLOUD_API_URL: https://api.puppyone.ai/api/v1
       VITE_DESKTOP_CLOUD_WEB_URL: https://try.puppyone.ai
@@ -125,44 +127,83 @@ jobs:
             --source-tag "${{ inputs.promotion_source_tag }}" \
             --github-output "${GITHUB_OUTPUT}"
 
-      - name: Prepare release application without deployment secrets
+      - name: Checkout pinned product baseline worktree
+        id: baseline
         shell: bash
         run: |
           set -euo pipefail
-          # verify.py needs what Rust desktop acceptance (rust-tests.yml) prepares:
-          # its toolchain, the pinned product baseline, the reviewed TS reference
-          # checkout beside the repository, llvm-cov and the verification Python.
-          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools-preview
-          rustup default 1.97.1
-          # The reference fixtures name the pinned product baseline as a
-          # sibling checkout (../../<name> from puppy-one-rust).
           SIBLINGS="$(dirname "${GITHUB_WORKSPACE}")"
           BASELINE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).commit")"
           BASELINE_NAME="$(basename "$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).checkout")")"
           BASELINE_DIR="${SIBLINGS}/${BASELINE_NAME}"
           git worktree add --detach "${BASELINE_DIR}" "${BASELINE_COMMIT}"
-          npm --prefix "${BASELINE_DIR}" ci
-          export PUPPYONE_PRODUCT_ROOT="${BASELINE_DIR}"
+          echo "dir=${BASELINE_DIR}" >> "${GITHUB_OUTPUT}"
           echo "PUPPYONE_PRODUCT_ROOT=${BASELINE_DIR}" >> "${GITHUB_ENV}"
-          # The reviewed TS acceptance cases are pinned to their own commit.
-          REFERENCE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/fixtures/test-parity-reference.json', 'utf8')).commit")"
-          REFERENCE_DIR="${RUNNER_TEMP}/puppyone-parity-reference"
-          git worktree add --detach "${REFERENCE_DIR}" "${REFERENCE_COMMIT}"
-          npm --prefix "${REFERENCE_DIR}" ci
-          export PUPPYONE_PARITY_ROOT="${REFERENCE_DIR}"
-          echo "PUPPYONE_PARITY_ROOT=${REFERENCE_DIR}" >> "${GITHUB_ENV}"
-          # The Cloud backend repository is not available to this runner.
-          export PUPPYONE_VERIFY_SKIP=cloud-reference
-          echo "PUPPYONE_VERIFY_SKIP=cloud-reference" >> "${GITHUB_ENV}"
-          (cd puppy-one-rust && cargo fetch --locked && cargo fetch --locked --manifest-path tools/source-index/Cargo.toml)
-          cargo install cargo-llvm-cov --version 0.9.1 --locked
-          python3 -m venv "${RUNNER_TEMP}/rust-verification-python"
-          "${RUNNER_TEMP}/rust-verification-python/bin/python" -m pip install -r puppy-one-rust/tools/requirements-verification.txt
-          echo "${RUNNER_TEMP}/rust-verification-python/bin" >> "${GITHUB_PATH}"
-          export PATH="${RUNNER_TEMP}/rust-verification-python/bin:${PATH}"
+
+      - name: Cache Cargo release package build and baseline dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            puppy-one-rust/target/package
+            ${{ steps.baseline.outputs.dir }}/node_modules
+          key: macos-arm64-release-pkg-v1-${{ hashFiles('puppy-one-rust/Cargo.lock', 'puppy-one-rust/product-source.json') }}-${{ github.sha }}
+          restore-keys: |
+            macos-arm64-release-pkg-v1-${{ hashFiles('puppy-one-rust/Cargo.lock', 'puppy-one-rust/product-source.json') }}-
+            macos-arm64-release-pkg-v1-
+
+      - name: Prepare release application without deployment secrets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+          if [ ! -d "${PUPPYONE_PRODUCT_ROOT}/node_modules" ]; then
+            npm --prefix "${PUPPYONE_PRODUCT_ROOT}" ci
+          fi
+          (cd puppy-one-rust && cargo fetch --locked)
           python3 puppy-one-rust/tools/fetch-pdfium.py
           python3 puppy-one-rust/tools/release/package-excalidraw-pack.py
-          (cd puppy-one-rust && python3 tools/verify.py)
+          # Verify and consume the exact-commit cryptographic verification receipt from
+          # Rust desktop acceptance instead of re-running verify.py a third time.
+          CI_RUN_ID="$(
+            gh api \
+              --method GET \
+              -H "Accept: application/vnd.github+json" \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/rust-tests.yml/runs" \
+              -f head_sha="${GITHUB_SHA}" \
+              --jq '[.workflow_runs[] | select(.event == "push" and .head_sha == env.GITHUB_SHA and .status == "completed" and .conclusion == "success")] | sort_by(.created_at) | last | .id // empty'
+          )"
+          if [ -z "${CI_RUN_ID}" ]; then
+            echo "Stable macOS release requires a completed successful Rust desktop acceptance push run for ${GITHUB_SHA}." >&2
+            exit 1
+          fi
+          rm -rf "${RUNNER_TEMP}/rust-acceptance-evidence"
+          gh run download "${CI_RUN_ID}" \
+            -R "${GITHUB_REPOSITORY}" \
+            -n rust-macos-acceptance \
+            -D "${RUNNER_TEMP}/rust-acceptance-evidence"
+          mkdir -p puppy-one-rust/artifacts/gpui-verification
+          cp "${RUNNER_TEMP}/rust-acceptance-evidence/gpui-verification/result.json" \
+            puppy-one-rust/artifacts/gpui-verification/result.json
+          CI_RUN_ID="${CI_RUN_ID}" python3 - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          root = Path('puppy-one-rust').resolve()
+          sys.path.insert(0, str(root / 'tools'))
+          from source_identity import verify_source_receipt
+          receipt = json.loads((root / 'artifacts/gpui-verification/result.json').read_text())
+          if receipt.get('baseCommit') != os.environ['GITHUB_SHA']:
+              raise SystemExit(
+                  f"Verification receipt commit {receipt.get('baseCommit')} != {os.environ['GITHUB_SHA']}"
+              )
+          verify_source_receipt(receipt, root)
+          print(f"Verified Rust desktop acceptance receipt for {os.environ['GITHUB_SHA']} (run {os.environ['CI_RUN_ID']}).")
+          PY
           python3 puppy-one-rust/tools/release/verify-electron-to-gpui-ota.py
           python3 puppy-one-rust/tools/release/package-excalidraw-pack.py --out artifacts/viewer-packs
           node scripts/publish-viewer-packs-r2.mjs verify-local \
