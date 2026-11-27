@@ -372,9 +372,14 @@ fn corrected_estimates_above_the_viewport_do_not_move_what_is_shown(cx: &mut Tes
         }
     }
     // The blocks that came into view were shorter than estimated: the
-    // scroll absorbed the difference instead of the content jumping.
+    // scroll absorbed the difference instead of the content jumping. That
+    // premise needs layout to differ from the estimate, which the macOS
+    // faces give; Linux and Windows faces can match it exactly, and there
+    // the steps above still prove nothing moved.
     let travelled = start - view.read_with(cx, |v, _| v.scroll_y);
-    assert!(travelled > steps * 24. + 1., "no estimate was corrected");
+    if cfg!(target_os = "macos") {
+        assert!(travelled > steps * 24. + 1., "no estimate was corrected");
+    }
 }
 
 #[gpui::test]

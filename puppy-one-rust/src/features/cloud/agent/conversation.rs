@@ -667,7 +667,8 @@ mod tests {
         what: &str,
         ready: &dyn Fn(&mut VisualTestContext) -> bool,
     ) {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        // Generous: coverage instrumentation on shared CI runners is slow.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
         while !ready(cx) {
             cx.run_until_parked();
             assert!(
@@ -699,9 +700,16 @@ mod tests {
         });
         conversation.update(cx, |c, _| c.chat().submit("Clean the build folder".into()));
         let watched = conversation.clone();
+        // Ready means drawn: the state can hold the approval a frame before
+        // the dock that offers it is laid out.
         settle(cx, "the approval", &move |cx| {
             let state = watched.read_with(cx, |c, _| c.chat().snapshot());
-            !project_cloud_agent_runs(&state.runs).approvals.is_empty()
+            if project_cloud_agent_runs(&state.runs).approvals.is_empty() {
+                return false;
+            }
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+            cx.debug_bounds("agent-approval:accept").is_some()
+                && cx.debug_bounds("agent-approval:decline").is_some()
         });
         (conversation, cloud, dir, cx)
     }
