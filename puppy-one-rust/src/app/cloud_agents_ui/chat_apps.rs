@@ -137,6 +137,17 @@ pub(super) fn knock_name(chat: &Chat) -> String {
         _ => chat_title(chat),
     }
 }
+/// How to ask the Agent once it is in: a direct chat reads every message,
+/// a Telegram group only replies and /ask, other groups a mention.
+pub(super) fn ask_hint(chat: &Chat) -> &'static str {
+    if !chat.group() {
+        "native.chatApps.direct"
+    } else if chat.platform == Platform::Telegram {
+        "native.chatApps.replyOrMention"
+    } else {
+        "native.chatApps.mention"
+    }
+}
 /// At most one banner, most pressing first.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Banner {
@@ -995,11 +1006,7 @@ impl WindowCloud {
         let t = cx.palette();
         let (again, done) = (self.chats.clone(), self.chats.clone());
         let mention = self.chats.read(cx).mention(chat.platform).to_owned();
-        let how = if chat.platform == Platform::Telegram && chat.group() {
-            "native.chatApps.replyOrMention"
-        } else {
-            "native.chatApps.mention"
-        };
+        let how = ask_hint(chat);
         v_flex()
             .id("cloud-chat-in")
             .debug_selector(|| "cloud-chat-in".into())
@@ -1561,6 +1568,28 @@ mod tests {
             base[key] = value.clone();
         }
         serde_json::from_value(base).unwrap()
+    }
+
+    #[test]
+    fn a_direct_chat_is_asked_without_a_mention() {
+        let hint = |changes| ask_hint(&chat(changes));
+        assert_eq!(
+            hint(serde_json::json!({"chat_kind": "dm"})),
+            "native.chatApps.direct"
+        );
+        assert_eq!(
+            hint(serde_json::json!({"platform": "wecom", "chat_kind": "dm"})),
+            "native.chatApps.direct"
+        );
+        assert_eq!(
+            hint(serde_json::json!({})),
+            "native.chatApps.replyOrMention"
+        );
+        assert_eq!(
+            hint(serde_json::json!({"platform": "slack"})),
+            "native.chatApps.mention"
+        );
+        assert!(!tr("native.chatApps.direct").contains('{'));
     }
 
     #[test]
