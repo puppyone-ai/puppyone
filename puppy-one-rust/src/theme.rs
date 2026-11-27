@@ -78,6 +78,14 @@ pub fn space_mark(tone: usize, dark: bool) -> Rgba {
 pub fn space_mark_letter() -> Rgba {
     rgb(0xffffff)
 }
+/// White disc behind brand marks drawn for a light ground.
+pub fn brand_disc_surface() -> Rgba {
+    rgb(0xffffff)
+}
+/// Monochrome brand mark ink on [`brand_disc_surface`].
+pub fn brand_disc_ink() -> Rgba {
+    rgb(0x0d0d0d)
+}
 /// CSS `oklch(l c h / a)` converted to sRGB (clamped to the gamut).
 pub fn oklch(l: f32, c: f32, h: f32, a: f32) -> Rgba {
     let hr = h.to_radians();

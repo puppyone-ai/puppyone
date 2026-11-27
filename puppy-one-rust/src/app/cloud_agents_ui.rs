@@ -400,7 +400,7 @@ fn header_agent_tile(
 
 /// Ordered faces for the Header's miniature logo stack: working Agents first,
 /// then most recently active, capped at [`HEADER_STACK_MAX`].
-fn header_stack_agents<'a>(agents: &'a [WorkspaceAgent]) -> Vec<&'a WorkspaceAgent> {
+fn header_stack_agents(agents: &[WorkspaceAgent]) -> Vec<&WorkspaceAgent> {
     let mut ordered: Vec<&WorkspaceAgent> = agents.iter().collect();
     ordered.sort_by(|a, b| {
         b.active
@@ -1559,7 +1559,10 @@ mod tests {
             presence(&two, &[], true),
             Presence::Working("2 agents".into())
         );
-        assert_eq!(presence(&two, &[request.clone()], true), Presence::Asking);
+        assert_eq!(
+            presence(&two, std::slice::from_ref(&request), true),
+            Presence::Asking
+        );
         // Someone who may not answer a request sees who works instead.
         assert_eq!(
             presence(&one, &[request], false),

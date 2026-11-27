@@ -194,9 +194,7 @@ impl WorkbenchLauncher {
             });
         }
 
-        if mismatched && token_insertions.is_empty() && !self.has_attachments(slot) {
-            self.set_notice(slot, tr("agent.reference.workspaceMismatch"), cx);
-        } else if mismatched {
+        if mismatched {
             self.set_notice(slot, tr("agent.reference.workspaceMismatch"), cx);
         }
 

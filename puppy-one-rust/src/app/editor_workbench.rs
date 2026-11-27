@@ -803,10 +803,12 @@ impl EditorArea {
                                 )),
                             ),
                     );
-                } else if !pane_loading && !split && !self.file_mode {
-                    if let Some(start) = self.start_view(cx) {
-                        view = view.child(start);
-                    }
+                } else if !pane_loading
+                    && !split
+                    && !self.file_mode
+                    && let Some(start) = self.start_view(cx)
+                {
+                    view = view.child(start);
                 }
                 if pane_loading {
                     let t = cx.palette();

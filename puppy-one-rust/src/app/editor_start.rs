@@ -158,7 +158,7 @@ fn brand_stack(t: Theme) -> Div {
                 svg()
                     .path(path)
                     .size(px(MARK * 0.58))
-                    .text_color(gpui::rgb(0x0d0d0d))
+                    .text_color(theme::brand_disc_ink())
                     .into_any_element()
             } else {
                 agent_brands::artwork(brand, false, MARK * 0.62 * brand.scale).into_any_element()
@@ -178,7 +178,7 @@ fn brand_stack(t: Theme) -> Div {
                         .size(px(MARK))
                         .rounded_full()
                         .overflow_hidden()
-                        .bg(gpui::rgb(0xffffff))
+                        .bg(theme::brand_disc_surface())
                         .border_1()
                         .border_color(theme::alpha(t.text, 0.12))
                         .flex()

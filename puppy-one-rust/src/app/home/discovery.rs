@@ -560,7 +560,7 @@ impl Homepage {
         }
 
         let (tx, rx) = async_channel::unbounded();
-        let workers = work.len().min(DETAILS_CONCURRENCY).max(1);
+        let workers = work.len().clamp(1, DETAILS_CONCURRENCY);
         let queue = std::sync::Arc::new(std::sync::Mutex::new(work.into_iter()));
         for _ in 0..workers {
             let queue = queue.clone();
@@ -618,7 +618,7 @@ impl Homepage {
         cx.spawn(async move |this, cx| {
             while let Ok((project_id, plan, previews, agents)) = rx.recv().await {
                 let finished_ms = now_millis();
-                let _ = cache_entity.update(cx, |c, cx| {
+                cache_entity.update(cx, |c, cx| {
                     c.finish_fetch(epoch, &project_id, plan, previews, agents, finished_ms, cx);
                 });
                 let _ = this.update(cx, |s, cx| {

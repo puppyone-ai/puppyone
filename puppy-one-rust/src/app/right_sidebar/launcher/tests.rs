@@ -1668,14 +1668,12 @@ fn dropping_explorer_files_stages_mentions_and_images_and_refuses_other_workspac
     assert!(
         submission
             .segments
-            .iter()
-            .any(|s| *s == SeededPromptSegment::Mention(0))
+            .contains(&SeededPromptSegment::Mention(0))
     );
     assert!(
         submission
             .segments
-            .iter()
-            .any(|s| *s == SeededPromptSegment::Mention(1))
+            .contains(&SeededPromptSegment::Mention(1))
     );
 
     // 4. Switching Agent preserves all staged attachments and inline mentions.
