@@ -318,6 +318,8 @@
       "native.chatApps.wecomElsewhere": "This bot is connected somewhere else, and a bot works in one place at a time. Connect it again to use it here.",
       "native.chatApps.wecomName": "WeCom",
       "native.chatApps.wecomGroup": "WeCom group",
+      "native.chatApps.wecomDm": "WeCom direct message",
+      "native.chatApps.wecomDmSent": "WeCom direct message · sent {code}",
       "native.chatApps.wecomTaken": "This bot is already used by another PuppyOne space."
     },
     "zh-Hans": {
@@ -637,6 +639,8 @@
       "native.chatApps.wecomElsewhere": "这个机器人在别处连上了，同一个机器人一次只能连一处。再点一次连接，就会接回这里。",
       "native.chatApps.wecomName": "企业微信",
       "native.chatApps.wecomGroup": "企业微信群",
+      "native.chatApps.wecomDm": "企业微信私聊",
+      "native.chatApps.wecomDmSent": "企业微信私聊 · 发来了 {code}",
       "native.chatApps.wecomTaken": "这个机器人已经被另一个 PuppyOne 空间使用。"
     },
     "ja": {
@@ -956,6 +960,8 @@
       "native.chatApps.wecomElsewhere": "このボットは別の場所で接続されています。ボットは一度に 1 か所でのみ使えます。ここで使うにはもう一度接続してください。",
       "native.chatApps.wecomName": "WeCom",
       "native.chatApps.wecomGroup": "WeCom グループ",
+      "native.chatApps.wecomDm": "WeCom 個別チャット",
+      "native.chatApps.wecomDmSent": "WeCom 個別チャット · {code} を送信",
       "native.chatApps.wecomTaken": "このボットはすでに別の PuppyOne スペースで使われています。"
     },
     "ko": {
@@ -1275,6 +1281,8 @@
       "native.chatApps.wecomElsewhere": "이 봇이 다른 곳에 연결되어 있습니다. 봇은 한 번에 한 곳에서만 쓸 수 있습니다. 여기서 쓰려면 다시 연결하세요.",
       "native.chatApps.wecomName": "WeCom",
       "native.chatApps.wecomGroup": "WeCom 그룹",
+      "native.chatApps.wecomDm": "WeCom 1:1 채팅",
+      "native.chatApps.wecomDmSent": "WeCom 1:1 채팅 · {code} 보냄",
       "native.chatApps.wecomTaken": "이 봇은 이미 다른 PuppyOne 공간에서 쓰고 있습니다."
     },
     "es": {
@@ -1594,6 +1602,8 @@
       "native.chatApps.wecomElsewhere": "Este bot está conectado en otro lugar y solo funciona en un sitio a la vez. Conéctalo de nuevo para usarlo aquí.",
       "native.chatApps.wecomName": "WeCom",
       "native.chatApps.wecomGroup": "Grupo de WeCom",
+      "native.chatApps.wecomDm": "Chat directo de WeCom",
+      "native.chatApps.wecomDmSent": "Chat directo de WeCom · envió {code}",
       "native.chatApps.wecomTaken": "Otro espacio de PuppyOne ya usa este bot."
     },
     "pt-BR": {
@@ -1913,6 +1923,8 @@
       "native.chatApps.wecomElsewhere": "Este bot está conectado em outro lugar e só funciona em um lugar por vez. Conecte de novo para usá-lo aqui.",
       "native.chatApps.wecomName": "WeCom",
       "native.chatApps.wecomGroup": "Grupo do WeCom",
+      "native.chatApps.wecomDm": "Conversa direta do WeCom",
+      "native.chatApps.wecomDmSent": "Conversa direta do WeCom · enviou {code}",
       "native.chatApps.wecomTaken": "Outro espaço do PuppyOne já usa este bot."
     },
     "fr": {
@@ -2232,6 +2244,8 @@
       "native.chatApps.wecomElsewhere": "Ce bot est connecté ailleurs, et un bot ne fonctionne qu’à un seul endroit à la fois. Connectez-le à nouveau pour l’utiliser ici.",
       "native.chatApps.wecomName": "WeCom",
       "native.chatApps.wecomGroup": "Groupe WeCom",
+      "native.chatApps.wecomDm": "Message direct WeCom",
+      "native.chatApps.wecomDmSent": "Message direct WeCom · a envoyé {code}",
       "native.chatApps.wecomTaken": "Ce bot est déjà utilisé par un autre espace PuppyOne."
     },
     "de": {
@@ -2551,6 +2565,8 @@
       "native.chatApps.wecomElsewhere": "Dieser Bot ist woanders verbunden, und ein Bot funktioniert nur an einem Ort gleichzeitig. Verbinde ihn erneut, um ihn hier zu nutzen.",
       "native.chatApps.wecomName": "WeCom",
       "native.chatApps.wecomGroup": "WeCom-Gruppe",
+      "native.chatApps.wecomDm": "WeCom-Direktnachricht",
+      "native.chatApps.wecomDmSent": "WeCom-Direktnachricht · hat {code} gesendet",
       "native.chatApps.wecomTaken": "Dieser Bot wird bereits von einem anderen PuppyOne-Bereich genutzt."
     }
   }

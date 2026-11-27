@@ -114,15 +114,24 @@ pub(in crate::app) fn chat_title(chat: &Chat) -> String {
     if chat.platform == Platform::Wecom && chat.display_name == WECOM_DEFAULT_NAME {
         return tr("native.chatApps.wecomGroup");
     }
+    if chat.platform == Platform::Wecom && chat.display_name == WECOM_DM_NAME {
+        return tr("native.chatApps.wecomDm");
+    }
     chat.display_name.clone()
 }
-/// The name the server gives a WeCom group (`chat_name` in the gateway).
+/// The names the server gives a WeCom group and direct chat (`chat_name` in
+/// the gateway).
 const WECOM_DEFAULT_NAME: &str = "WeCom group";
+const WECOM_DM_NAME: &str = "WeCom direct message";
 /// The name a knocking chat shows: WeCom cannot read group names.
 pub(super) fn knock_name(chat: &Chat) -> String {
     match (&chat.platform, &chat.knock_hint) {
         (Platform::Wecom, Some(code)) => tf(
-            "native.chatApps.wecomSent",
+            if chat.group() {
+                "native.chatApps.wecomSent"
+            } else {
+                "native.chatApps.wecomDmSent"
+            },
             &[("code", code.clone().into())],
         ),
         _ => chat_title(chat),
@@ -1516,6 +1525,13 @@ mod tests {
         let unnamed = chat(serde_json::json!({"platform": "wecom", "display_name": "WeCom group"}));
         let renamed = chat(serde_json::json!({"platform": "wecom", "display_name": "研发群"}));
         assert_eq!(chat_title(&unnamed), tr("native.chatApps.wecomGroup"));
+        let direct = chat(serde_json::json!({"platform": "wecom", "chat_kind": "dm",
+            "display_name": "WeCom direct message", "knock_hint": "305617"}));
+        assert_eq!(chat_title(&direct), tr("native.chatApps.wecomDm"));
+        assert_eq!(
+            knock_name(&direct),
+            tf("native.chatApps.wecomDmSent", &[("code", "305617".into())])
+        );
         assert_eq!(chat_title(&renamed), "研发群");
         assert_eq!(app_name(Platform::Wecom), tr("native.chatApps.wecomName"));
         assert_eq!(app_name(Platform::Slack), "Slack");
