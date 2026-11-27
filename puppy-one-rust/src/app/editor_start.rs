@@ -198,7 +198,7 @@ fn logo_stack(logos: &[&str], ring: Rgba) -> Div {
                 .size(px(LOGO))
                 .rounded(px(7.))
                 .overflow_hidden()
-                .bg(gpui::rgb(0xffffff))
+                .bg(theme::brand_disc_surface())
                 .border_2()
                 .border_color(ring)
                 .child(
