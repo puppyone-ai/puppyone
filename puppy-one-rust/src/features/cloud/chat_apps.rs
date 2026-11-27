@@ -378,7 +378,23 @@ impl CloudChats {
             self.follow(link, cx);
         }
         self.follow_connection(cx);
+        self.slack_start_when_ready(cx);
         cx.notify();
+    }
+    /// Slack already in this workspace: the invite line is the first thing to
+    /// see, so the wait starts on its own (a failed start leaves the button).
+    fn slack_start_when_ready(&mut self, cx: &mut Context<Self>) {
+        let ready = self.slack_ready().is_some();
+        let fresh = self.flow.as_ref().is_some_and(|f| {
+            f.platform == Platform::Slack
+                && f.stage == Stage::Add
+                && f.started.is_none()
+                && f.error.is_none()
+                && !f.busy
+        });
+        if ready && fresh {
+            self.slack_add(cx);
+        }
     }
     /// The wait moves on with what the server says about its link.
     fn follow(&mut self, link: Link, cx: &mut Context<Self>) {
@@ -486,6 +502,7 @@ impl CloudChats {
             .unwrap_or(Platform::Telegram);
         self.managing = None;
         self.flow = Some(AddFlow::new(platform));
+        self.slack_start_when_ready(cx);
         cx.notify();
     }
     pub fn close_add(&mut self, cx: &mut Context<Self>) {
@@ -500,6 +517,7 @@ impl CloudChats {
         }
         self.flow = Some(AddFlow::new(platform));
         self.end_wait(cx);
+        self.slack_start_when_ready(cx);
         cx.notify();
     }
     /// Starts (or restarts) the wait: a new link or code, ten minutes.
@@ -998,6 +1016,29 @@ mod tests {
                 Some("/invite @PuppyOne")
             )
         });
+    }
+
+    /// With Slack already in the workspace, choosing Slack shows the invite
+    /// line straight away: no press before the line it tells you to send.
+    #[gpui::test]
+    fn slack_already_installed_shows_the_invite_line_at_once(cx: &mut TestAppContext) {
+        let (server, chats) = setup(cx);
+        *server.connections.lock().unwrap() = json!([{"id": "T1c", "platform": "slack",
+            "display_name": "Acme", "status": "active", "linked_me": true}]);
+        *server.link.lock().unwrap() = link("waiting", "slack");
+        poll(&chats, cx);
+        cx.run_until_parked();
+        chats.update(cx, |c, cx| {
+            c.open_add(cx);
+            c.choose(Platform::Slack, cx)
+        });
+        cx.run_until_parked();
+        assert_eq!(stage(&chats, cx), Stage::Waiting);
+        let started = server.started.lock().unwrap().clone();
+        assert_eq!(
+            started.last().unwrap(),
+            &json!({"platform": "slack", "connection_id": "T1c"})
+        );
     }
 
     #[gpui::test]
