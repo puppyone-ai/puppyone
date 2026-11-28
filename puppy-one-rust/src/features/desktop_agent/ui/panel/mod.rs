@@ -38,6 +38,8 @@ use gpui::{prelude::*, *};
 use gpui_kit::base::v_flex;
 use std::rc::Rc;
 
+pub use compute::filter_launcher_inspection;
+pub use ingestion::{SeededAttachment, SeededPromptSegment, SeededSubmission};
 pub use routing::AgentRouting;
 pub use view_model::default_chat_view_model;
 
@@ -122,6 +124,11 @@ pub struct AgentChatTabPanel {
     payments: bool,
     /// The user's routing preferences (`preferredRuntimeId`, `preferredRoute`).
     routing: AgentRouting,
+    /// Pre-staged launcher submission awaiting runtime readiness before staging
+    /// references and auto-submitting.
+    pending_seeded_submission: Option<SeededSubmission>,
+    /// True while an async `stage_and_submit_seeded` batch is in flight.
+    staging_seeded_submission: bool,
     /// The pixel lab's UI state, until its conversation shows.
     #[cfg(feature = "dev-capture")]
     lab: Option<fixture::LabState>,
@@ -231,10 +238,28 @@ impl AgentChatTabPanel {
             announcement: None,
             payments: false,
             routing: AgentRouting::default(),
+            pending_seeded_submission: None,
+            staging_seeded_submission: false,
             #[cfg(feature = "dev-capture")]
             lab: None,
             _store: store,
         }
+    }
+
+    /// Arms a one-shot launcher handoff (text + optional staged attachments)
+    /// that stages references once the runtime settles and auto-submits.
+    pub fn set_seeded_submission(
+        &mut self,
+        submission: SeededSubmission,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if submission.attachments.is_empty() {
+            self.controller.seed_initial_prompt(&submission.text);
+        } else {
+            self.pending_seeded_submission = Some(submission);
+        }
+        self.on_state_change(window, cx);
     }
 
     /// What the Workbench item shows (`onPresentationChange`).
@@ -320,6 +345,21 @@ impl AgentChatTabPanel {
         self.apply_routing_preferences(cx);
         let state = self.state();
         let view = self.view_model(&state);
+        // If the launcher handed off staged attachments, resolve/stage them as
+        // soon as initialization and routing preferences settle, then submit.
+        if self.pending_seeded_submission.is_some()
+            && !self.staging_seeded_submission
+            && state.initialized
+            && !view.loading
+            && routing::pending_preferences(&state, &view.runtime.runtime_models, &self.routing)
+                .ready()
+            && view.routing_ready
+            && state.phase == AgentControllerPhase::Ready
+            && !view.unavailable
+            && let Some(submission) = self.pending_seeded_submission.take()
+        {
+            self.stage_and_submit_seeded(submission, window, cx);
+        }
         // The seeded prompt is sent once, when the chat first settles, and
         // only if it can be sent then; otherwise it stays a draft.
         if self.controller.has_pending_initial_auto_submit()
@@ -340,6 +380,8 @@ impl AgentChatTabPanel {
         // while the active panel is routable.
         if self.command_target
             && !self.controller.has_pending_initial_auto_submit()
+            && self.pending_seeded_submission.is_none()
+            && !self.staging_seeded_submission
             && view.routing_ready
             && state.initialized
             && state.phase == AgentControllerPhase::Ready

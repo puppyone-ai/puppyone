@@ -1,6 +1,7 @@
 //! The left sidebar as its frame holds it (`DataWorkspaceFrame`'s
 //! `explorer()` and `explorerFooter()`): the Explorer, embedded as a cached
-//! view, and any companion on its bottom edge, over the footer navigation.
+//! view, over the footer navigation. Only files live here: a hosted
+//! project's computer is a workspace tool in the Header.
 //! The pane stack places and moves the column; the column only stacks its
 //! parts.
 use super::{
@@ -14,7 +15,6 @@ use gpui::{prelude::*, *};
 pub(in crate::app) struct ExplorerColumn {
     header: Option<AnyElement>,
     explorer: Entity<Explorer>,
-    companion: Option<AnyElement>,
     footer: Option<SidebarFooter>,
 }
 impl ExplorerColumn {
@@ -22,19 +22,12 @@ impl ExplorerColumn {
         Self {
             header: None,
             explorer,
-            companion: None,
             footer: None,
         }
     }
     /// Top bar inside the column when the window runs without a Header.
     pub fn header(mut self, header: Option<AnyElement>) -> Self {
         self.header = header;
-        self
-    }
-    /// Optional companion control standing on the bottom edge under the
-    /// file tree, over the footer (e.g. Cloud Computer Screen).
-    pub fn companion(mut self, companion: Option<AnyElement>) -> Self {
-        self.companion = companion;
         self
     }
     /// The navigation below the tree. macOS has none: Settings and Help are
@@ -70,9 +63,6 @@ impl RenderOnce for ExplorerColumn {
                         )
                     }),
             )
-            .when_some(self.companion, |d, companion| {
-                d.child(div().flex_shrink_0().child(companion))
-            })
             .when(footer > 0., |d| {
                 d.child(div().flex_shrink_0().h(px(footer)).children(self.footer))
             })

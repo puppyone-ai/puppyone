@@ -78,6 +78,14 @@ pub fn space_mark(tone: usize, dark: bool) -> Rgba {
 pub fn space_mark_letter() -> Rgba {
     rgb(0xffffff)
 }
+/// White disc behind brand marks drawn for a light ground.
+pub fn brand_disc_surface() -> Rgba {
+    rgb(0xffffff)
+}
+/// Monochrome brand mark ink on [`brand_disc_surface`].
+pub fn brand_disc_ink() -> Rgba {
+    rgb(0x0d0d0d)
+}
 /// CSS `oklch(l c h / a)` converted to sRGB (clamped to the gamut).
 pub fn oklch(l: f32, c: f32, h: f32, a: f32) -> Rgba {
     let hr = h.to_radians();
@@ -628,48 +636,6 @@ pub fn popover_elevation(dark: bool) -> Vec<gpui::BoxShadow> {
         spread_radius: gpui::px(-10.),
         inset: false,
     }]
-}
-/// Top inset sheen tint for the floating Agent composer in dark mode.
-pub fn composer_highlight(dark: bool) -> Rgba {
-    alpha(rgb(0xffffff), if dark { 0.045 } else { 0. })
-}
-/// Agent composer card elevation shadows for dark and light themes.
-pub fn composer_elevation(dark: bool) -> Vec<gpui::BoxShadow> {
-    if dark {
-        vec![
-            gpui::BoxShadow {
-                color: alpha(rgb(0x000000), 0.45).into(),
-                offset: gpui::point(gpui::px(0.), gpui::px(1.)),
-                blur_radius: gpui::px(2.),
-                spread_radius: gpui::px(0.),
-                inset: false,
-            },
-            gpui::BoxShadow {
-                color: alpha(rgb(0x000000), 0.68).into(),
-                offset: gpui::point(gpui::px(0.), gpui::px(10.)),
-                blur_radius: gpui::px(28.),
-                spread_radius: gpui::px(-10.),
-                inset: false,
-            },
-        ]
-    } else {
-        vec![
-            gpui::BoxShadow {
-                color: alpha(rgb(0x1e1c18), 0.08).into(),
-                offset: gpui::point(gpui::px(0.), gpui::px(1.)),
-                blur_radius: gpui::px(2.),
-                spread_radius: gpui::px(0.),
-                inset: false,
-            },
-            gpui::BoxShadow {
-                color: alpha(rgb(0x1e1c18), 0.20).into(),
-                offset: gpui::point(gpui::px(0.), gpui::px(10.)),
-                blur_radius: gpui::px(26.),
-                spread_radius: gpui::px(-10.),
-                inset: false,
-            },
-        ]
-    }
 }
 /// Chromium's checked native checkbox: (fill, check). The fill is the
 /// element's `accent-color`, else Chromium's default blue for the scheme;

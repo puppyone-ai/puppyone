@@ -60,6 +60,10 @@ struct Host {
     slots: BTreeMap<SlotId, Slot>,
     hibernated: BTreeMap<String, super::retention::HibernatedSlot>,
     view_states: super::view_state::ViewStateStore,
+    /// Most-recently-opened relative file paths (newest first, capped at
+    /// [`MAX_RECENT_FILES`]), persisted with workspace metadata so the quiet
+    /// empty-editor list and `starting_file` fallback survive closing all tabs.
+    recent_files: Vec<PathBuf>,
     rows: Vec<Node>,
     metadata_loaded: bool,
     metadata_value: Option<serde_json::Value>,
@@ -715,6 +719,17 @@ impl Runtime {
         if let Some(mut state) = self.state_mut() {
             state.activate(key);
         }
+        if let Some(host) = self.active.as_ref().and_then(|id| self.hosts.get_mut(id)) {
+            let path = host
+                .slots
+                .values()
+                .find(|s| s.key == key)
+                .map(|s| s.path.clone())
+                .or_else(|| host.hibernated.get(key).map(|h| h.path.clone()));
+            if let Some(path) = path {
+                host.record_recent(path);
+            }
+        }
         self.generation += 1;
     }
     pub fn activate_with_wake(&mut self, key: &str, wake: &Wake) {
@@ -956,6 +971,7 @@ impl Runtime {
                             slots: BTreeMap::new(),
                             hibernated: BTreeMap::new(),
                             view_states: super::view_state::ViewStateStore::new(),
+                            recent_files: Vec::new(),
                             rows,
                             starting: !self.file_window,
                             metadata_loaded: self.file_window
@@ -1010,6 +1026,7 @@ impl Runtime {
                     .or(self.children_update.take());
             }
             let mut remove = Vec::new();
+            let mut admitted_recent = Vec::new();
             for (id, slot) in &mut host.slots {
                 let before = (slot.files.status_key(), slot.files.notice_state_key());
                 slot.files.poll(wake);
@@ -1168,10 +1185,13 @@ impl Runtime {
                     }
                     slot.admitted = true;
                     slot.restored = false;
+                    let admitted_path = slot.path.clone();
                     if let Some(vs) = host.view_states.get(&slot.key).cloned() {
                         self.pending_view_restores.insert(*id, vs);
                     }
                     self.generation += 1;
+                    // Record after the slot borrow ends.
+                    admitted_recent.push(admitted_path);
                 }
                 if slot.closing && !slot.files.busy() && slot.files.opened().is_none() {
                     host.state.close(&slot.key);
@@ -1188,6 +1208,9 @@ impl Runtime {
             }
             for id in remove {
                 host.slots.remove(&id);
+            }
+            for path in admitted_recent {
+                host.record_recent(path);
             }
             host.sync_panes();
         }

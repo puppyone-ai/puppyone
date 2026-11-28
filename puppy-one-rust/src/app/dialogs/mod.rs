@@ -174,6 +174,8 @@ pub(super) struct DialogLayer {
     status: Option<String>,
     /// The failed file operation behind a notice can run again.
     can_retry: bool,
+    /// An `Untitled` file is being made ([`DialogLayer::create_untitled`]).
+    untitled: bool,
 }
 impl EventEmitter<DialogEvent> for DialogLayer {}
 
@@ -236,6 +238,7 @@ impl DialogLayer {
             owner,
             status: None,
             can_retry: false,
+            untitled: false,
         }
     }
     /// The layer's focus handle, for dialogs that trap the keyboard.

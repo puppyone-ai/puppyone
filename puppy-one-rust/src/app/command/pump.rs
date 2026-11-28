@@ -90,6 +90,7 @@ impl Shell {
             self.editor.update(cx, |e, cx| e.cancel_gestures(cx));
             if !self.file_mode() {
                 explorer.update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
+                self.sync_cloud_home_previews(cx);
             }
             // A lone file has no Git or Terminal; an HTML file window binds its
             // parent folder only for the on-demand Local Agent Chat drawer.
@@ -273,7 +274,9 @@ impl Shell {
         let home = self.home_visible(cx);
         let view = session::SessionView {
             home,
-            listing: home || self.chrome.read(cx).popover == Some(Popover::Project),
+            // The space's menu lists this space's projects, so it keeps
+            // the shared project list fresh as the Homepage does.
+            listing: home || self.chrome.read(cx).popover == Some(Popover::Place),
             workspace: files.workspace.is_some(),
             root: self.workspace_root(cx),
             busy: self.session.project.read(cx).picking

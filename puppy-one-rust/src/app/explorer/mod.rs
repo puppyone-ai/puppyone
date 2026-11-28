@@ -359,8 +359,9 @@ impl Render for Explorer {
         let pinned = !pins.files.is_empty();
         let folded = pinned && pins.files_collapsed;
         let hidden_header = self.preferences.read(cx).state.experimental.hidden_header;
-        // Under pins the fold line is the tree's top edge already.
-        let top_fade = !pinned && hidden_header;
+        let show_status = (loading || empty) && operation_error.is_none() && !folded;
+        // Under pins or the empty/loading note, the tree starts below the top bar already.
+        let top_fade = !pinned && !show_status && hidden_header;
         let drop_files = self.takes_files(cx).then(|| {
             cx.listener(|s, paths: &ExternalPaths, _, cx| {
                 s.drop_external(paths.paths(), Path::new(""), cx)
@@ -423,8 +424,11 @@ impl Render for Explorer {
                 )
                 .size_full()
                 // The fold line already separates the pins from the first file;
-                // without a Header the floating top bar overlays the top 40px.
-                .pt(px(if pinned {
+                // when the empty/loading note sits above, `+ New` follows right
+                // underneath it instead of repeating top header padding.
+                .pt(px(if show_status {
+                    4.
+                } else if pinned {
                     2.
                 } else if hidden_header {
                     theme::HEADER + 12.
@@ -454,29 +458,30 @@ impl Render for Explorer {
                     .filter(|_| !folded)
                     .map(|error| self.operation_error_banner(error, empty, t, cx)),
             )
-            .when(
-                (loading || empty) && operation_error.is_none() && !folded,
-                |d| {
-                    d.child(
-                        div()
-                            .px(px(
-                                metric::SIDEBAR_ROW_LEFT_GAP + metric::TREE_ROW_CONTENT_LEFT
-                            ))
-                            .pt(px(if hidden_header && !pinned {
-                                theme::HEADER + 12.
-                            } else {
-                                12.
-                            }))
-                            .text_size(px(theme::ty().left.meta))
-                            .text_color(t.subtle)
-                            .child(tr(if loading {
-                                "shared-ui.explorer.loadingWorkspace"
-                            } else {
-                                "shared-ui.explorer.emptyFolder"
-                            })),
-                    )
-                },
-            )
+            .when(show_status, |d| {
+                d.child(
+                    div()
+                        .when(!loading, |d| {
+                            d.debug_selector(|| "explorer-empty-note".into())
+                        })
+                        .px(px(
+                            metric::SIDEBAR_ROW_LEFT_GAP + metric::TREE_ROW_CONTENT_LEFT
+                        ))
+                        .pt(px(if hidden_header && !pinned {
+                            theme::HEADER + 12.
+                        } else {
+                            12.
+                        }))
+                        .pb(px(2.))
+                        .text_size(px(theme::ty().left.meta))
+                        .text_color(t.subtle)
+                        .child(tr(if loading {
+                            "shared-ui.explorer.loadingWorkspace"
+                        } else {
+                            "native.explorer.empty"
+                        })),
+                )
+            })
             // Folded away under the pins, the tree keeps its place.
             .child(
                 self.on_explorer_actions(tree, cx)

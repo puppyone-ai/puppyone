@@ -1,9 +1,11 @@
-//! Header popovers: `ProjectPlaceMenu` (the places and the account), the
-//! `DesktopWorkspaceSwitcher` folder menu (the folders in the open folder's
-//! place, and New), and the Homepage brand's navigation. They hang 2px
-//! below their trigger, start aligned, on the `.desktop-project-menu`
-//! surface. GPUI Kit places, clamps and dismisses them; the shell holds
-//! which one is open so commands and keys can open it too.
+//! Header popovers: the space's menu (`Popover::Place`: the projects in
+//! this space, a new one, and Home where the other spaces are — never a list
+//! of spaces), the project's menu (`Popover::Project`: its computer, Agents
+//! and history or a folder's settings, then Account and Settings or Sign in),
+//! and the Homepage brand's navigation. They hang 2px below their trigger,
+//! start aligned, on the `.desktop-project-menu` surface. GPUI Kit places,
+//! clamps and dismisses them; the shell holds which one is open so commands
+//! and keys can open it too.
 use super::*;
 use crate::{
     localization::{t as tr, tf},
@@ -27,9 +29,7 @@ const PROJECT_LIST_GAP: f32 = 2.;
 /// `max-height: min(520px, calc(100vh - 58px))` on the surface.
 const MENU_MAX_HEIGHT: f32 = 520.;
 const MENU_VIEWPORT_INSET: f32 = 58.;
-/// `preferredWidth={240}` / `preferredMaxHeight={560}` of the place menu;
-/// the Homepage brand's is 260 wide.
-const PLACE_MENU_WIDTH: f32 = 240.;
+/// The Homepage brand's navigation is 260 wide, at most 560 tall.
 const BRAND_MENU_WIDTH: f32 = 260.;
 const PLACE_MENU_MAX_HEIGHT: f32 = 560.;
 /// `.desktop-project-switcher-copy`: a 22px button in the row's end slot.
@@ -188,7 +188,23 @@ impl WindowChrome {
             .flex();
         if open {
             match popover {
+                // The project's own menu: this project's information first,
+                // then a horizontal row of the Agents in it, then its tools
+                // (computer, history / folder info & path), then the person.
                 Popover::Project => {
+                    let fill = self.project_actions_menu(cx);
+                    menu = menu.menu(move |surface, _, _| {
+                        fill(
+                            surface
+                                .variant(MenuVariant::Project)
+                                .min_w(px(256.))
+                                .max_w(px(320.)),
+                        )
+                    });
+                }
+                // The space's menu: the projects in this space (and the way
+                // Home, where the other spaces are), never the list of spaces.
+                Popover::Place => {
                     let fill = self.project_menu(cx);
                     menu = menu.menu(move |surface, window, _| {
                         let max_height = (window.viewport_size().height - px(MENU_VIEWPORT_INSET))
@@ -205,35 +221,19 @@ impl WindowChrome {
                     let fill = self.account_menu(cx);
                     menu = menu.menu(move |surface, _, _| fill(surface));
                 }
-                Popover::Place | Popover::Brand => {
-                    let place = popover == Popover::Place;
-                    let current = if place {
-                        let items = self.owners.home.read(cx).project_items(cx);
-                        self.owners
-                            .cloud
-                            .read(cx)
-                            .place_menu(&items, cx)
-                            .and_then(|menu| current_place(&menu))
-                    } else {
-                        None
-                    };
+                Popover::Brand => {
                     let host = self.weak.clone();
                     let preferences = self.owners.preferences.clone();
-                    let width = if place {
-                        PLACE_MENU_WIDTH
-                    } else {
-                        BRAND_MENU_WIDTH
-                    };
                     menu = menu.menu(move |surface, _, cx| {
                         let host = host.clone();
                         super::navigation::rows(
                             surface
                                 .variant(MenuVariant::Project)
-                                .min_w(px(width))
+                                .min_w(px(BRAND_MENU_WIDTH))
                                 .max_w(px(320.))
                                 .max_h(px(PLACE_MENU_MAX_HEIGHT)),
-                            current.as_deref(),
-                            place,
+                            None,
+                            false,
                             &preferences,
                             move |navigate, _, cx| {
                                 let _ = host.update(cx, |s, cx| {
@@ -248,6 +248,300 @@ impl WindowChrome {
             }
         }
         menu
+    }
+    /// `ProjectMenu`: this project's information first, then the Agents in it
+    /// (as a horizontal row), then the project's tools (Computer, History, or
+    /// a local folder's settings & path), and finally the person (Account and
+    /// Settings, or Sign in).
+    ///
+    /// Home leads only while there is no space button to hold it.
+    fn project_actions_menu(&self, cx: &App) -> impl FnOnce(Menu) -> Menu + 'static {
+        use super::navigation::Navigate;
+        use crate::app::project_place::{Place, place_name};
+        let host = self.weak.clone();
+        let t = cx.palette();
+        let ty = theme::ty().ui;
+        let opening = self.opening_project_name(cx).is_some();
+        let items = self.owners.home.read(cx).project_items(cx);
+        let cloud_entity = self.owners.cloud.clone();
+        let cloud = cloud_entity.read(cx);
+        let place_menu = (!opening).then(|| cloud.place_menu(&items, cx)).flatten();
+        let has_place = place_menu.is_some();
+        let hosted = self.session.hosted.is_some() || cloud.capture_hosted();
+        let command = |command: Command| {
+            let host = host.clone();
+            move |_: &mut Window, cx: &mut App| {
+                let _ = host.update(cx, |s, cx| {
+                    s.show_popover(None, cx);
+                    s.command(command, cx);
+                });
+            }
+        };
+        let navigate = |navigate: Navigate| {
+            let host = host.clone();
+            move |_: &mut Window, cx: &mut App| {
+                let _ = host.update(cx, |s, cx| {
+                    s.show_popover(None, cx);
+                    cx.emit(ChromeEvent::Navigate(navigate.clone()));
+                });
+            }
+        };
+        type CloudAction = fn(&mut WindowCloud, &mut Window, &mut Context<WindowCloud>);
+        let on_cloud = |action: CloudAction| {
+            let host = host.clone();
+            let cloud = cloud_entity.clone();
+            move |window: &mut Window, cx: &mut App| {
+                let _ = host.update(cx, |s, cx| s.show_popover(None, cx));
+                cloud.update(cx, |c, cx| action(c, window, cx));
+            }
+        };
+        let note = |text: SharedString, dot: Option<Rgba>| {
+            h_flex()
+                .max_w(px(150.))
+                .min_w_0()
+                .items_center()
+                .gap(px(6.))
+                .text_size(px(ty.caption))
+                .text_color(t.subtle)
+                .children(dot.map(|dot| div().size(px(6.)).flex_none().rounded_full().bg(dot)))
+                .child(div().min_w_0().truncate().child(text))
+        };
+
+        // 1. This project's identity and where it lives.
+        let project_name = self
+            .opening_project_name(cx)
+            .unwrap_or_else(|| self.session.name.clone());
+        let project_info: Option<AnyElement> = (!project_name.is_empty()).then(|| {
+            let (mark, subtitle): (AnyElement, Option<String>) = match &place_menu {
+                Some(menu) => match (&menu.space, menu.place) {
+                    (Some(space), _) => (
+                        crate::features::cloud::space_mark(space).into_any_element(),
+                        Some(format!(
+                            "{} · {}",
+                            crate::features::cloud::space_name(space),
+                            tr("cloud.home.location.cloud")
+                        )),
+                    ),
+                    (None, Place::Cloud) => (
+                        Icon::product(crate::ui::components::ProductIcon::Cloud)
+                            .with_size(px(16.))
+                            .stroke(1.75)
+                            .color(t.brand_blue)
+                            .into_any_element(),
+                        Some(place_name(menu).0),
+                    ),
+                    (None, Place::Computer) => (
+                        Icon::product(crate::ui::components::ProductIcon::Local)
+                            .with_size(px(16.))
+                            .stroke(1.75)
+                            .color(t.muted)
+                            .into_any_element(),
+                        Some(match &menu.detail {
+                            Some(detail) => format!("{} · {detail}", place_name(menu).0),
+                            None => place_name(menu).0,
+                        }),
+                    ),
+                    (None, Place::Local) => (
+                        Icon::product(crate::ui::components::ProductIcon::Folder)
+                            .with_size(px(16.))
+                            .stroke(1.75)
+                            .color(t.muted)
+                            .into_any_element(),
+                        menu.address
+                            .as_ref()
+                            .map(|a| a.short.clone())
+                            .or_else(|| Some(place_name(menu).0)),
+                    ),
+                },
+                None => (
+                    Icon::product(if hosted {
+                        crate::ui::components::ProductIcon::Cloud
+                    } else {
+                        crate::ui::components::ProductIcon::Folder
+                    })
+                    .with_size(px(16.))
+                    .stroke(1.75)
+                    .color(if hosted { t.brand_blue } else { t.muted })
+                    .into_any_element(),
+                    self.session
+                        .root
+                        .as_deref()
+                        .and_then(crate::app::project_place::local_address)
+                        .map(|a| a.short),
+                ),
+            };
+            h_flex()
+                .id("project-menu-info")
+                .debug_selector(|| "project-menu-info".into())
+                .items_start()
+                .gap(px(9.))
+                .px(px(8.))
+                .py(px(7.))
+                .child(
+                    div()
+                        .size(px(18.))
+                        .mt(px(1.))
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(mark),
+                )
+                .child(
+                    gpui_kit::base::v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .gap(px(2.))
+                        .child(
+                            div()
+                                .truncate()
+                                .text_size(px(ty.meta))
+                                .line_height(px(18.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(t.text)
+                                .child(project_name),
+                        )
+                        .children(subtitle.map(|sub| {
+                            div()
+                                .truncate()
+                                .text_size(px(ty.micro))
+                                .line_height(px(15.))
+                                .text_color(t.subtle)
+                                .child(sub)
+                        })),
+                )
+                .into_any_element()
+        });
+
+        // 2. Agents in this project (horizontal strip for hosted Cloud projects).
+        let agents_section: Option<AnyElement> = (hosted && !opening)
+            .then(|| {
+                cloud.project_menu_agents_section(
+                    on_cloud(WindowCloud::press_agents_entry),
+                    on_cloud(WindowCloud::press_agents_invite),
+                    cx,
+                )
+            })
+            .flatten();
+
+        // 3. The project's other tools & actions.
+        let mut lead = vec![];
+        if !has_place {
+            lead.push(
+                MenuItem::new(tr("shell.workspaceSwitcher.home"))
+                    .icon_sized(Icon::new("arrow-left").with_size(px(15.)).stroke(2.))
+                    .on_click(command(Command::Home)),
+            );
+        }
+        let mut project = vec![];
+        let screen = cloud.screen.read(cx);
+        if screen.entry_available(cx) {
+            use crate::features::cloud::ScreenState;
+            let dot = match screen.state(cx) {
+                ScreenState::Running => Some(t.success),
+                ScreenState::Provisioning => Some(t.warning),
+                _ => None,
+            };
+            project.push(
+                MenuItem::new(tr("native.computer.title"))
+                    .icon_sized(Icon::new("monitor").with_size(px(15.)).stroke(1.75))
+                    .selected(screen.is_shown(cx))
+                    .trailing(note(screen.status_line(cx), dot))
+                    .on_click(on_cloud(WindowCloud::toggle_computer)),
+            );
+        }
+        if hosted && !opening {
+            if crate::features::cloud::account::has_account(cx) {
+                project.push(
+                    MenuItem::new(tr("source-control.history.title"))
+                        .icon_sized(Icon::new("history").with_size(px(15.)).stroke(1.75))
+                        .on_click(command(Command::CloudHistory)),
+                );
+            }
+        } else if let (Some(root), None, false) =
+            (self.session.root.clone(), &self.session.device, opening)
+        {
+            project.push(
+                MenuItem::new(tr("settings.sidebar.projectInfo"))
+                    .icon_sized(Icon::new("folder-cog").with_size(px(15.)).stroke(1.75))
+                    .on_click(navigate(Navigate::ProjectSettings)),
+            );
+            let path = root.to_string_lossy().into_owned();
+            let copy_host = host.clone();
+            project.push(
+                MenuItem::new(tr("shell.workspaceSwitcher.copyPath"))
+                    .icon_sized(Icon::new("copy").with_size(px(15.)).stroke(1.75))
+                    .on_click(move |_, cx| {
+                        cx.write_to_clipboard(ClipboardItem::new_string(path.clone()));
+                        let _ = copy_host.update(cx, |s, cx| s.show_popover(None, cx));
+                    }),
+            );
+        }
+
+        // 4. The person: Account and Settings, or Settings and Sign in.
+        let mut person = vec![];
+        if let Some(email) =
+            super::account::email(cx).filter(|_| crate::features::cloud::account::has_account(cx))
+        {
+            use crate::workspace::cloud::spaces::{mark_initial, mark_tone};
+            person.push(
+                MenuItem::new(tr("settings.sidebar.account"))
+                    .icon_element(
+                        crate::ui::components::PersonMark::new(
+                            mark_tone(&email) as usize,
+                            mark_initial(&email),
+                        )
+                        .side(16.),
+                    )
+                    .detail_below(email)
+                    .on_click(navigate(Navigate::OpenAccount)),
+            );
+        }
+        person.push(
+            MenuItem::new(tr("shell.navigation.settings"))
+                .icon_sized(Icon::new("settings").with_size(px(15.)).stroke(1.75))
+                .on_click(navigate(Navigate::OpenSettings)),
+        );
+        if super::navigation::signs_in(cx) {
+            person.push(
+                MenuItem::new(tr("cloud.auth.signIn"))
+                    .icon_sized(Icon::new("log-in").with_size(px(15.)).stroke(1.75))
+                    .on_click(navigate(Navigate::SignIn)),
+            );
+        }
+
+        move |mut menu| {
+            let mut has_above = false;
+            if let Some(info) = project_info {
+                menu = menu.child_element(info);
+                has_above = true;
+            }
+            if !lead.is_empty() {
+                if has_above {
+                    menu = menu.separator();
+                }
+                menu = menu.items(lead);
+                has_above = true;
+            }
+            if let Some(agents) = agents_section {
+                if has_above {
+                    menu = menu.separator();
+                }
+                menu = menu.child_element(agents);
+                has_above = true;
+            }
+            for section in [project, person] {
+                if section.is_empty() {
+                    continue;
+                }
+                if has_above {
+                    menu = menu.separator();
+                }
+                has_above = true;
+                menu = menu.items(section);
+            }
+            menu
+        }
     }
     /// `DesktopWorkspaceSwitcher` "projects" view over the shared project
     /// list (`projectCatalog.items`): inside a place, only that place's
@@ -308,11 +602,11 @@ impl WindowChrome {
             let heading = headings.then(|| group_label(&group.kind, t));
             sections.push((heading, rows));
         }
-        let home = place_menu.is_none().then(|| {
+        let home = Some(
             MenuItem::new(tr("shell.workspaceSwitcher.home"))
                 .icon_sized(Icon::new("arrow-left").with_size(px(15.)).stroke(2.))
-                .on_click(action(Command::Home))
-        });
+                .on_click(action(Command::Home)),
+        );
         // `onCreateProject`: the Project entry launcher.
         let create = MenuItem::new(tr("shell.workspaceSwitcher.createNew"))
             .icon_sized(Icon::new("plus").with_size(px(15.)).stroke(2.))
@@ -500,16 +794,6 @@ fn in_place(groups: Vec<Group>, place: &MenuPlace) -> Vec<Group> {
 /// `projectMenuGroupsNeedHeadings`: only this computer's folders need none.
 fn needs_headings(groups: &[Group]) -> bool {
     groups.len() > 1 || groups.first().is_some_and(|g| g.kind != GroupKind::Local)
-}
-/// The place the open folder is in, among the window's places
-/// (`currentPlace`).
-pub(super) fn current_place(menu: &crate::app::project_place::PlaceMenu) -> Option<String> {
-    use crate::app::project_place::Place;
-    match (&menu.space, menu.place) {
-        (Some(space), _) => Some(space.id.clone()),
-        (None, Place::Local) => Some(super::navigation::LOCAL_PLACE.to_owned()),
-        _ => None,
-    }
 }
 /// `.desktop-project-menu-group-label`.
 fn group_label(kind: &GroupKind, t: Theme) -> AnyElement {

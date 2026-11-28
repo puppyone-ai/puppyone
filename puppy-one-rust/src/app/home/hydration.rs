@@ -170,6 +170,14 @@ impl Homepage {
                     .filter(|(_, _, _, _, _, previews)| !previews.is_empty())
                     .map(|(path, _, _, _, _, previews)| (path.clone(), previews.clone()))
                     .collect();
+                let cached_local: HashMap<PathBuf, Vec<crate::features::cloud::CachedFilePreview>> =
+                    s.discovery
+                        .local_previews
+                        .iter()
+                        .map(|(path, items)| (path.clone(), previews::to_cached(items)))
+                        .collect();
+                crate::features::cloud::global_home_details(cx)
+                    .update(cx, |c, cx| c.record_local_previews(cached_local, cx));
                 let learned: Vec<(PathBuf, String)> = read
                     .iter()
                     .filter_map(|(path, _, _, _, identity, _)| {
@@ -262,6 +270,7 @@ impl Homepage {
         let id = groups::GroupId::of_place(place);
         self.active_group = Some(id.clone());
         self.place_focus = Some((id, Instant::now(), None));
+        self.refresh_cloud_home_details(false, cx);
         cx.notify();
     }
 

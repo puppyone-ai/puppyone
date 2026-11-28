@@ -22,8 +22,9 @@
 //! link's card, with `PUPPYONE_TEMPLATE_LAB`), `agents-fixture` /
 //! `agents-fixture:<roster|empty|invite|invite-connecting>` (the Cloud Header with fixture Agents,
 //! nobody asking to join, or nobody yet; `invite`: nobody until the message
-//! goes out, then Claude Code asks to join), `agents:<more|invite|agent id>` (their dialog), `agent-card:<id>`
-//! (the card under a Header face), `agents-copy` (the invite copied),
+//! goes out, then Claude Code asks to join), `agents:<more|invite>` (their dialog), `agents-panel`
+//! (the list under the Header's Agents entry), `computer-peek` (the Header
+//! Computer button's live preview), `agents-copy` (the invite copied),
 //! `agents-allow` (the first asking Agent let in), `agents-lapse` (the
 //! message lapsed), `agents-overdue` (the Agent let in has not connected in time),
 //! `agent-chat:<runtime id>` (a new chat on a detected
@@ -116,10 +117,12 @@ enum Step {
     /// `agents-fixture[:roster|empty]`: a hosted project's Agents, one
     /// asking to join; nobody asking; or nobody yet.
     AgentsFixture(String),
-    /// `agents:<opener>`: the Agents dialog, opened from a mark.
+    /// `agents:<opener>`: the Agents dialog (`more` its roster, `invite` the invite).
     Agents(String),
-    /// `agent-card:<id>`: the card under a Header face.
-    AgentCard(String),
+    /// `agents-panel`: the list under the Header's Agents entry.
+    AgentsPanel,
+    /// `computer-peek`: the Header Computer button's live preview.
+    ComputerPeek,
     /// `agents-copy`: the message copied; the invite waits for the Agent.
     AgentsCopy,
     /// `agents-allow`: the first Agent asking to join is let in.
@@ -224,7 +227,8 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "pin" => Step::Pin(path()),
                 "agents-fixture" => Step::AgentsFixture(arg.to_string()),
                 "agents" => Step::Agents(arg.to_string()),
-                "agent-card" => Step::AgentCard(arg.to_string()),
+                "agents-panel" => Step::AgentsPanel,
+                "computer-peek" => Step::ComputerPeek,
                 "agents-copy" => Step::AgentsCopy,
                 "agents-allow" => Step::AgentsAllow,
                 "agents-lapse" => Step::AgentsLapse,
@@ -819,19 +823,28 @@ impl Shell {
                     return false;
                 }
                 let opener = match opener.as_str() {
-                    "more" => Opener::More,
                     "invite" => Opener::Invite,
-                    id => Opener::Agent(id.to_owned()),
+                    _ => Opener::More,
                 };
                 self.cloud
                     .update(cx, |c, cx| c.press_agents(opener, window, cx));
             }
-            Step::AgentCard(id) => {
-                if !self.cloud.read(cx).agents.read(cx).manageable {
+            Step::AgentsPanel => {
+                let agents = self.cloud.read(cx).agents.read(cx);
+                if !agents.manageable || agents.agents.is_empty() {
                     return false;
                 }
                 self.cloud.update(cx, |c, cx| {
-                    c.agent_cards.shown = Some(id.clone());
+                    c.agents_panel = true;
+                    cx.notify()
+                });
+            }
+            Step::ComputerPeek => {
+                if !self.cloud.read(cx).screen.read(cx).entry_available(cx) {
+                    return false;
+                }
+                self.cloud.update(cx, |c, cx| {
+                    c.computer_peek = true;
                     cx.notify()
                 });
             }

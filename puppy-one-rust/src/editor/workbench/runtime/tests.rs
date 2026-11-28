@@ -747,6 +747,69 @@ fn a_starting_file_opens_once_on_entry_and_never_over_saved_tabs() {
         .collect();
     assert_eq!(labels, ["b.md"], "the saved tab, not the README");
 }
+
+#[test]
+fn starting_file_falls_back_to_most_recent_existing_file_when_root_has_only_folders() {
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("notes")).unwrap();
+    std::fs::write(root.path().join("notes/first.md"), "first").unwrap();
+    std::fs::write(root.path().join("notes/second.md"), "second").unwrap();
+    let runtime = || Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        starting_file: true,
+        ..Default::default()
+    };
+    let mut r = runtime();
+    open_root(&mut r, root.path());
+    for _ in 0..3 {
+        r.poll(&Wake::default());
+    }
+    assert!(r.opened().is_none(), "no root files and no recent files");
+
+    open(&mut r, "notes/first.md");
+    open(&mut r, "notes/second.md");
+    assert_eq!(
+        r.recent_files(),
+        vec![
+            PathBuf::from("notes/second.md"),
+            PathBuf::from("notes/first.md")
+        ]
+    );
+    // Close every tab so the saved layout has no open tabs, only recentFiles.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !r.state().unwrap().catalog.editors.is_empty() {
+        assert!(Instant::now() < deadline, "tabs did not close");
+        r.begin(Intent::CloseFile, &Wake::default());
+        for _ in 0..4 {
+            r.poll(&Wake::default());
+            snapshots(&mut r, str::to_owned);
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    r.persist_metadata(&Wake::default(), true);
+    wait(&mut r, |r| r.metadata_inflight == 0);
+    drop(r);
+
+    // Reopening with no open tabs falls back to the most recent file.
+    let mut r = runtime();
+    open_root(&mut r, root.path());
+    wait(&mut r, |r| {
+        r.opened()
+            .is_some_and(|(_, p)| p == std::path::Path::new("notes/second.md"))
+    });
+    drop(r);
+
+    // Removing the newest recent file falls back to the next existing one.
+    std::fs::remove_file(root.path().join("notes/second.md")).unwrap();
+    let mut r = runtime();
+    open_root(&mut r, root.path());
+    wait(&mut r, |r| {
+        r.opened()
+            .is_some_and(|(_, p)| p == std::path::Path::new("notes/first.md"))
+    });
+    assert_eq!(r.recent_files(), vec![PathBuf::from("notes/first.md")]);
+}
 #[test]
 fn resize_cancel_targets_its_original_workspace_not_a_reused_split_id() {
     let a = tempfile::tempdir().unwrap();

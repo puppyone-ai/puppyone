@@ -73,6 +73,10 @@ pub(super) fn read(path: &Path) -> Result<Option<Value>, String> {
 }
 pub(super) fn write(path: &Path, value: &Value) -> Result<(), String> {
     let bytes = serde_json::to_vec(value).map_err(|e| e.to_string())?;
+    write_bytes(path, &bytes)
+}
+/// Atomically persists bounded UI/cache bytes with `0o600` permissions on Unix.
+pub fn write_bytes(path: &Path, bytes: &[u8]) -> Result<(), String> {
     if bytes.len() > 1024 * 1024 {
         return Err("Workbench state exceeds its limit".into());
     }
@@ -88,7 +92,7 @@ pub(super) fn write(path: &Path, value: &Value) -> Result<(), String> {
             options.mode(0o600);
         }
         let mut f = options.open(&temp)?;
-        f.write_all(&bytes)?;
+        f.write_all(bytes)?;
         f.sync_all()?;
         std::fs::rename(&temp, path)
     })();

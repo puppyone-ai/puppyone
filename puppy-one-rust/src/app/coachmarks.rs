@@ -302,6 +302,9 @@ impl HeaderCoachmarks {
         self.state.active.is_some()
             && self.state.anchor.is_some()
             && !self.session.home
+            // A Cloud project has no Changes, and its empty view hands it to
+            // an Agent itself: these introductions are a folder's.
+            && self.session.hosted.is_none()
             && self.dialogs.read(cx).is_empty()
     }
     /// `dismissOnEscape`: Escape acknowledges the introduction on screen.

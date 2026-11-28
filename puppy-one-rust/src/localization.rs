@@ -54,6 +54,7 @@ fn native() -> &'static Value {
             HIDDEN_HEADER_MESSAGES,
             HOME_SPACE_LAYOUT_MESSAGES,
             LAUNCHER_L1_MESSAGES,
+            CLOUD_HEADER_TOOLS_MESSAGES,
         ] {
             let extra: Value = serde_json::from_str(raw).expect("native extension catalogs");
             for (locale, messages) in extra.as_object().unwrap() {
@@ -66,77 +67,202 @@ fn native() -> &'static Value {
     })
 }
 
+/// The Header's workspace tools in a hosted project: the Computer button and
+/// its preview, and the Agents entry with its list.
+const CLOUD_HEADER_TOOLS_MESSAGES: &str = r#"{
+  "en": {
+    "native.computer.title": "Computer",
+    "native.computer.open": "Open the computer",
+    "native.computer.close": "Back to files",
+    "native.agents.working": "{count} agents",
+    "native.agents.active": "Working",
+    "native.agents.empty": "No agents yet",
+    "native.agents.ends": "Ends {date}",
+    "native.agents.since": "Since {date}",
+    "native.agents.viaLink": "Via link",
+    "native.agents.invite": "Invite",
+    "native.agents.watch": "Watch",
+    "native.agents.removeConfirm": "Remove {name}?",
+    "native.agents.removeDetail": "Loses project access"
+  },
+  "zh-Hans": {
+    "native.computer.title": "电脑",
+    "native.computer.open": "打开电脑",
+    "native.computer.close": "回到文件",
+    "native.agents.working": "{count} 个 Agent",
+    "native.agents.active": "工作中",
+    "native.agents.empty": "暂无 Agent",
+    "native.agents.ends": "{date} 到期",
+    "native.agents.since": "{date} 加入",
+    "native.agents.viaLink": "链接加入",
+    "native.agents.invite": "邀请",
+    "native.agents.watch": "查看",
+    "native.agents.removeConfirm": "移除 {name}？",
+    "native.agents.removeDetail": "将失去此项目权限"
+  },
+  "ja": {
+    "native.computer.title": "コンピューター",
+    "native.computer.open": "コンピューターを開く",
+    "native.computer.close": "ファイルに戻る",
+    "native.agents.working": "{count} 個の Agent",
+    "native.agents.active": "作業中",
+    "native.agents.empty": "Agent はまだありません",
+    "native.agents.ends": "{date} まで",
+    "native.agents.since": "{date} から",
+    "native.agents.viaLink": "リンク経由",
+    "native.agents.invite": "招待",
+    "native.agents.watch": "見る",
+    "native.agents.removeConfirm": "{name} を削除しますか？",
+    "native.agents.removeDetail": "アクセス権を失います"
+  },
+  "ko": {
+    "native.computer.title": "컴퓨터",
+    "native.computer.open": "컴퓨터 열기",
+    "native.computer.close": "파일로 돌아가기",
+    "native.agents.working": "Agent {count}개",
+    "native.agents.active": "작업 중",
+    "native.agents.empty": "연결된 Agent 없음",
+    "native.agents.ends": "{date} 만료",
+    "native.agents.since": "{date}부터",
+    "native.agents.viaLink": "링크로 참여",
+    "native.agents.invite": "초대",
+    "native.agents.watch": "보기",
+    "native.agents.removeConfirm": "{name}을(를) 제거할까요?",
+    "native.agents.removeDetail": "프로젝트 접근 권한이 사라집니다"
+  },
+  "es": {
+    "native.computer.title": "Computadora",
+    "native.computer.open": "Abrir la computadora",
+    "native.computer.close": "Volver a los archivos",
+    "native.agents.working": "{count} agents",
+    "native.agents.active": "Activo",
+    "native.agents.empty": "Sin agents aún",
+    "native.agents.ends": "Hasta {date}",
+    "native.agents.since": "Desde {date}",
+    "native.agents.viaLink": "Por enlace",
+    "native.agents.invite": "Invitar",
+    "native.agents.watch": "Ver",
+    "native.agents.removeConfirm": "¿Quitar a {name}?",
+    "native.agents.removeDetail": "Perderá acceso al proyecto"
+  },
+  "pt-BR": {
+    "native.computer.title": "Computador",
+    "native.computer.open": "Abrir o computador",
+    "native.computer.close": "Voltar aos arquivos",
+    "native.agents.working": "{count} agents",
+    "native.agents.active": "Ativo",
+    "native.agents.empty": "Nenhum agent ainda",
+    "native.agents.ends": "Até {date}",
+    "native.agents.since": "Desde {date}",
+    "native.agents.viaLink": "Por link",
+    "native.agents.invite": "Convidar",
+    "native.agents.watch": "Ver",
+    "native.agents.removeConfirm": "Remover {name}?",
+    "native.agents.removeDetail": "Perderá acesso ao projeto"
+  },
+  "fr": {
+    "native.computer.title": "Ordinateur",
+    "native.computer.open": "Ouvrir l’ordinateur",
+    "native.computer.close": "Revenir aux fichiers",
+    "native.agents.working": "{count} agents",
+    "native.agents.active": "En cours",
+    "native.agents.empty": "Aucun agent",
+    "native.agents.ends": "Jusqu’au {date}",
+    "native.agents.since": "Depuis {date}",
+    "native.agents.viaLink": "Par lien",
+    "native.agents.invite": "Inviter",
+    "native.agents.watch": "Voir",
+    "native.agents.removeConfirm": "Retirer {name} ?",
+    "native.agents.removeDetail": "Perdra l’accès au projet"
+  },
+  "de": {
+    "native.computer.title": "Computer",
+    "native.computer.open": "Computer öffnen",
+    "native.computer.close": "Zurück zu den Dateien",
+    "native.agents.working": "{count} Agents",
+    "native.agents.active": "Aktiv",
+    "native.agents.empty": "Noch keine Agents",
+    "native.agents.ends": "Bis {date}",
+    "native.agents.since": "Seit {date}",
+    "native.agents.viaLink": "Per Link",
+    "native.agents.invite": "Einladen",
+    "native.agents.watch": "Ansehen",
+    "native.agents.removeConfirm": "{name} entfernen?",
+    "native.agents.removeDetail": "Verliert Projektzugriff"
+  }
+}"#;
+
 const LAUNCHER_L1_MESSAGES: &str = r#"{
   "en": {
-    "native.launcher.greeting": "What would you like to work on?",
-    "native.launcher.workingIn": "Working in {project}",
-    "native.launcher.askPlaceholder": "Ask {agent} anything, @ to add files",
+    "native.launcher.greeting": "Start a session",
+    "native.launcher.greetingInProject": "Work in {project}",
+    "native.launcher.askPlaceholder": "Ask {agent}…",
     "native.launcher.localAgents": "Local Agents",
     "native.launcher.openInTerminal": "Open in Terminal",
     "native.launcher.recent": "Recent",
     "native.launcher.allHistory": "All history"
   },
   "zh-Hans": {
-    "native.launcher.greeting": "今天想让 Agent 做点什么？",
-    "native.launcher.workingIn": "在 {project} 中工作",
-    "native.launcher.askPlaceholder": "向 {agent} 提问，@ 添加文件",
+    "native.launcher.greeting": "开始新会话",
+    "native.launcher.greetingInProject": "在 {project} 中开始",
+    "native.launcher.askPlaceholder": "向 {agent} 提问…",
     "native.launcher.localAgents": "本机 Agent",
     "native.launcher.openInTerminal": "在 Terminal 中打开",
     "native.launcher.recent": "最近",
     "native.launcher.allHistory": "全部历史"
   },
   "ja": {
-    "native.launcher.greeting": "今日は何に取り組みますか？",
-    "native.launcher.workingIn": "{project} で作業中",
-    "native.launcher.askPlaceholder": "{agent} に何でも質問、@ でファイルを追加",
+    "native.launcher.greeting": "セッションを開始",
+    "native.launcher.greetingInProject": "{project} で作業",
+    "native.launcher.askPlaceholder": "{agent} に質問…",
     "native.launcher.localAgents": "ローカル Agent",
     "native.launcher.openInTerminal": "Terminal で開く",
     "native.launcher.recent": "最近",
     "native.launcher.allHistory": "すべての履歴"
   },
   "ko": {
-    "native.launcher.greeting": "오늘은 무엇을 작업할까요?",
-    "native.launcher.workingIn": "{project}에서 작업 중",
-    "native.launcher.askPlaceholder": "{agent}에게 무엇이든 물어보세요. @로 파일 추가",
+    "native.launcher.greeting": "세션 시작",
+    "native.launcher.greetingInProject": "{project}에서 작업",
+    "native.launcher.askPlaceholder": "{agent}에게 질문…",
     "native.launcher.localAgents": "로컬 Agent",
     "native.launcher.openInTerminal": "Terminal에서 열기",
     "native.launcher.recent": "최근",
     "native.launcher.allHistory": "전체 기록"
   },
   "es": {
-    "native.launcher.greeting": "¿En qué te gustaría trabajar?",
-    "native.launcher.workingIn": "Trabajando en {project}",
-    "native.launcher.askPlaceholder": "Pregunta lo que quieras a {agent}, @ para añadir archivos",
-    "native.launcher.localAgents": "Agentes locales",
+    "native.launcher.greeting": "Iniciar una sesión",
+    "native.launcher.greetingInProject": "Trabajar en {project}",
+    "native.launcher.askPlaceholder": "Pregunta a {agent}…",
+    "native.launcher.localAgents": "Agents locales",
     "native.launcher.openInTerminal": "Abrir en Terminal",
     "native.launcher.recent": "Recientes",
     "native.launcher.allHistory": "Todo el historial"
   },
   "pt-BR": {
-    "native.launcher.greeting": "No que você gostaria de trabalhar?",
-    "native.launcher.workingIn": "Trabalhando em {project}",
-    "native.launcher.askPlaceholder": "Pergunte qualquer coisa a {agent}, @ para adicionar arquivos",
-    "native.launcher.localAgents": "Agentes locais",
+    "native.launcher.greeting": "Iniciar uma sessão",
+    "native.launcher.greetingInProject": "Trabalhar em {project}",
+    "native.launcher.askPlaceholder": "Pergunte ao {agent}…",
+    "native.launcher.localAgents": "Agents locais",
     "native.launcher.openInTerminal": "Abrir no Terminal",
     "native.launcher.recent": "Recentes",
     "native.launcher.allHistory": "Todo o histórico"
   },
   "fr": {
-    "native.launcher.greeting": "Sur quoi souhaitez-vous travailler ?",
-    "native.launcher.workingIn": "Travail dans {project}",
-    "native.launcher.askPlaceholder": "Posez n’importe quelle question à {agent}, @ pour ajouter des fichiers",
+    "native.launcher.greeting": "Démarrer une session",
+    "native.launcher.greetingInProject": "Travailler dans {project}",
+    "native.launcher.askPlaceholder": "Demander à {agent}…",
     "native.launcher.localAgents": "Agents locaux",
-    "native.launcher.openInTerminal": "Ouvrir dans le Terminal",
+    "native.launcher.openInTerminal": "Ouvrir dans Terminal",
     "native.launcher.recent": "Récents",
     "native.launcher.allHistory": "Tout l’historique"
   },
   "de": {
-    "native.launcher.greeting": "Woran möchtest du arbeiten?",
-    "native.launcher.workingIn": "Arbeitet in {project}",
-    "native.launcher.askPlaceholder": "Frag {agent} alles, @ zum Hinzufügen von Dateien",
-    "native.launcher.localAgents": "Lokale Agenten",
-    "native.launcher.openInTerminal": "Im Terminal öffnen",
-    "native.launcher.recent": "Zuletzt",
+    "native.launcher.greeting": "Sitzung starten",
+    "native.launcher.greetingInProject": "In {project} arbeiten",
+    "native.launcher.askPlaceholder": "{agent} fragen…",
+    "native.launcher.localAgents": "Lokale Agents",
+    "native.launcher.openInTerminal": "In Terminal öffnen",
+    "native.launcher.recent": "Zuletzt verwendet",
     "native.launcher.allHistory": "Gesamter Verlauf"
   }
 }"#;

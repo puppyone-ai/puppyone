@@ -257,6 +257,22 @@ impl Homepage {
                             .child(detail)
                     })),
             )
+            .children(
+                (!narrow)
+                    .then(|| {
+                        let cloud_agents = self.item_cloud_agents(item);
+                        item.cloud_project.as_deref().and_then(|id| {
+                            super::super::folder::list_agent_badges(
+                                id,
+                                cloud_agents,
+                                lit && !busy,
+                                t,
+                            )
+                        })
+                    })
+                    .flatten()
+                    .map(|badges| div().flex_none().when(lit, |d| d.invisible()).child(badges)),
+            )
             .children(modified.map(|time| {
                 div()
                     .flex_none()

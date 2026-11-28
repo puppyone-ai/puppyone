@@ -294,6 +294,12 @@ impl Shell {
                 self.editor
                     .update(cx, |e, cx| e.close_conflict_comparison(cx));
             }
+            // Escape closes the Header's Agents list.
+            Command::Escape if self.cloud.read(cx).agents_panel => {
+                self.cloud.update(cx, |c, cx| {
+                    c.close_agents_panel(cx);
+                });
+            }
             // Escape cancels a Cloud opening; whatever showed stays.
             Command::Escape if self.files(cx).cloud_opening().is_some() => {
                 self.session.docs.update(cx, |d, _| d.cancel_cloud());

@@ -366,6 +366,13 @@ impl ComposerView {
             .map(|r| (r.id.clone(), r.clone()))
             .collect();
         self.data = data;
+        let placeholder = if crate::text::trim(&self.data.placeholder).is_empty() {
+            crate::localization::t("agent.composer.placeholder.default").to_string()
+        } else {
+            self.data.placeholder.clone()
+        };
+        self.input
+            .update(cx, |input, cx| input.set_placeholder(placeholder, cx));
         self.sync(window, cx);
         self.sync_multiline(cx);
         cx.notify();
@@ -550,14 +557,6 @@ impl ComposerView {
         let view = self.data.clone();
         let t_ = cx.palette();
         let a = AgentTheme::new(&t_);
-        // A blank caller copy keeps the useful default.
-        let placeholder = if crate::text::trim(&view.placeholder).is_empty() {
-            crate::localization::t("agent.composer.placeholder.default").to_string()
-        } else {
-            view.placeholder.clone()
-        };
-        self.input
-            .update(cx, |input, _| input.set_placeholder(placeholder));
         let attach = self.render_attach(&view, &a, cx);
         let primary = self.render_primary_action(&view, &a, cx);
         let controls = self.render_controls_row(&view, window, cx);
@@ -569,7 +568,6 @@ impl ComposerView {
         let has_visual = visual.is_some();
         let expanded = self.multiline || has_visual;
         let commands = self.render_commands(cx);
-        let shadow = a.composer_shadows(t_.dark, focused);
         let body: AnyElement = if expanded {
             v_flex()
                 .w_full()
@@ -638,7 +636,6 @@ impl ComposerView {
                         a.composer_border
                     })
                     .bg(a.composer_surface)
-                    .shadow(shadow)
                     .when(view.composer_disabled, |d| d.opacity(0.72))
                     .children(visual)
                     .child(body),

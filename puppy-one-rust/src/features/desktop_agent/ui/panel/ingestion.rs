@@ -2,15 +2,56 @@
 //! computer, and Explorer entries, become the draft's references; a status
 //! says how many a batch added and how many could not be, and a drag from
 //! another workspace is refused.
+use super::super::composer::can_submit;
 use super::AgentChatTabPanel;
-use crate::agent::contract::dto::ReferenceStatus;
+use crate::agent::contract::dto::{DraftReference, PromptMention, ReferenceStatus};
 use crate::features::desktop_agent::application::agent_client_port::{AgentFile, AgentFileSource};
+use crate::features::desktop_agent::application::agent_controller_state::AgentControllerPhase;
 use crate::features::desktop_agent::application::agent_reference_preview_store::create_agent_file_visual_preview;
+use crate::features::desktop_agent::domain::agent_prompt_mentions::{
+    agent_prompt_mention_text, is_agent_media_reference,
+};
 use crate::features::desktop_agent::ui::composer::mime_for;
 use crate::localization::{t, tf};
 use crate::ui::resource_drag::ResourceDrag;
 use gpui::*;
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
+
+/// One pre-staged launcher attachment handed off to a freshly created chat tab.
+#[derive(Clone, Debug)]
+pub enum SeededAttachment {
+    WorkspacePath {
+        path: PathBuf,
+        relative_path: String,
+    },
+    ExternalFile {
+        path: PathBuf,
+        display_name: String,
+        mime: String,
+    },
+    PastedImage {
+        name: String,
+        mime: String,
+        bytes: Arc<Vec<u8>>,
+    },
+}
+
+/// Ordered piece of a seeded prompt preserving exact inline `@mention` placement.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SeededPromptSegment {
+    Text(String),
+    /// Index into [`SeededSubmission::attachments`].
+    Mention(usize),
+}
+
+/// Initial prompt + pre-staged attachments handed off from the L1 launcher into
+/// a newly created [`AgentChatTabPanel`].
+#[derive(Clone, Debug, Default)]
+pub struct SeededSubmission {
+    pub text: String,
+    pub segments: Vec<SeededPromptSegment>,
+    pub attachments: Vec<SeededAttachment>,
+}
 
 impl AgentChatTabPanel {
     /// The draft's references now, to tell a batch's own failures apart.
@@ -264,6 +305,107 @@ impl AgentChatTabPanel {
         cx.notify();
     }
 
+    /// Stages pre-collected launcher attachments onto this chat's controller,
+    /// reconstructs exact UTF-16 `PromptMention` spans against the resolved
+    /// `DraftReference`s, and auto-submits once all references settle ready.
+    /// If any reference fails or cannot auto-submit, preserves the draft and
+    /// actionable error chips in the composer instead of dropping user input.
+    pub(super) fn stage_and_submit_seeded(
+        &mut self,
+        submission: SeededSubmission,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.staging_seeded_submission = true;
+
+        let mut ws_paths = Vec::new();
+        let mut ws_previews = Vec::new();
+        let mut ext_files = Vec::new();
+        for attachment in &submission.attachments {
+            match attachment {
+                SeededAttachment::WorkspacePath { path, .. } => {
+                    let path_str = path.to_string_lossy().into_owned();
+                    if let Some(name) = path.file_name().map(|n| n.to_string_lossy().into_owned()) {
+                        let file = AgentFile {
+                            mime: mime_for(&name).into(),
+                            name,
+                            size: 0.,
+                            source: AgentFileSource::Path(path_str.clone()),
+                        };
+                        if let Some(preview) = create_agent_file_visual_preview(&file) {
+                            ws_previews.push((path_str.clone(), preview));
+                        }
+                    }
+                    if !ws_paths.contains(&path_str) {
+                        ws_paths.push(path_str);
+                    }
+                }
+                SeededAttachment::ExternalFile {
+                    path,
+                    display_name,
+                    mime,
+                } => {
+                    let size = std::fs::metadata(path)
+                        .map(|m| m.len() as f64)
+                        .unwrap_or(0.);
+                    ext_files.push(AgentFile {
+                        name: display_name.clone(),
+                        mime: mime.clone(),
+                        size,
+                        source: AgentFileSource::Path(path.to_string_lossy().into_owned()),
+                    });
+                }
+                SeededAttachment::PastedImage { name, mime, bytes } => {
+                    ext_files.push(AgentFile {
+                        name: name.clone(),
+                        mime: mime.clone(),
+                        size: bytes.len() as f64,
+                        source: AgentFileSource::Bytes(std::rc::Rc::new((**bytes).clone())),
+                    });
+                }
+            }
+        }
+
+        let ws_task = (!ws_paths.is_empty())
+            .then(|| self.controller.add_workspace_paths(ws_paths, ws_previews));
+        let ext_task =
+            (!ext_files.is_empty()).then(|| self.controller.stage_external_files(ext_files));
+
+        cx.spawn_in(window, async move |this, cx| {
+            if let Some(task) = ws_task {
+                let _ = task.await;
+            }
+            if let Some(task) = ext_task {
+                let _ = task.await;
+            }
+            let _ = this.update_in(cx, |this, window, cx| {
+                this.staging_seeded_submission = false;
+                let state = this.state();
+                let (draft_text, draft_mentions) =
+                    reconstruct_seeded_draft(&submission, &state.references);
+                this.controller
+                    .set_draft_document(&draft_text, &draft_mentions);
+                let state = this.state();
+                let view = this.view_model(&state);
+                this.sync_composer(&state, &view, window, cx);
+                if can_submit(&state, &view)
+                    && view.routing_ready
+                    && state.phase == AgentControllerPhase::Ready
+                    && !view.unavailable
+                {
+                    this.compute_access_prompt = false;
+                    this.transcript.update(cx, |t, _| t.follow_latest());
+                    drop(this.controller.submit(&state.draft));
+                } else {
+                    this.composer.update(cx, |c, cx| c.focus(window, cx));
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
+    }
+
     #[cfg(test)]
     pub fn debug_staged_summary(&self) -> (String, Vec<String>) {
         let snap = self.controller.get_snapshot();
@@ -278,6 +420,113 @@ impl AgentChatTabPanel {
             .collect();
         (snap.draft, refs)
     }
+}
+
+/// Reconstructs the draft text and UTF-16 `PromptMention` spans for a seeded
+/// launcher submission after its attachments finish resolving on the controller.
+fn reconstruct_seeded_draft(
+    submission: &SeededSubmission,
+    references: &[DraftReference],
+) -> (String, Vec<PromptMention>) {
+    let mut matched_by_index: Vec<Option<&DraftReference>> =
+        vec![None; submission.attachments.len()];
+    let mut used_ids: HashSet<&str> = HashSet::new();
+
+    for (idx, attachment) in submission.attachments.iter().enumerate() {
+        let found = match attachment {
+            SeededAttachment::WorkspacePath {
+                path,
+                relative_path,
+            } => {
+                let path_str = path.to_string_lossy();
+                let file_name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                references.iter().find(|r| {
+                    !used_ids.contains(r.id.as_str())
+                        && (r.relative_path.as_deref() == Some(relative_path.as_str())
+                            || r.relative_path.as_deref() == Some(path_str.as_ref())
+                            || (!file_name.is_empty() && r.display_name == file_name))
+                })
+            }
+            SeededAttachment::ExternalFile { display_name, .. } => references
+                .iter()
+                .find(|r| !used_ids.contains(r.id.as_str()) && r.display_name == *display_name),
+            SeededAttachment::PastedImage { name, .. } => references
+                .iter()
+                .find(|r| !used_ids.contains(r.id.as_str()) && r.display_name == *name),
+        };
+        if let Some(reference) = found {
+            used_ids.insert(reference.id.as_str());
+            matched_by_index[idx] = Some(reference);
+        }
+    }
+
+    let mut text = String::new();
+    let mut mentions = Vec::new();
+    let mut emitted_mention_ids: HashSet<&str> = HashSet::new();
+
+    if submission.segments.is_empty() {
+        text.push_str(crate::text::trim(&submission.text));
+    } else {
+        for segment in &submission.segments {
+            match segment {
+                SeededPromptSegment::Text(piece) => text.push_str(piece),
+                SeededPromptSegment::Mention(idx) => {
+                    if let Some(Some(reference)) = matched_by_index.get(*idx) {
+                        if !is_agent_media_reference(reference) {
+                            let label = agent_prompt_mention_text(reference);
+                            let start = crate::text::len16(&text);
+                            text.push_str(&label);
+                            let end = crate::text::len16(&text);
+                            mentions.push(PromptMention {
+                                reference_id: reference.id.clone(),
+                                start,
+                                end,
+                            });
+                            emitted_mention_ids.insert(reference.id.as_str());
+                        }
+                    } else if let Some(att) = submission.attachments.get(*idx) {
+                        let fallback = match att {
+                            SeededAttachment::WorkspacePath { relative_path, .. } => {
+                                format!("@{relative_path}")
+                            }
+                            SeededAttachment::ExternalFile { display_name, .. } => {
+                                format!("@{display_name}")
+                            }
+                            SeededAttachment::PastedImage { .. } => String::new(),
+                        };
+                        text.push_str(&fallback);
+                    }
+                }
+            }
+        }
+    }
+
+    // Ensure any non-media resolved reference not referenced by a segment still
+    // receives its inline mention chip (e.g., if segments were empty).
+    for reference in references {
+        if !is_agent_media_reference(reference)
+            && !emitted_mention_ids.contains(reference.id.as_str())
+        {
+            if !text.is_empty() && !text.ends_with([' ', '\n']) {
+                text.push(' ');
+            }
+            let label = agent_prompt_mention_text(reference);
+            let start = crate::text::len16(&text);
+            text.push_str(&label);
+            let end = crate::text::len16(&text);
+            mentions.push(PromptMention {
+                reference_id: reference.id.clone(),
+                start,
+                end,
+            });
+            emitted_mention_ids.insert(reference.id.as_str());
+        }
+    }
+
+    (text, mentions)
 }
 
 /// Whether two workspace roots are the same folder.

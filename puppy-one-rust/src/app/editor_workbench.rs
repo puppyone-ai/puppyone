@@ -659,6 +659,7 @@ impl EditorArea {
                             let drag = event.drag(cx);
                             let inside = event.bounds.contains(&event.event.position)
                                 && !s.gate.modal
+                                && !s.shows_empty_start(cx)
                                 && (s.external_document(drag, cx).is_some()
                                     || s.external_outside_file(drag, cx).is_some());
                             let preview = inside.then(|| {
@@ -802,6 +803,12 @@ impl EditorArea {
                                 )),
                             ),
                     );
+                } else if !pane_loading
+                    && !split
+                    && !self.file_mode
+                    && let Some(start) = self.start_view(cx)
+                {
+                    view = view.child(start);
                 }
                 if pane_loading {
                     let t = cx.palette();

@@ -28,11 +28,10 @@ const COPIED_FLASH: Duration = Duration::from_millis(1600);
 /// past this, one let in that has not connected is said not to have.
 const CONNECT_WAIT: Duration = Duration::from_secs(10 * 60);
 
-/// Who opened the Agents dialog: one Agent's mark, the stack of the ones at
-/// rest, or the empty seat.
+/// What opened the Agents dialog: the roster (captures), or the invite
+/// (the Header list's `Invite`, or the Agents entry while nobody is here).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Opener {
-    Agent(String),
     More,
     Invite,
 }
@@ -106,6 +105,9 @@ pub struct CloudAgents {
     pub opener: Opener,
     /// The dialog shows the invite rather than the roster.
     pub invite_open: bool,
+    /// The empty Cloud project's start view shows the invite and answers
+    /// requests itself, so the Header leaves its request card out.
+    pub inline: bool,
     /// Where the invite stands.
     pub invite_flow: Invite,
     /// The Agents here when the message went out, so a newcomer is known.
@@ -181,6 +183,7 @@ impl CloudAgents {
             invite_timer: None,
             opener: Opener::More,
             invite_open: false,
+            inline: false,
             invite_flow: Invite::Give,
             baseline: HashSet::new(),
             turned_away: None,
@@ -307,6 +310,13 @@ impl CloudAgents {
             if visible {
                 self.refresh(cx);
             }
+        }
+    }
+    /// Whether the start view answers requests in place of the Header.
+    pub fn set_inline(&mut self, inline: bool, cx: &mut Context<Self>) {
+        if self.inline != inline {
+            self.inline = inline;
+            cx.notify();
         }
     }
     /// An invite is out and no Agent has answered it yet.

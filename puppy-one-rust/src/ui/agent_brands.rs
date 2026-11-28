@@ -32,7 +32,7 @@ const fn brand(
     }
 }
 /// `AGENT_BRAND_IDS` order, which `resolveAgentBrand` searches in.
-pub const BRANDS: [Brand; 18] = [
+pub const BRANDS: [Brand; 19] = [
     brand("chatgpt", "ChatGPT", &["chatgpt"], "chatgpt.png", None, 1.),
     brand(
         "claude",
@@ -67,6 +67,7 @@ pub const BRANDS: [Brand; 18] = [
         0.82,
     ),
     brand("manus", "Manus", &["manus"], "manus.svg", None, 1.),
+    brand("muse", "Muse", &["muse"], "muse.png", None, 1.),
     brand(
         "opencode",
         "OpenCode",

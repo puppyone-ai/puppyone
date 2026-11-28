@@ -233,6 +233,18 @@ impl Homepage {
             h.sync_local_agent_installations(cx)
         })
         .detach();
+        let details_cache = crate::features::cloud::global_home_details(cx);
+        cx.observe(&details_cache, |h, _, cx| {
+            h.sync_cloud_details_from_cache(cx)
+        })
+        .detach();
+        let cached_local_previews: HashMap<PathBuf, Vec<previews::ProjectAssetPreview>> =
+            details_cache
+                .read(cx)
+                .local_previews()
+                .iter()
+                .map(|(path, items)| (path.clone(), previews::from_cached(items)))
+                .collect();
         cx.observe_window_activation(window, |h, window, cx| {
             if !window.is_window_active() {
                 return;
@@ -382,7 +394,10 @@ impl Homepage {
             actions_list: None,
             action_bounds: HashMap::new(),
             hovered: None,
-            discovery: discovery::HomeDiscovery::default(),
+            discovery: discovery::HomeDiscovery {
+                local_previews: cached_local_previews,
+                ..discovery::HomeDiscovery::default()
+            },
             dragging: false,
             dragging_path: None,
             error: None,

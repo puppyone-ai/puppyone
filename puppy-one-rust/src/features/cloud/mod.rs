@@ -11,6 +11,7 @@ mod billing;
 mod catalog;
 mod chat_apps;
 mod clients;
+mod home_details_cache;
 mod publish;
 mod repository;
 mod screen;
@@ -29,13 +30,17 @@ pub use chat_apps::{
     AddFlow, CloudChats, FlowError, NAME_MAX as CHAT_NAME_MAX, Stage as ChatStage,
 };
 pub use clients::{agents_client, billing_client, services_client};
+pub use home_details_cache::{
+    CachedFilePreview, CachedProjectAgent, DETAILS_CONCURRENCY, HomeDetailsCache,
+    global_home_details, now_millis as home_details_now_millis, read_home_details,
+};
 #[cfg(test)]
 pub use publish::install_factory;
 #[cfg(test)]
 pub(crate) use publish::states as publish_states;
 pub use publish::{CloudPublish, HeaderStatus, Organizations, format_transfer};
 pub use repository::RepositoryCloud;
-pub use screen::{CloudScreen, CloudScreenEvent, ScreenLayout};
+pub use screen::{CloudScreen, CloudScreenEvent, ScreenLayout, ScreenState};
 pub use spaces::{
     CloudSpaces, Status as SpacesStatus, global as global_spaces, mark as space_mark,
     name as space_name, read as global_spaces_read,

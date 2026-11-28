@@ -11,7 +11,100 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Maximum number of recently opened file paths persisted per workspace.
+pub(super) const MAX_RECENT_FILES: usize = 10;
+
+impl Host {
+    /// Records `path` as the most recently opened file in this workspace.
+    pub(super) fn record_recent(&mut self, path: PathBuf) {
+        if path.as_os_str().is_empty() {
+            return;
+        }
+        self.recent_files.retain(|p| p != &path);
+        self.recent_files.insert(0, path);
+        self.recent_files.truncate(MAX_RECENT_FILES);
+    }
+
+    /// Reconciles `recent_files` against deleted or moved paths.
+    pub(super) fn reconcile_recent(&mut self, removed: &[PathBuf], moved: &[(PathBuf, PathBuf)]) {
+        if self.recent_files.is_empty() {
+            return;
+        }
+        let mut next = Vec::with_capacity(self.recent_files.len());
+        for path in std::mem::take(&mut self.recent_files) {
+            if removed.iter().any(|rem| path.starts_with(rem)) {
+                continue;
+            }
+            let updated = if let Some((from, to)) =
+                moved.iter().find(|(from, _)| path.starts_with(from))
+                && let Ok(rest) = path.strip_prefix(from)
+            {
+                if rest.as_os_str().is_empty() {
+                    to.clone()
+                } else {
+                    to.join(rest)
+                }
+            } else {
+                path
+            };
+            if !next.contains(&updated) {
+                next.push(updated);
+            }
+        }
+        next.truncate(MAX_RECENT_FILES);
+        self.recent_files = next;
+    }
+}
+
+/// Whether `path` still exists in the active workspace: on local roots we check
+/// the real file on disk (works inside unexpanded folders too); on remote/Cloud
+/// workspaces we verify against the root listing.
+pub(super) fn recent_path_exists(
+    path: &Path,
+    rows: &[Node],
+    workspace: Option<&crate::workspace::Workspace>,
+) -> bool {
+    if path.as_os_str().is_empty() {
+        return false;
+    }
+    if let Some(root) = workspace.and_then(|ws| ws.local_root()) {
+        return root.join(path).is_file();
+    }
+    let mut components = path.components();
+    let Some(std::path::Component::Normal(first)) = components.next() else {
+        return false;
+    };
+    if components.next().is_none() {
+        rows.iter().any(|n| !n.folder && n.path == path)
+    } else {
+        rows.iter().any(|n| n.folder && n.path == Path::new(first))
+    }
+}
+
 impl Runtime {
+    /// Recently opened files in the active workspace (newest first), with any
+    /// files that no longer exist filtered out.
+    pub fn recent_files(&self) -> Vec<PathBuf> {
+        let Some(host) = self.active.as_ref().and_then(|key| self.hosts.get(key)) else {
+            return Vec::new();
+        };
+        let ws = host.empty.workspace.as_deref();
+        host.recent_files
+            .iter()
+            .filter(|p| recent_path_exists(p, &host.rows, ws))
+            .cloned()
+            .collect()
+    }
+
+    /// True while a newly entered project is still waiting for its saved
+    /// layout / starting file decision before showing an empty editor state.
+    pub fn awaiting_initial_open(&self) -> bool {
+        let Some(host) = self.active.as_ref().and_then(|key| self.hosts.get(key)) else {
+            return false;
+        };
+        host.starting && !host.metadata_loaded
+    }
+
     pub fn native() -> Self {
         let journal = crate::platform::draft_journal::DraftJournal::native();
         let mut scratch = Documents::default();
@@ -66,7 +159,11 @@ impl Runtime {
         {
             return;
         }
-        if let Some(path) = starting_file(&host.rows) {
+        if let Some(path) = starting_file(
+            &host.rows,
+            &host.recent_files,
+            host.empty.workspace.as_deref(),
+        ) {
             self.begin(Intent::OpenFile(path), wake);
         }
     }
@@ -105,6 +202,11 @@ impl Runtime {
                 })
                 .collect();
             let view_states = host.view_states.to_persisted();
+            let recent_files: Vec<_> = host
+                .recent_files
+                .iter()
+                .filter_map(|p| p.to_str())
+                .collect();
             let value = json!({
                 "version": 1,
                 "group": {
@@ -113,7 +215,8 @@ impl Runtime {
                     "mostRecentlyUsed": host.state.catalog.mru
                 },
                 "layout": host.state.layout,
-                "viewStates": view_states
+                "viewStates": view_states,
+                "recentFiles": recent_files
             });
             if host.metadata_value.as_ref() != Some(&value) {
                 host.metadata_value = Some(value.clone());
@@ -151,13 +254,35 @@ impl Host {
         {
             self.view_states = ViewStateStore::from_persisted(entries);
         }
+        let Some(ws) = self.empty.workspace.clone() else {
+            return false;
+        };
+        if let Some(recent) = value["recentFiles"].as_array() {
+            let mut restored_recent = Vec::new();
+            for raw in recent.iter().filter_map(Value::as_str) {
+                let path = PathBuf::from(raw);
+                if let Ok(resource) = ws.resource_id(&path)
+                    && !resource.path.is_root()
+                    && !restored_recent.contains(&path)
+                {
+                    restored_recent.push(path);
+                    if restored_recent.len() >= MAX_RECENT_FILES {
+                        break;
+                    }
+                }
+            }
+            // Keep anything opened before metadata arrived ahead of persisted recent files.
+            for path in restored_recent {
+                if !self.recent_files.contains(&path) && self.recent_files.len() < MAX_RECENT_FILES
+                {
+                    self.recent_files.push(path);
+                }
+            }
+        }
         let Some(editors) = value["group"]["editors"]
             .as_array()
             .filter(|v| v.len() <= 128)
         else {
-            return false;
-        };
-        let Some(ws) = self.empty.workspace.clone() else {
             return false;
         };
         let mut restored: Vec<Input> = Vec::new();
@@ -239,10 +364,15 @@ impl Host {
     }
 }
 
-/// The README at the project's root, else its first file, in the order the
-/// Explorer lists them (`workbench.startupEditor: "readme"`). Hidden files
-/// never start a project.
-fn starting_file(rows: &[Node]) -> Option<PathBuf> {
+/// The README at the project's root, else its first root file (in the order
+/// the Explorer lists them), else the most recently opened still-existing file
+/// in the project (`workbench.startupEditor: "readme"`). Hidden files never
+/// start a project.
+fn starting_file(
+    rows: &[Node],
+    recent_files: &[PathBuf],
+    workspace: Option<&crate::workspace::Workspace>,
+) -> Option<PathBuf> {
     let files = || {
         rows.iter()
             .filter(|n| !n.folder && !n.name.starts_with('.'))
@@ -255,4 +385,15 @@ fn starting_file(rows: &[Node]) -> Option<PathBuf> {
         })
         .or_else(|| files().next())
         .map(|n| n.path.clone())
+        .or_else(|| {
+            recent_files
+                .iter()
+                .find(|path| {
+                    let hidden = path
+                        .file_name()
+                        .is_some_and(|n| n.to_string_lossy().starts_with('.'));
+                    !hidden && recent_path_exists(path, rows, workspace)
+                })
+                .cloned()
+        })
 }

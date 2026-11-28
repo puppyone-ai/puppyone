@@ -410,6 +410,7 @@ impl Shell {
                 .update(cx, |c, cx| c.open_create_space(window, cx)),
             Navigate::OpenAccount => self.open_settings(Page::Account, window, cx),
             Navigate::OpenSettings => self.open_settings(Page::General, window, cx),
+            Navigate::ProjectSettings => self.open_settings(Page::Project, window, cx),
             Navigate::SignIn => self.cloud.update(cx, |c, cx| c.open_sign_in(window, cx)),
         }
         cx.notify();
@@ -497,6 +498,9 @@ impl Shell {
                 self.explorer
                     .session
                     .update(cx, |e, cx| e.entry_created(&parent, listing, &path, cx));
+                if parent.as_os_str().is_empty() {
+                    self.sync_cloud_home_previews(cx);
+                }
                 if !folder && !self.files(cx).allow_quit {
                     self.cloud.update(cx, |c, cx| c.close_screen(cx));
                     self.session
@@ -522,8 +526,15 @@ impl Shell {
         if self.files(cx).busy() || self.modal(cx) || !kind.available() {
             return;
         }
-        self.dialogs
-            .update(cx, |d, cx| d.create_entry(ws, parent, kind, window, cx));
+        // A file is made at once as `Untitled` and opened, to be renamed
+        // whenever; a folder still asks for its name.
+        self.dialogs.update(cx, |d, cx| {
+            if kind == crate::features::create_new::Entry::Folder {
+                d.create_entry(ws, parent, kind, window, cx)
+            } else {
+                d.create_untitled(ws, parent, kind, window, cx)
+            }
+        });
     }
     /// What the right sidebar's surfaces ask of the window.
     pub(in crate::app) fn sidebar_event(
@@ -822,6 +833,94 @@ impl Shell {
         self.receive(window, cx);
         cx.notify();
     }
+    /// Window context read by the empty-project start view.
+    pub(in crate::app) fn start_context(&self, cx: &App) -> editor_start::StartContext {
+        // Dev captures stand a fixture Cloud project on a folder.
+        let hosted = self.hosted_project(cx).is_some() || self.cloud.read(cx).capture_hosted();
+        let loading =
+            self.opening(cx) || self.session.project.read(cx).picking || self.files(cx).folder_busy;
+        let cloud_agents_manageable = hosted && self.cloud.read(cx).agents.read(cx).manageable;
+        let local_agents = if hosted {
+            Vec::new()
+        } else {
+            self.sidebar
+                .read(cx)
+                .launcher
+                .read(cx)
+                .visible_installations()
+                .into_iter()
+                .filter(|inst| !inst.bundled() && inst.chat)
+                .map(|inst| editor_start::StartAgent {
+                    runtime_id: crate::features::local_agents::agent_chat_runtime_id(&inst),
+                    icon_key: inst.runtime.icon_key(),
+                    label: inst.label,
+                })
+                .collect()
+        };
+        let (invite, invite_alert, project_name) = if cloud_agents_manageable {
+            let agents = self.cloud.read(cx).agents.read(cx);
+            (
+                editor_start::StartInvite::of(agents),
+                editor_start::invite_alert(agents),
+                agents.project_name().unwrap_or_default().to_owned(),
+            )
+        } else {
+            Default::default()
+        };
+        editor_start::StartContext {
+            hosted,
+            loading,
+            cloud_agents_manageable,
+            local_agents,
+            invite,
+            invite_alert,
+            project_name,
+        }
+    }
+    /// Observes local Agent discovery and Cloud Agent permissions so the
+    /// start view stays live.
+    pub(in crate::app) fn wire_editor_start(&self, cx: &mut Context<Self>) {
+        let launcher = self.sidebar.read(cx).launcher.clone();
+        cx.observe(&launcher, |s, _, cx| s.sync_editor_start(cx))
+            .detach();
+        let cloud_agents = self.cloud.read(cx).agents.clone();
+        cx.observe(&cloud_agents, |s, _, cx| s.sync_editor_start(cx))
+            .detach();
+        // Files arriving or a file opening end the empty project's invite.
+        let explorer = self.explorer.session.clone();
+        cx.observe(&explorer, |s, _, cx| s.sync_editor_start(cx))
+            .detach();
+        let docs = self.session.docs.clone();
+        cx.observe(&docs, |s, _, cx| s.sync_editor_start(cx))
+            .detach();
+    }
+    /// Pushes updated start-view context into the editor area, and tells
+    /// the Cloud Agents whether the start view answers their requests.
+    pub(in crate::app) fn sync_editor_start(&mut self, cx: &mut Context<Self>) {
+        let start = self.start_context(cx);
+        self.editor
+            .update(cx, |e, cx| e.set_start_context(start, cx));
+        let inline = self.editor.read(cx).shows_cloud_handoff(cx);
+        let agents = self.cloud.read(cx).agents.clone();
+        agents.update(cx, |a, cx| a.set_inline(inline, cx));
+    }
+    /// Writes the active hosted Cloud project's current Explorer root file
+    /// previews through to the shared Home SWR cache so returning Home never
+    /// pays for an extra `/content/{id}/ls` call.
+    pub(in crate::app) fn sync_cloud_home_previews(&self, cx: &mut Context<Self>) {
+        let Some(project_id) = self.hosted_project(cx) else {
+            return;
+        };
+        let Some(scope) = crate::features::cloud::HomeDetailsCache::current_scope(cx) else {
+            return;
+        };
+        let selected =
+            home::previews::select_node_previews(&self.explorer.session.read(cx).tree().roots);
+        let cached = home::previews::to_cached(&selected);
+        crate::features::cloud::global_home_details(cx).update(cx, |c, cx| {
+            c.record_cloud_previews(&scope, &project_id, cached, None, cx);
+        });
+    }
     /// A pane menu command, or the runtime asked for something.
     pub(in crate::app) fn editor_event(
         &mut self,
@@ -832,6 +931,42 @@ impl Shell {
         match event {
             editor_area::EditorEvent::Command(command) => self.command(*command, window, cx),
             editor_area::EditorEvent::Pump => {
+                self.receive(window, cx);
+                cx.notify();
+            }
+            editor_area::EditorEvent::StartCreate(kind) => {
+                self.start_create(*kind, PathBuf::new(), window, cx);
+            }
+            editor_area::EditorEvent::DropExternal(paths) => {
+                let paths = paths.clone();
+                self.explorer.view.update(cx, |e, cx| {
+                    e.drop_external(&paths, std::path::Path::new(""), cx)
+                });
+            }
+            editor_area::EditorEvent::LaunchLocalAgent(runtime_id) => {
+                let runtime_id = runtime_id.clone();
+                self.sidebar
+                    .update(cx, |s, cx| s.launch_local_agent(&runtime_id, window, cx));
+            }
+            editor_area::EditorEvent::CopyInvite => {
+                let agents = self.cloud.read(cx).agents.clone();
+                agents.update(cx, |a, cx| {
+                    if a.invite_phase() == crate::features::cloud::InvitePhase::Lapsed {
+                        a.reset_invite(cx);
+                    }
+                    a.copy_invite(cx)
+                });
+            }
+            editor_area::EditorEvent::AnswerAgent { request, allow } => {
+                let agents = self.cloud.read(cx).agents.clone();
+                agents.update(cx, |a, cx| a.decide(request, *allow, cx));
+            }
+            editor_area::EditorEvent::OpenFile(path) => {
+                let path = path.clone();
+                self.cloud.update(cx, |c, cx| c.close_screen(cx));
+                self.session
+                    .docs
+                    .update(cx, |d, _| d.begin(Intent::OpenFile(path)));
                 self.receive(window, cx);
                 cx.notify();
             }
@@ -865,6 +1000,7 @@ impl Shell {
         match event {
             SessionEvent::ReferencesChanged => {
                 self.editor.update(cx, |e, cx| e.refresh_references(cx));
+                self.sync_cloud_home_previews(cx);
                 return cx.notify();
             }
             SessionEvent::LoadChildren(path) => {

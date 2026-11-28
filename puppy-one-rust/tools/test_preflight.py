@@ -11,15 +11,22 @@ class PreflightMatchesTheRunners(unittest.TestCase):
     def test_every_workflow_that_runs_verify_uses_the_preflight_toolchain(self):
         oracle = json.loads((ROOT / 'fixtures/ui/number-format-oracle.json').read_text())
         self.assertIn('icu', oracle)
-        for name in ['rust-tests.yml', 'desktop-internal-build.yml', 'desktop-stable-release.yml']:
+        workflow = (WORKFLOWS / 'rust-tests.yml').read_text()
+        self.assertIn('tools/verify.py', workflow)
+        self.assertIn(f'rustup toolchain install {RUST} ', workflow)
+        self.assertIn(f'cargo-llvm-cov --version {LLVM_COV} ', workflow)
+        # The Node.js whose ICU recorded the number-format oracle.
+        self.assertIn('node-version: 22.22.3', workflow)
+        self.assertIn('tools/requirements-verification.txt', workflow)
+
+    def test_release_workflows_pin_toolchain_and_verify_acceptance_receipt(self):
+        for name in ['desktop-internal-build.yml', 'desktop-stable-release.yml']:
             workflow = (WORKFLOWS / name).read_text()
             with self.subTest(workflow=name):
-                self.assertIn('tools/verify.py', workflow)
                 self.assertIn(f'rustup toolchain install {RUST} ', workflow)
-                self.assertIn(f'cargo-llvm-cov --version {LLVM_COV} ', workflow)
-                # The Node.js whose ICU recorded the number-format oracle.
                 self.assertIn('node-version: 22.22.3', workflow)
-                self.assertIn('tools/requirements-verification.txt', workflow)
+                self.assertIn('verify_source_receipt', workflow)
+                self.assertIn('rust-tests.yml/runs', workflow)
 
 
 if __name__ == '__main__':

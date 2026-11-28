@@ -1036,3 +1036,52 @@ fn mixed_kinds_share_a_bar_and_split_or_move_as_single_tabs(cx: &mut TestAppCont
         assert!(p.content.is_empty() && p.layout.valid());
     });
 }
+
+#[gpui::test]
+fn closing_last_tab_emits_closed_last_tab_and_folds_empty_secondary_splits(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let root = tempfile::tempdir().unwrap();
+    let (view, cx) = cx.add_window_view(Workbench::new);
+    let closed_last = Rc::new(Cell::new(0usize));
+    let closed_last_sub = closed_last.clone();
+    let _sub = cx.update(|_, cx| {
+        cx.subscribe(&view, move |_, event, _| {
+            if matches!(event, WorkbenchEvent::ClosedLastTab) {
+                closed_last_sub.set(closed_last_sub.get() + 1);
+            }
+        })
+    });
+
+    let (t1, t2) = view.update(cx, |s, cx| {
+        s.show(root.path().to_path_buf(), cx);
+        s.project_mut().unwrap().loading = false;
+        let t1 = s.new_launcher_tab(0, cx).unwrap();
+        let t2 = s.new_launcher_tab(0, cx).unwrap();
+        s.split(0, Axis::Horizontal, Some(t2), true, cx);
+        assert_eq!(s.project().unwrap().layout.groups.len(), 2);
+        (t1, t2)
+    });
+
+    // Closing the only tab in the secondary split folds that split away without
+    // collapsing the whole workbench (group 0 still has t1).
+    view.update(cx, |s, cx| s.close(t2, false, cx));
+    cx.run_until_parked();
+    assert_eq!(closed_last.get(), 0);
+    view.read_with(cx, |s, _| {
+        let p = s.project().unwrap();
+        assert_eq!(p.layout.groups.len(), 1);
+        assert_eq!(p.layout.groups[&0].tabs, vec![t1]);
+        assert!(p.layout.valid());
+    });
+
+    // Closing the final remaining tab emits ClosedLastTab and leaves no ghost launcher.
+    view.update(cx, |s, cx| s.close(t1, false, cx));
+    cx.run_until_parked();
+    assert_eq!(closed_last.get(), 1);
+    cx.update(|w, cx| w.draw(cx).clear(cx));
+    assert!(cx.debug_bounds("launcher-heading").is_none());
+    assert!(cx.debug_bounds("launcher-composer-input").is_none());
+}

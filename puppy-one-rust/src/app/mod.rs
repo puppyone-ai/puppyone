@@ -14,15 +14,18 @@ mod dev;
 pub use chrome::Popover;
 mod cloud_agents_ui;
 mod cloud_authority;
+mod cloud_computer_ui;
 mod cloud_publish;
 pub(crate) mod coachmarks;
 mod command;
 mod create_space;
 mod dialogs;
 mod editor_area;
+mod editor_start;
 mod editor_workbench;
 mod explorer;
 mod file_mode;
+mod file_sheet;
 mod header;
 mod home;
 mod host_sharing;
@@ -290,6 +293,7 @@ impl Shell {
         let workbench = s.sidebar.read(cx).workbench.clone();
         cx.observe_in(&workbench, window, |s, _, w, cx| s.gate_editors(w, cx))
             .detach();
+        s.wire_editor_start(cx);
         // The create form holds the window open while it writes; the
         // preferences drain before it closes.
         cx.observe(&s.dialogs, |s, _, cx| {
@@ -362,6 +366,7 @@ impl Shell {
         s.constrain_window(window, cx);
         s.push_explorer_host(window, cx);
         // What the window shows from its first frame.
+        s.sync_editor_start(cx);
         s.sync_session_view(cx);
         s.sync_window_title(window, cx);
         s
@@ -484,14 +489,20 @@ impl Shell {
     /// The window's gate over the editors changed.
     fn gate_editors(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let gate = self.editor_gate(cx);
-        self.editor.update(cx, |e, cx| e.set_gate(gate, window, cx));
+        let start = self.start_context(cx);
+        self.editor.update(cx, |e, cx| {
+            e.set_start_context(start, cx);
+            e.set_gate(gate, window, cx)
+        });
     }
     /// The editor area takes the runtime's messages under the window's gate.
     fn sync_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let gate = self.editor_gate(cx);
+        let start = self.start_context(cx);
         let file_mode = self.file_mode();
         self.editor.update(cx, |e, cx| {
             e.set_file_mode(file_mode);
+            e.set_start_context(start, cx);
             e.set_gate(gate, window, cx);
             e.sync(window, cx)
         });
@@ -651,9 +662,7 @@ impl Render for Shell {
         let editor_body = chrome::seam::editor_body(self.frame.layout.editor, headerless);
         let screen = (!home && !file && !opening).then(|| {
             let animate = !cfg!(test) && !cx.reduce_motion();
-            self.cloud
-                .read(cx)
-                .screen_layout(plane, editor_body, animate, cx)
+            self.cloud.read(cx).screen_layout(editor_body, animate, cx)
         });
         let crossing = screen.as_ref().is_some_and(|s| s.crossing());
         if panes.running || screen.as_ref().is_some_and(|s| s.moving()) {
@@ -693,20 +702,14 @@ impl Render for Shell {
                 .then(|| chrome::seam::PaneChrome::new(&self.chrome, &self.panes, &panes, rail));
             let mut stack = PaneStack::new();
             if let Some(plane) = plane {
-                let card = screen
-                    .as_ref()
-                    .and_then(|s| self.cloud.read(cx).screen_card(s, cx));
                 let column = ExplorerColumn::new(self.explorer.view.clone())
                     .header(bar.map(|b| b.sidebar_bar(plane, cx)))
-                    .companion(card)
                     .footer(self.footer(cx));
                 stack = stack.start(plane, column);
             }
             if !home && panes.end.is_some() {
-                let end = bar.map_or_else(
-                    || self.sidebar.clone().into_any_element(),
-                    |b| b.end_pane(self.sidebar.clone(), window, cx),
-                );
+                let sidebar = &self.sidebar;
+                let end = chrome::seam::end_column(bar, sidebar, opening, headerless, window, cx);
                 stack = stack.end(self.frame.layout.auxiliary, end);
             }
             let screen_shown = !home && self.cloud.read(cx).screen_shown(cx);
@@ -748,10 +751,12 @@ impl Render for Shell {
                 .explorer()
                 .open
                 .then_some(self.frame.layout.explorer);
+            let auxiliary = panes.end.is_some().then_some(self.frame.layout.auxiliary);
             root = root.children(self.session.project.read(cx).preparation(
                 w,
                 h,
                 explorer,
+                auxiliary,
                 self.frame.layout.editor,
                 cx,
             ));
@@ -759,7 +764,7 @@ impl Render for Shell {
         if !file && !headerless {
             root = root.child(at(self.frame.layout.header).child(self.chrome.clone()));
         }
-        if (!home && !opening && !file) || (file && !opening && html_chat_shown) {
+        if (!home && !file) || (file && !opening && html_chat_shown) {
             root = root.children(panes::edges(&self.panes, &panes, w, rail, window, cx));
         }
         root = root.children(flying);

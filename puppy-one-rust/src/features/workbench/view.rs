@@ -73,7 +73,7 @@ impl Workbench {
             Some(Content::Item { item, .. }) => {
                 div().size_full().child(item.view()).into_any_element()
             }
-            _ => match self.host.clone() {
+            Some(Content::Launcher) => match self.host.clone() {
                 Some(host) => {
                     let context = LauncherContext {
                         group: id,
@@ -86,6 +86,7 @@ impl Workbench {
                 }
                 None => div().into_any_element(),
             },
+            None => div().size_full().bg(t.auxiliary()).into_any_element(),
         };
         let group = v_flex()
             .id(("group", id))

@@ -213,6 +213,9 @@ impl Homepage {
         } else {
             self.space_slide = None;
         }
+        // Space-scoped lazy revalidation: paint cached details at 0 ms and
+        // lazily refresh only stale projects in the newly active Space.
+        self.refresh_cloud_home_details(false, cx);
         cx.notify();
     }
 
@@ -312,13 +315,11 @@ impl Homepage {
         )
     }
 
-    /// The dashed New project tile at the end of the Space's projects: the
-    /// page's single creation CTA. Transparent inside (zero background fill),
-    /// crisp 1px dashed outline matching the adjacent folder body's footprint
-    /// (`92 × 62`, `6px` radius, bottom-aligned at `y = 76` in the `104 × 78`
-    /// stage), one identical tone for both border and `+` (`t.text_disabled` at
-    /// rest -> `t.subtle` on hover), and `New project` matching the page's
-    /// secondary caption color (`t.subtle` -> `t.text` on hover).
+    /// The New project tile at the end of the Space's projects: the page's
+    /// single creation CTA, drawn as the folder it will make. At rest it is
+    /// the projects' own folder outline in one flat, faint tone with a `+` on
+    /// its front; reached for, it becomes a real folder (back and front in
+    /// their hovered tones) and the `+` and `New project` take the text colour.
     fn new_project_tile(
         &self,
         group: &super::super::groups::Group,
@@ -334,22 +335,45 @@ impl Homepage {
         let label = tr(label_key);
         let group_id = group.id.clone();
         let lit = !busy && self.hovered.as_deref() == Some(HOVER_ID);
-        // Border and `+` share one identical neutral tone matching folder weight;
-        // zero background fill inside the dashed outline.
-        let line_ink = if lit { t.subtle } else { t.text_disabled };
-        let outline = |w: f32, h: f32, r: f32, plus: f32| {
+        // One flat tone for back and front at rest, so it reads as the shape
+        // of a folder still to come, never as a faded (unavailable) project.
+        let (back, front) = if lit {
+            let folder = super::super::folder::lit(t);
+            (folder.back, folder.front)
+        } else {
+            let flat = theme::mix(t.text, t.canvas, 0.065);
+            (flat, flat)
+        };
+        let plus_ink = if lit { t.text } else { t.subtle };
+        // `(w, h)` is a folder glyph's stage; the `+` sits on the middle of
+        // the folder's front (`y` 28–76 of the 78-unit artwork).
+        let folder = |(w, h): (f32, f32), plus: f32| {
+            let layer = |path: &'static str, color: Rgba| {
+                svg()
+                    .path(path)
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .w(px(w))
+                    .h(px(h))
+                    .text_color(color)
+            };
             div()
+                .relative()
                 .flex_none()
                 .w(px(w))
                 .h(px(h))
-                .rounded(px(r))
-                .border_1()
-                .border_dashed()
-                .border_color(line_ink)
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(Icon::new("plus").with_size(px(plus)).color(line_ink))
+                .child(layer("home/folder-back.svg", back))
+                .child(layer("home/folder-front.svg", front))
+                .child(
+                    Icon::new("plus")
+                        .with_size(px(plus))
+                        .stroke(2.)
+                        .color(plus_ink)
+                        .absolute()
+                        .left(px((w - plus) / 2.))
+                        .top(px(h * 52. / 78. - plus / 2.)),
+                )
         };
         let base = div()
             .id("home-new-project")
@@ -383,13 +407,7 @@ impl Homepage {
                 .child(
                     div()
                         .mb(px(8.))
-                        .w(px(104.))
-                        .h(px(78.))
-                        .pb(px(2.))
-                        .flex()
-                        .items_end()
-                        .justify_center()
-                        .child(outline(92., 62., 6., 16.)),
+                        .child(folder(super::super::folder::GRID_FOLDER_SIZE, 18.)),
                 )
                 .child(
                     div()
@@ -411,13 +429,8 @@ impl Homepage {
                 .px(px(metric::MENU_ITEM_PADDING_INLINE))
                 .child(
                     div()
-                        .w(px(34.))
-                        .h(px(26.))
                         .flex_none()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(outline(30., 20., 4., 11.)),
+                        .child(folder(super::super::folder::LIST_FOLDER_SIZE, 10.)),
                 )
                 .child(
                     div()

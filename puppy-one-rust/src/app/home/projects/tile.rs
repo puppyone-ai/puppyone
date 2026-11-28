@@ -75,8 +75,9 @@ impl Homepage {
         let shared = self
             .item_shared(item)
             .then(|| tr("hosts.home.shared").to_owned());
+        let cloud_agents = self.item_cloud_agents(item);
         let agents = Some(
-            self.item_cloud_agents(item)
+            cloud_agents
                 .iter()
                 .map(|agent| agent.name.as_str())
                 .collect::<Vec<_>>()
@@ -104,6 +105,15 @@ impl Homepage {
             .as_deref()
             .and_then(|path| self.folder_status(Path::new(path)))
             .map(super::super::folder_status::status_caption);
+        let folder_agents = item.cloud_project.as_deref().and_then(|id| {
+            super::super::folder::folder_agent_badges(
+                id,
+                cloud_agents,
+                lit && !busy,
+                fade.or(status.map(|_| 0.4)),
+                t,
+            )
+        });
         let tile = self
             .open_control(("home-tile", index), item, focus, busy, keys, cx)
             .w_full()
@@ -122,21 +132,25 @@ impl Homepage {
             .when(self.dragging_item(item, cx), |d| d.opacity(0.62))
             .tooltip(crate::ui::components::tooltip(tooltip))
             .child(
-                div().mb(px(8.)).child(match look {
-                    Look::Computer(kind) => ProjectComputerGlyph::grid(
-                        kind,
-                        power.unwrap_or(super::super::folder::ComputerPower::Running),
-                        self.item_previews(item),
-                    )
-                    .lit(lit)
-                    .fade(fade.or(status.map(|_| 0.4)))
-                    .into_any_element(),
-                    _ => ProjectFolderGlyph::grid(self.item_previews(item))
-                        .theme(t)
+                div()
+                    .relative()
+                    .mb(px(8.))
+                    .child(match look {
+                        Look::Computer(kind) => ProjectComputerGlyph::grid(
+                            kind,
+                            power.unwrap_or(super::super::folder::ComputerPower::Running),
+                            self.item_previews(item),
+                        )
                         .lit(lit)
                         .fade(fade.or(status.map(|_| 0.4)))
                         .into_any_element(),
-                }),
+                        _ => ProjectFolderGlyph::grid(self.item_previews(item))
+                            .theme(t)
+                            .lit(lit)
+                            .fade(fade.or(status.map(|_| 0.4)))
+                            .into_any_element(),
+                    })
+                    .children(folder_agents),
             )
             .child(
                 h_flex()
