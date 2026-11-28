@@ -190,12 +190,19 @@ fn custom_connections_require_tool_evidence_and_preserve_leases_across_rename() 
     let (saved, _) = configuration::save_at(dir.path(), conn, None).unwrap();
     service.reload_saved().unwrap();
 
-    // Without catalog tool evidence or durable verification, custom models
-    // are not exposed to the Built-in Agent.
-    assert!(service.snapshot().agent_connections().is_empty());
+    // Before its catalog is read, the model the user chose (the default)
+    // is offered with the connection's context budget; nothing else is.
+    let chosen = service.snapshot().agent_connections();
+    assert_eq!(
+        chosen.iter().map(|c| c.model.as_str()).collect::<Vec<_>>(),
+        ["qwen3:8b"]
+    );
+    assert_eq!(chosen[0].manual_context_window, Some(32768));
 
-    // Once catalog reports `tools: Some(true)` for qwen3:8b and `tools: Some(false)`
-    // for embed-only, ONLY qwen3:8b becomes eligible with its real context window.
+    // Once catalog reports `tools: Some(true)` for qwen3:8b, `tools: Some(false)`
+    // for embed-only and nothing for a model the user did not choose, ONLY
+    // qwen3:8b becomes eligible with its real context window: a model needs
+    // tool evidence or the user's choice, and a refusal of tools wins.
     service.set_catalog_for_test(ConnectionCatalog {
         connection_id: id.clone(),
         config_generation: saved.generation.clone(),
@@ -209,6 +216,7 @@ fn custom_connections_require_tool_evidence_and_preserve_leases_across_rename() 
                 images: Some(true),
                 context: Some(65536),
                 max_context: Some(65536),
+                remote: false,
             },
             CatalogModel {
                 id: "no-tools".into(),
@@ -218,6 +226,17 @@ fn custom_connections_require_tool_evidence_and_preserve_leases_across_rename() 
                 images: Some(false),
                 context: Some(8192),
                 max_context: Some(8192),
+                remote: false,
+            },
+            CatalogModel {
+                id: "unknown-tools".into(),
+                name: "Unknown Tools".into(),
+                loaded: Some(true),
+                tools: None,
+                images: None,
+                context: Some(8192),
+                max_context: Some(8192),
+                remote: false,
             },
         ],
         error_code: None,
@@ -253,6 +272,7 @@ fn custom_connections_require_tool_evidence_and_preserve_leases_across_rename() 
             images: Some(true),
             context: Some(65536),
             max_context: Some(65536),
+            remote: false,
         }],
         error_code: None,
     });
@@ -432,6 +452,7 @@ fn sign_out_account_switch_and_connection_removal_immediately_revoke_active_leas
                 images: Some(false),
                 context: Some(16384),
                 max_context: Some(16384),
+                remote: false,
             }],
             error_code: None,
         });
@@ -649,6 +670,7 @@ fn durable_verification_survives_restart_stale_catalog_retains_models_and_unslot
                 images: Some(false),
                 context: Some(32768),
                 max_context: Some(32768),
+                remote: false,
             }],
             error_code: None,
         });
@@ -672,6 +694,7 @@ fn durable_verification_survives_restart_stale_catalog_retains_models_and_unslot
                 images: Some(false),
                 context: Some(32768),
                 max_context: Some(32768),
+                remote: false,
             }],
             error_code: None,
         });
@@ -679,6 +702,64 @@ fn durable_verification_survives_restart_stale_catalog_retains_models_and_unslot
         assert_eq!(final_eligible.len(), 1);
         assert_eq!(final_eligible[0].model, "unsloth-qwen");
     });
+}
+
+/// A model the user chose for Chat (its default or a synced Chat model) is
+/// offered even when its service reports nothing about tools, as models with
+/// tool evidence are; a model the service reports refusing tools never is.
+#[test]
+fn chosen_models_are_offered_without_tool_evidence_unless_they_refuse_tools() {
+    let dir = tempfile::tempdir().unwrap();
+    let service = ModelConnectionService::with_gateway(
+        dir.path().to_path_buf(),
+        None,
+        None,
+        Duration::from_secs(5),
+    );
+    let id = uuid::Uuid::new_v4().to_string();
+    let conn = ModelConnection {
+        id: id.clone(),
+        name: "MLX".into(),
+        endpoint: "http://127.0.0.1:8080/v1".into(),
+        source_kind: SourceKind::Local,
+        driver: Driver::OpenaiCompatible,
+        auth: Auth::None,
+        default_model_id: Some("qwen-9b".into()),
+        chat_models: vec!["gemma-4b".into(), "embedder".into()],
+        manual_context_window: Some(32768),
+        ..Default::default()
+    };
+    let (saved, _) = configuration::save_at(dir.path(), conn, None).unwrap();
+    service.reload_saved().unwrap();
+    let model = |id: &str, tools: Option<bool>| CatalogModel {
+        id: id.into(),
+        name: id.into(),
+        loaded: None,
+        tools,
+        images: None,
+        context: None,
+        max_context: None,
+        remote: false,
+    };
+    service.set_catalog_for_test(ConnectionCatalog {
+        connection_id: id.clone(),
+        config_generation: saved.generation.clone(),
+        status: CatalogStatus::Ready,
+        models: vec![
+            model("qwen-9b", None),
+            model("gemma-4b", None),
+            model("embedder", Some(false)),
+            model("unchosen", None),
+        ],
+        error_code: None,
+    });
+    let offered: Vec<String> = service
+        .snapshot()
+        .agent_connections()
+        .into_iter()
+        .map(|c| c.model)
+        .collect();
+    assert_eq!(offered, ["qwen-9b", "gemma-4b"]);
 }
 
 /// `connectionRuntime.test.mjs`: `bounds parallel metadata requests and

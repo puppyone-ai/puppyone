@@ -9,7 +9,7 @@ use crate::features::desktop_agent::domain::agent_session_controls::{
     AgentSessionControl, AgentSessionControlId, AgentSessionControlOption,
 };
 pub(crate) use crate::features::desktop_agent::infrastructure::compute::{
-    ComputeSnapshot, ManagedCompute, current_compute_snapshot,
+    ComputeSnapshot, ManagedCompute, current_compute_snapshot, sync_offered_models,
 };
 use crate::features::desktop_agent::ui::agent_theme::AgentTheme;
 use crate::localization::t;
@@ -44,12 +44,7 @@ pub(crate) fn derive_compute(
     selected_model: Option<&str>,
     access_prompt: bool,
 ) -> ComputeView {
-    let source_of = |model: &Model| {
-        model
-            .connection_id
-            .as_deref()
-            .and_then(|id| snapshot.and_then(|s| s.sources.get(id)).copied())
-    };
+    let source_of = |model: &Model| snapshot.and_then(|s| s.source(model));
     let ready_models: Vec<&Model> = models.iter().filter(|m| source_of(m).is_some()).collect();
     let is_managed = |model: &Model| source_of(model) == Some("managed");
     let current = ready_models
@@ -117,6 +112,44 @@ pub(crate) fn derive_compute(
     }
 }
 
+/// The sources Chat can switch between, in order, each with the model a
+/// switch selects (its connection's default, else its first ready model).
+/// PuppyOne compute is a source only while Payments is on; a source without a
+/// ready model opens Settings instead.
+pub(crate) fn compute_sources<'a>(
+    snapshot: Option<&ComputeSnapshot>,
+    offered: &'a [Model],
+    payments: bool,
+) -> Vec<(&'static str, Option<&'a Model>)> {
+    let source_of = |model: &Model| snapshot.and_then(|s| s.source(model));
+    ["managed", "oauth", "api", "local"]
+        .into_iter()
+        .filter(|kind| payments || *kind != "managed")
+        .map(|kind| {
+            let models: Vec<&Model> = offered
+                .iter()
+                .filter(|m| source_of(m) == Some(kind))
+                .collect();
+            let pick = models
+                .iter()
+                .find(|m| m.is_default)
+                .or_else(|| models.first())
+                .copied();
+            (kind, pick)
+        })
+        .collect()
+}
+
+/// A source's icon and label key in the dock and its picker.
+pub(crate) fn source_presentation(kind: &str) -> (&'static str, &'static str) {
+    match kind {
+        "managed" => ("sparkles", "agent.compute.managed"),
+        "oauth" => ("user-round", "native.agent.compute.source.oauth"),
+        "api" => ("key-round", "agent.compute.source.api"),
+        _ => ("server", "agent.compute.source.local"),
+    }
+}
+
 /// Projects a [`RuntimeInspection`] for the L1 launcher's parameter controls:
 /// for runtimes backed by `Capability::ModelConnections` (such as Built-in
 /// Agent), filters `models` to the user's ready/allowed connections using the
@@ -144,10 +177,40 @@ pub fn filter_launcher_inspection(
 }
 
 impl AgentChatTabPanel {
+    /// `Source`: switch to the source's model, or set the source up.
+    pub(super) fn select_compute_source(&mut self, source: String, cx: &mut Context<Self>) {
+        if source == "manage" {
+            cx.emit(AgentChatPanelEvent::OpenModelConnections);
+            return;
+        }
+        let state = self.state();
+        let runtime = self.runtime_view(&state);
+        let compute = self.compute_view(&runtime.runtime_models, state.selected_model.as_deref());
+        let target = compute_sources(self.compute.as_ref(), &compute.offered, self.payments)
+            .into_iter()
+            .find(|(kind, _)| *kind == source)
+            .and_then(|(_, model)| model.map(|m| m.model.clone()));
+        match target {
+            Some(model) => self.select_session_control(AgentSessionControlId::Model, model, cx),
+            None if source == "managed" => cx.emit(AgentChatPanelEvent::OpenAccount),
+            None => cx.emit(AgentChatPanelEvent::OpenModelConnections),
+        }
+    }
+
     /// Rereads saved custom connections in the unified authority; any resulting
     /// snapshot change notifies every open panel and invalidates `AgentHost`.
+    /// Each provider then offers its whole text catalog: a catalog that grew
+    /// since the last read is saved (at most once every ten minutes).
     pub fn reload_model_connections(&mut self, cx: &mut Context<Self>) {
         crate::features::model_connections::reload_saved(cx);
+        self.sync_chat_models(cx);
+    }
+
+    /// Brings the connections' Chat models up to their catalogs, off the UI
+    /// thread; the authority publishes what was saved.
+    fn sync_chat_models(&mut self, cx: &mut Context<Self>) {
+        let service = crate::features::model_connections::service(cx);
+        cx.background_spawn(sync_offered_models(service)).detach();
     }
 
     /// Subscribes directly to the unified `ModelConnectionsStore`, projects its
@@ -166,6 +229,7 @@ impl AgentChatTabPanel {
         if let Some(snapshot) = current_compute_snapshot(cx, sign_in_failed) {
             self.apply_compute(snapshot, cx);
         }
+        self.sync_chat_models(cx);
         if self.compute_poll.is_none() {
             self.compute_poll = Some(cx.spawn(async move |this, cx| {
                 loop {
@@ -216,12 +280,24 @@ impl AgentChatTabPanel {
             state.initialized && self.runtime_view(&state).runtime_models.is_empty()
         };
         if changed || missing_models {
-            drop(self.controller.refresh_model_connections());
+            self.connections_changed = true;
         }
         self.compute_revision = revision;
         self.compute = Some(snapshot);
+        self.refresh_model_catalog();
         self.refresh_views();
         cx.notify();
+    }
+
+    /// Connections changed (a sign-in, a new key, a catalog sync): this
+    /// chat's model list is read again, at once, or after the turn running
+    /// now ends — the controller reads no catalog mid-turn, and a change it
+    /// skipped is not forgotten ([`Self::on_state_change`] asks again).
+    pub(super) fn refresh_model_catalog(&mut self) {
+        if self.connections_changed && self.controller.can_refresh_model_connections() {
+            self.connections_changed = false;
+            drop(self.controller.refresh_model_connections());
+        }
     }
 
     pub(super) fn compute_view(&self, models: &[Model], selected: Option<&str>) -> ComputeView {
@@ -247,64 +323,152 @@ impl AgentChatTabPanel {
         let m = theme::ty();
         let mut section = v_flex().gap(px(8.));
         if !(compute.setup_prompt || compute.paid_prompt) {
-            let icon = if compute.own_compute_only {
-                "server"
-            } else {
-                match compute.source {
-                    "managed" => "sparkles",
-                    "api" => "key-round",
-                    _ => "server",
-                }
+            let (icon, _) = source_presentation(compute.source);
+            let snapshot = self.compute.as_ref();
+            let source_of = |model: &Model| snapshot.and_then(|s| s.source(model));
+            // The source switcher, in two levels as Cursor's model picker:
+            // source → provider (each signed-in plan, API or local service);
+            // the provider's models are switched in the model picker beside,
+            // and a source without a ready model opens Settings.
+            let mut sources: Vec<AgentSessionControlOption> =
+                compute_sources(self.compute.as_ref(), &compute.offered, self.payments)
+                    .into_iter()
+                    .map(|(kind, model)| {
+                        let (icon, label) = source_presentation(kind);
+                        // Its providers, in the order their models come.
+                        let mut providers: Vec<(String, Vec<&Model>)> = vec![];
+                        if kind != "managed" {
+                            for m in compute
+                                .offered
+                                .iter()
+                                .filter(|m| source_of(m) == Some(kind))
+                            {
+                                let id = m.connection_id.clone().unwrap_or_default();
+                                match providers.iter_mut().find(|(p, _)| *p == id) {
+                                    Some((_, models)) => models.push(m),
+                                    None => providers.push((id, vec![m])),
+                                }
+                            }
+                        }
+                        // Providers are the last level: picking one keeps
+                        // its current model, else takes its first; its
+                        // models are switched in the model picker beside.
+                        let children: Vec<AgentSessionControlOption> = providers
+                            .into_iter()
+                            .map(|(id, models)| {
+                                let current = models
+                                    .iter()
+                                    .find(|m| compute.ready && selected == Some(m.model.as_str()));
+                                AgentSessionControlOption {
+                                    value: current
+                                        .or(models.first())
+                                        .map(|m| m.model.clone())
+                                        .unwrap_or_default(),
+                                    label: snapshot
+                                        .and_then(|s| s.name(&id))
+                                        .unwrap_or_default()
+                                        .to_owned(),
+                                    icon: Some(icon),
+                                    mark: snapshot.and_then(|s| s.mark(&id)),
+                                    current: current.is_some(),
+                                    ..Default::default()
+                                }
+                            })
+                            .collect();
+                        AgentSessionControlOption {
+                            value: kind.to_owned(),
+                            label: t(label).to_string(),
+                            description: match model {
+                                Some(_) if kind == "managed" => {
+                                    Some(t("agent.compute.managedBalance").to_string())
+                                }
+                                _ => None,
+                            },
+                            icon: Some(icon),
+                            children,
+                            ..Default::default()
+                        }
+                    })
+                    .collect();
+            sources.push(AgentSessionControlOption {
+                value: "manage".into(),
+                label: t("native.agent.compute.manage").to_string(),
+                icon: Some("settings"),
+                ..Default::default()
+            });
+            let source_control = AgentSessionControl {
+                id: AgentSessionControlId::Source,
+                value: (!compute.own_compute_only).then(|| compute.source.to_owned()),
+                options: sources,
             };
-            let label = if compute.own_compute_only {
+            let source_picker = self
+                .pickers
+                .update(cx, |p, cx| p.picker(&source_control, 180., disabled, cx));
+            // The source it shows, for tests (`agent-compute-summary:<label>`).
+            let summary_label = if compute.own_compute_only {
                 t("agent.compute.customize")
             } else {
-                t(match compute.source {
-                    "managed" => "agent.compute.managed",
-                    "api" => "agent.compute.source.api",
-                    _ => "agent.compute.source.local",
-                })
+                t(source_presentation(compute.source).1)
             };
-            let selector = format!("agent-compute-summary:{label}");
+            let selector = format!("agent-compute-summary:{summary_label}");
             let mut summary = h_flex()
                 .debug_selector(move || selector)
-                .gap(px(6.))
+                .gap(px(4.))
                 .min_w_0()
                 .text_size(px(m.left.content))
                 .text_color(a.text_subtle)
                 .child(
-                    Icon::new(icon)
-                        .with_size(px(14.))
-                        .stroke(1.7)
-                        .color(a.text_subtle),
+                    Icon::new(if compute.own_compute_only {
+                        "server"
+                    } else {
+                        icon
+                    })
+                    .with_size(px(14.))
+                    .stroke(1.7)
+                    .color(a.text_subtle),
                 )
-                .child(div().flex_shrink_0().child(label));
-            if compute.show_picker {
+                .child(source_picker);
+            // The quick switch beside it: the current provider's models
+            // (another provider is one level in, in the source picker).
+            let provider = compute
+                .offered
+                .iter()
+                .find(|m| selected == Some(m.model.as_str()))
+                .and_then(|m| m.connection_id.clone());
+            let in_source: Vec<&Model> = compute
+                .offered
+                .iter()
+                .filter(|m| source_of(m) == Some(compute.source))
+                .filter(|m| provider.is_none() || m.connection_id == provider)
+                .collect();
+            if compute.show_picker && !in_source.is_empty() {
                 let control = AgentSessionControl {
                     id: AgentSessionControlId::Model,
                     value: compute
                         .ready
                         .then(|| selected.map(str::to_string))
                         .flatten(),
-                    options: compute
-                        .offered
+                    options: in_source
                         .iter()
-                        .map(|model| {
-                            let managed = self.compute.as_ref().and_then(|s| {
-                                s.sources
-                                    .get(model.connection_id.as_deref().unwrap_or_default())
-                            }) == Some(&"managed");
-                            AgentSessionControlOption {
-                                value: model.model.clone(),
-                                label: if managed {
-                                    t("agent.compute.managed").to_string()
-                                } else {
-                                    model.display_name.clone()
-                                },
-                                description: (!managed).then(|| model.description.clone()),
-                                keywords: (!managed)
-                                    .then(|| format!("{} {}", model.id, model.model)),
-                            }
+                        .map(|model| AgentSessionControlOption {
+                            value: model.model.clone(),
+                            label: model.display_name.clone(),
+                            // The service it runs on (models of several
+                            // services share a source).
+                            description: snapshot
+                                .zip(model.connection_id.as_deref())
+                                .and_then(|(s, id)| s.name(id))
+                                .map(str::to_owned)
+                                .or_else(|| {
+                                    (!model.description.is_empty())
+                                        .then(|| model.description.clone())
+                                }),
+                            keywords: Some(format!("{} {}", model.id, model.model)),
+                            icon: Some(source_presentation(compute.source).0),
+                            mark: snapshot
+                                .zip(model.connection_id.as_deref())
+                                .and_then(|(s, id)| s.mark(id)),
+                            ..Default::default()
                         })
                         .collect(),
                 };
@@ -518,6 +682,8 @@ mod tests {
                 ("mc_own".to_string(), "local"),
                 ("mc_paid".to_string(), "managed"),
             ]),
+            marks: HashMap::new(),
+            names: HashMap::new(),
             managed,
         }
     }
@@ -567,6 +733,51 @@ mod tests {
         // Before the connections load, a first paid route is still connecting.
         let loading = derive_compute(None, &models, true, None, false);
         assert_eq!(loading.access_required, Some("loading"));
+    }
+
+    #[test]
+    fn every_source_is_offered_with_the_model_a_switch_selects() {
+        let mut own = model("mc_own", "qwen");
+        own.is_default = false;
+        let mut preferred = model("mc_own", "llama");
+        preferred.is_default = true;
+        let api = model("mc_api", "gpt");
+        let signed_in = model("mc_plan", "gpt-5.5");
+        let mut snapshot = snapshot(None);
+        snapshot.sources.insert("mc_api".into(), "api");
+        snapshot.sources.insert("mc_plan".into(), "oauth");
+        let offered = [own, preferred, api, signed_in];
+        let sources = compute_sources(Some(&snapshot), &offered, false);
+        // Without Payments, PuppyOne compute is not a source.
+        assert_eq!(
+            sources
+                .iter()
+                .map(|(k, m)| (*k, m.map(|m| m.id.as_str())))
+                .collect::<Vec<_>>(),
+            [
+                ("oauth", Some("gpt-5.5")),
+                ("api", Some("gpt")),
+                ("local", Some("llama"))
+            ]
+        );
+        let with_payments = compute_sources(Some(&snapshot), &[], true);
+        assert_eq!(
+            with_payments
+                .iter()
+                .map(|(k, m)| (*k, m.is_some()))
+                .collect::<Vec<_>>(),
+            [
+                ("managed", false),
+                ("oauth", false),
+                ("api", false),
+                ("local", false)
+            ],
+            "a source without a ready model is still offered, to set it up"
+        );
+        for kind in ["managed", "oauth", "api", "local"] {
+            let (icon, label) = source_presentation(kind);
+            assert!(!icon.is_empty() && !label.is_empty());
+        }
     }
 
     fn managed(signed_in: bool, available: bool, reason: &'static str) -> Option<ManagedCompute> {

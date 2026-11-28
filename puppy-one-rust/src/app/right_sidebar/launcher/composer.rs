@@ -492,6 +492,7 @@ impl WorkbenchLauncher {
                 AgentSessionControlId::Model => 170f32.min(stage_width * 0.48),
                 AgentSessionControlId::Effort => 88f32.min(stage_width * 0.25),
                 AgentSessionControlId::Mode => 104f32.min(stage_width * 0.27),
+                AgentSessionControlId::Source => 170f32.min(stage_width * 0.48),
             };
             let picker = pickers.update(cx, |p, cx| p.picker(control, width, !chats, cx));
             row = row.child(div().min_w_0().flex_shrink(1.).child(picker));

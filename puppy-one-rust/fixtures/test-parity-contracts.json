@@ -5025,10 +5025,6 @@
               "name": "AgentSessionController: a conversation's lifecycle > ignores receipts and new submissions after disposal"
             },
             {
-              "index": 4,
-              "name": "AgentSessionController: a conversation's lifecycle > renders Main display revisions and preserves the old locator on New Chat"
-            },
-            {
               "index": 5,
               "name": "AgentSessionController: a conversation's lifecycle > closes a tab-owned native session without affecting another controller"
             },
@@ -5090,7 +5086,7 @@
         },
         {
           "package": "po-app",
-          "test": "features::desktop_agent::application::tests::controller::renders_main_display_revisions_and_preserves_the_old_locator_on_new_chat",
+          "test": "features::desktop_agent::application::tests::controller::renders_main_display_revisions_and_remembers_the_viewport",
           "target": "puppy-one-rust"
         },
         {
@@ -5143,7 +5139,7 @@
     },
     {
       "id": "agent-controller-runtime-selection",
-      "acceptance": "Model refresh preserves the bound route/session/draft and cannot expand a live session model authorization; switching connections requires a new conversation; missing routes are not silently substituted; discovery/creation recipes do not resume unrequested history; catalog order/effort/providerless selection, readiness gates, fresh attachment epochs, diagnostics and the five-minute refresh cache retain TS acceptance. Local tool discovery UI remains separately unreviewed.",
+      "acceptance": "Model refresh preserves the bound route/session/draft and cannot expand a live session model authorization; switching connections continues the same conversation; missing routes are not silently substituted; discovery/creation recipes do not resume unrequested history; catalog order/effort/providerless selection, readiness gates, fresh attachment epochs, diagnostics and the five-minute refresh cache retain TS acceptance. Local tool discovery UI remains separately unreviewed.",
       "typescript": [
         {
           "path": "tests/unit/agent/sessions/desktop-agent.controller-runtimes.test.ts",
@@ -5156,10 +5152,6 @@
             {
               "index": 1,
               "name": "AgentSessionController: Agents, models and runtimes > updates model inspection without forcing executable discovery or replacing the session"
-            },
-            {
-              "index": 2,
-              "name": "AgentSessionController: Agents, models and runtimes > requires a fresh conversation for a model connection change and clears old drafts"
             },
             {
               "index": 3,
@@ -5217,7 +5209,7 @@
         },
         {
           "package": "po-app",
-          "test": "features::desktop_agent::application::tests::controller::requires_a_fresh_conversation_for_a_model_connection_change",
+          "test": "features::desktop_agent::application::tests::controller::continues_the_conversation_on_another_model_connection",
           "target": "puppy-one-rust"
         },
         {
@@ -5310,10 +5302,6 @@
               "name": "AgentSessionController: sending, steering and stopping > keeps attachment-only steer submissions busy until acknowledgement (accepted=false)"
             },
             {
-              "index": 7,
-              "name": "AgentSessionController: sending, steering and stopping > does not restore a late rejected steer into a replacement conversation"
-            },
-            {
               "index": 8,
               "name": "AgentSessionController: sending, steering and stopping > delegates queue admission to the Main command transaction"
             },
@@ -5368,11 +5356,6 @@
         {
           "package": "po-app",
           "test": "features::desktop_agent::application::tests::controller::keeps_attachment_only_steer_submissions_busy_until_acknowledgement",
-          "target": "puppy-one-rust"
-        },
-        {
-          "package": "po-app",
-          "test": "features::desktop_agent::application::tests::controller::does_not_restore_a_late_rejected_steer_into_a_replacement_conversation",
           "target": "puppy-one-rust"
         },
         {
@@ -21128,12 +21111,12 @@
       "rust": [
         {
           "package": "po-agent",
-          "test": "agent::runtimes::puppyone_agent::model_client::tests::an_echoed_key_is_redacted_even_one_byte_at_a_time"
+          "test": "agent::runtimes::puppyone_agent::model_client::redaction_tests::an_echoed_key_is_redacted_even_one_byte_at_a_time"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::model_connections::infrastructure::catalog_tests::a_catalog_echoing_the_key_or_redirecting_is_refused"
+          "test": "features::model_connections::infrastructure::catalog::catalog_tests::a_catalog_echoing_the_key_or_redirecting_is_refused"
         },
         {
           "package": "po-agent",
@@ -35487,7 +35470,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::desktop_agent::application::tests::controller::renders_main_display_revisions_and_preserves_the_old_locator_on_new_chat"
+          "test": "features::desktop_agent::application::tests::controller::renders_main_display_revisions_and_remembers_the_viewport"
         }
       ]
     },
@@ -48993,37 +48976,37 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::model_connections::infrastructure::catalog_tests::ollama_catalog_marks_loaded_models_and_their_context"
+          "test": "features::model_connections::infrastructure::catalog::catalog_tests::ollama_catalog_marks_loaded_models_and_their_context"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::model_connections::infrastructure::catalog_tests::lm_studio_catalog_keeps_language_models_with_reported_capabilities"
+          "test": "features::model_connections::infrastructure::catalog::catalog_tests::lm_studio_catalog_keeps_language_models_with_reported_capabilities"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::model_connections::infrastructure::catalog_tests::openai_catalog_lists_valid_ids_only"
+          "test": "features::model_connections::infrastructure::catalog::catalog_tests::openai_catalog_lists_valid_ids_only"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::model_connections::infrastructure::catalog_tests::generic_services_are_read_over_http"
+          "test": "features::model_connections::infrastructure::catalog::catalog_tests::generic_services_are_read_over_http"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::model_connections::infrastructure::catalog_tests::a_catalog_echoing_the_key_or_redirecting_is_refused"
+          "test": "features::model_connections::infrastructure::catalog::catalog_tests::a_catalog_echoing_the_key_or_redirecting_is_refused"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::model_connections::infrastructure::catalog_tests::a_manual_model_is_served_when_the_service_lists_none"
+          "test": "features::model_connections::infrastructure::catalog::catalog_tests::a_manual_model_is_served_when_the_service_lists_none"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "features::model_connections::infrastructure::catalog_tests::the_context_budget_fills_unreported_windows_within_the_maximum"
+          "test": "features::model_connections::infrastructure::catalog::catalog_tests::the_context_budget_fills_unreported_windows_within_the_maximum"
         }
       ]
     },
@@ -67320,6 +67303,44 @@
             {
               "index": 10,
               "name": "DesktopTooltipLayer > only shows overflow hints when their visible value is clipped"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-controller-conversation-continues-across-connections",
+      "kind": "out-of-scope",
+      "reason": "TS starts a fresh conversation (clearing drafts) when the Built-in Agent switches to another model connection, and New Chat replaces the controller's conversation in place. Rust continues the same conversation on the other connection (the next turn rebinds the lease and carries the history), and New Chat always opens a new tab, so the controller never replaces its conversation: there is no old locator to keep and no replacement conversation a late steer rejection could reach.",
+      "owner": "puppy-issues/document/puppyone-desktop/platform/rust-native-frontend/agent/runtimes/builtin-agent/cross-connection-continuation.md",
+      "typescript": [
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.controller.test.ts",
+          "sha256": "d853bbdb53a093d987d414b985eeecff635b976ecd8453a7e5f5935689d868de",
+          "cases": [
+            {
+              "index": 4,
+              "name": "AgentSessionController: a conversation's lifecycle > renders Main display revisions and preserves the old locator on New Chat"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.controller-runtimes.test.ts",
+          "sha256": "5fa0ed93dd92563859053a3ab046516c1babeb9a5bc46f58779aeb8ca113e847",
+          "cases": [
+            {
+              "index": 2,
+              "name": "AgentSessionController: Agents, models and runtimes > requires a fresh conversation for a model connection change and clears old drafts"
+            }
+          ]
+        },
+        {
+          "path": "tests/unit/agent/sessions/desktop-agent.controller-submission.test.ts",
+          "sha256": "e3c5d4e80e991369db75e4838feb072fa50d43acb4c96f7f6d562e8d90e2ed8a",
+          "cases": [
+            {
+              "index": 7,
+              "name": "AgentSessionController: sending, steering and stopping > does not restore a late rejected steer into a replacement conversation"
             }
           ]
         }

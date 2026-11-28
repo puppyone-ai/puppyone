@@ -371,6 +371,18 @@ impl PuppyOneAgentAdapter {
         let route =
             text(&request, "model").or_else(|| inner.selected_connection_model.borrow().clone());
         if let Some(binding) = inner.binding.as_ref() {
+            if binding.names_other_connection(route.as_deref()) {
+                if !inner.pi.is_idle() {
+                    return Err(AgentError::new(format!(
+                        "Stop the active {BUILT_IN_AGENT_DISPLAY_NAME} turn before switching its model connection."
+                    )));
+                }
+                // The session continues on the other connection: its kernel
+                // restarts on the same native session with the new lease and
+                // rebuilds the next request from the whole history.
+                binding.rebind(route.as_deref()).await?;
+                inner.pi.reconnect_session().await?;
+            }
             binding.validate(route.as_deref()).await?;
             let references = match request.get("references").and_then(Value::as_array) {
                 Some(references) => references.clone(),

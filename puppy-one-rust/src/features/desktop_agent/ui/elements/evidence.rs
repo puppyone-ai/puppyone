@@ -46,6 +46,8 @@ fn text_evidence(id: &str, text: &str, a: &AgentTheme) -> AnyElement {
         preview.head
     };
     let full = text.to_string();
+    let copy_key = format!("{id}-copy");
+    let click_key = copy_key.clone();
     div()
         .relative()
         .min_w_0()
@@ -79,10 +81,14 @@ fn text_evidence(id: &str, text: &str, a: &AgentTheme) -> AnyElement {
                     .tooltip(crate::ui::components::tooltip(t(
                         "agent.activity.copyFullOutput",
                     )))
-                    .on_click(move |_, _, cx| {
-                        cx.write_to_clipboard(ClipboardItem::new_string(full.clone()))
+                    .on_click(move |_, window, cx| {
+                        crate::ui::copy_feedback::copy(&click_key, full.clone(), window, cx)
                     })
-                    .child(Icon::new("copy").with_size(px(12.)).color(a.text_subtle)),
+                    .child(
+                        Icon::copy(copy_key.clone())
+                            .with_size(px(12.))
+                            .color(a.text_subtle),
+                    ),
             )
         })
         .into_any_element()

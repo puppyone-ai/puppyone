@@ -53,7 +53,6 @@ fn ready_state() -> AgentControllerState {
 fn options() -> AgentChatViewOptions {
     AgentChatViewOptions {
         presented: true,
-        pending_connection_model: None,
         compute_ready: false,
         compute_access_required: None,
         preferences_ready: true,
@@ -253,17 +252,6 @@ fn blocks_missing_unregistered_and_pending_model_routes() {
         )
         .routing_ready
     );
-    assert!(
-        !view_with(
-            &ready_state(),
-            AgentChatViewOptions {
-                pending_connection_model: Some("model-2".into()),
-                ..options()
-            },
-            &[]
-        )
-        .routing_ready
-    );
     let mut state = ready_state();
     inspection_json(&mut state)["capabilities"]["modelSelection"] = json!(false);
     state.selected_model = None;
@@ -281,18 +269,6 @@ fn requires_compute_readiness_only_for_app_managed_models() {
             &state,
             AgentChatViewOptions {
                 compute_ready: true,
-                ..options()
-            },
-            &[]
-        )
-        .routing_ready
-    );
-    assert!(
-        !view_with(
-            &state,
-            AgentChatViewOptions {
-                compute_ready: true,
-                pending_connection_model: Some("model-2".into()),
                 ..options()
             },
             &[]

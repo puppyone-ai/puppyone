@@ -412,7 +412,20 @@ impl ModelConnectionService {
         connection: ModelConnection,
         secret: Option<String>,
     ) -> Result<Vec<ModelConnection>, String> {
-        let (saved, security_changed) = configuration::save_at(&self.data_dir, connection, secret)?;
+        self.save_credential(
+            connection,
+            secret.map(|key| super::credentials::Credential::ApiKey { key }),
+        )
+    }
+
+    /// [`Self::save`] with any credential: an API key or an OAuth sign-in.
+    pub fn save_credential(
+        self: &Arc<Self>,
+        connection: ModelConnection,
+        secret: Option<super::credentials::Credential>,
+    ) -> Result<Vec<ModelConnection>, String> {
+        let (saved, security_changed) =
+            configuration::save_credential_at(&self.data_dir, connection, secret)?;
         let id = saved.id.clone();
         let all = configuration::load_at(&self.data_dir)?;
         {
@@ -430,6 +443,20 @@ impl ModelConnectionService {
         }
         self.spawn_refresh_connection(id);
         Ok(all)
+    }
+
+    /// Replaces the models connection `id` offers in Chat. The generation
+    /// stays, so its catalog, sessions and leases go on. `Ok(false)` when
+    /// nothing changed.
+    pub fn set_chat_models(&self, id: &str, models: &[String]) -> Result<bool, String> {
+        if !configuration::set_chat_models_at(&self.data_dir, id, models)? {
+            return Ok(false);
+        }
+        let all = configuration::load_at(&self.data_dir)?;
+        let mut state = self.state.lock().unwrap();
+        state.connections = all;
+        self.publish_locked(&mut state);
+        Ok(true)
     }
 
     /// Removes a custom connection and immediately cancels its active leases.
@@ -484,7 +511,13 @@ impl ModelConnectionService {
         };
         let result = async {
             let client = drivers::metadata_client()?;
-            let key = conn.credential().ok().flatten();
+            // An OAuth sign-in is refreshed before it lists the catalog.
+            let key = conn
+                .resolve_credential()
+                .await
+                .ok()
+                .flatten()
+                .map(|resolved| resolved.bearer);
             drivers::list_models(&client, &conn, key.as_deref()).await
         }
         .await;
@@ -537,12 +570,22 @@ impl ModelConnectionService {
     pub async fn verify_model(self: &Arc<Self>, id: &str, model_id: &str) -> Result<(), String> {
         let mut conn = {
             let state = self.state.lock().unwrap();
-            state
+            let mut conn = state
                 .connections
                 .iter()
                 .find(|c| c.id == id)
                 .cloned()
-                .ok_or_else(|| "CONNECTION_NOT_FOUND".to_owned())?
+                .ok_or_else(|| "CONNECTION_NOT_FOUND".to_owned())?;
+            // The model is checked as the Agent would serve it: with the
+            // window its service reports when the connection sets none.
+            if conn.manual_context_window.is_none() {
+                conn.manual_context_window = state
+                    .catalogs
+                    .get(id)
+                    .and_then(|c| c.models.iter().find(|m| m.id == model_id))
+                    .and_then(|m| m.context);
+            }
+            conn
         };
         let expected_sec_gen = conn.security_gen().to_owned();
         conn.model = model_id.to_owned();

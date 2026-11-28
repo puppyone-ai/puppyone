@@ -31,6 +31,16 @@ pub enum HostShellKind {
     CmdExe,
 }
 
+/// How a one-line command that installs and starts a local model service
+/// runs here: in the macOS Terminal (the service is an app), in PowerShell,
+/// or in a POSIX shell (the service is started in the background).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocalModelStarter {
+    MacosTerminal,
+    PowerShell,
+    PosixShell,
+}
+
 /// Pure UI convention table for one operating system.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Conventions {
@@ -112,6 +122,8 @@ pub struct Conventions {
     pub start_at_login_mechanism: StartAtLoginMechanism,
     /// Default non-sandboxed shell family for local host execution fixtures.
     pub host_shell_kind: HostShellKind,
+    /// The shell a pasted local-model starter command is written for.
+    pub local_model_starter: LocalModelStarter,
     /// Whether managed in-app local agent installation candidates are probed.
     pub supports_managed_agent_installs: bool,
 }
@@ -155,6 +167,7 @@ impl Conventions {
                 default_git_credential_helper: Some("osxkeychain"),
                 start_at_login_mechanism: StartAtLoginMechanism::LaunchAgent,
                 host_shell_kind: HostShellKind::PosixSh,
+                local_model_starter: LocalModelStarter::MacosTerminal,
                 supports_managed_agent_installs: true,
             },
             Os::Windows => Self {
@@ -187,6 +200,7 @@ impl Conventions {
                 default_git_credential_helper: None,
                 start_at_login_mechanism: StartAtLoginMechanism::Unsupported,
                 host_shell_kind: HostShellKind::CmdExe,
+                local_model_starter: LocalModelStarter::PowerShell,
                 supports_managed_agent_installs: false,
             },
             Os::Linux | Os::Other => Self {
@@ -219,6 +233,7 @@ impl Conventions {
                 default_git_credential_helper: None,
                 start_at_login_mechanism: StartAtLoginMechanism::Unsupported,
                 host_shell_kind: HostShellKind::PosixSh,
+                local_model_starter: LocalModelStarter::PosixShell,
                 supports_managed_agent_installs: false,
             },
         }

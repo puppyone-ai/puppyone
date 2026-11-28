@@ -2,6 +2,7 @@ mod infrastructure;
 mod managed;
 mod store;
 mod ui;
+pub use infrastructure::sync_offered;
 pub use managed::{
     ManagedCompute as ComputeWallet, Reason as ComputeReason, global as global_compute, money,
 };
@@ -12,4 +13,4 @@ pub(crate) use store::install_service as install_model_connections_service;
 pub use store::{
     global as global_store, install, refresh_managed, reload_saved, service, set_payments, snapshot,
 };
-pub use ui::{ModelConnections, Saved};
+pub use ui::{ModelConnections, OpenAccount, PageChanged, Saved};

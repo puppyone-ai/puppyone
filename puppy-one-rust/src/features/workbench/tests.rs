@@ -202,6 +202,7 @@ fn contributions_stop_at_their_maximum_items(cx: &mut TestAppContext) {
             "32 terminals per project"
         );
         assert!(s.can_create(ItemKind::Chat));
+        assert!(!s.at_limit(ItemKind::Chat));
         let p = s.project_mut().unwrap();
         for n in 0..8 {
             let id = p.layout.add(0);
@@ -216,6 +217,9 @@ fn contributions_stop_at_their_maximum_items(cx: &mut TestAppContext) {
             );
         }
         assert!(!s.can_create(ItemKind::Chat), "8 Agent Chats per project");
+        // The launcher says why its Agents are unavailable.
+        assert!(s.at_limit(ItemKind::Chat));
+        assert!(s.at_limit(ItemKind::Terminal));
     });
 }
 #[gpui::test]

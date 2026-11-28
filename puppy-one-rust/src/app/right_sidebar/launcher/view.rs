@@ -464,6 +464,41 @@ impl WorkbenchLauncher {
                     .child(setup)
             });
 
+        // At the chat limit the Agents are unavailable: say why, and how to
+        // make room (closing a chat), instead of a composer that only dims.
+        let limit_row =
+            context.chat_limit.then(|| {
+                h_flex()
+                    .debug_selector(|| "launcher-chat-limit".into())
+                    .w_full()
+                    .min_w_0()
+                    .items_start()
+                    .gap(px(6.))
+                    .px(px(4.))
+                    .text_size(px(m.right.caption))
+                    .line_height(px(m.right.caption_line_height))
+                    .text_color(t.subtle)
+                    .child(
+                        div().mt(px(1.)).flex_shrink_0().child(
+                            Icon::new("info")
+                                .with_size(px(13.))
+                                .stroke(1.7)
+                                .color(t.subtle),
+                        ),
+                    )
+                    .child(div().flex_1().min_w_0().whitespace_normal().child(
+                        crate::localization::tf(
+                            "native.terminal.launcher.chatLimit",
+                            &[(
+                                "count",
+                                crate::localization::Arg::Number(
+                                    crate::features::workbench::ItemKind::Chat.maximum_items()
+                                        as i64,
+                                ),
+                            )],
+                        ),
+                    ))
+            });
         // Launch refusal / failure error banner.
         let error_row = self.launch_error(slot).map(|message| {
             h_flex()
@@ -665,6 +700,7 @@ impl WorkbenchLauncher {
                                     .child(header)
                                     .child(hero_card)
                                     .children(controls_row)
+                                    .children(limit_row.map(|n| div().mt(px(8.)).child(n)))
                                     .children(notice_row.map(|n| div().mt(px(8.)).child(n)))
                                     .children(error_row.map(|e| div().mt(px(10.)).child(e)))
                                     .children(discovery_row.map(|d| div().mt(px(10.)).child(d)))

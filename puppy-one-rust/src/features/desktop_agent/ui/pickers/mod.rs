@@ -4,7 +4,7 @@
 use super::agent_theme::AgentTheme;
 use super::elements::effort_label;
 use crate::features::desktop_agent::domain::agent_session_controls::{
-    AgentSessionControl, AgentSessionControlId,
+    AgentSessionControl, AgentSessionControlId, AgentSessionControlOption,
 };
 use crate::localization::{Arg, t, tf};
 use crate::theme;
@@ -33,6 +33,8 @@ pub struct SessionPickers {
     open: Option<AgentSessionControlId>,
     /// The option the keyboard moved to.
     active: Option<usize>,
+    /// The keyboard is in the active option's submenu, on this child.
+    sub: Option<usize>,
     /// Open popover below trigger (`Anchor::TopLeft`) instead of above
     /// (`Anchor::BottomLeft`), used when the composer sits in upper-middle Act 1.
     anchor_below: bool,
@@ -50,12 +52,14 @@ impl SessionPickers {
         });
         cx.observe(&query, |s: &mut Self, _, cx| {
             s.active = None;
+            s.sub = None;
             cx.notify()
         })
         .detach();
         Self {
             open: None,
             active: None,
+            sub: None,
             anchor_below: false,
             query,
             focus: cx.focus_handle(),
@@ -79,6 +83,7 @@ impl SessionPickers {
     pub fn close(&mut self, cx: &mut Context<Self>) {
         self.open = None;
         self.active = None;
+        self.sub = None;
         self.query.update(cx, |q, cx| q.clear(cx));
         cx.notify();
     }
@@ -111,6 +116,7 @@ impl SessionPickers {
                     AgentSessionControlId::Model => "agent.model.placeholder",
                     AgentSessionControlId::Effort => "agent.effort.placeholder",
                     AgentSessionControlId::Mode => "agent.mode.placeholder",
+                    AgentSessionControlId::Source => "agent.compute.title",
                 })
                 .to_string()
             });
@@ -140,6 +146,7 @@ impl SessionPickers {
                         }
                         s.open = Some(id);
                         s.active = None;
+                        s.sub = None;
                         s.query.update(cx, |q, cx| q.clear(cx));
                         if searchable {
                             s.query.read(cx).focus_handle(cx).focus(window, cx);
@@ -149,6 +156,7 @@ impl SessionPickers {
                         cx.notify();
                     }))
             })
+            .gap(px(3.))
             .child(
                 div()
                     .debug_selector(move || label_selector)
@@ -198,13 +206,29 @@ impl SessionPickers {
         let t_ = cx.palette();
         let m = theme::ty();
         let id = control.id;
-        let width = if id == AgentSessionControlId::Model {
-            248.
-        } else {
-            148.
+        let width = match id {
+            AgentSessionControlId::Model => 248.,
+            AgentSessionControlId::Source => 232.,
+            _ => 148.,
         };
         let searchable = control.options.len() > 6;
         let query = self.query.read(cx).text().trim().to_lowercase();
+        let decoration = |value: &str| {
+            control
+                .options
+                .iter()
+                .find(|o| o.value == value)
+                .map(|o| {
+                    (
+                        o.icon,
+                        o.mark,
+                        o.description
+                            .clone()
+                            .filter(|_| id == AgentSessionControlId::Source),
+                    )
+                })
+                .unwrap_or_default()
+        };
         let matched: Vec<(String, String, bool)> = control
             .options
             .iter()
@@ -236,7 +260,24 @@ impl SessionPickers {
             .or_else(|| shown.iter().position(|(_, _, selected)| *selected))
             .unwrap_or(0);
         let count = shown.len();
-        let keyed = shown.clone();
+        // Each shown option's value, its submenu rows' values and the row
+        // the keyboard enters on (the current one, else the first).
+        let keyed: Vec<(String, Vec<String>, usize)> = shown
+            .iter()
+            .map(|(_, value, _)| {
+                let children = control
+                    .options
+                    .iter()
+                    .find(|o| &o.value == value)
+                    .map_or(&[][..], |o| o.children.as_slice());
+                (
+                    value.clone(),
+                    children.iter().map(|c| c.value.clone()).collect(),
+                    children.iter().position(|c| c.current).unwrap_or(0),
+                )
+            })
+            .collect();
+        let sub = self.sub;
         let host = cx.weak_entity();
         let mut menu = Menu::new(SharedString::from(format!("agent-picker-{id:?}-popover")))
             .variant(MenuVariant::RightRail)
@@ -246,14 +287,50 @@ impl SessionPickers {
             .track_focus(&self.focus)
             .on_mouse_down_out(cx.listener(|s, _, _, cx| s.close(cx)))
             .on_key_down(cx.listener(move |s, event: &KeyDownEvent, _, cx| {
-                let next = match event.keystroke.key.as_str() {
+                let (children, entry) = keyed
+                    .get(active)
+                    .map_or((&[][..], 0), |(_, c, entry)| (c.as_slice(), *entry));
+                let key = event.keystroke.key.as_str();
+                // In a submenu (a source's providers): Up and Down move in
+                // it, Enter picks the row (its Model), Left or Escape go back.
+                if let Some(row) = sub {
+                    match key {
+                        "escape" | "left" => s.sub = None,
+                        "enter" => {
+                            if let Some(value) = children.get(row) {
+                                cx.emit(PickerEvent::Select {
+                                    id: AgentSessionControlId::Model,
+                                    value: value.clone(),
+                                });
+                                s.close(cx);
+                            }
+                        }
+                        "down" => s.sub = Some((row + 1).min(children.len().saturating_sub(1))),
+                        "up" => s.sub = Some(row.saturating_sub(1)),
+                        "home" => s.sub = Some(0),
+                        "end" => s.sub = Some(children.len().saturating_sub(1)),
+                        _ => return,
+                    }
+                    cx.stop_propagation();
+                    cx.notify();
+                    return;
+                }
+                let next = match key {
                     "escape" => {
                         s.close(cx);
                         cx.stop_propagation();
                         return;
                     }
+                    // An option with a submenu is entered, not chosen.
+                    "right" | "enter" if !children.is_empty() => {
+                        s.active = Some(active);
+                        s.sub = Some(entry);
+                        cx.stop_propagation();
+                        cx.notify();
+                        return;
+                    }
                     "enter" => {
-                        if let Some((_, value, _)) = keyed.get(active) {
+                        if let Some((value, _, _)) = keyed.get(active) {
                             cx.emit(PickerEvent::Select {
                                 id,
                                 value: value.clone(),
@@ -292,7 +369,26 @@ impl SessionPickers {
         }
         for (index, (label, value, selected)) in shown.into_iter().enumerate() {
             let highlighted = selected || self.active == Some(index);
+            // An option with a submenu (a source and its providers).
+            if let Some(option) = control
+                .options
+                .iter()
+                .find(|o| o.value == value && !o.children.is_empty())
+            {
+                let sub = sub.filter(|_| self.active == Some(index));
+                let item = level_item(
+                    option,
+                    host.clone(),
+                    ("agent-panel-picker-option", index).into(),
+                    highlighted,
+                    sub,
+                    cx,
+                );
+                menu = menu.item(item);
+                continue;
+            }
             let host = host.clone();
+            let (icon, mark, detail) = decoration(&value);
             let mut item = MenuItem::new(label)
                 .id(("agent-panel-picker-option", index))
                 .selected(highlighted)
@@ -305,6 +401,19 @@ impl SessionPickers {
                         s.close(cx);
                     });
                 });
+            if let Some(mark) = mark {
+                item = item.icon_element(crate::ui::provider_marks::provider_mark(
+                    Some(mark),
+                    false,
+                    16.,
+                    t_.text,
+                ));
+            } else if let Some(icon) = icon {
+                item = item.icon(icon);
+            }
+            if let Some(detail) = detail {
+                item = item.detail_below(detail);
+            }
             if selected {
                 item = item.trailing(
                     Icon::new("check")
@@ -351,6 +460,99 @@ impl SessionPickers {
         }
         menu
     }
+}
+
+/// An option with a submenu (a source and its providers): its row opens
+/// the submenu on hover, or when the keyboard enters it (`sub`, the child
+/// the keyboard is on); each row of the submenu sets the Model control to
+/// its value and closes the picker.
+fn level_item(
+    option: &AgentSessionControlOption,
+    host: WeakEntity<SessionPickers>,
+    key: ElementId,
+    highlighted: bool,
+    sub: Option<usize>,
+    cx: &mut Context<SessionPickers>,
+) -> MenuItem {
+    let t_ = cx.palette();
+    let item = MenuItem::new(option.label.clone())
+        .id(key)
+        .selected(highlighted)
+        .trailing(
+            Icon::new("chevron-right")
+                .small()
+                .stroke(2.)
+                .color(t_.muted),
+        )
+        .open_submenu(sub.is_some());
+    decorate(item, option, &t_).submenu(level_menu(option, host, sub))
+}
+
+/// The submenu of `option`'s children, with the keyboard on `sub`.
+fn level_menu(
+    option: &AgentSessionControlOption,
+    host: WeakEntity<SessionPickers>,
+    sub: Option<usize>,
+) -> impl Fn(&mut Window, &mut App) -> Menu + 'static {
+    let children = option.children.clone();
+    let menu_id = SharedString::from(format!("agent-picker-level-{}", option.value));
+    move |_, cx| {
+        let t_ = cx.palette();
+        let mut menu = Menu::new(menu_id.clone())
+            .variant(MenuVariant::RightRail)
+            .min_w(px(200.))
+            .max_w(px(280.))
+            .max_h(px(PICKER_MAX_HEIGHT));
+        for (index, child) in children.iter().enumerate() {
+            let host = host.clone();
+            let value = child.value.clone();
+            let mut row = MenuItem::new(child.label.clone())
+                .id((menu_id.clone(), index))
+                .selected(child.current || sub == Some(index))
+                .on_click(move |_, cx| {
+                    let _ = host.update(cx, |s, cx| {
+                        cx.emit(PickerEvent::Select {
+                            id: AgentSessionControlId::Model,
+                            value: value.clone(),
+                        });
+                        s.close(cx);
+                    });
+                });
+            row = decorate(row, child, &t_);
+            if child.current {
+                row = row.trailing(
+                    Icon::new("check")
+                        .with_size(px(14.))
+                        .stroke(2.)
+                        .color(t_.muted),
+                );
+            }
+            menu = menu.item(row);
+        }
+        menu
+    }
+}
+
+/// An option's brand mark or icon, and its second line.
+fn decorate(
+    mut item: MenuItem,
+    option: &AgentSessionControlOption,
+    t_: &crate::theme::Theme,
+) -> MenuItem {
+    if let Some(mark) = option.mark {
+        item = item.icon_element(crate::ui::provider_marks::provider_mark(
+            Some(mark),
+            false,
+            16.,
+            t_.text,
+        ));
+    } else if let Some(icon) = option.icon {
+        item = item.icon(icon);
+    }
+    if let Some(detail) = option.description.clone() {
+        item = item.detail_below(detail);
+    }
+    item
 }
 
 #[cfg(test)]

@@ -6,6 +6,7 @@ pub mod appearance;
 #[cfg(feature = "dev-capture")]
 pub mod asset_gallery;
 pub mod components;
+pub mod copy_feedback;
 pub mod fonts;
 pub mod form_input;
 mod fractional_text;
@@ -17,6 +18,7 @@ pub mod loading;
 pub mod moments;
 pub mod motion;
 pub mod native_cover;
+pub mod provider_marks;
 pub mod resource_drag;
 pub mod scroll_edge;
 pub mod scrollbar;

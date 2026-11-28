@@ -2046,3 +2046,41 @@ fn l1_launcher_shows_provider_parameter_pickers_persists_per_provider_routes_and
     assert!(cx.debug_bounds("agent-picker-Effort:Extra high").is_some());
     assert!(cx.debug_bounds("agent-picker-Mode:Plan").is_some());
 }
+
+/// At the chat limit the launcher says why its Agents are unavailable;
+/// below it, nothing is said.
+#[gpui::test]
+fn the_launcher_says_when_the_chat_limit_is_reached(cx: &mut TestAppContext) {
+    let (workbench, launcher, cx) = compose(cx);
+    launcher.update(cx, |l, cx| l.show_local(PathBuf::from("/project"), cx));
+    let draw = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+    };
+    workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    draw(cx);
+    assert!(cx.debug_bounds("launcher-chat-limit").is_none());
+    workbench.update(cx, |w, cx| {
+        for n in 0..ItemKind::Chat.maximum_items() {
+            w.lab_retained(
+                RetainedItem::Chat {
+                    runtime: crate::agent::connections::legacy_runtime_registry::Runtime::Codex,
+                    thread: None,
+                    title: format!("c{n}"),
+                    runtime_id: Some("codex".into()),
+                },
+                cx,
+            );
+        }
+        assert!(!w.can_create(ItemKind::Chat));
+    });
+    workbench
+        .update(cx, |w, cx| w.new_launcher_tab(0, cx))
+        .unwrap();
+    draw(cx);
+    assert!(cx.debug_bounds("launcher-chat-limit").is_some());
+}

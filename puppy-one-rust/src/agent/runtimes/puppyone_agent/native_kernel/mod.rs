@@ -10,6 +10,8 @@ mod tools;
 mod turn;
 
 #[cfg(test)]
+mod context_tests;
+#[cfg(test)]
 mod tests;
 
 pub use turn::{Complete, CompleteRequest};

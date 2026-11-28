@@ -300,11 +300,11 @@ impl TranscriptView {
                     .text_size(px(m.left.meta))
                     .text_color(a.text_subtle)
                     .child(
-                        Icon::new(if reconnecting {
-                            "loader-circle"
+                        if reconnecting {
+                            Icon::new("loader-circle").spinning("agent-reconnecting")
                         } else {
-                            "arrow-left-right"
-                        })
+                            Icon::new("arrow-left-right")
+                        }
                         .with_size(px(12.))
                         .color(a.text_subtle),
                     )

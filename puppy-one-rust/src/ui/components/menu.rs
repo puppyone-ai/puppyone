@@ -631,7 +631,12 @@ impl RenderOnce for Menu {
             frame = frame.on_key_down(move |e, w, cx| on_key(e, w, cx));
         }
         if let Some(outside) = self.mouse_down_out {
-            frame = frame.on_mouse_down_out(move |e, w, cx| outside(e, w, cx));
+            // A press in an open submenu is inside the menu it came from.
+            frame = frame.on_mouse_down_out(move |e, w, cx| {
+                if !submenu_contains(e.position, w, cx) {
+                    outside(e, w, cx)
+                }
+            });
         }
         if self.absorb_mouse_down {
             frame = frame.absorb_mouse_down();
@@ -676,6 +681,12 @@ struct SubmenuCoordinator {
     /// One-shot `open_submenu(true)` request already honoured.
     requested: Option<ElementId>,
     epoch: u64,
+    /// The pointer is over the active row, and over its submenu: it closes
+    /// only when over neither, whatever order their enter and leave arrive
+    /// in (a submenu moved over its own row at the window edge hides the
+    /// row's hover without closing).
+    over_row: bool,
+    over_submenu: bool,
 }
 
 /// Live deferred submenu bounds currently on screen. Each entry is held alive
@@ -973,23 +984,49 @@ impl RenderOnce for SubmenuRow {
                     s.active = Some(row_id.clone());
                 }
             });
+        } else {
+            // Withdrawing the request closes what it opened, so the next
+            // request opens it again (a picker's keyboard in and out).
+            coord.update(cx, |s, _| {
+                if s.requested.as_ref() == Some(&row_id) {
+                    s.requested = None;
+                    if s.active.as_ref() == Some(&row_id) {
+                        s.active = None;
+                        s.entered = false;
+                    }
+                }
+            });
         }
         let hover = {
             let coord = coord.clone();
             let row_id = self.id.clone();
-            move |hovered: bool, window: &mut Window, cx: &mut App| {
+            move |on_row: bool, hovered: bool, window: &mut Window, cx: &mut App| {
                 if hovered {
                     coord.update(cx, |s, cx| {
                         s.epoch += 1;
                         if s.active.as_ref() != Some(&row_id) {
                             s.active = Some(row_id.clone());
+                            s.over_row = false;
+                            s.over_submenu = false;
                             cx.notify();
+                        }
+                        if on_row {
+                            s.over_row = true;
+                        } else {
+                            s.over_submenu = true;
                         }
                     });
                     return;
                 }
                 let epoch = coord.update(cx, |s, _| {
                     s.epoch += 1;
+                    if s.active.as_ref() == Some(&row_id) {
+                        if on_row {
+                            s.over_row = false;
+                        } else {
+                            s.over_submenu = false;
+                        }
+                    }
                     s.epoch
                 });
                 let coord = coord.clone();
@@ -1000,7 +1037,11 @@ impl RenderOnce for SubmenuRow {
                             .timer(Duration::from_millis(120))
                             .await;
                         coord.update(cx, |s, cx| {
-                            if s.epoch == epoch && s.active.as_ref() == Some(&row_id) {
+                            if s.epoch == epoch
+                                && s.active.as_ref() == Some(&row_id)
+                                && !s.over_row
+                                && !s.over_submenu
+                            {
                                 s.active = None;
                                 cx.notify();
                             }
@@ -1039,7 +1080,7 @@ impl RenderOnce for SubmenuRow {
             // The trigger stays lit while its submenu is open (`data-open`).
             .when(open, |row| row.bg(t.hover).text_color(t.text))
             .child(measure)
-            .on_hover(move |hovered, window, cx| hover_row(*hovered, window, cx))
+            .on_hover(move |hovered, window, cx| hover_row(true, *hovered, window, cx))
             .on_click(move |_, _, cx| {
                 cx.stop_propagation();
                 click_coord.update(cx, |s, cx| {
@@ -1064,6 +1105,41 @@ impl RenderOnce for SubmenuRow {
             let surface = Rc::new(Cell::new(Bounds::default()));
             register_active_submenu(window, &surface, cx);
             let position_surface = surface.clone();
+            // The submenu's own surface blocks the mouse for what is under
+            // it, its host included, so the pointer is followed by its
+            // bounds: the host's hover would never see it. The listener
+            // also keeps the bounds registered while the submenu is drawn.
+            let follow = {
+                let coord = coord.clone();
+                let row_id = self.id.clone();
+                canvas(
+                    |_, _, _| {},
+                    move |bounds, _, window, _| {
+                        let coord = coord.clone();
+                        let row_id = row_id.clone();
+                        let hover = hover.clone();
+                        let surface = surface.clone();
+                        window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, cx| {
+                            let _keep_active = &surface;
+                            if phase != DispatchPhase::Bubble {
+                                return;
+                            }
+                            let inside = bounds.contains(&e.position);
+                            let over = {
+                                let s = coord.read(cx);
+                                s.active.as_ref() == Some(&row_id) && s.over_submenu
+                            };
+                            if inside != over {
+                                hover(false, inside, window, cx);
+                            }
+                        });
+                    },
+                )
+                .absolute()
+                .top_0()
+                .left_0()
+                .size_full()
+            };
             row = row.child(
                 deferred(
                     Positioner::corner(Anchor::TopLeft, corner)
@@ -1074,11 +1150,9 @@ impl RenderOnce for SubmenuRow {
                         .child(
                             div()
                                 .id(child_id(&self.id, "submenu-host"))
-                                .on_hover(move |hovered, window, cx| {
-                                    let _keep_active = &surface;
-                                    hover(*hovered, window, cx);
-                                })
-                                .child(menu.w(px(184.))),
+                                .relative()
+                                .child(menu.w(px(184.)))
+                                .child(follow),
                         ),
                 )
                 .with_priority(gpui_kit::base::POPUP_PRIORITY + 1 + self.depth),

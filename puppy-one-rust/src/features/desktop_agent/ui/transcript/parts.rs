@@ -242,8 +242,21 @@ impl TranscriptView {
             }
             row.into_any_element()
         };
+        // A turn sent to another model than the one before says so above
+        // the prompt; the conversation continues on that model.
+        let switched = part.switched_to_model.as_deref().map(|model| {
+            div()
+                .mb(px(6.))
+                .text_size(px(m.left.meta))
+                .line_height(px(m.right.meta_line_height))
+                .text_color(a.text_muted)
+                .child(tf(
+                    "native.agent.turn.modelSwitched",
+                    &[("model", Arg::Text(model.to_string()))],
+                ))
+        });
         let selector = format!("agent-user-message:{}", part.id);
-        v_flex()
+        let bubble = v_flex()
             .debug_selector(move || selector)
             .w_full()
             .min_w_0()
@@ -298,7 +311,12 @@ impl TranscriptView {
                     .line_height(px(m.right.meta_line_height))
                     .text_color(a.text_muted)
                     .child(label)
-            }))
+            }));
+        v_flex()
+            .w_full()
+            .min_w_0()
+            .children(switched)
+            .child(bubble)
             .into_any_element()
     }
 

@@ -96,6 +96,7 @@ impl ComposerView {
             Icon::new("loader-circle")
                 .with_size(px(14.))
                 .color(glyph_color)
+                .spinning("composer-send-busy")
                 .into_any_element()
         } else if running {
             div()
@@ -166,6 +167,7 @@ impl ComposerView {
                 AgentSessionControlId::Model => 160f32.min(viewport * 0.42),
                 AgentSessionControlId::Effort => 84f32.min(viewport * 0.24),
                 AgentSessionControlId::Mode => 96f32.min(viewport * 0.26),
+                AgentSessionControlId::Source => 160f32.min(viewport * 0.42),
             };
             let disabled = view.configuration_disabled;
             let picker = self

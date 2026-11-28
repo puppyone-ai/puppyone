@@ -12,6 +12,8 @@ struct Host {
     control: AgentSessionControl,
     disabled: bool,
     chosen: Vec<String>,
+    /// The control each choice set.
+    sets: Vec<AgentSessionControlId>,
 }
 
 impl Render for Host {
@@ -34,6 +36,7 @@ fn option(value: &str, label: &str) -> AgentSessionControlOption {
         label: label.into(),
         description: None,
         keywords: Some(value.into()),
+        ..Default::default()
     }
 }
 
@@ -50,9 +53,10 @@ fn setup(
     let (host, cx) = cx.add_window_view(|window, cx| {
         let pickers = cx.new(|cx| SessionPickers::new(window, cx));
         cx.subscribe(&pickers, |host: &mut Host, _, event, cx| {
-            let PickerEvent::Select { value, .. } = event;
+            let PickerEvent::Select { id, value } = event;
             host.control.value = Some(value.clone());
             host.chosen.push(value.clone());
+            host.sets.push(*id);
             cx.notify();
         })
         .detach();
@@ -61,6 +65,7 @@ fn setup(
             control,
             disabled,
             chosen: Vec::new(),
+            sets: Vec::new(),
         }
     });
     draw(cx);
@@ -167,4 +172,64 @@ fn arrows_move_enter_chooses_and_escape_closes(cx: &mut TestAppContext) {
     draw(cx);
     assert!(cx.debug_bounds("menu-item:GPT-5").is_none());
     assert_eq!(host.read_with(cx, |h, _| h.chosen.len()), 1);
+}
+
+/// The source picker is a cascading menu for the keyboard: moving onto a
+/// source does not open its providers; Right (or Enter) enters them, the
+/// arrows move among them, Enter picks one (setting the Model) and Left
+/// goes back.
+#[gpui::test]
+fn the_keyboard_enters_a_source_s_providers_and_picks_one(cx: &mut TestAppContext) {
+    let provider = |value: &str, label: &str| AgentSessionControlOption {
+        value: value.into(),
+        label: label.into(),
+        ..Default::default()
+    };
+    let source = |value: &str, label: &str, children| AgentSessionControlOption {
+        value: value.into(),
+        label: label.into(),
+        children,
+        ..Default::default()
+    };
+    let control = AgentSessionControl {
+        id: AgentSessionControlId::Source,
+        value: Some("oauth".into()),
+        options: vec![
+            source("oauth", "Sign-ins", vec![provider("gpt-5", "ChatGPT")]),
+            source(
+                "local",
+                "Local",
+                vec![provider("llama", "Ollama"), provider("qwen", "LM Studio")],
+            ),
+        ],
+    };
+    let (host, cx) = setup(cx, control, false);
+    click(cx, "agent-picker-Source");
+    cx.simulate_keystrokes("down");
+    draw(cx);
+    assert!(
+        cx.debug_bounds("menu-item:Ollama").is_none(),
+        "a highlight alone opens no submenu"
+    );
+    cx.simulate_keystrokes("right");
+    draw(cx);
+    assert!(cx.debug_bounds("menu-item:Ollama").is_some());
+    cx.simulate_keystrokes("left");
+    draw(cx);
+    assert!(cx.debug_bounds("menu-item:Ollama").is_none(), "back out");
+    cx.simulate_keystrokes("enter");
+    draw(cx);
+    assert!(
+        cx.debug_bounds("menu-item:LM Studio").is_some(),
+        "Enter enters"
+    );
+    assert!(host.read_with(cx, |h, _| h.chosen.is_empty()));
+    cx.simulate_keystrokes("down enter");
+    draw(cx);
+    assert_eq!(host.read_with(cx, |h, _| h.chosen.clone()), ["qwen"]);
+    assert_eq!(
+        host.read_with(cx, |h, _| h.sets.clone()),
+        [AgentSessionControlId::Model]
+    );
+    assert!(cx.debug_bounds("menu-item:LM Studio").is_none(), "closed");
 }

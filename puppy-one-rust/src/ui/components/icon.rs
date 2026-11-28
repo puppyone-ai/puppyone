@@ -24,6 +24,8 @@ pub struct Icon {
     group_hover: Option<(SharedString, Hsla)>,
     spin: Option<ElementId>,
     rotation: f32,
+    /// A copy button's key: `copy`, flipping to `check` after a copy.
+    copy: Option<SharedString>,
     style: StyleRefinement,
 }
 impl Icon {
@@ -37,11 +39,19 @@ impl Icon {
             group_hover: None,
             spin: None,
             rotation: 0.,
+            copy: None,
             style: StyleRefinement::default(),
         }
     }
     pub fn product(meaning: ProductIcon) -> Self {
         Self::new(SharedString::from(format!("product-{}", meaning.id())))
+    }
+    /// A copy button's glyph (`ui::copy_feedback`): after `key` copies it
+    /// flips over to `check`, holds, then flips back.
+    pub fn copy(key: impl Into<SharedString>) -> Self {
+        let mut icon = Self::new("copy");
+        icon.copy = Some(key.into());
+        icon
     }
     /// Turned clockwise by `radians` about its centre.
     pub fn rotate(mut self, radians: f32) -> Self {
@@ -82,10 +92,14 @@ impl Icon {
         }
     }
     fn path(&self) -> SharedString {
-        match self.stroke {
-            Some(stroke) => format!("icons/{}@{stroke}.svg", self.name).into(),
-            None => format!("icons/{}.svg", self.name).into(),
-        }
+        icon_path(&self.name, self.stroke)
+    }
+}
+/// `icons/<name>.svg`, or its redraw at `stroke`.
+fn icon_path(name: &str, stroke: Option<f32>) -> SharedString {
+    match stroke {
+        Some(stroke) => format!("icons/{name}@{stroke}.svg").into(),
+        None => format!("icons/{name}.svg").into(),
     }
 }
 impl Sizable for Icon {
@@ -100,7 +114,7 @@ impl Styled for Icon {
     }
 }
 impl RenderOnce for Icon {
-    fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let color = self.color.unwrap_or(window.text_style().color);
         let pixels = self.pixels();
         let disclosure = crate::asset_catalog::is_disclosure(&self.name);
@@ -116,15 +130,29 @@ impl RenderOnce for Icon {
                 svg.group_hover(group, move |s| s.text_color(color))
             })
             .refine_style(&self.style);
-        let icon = match self.spin {
-            Some(id) => icon
+        let copied = self
+            .copy
+            .as_ref()
+            .and_then(|key| crate::ui::copy_feedback::started(key, window, cx));
+        let stroke = self.stroke;
+        let icon = match (self.spin, copied) {
+            (_, Some(at)) => {
+                let (name, scale, turning) = crate::ui::copy_feedback::face(at, cx.reduce_motion());
+                if turning {
+                    window.request_animation_frame();
+                }
+                icon.path(icon_path(name, stroke))
+                    .with_transformation(Transformation::scale(size(scale, 1.)))
+                    .into_any_element()
+            }
+            (Some(id), None) => icon
                 .with_animation(
                     id,
                     Animation::new(std::time::Duration::from_millis(900)).repeat(),
                     |svg, delta| svg.with_transformation(Transformation::rotate(percentage(delta))),
                 )
                 .into_any_element(),
-            None => icon.into_any_element(),
+            (None, None) => icon.into_any_element(),
         };
         if disclosure {
             div()

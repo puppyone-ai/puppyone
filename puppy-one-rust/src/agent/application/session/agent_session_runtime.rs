@@ -455,6 +455,18 @@ impl AgentSessionRuntime {
                 drop(state);
                 event["payload"] = payload;
             }
+            // Every report of a turn names its model, so a later one (the
+            // adapter's own start after the transaction's) never leaves the
+            // transcript with the route.
+            let model_name = event["payload"]["model"].as_str().and_then(|model| {
+                crate::agent::application::turn::agent_start_transaction::model_label(
+                    &session.state().models,
+                    model,
+                )
+            });
+            if let Some(name) = model_name.filter(|_| event["payload"].get("modelName").is_none()) {
+                event["payload"]["modelName"] = name.into();
+            }
         }
         if matches!(
             event_type.as_str(),

@@ -198,6 +198,7 @@ fn the_composer_offers_only_the_sessions_model_and_works_without_one(cx: &mut Te
             label: "GPT-5".into(),
             description: None,
             keywords: None,
+            ..Default::default()
         }],
     };
     composer.update_in(cx, |c, window, cx| {
@@ -496,6 +497,7 @@ fn capsule_composer_places_session_controls_below_the_circular_action(cx: &mut T
             label: label.into(),
             description: None,
             keywords: None,
+            ..Default::default()
         }],
     };
     composer.update_in(cx, |c, window, cx| {

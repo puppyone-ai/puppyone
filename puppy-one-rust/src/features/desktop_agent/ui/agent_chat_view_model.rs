@@ -27,7 +27,6 @@ use crate::localization::t;
 #[derive(Clone, Debug, Default)]
 pub struct AgentChatViewOptions {
     pub presented: bool,
-    pub pending_connection_model: Option<String>,
     pub compute_ready: bool,
     pub compute_access_required: Option<String>,
     pub preferences_ready: bool,
@@ -330,10 +329,7 @@ fn is_routing_ready(
     runtime: &AgentChatRuntime,
     options: &AgentChatViewOptions,
 ) -> bool {
-    if !runtime.agent_runtime_selected
-        || options.pending_connection_model.is_some()
-        || !options.preferences_ready
-    {
+    if !runtime.agent_runtime_selected || !options.preferences_ready {
         return false;
     }
     if state.capability(Capability::ModelConnections) && !options.compute_ready {
@@ -365,7 +361,6 @@ fn can_request_access(
             .compute_access_required
             .as_deref()
             .is_some_and(|access| !access.is_empty())
-        && options.pending_connection_model.is_none()
         && !failed
         && state.error.is_none()
         && (compute_onboarding || !unavailable)

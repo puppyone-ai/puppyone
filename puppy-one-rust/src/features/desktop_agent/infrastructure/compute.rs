@@ -1,8 +1,13 @@
 //! What Chat reads of the app's model connections (`useModelConnections`):
 //! each ready connection's source and PuppyOne compute's state, projected
-//! directly from the unified [`crate::features::model_connections::ModelConnectionsStore`].
-use crate::agent::model_connections::{ManagedComputeSnapshot, ModelConnectionSnapshot};
-use crate::agent::runtimes::puppyone_agent::native_model_connections::catalog_revision;
+//! from the unified [`crate::features::model_connections::ModelConnectionsStore`].
+use crate::agent::contract::dto::Model;
+use crate::agent::model_connections::{
+    ManagedComputeSnapshot, ModelConnectionService, ModelConnectionSnapshot,
+};
+use crate::agent::runtimes::puppyone_agent::native_model_connections::{
+    catalog_revision, product_connection_id,
+};
 use gpui::App;
 use std::collections::HashMap;
 
@@ -57,9 +62,42 @@ impl ManagedCompute {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct ComputeSnapshot {
     pub revision: String,
-    /// Each ready connection's source kind (`managed`, `api` or `local`).
+    /// Each ready connection's source kind (`managed`, `oauth`, `api` or `local`).
     pub sources: HashMap<String, &'static str>,
+    /// Each ready connection's brand mark under `assets/providers/` and
+    /// whether it is one colour (`providers::Provider::mark`).
+    pub marks: HashMap<String, (&'static str, bool)>,
+    /// Each connection's name, shown under its models in Chat's picker so
+    /// models from several services (Ollama, MLX…) tell apart.
+    pub names: HashMap<String, String>,
     pub managed: Option<ManagedCompute>,
+}
+
+impl ComputeSnapshot {
+    /// The source kind of `model`'s connection, while it is ready.
+    pub fn source(&self, model: &Model) -> Option<&'static str> {
+        self.sources.get(model.connection_id.as_deref()?).copied()
+    }
+    /// The name of the connection `id`.
+    pub fn name(&self, id: &str) -> Option<&str> {
+        self.names.get(id).map(String::as_str)
+    }
+    /// The brand mark of the connection `id`.
+    pub fn mark(&self, id: &str) -> Option<(&'static str, bool)> {
+        self.marks.get(id).copied()
+    }
+}
+
+/// Brings every connection's Chat models up to its service's catalog
+/// (throttled per connection); `true` when one was saved. The reads block
+/// on the network (up to 15s), so they run on a thread of their own, not on
+/// GPUI's shared background executor.
+pub(crate) async fn sync_offered_models(service: std::sync::Arc<ModelConnectionService>) -> bool {
+    let (tx, rx) = async_channel::bounded(1);
+    crate::localization::spawn(move || {
+        let _ = tx.send_blocking(crate::features::model_connections::sync_offered(&service));
+    });
+    rx.recv().await.unwrap_or(false)
 }
 
 /// Projects the unified `po-agent` snapshot into the Chat panel's display model
@@ -72,6 +110,23 @@ pub(crate) fn project_compute_snapshot(
     ComputeSnapshot {
         revision: catalog_revision(&connections),
         sources: snap.ready_sources(),
+        marks: snap
+            .connections
+            .iter()
+            .filter_map(|c| {
+                let provider = c.provider()?;
+                Some((
+                    product_connection_id(&c.id),
+                    (provider.mark?, provider.monochrome),
+                ))
+            })
+            .collect(),
+        names: snap
+            .connections
+            .iter()
+            .chain(&snap.managed_connections)
+            .map(|c| (product_connection_id(&c.id), c.name.clone()))
+            .collect(),
         managed: Some(ManagedCompute::of_snapshot(&snap.managed, sign_in_failed)),
     }
 }

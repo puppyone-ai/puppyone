@@ -20,7 +20,7 @@ use super::provider_notice_policy::{
 };
 use super::transcript_indexes::{Projection, entry, revise};
 use super::turn_lifecycle::reconcile_terminal_agent_turn;
-use crate::agent::contract::display_types::AgentDisplay;
+use crate::agent::contract::display_types::{AgentDisplay, Entry};
 use crate::agent::contract::event_content_update::{
     UpdateMode, agent_event_content_update, apply_agent_event_content_update,
 };
@@ -198,6 +198,9 @@ fn apply_legacy_agent_event(next: &mut Projection, event: &Value, options: Proje
             if find_agent_user_message(&next.d.messages, event).is_some() {
                 let payload = Obj::from(event.payload()).set("text", prompt).build();
                 upsert_user_message(next, &js::with(event, "payload", payload));
+                if let Some(index) = find_agent_user_message(&next.d.messages, event) {
+                    mark_turn_model(&mut next.d.messages, index, event);
+                }
                 return;
             }
             let turn_id = event
@@ -247,6 +250,7 @@ fn apply_legacy_agent_event(next: &mut Projection, event: &Value, options: Proje
                     .set("updatedSequence", sequence)
                     .build();
                 d.messages.push(entry(message));
+                mark_turn_model(&mut d.messages, message_index, event);
                 indexes.messages.insert(id, message_index);
                 if let Some(turn) = turn_id {
                     let mut list = turn_messages;
@@ -718,6 +722,55 @@ fn upsert_user_message(projection: &mut Projection, event: &Value) {
             .or_default()
             .push(message_index);
     }
+}
+
+/// Records the model a turn was sent to on its user message, and the
+/// model's name as `switchedToModel` when the turn before went to another
+/// one: one conversation can move between models.
+fn mark_turn_model(messages: &mut [Entry], index: usize, event: &Value) {
+    let Some(model) = event
+        .field("model")
+        .and_then(Value::as_str)
+        .filter(|m| !m.is_empty())
+    else {
+        return;
+    };
+    let previous = messages[..index]
+        .iter()
+        .rev()
+        .filter(|m| m["role"] == "user")
+        .find_map(|m| m.get("model").and_then(Value::as_str).map(str::to_string));
+    // A report without a name keeps the one an earlier report of this turn
+    // gave; with neither, the model id stands in for its connection route.
+    let earlier = messages[index]
+        .get("switchedToModel")
+        .and_then(Value::as_str)
+        .filter(|_| messages[index]["model"] == model);
+    let name = event
+        .field("modelName")
+        .and_then(Value::as_str)
+        .filter(|n| !n.is_empty())
+        .or(earlier)
+        .unwrap_or_else(|| route_model_id(model));
+    let name = text::head16(name, 200).to_string();
+    let switched = previous.is_some_and(|previous| previous != model);
+    messages[index] = revise(&messages[index], |m| {
+        m.insert("model".into(), model.into());
+        if switched {
+            m.insert("switchedToModel".into(), name.into());
+        } else {
+            m.shift_remove("switchedToModel");
+        }
+    });
+}
+
+/// `mc_<connection>/<model>` names a model connection's model; the reader
+/// knows it by `<model>`. Other model ids are shown as they are.
+fn route_model_id(model: &str) -> &str {
+    model
+        .strip_prefix("mc_")
+        .and_then(|rest| rest.split_once('/'))
+        .map_or(model, |(_, id)| id)
 }
 
 fn set_or_remove(map: &mut Map<String, Value>, key: &str, value: Option<Value>) {

@@ -42,6 +42,31 @@ fn user_message_id(session: &SessionRef, command_id: &str) -> Value {
     })
 }
 
+/// The display name of the session's `model`, for the turn record.
+fn model_name(session: &SessionRef, model: Option<&str>) -> Option<String> {
+    model_label(&session.state().models, model?)
+}
+
+/// What a turn's model is called where the transcript names it: a model
+/// connection's model with its connection (`MLX B · Qwen3.5-9B`, two
+/// connections may serve one model), any other model by its display name.
+/// Never the route (`mc_<id>/…`), which only the app reads.
+pub(crate) fn model_label(models: &[Value], model: &str) -> Option<String> {
+    let candidate = models
+        .iter()
+        .find(|candidate| candidate["model"] == model)?;
+    let name = candidate["displayName"]
+        .as_str()
+        .filter(|name| !name.is_empty())?;
+    let connection = candidate["description"]
+        .as_str()
+        .filter(|c| !c.is_empty() && candidate.get("connectionId").is_some());
+    Some(match connection {
+        Some(connection) => format!("{connection} · {name}"),
+        None => name.to_owned(),
+    })
+}
+
 /// `executeAgentStartTransaction(context, { runtimeSession, emit, persistSoon, attachmentStore, onSettled })`.
 pub async fn execute_agent_start_transaction(
     context: StartContext,
@@ -124,6 +149,7 @@ pub async fn execute_agent_start_transaction(
                             .set("userMessageId", user_message_id(&session, &command_id))
                             .set("submissionId", command_id.as_str())
                             .set("model", model.clone())
+                            .opt("modelName", model_name(&session, model.as_deref()))
                             .set("effort", effort.clone())
                             .set("mode", mode.clone())
                             .set("referenceDisplays", prepared.reference_displays.clone())
@@ -222,4 +248,30 @@ pub async fn execute_agent_start_transaction(
     };
     on_settled(&session);
     settled
+}
+
+#[cfg(test)]
+mod model_label_tests {
+    use super::model_label;
+    use serde_json::json;
+
+    #[test]
+    fn a_connection_model_is_named_with_its_connection_never_by_its_route() {
+        let models = vec![
+            json!({ "model": "mc_b/Qwen/Qwen3.5-9B", "displayName": "Qwen/Qwen3.5-9B", "description": "MLX B", "connectionId": "mc_b" }),
+            json!({ "model": "claude-sonnet", "displayName": "Claude Sonnet", "description": "Fast and capable" }),
+            json!({ "model": "mc_c/unnamed", "displayName": "" }),
+        ];
+        assert_eq!(
+            model_label(&models, "mc_b/Qwen/Qwen3.5-9B").as_deref(),
+            Some("MLX B · Qwen/Qwen3.5-9B")
+        );
+        // Another runtime's description is not a connection.
+        assert_eq!(
+            model_label(&models, "claude-sonnet").as_deref(),
+            Some("Claude Sonnet")
+        );
+        assert_eq!(model_label(&models, "mc_c/unnamed"), None);
+        assert_eq!(model_label(&models, "missing"), None);
+    }
 }

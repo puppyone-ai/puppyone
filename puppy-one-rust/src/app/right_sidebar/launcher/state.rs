@@ -373,6 +373,15 @@ pub(super) fn route_patch_for_control(
             effort: None,
             mode: Some(Some(value.to_owned())),
         },
+        // A compute source is Chat's choice of connection, not a route
+        // field: the launcher's controls never offer one.
+        AgentSessionControlId::Source => AgentRoutePatch {
+            provider_id: None,
+            model_id: None,
+            variant: None,
+            effort: None,
+            mode: None,
+        },
     }
 }
 

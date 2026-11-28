@@ -68,14 +68,28 @@ mod verify_tests {
 
     /// Serve one streamed chat reply per request, returning the request bodies.
     fn serve(replies: Vec<&'static str>) -> (String, std::thread::JoinHandle<Vec<String>>) {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let endpoint = format!(
-            "http://127.0.0.1:{}/v1",
-            listener.local_addr().unwrap().port()
-        );
+        let (base, server) = serve_raw(replies.into_iter().map(|r| (200, r)).collect());
         let server = std::thread::spawn(move || {
-            let mut bodies = vec![];
-            for reply in replies {
+            server
+                .join()
+                .unwrap()
+                .into_iter()
+                .map(|r| r.split_once("\r\n\r\n").unwrap().1.to_owned())
+                .collect()
+        });
+        (format!("{base}/v1"), server)
+    }
+
+    /// Serve one `(status, body)` reply per request, returning each whole
+    /// request (head and body).
+    fn serve_raw(
+        replies: Vec<(u16, &'static str)>,
+    ) -> (String, std::thread::JoinHandle<Vec<String>>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+        let server = std::thread::spawn(move || {
+            let mut requests = vec![];
+            for (status, reply) in replies {
                 let (mut stream, _) = listener.accept().unwrap();
                 let mut request = vec![];
                 let mut buffer = [0u8; 4096];
@@ -93,7 +107,7 @@ mod verify_tests {
                             })
                             .unwrap_or(0);
                         if request.len() >= split + 4 + length {
-                            bodies.push(text[split + 4..].to_owned());
+                            requests.push(text);
                             break;
                         }
                     }
@@ -103,14 +117,14 @@ mod verify_tests {
                 }
                 write!(
                     stream,
-                    "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}",
+                    "HTTP/1.1 {status} X\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}",
                     reply.len()
                 )
                 .unwrap();
             }
-            bodies
+            requests
         });
-        (endpoint, server)
+        (base, server)
     }
 
     fn connection(endpoint: String) -> configuration::ModelConnection {
@@ -159,5 +173,219 @@ mod verify_tests {
             "VERIFICATION_FAILED"
         );
         assert_eq!(server.join().unwrap().len(), 1);
+    }
+
+    use crate::agent::model_connections::{
+        credentials::{self, Credential},
+        oauth::OauthProvider,
+    };
+
+    const SECRET: &str = "sk-very-secret-test-key";
+    const ACCESS: &str = "very-secret-access-token";
+    const ACCOUNT: &str = "acct-private-123";
+
+    /// A connection whose credential sits in the in-memory store.
+    fn signed(
+        endpoint: String,
+        driver: configuration::Driver,
+        credential: Credential,
+    ) -> configuration::ModelConnection {
+        let id = uuid::Uuid::new_v4().to_string();
+        credentials::write(&id, &credential).unwrap();
+        let oauth = matches!(credential, Credential::Oauth { .. });
+        configuration::ModelConnection {
+            driver,
+            auth: if oauth {
+                configuration::Auth::Oauth
+            } else {
+                configuration::Auth::Bearer
+            },
+            oauth_provider: oauth.then_some(OauthProvider::Chatgpt),
+            credential_id: Some(id),
+            ..connection(endpoint)
+        }
+    }
+
+    fn api_key() -> Credential {
+        Credential::ApiKey { key: SECRET.into() }
+    }
+
+    fn chatgpt() -> Credential {
+        Credential::Oauth {
+            access: ACCESS.into(),
+            refresh: String::new(),
+            expires: 0,
+            account_id: Some(ACCOUNT.into()),
+            label: None,
+        }
+    }
+
+    fn header<'a>(request: &'a str, name: &str) -> Option<&'a str> {
+        request.split("\r\n\r\n").next()?.lines().find_map(|l| {
+            let (key, value) = l.split_once(':')?;
+            key.eq_ignore_ascii_case(name).then(|| value.trim())
+        })
+    }
+
+    fn body(request: &str) -> serde_json::Value {
+        serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap()
+    }
+
+    #[test]
+    fn an_anthropic_connection_verifies_over_the_messages_api() {
+        let _guard = credentials::TEST_STORE
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        credentials::use_memory_store();
+        let (base, server) = serve_raw(vec![
+            (
+                200,
+                concat!(
+                    "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":5}}}\n\n",
+                    "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"puppyone_connection_check\",\"input\":{}}}\n\n",
+                    "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"token\\\":\\\"puppyone-model-check\\\"}\"}}\n\n",
+                    "data: {\"type\":\"message_stop\"}\n\n"
+                ),
+            ),
+            (
+                200,
+                concat!(
+                    "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+                    "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Done.\"}}\n\n",
+                    "data: {\"type\":\"message_stop\"}\n\n"
+                ),
+            ),
+        ]);
+        let connection = signed(base, configuration::Driver::Anthropic, api_key());
+        run(&connection).unwrap();
+        let requests = server.join().unwrap();
+        for request in &requests {
+            assert!(request.starts_with("POST /v1/messages "), "{request}");
+            assert_eq!(header(request, "x-api-key"), Some(SECRET));
+            assert_eq!(header(request, "anthropic-version"), Some("2023-06-01"));
+            assert_eq!(header(request, "authorization"), None);
+        }
+        let second = body(&requests[1]);
+        assert_eq!(second["stream"], true);
+        assert_eq!(second["tools"][0]["name"], "puppyone_connection_check");
+        let messages = second["messages"].as_array().unwrap();
+        assert_eq!(messages[1]["content"][0]["type"], "tool_use");
+        assert_eq!(messages[1]["content"][0]["id"], "toolu_1");
+        assert_eq!(messages[2]["content"][0]["type"], "tool_result");
+        assert_eq!(messages[2]["content"][0]["tool_use_id"], "toolu_1");
+    }
+
+    #[test]
+    fn a_chatgpt_connection_verifies_over_the_codex_backend() {
+        let _guard = credentials::TEST_STORE
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        credentials::use_memory_store();
+        let (base, server) = serve_raw(vec![
+            (
+                200,
+                concat!(
+                    "data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"type\":\"function_call\",\"id\":\"fc_1\",\"call_id\":\"call_1\",\"name\":\"puppyone_connection_check\",\"arguments\":\"\"}}\n\n",
+                    "data: {\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"fc_1\",\"output_index\":0,\"delta\":\"{\\\"token\\\":\\\"puppyone-model-check\\\"}\"}\n\n",
+                    "data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":5,\"output_tokens\":2}}}\n\n"
+                ),
+            ),
+            (
+                200,
+                concat!(
+                    "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Done.\"}\n\n",
+                    "data: {\"type\":\"response.completed\",\"response\":{}}\n\n"
+                ),
+            ),
+        ]);
+        let connection = signed(base, configuration::Driver::Chatgpt, chatgpt());
+        run(&connection).unwrap();
+        let requests = server.join().unwrap();
+        for request in &requests {
+            assert!(request.starts_with("POST /codex/responses "), "{request}");
+            assert_eq!(
+                header(request, "authorization"),
+                Some(format!("Bearer {ACCESS}").as_str())
+            );
+            assert_eq!(header(request, "chatgpt-account-id"), Some(ACCOUNT));
+            assert_eq!(header(request, "originator"), Some("puppyone"));
+            assert_eq!(
+                header(request, "openai-beta"),
+                Some("responses=experimental")
+            );
+            let body = body(request);
+            assert_eq!(body["store"], false);
+            assert_eq!(body["stream"], true);
+        }
+        let second = body(&requests[1]);
+        let input = second["input"].as_array().unwrap();
+        assert_eq!(input[1]["type"], "function_call");
+        assert_eq!(input[1]["call_id"], "call_1");
+        assert_eq!(input[2]["type"], "function_call_output");
+        assert_eq!(input[2]["call_id"], "call_1");
+        // The check swaps its instructions, so each step names its own prefix.
+        assert_eq!(second["prompt_cache_key"].as_str().unwrap().len(), 32);
+    }
+
+    #[test]
+    fn refused_requests_never_reveal_their_credentials_or_body() {
+        let _guard = credentials::TEST_STORE
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        credentials::use_memory_store();
+        const LEAKY: &str = "{\"error\":\"bad key sk-very-secret-test-key for acct-private-123\"}";
+        let cases = [
+            (configuration::Driver::Anthropic, api_key(), 401, "HTTP 401"),
+            (configuration::Driver::Anthropic, api_key(), 500, "HTTP 500"),
+            (
+                configuration::Driver::OpenaiCompatible,
+                api_key(),
+                401,
+                "HTTP 401",
+            ),
+            (
+                configuration::Driver::Chatgpt,
+                chatgpt(),
+                401,
+                "OAUTH_REAUTH_REQUIRED",
+            ),
+            // A refusal that is not about the token says what the provider
+            // said, with the request's credential masked out.
+            (
+                configuration::Driver::Chatgpt,
+                chatgpt(),
+                403,
+                "HTTP 403: bad key",
+            ),
+            (configuration::Driver::Chatgpt, chatgpt(), 500, "HTTP 500"),
+            (
+                configuration::Driver::Chatgpt,
+                chatgpt(),
+                429,
+                "usage limit is reached",
+            ),
+        ];
+        for (driver, credential, status, expected) in cases {
+            let (base, server) = serve_raw(vec![(status, LEAKY)]);
+            let error = run(&signed(base, driver, credential)).unwrap_err();
+            server.join().unwrap();
+            assert!(error.contains(expected), "{driver:?} {status}: {error}");
+            for secret in [SECRET, ACCESS, ACCOUNT] {
+                assert!(!error.contains(secret), "{error}");
+            }
+        }
+        // A ChatGPT sign-in without its account is refused before sending.
+        let connection = signed(
+            "http://127.0.0.1:9".into(),
+            configuration::Driver::Chatgpt,
+            Credential::Oauth {
+                access: ACCESS.into(),
+                refresh: String::new(),
+                expires: 0,
+                account_id: None,
+                label: None,
+            },
+        );
+        assert_eq!(run(&connection).unwrap_err(), "CREDENTIAL_REQUIRED");
     }
 }

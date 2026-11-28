@@ -9,6 +9,9 @@ pub enum AgentSessionControlId {
     Model,
     Effort,
     Mode,
+    /// The Built-in Agent's compute source (`BuiltInAgentCompute`): Chat
+    /// switches between ready sources; Settings configures them.
+    Source,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -17,6 +20,19 @@ pub struct AgentSessionControlOption {
     pub label: String,
     pub description: Option<String>,
     pub keywords: Option<String>,
+    /// A Lucide icon drawn before the label.
+    pub icon: Option<&'static str>,
+    /// A brand mark (`assets/providers/<file>`, one colour or not) drawn
+    /// before the label instead of `icon`.
+    pub mark: Option<(&'static str, bool)>,
+    /// A submenu, opened by hovering the option or entering it from the
+    /// keyboard (a source's providers); the option itself is then not a
+    /// choice. Its rows are leaves, and choosing one always sets the Model
+    /// control to the row's value.
+    pub children: Vec<AgentSessionControlOption>,
+    /// A submenu row is the current choice (top-level options are selected
+    /// by their control's value).
+    pub current: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -58,6 +74,10 @@ pub fn derive_agent_session_controls(
                     value: model.model.clone(),
                     label: model.display_name.clone(),
                     description: non_empty(&model.description),
+                    icon: None,
+                    mark: None,
+                    children: vec![],
+                    current: false,
                     keywords: Some(format!(
                         "{} {} {}",
                         model.id,
@@ -101,6 +121,7 @@ pub fn derive_agent_session_controls(
                     label: mode.display_name.clone(),
                     description: non_empty(&mode.description),
                     keywords: Some(format!("{} {}", mode.id, mode.display_name)),
+                    ..Default::default()
                 })
                 .collect(),
         });

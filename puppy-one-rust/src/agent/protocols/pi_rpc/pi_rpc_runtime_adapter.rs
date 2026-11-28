@@ -1459,6 +1459,63 @@ impl PiRpcRuntimeAdapter {
         })
     }
 
+    /// No turn runs and nothing waits on the user.
+    pub fn is_idle(&self) -> bool {
+        let inner = &self.0;
+        inner.active().is_none()
+            && inner.pending_approvals.borrow().is_empty()
+            && inner.pending_questions.borrow().is_empty()
+    }
+
+    /// Restarts the idle session's process on the same native session, so
+    /// a launch-bound setting (the Built-in Agent's model connection) takes
+    /// effect while the history carries over. The session is written to
+    /// disk first (`set_session_name` persists it), so a session without
+    /// messages yet keeps its id too.
+    pub async fn reconnect_session(&self) -> AgentResult<()> {
+        let inner = &self.0;
+        let client = inner.assert_connected()?;
+        let label = inner.runtime_label.clone();
+        if !self.is_idle() {
+            return Err(AgentError::new(format!(
+                "Stop the active {label} turn before switching its model connection."
+            )));
+        }
+        let Some(thread_id) = inner.session() else {
+            return Err(AgentError::new(format!(
+                "{label} RPC session is not connected."
+            )));
+        };
+        let name = inner
+            .session_state
+            .borrow()
+            .as_ref()
+            .and_then(|state| state.get("sessionName").cloned())
+            .unwrap_or(Value::Null);
+        client
+            .request(
+                "set_session_name",
+                json!({ "name": name }),
+                RequestOptions::default(),
+            )
+            .await?;
+        *inner.client.borrow_mut() = None;
+        self.release_client(
+            &client,
+            &format!("{label} switched its model connection."),
+            true,
+        )
+        .await?;
+        self.connect(vec!["--session".into(), thread_id.clone()])
+            .await?;
+        if inner.session().as_deref() != Some(thread_id.as_str()) {
+            return Err(agent_provider_session_unavailable_error(Some(&format!(
+                "{label} did not resume the requested native session."
+            ))));
+        }
+        Ok(())
+    }
+
     /// `adapter.readHistoryResult()`.
     pub async fn read_history_result(&self) -> AgentResult<Value> {
         let inner = &self.0;

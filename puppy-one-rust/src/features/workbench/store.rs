@@ -483,13 +483,22 @@ impl Workbench {
 
     /// `ProjectWorkbenchStore.canCreate`: a contribution's `maximumItems`.
     pub fn can_create(&self, kind: ItemKind) -> bool {
-        self.project().is_some_and(|p| {
-            !p.preparing.has_kind(kind)
-                && p.content
-                    .values()
-                    .filter(|c| c.kind() == Some(kind))
-                    .count()
-                    < kind.maximum_items()
+        self.project().is_some_and(|p| !p.preparing.has_kind(kind))
+            && self.count(kind).is_some_and(|n| n < kind.maximum_items())
+    }
+
+    /// The project holds as many items of `kind` as it admits.
+    pub fn at_limit(&self, kind: ItemKind) -> bool {
+        self.count(kind).is_some_and(|n| n >= kind.maximum_items())
+    }
+
+    /// How many items of `kind` the project holds (`None` without one).
+    fn count(&self, kind: ItemKind) -> Option<usize> {
+        self.project().map(|p| {
+            p.content
+                .values()
+                .filter(|c| c.kind() == Some(kind))
+                .count()
         })
     }
 

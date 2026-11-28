@@ -134,6 +134,115 @@ fn keyboard_menu_with_no_enabled_rows_still_dismisses_and_returns_focus(cx: &mut
     });
 }
 
+/// A menu that closes on a press outside it, with one row opening a
+/// submenu, as the agent panel's source picker is.
+struct PickerSubmenuHarness {
+    outside: Rc<Cell<usize>>,
+    picked: Rc<Cell<usize>>,
+}
+impl Render for PickerSubmenuHarness {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let outside = self.outside.clone();
+        let picked = self.picked.clone();
+        let mark = |name: &'static str| div().size(px(10.)).debug_selector(move || name.into());
+        div().size_full().child(
+            Menu::new("submenu-harness")
+                .w(px(200.))
+                .on_mouse_down_out(move |_, _, _| outside.set(outside.get() + 1))
+                .item(
+                    MenuItem::new("Plans")
+                        .id("plans")
+                        .icon_element(mark("plans-row"))
+                        .submenu(move |_, _| {
+                            let picked = picked.clone();
+                            Menu::new("submenu-harness-level").item(
+                                MenuItem::new("Provider")
+                                    .id("provider")
+                                    .icon_element(mark("provider-row"))
+                                    .on_click(move |_, _| picked.set(picked.get() + 1)),
+                            )
+                        }),
+                ),
+        )
+    }
+}
+
+#[gpui::test]
+fn a_submenu_stays_open_under_the_pointer_and_takes_its_click(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    let outside = Rc::new(Cell::new(0));
+    let picked = Rc::new(Cell::new(0));
+    let (_view, cx) = cx.add_window_view(|_, _| PickerSubmenuHarness {
+        outside: outside.clone(),
+        picked: picked.clone(),
+    });
+    draw(cx);
+    let row = cx.debug_bounds("plans-row").unwrap().center();
+    cx.simulate_mouse_move(row, None, Modifiers::default());
+    cx.run_until_parked();
+    draw(cx);
+    let provider = cx
+        .debug_bounds("provider-row")
+        .expect("hovering the row opens its submenu")
+        .center();
+    // Into the submenu and resting there: it stays open.
+    cx.simulate_mouse_move(provider, None, Modifiers::default());
+    cx.executor().advance_clock(Duration::from_millis(400));
+    cx.run_until_parked();
+    draw(cx);
+    assert!(cx.debug_bounds("provider-row").is_some());
+    // Its row is clicked, not taken for a press outside the menu.
+    cx.simulate_click(provider, Modifiers::default());
+    cx.run_until_parked();
+    assert_eq!((picked.get(), outside.get()), (1, 0));
+}
+
+#[gpui::test]
+fn a_submenu_closes_once_the_pointer_leaves_it_and_its_row(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    let (_view, cx) = cx.add_window_view(|_, _| PickerSubmenuHarness {
+        outside: Rc::new(Cell::new(0)),
+        picked: Rc::new(Cell::new(0)),
+    });
+    draw(cx);
+    let row = cx.debug_bounds("plans-row").unwrap().center();
+    cx.simulate_mouse_move(row, None, Modifiers::default());
+    cx.run_until_parked();
+    draw(cx);
+    let provider = cx.debug_bounds("provider-row").unwrap().center();
+    cx.simulate_mouse_move(provider, None, Modifiers::default());
+    cx.run_until_parked();
+    // Away from both, below the menu.
+    cx.simulate_mouse_move(point(row.x, px(400.)), None, Modifiers::default());
+    cx.executor().advance_clock(Duration::from_millis(400));
+    cx.run_until_parked();
+    draw(cx);
+    assert!(cx.debug_bounds("provider-row").is_none());
+}
+
+/// Two rows with submenus, as the source picker's sources are.
+struct SiblingHarness;
+impl Render for SiblingHarness {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let mark = |name: &'static str| div().size(px(10.)).debug_selector(move || name.into());
+        let level = move |id: &'static str, leaf: &'static str| {
+            MenuItem::new(id)
+                .id(id)
+                .icon_element(mark(id))
+                .submenu(move |_, _| {
+                    Menu::new(SharedString::from(format!("{id}-level")))
+                        .item(MenuItem::new(leaf).id(leaf).icon_element(mark(leaf)))
+                })
+        };
+        div().size_full().child(
+            Menu::new("sibling-harness")
+                .w(px(200.))
+                .item(level("plans", "plan-provider"))
+                .item(level("keys", "key-provider")),
+        )
+    }
+}
+
 struct SubmenuHarness {
     open: bool,
     anchored: bool,
@@ -204,6 +313,25 @@ impl Render for CachedSubmenuHost {
                 .cached(StyleRefinement::default().size_full()),
         )
     }
+}
+
+#[gpui::test]
+fn moving_to_a_sibling_row_closes_the_open_submenu_at_once(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    let (_view, cx) = cx.add_window_view(|_, _| SiblingHarness);
+    draw(cx);
+    let plans = cx.debug_bounds("plans").unwrap().center();
+    cx.simulate_mouse_move(plans, None, Modifiers::default());
+    cx.run_until_parked();
+    draw(cx);
+    assert!(cx.debug_bounds("plan-provider").is_some());
+    let keys = cx.debug_bounds("keys").unwrap().center();
+    cx.simulate_mouse_move(keys, None, Modifiers::default());
+    cx.run_until_parked();
+    draw(cx);
+    // No grace period: only the new row's submenu shows.
+    assert!(cx.debug_bounds("plan-provider").is_none());
+    assert!(cx.debug_bounds("key-provider").is_some());
 }
 
 #[gpui::test]

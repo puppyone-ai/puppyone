@@ -11,6 +11,8 @@ pub(super) fn code_block(
     let t = cx.t;
     let a = super::super::agent_theme::AgentTheme::new(&t);
     let copy = text.to_owned();
+    let copy_key = format!("{}:{path}:copy", cx.key);
+    let click_key = copy_key.clone();
     let language = if language.is_empty() {
         "text".to_owned()
     } else {
@@ -51,22 +53,24 @@ pub(super) fn code_block(
                         .child(language)
                 })
                 .child(
-                    gpui_kit::base::Button::new(SharedString::from(format!(
-                        "{}:{path}:copy",
-                        cx.key
-                    )))
-                    .accessibility_label(label.clone())
-                    .debug_selector(|| "agent-code-copy".into())
-                    .size(px(theme::control_small()))
-                    .rounded(px(6.))
-                    .text_color(a.text_subtle)
-                    .cursor(theme::clickable_cursor())
-                    .hover(move |s| s.bg(t.hover).text_color(a.text))
-                    .tooltip(crate::ui::components::tooltip(label))
-                    .child(Icon::new("copy").small().stroke(2.).color(a.text_subtle))
-                    .on_click(move |_, _, cx| {
-                        cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()))
-                    }),
+                    gpui_kit::base::Button::new(SharedString::from(copy_key.clone()))
+                        .accessibility_label(label.clone())
+                        .debug_selector(|| "agent-code-copy".into())
+                        .size(px(theme::control_small()))
+                        .rounded(px(6.))
+                        .text_color(a.text_subtle)
+                        .cursor(theme::clickable_cursor())
+                        .hover(move |s| s.bg(t.hover).text_color(a.text))
+                        .tooltip(crate::ui::components::tooltip(label))
+                        .child(
+                            Icon::copy(copy_key.clone())
+                                .small()
+                                .stroke(2.)
+                                .color(a.text_subtle),
+                        )
+                        .on_click(move |_, window, cx| {
+                            crate::ui::copy_feedback::copy(&click_key, copy.clone(), window, cx)
+                        }),
                 ),
         )
         .child(

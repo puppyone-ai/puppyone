@@ -88,6 +88,10 @@ pub struct SettingsWorkspaceSurface {
 impl EventEmitter<SettingsEvent> for SettingsWorkspaceSurface {}
 impl SettingsWorkspaceSurface {
     pub fn select_page(&mut self, page: Page, cx: &mut Context<Self>) {
+        // Another page opens at its top, not at the last one's offset.
+        if self.page != page {
+            self.content_scroll.set_offset(point(px(0.), px(0.)));
+        }
         // Account is Personal's: asked for from a team space, Settings
         // turns to Personal.
         if page == Page::Account
@@ -103,6 +107,14 @@ impl SettingsWorkspaceSurface {
         }
         if page == Page::Account {
             self.refresh_compute(cx);
+        }
+        // Opening Model Connections looks for local services (loopback only).
+        if page == Page::ModelConnections {
+            let payments = crate::features::flags::payments_enabled(&self.preferences, cx);
+            self.models.update(cx, |m, cx| {
+                m.set_payments(payments, cx);
+                m.shown(cx)
+            });
         }
         if page == Page::Plan {
             self.load_plan(false, cx);
@@ -278,6 +290,22 @@ impl SettingsWorkspaceSurface {
             &models,
             |_, _, _: &crate::features::model_connections::Saved, cx| {
                 cx.emit(SettingsEvent::ModelConfigurationChanged)
+            },
+        )
+        .detach();
+        cx.subscribe(
+            &models,
+            |s, _, _: &crate::features::model_connections::OpenAccount, cx| {
+                s.select_page(Page::Account, cx);
+                cx.notify();
+            },
+        )
+        .detach();
+        cx.subscribe(
+            &models,
+            |s, _, _: &crate::features::model_connections::PageChanged, cx| {
+                s.content_scroll.set_offset(point(px(0.), px(0.)));
+                cx.notify();
             },
         )
         .detach();

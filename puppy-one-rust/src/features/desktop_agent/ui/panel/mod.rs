@@ -102,7 +102,6 @@ pub struct AgentChatTabPanel {
     diagnostics_open: bool,
     recovery_details_open: bool,
     /// `pendingConnectionModel`.
-    pending_connection_model: Option<String>,
     /// `AgentApprovalDock` and `AgentQuestionDock`.
     docks: Entity<DocksView>,
     /// `AgentEmptyState` and `AgentProviderActivities`.
@@ -113,6 +112,8 @@ pub struct AgentChatTabPanel {
     /// send asked for compute access (`computeAccessPrompt`).
     compute: Option<compute::ComputeSnapshot>,
     compute_revision: Option<String>,
+    /// The connections changed and this chat has not read them yet.
+    connections_changed: bool,
     compute_access_prompt: bool,
     /// The app's compute wallet, as it is now (`snapshot.managed`).
     wallet: Option<compute::ManagedCompute>,
@@ -225,13 +226,13 @@ impl AgentChatTabPanel {
             transcript,
             diagnostics_open: false,
             recovery_details_open: false,
-            pending_connection_model: None,
             docks,
             empty_state: cx.new(|_| EmptyStateView::default()),
             notices: cx.new(|_| ProviderNoticesView::default()),
             last_presentation: None,
             compute: None,
             compute_revision: None,
+            connections_changed: false,
             compute_access_prompt: false,
             wallet: None,
             compute_poll: None,
@@ -323,7 +324,6 @@ impl AgentChatTabPanel {
             &view_model::ChatPolicy {
                 hidden_runtime_ids: &self.hidden_runtime_ids,
                 presented: self.presented,
-                pending_connection_model: self.pending_connection_model.clone(),
                 compute: self.compute.as_ref(),
                 payments: self.payments,
                 compute_access_prompt: self.compute_access_prompt,
@@ -337,6 +337,8 @@ impl AgentChatTabPanel {
         let state = self.state();
         let view = self.view_model(&state);
         self.sync_composer(&state, &view, window, cx);
+        // A turn that kept the connections from being read has ended.
+        self.refresh_model_catalog();
         // `useAgentRoutingPreferences`: the command target initializes its
         // controller.
         if self.command_target && !state.initialized && state.phase == AgentControllerPhase::Idle {
@@ -531,14 +533,8 @@ impl AgentChatTabPanel {
         value: String,
         cx: &mut Context<Self>,
     ) {
-        if id == AgentSessionControlId::Model
-            && self
-                .controller
-                .requires_new_model_connection_session(Some(&value))
-        {
-            self.pending_connection_model = Some(value);
-            self.refresh_views();
-            cx.notify();
+        if id == AgentSessionControlId::Source {
+            self.select_compute_source(value, cx);
             return;
         }
         self.select_routed_control(id, value, cx);

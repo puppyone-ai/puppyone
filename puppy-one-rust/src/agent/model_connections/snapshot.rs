@@ -76,10 +76,12 @@ impl ModelConnectionSnapshot {
     /// Connections and models eligible for the Built-in Agent right now,
     /// enforcing Connection Rules:
     /// - Unsloth requires `server_tools_disabled == true`;
-    /// - Custom models require a non-zero context budget AND tool-support
-    ///   evidence (reported by the service or persisted `verify` at the
-    ///   connection's current security generation; migrated legacy entries
-    ///   retain compatibility until edited);
+    /// - Custom models require a non-zero context budget AND either
+    ///   tool-support evidence (reported by the service or persisted `verify`
+    ///   at the connection's current security generation; migrated legacy
+    ///   entries retain compatibility until edited) or the user's choice: the
+    ///   connection's default, manual or Chat models, unless the service
+    ///   reports that the model refuses tools;
     /// - Managed models appear only while `payments_enabled && managed.available`,
     ///   carrying the real `context_window` reported by `/ai/catalog`.
     pub fn agent_connections(&self) -> Vec<ModelConnection> {
@@ -98,7 +100,8 @@ impl ModelConnectionSnapshot {
                         continue;
                     };
                     let verified = conn.is_verified(&m.id);
-                    let tools_supported = verified || m.tools == Some(true);
+                    let chosen = conn.chooses(&m.id) && m.tools != Some(false);
+                    let tools_supported = verified || m.tools == Some(true) || chosen;
                     if !tools_supported {
                         continue;
                     }
@@ -111,20 +114,22 @@ impl ModelConnectionSnapshot {
                 }
                 continue;
             }
-            // Before a catalog probe completes, only models with durable
-            // verification evidence at the current security generation (or
-            // migrated legacy connections) and a context budget are offered.
+            // Before a catalog probe completes, the models the user chose, those
+            // with durable verification evidence at the current security
+            // generation (or migrated legacy connections) and a context budget
+            // are offered.
             if let Some(context) = conn.manual_context_window.filter(|c| *c > 0) {
                 let mut seen: Vec<String> = Vec::new();
                 for id in [&conn.default_model_id, &conn.manual_model_id]
                     .into_iter()
                     .flatten()
+                    .chain(conn.chat_models.iter())
                     .chain(conn.verifications.keys())
                 {
                     if seen.contains(id) {
                         continue;
                     }
-                    if conn.is_verified(id) || conn.legacy_migrated {
+                    if conn.chooses(id) || conn.is_verified(id) || conn.legacy_migrated {
                         seen.push(id.clone());
                         eligible.push(ModelConnection {
                             model: id.clone(),
@@ -149,6 +154,8 @@ impl ModelConnectionSnapshot {
             .map(|c| {
                 let kind = if c.managed {
                     "managed"
+                } else if c.auth == super::configuration::Auth::Oauth {
+                    "oauth"
                 } else {
                     c.source_kind.key()
                 };
