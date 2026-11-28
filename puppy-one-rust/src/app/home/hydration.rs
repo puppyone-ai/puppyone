@@ -505,6 +505,22 @@ impl Homepage {
     pub(in crate::app) fn first_paint_held(&self, cx: &App) -> bool {
         self.first_paint_released(cx).is_none()
     }
+    /// Tests: why the list is or is not held, for a failing assertion.
+    #[cfg(test)]
+    pub(in crate::app) fn first_paint_state(&self, cx: &App) -> String {
+        format!(
+            "status {:?}, account {:?}, home restoring {}, released {:?}, reading {}, read {}, catalog fresh {}",
+            crate::features::cloud::account::status(cx),
+            self.first_paint_account(cx).map(|_| "set"),
+            self.session.restoring,
+            self.released_for
+                .as_ref()
+                .map(|a| a.as_ref().map(|_| "set")),
+            self.reading,
+            self.read_for.is_some(),
+            self.catalog.read(cx).fresh,
+        )
+    }
     /// Tests: the first-paint budget has run out.
     #[cfg(test)]
     pub(in crate::app) fn expire_first_paint(&mut self) {
