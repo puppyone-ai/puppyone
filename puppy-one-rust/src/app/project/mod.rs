@@ -58,6 +58,9 @@ pub(super) struct WindowProject {
     pub open_first: Option<PathBuf>,
     /// Seeded local Agent session to open once `root` enters.
     pub pending_agent_start: Option<PendingAgentStart>,
+    /// A hosted Agent conversation a link named, to show once its Project
+    /// (the first) enters this window.
+    pub pending_agent_session: Option<(String, String)>,
     /// A published import remains owned by its dialog until opening succeeds.
     pub pending_import: Option<(PathBuf, Arc<std::sync::atomic::AtomicBool>)>,
     /// How many projects this window has entered (`workspaceEntryIntent`).
@@ -176,7 +179,7 @@ impl ProjectLifecycle {
             opening_focus: Default::default(),
         }
     }
-    fn files<'a>(&self, cx: &'a App) -> &'a crate::editor::workbench::runtime::Runtime {
+    pub(super) fn files<'a>(&self, cx: &'a App) -> &'a crate::editor::workbench::runtime::Runtime {
         self.docs.read(cx)
     }
     /// The local project this window shows.
@@ -390,6 +393,7 @@ impl ProjectLifecycle {
     /// leaves the Homepage; another starts opening.
     pub fn open_project(&mut self, path: PathBuf, cx: &mut Context<Self>) -> bool {
         self.awaiting_session = None;
+        self.record.pending_agent_session = None;
         let files = self.files(cx);
         if files
             .workspace
@@ -418,6 +422,15 @@ impl ProjectLifecycle {
     /// Explicit Cloud opening of a hosted Project root in this window;
     /// `Err` with what to say when nobody is signed in.
     pub fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) -> Result<(), String> {
+        // A link's conversation belongs to the Project it named only.
+        if self
+            .record
+            .pending_agent_session
+            .as_ref()
+            .is_some_and(|(pending, _)| *pending != project)
+        {
+            self.record.pending_agent_session = None;
+        }
         // `ProjectNavigation.select`: the same target while it is pending
         // joins that opening; another one replaces it.
         // Waits for a session still being restored instead of saying that

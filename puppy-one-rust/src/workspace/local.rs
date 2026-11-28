@@ -39,6 +39,12 @@ fn write_lock(path: PathBuf) -> Arc<Mutex<()>> {
     lock
 }
 
+/// A dropped item as an uploading provider reads it.
+pub(crate) enum ImportSource {
+    File(Vec<u8>),
+    Folder(Vec<PathBuf>),
+}
+
 pub struct Workspace {
     pub path: PathBuf,
     dir: Dir,
@@ -722,7 +728,7 @@ impl Workspace {
         Ok(to_folder.join(name))
     }
 
-    fn keep_both_name(preferred: &str, index: usize, folder: bool) -> String {
+    pub(crate) fn keep_both_name(preferred: &str, index: usize, folder: bool) -> String {
         if index == 0 {
             return preferred.into();
         }
@@ -844,6 +850,35 @@ impl Workspace {
             }
         }
         Err(crate::localization::t("native.workspace.nameExhausted").into())
+    }
+
+    /// What a dropped item is for a provider that uploads it: a file's bytes
+    /// (never over `max`) or a folder's entries. Symlinks are refused.
+    pub(crate) fn read_import_source(source: &Path, max: usize) -> Result<ImportSource> {
+        let meta = std::fs::symlink_metadata(source).map_err(io)?;
+        if meta.is_symlink() {
+            return Err(crate::localization::t("native.workspace.symlinkImport").into());
+        }
+        if meta.is_dir() {
+            let mut children = vec![];
+            for entry in std::fs::read_dir(source).map_err(io)? {
+                children.push(entry.map_err(io)?.path());
+            }
+            return Ok(ImportSource::Folder(children));
+        }
+        if !meta.is_file() {
+            return Err(crate::localization::t("native.workspace.regularOnly").into());
+        }
+        if meta.len() > max as u64 {
+            return Err(Error::from("Cloud files are limited to 8 MiB"));
+        }
+        let (parent, name) = (source.parent(), source.file_name());
+        let (Some(parent), Some(name)) = (parent, name) else {
+            return Err(crate::localization::t("native.workspace.chooseItem").into());
+        };
+        let dir = Dir::open_ambient_dir(parent, cap_std::ambient_authority()).map_err(io)?;
+        let (bytes, _) = Self::read_bounded(&dir, Path::new(name), max as u64)?;
+        Ok(ImportSource::File(bytes))
     }
 
     /// Import a user-dropped file or folder from outside the grant (copy only).

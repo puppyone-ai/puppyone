@@ -612,12 +612,65 @@ impl Shell {
         }
         cx.notify();
     }
+    /// A project window showing the Homepage.
+    pub fn on_home(&self, cx: &App) -> bool {
+        self.file.is_none() && self.home_visible(cx)
+    }
+    /// Whether this project window shows `project` or is opening it.
+    pub fn shows_cloud_project(&self, project: &str, cx: &App) -> bool {
+        let lifecycle = self.session.project.read(cx);
+        self.file.is_none()
+            && (lifecycle.hosted(cx).as_deref() == Some(project)
+                || (lifecycle.files(cx).cloud_opening().is_some()
+                    && lifecycle.record.cloud.as_deref() == Some(project)))
+    }
+    /// The app's link to a Cloud project (and one of its hosted Agent
+    /// conversations): this window opens the project as the Homepage does,
+    /// then shows the conversation in the right sidebar. A project that
+    /// cannot be opened (not signed in, no access) says so as any opening
+    /// does and shows no conversation.
+    pub fn open_cloud_link(
+        &mut self,
+        project: String,
+        session: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.set_popover(None, cx);
+        let shown = self.hosted_project(cx).as_deref() == Some(project.as_str());
+        let entered = self
+            .sidebar
+            .read(cx)
+            .launcher
+            .read(cx)
+            .hosted_project()
+            .as_deref()
+            == Some(project.as_str());
+        if shown && entered {
+            if let Some(session) = session {
+                self.sidebar
+                    .update(cx, |s, cx| s.open_hosted_session(session, window, cx));
+            }
+            return;
+        }
+        self.session.project.update(cx, |p, _| {
+            p.record.pending_agent_session = session.map(|s| (project.clone(), s));
+        });
+        // A Project that is in but whose Agent is not entered yet shows its
+        // conversation as it enters; it is not opened again.
+        if !shown {
+            self.open_cloud(project, cx);
+        }
+    }
     pub(in crate::app) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
         if let Err(error) = self
             .session
             .project
             .update(cx, |p, cx| p.open_cloud(project, cx))
         {
+            self.session
+                .project
+                .update(cx, |p, _| p.record.pending_agent_session = None);
             self.show_error(error, cx);
         }
         cx.notify();
@@ -640,6 +693,9 @@ impl Shell {
             .project
             .update(cx, |p, cx| p.session_settled(cx));
         if let Some(Err(error)) = settled {
+            self.session
+                .project
+                .update(cx, |p, _| p.record.pending_agent_session = None);
             self.show_error(error, cx);
         }
     }
@@ -964,6 +1020,18 @@ impl Shell {
                     self.show_error(error, cx);
                 }
             }
+            // Only a Cloud project says so; a local import keeps its quiet
+            // behaviour.
+            SessionEvent::FilesImported {
+                imported,
+                failed,
+                cloud: true,
+            } => {
+                let (imported, failed) = (*imported, *failed);
+                self.cloud
+                    .update(cx, |c, cx| c.files_imported(imported, failed, window, cx));
+            }
+            SessionEvent::FilesImported { .. } => {}
             SessionEvent::Error(error) => self.show_error(error.clone(), cx),
             // A hosted Project's subscription ends with its lease, and the
             // pump reopens it quietly; what is wrong with any other

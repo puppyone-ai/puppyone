@@ -112,7 +112,13 @@ mod tests {{
                     continue;
                 }}
                 let text = std::fs::read_to_string(&path).unwrap();
-                for pattern in ["icon(\\"", "icon_sized(\\"", "menu_icon(\\"", "icon_stroke(\\""] {{
+                for pattern in [
+                    "icon(\\"",
+                    "icon_sized(\\"",
+                    "menu_icon(\\"",
+                    "icon_stroke(\\"",
+                    "Icon::new(\\"",
+                ] {{
                     for (index, _) in text.match_indices(pattern) {{
                         let rest = &text[index + pattern.len()..];
                         let Some(end) = rest.find('"') else {{ continue }};

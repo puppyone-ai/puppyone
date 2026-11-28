@@ -48,6 +48,12 @@ pub(in crate::app) enum SessionEvent {
     /// The working tree changed under the granted root (the root watcher's
     /// invalidation, `.git` internals excluded): repository status is stale.
     ContentChanged,
+    /// A drop-import finished: how many sources came in and how many did not.
+    FilesImported {
+        imported: usize,
+        failed: usize,
+        cloud: bool,
+    },
     /// A notice.
     Error(String),
 }
@@ -682,6 +688,19 @@ impl ExplorerSession {
                 tree.select(&path, false, false);
             }
         }
+        let mut cloud_import = false;
+        if is_active && let Some((imported, failed)) = outcome.import {
+            let cloud = self
+                .workspace
+                .as_ref()
+                .is_some_and(|ws| ws.agent_target().is_some());
+            cloud_import = cloud;
+            cx.emit(SessionEvent::FilesImported {
+                imported,
+                failed,
+                cloud,
+            });
+        }
         if let Some((mode, count, target)) = reported {
             let notice = match outcome.error {
                 Some(detail) => Notice::Failed { detail },
@@ -692,6 +711,8 @@ impl ExplorerSession {
                 },
             };
             self.show_notice(notice, cx);
+        } else if cloud_import {
+            // The drop's notice counts what was skipped.
         } else if let Some(error) = outcome.error.clone()
             && inline
         {

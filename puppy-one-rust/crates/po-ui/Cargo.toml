@@ -15,6 +15,8 @@ po-platform = { path = "../po-platform" }
 po-workspace = { path = "../po-workspace" }
 anyhow = "1"
 gpui-kit = { version = "=0.8.0" }
+# Chat Apps: a link as a QR code to scan with a phone (src/ui/components/qr_code.rs).
+qrcodegen = "=1.8.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 

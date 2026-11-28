@@ -22,8 +22,21 @@ use gpui_kit::{
     component::Sizable as _,
 };
 use std::{cell::Cell, rc::Rc, time::Duration};
+mod chat_apps;
 mod dialog;
 mod invite;
+pub(super) use chat_apps::{ChatInputs, chat_title};
+#[cfg(test)]
+pub(in crate::app) fn banner_of(
+    chat: &crate::workspace::cloud::chat_apps::Chat,
+) -> Option<&'static str> {
+    chat_apps::banner(chat).map(|b| match b {
+        chat_apps::Banner::OwnerLeft => "owner_left",
+        chat_apps::Banner::RemovedThere => "removed_there",
+        chat_apps::Banner::NoHours => "no_hours",
+        chat_apps::Banner::Limit => "limit",
+    })
+}
 mod paste_art;
 
 const CARD_WIDTH: f32 = 288.;
@@ -688,13 +701,23 @@ impl WindowCloud {
     /// join; quiet dashed `+` squircle when no Agent is here yet.
     pub(super) fn agents_control(&self, cx: &App) -> Option<AnyElement> {
         let agents = self.agents.read(cx);
-        let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
+        let chats = self.chats.read(cx);
+        let working: Vec<_> = chats.working().cloned().collect();
+        let knocking = chats.can_manage && chats.knocking().next().is_some();
+        let listed = !agents.agents.is_empty() || !agents.requests.is_empty() || knocking;
         // Until it is known whether this person may invite, the entry holds
         // its place: a Project on its way in for the signed-in account, or
         // one being asked about. With nothing to ask about there is none.
         let checking = agents.checking()
             || (self.session().opening && crate::features::cloud::account::has_account(cx));
-        if !listed && !agents.manageable && !checking {
+        let show_entry = listed || agents.manageable || checking;
+        // A chat at work shows beside the entry like an Agent at work (a
+        // green lamp); pressing it opens that chat's settings.
+        let chat_marks: Vec<AnyElement> = working
+            .iter()
+            .map(|chat| self.working_chat_mark(chat, cx))
+            .collect();
+        if !show_entry && chat_marks.is_empty() {
             return None;
         }
         let t = cx.palette();
@@ -862,7 +885,65 @@ impl WindowCloud {
         if let Some(card) = self.request_card(cx) {
             control = control.child(card);
         }
-        Some(control.into_any_element())
+        Some(
+            h_flex()
+                .flex_none()
+                .items_center()
+                .gap(px(2.))
+                .children(chat_marks)
+                .when(show_entry, |d| d.child(control))
+                .into_any_element(),
+        )
+    }
+
+    /// One chat at work in the Header: its app's mark with a green lamp.
+    fn working_chat_mark(
+        &self,
+        chat: &crate::workspace::cloud::chat_apps::Chat,
+        cx: &App,
+    ) -> AnyElement {
+        let t = cx.palette();
+        let id = chat.id.clone();
+        let selector = SharedString::from(format!("cloud-workspace-chat:{id}"));
+        let label = format!(
+            "{} · {}",
+            chat_apps::chat_title(chat),
+            tr("native.chatApps.statusWorking")
+        );
+        div()
+            .id(selector.clone())
+            .debug_selector(move || selector.to_string())
+            .role(Role::Button)
+            .aria_label(label.clone())
+            .h(px(theme::control_compact()))
+            .min_w(px(theme::control_compact()))
+            .flex_none()
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+            .cursor(theme::clickable_cursor())
+            .hover(|d| d.bg(t.hover))
+            .tooltip(tooltip(label))
+            .child(
+                chat_apps::platform_mark(chat.platform, HEADER_TILE, t)
+                    .relative()
+                    .child(
+                        div()
+                            .absolute()
+                            .right(px(-1.))
+                            .bottom(px(-1.))
+                            .size(px(7.))
+                            .rounded_full()
+                            .bg(t.success)
+                            .border_1()
+                            .border_color(t.header),
+                    ),
+            )
+            .on_click(self.listener(move |s, _: &ClickEvent, window, cx| {
+                s.open_chat(Some(id.clone()), window, cx)
+            }))
+            .into_any_element()
     }
 
     /// A press on the Agents entry. While a request waits it brings its
@@ -1426,13 +1507,58 @@ impl WindowCloud {
         }
         self.agents_panel = false;
         self.show_popover(None, cx);
-        self.agents.update(cx, |a, cx| a.open(opener, cx));
+        // A manager who can also add the project to a chat picks between the
+        // two on the roster; the invite is one seat there.
+        let chats = self.chats.read(cx);
+        let roster = matches!(opener, Opener::Invite) && chats.available() && chats.can_manage;
+        self.agents.update(cx, |a, cx| {
+            if roster {
+                a.open_roster(cx)
+            } else {
+                a.open(opener, cx)
+            }
+        });
+        if !self.dialog_open(DialogKey::Agents, cx) {
+            self.open_dialog(DialogKey::Agents, cx);
+        }
+        self.refresh(cx);
+    }
+    /// The Agents dialog on one chat's settings, or on "Add to a chat".
+    pub(in crate::app) fn open_chat(
+        &mut self,
+        chat: Option<String>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.agents_panel = false;
+        self.show_popover(None, cx);
+        self.chats.update(cx, |c, cx| match chat {
+            Some(id) => c.manage(Some(id), cx),
+            None => c.open_add(cx),
+        });
+        if !self.dialog_open(DialogKey::Agents, cx) {
+            self.open_dialog(DialogKey::Agents, cx);
+        }
+        self.refresh(cx);
+    }
+    /// The Agents dialog on its roster, where every chat is.
+    pub(in crate::app) fn open_chat_roster(
+        &mut self,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.chats.update(cx, |c, cx| c.manage(None, cx));
         if !self.dialog_open(DialogKey::Agents, cx) {
             self.open_dialog(DialogKey::Agents, cx);
         }
         self.refresh(cx);
     }
     pub(super) fn close_agents_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // Escape while a chat's name is being edited keeps the old name only.
+        if self.chat_inputs.renaming.take().is_some() {
+            cx.notify();
+            return;
+        }
         self.close_dialog(DialogKey::Agents, cx);
         self.focus_window(window, cx);
         self.refresh(cx);
@@ -1450,6 +1576,8 @@ impl WindowCloud {
         self.agents.update(cx, |a, cx| {
             a.sync(project.as_deref().map(|p| (p, name.as_str())), open, cx)
         });
+        self.chats
+            .update(cx, |c, cx| c.sync(project.as_deref(), open, cx));
         // A dialog open for one Project and identity ends with them: another
         // Project, account, sign-in or host never inherits it.
         let revoked = before.is_some() && self.agents.read(cx).scope_key() != before.as_deref();
@@ -1462,6 +1590,8 @@ impl WindowCloud {
             .find(|a| a.active)
             .map(|a| SharedString::from(a.agent.name.clone()));
         self.screen.update(cx, |s, cx| s.set_operator(operator, cx));
+        let chats = self.chats.read(cx);
+        let chats_here = chats.available() && (chats.can_manage || !chats.chats.is_empty());
         let agents = self.agents.read(cx);
         let write_through = project
             .as_deref()
@@ -1483,8 +1613,8 @@ impl WindowCloud {
             });
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
         let pending = agents.manageable && !agents.requests.is_empty();
-        let gone =
-            agents.project_name().is_none() || (!listed && !agents.manageable && agents.known);
+        let gone = agents.project_name().is_none()
+            || (!listed && !chats_here && !agents.manageable && agents.known);
         if let Some((scope, project_id, mapped)) = write_through {
             crate::features::cloud::global_home_details(cx).update(cx, |c, cx| {
                 c.record_cloud_agents(&scope, &project_id, mapped, cx);

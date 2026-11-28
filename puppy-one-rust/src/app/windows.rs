@@ -499,6 +499,48 @@ fn open_template_link(url: &str, cx: &mut App) -> bool {
     }
     true
 }
+/// The app's own link to a Cloud project
+/// (`<scheme>://cloud/projects/{id}?session={id}`, from a chat app's "Open
+/// in PuppyOne"): the window already showing that project comes forward, or
+/// the project opens as the Homepage opens it (in the window in front when
+/// that is on the Homepage, else a new one); then the hosted Agent
+/// conversation the link names opens in its right sidebar. Anything
+/// malformed is ignored. `true` when the link is ours.
+fn open_project_link(url: &str, cx: &mut App) -> bool {
+    use crate::platform::{build_identity, templates::link};
+    use crate::workspace::cloud::open_link;
+    let scheme = link::scheme(build_identity::current().channel);
+    if !open_link::is_project_link(url, scheme) {
+        return false;
+    }
+    let Some(target) = open_link::parse(url, scheme) else {
+        return true;
+    };
+    let open_in = |handle: AnyWindowHandle, shell: Entity<Shell>, cx: &mut App| {
+        let (project, session) = (target.project.clone(), target.session.clone());
+        let _ = handle.update(cx, |_, window, cx| {
+            window.activate_window();
+            shell.update(cx, |s, cx| s.open_cloud_link(project, session, window, cx));
+        });
+        cx.activate(true);
+    };
+    if let Some((handle, shell)) = live(cx)
+        .into_iter()
+        .find(|(_, shell)| shell.read(cx).shows_cloud_project(&target.project, cx))
+    {
+        open_in(handle, shell, cx);
+        return true;
+    }
+    let front = active(cx).filter(|(_, shell)| shell.read(cx).on_home(cx));
+    let Some((handle, shell)) = front.or_else(|| {
+        let handle = open(None, cx).ok()?;
+        live(cx).into_iter().find(|(h, _)| *h == handle)
+    }) else {
+        return true;
+    };
+    open_in(handle, shell, cx);
+    true
+}
 /// `isDesktopReturnUrl`: the channel's own `<scheme>://open` brings the app
 /// forward. A cold launch makes its first window anyway, so the link adds
 /// nothing then.
@@ -513,6 +555,10 @@ pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) -> bool {
     let mut shown = false;
     for url in urls {
         if open_template_link(&url, cx) {
+            shown = true;
+            continue;
+        }
+        if open_project_link(&url, cx) {
             shown = true;
             continue;
         }
@@ -617,10 +663,10 @@ pub fn parse_launch_args(
 /// link shows its card; a file opens in its file window, a folder in a new
 /// window; otherwise (or when that fails) a window comes forward.
 pub fn second_instance(args: Vec<std::ffi::OsString>, cwd: PathBuf, cx: &mut App) {
-    if args
-        .iter()
-        .any(|arg| open_template_link(&arg.to_string_lossy(), cx))
-    {
+    if args.iter().any(|arg| {
+        let arg = arg.to_string_lossy();
+        open_template_link(&arg, cx) || open_project_link(&arg, cx)
+    }) {
         return;
     }
     let parsed = parse_launch_args(args, &cwd);

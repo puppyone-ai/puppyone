@@ -247,6 +247,7 @@ impl Runtime {
                         moved: vec![],
                         removed: vec![],
                         select: None,
+                        import: None,
                         error: Some(error),
                     },
                 ));
@@ -288,6 +289,7 @@ impl Runtime {
                         moved: vec![],
                         removed: vec![],
                         select: None,
+                        import: None,
                         error: Some(error),
                     },
                 ));
@@ -315,6 +317,7 @@ impl Runtime {
                         moved: vec![],
                         removed: vec![],
                         select: None,
+                        import: None,
                         error: Some(
                             "File operation interrupted; the affected documents remain protected"
                                 .into(),

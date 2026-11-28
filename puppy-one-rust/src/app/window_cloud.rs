@@ -19,13 +19,13 @@ use super::{
     project_place::Disconnect,
     session::SessionView,
 };
-use crate::features::cloud::CloudAgents;
 use crate::features::cloud::CloudCatalog;
 use crate::features::cloud::CloudPublish;
 use crate::features::cloud::CloudScreen;
 use crate::features::cloud::CloudScreenEvent;
 use crate::features::cloud::RepositoryCloud;
 use crate::features::cloud::ScreenLayout;
+use crate::features::cloud::{CloudAgents, CloudChats};
 use crate::features::settings::{Page, PreferencesStore};
 use crate::features::source_control::SourceControl;
 use crate::workspace::cloud::opening::Failure;
@@ -72,6 +72,11 @@ pub(super) struct WindowCloud {
     pub repository: Entity<RepositoryCloud>,
     /// Who is in the hosted Project (`useWorkspaceAgents`).
     pub agents: Entity<CloudAgents>,
+    /// The hosted Project's chats (Telegram, Slack, WeCom).
+    pub chats: Entity<CloudChats>,
+    pub(super) chat_inputs: super::cloud_agents_ui::ChatInputs,
+    /// The line just copied in the chat steps ("Copied").
+    pub(super) chat_copied: Option<String>,
     /// Cloud Computer Screen (`CloudComputerScreen.tsx`).
     pub screen: Entity<CloudScreen>,
     pub agents_anchor: AgentsAnchor,
@@ -113,6 +118,22 @@ pub(super) struct WindowCloud {
     pub(super) create_space: Option<super::create_space::CreateSpace>,
     /// `CloudSignInDialog`, while it is open.
     pub(super) sign_in: Option<sign_in::SignInDialog>,
+    /// What the last drop into the hosted Project did, while it shows.
+    import_notice: Option<ImportNotice>,
+    import_generation: u64,
+}
+
+/// How long a drop's notice stays unless it is being read.
+const IMPORT_NOTICE_LIFETIME: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// The notice a drop into a hosted Project leaves.
+struct ImportNotice {
+    generation: u64,
+    imported: usize,
+    failed: usize,
+    hovered: bool,
+    /// Its time ran out while the pointer was on it.
+    expired: bool,
 }
 impl EventEmitter<CloudEvent> for WindowCloud {}
 
@@ -150,6 +171,9 @@ impl WindowCloud {
             .detach();
         let agents = cx.new(|_| CloudAgents::new());
         cx.observe(&agents, |s, _, cx| s.refresh(cx)).detach();
+        let chats = cx.new(|_| CloudChats::new());
+        cx.observe(&chats, |s, _, cx| s.refresh(cx)).detach();
+        let chat_inputs = super::cloud_agents_ui::ChatInputs::new(window, cx);
         let screen = cx.new(|cx| CloudScreen::new(preferences.clone(), window, cx));
         cx.subscribe(&screen, |_, _, event: &CloudScreenEvent, cx| match event {
             CloudScreenEvent::WakeWorkspace => cx.emit(CloudEvent::WakeWorkspace),
@@ -185,9 +209,11 @@ impl WindowCloud {
         // A hidden window is not polled for its Agents, and catches up
         // when it returns.
         let hidden = agents.downgrade();
+        let hidden_chats = chats.downgrade();
         window
             .observe_window_visibility(move |visibility, _, cx| {
                 let _ = hidden.update(cx, |a, cx| a.set_visible(visibility.is_visible(), cx));
+                let _ = hidden_chats.update(cx, |c, cx| c.set_visible(visibility.is_visible(), cx));
             })
             .detach();
         Self {
@@ -203,6 +229,9 @@ impl WindowCloud {
             publish_reported: None,
             repository,
             agents,
+            chats,
+            chat_inputs,
+            chat_copied: None,
             screen,
             agents_anchor: Default::default(),
             agents_panel: false,
@@ -222,6 +251,8 @@ impl WindowCloud {
             recovery_copied: false,
             create_space: None,
             sign_in: None,
+            import_notice: None,
+            import_generation: 0,
         }
     }
     /// What the window shows changed.
@@ -582,6 +613,168 @@ impl WindowCloud {
         self.recovery = Some((project, failure));
         self.recovery_copied = false;
         self.open_dialog(DialogKey::CloudRecovery, cx);
+    }
+
+    // --------------------------------------------------------- dropped files
+    /// A drop into the hosted Project finished: say how many files came in
+    /// and how many did not, once per drop.
+    pub(in crate::app) fn files_imported(
+        &mut self,
+        imported: usize,
+        failed: usize,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if imported + failed == 0 {
+            return;
+        }
+        self.import_generation += 1;
+        let generation = self.import_generation;
+        self.import_notice = Some(ImportNotice {
+            generation,
+            imported,
+            failed,
+            hovered: false,
+            expired: false,
+        });
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(IMPORT_NOTICE_LIFETIME).await;
+            let _ = this.update(cx, |s, cx| s.import_notice_timeout(generation, cx));
+        })
+        .detach();
+        cx.notify();
+    }
+    fn import_notice_timeout(&mut self, generation: u64, cx: &mut Context<Self>) {
+        match &mut self.import_notice {
+            Some(n) if n.generation == generation && n.hovered => n.expired = true,
+            Some(n) if n.generation == generation => self.import_notice = None,
+            _ => return,
+        }
+        cx.notify();
+    }
+    pub(in crate::app) fn import_notice_hover(&mut self, over: bool, cx: &mut Context<Self>) {
+        let Some(n) = &mut self.import_notice else {
+            return;
+        };
+        n.hovered = over;
+        if !over && n.expired {
+            self.import_notice = None;
+        }
+        cx.notify();
+    }
+    /// The drop's notice, in the paste-complete notice's corner.
+    pub(in crate::app) fn import_notice_stack(
+        &self,
+        width: f32,
+        explorer: f32,
+        cx: &App,
+    ) -> Option<crate::ui::components::NoticeStack> {
+        use crate::localization::{t, tf};
+        use crate::ui::components::{
+            FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
+        };
+        let n = self.import_notice.as_ref()?;
+        let mut parts = vec![];
+        if n.imported > 0 {
+            parts.push(tf(
+                "native.cloudImport.added",
+                &[("count", n.imported.into())],
+            ));
+        }
+        if n.failed > 0 {
+            parts.push(tf(
+                "native.cloudImport.failed",
+                &[("count", n.failed.into())],
+            ));
+        }
+        // Chat apps: a manager is offered the chat that can see the files now,
+        // or to put the project in one. Others, and partial failures, get the count.
+        let chats = self.chats.read(cx);
+        let mut action = None;
+        if n.failed == 0 && chats.can_manage && chats.available() {
+            let in_chats: Vec<_> = chats
+                .active()
+                .map(|c| (c.id.clone(), super::cloud_agents_ui::chat_title(c)))
+                .collect();
+            let host = self.weak.clone();
+            let (line, label, target) = match in_chats.as_slice() {
+                [] => (
+                    t("native.chatApps.importAsk").to_string(),
+                    "native.chatApps.addToChat",
+                    None,
+                ),
+                [(id, name)] => (
+                    tf(
+                        "native.chatApps.importSee",
+                        &[("chat", name.clone().into())],
+                    ),
+                    "native.chatApps.open",
+                    Some(Some(id.clone())),
+                ),
+                many => (
+                    tf(
+                        "native.chatApps.importSee",
+                        &[(
+                            "chat",
+                            tf(
+                                "native.chatApps.chatsCount",
+                                &[("n", many.len().to_string().into())],
+                            )
+                            .into(),
+                        )],
+                    ),
+                    "native.chatApps.open",
+                    Some(None),
+                ),
+            };
+            parts.push(line);
+            action = Some(NoticeAction::new(
+                "cloud-import-chat",
+                t(label),
+                move |window, cx| {
+                    let target = target.clone();
+                    let _ = host.update(cx, |s, cx| {
+                        s.import_notice = None;
+                        match target {
+                            // Several chats: the roster, where they all are.
+                            Some(None) => s.open_chat_roster(window, cx),
+                            Some(chat) => s.open_chat(chat, window, cx),
+                            None => s.open_chat(None, window, cx),
+                        }
+                    });
+                },
+            ));
+        }
+        let weak = self.weak.clone();
+        let hover = self.weak.clone();
+        let notice = FloatingNotice::new("cloud-import-notice", parts.join(" "))
+            .tone(if n.failed > 0 {
+                NoticeTone::Warning
+            } else {
+                NoticeTone::Success
+            })
+            .on_hover(move |over, _, cx| {
+                let _ = hover.update(cx, |s, cx| s.import_notice_hover(over, cx));
+            })
+            .on_dismiss(move |_, cx| {
+                let _ = weak.update(cx, |s, cx| {
+                    s.import_notice = None;
+                    cx.notify();
+                });
+            });
+        let notice = match action {
+            Some(action) => notice.action(action),
+            None => notice,
+        };
+        Some(
+            NoticeStack::new(
+                NoticePlacement::BottomEnd,
+                16.,
+                16.,
+                (width - explorer - 40.).min(400.),
+            )
+            .child(notice),
+        )
     }
 
     // ----------------------------------------------------------------- links

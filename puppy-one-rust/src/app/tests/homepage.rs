@@ -1496,10 +1496,13 @@ fn the_first_homepage_waits_for_the_session_and_the_whole_list(cx: &mut TestAppC
         s.home.update(cx, |h, _| h.relaunch_first_paint())
     });
     std::thread::sleep(std::time::Duration::from_millis(20));
-    draw(cx);
+    // The session is still restoring when the list is looked at, whatever
+    // the account fixture settled to in the background meanwhile.
+    set(cx, Status::Restoring);
     assert!(
         held(cx),
-        "signed out is not yet known while the session restores"
+        "signed out is not yet known while the session restores: {}",
+        view.read_with(cx, |s, cx| s.home.read(cx).first_paint_state(cx))
     );
     set(cx, Status::Authenticated);
     settle_cloud(&view, cx, "the whole list", &|s, cx| {

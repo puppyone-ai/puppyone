@@ -8,7 +8,7 @@ use super::*;
 use crate::ui::components::Dialog;
 
 /// The roster meets each Agent as itself, larger than in the Header.
-const TILE_MARK: f32 = 48.;
+pub(super) const TILE_MARK: f32 = 48.;
 /// `minmax(112px, 1fr)` with `gap: 8px 4px`.
 const TILE_MIN: f32 = 112.;
 const TILE_GAP: f32 = 4.;
@@ -42,9 +42,19 @@ impl WindowCloud {
         let host = self.weak.clone();
         let project = agents.project_name().unwrap_or_default().to_owned();
         let inviting = agents.invite_open;
+        let chats = self.chats.read(cx);
+        let adding_chat = chats.flow.is_some();
+        let managed = chats.managed().cloned();
         let change_failed = agents.change_failed || agents.decision_failed;
         // The title on the project's name, as the invite's mockup sets it:
         // 15px at 600 beside the name at the dialog's 13px.
+        let title = if adding_chat {
+            "native.chatApps.addTitle"
+        } else if inviting {
+            "native.agentInvite.title"
+        } else {
+            "cloud.share.agent.title"
+        };
         let heading = h_flex()
             .items_baseline()
             .gap(px(8.))
@@ -60,11 +70,7 @@ impl WindowCloud {
                     .line_height(px(22.5))
                     .font_weight(FontWeight::SEMIBOLD)
                     .text_color(t.text)
-                    .child(tr(if inviting {
-                        "native.agentInvite.title"
-                    } else {
-                        "cloud.share.agent.title"
-                    })),
+                    .child(tr(title)),
             )
             .child(
                 div()
@@ -74,7 +80,15 @@ impl WindowCloud {
                     .text_color(t.subtle)
                     .child(project),
             );
-        let body = if inviting {
+        let heading = match &managed {
+            Some(chat) => self.chat_heading(chat, cx),
+            None => heading.into_any_element(),
+        };
+        let body = if let Some(chat) = &managed {
+            self.chat_manage(chat, cx)
+        } else if adding_chat {
+            self.chat_flow(cx)
+        } else if inviting {
             self.invite_flow(cx)
         } else {
             v_flex()
@@ -83,6 +97,7 @@ impl WindowCloud {
                 .gap(px(6.))
                 .min_w_0()
                 .child(self.roster(cx))
+                .children(self.chat_note(cx))
                 .when(change_failed, |d| {
                     d.child(
                         div()
@@ -112,6 +127,7 @@ impl WindowCloud {
         let agents = self.agents.read(cx);
         let (_, width) = columns(ROSTER_WIDTH);
         let requests = agents.requests.clone();
+        let manageable = agents.manageable;
         let mut sorted = agents.agents.clone();
         sorted.sort_by_key(|a| !a.active);
         let mut tiles: Vec<AnyElement> = requests
@@ -119,7 +135,11 @@ impl WindowCloud {
             .map(|r| self.asking_tile(r, width, cx))
             .collect();
         tiles.extend(sorted.iter().map(|a| self.agent_tile(a, width, cx)));
-        tiles.push(self.invite_seat(width, cx));
+        if manageable {
+            tiles.push(self.invite_seat(width, cx));
+        }
+        // A chat is a tile like an Agent; "Add to chat" sits beside the invite.
+        tiles.extend(self.chat_tiles(width, cx));
         div()
             .w(px(ROSTER_WIDTH))
             .pb(px(4.))
@@ -130,7 +150,7 @@ impl WindowCloud {
             .children(tiles)
     }
     /// `.desktop-cloud-agent-tile`.
-    fn tile(id: SharedString, width: f32) -> Stateful<Div> {
+    pub(super) fn tile(id: SharedString, width: f32) -> Stateful<Div> {
         let group = id.to_string();
         v_flex()
             .id(id.clone())
@@ -146,7 +166,7 @@ impl WindowCloud {
             .pb(px(10.))
             .rounded(px(12.))
     }
-    fn tile_name(name: String, t: Theme) -> Div {
+    pub(super) fn tile_name(name: String, t: Theme) -> Div {
         div()
             .max_w_full()
             .text_center()

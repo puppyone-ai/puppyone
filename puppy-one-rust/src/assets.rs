@@ -144,6 +144,7 @@ embedded! {
     "icons" / "mcp-logo.svg",
     "icons" / "message-circle.svg",
     "icons" / "message-square.svg",
+    "icons" / "message-square-plus.svg",
     "icons" / "minus.svg",
     "icons" / "monitor.svg",
     "icons" / "moon.svg",
@@ -266,7 +267,10 @@ embedded! {
     "integrations" / "google-drive.svg",
     "integrations" / "notion.svg",
     "integrations" / "obsidian.svg",
+    "integrations" / "slack.png",
     "integrations" / "slack.svg",
+    "integrations" / "telegram.svg",
+    "integrations" / "wecom.png",
     "integrations" / "wecom.svg",
 }
 pub struct Assets;
@@ -343,7 +347,13 @@ mod tests {
                     continue;
                 }
                 let text = std::fs::read_to_string(&path).unwrap();
-                for pattern in ["icon(\"", "icon_sized(\"", "menu_icon(\"", "icon_stroke(\""] {
+                for pattern in [
+                    "icon(\"",
+                    "icon_sized(\"",
+                    "menu_icon(\"",
+                    "icon_stroke(\"",
+                    "Icon::new(\"",
+                ] {
                     for (index, _) in text.match_indices(pattern) {
                         let rest = &text[index + pattern.len()..];
                         let Some(end) = rest.find('"') else { continue };

@@ -345,6 +345,21 @@ impl RightSidebar {
         cx.notify();
     }
 
+    /// A link's hosted Agent conversation: the Agent surface opens on it.
+    pub fn open_hosted_session(
+        &mut self,
+        session: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.surface = Surface::Agent;
+        self.store(cx);
+        self.set_open(true, cx);
+        self.launcher
+            .update(cx, |l, cx| l.open_hosted_session(session, window, cx));
+        cx.notify();
+    }
+
     // ------------------------------------------------------- Header entries
     /// ⌘J and the Agent entry (`handleToggleAgentWorkbench`): close the
     /// Agent when it shows, else show it.

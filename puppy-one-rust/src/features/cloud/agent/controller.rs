@@ -144,6 +144,35 @@ impl Hub {
             hub.notify_all();
         });
     }
+    /// The Project this Hub serves.
+    pub fn project(&self) -> &str {
+        &self.client.project
+    }
+    /// The conversation `id` a link names, when this person can read it
+    /// (`GET /agents/sessions/{id}/runs` is the Cloud's own check): `done`
+    /// gets it, or `None` when it is unknown, not theirs or unreachable.
+    /// Reads no transcript beyond the first run's prompt.
+    pub fn resolve_session(
+        self: &Arc<Self>,
+        id: String,
+        done: Box<dyn FnOnce(Option<Session>) + Send>,
+    ) {
+        let hub = self.clone();
+        std::thread::spawn(move || {
+            let found = hub.client.runs(&id).ok().and_then(|runs| {
+                let first = runs.first()?;
+                Some(Session {
+                    id: id.clone(),
+                    agent_id: first.agent_id.clone(),
+                    title: Some(first.prompt.chars().take(80).collect::<String>())
+                        .filter(|t| !t.is_empty()),
+                    mode: "cloud_pi".into(),
+                    updated_at: runs.last()?.updated_at.clone(),
+                })
+            });
+            done(found);
+        });
+    }
     /// `getHistory()`.
     pub fn history(&self) -> CloudHistory {
         self.history.lock().unwrap().clone()
